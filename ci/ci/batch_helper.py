@@ -6,13 +6,6 @@ from .ci_logging import log
 from .git_state import FQSHA
 
 
-def try_to_cancel_job(job):
-    try:
-        job.cancel()
-    except requests.exceptions.HTTPError as e:
-        log.warning(f'could not cancel job {job.id} due to {e}')
-
-
 def try_to_delete_job(job):
     try:
         job.delete()
