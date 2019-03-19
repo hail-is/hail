@@ -1,19 +1,23 @@
 import jwt
 
+
 class JWTClient:
+    __ALGORITHM = 'HS256'
+
     def __init__(self, secret_key):
         self.secret_key = secret_key
 
     def jwt_decode(self, token):
         if token is None:
             return None
-        return jwt.decode(token, self.secret_key, algorithms=['HS256'])
+        return jwt.decode(
+            token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])
 
     def jwt_encode(self, payload):
-        return jwt.encode(payload, self.secret_key, algorithm='HS256')
+        return jwt.encode(
+            payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
+
 
 def get_domain(host):
     parts = host.split('.')
-    p_len = len(parts)
-
-    return f"{parts[p_len - 2]}.{parts[p_len - 1]}"
+    return f"{parts[-2]}.{parts[-1]}"
