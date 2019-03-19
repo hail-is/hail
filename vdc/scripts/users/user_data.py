@@ -108,11 +108,14 @@ def create_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='de
 
 
 def delete_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='default'):
-    status = delete_all(existing, google_project, kube_namespace)
-    found = Table().delete(user_id)
+    table = Table()
+    existing = table.get(user_id)
 
-    if status == 404 and found is False:
+    if existing is None:
         return 404
+
+    delete_all(existing, google_project, kube_namespace)
+    Table().delete(user_id)
 
 
 if __name__ == "__main__":
