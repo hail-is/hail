@@ -12,7 +12,7 @@ import scala.collection.mutable
 
 object Emit {
 
-  type Literals = Array[((PType, Any), Variable)]
+  type ExpectedLiterals = Array[((PType, Any), Variable)]
 
   def noContext(fb: FunctionBuilder, x: ir.IR): EmitTriplet = {
     val emitter = new Emitter(fb, nSpecialArgs = 0, SparkFunctionContext(fb))
@@ -23,7 +23,7 @@ object Emit {
     res
   }
 
-  def apply(fb: FunctionBuilder, x: ir.IR): (EmitTriplet, Array[(String, (Array[Byte], NativeModule))], Literals) = {
+  def apply(fb: FunctionBuilder, x: ir.IR): (EmitTriplet, Array[(String, (Array[Byte], NativeModule))], ExpectedLiterals) = {
     val emitter = new Emitter(fb, 1, SparkFunctionContext(fb))
     val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
     val mods = emitter.modules.result()

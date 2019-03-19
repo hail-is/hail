@@ -13,11 +13,11 @@ import scala.reflect.classTag
 
 object Compile {
 
-  type Literals = (PTuple, CodecSpec => Array[Byte])
+  type EncodedLiterals = (PTuple, CodecSpec => Array[Byte])
 
   val defaultSpec: CodecSpec = CodecSpec.defaultUncompressed
 
-  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, (Array[Byte], NativeModule))], Literals) = {
+  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, (Array[Byte], NativeModule))], EncodedLiterals) = {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
@@ -58,7 +58,7 @@ object Compile {
 
     val ctxLit = s"${ fb.getArg(0).name }.literals_"
     val litSetup = Array.tabulate(literals.length) { i =>
-      litvars(i).defineWith( litType.cxxLoadField(ctxLit, i) )
+      litvars(i).defineWith(litType.cxxLoadField(ctxLit, i))
     }.mkString("\n")
 
     fb +=
@@ -70,12 +70,10 @@ object Compile {
          |return ${ v.v };
          |""".stripMargin
 
-
-
     (fb.end(), mods, (litType, f))
   }
 
-  def makeEntryPoint(tub: TranslationUnitBuilder, literals: Literals, fname: String, argTypes: PType*): Array[Byte] = {
+  def makeEntryPoint(tub: TranslationUnitBuilder, literals: EncodedLiterals, fname: String, argTypes: PType*): Array[Byte] = {
     val nArgs = argTypes.size
     val rawArgs = ("long jregion" +: Array.tabulate(nArgs)(i => s"long v$i")).mkString(", ")
     val sparkFunctionContext = "SparkFunctionContext(region, sparkUtils, lit_ptr)"
