@@ -26,7 +26,7 @@ class Table:
 
             secrets['user'] = Table.getSecret(data['user'])
             secrets['password'] = Table.getSecret(data['password'])
-            secrets['db'] = Table.getSecret(data['db'])
+            secrets['database'] = Table.getSecret(data['db'])
             secrets['host'] = host
         except kube_client.rest.ApiException as e:
             print(e)
@@ -46,19 +46,31 @@ class Table:
 
         cursor.execute("SELECT * FROM user_data WHERE user_id=%s", (user_id,))
         res = cursor.fetchone()
-
         cursor.close()
 
         return res
 
-    def insert(self, user_id, gsa_name, ksa_name, bucket_name):
+    def insert(self, user_id, gsa_projectId, gsa_email, ksa_name, bucket_name):
         cursor = self.cnx.cursor()
         cursor.execute(
             """
             INSERT INTO user_data
-                (user_id, gsa_name, ksa_name, bucket_name)
-                VALUES (%s, %s, %s, %s)
-            """, (user_id, gsa_name, ksa_name, bucket_name))
+                (user_id, gsa_projectId, gsa_email, ksa_name, bucket_name)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user_id, gsa_projectId, gsa_email, ksa_name, bucket_name))
+        self.cnx.commit()
+
+        cnt = cursor.rowcount
+
+        cursor.close()
+
+        return cnt == 1
+
+
+    def delete(self, user_id):
+        cursor = self.cnx.cursor()
+        cursor.execute("DELETE FROM user_data WHERE user_id=%s", (user_id,))
+
         self.cnx.commit()
 
         cnt = cursor.rowcount

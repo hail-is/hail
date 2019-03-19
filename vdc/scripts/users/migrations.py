@@ -7,7 +7,7 @@ class MigrateTable(Table):
         secrets = Table.getSecrets()
 
         if not secrets:
-            raise "Couldn't read user-secrets"
+            raise "Couldn't read secrets"
 
         self.cnx = mysql.connector.connect(
             host=secrets['host'],
@@ -25,7 +25,8 @@ class MigrateTable(Table):
                 CREATE TABLE IF NOT EXISTS user_data (
                     id INT NOT NULL AUTO_INCREMENT,
                     user_id VARCHAR(255) NOT NULL,
-                    gsa_name VARCHAR(255) NOT NULL,
+                    gsa_projectId VARCHAR(255) NOT NULL,
+                    gsa_email VARCHAR(255) NOT NULL,
                     ksa_name VARCHAR(255) NOT NULL,
                     bucket_name VARCHAR(255) NOT NULL,
                     PRIMARY KEY (id),
