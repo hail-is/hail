@@ -27,6 +27,7 @@ check: $(PY_CHECKERS)
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
+	cp -R ../hailjwt/ hailjwt/
 	docker build -t batch --cache-from batch,$(BATCH_LATEST),base,ubuntu:18.04 .
 
 build-test:
@@ -62,11 +63,13 @@ ifneq ($(PY_CHECK),false)
 test-local: check
 endif
 test-local:
+	cd ../hailjwt && python setup.py install
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: check
+	cd ../hailjwt && python setup.py install
 	POD_NAMESPACE='test' ./test-locally.sh
 
 deploy: push
@@ -78,4 +81,5 @@ deploy: push
 	kubectl -n default apply -f deployment.yaml
 
 clean:
+	rm -rf hailjwt
 	rm -f $(PY_CHECKERS)

@@ -9,3 +9,4 @@ flycheck_*.py
 *.pyc
 **/__pycache__
 *-stmp
+/hailjwt
