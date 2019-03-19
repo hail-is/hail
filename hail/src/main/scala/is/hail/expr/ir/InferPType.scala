@@ -62,17 +62,17 @@ object InferPType {
         val et = coerce[PArray](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>
-        val et = coerce[PIterable](a.pType).elementType
-        PSet(et, a.pType.required)
+        val elt = coerce[PIterable](a.pType).elementType
+        PSet(elt, a.pType.required)
       case ToDict(a) =>
         val elt = coerce[PBaseStruct](coerce[PIterable](a.pType).elementType)
         PDict(elt.types(0), elt.types(1), a.pType.required)
       case ToArray(a) =>
-        val et = coerce[PIterable](a.pType).elementType
-        PArray(et, a.pType.required)
+        val elt = coerce[PIterable](a.pType).elementType
+        PArray(elt, a.pType.required)
       case ToStream(a) =>
-        val et = coerce[PIterable](a.pType).elementType
-        PStream(et, a.pType.required)
+        val elt = coerce[PIterable](a.pType).elementType
+        PStream(elt, a.pType.required)
       case GroupByKey(collection) =>
         val elt = coerce[PBaseStruct](coerce[PArray](collection.pType).elementType)
         // FIXME requiredness

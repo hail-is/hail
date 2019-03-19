@@ -73,11 +73,11 @@ object InferType {
         val elt = coerce[TBaseStruct](coerce[TIterable](a.typ).elementType)
         TDict(elt.types(0), elt.types(1), a.typ.required)
       case ToArray(a) =>
-        val et = coerce[TIterable](a.typ).elementType
-        TArray(et, a.typ.required)
+        val elt = coerce[TIterable](a.typ).elementType
+        TArray(elt, a.typ.required)
       case ToStream(a) =>
-        val et = coerce[TIterable](a.typ).elementType
-        TStream(et, a.typ.required)
+        val elt = coerce[TIterable](a.typ).elementType
+        TStream(elt, a.typ.required)
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
