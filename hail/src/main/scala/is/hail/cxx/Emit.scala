@@ -823,6 +823,63 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
+      case ir.MakeNDArray(data, shape, rowMajor) =>
+        val dataContainer = data.pType.asInstanceOf[PContainer]
+        val elemPType = dataContainer.elementType
+        val shapeContainer = shape.pType.asInstanceOf[PContainer]
+        val datat = emit(data)
+        val shapet = emit(shape)
+        val rowMajort = emit(rowMajor)
+
+        val elemSize = elemPType.byteSize
+        val flags = fb.variable("flags", "int", s"${rowMajort.v} ? 1 : 0")
+        val shapeVec = fb.variable("shapeVec", "std::vector<long>",
+          s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
+        val dataArr = fb.variable("dataArr", "const char *", datat.v)
+        present(
+          s"""
+             |({
+             | ${ rowMajort.setup }
+             | ${ shapet.setup }
+             | ${ datat.setup }
+             | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             | }
+             |
+             | ${ flags.define }
+             | ${ shapeVec.define }
+             | ${ dataArr.define }
+             | if (n_elements($shapeVec) != load_length($dataArr)) {
+             |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
+             | }
+             |
+             | make_ndarray($flags, $elemSize, $shapeVec, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             |})
+             |""".stripMargin)
+
+      case ir.NDArrayRef(nd, idxs) =>
+        fb.translationUnitBuilder().include("hail/NDArray.h")
+        val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
+        val idxsContainer = idxs.pType.asInstanceOf[PContainer]
+
+        val ndt = emit(nd)
+        val idxst = emit(idxs)
+
+        val idxsVec = fb.variable("idxsVec", "std::vector<long>",
+          s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
+        present(
+          s"""
+             |({
+             | ${ ndt.setup }
+             | ${ idxst.setup }
+             | if (${ ndt.m } || ${ idxst.m }) {
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             | }
+             |
+             | ${ idxsVec.define }
+             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, $idxsVec));
+             |})
+             |""".stripMargin)
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }

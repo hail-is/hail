@@ -4,9 +4,31 @@
 #include <exception>
 #include <string>
 #include <cstdarg>
+#include <vector>
+#include <iostream>
 
 #define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
 #define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
+
+struct FatalError: public std::exception {
+  private:
+    static constexpr int max_error_len = 4 * 1024;
+    std::string error_msg_;
+  public:
+    virtual const char * what() const throw() { return error_msg_.c_str(); }
+    virtual ~FatalError() throw() {}
+    explicit FatalError(const char * fmtstring, ...) : std::exception() {
+      char error_msg[max_error_len];
+      va_list args;
+      va_start(args, fmtstring);
+      vsnprintf(error_msg, max_error_len, fmtstring, args);
+      va_end(args);
+      error_msg_ = std::string("FatalError: ") + std::string(error_msg);
+    }
+};
+
+template<typename ElemT>
+ElemT load_element(char const* off) { return *reinterpret_cast<ElemT const*>(off); }
 
 inline char load_byte(char const* off) { return *off; }
 inline bool load_bool(char const* off) { return *off; }
@@ -93,6 +115,16 @@ public:
       return load_bit(a + 4, i);
   }
 
+  static bool has_missing_elements(const char *a) {
+    for (auto i = 0; i < load_length(a); ++i) {
+      if (is_element_missing(a, i)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   static constexpr int elements_offset(int len) {
     return round_up_alignment(4 + (elem_required ? 0 : n_missing_bytes(len)), elem_align);
   }
@@ -132,21 +164,19 @@ public:
   }
 };
 
-struct FatalError: public std::exception {
-  private:
-    static constexpr int max_error_len = 4 * 1024;
-    std::string error_msg_;
-  public:
-    virtual const char * what() const throw() { return error_msg_.c_str(); }
-    virtual ~FatalError() throw() {}
-    explicit FatalError(const char * fmtstring, ...) : std::exception() {
-      char error_msg[max_error_len];
-      va_list args;
-      va_start(args, fmtstring);
-      vsnprintf(error_msg, max_error_len, fmtstring, args);
-      va_end(args);
-      error_msg_ = std::string("FatalError: ") + std::string(error_msg);
-    }
-};
+template<typename ArrayImpl>
+std::vector<typename ArrayImpl::T> load_non_missing_vector(const char *data) {
+  if (ArrayImpl::has_missing_elements(data)) {
+    throw new FatalError("Tried to construct non-missing vector with missing data");
+  }
+
+  int length = load_length(data);
+  std::vector<typename ArrayImpl::T> vec(length);
+  for (int i = 0; i < length; ++i) {
+    vec[i] = ArrayImpl::load_element(data, i);
+  }
+
+  return vec;
+}
 
 #endif
