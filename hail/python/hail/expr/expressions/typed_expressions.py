@@ -801,6 +801,14 @@ class ArrayNumericExpression(ArrayExpression):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
 
+class NDArrayExpression(CollectionExpression):
+
+    def __getitem__(self, item):
+        # Explicitly creating IRs that are supported in CxxCompile
+        idxs = ir.MakeArray([ir.I64(idx) for idx in item], ir.tarray(ir.tint64))
+        return construct_expr(ir.NDArrayRef(self._ir, idxs), self._type.element_type)
+
+
 class SetExpression(CollectionExpression):
     """Expression of type :class:`.tset`.
 
@@ -2994,7 +3002,8 @@ typ_to_expr = {
     tarray: ArrayExpression,
     tset: SetExpression,
     tstruct: StructExpression,
-    ttuple: TupleExpression
+    ttuple: TupleExpression,
+    tndarray: NDArrayExpression
 }
 
 def apply_expr(f, result_type, *args):
