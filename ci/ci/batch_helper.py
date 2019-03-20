@@ -6,11 +6,11 @@ from .ci_logging import log
 from .git_state import FQSHA
 
 
-def try_to_cancel_job(job):
+def try_to_delete_job(job):
     try:
-        job.cancel()
+        job.delete()
     except requests.exceptions.HTTPError as e:
-        log.warning(f'could not cancel job {job.id} due to {e}')
+        log.warning(f'could not delete job {job.id} due to {e}')
 
 
 # job_ordering(x, y) > 0 if x is closer to finishing or has a larger id

@@ -2,7 +2,7 @@ import json
 
 from batch.client import Job
 
-from .batch_helper import short_str_build_job, try_to_cancel_job
+from .batch_helper import short_str_build_job, try_to_delete_job
 from .ci_logging import log
 from .constants import VERSION, DEPLOY_JOB_TYPE
 from .environment import \
@@ -323,7 +323,7 @@ class PRS(object):
         if expected_job.id != job.id:
             expected_target = FQSHA.from_json(json.loads(expected_job.attributes['target']))
             if expected_target == target:
-                try_to_cancel_job(expected_job)
+                try_to_delete_job(expected_job)
                 log.info(
                     f'proceeding with unexpected deploy job {job.id}, '
                     f'because targets matched: {target} {expected_target}. '
@@ -342,7 +342,7 @@ class PRS(object):
         else:
             log.info(f'deploy job {job.id} succeeded for {target.short_str()}')
             self.latest_deployed[target.ref] = target.sha
-        job.cancel()
+        job.delete()
 
     def refresh_from_deploy_jobs(self, jobs):
         lost_jobs = {target_ref for target_ref in self.deploy_jobs.keys()}
@@ -366,15 +366,15 @@ class PRS(object):
         elif state == 'Cancelled':
             log.info(f'refreshing from cancelled deploy job {job.id} {job.attributes}')
             del self.deploy_jobs[target.ref]
-            job.cancel()
+            job.delete()
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes}'
             existing_job = self.deploy_jobs[target.ref]
             if existing_job is None:
                 self.deploy_jobs[target.ref] = job
             elif existing_job.id != job.id:
-                log.info(f'found deploy job {job.id} other than mine {existing_job.id}, canceling')
-                job.cancel()
+                log.info(f'found deploy job {job.id} other than mine {existing_job.id}, deleting')
+                job.delete()
 
     def ci_build_finished(self, source, target, job):
         assert isinstance(job, Job), job
