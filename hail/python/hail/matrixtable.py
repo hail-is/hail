@@ -2373,9 +2373,10 @@ class MatrixTable(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None) -> 'MatrixTable':
+              _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'MatrixTable':
         """Checkpoint the matrix table to disk by writing and reading.
 
         Parameters
@@ -2407,7 +2408,8 @@ class MatrixTable(ExprContainer):
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
 
         """
-        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_matrix_table(output)
 
     @typecheck_method(output=str,
