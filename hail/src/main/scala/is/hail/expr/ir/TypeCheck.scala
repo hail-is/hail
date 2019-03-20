@@ -107,12 +107,14 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         assert(compare.typ.isOfType(TBoolean()))
       case x@ToSet(a) =>
-        assert(a.typ.isInstanceOf[TArray])
+        assert(a.typ.isInstanceOf[TIterable])
       case x@ToDict(a) =>
-        assert(a.typ.isInstanceOf[TArray])
-        assert(coerce[TBaseStruct](coerce[TArray](a.typ).elementType).size == 2)
+        assert(a.typ.isInstanceOf[TIterable])
+        assert(coerce[TBaseStruct](coerce[TIterable](a.typ).elementType).size == 2)
       case x@ToArray(a) =>
-        assert(a.typ.isInstanceOf[TContainer])
+        assert(a.typ.isInstanceOf[TIterable])
+      case x@ToStream(a) =>
+        assert(a.typ.isInstanceOf[TIterable])
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val elt = -coerce[TContainer](orderedCollection.typ).elementType
         assert(-elem.typ == (if (onKey) -coerce[TStruct](elt).types(0) else elt))

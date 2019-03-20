@@ -52,6 +52,8 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case ToStream(a) =>
+      Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>

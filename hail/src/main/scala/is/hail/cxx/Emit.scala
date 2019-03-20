@@ -505,6 +505,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.ToArray(a) =>
         emit(a)
 
+      case ir.ToStream(a) =>
+        emit(a)
+
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
         val containerPType = a.pType.asInstanceOf[PContainer]
         val ae = emitArray(resultRegion, a, env, sameRegion = false)
