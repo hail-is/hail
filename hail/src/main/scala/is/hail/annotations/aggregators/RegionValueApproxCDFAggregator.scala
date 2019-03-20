@@ -270,14 +270,12 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
 
     if (shiftLowerLevels) {
       if (sizeBelow > 1) {
-        // copy [bot, a) to [bot+halfSize, b)
         System.arraycopy(items, bot, items, bot + halfSize, sizeBelow)
       } else {
         // only needs to be done if sizeBelow == 1, but doesn't hurt otherwise
         items(b - 1) = items(bot)
       }
 
-      // shift up level boundaries below
       var lvl = 0
       while (lvl <= level) {
         levels(lvl) += halfSize
