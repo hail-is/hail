@@ -3003,7 +3003,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: StringLength(x), tint32, x)
+        return apply_expr(lambda x: Apply("length", x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 

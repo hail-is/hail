@@ -1257,8 +1257,6 @@ class IRSuite extends SparkSuite {
       GetField(s, "x"),
       MakeTuple(Seq(i, b)),
       GetTupleElement(t, 1),
-      StringSlice(str, I32(1), I32(2)),
-      StringLength(str),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),
       invoke("&&", b, c), // ApplySpecial

@@ -666,23 +666,6 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
-      case StringSlice(s, start, end) =>
-        val Array(maybeString, vstart: Int, vend: Int) =
-          Array(s, start, end).map(interpret(_, env, args, agg))
-        if (maybeString == null)
-          null
-        else {
-          val vs = maybeString.asInstanceOf[String]
-          val length = vs.length
-          var start_ = if (vstart < 0) vstart + length else vstart
-          start_ = math.min(math.max(start_, 0), length)
-          var end_ = if (vend < 0) vend + length else vend
-          end_ = math.min(math.max(end_, start_), length)
-          vs.substring(start_, end_)
-        }
-      case StringLength(s) =>
-        val vs = interpret(s).asInstanceOf[String]
-        if (vs == null) null else vs.getBytes().length
       case In(i, _) =>
         val (a, _) = args(i)
         a

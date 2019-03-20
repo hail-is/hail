@@ -29,8 +29,6 @@ object InferPType {
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
       case _: Begin => PVoid
-      case _: StringLength => PInt32()
-      case _: StringSlice => PString()
       case Die(_, t) => PType.canonical(t)
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
