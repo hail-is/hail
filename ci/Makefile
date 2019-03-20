@@ -34,7 +34,7 @@ test:
 		-e "s,@uuid@,$(UUID)," \
 		< test-pod.yaml.in > test-pod.yaml
 	kubectl apply -f test-pod.yaml --namespace batch-pods
-	../until-with-fuel 30 kubectl logs hail-ci-test-$(UUID) --namespace batch-pods
+	../until-with-fuel 120 kubectl logs hail-ci-test-$(UUID) --namespace batch-pods
 	kubectl logs -f hail-ci-test-$(UUID) --namespace batch-pods
 	kubectl delete pod hail-ci-test-$(UUID) --namespace batch-pods
 
