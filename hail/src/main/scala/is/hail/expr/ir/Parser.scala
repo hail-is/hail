@@ -1150,6 +1150,10 @@ object IRParser {
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
+      case "JavaMatrixVectorRef" =>
+        val id = int32_literal(it)
+        val idx = int32_literal(it)
+        HailContext.get.irVectors(id)(idx).asInstanceOf[MatrixIR]
     }
   }
 
