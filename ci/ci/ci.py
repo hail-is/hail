@@ -38,6 +38,11 @@ def handle_invalid_usage(error):
     return jsonify(error.data), error.status_code
 
 
+@app.route('/alive')
+def alive():
+    return 'yes', 200
+
+
 @app.route('/status')
 def status():
     return jsonify(prs.to_dict())

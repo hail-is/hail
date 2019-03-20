@@ -15,8 +15,10 @@ import aiohttp_jinja2
 import jinja2
 from aiohttp import web
 
+import hailjwt as hj
+
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event, jwtclient
+from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
 
@@ -64,11 +66,13 @@ log = make_logger()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
-POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
+HAIL_TEST_MODE = os.environ.get('HAIL_TEST_MODE')
+POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'test' if HAIL_TEST_MODE else 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
+log.info(f'HAIL_TEST_MODE {HAIL_TEST_MODE}')
 log.info(f'POD_NAMESPACE {POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 
@@ -448,10 +452,21 @@ class Job:
 
 
 authorized_users = {
-    0: 'ci@hail.is',
     1: 'akotlar@broadinstitute.org',
     2: 'pipeline@hail.is',
 }
+
+
+if HAIL_TEST_MODE:
+    log.warn('Starting in testing mode')
+    jwtclient = hj.TEST_CLIENT
+    authorized_users.update({
+        -3: 'pipeline-tests@hail.is',
+        -2: 'ci-tests@hail.is',
+        -1: 'batch-tests@hail.is'})
+else:
+    with open('jwt-key') as f:
+        jwtclient = hj.JWTClient(f.read())
 
 
 def authorized_users_only(fun):

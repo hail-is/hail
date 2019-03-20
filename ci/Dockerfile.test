@@ -1,0 +1,3 @@
+FROM hail-pr-builder
+COPY ci/ test/ test-repo/ setup-endpoints.sh www/ index.html generate-uid.sh test.sh Makefile ci/
+WORKDIR ci

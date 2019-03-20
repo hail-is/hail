@@ -4,6 +4,8 @@ import subprocess as sp
 import uuid
 import batch.client
 
+import hailjwt as hj
+
 from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
 from .utils import escape_string, flatten
 
@@ -153,7 +155,10 @@ class BatchBackend(Backend):
     """
 
     def __init__(self, url, headers):
-        self._batch_client = batch.client.BatchClient(url, headers=headers)
+        self._batch_client = batch.client.BatchClient(
+            url,
+            cookies={'user': hj.TEST_CLIENT.encode({
+                'id': -3, 'email': 'pipline-tests@hail.is'})})
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
         if dry_run:

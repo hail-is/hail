@@ -6,14 +6,16 @@ import batch
 from flask import Flask, Response, request
 import requests
 
+import hailjwt as hj
+
 from .serverthread import ServerThread
 
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.batch = batch.client.BatchClient(
-            url=os.environ.get('BATCH_URL'),
-            headers={'Hail-User': 'ci'})
+        userdata = hj.TEST_CLIENT.encode({'id': -1, 'email': 'batch-tests@hail.is'})
+        return batch.client.BatchClient(url=os.environ.get('BATCH_URL'),
+                                        cookies={'user': userdata})
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])

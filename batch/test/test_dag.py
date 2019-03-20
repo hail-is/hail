@@ -6,14 +6,17 @@ import re
 import requests
 from flask import Response
 
+import hailjwt as hj
 from batch.client import BatchClient
 
 from .serverthread import ServerThread
 
+
 @pytest.fixture
 def client():
+    userdata = hj.TEST_CLIENT.encode({'id': -1, 'email': 'batch-tests@hail.is'})
     return BatchClient(url=os.environ.get('BATCH_URL'),
-                       headers={'Hail-User': 'ci'})
+                       cookies={'user': userdata})
 
 
 def test_simple(client):

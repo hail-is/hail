@@ -1,7 +1,8 @@
 import json
 import os
-
 import uuid
+
+import hailjwt as hj
 from batch.api import API
 from batch.client import BatchClient
 
@@ -59,6 +60,7 @@ log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'CONTEXT = {CONTEXT}')
 
 
-batch_client = BatchClient(url=BATCH_SERVER_URL,
-                           timeout=5,
-                           cookies={'user': {'id': 0, 'email': 'ci@hail.is'}})
+batch_client = BatchClient(
+    url=BATCH_SERVER_URL,
+    timeout=5,
+    cookies={'user': hj.TEST_CLIENT.encode({'id': -2, 'email': 'ci@hail.is'})})

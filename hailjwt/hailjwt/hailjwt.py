@@ -37,3 +37,6 @@ class JWTClient:
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
+
+TEST_CLIENT = JWTClient('ci tests secret key with at least 256 bits')

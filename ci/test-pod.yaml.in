@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hail-ci-test-@uuid@
+  labels:
+    app: hail-ci-test
+    hail.is/sha: "@sha@"
+spec:
+  containers:
+    - name: hail-ci-test
+      image: @image@
+      command: ['make', 'ci-test']
+      env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+      resources:
+        requests:
+          cpu: 0.010
+          memory: 0.010G
+      volumeMounts:
+        - mountPath: /secrets
+          readOnly: true
+          name: hail-ci-0-1-service-account-key
+  tolerations:
+    - key: preemptible
+      value: "true"
+  volumes:
+    - name: hail-ci-0-1-service-account-key
+      secret:
+        secretName: hail-ci-0-1-service-account-key
+  serviceAccountName: test-svc
