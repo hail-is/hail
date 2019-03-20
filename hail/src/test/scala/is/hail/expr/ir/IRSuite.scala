@@ -948,8 +948,8 @@ class IRSuite extends SparkSuite {
 
     def data = 0 until 10
     def shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
-    def numbers = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
 
+    def numbers = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
     def negate = NDArrayMap(numbers, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
     assertEvalsTo(NDArrayRef(numbers, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
     assertEvalsTo(NDArrayRef(negate, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
@@ -958,6 +958,20 @@ class IRSuite extends SparkSuite {
     def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
     assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
     assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
+
+    def bools = MakeNDArray(
+      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())), shape, False())
+    def sameBools = NDArrayMap(bools, "e", Ref("e", TBoolean()))
+    def t = NDArrayRef(sameBools, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    def f = NDArrayRef(sameBools, MakeArray(FastSeq(0L, 1L), TArray(TInt64())))
+    assertEvalsTo(t, true)
+    assertEvalsTo(f, false)
+
+//    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+//    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+//    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 1L), TArray(TInt64())))
+//    assertEvalsTo(one, 1L)
+//    assertEvalsTo(zero, 0L)
   }
 
   @Test def testLeftJoinRightDistinct() {

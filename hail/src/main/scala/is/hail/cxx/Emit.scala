@@ -859,8 +859,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.NDArrayMap(child, elemName, body) =>
         val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val newElemPType = body.pType
+        val newDataContainer = PArray(newElemPType)
         val cxxElemType = typeToCXXType(elemPType)
-        val cxxNewElemType = typeToCXXType(body.pType)
 
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
@@ -869,29 +870,31 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyt = outer.emit(body,
           env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
 
-        val nElements = fb.variable("n_elements", "int", s"num_elements($nd)")
-        triplet(
-          s"""
-             | ${ ndt.setup }
-             | ${ bodyt.setup }
-           """.stripMargin,
-          "false",
+        val nElements = fb.variable("length", "long", s"n_elements($nd.shape)")
+        val sab = resultRegion.arrayBuilder(fb, newDataContainer)
+
+        present(
           s"""
              |({
-             | if (${ ndt.m } || ${ bodyt.m }) {
-             |   throw new FatalError("NDArray does not support missingness");
-             | }
-             |
              | ${ nd.define }
              | ${ nElements.define }
              | ${ elemRef.define }
-             | auto arr = new $cxxNewElemType[$nElements];
-             | for (auto i = 0; i < $nElements; ++i) {
-             |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
-             |   arr[i] = ${bodyt.v};
+             | ${ ndt.setup }
+             | ${ bodyt.setup }
+             |
+             | if (${ ndt.m } || ${ bodyt.m }) {
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
              | }
              |
-             | make_ndarray($nd.flags, ${elemPType.byteSize}, $nd.shape, reinterpret_cast<const char *>(arr));
+             | ${ sab.start(nElements.toString) }
+             | for (auto i = 0; i < $nElements; ++i) {
+             |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
+             |   ${ sab.add(bodyt.v) }
+             |   ${ sab.advance() }
+             | }
+             | const char *data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
+             |
+             | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, data);
              |})
            """.stripMargin)
 
