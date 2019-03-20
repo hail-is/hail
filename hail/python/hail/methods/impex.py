@@ -1,3 +1,5 @@
+import json
+
 from hail.typecheck import *
 from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
@@ -1756,7 +1758,7 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    
+
     return Env.backend().parse_vcf_metadata(path)
 
 
@@ -1996,7 +1998,7 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmirs = _cached_importvcfs.pyApply(
+    vector_ref_s = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),
@@ -2010,7 +2012,12 @@ def import_vcfs(path,
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None)
-    return [MatrixTable._from_java(jmir) for jmir in jmirs]
+    tmp = json.loads(vector_ref_s)
+    jir_vref = JIRVectorReference(tmp['vector_ir_id'],
+                                  tmp['length'],
+                                  hl.tmatrix._from_json(tmp['type']))
+
+    return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

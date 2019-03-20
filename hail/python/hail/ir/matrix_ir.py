@@ -254,7 +254,7 @@ class MatrixAggregateColsByKey(MatrixIR):
             child_typ.row_type,
             child_typ.row_key,
             self.entry_expr.typ)
-            
+
 
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):
@@ -278,7 +278,7 @@ class MatrixExplodeRows(MatrixIR):
             new_row_type,
             child_typ.row_key,
             child_typ.entry_type)
-            
+
 
 class MatrixRepartition(MatrixIR):
     def __init__(self, child, n, strategy):
@@ -483,3 +483,15 @@ class JavaMatrix(MatrixIR):
 
     def _compute_type(self):
         self._type = hl.tmatrix._from_java(self._jir.typ())
+
+class JavaMatrixVectorRef(MatrixIR):
+    def __init__(self, vec_ref, idx):
+        super().__init__()
+        self.vec_ref = vec_ref
+        self.idx = idx
+
+    def render(self, r):
+        return f'(JavaMatrixVectorRef {self.vec_ref.jid} {self.idx})'
+
+    def _compute_type(self):
+        self._type = self.vec_ref.item_type

@@ -236,7 +236,7 @@ class IRSuite extends SparkSuite {
     assertExpected(TInt32(), 5, null, null)
     assertExpected(TInt32(), null, 2, null)
     assertExpected(TInt32(), null, null, null)
-    
+
     assertExpected(TInt64(), 5L, 2L, 10L)
     assertExpected(TInt64(), 5L, null, null)
     assertExpected(TInt64(), null, 2L, null)
@@ -1378,7 +1378,7 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      
+
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
@@ -1530,6 +1530,17 @@ class IRSuite extends SparkSuite {
     val s = s"(JavaBlockMatrix __uid1)"
     val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
+  }
+
+  @Test def testContextSavedMatrixIR() {
+    val cached = MatrixTable.range(hc, 3, 8, None).ast
+    val id = hc.addIrVector(Array(cached))
+    val s = s"(JavaMatrixVectorRef $id 0)"
+    val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map.empty))
+    assert(cached eq x2)
+
+    is.hail.HailContext.pyRemoveIrVector(id)
+    assert(hc.irVectors.get(id) eq None)
   }
 
   @Test def testEvaluations() {
