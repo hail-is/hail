@@ -5,23 +5,19 @@
 
 PROJECT = $(shell gcloud config get-value project)
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
-PY_CHECKERS = build/flake8 build/pylint
+PY_CHECKERS = flake8-stmp pylint-stmp
 BATCH_PORT ?= 5000
 
 clean:
-	-rm -r build
+	rm -f $(PY_CHECKERS)
 
-build/conda-env: environment.yml
-	conda env update -f environment.yml || conda env create -f environment.yml
-	mkdir -p build && touch $@
+flake8-stmp: $(PY_FILES)
+       python -m flake8 batch
+       touch $@
 
-build/flake8: $(PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-batch && python -m flake8 batch
-	mkdir -p build && touch $@
-
-build/pylint: $(PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-batch && python -m pylint --rcfile batch/pylintrc batch --score=n
-	mkdir -p build && touch $@
+pylint-stmp: $(PY_FILES)
+       python -m pylint --rcfile batch/pylintrc batch --score=n
+       touch $@
 
 build:
 	make -C ../docker build
@@ -46,11 +42,11 @@ push-test: build-test
 run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
-run: build/conda-env
-	. ../loadconda && conda activate hail-batch && python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+run:
+	python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 run-local: run
-	. ../loadconda && conda activate hail-batch && BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+	BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
 	sed -e "s,@image@,$$(cat batch-test-image)," \
@@ -60,13 +56,13 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: $(PY_CHECKERS)
 endif
-test-local: build/conda-env
-	. ../loadconda && conda activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+test-local:
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: build/conda-env $(PY_CHECKERS)
-	. ../loadconda && conda activate hail-batch && POD_NAMESPACE='test' ./test-locally.sh
+test-local-in-cluster: $(PY_CHECKERS)
+	POD_NAMESPACE='test' ./test-locally.sh
 
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
