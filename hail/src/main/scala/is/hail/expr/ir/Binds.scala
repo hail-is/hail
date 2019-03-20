@@ -46,9 +46,9 @@ object AggBindings {
   private val empty: Array[(String, Type)] = Array()
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
-    case AggLet(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
-    case AggExplode(a, name, _) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
-    case AggArrayPerElement(a, name, _) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case AggLet(name, value, _, false) => if (i == 1) Array(name -> value.typ) else empty
+    case AggExplode(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case AggArrayPerElement(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
     case ArrayAgg(a, name, _) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.entryEnv.m else empty
@@ -62,37 +62,71 @@ object AggBindings {
   }
 }
 
-object ChildEnvWithoutBindings {
-  private val empty = (Env.empty[Type], None)
+object ScanBindings {
+  private val empty: Array[(String, Type)] = Array()
 
-  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = {
+  def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
+    case AggLet(name, value, _, true) => if (i == 1) Array(name -> value.typ) else empty
+    case AggExplode(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case AggArrayPerElement(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
+    case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.m else empty
+    case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
+    case _ => empty
+  }
+}
+
+
+object ChildEnvWithoutBindings {
+  private val empty = BindingEnv.empty[Type]
+
+  def apply(ir: BaseIR, i: Int, env: BindingEnv[Type]): BindingEnv[Type] = {
     ir match {
-      case ArrayAgg(_, _, _) => if (i == 1) (env, Some(env)) else (env, aggEnv)
+      case ArrayAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
       case MatrixAggregate(_, _) => empty
       case TableAggregate(_, _) => empty
-      case ArrayAgg(_, _, _) => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m))) else (env, aggEnv)
-      case _ => (env, aggEnv)
+      case _ => env
     }
   }
 }
 
 object ChildEnvWithBindings {
-  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = {
-    val (baseEnv, baseAggEnv) = ChildEnvWithoutBindings(ir, i, env, aggEnv)
+  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
     assert(ir.children(i).isInstanceOf[IR])
+    val env = ChildEnvWithoutBindings(ir, i, baseEnv)
     val b = Bindings(ir, i)
     val ab = AggBindings(ir, i)
+    val sb = ScanBindings(ir, i)
     if (UsesAggEnv(ir, i)) {
       assert(b.isEmpty)
-      if (baseAggEnv.isEmpty)
+      assert(sb.isEmpty)
+      if (env.agg.isEmpty)
         throw new RuntimeException(s"$i: $ir")
-      (baseAggEnv.get.bindIterable(ab), None)
+      BindingEnv(env.agg.get.bindIterable(ab))
+    } else if (UsesScanEnv(ir, i)) {
+      assert(b.isEmpty)
+      assert(ab.isEmpty)
+      if (env.scan.isEmpty)
+        throw new RuntimeException(s"$i: $ir")
+      BindingEnv(env.scan.get.bindIterable(sb))
     } else {
-      (baseEnv.bindIterable(b), baseAggEnv match {
-        case Some(ae) => Some(ae.bindIterable(ab))
-        case None => if (ab.nonEmpty) Some(Env.empty.bindIterable(ab)) else None
-      })
+      if (b.isEmpty && ab.isEmpty && sb.isEmpty) // optimize the common case
+        env
+      else {
+        def bindEnvOption(env: Option[Env[Type]], bindings: Iterable[(String, Type)]): Option[Env[Type]] = {
+          env match {
+            case Some(ie) => Some(ie.bindIterable(bindings))
+            case None => if (bindings.nonEmpty) Some(Env.fromSeq(bindings)) else None
+          }
+        }
 
+        BindingEnv(
+          env.eval.bindIterable(b),
+          bindEnvOption(env.agg, ab),
+          bindEnvOption(env.scan, sb)
+        )
+      }
     }
   }
 }
+

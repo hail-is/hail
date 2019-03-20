@@ -15,9 +15,9 @@ object Subst {
       case Let(name, v, body) =>
         val newv = subst(v)
         Let(name, newv, subst(body, env.bind(name, Ref(name, newv.typ))))
-      case AggLet(name, v, body) =>
+      case AggLet(name, v, body, isScan) =>
         val newv = subst(v)
-        AggLet(name, newv, subst(body, aggEnv = aggEnv.bind(name, Ref(name, newv.typ))))
+        AggLet(name, newv, subst(body, aggEnv = aggEnv.bind(name, Ref(name, newv.typ))), isScan)
       case ArrayMap(a, name, body) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFilter(a, name, cond) =>
@@ -36,14 +36,14 @@ object Subst {
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
       case ArrayAgg(a, name, query) =>
         ArrayAgg(subst(a), name, subst(query, env, env.delete(name)))
-      case AggFilter(cond, aggIR) =>
-        AggFilter(subst(cond, aggEnv), subst(aggIR, aggEnv))
-      case AggExplode(array, name, aggBody) =>
-        AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
-      case AggGroupBy(key, aggIR) =>
-        AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv))
-      case AggArrayPerElement(a, name, aggBody) =>
-        AggArrayPerElement(subst(a, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
+      case AggFilter(cond, aggIR, isScan) =>
+        AggFilter(subst(cond, aggEnv), subst(aggIR, aggEnv), isScan)
+      case AggExplode(array, name, aggBody, isScan) =>
+        AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)), isScan)
+      case AggGroupBy(key, aggIR, isScan) =>
+        AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv), isScan)
+      case AggArrayPerElement(a, name, aggBody, isScan) =>
+        AggArrayPerElement(subst(a, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)), isScan)
       case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>

@@ -18,7 +18,7 @@ object CompileAndEvaluate {
 
     def optimizeIR(canGenerateLiterals: Boolean, context: String) {
       ir = Optimize(ir, noisy = true, canGenerateLiterals, Some(context))
-      TypeCheck(ir, env.mapValues(_._2), None)
+      TypeCheck(ir, BindingEnv(env.mapValues(_._2)))
     }
 
     if (optimize) optimizeIR(true, "CompileAndEvaluate: first pass")

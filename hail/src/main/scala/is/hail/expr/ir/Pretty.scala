@@ -54,7 +54,10 @@ object Pretty {
     def prettySeq(xs: Seq[BaseIR], depth: Int) {
       sb.append(" " * depth)
       sb += '('
-      xs.foreachBetween(x => pretty(x, depth + 2))(sb += '\n')
+      xs.foreach { x =>
+        sb += '\n'
+        pretty(x, depth + 2)
+      }
       sb += ')'
     }
 
@@ -153,7 +156,7 @@ object Pretty {
                     "<literal value>"
                 )
             case Let(name, _, _) => prettyIdentifier(name)
-            case AggLet(name, _, _) => prettyIdentifier(name)
+            case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
@@ -169,8 +172,10 @@ object Pretty {
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
-            case AggExplode(_, name, _) => prettyIdentifier(name)
-            case AggArrayPerElement(_, name, _) => prettyIdentifier(name)
+            case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
+            case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
+            case AggArrayPerElement(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

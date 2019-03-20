@@ -5,28 +5,44 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {
-  def apply(ir: BaseIR): Unit = apply(ir, Env.empty, None)
+  def apply(ir: BaseIR): Unit = apply(ir, BindingEnv.empty)
 
 
-  def apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
+  def apply(ir: BaseIR, env: BindingEnv[Type]): Unit = {
     try {
       ir match {
-        case ir: IR => _apply(ir, env, aggEnv)
-        case _ =>
-          assert(env.m.isEmpty)
-          assert(aggEnv.isEmpty)
+        case ir: IR => check(ir, env)
+        case tir: TableIR => check(tir)
+        case mir: MatrixIR => check(mir)
+        case bmir: BlockMatrixIR => check(bmir)
       }
-
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
-    def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      _apply(ir, env, aggEnv)
-    }
+  private def check(tir: TableIR): Unit = checkChildren(tir)
 
+  private def check(mir: MatrixIR): Unit = checkChildren(mir)
+
+  private def check(bmir: BlockMatrixIR): Unit = () // FIXME
+
+  private def checkChildren(ir: BaseIR, baseEnv: Option[BindingEnv[Type]] = None): Unit = {
+    ir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) =>
+          val e = ChildEnvWithBindings(ir, i, baseEnv.getOrElse(BindingEnv.empty))
+          check(child, e)
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+
+  }
+
+  private def check(ir: IR, env: BindingEnv[Type]): Unit = {
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -49,10 +65,10 @@ object TypeCheck {
 
       case x@Let(_, _, body) =>
         assert(x.typ == body.typ)
-      case x@AggLet(_, _, body) =>
+      case x@AggLet(_, _, body, _) =>
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
-        val expected = env.lookup(name)
+        val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
@@ -131,16 +147,16 @@ object TypeCheck {
         assert(body.typ == TVoid)
       case x@ArrayAgg(a, name, query) =>
         val tarray = coerce[TArray](a.typ)
-        assert(aggEnv.isEmpty)
-      case x@AggFilter(cond, aggIR) =>
+        assert(env.agg.isEmpty)
+      case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ == aggIR.typ)
-      case x@AggExplode(array, name, aggBody) =>
+      case x@AggExplode(array, name, aggBody, _) =>
         assert(array.typ.isInstanceOf[TArray])
         assert(x.typ == aggBody.typ)
-      case x@AggGroupBy(key, aggIR) =>
+      case x@AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x@AggArrayPerElement(a, name, aggBody) =>
+      case x@AggArrayPerElement(a, name, aggBody, _) =>
         assert(x.typ == TArray(aggBody.typ))
       case x@InitOp(i, args, aggSig) =>
         assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
@@ -192,9 +208,7 @@ object TypeCheck {
       case Die(msg, typ) =>
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
-        check(x.explicitNode, env, aggEnv)
       case x: AbstractApplyNode[_] =>
-        x.args.foreach(check(_))
         assert(x.implementation.unify(x.args.map(_.typ)))
       case Uniroot(name, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
@@ -218,20 +232,10 @@ object TypeCheck {
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
       case x@ReadPartition(path, _, _, rowType) =>
-        check(path.typ == TString())
+        assert(path.typ == TString())
         assert(x.typ == TArray(rowType))
     }
 
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach {
-        case (child: IR, i) =>
-          val (e, ae) = ChildEnvWithBindings(ir, i, env, aggEnv)
-          check(child, e, ae)
-        case (tir: TableIR, _) =>
-        case (mir: MatrixIR, _) =>
-        case (bmir: BlockMatrixIR, _) =>
-      }
+    checkChildren(ir, Some(env))
   }
 }
