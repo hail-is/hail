@@ -438,7 +438,7 @@ class PR(object):
                 return self._new_build(Building(job, image, target.sha))
             else:
                 log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
-                job.cancel()
+                job.delete()
                 return self
 
     def refresh_from_missing_job(self):
@@ -476,5 +476,5 @@ class PR(object):
                         job,
                         job.attributes['image'],
                         self.target.sha))
-        job.cancel()
+        job.delete()
         return x

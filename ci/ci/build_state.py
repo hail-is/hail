@@ -3,7 +3,7 @@ import json
 import re
 from batch.client import Job
 
-from .batch_helper import try_to_cancel_job
+from .batch_helper import try_to_delete_job
 from .ci_logging import log
 from .environment import batch_client, CONTEXT
 
@@ -215,8 +215,8 @@ class Building(object):
         if (not isinstance(other, Failure) and
             not isinstance(other, Mergeable) and
             not isinstance(other, NoMergeSHA)):
-            log.info(f'cancelling unneeded job {self.job.id} {self} {other}')
-            try_to_cancel_job(self.job)
+            log.info(f'deleting unneeded job {self.job.id} {self} {other}')
+            try_to_delete_job(self.job)
         return other
 
     def __str__(self):
