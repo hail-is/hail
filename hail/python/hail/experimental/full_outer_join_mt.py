@@ -19,6 +19,17 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
     -------
     :class:`.MatrixTable`
     """
+
+    if [x.dtype for x in left.row_key.values()] != [x.dtype for x in right.row_key.values()]:
+        raise ValueError(f"row key types do not match:\n"
+                         f"  left:  {list(left.row_key.values())}\n"
+                         f"  right: {list(right.row_key.values())}")
+
+    if [x.dtype for x in left.col_key.values()] != [x.dtype for x in right.col_key.values()]: 
+        raise ValueError(f"column key types do not match:\n"
+                         f"  left:  {list(left.col_key.values())}\n"
+                         f"  right: {list(right.col_key.values())}")
+
     left = left.select_rows(left_row=left.row)
     left_t = left.localize_entries('left_entries', 'left_cols')
     right = right.select_rows(right_row=right.row)
