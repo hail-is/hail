@@ -2373,7 +2373,8 @@ class MatrixTable(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
               _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'MatrixTable':
         """Checkpoint the matrix table to disk by writing and reading.
