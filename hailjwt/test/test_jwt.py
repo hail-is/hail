@@ -6,22 +6,22 @@ import hailjwt as hj
 
 
 def test_round_trip():
-    c = hj.JWTClient(secrets.randbits(256))
+    c = hj.JWTClient(secrets.token_bytes(256))
     json = {'hello': 'world'}
     assert c.decode(c.encode(json)) == json
 
 
 def test_fewer_than_256_bits_is_error():
     try:
-        hj.JWTClient(secrets.randbits(255 * 8))
+        hj.JWTClient(secrets.token_bytes(255))
         assert False
     except ValueError as err:
-        assert re.search('found secret key with 255 bytes', err.message)
+        assert re.search('found secret key with 255 bytes', str(err))
 
 
 def test_bad_input_is_error():
     try:
-        c = hj.JWTClient(secrets.randbits(256 * 8))
+        c = hj.JWTClient(secrets.token_bytes(256))
         c.decode('garbage')
         assert False
     except jwt.exceptions.DecodeError:
