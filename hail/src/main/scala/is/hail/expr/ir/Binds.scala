@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types.virtual.{TArray, TContainer, TFloat64, Type}
 
 object Binds {
-  def apply(x: IR, v: String, i: Int): Boolean = Bindings(x, i).exists(_ == v)
+  def apply(x: IR, v: String, i: Int): Boolean = Bindings(x, i).exists(_._1 == v)
 }
 
 
