@@ -1,4 +1,6 @@
 #!/bin/bash
 set -ex
 
-make test
+time source activate hail
+
+time make test
