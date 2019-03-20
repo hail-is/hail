@@ -4,7 +4,13 @@ import jwt
 class JWTClient:
     __ALGORITHM = 'HS256'
 
-    def _verify_key_preqrequisites(self, secret_key):
+    @staticmethod
+    def generate_key():
+        import secrets
+        return secrets.token_bytes(64)
+
+    @staticmethod
+    def _verify_key_preqrequisites(secret_key):
         if isinstance(secret_key, str):
             key_bytes = secret_key.encode('utf-8')
         else:
@@ -16,7 +22,7 @@ class JWTClient:
                 f'must have at least 256 bytes')
 
     def __init__(self, secret_key):
-        self._verify_key_preqrequisites(secret_key)
+        JWTClient._verify_key_preqrequisites(secret_key)
         self.secret_key = secret_key
 
     def decode(self, token):
