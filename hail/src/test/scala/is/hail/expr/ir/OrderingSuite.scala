@@ -342,16 +342,20 @@ class OrderingSuite extends SparkSuite {
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
 
-        def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+        if (closestI == asArray.length) {
+          !dict.contains(key) ==> asArray.forall { keyI =>
+            val otherKey = keyI.asInstanceOf[Row].get(0)
+            pDict.keyType.virtualType.ordering.compare(key, otherKey) > 0
+          }
+        } else {
+          def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+          val maybeEqual = getKey(closestI)
+          val closestIIsClosest =
+            (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+              (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
 
-        val maybeEqual = getKey(closestI)
-
-        val closestIIsClosest =
-          (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
-            (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
-
-        dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
-
+          dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
+        }
       }
     }
     p.check()
