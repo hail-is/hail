@@ -81,8 +81,6 @@ class ValueIRTests(unittest.TestCase):
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
-            ir.StringSlice(st, ir.I32(1), ir.I32(2)),
-            ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),

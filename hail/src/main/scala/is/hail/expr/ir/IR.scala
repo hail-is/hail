@@ -256,9 +256,6 @@ final case class GetField(o: IR, name: String) extends IR
 final case class MakeTuple(types: Seq[IR]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
-final case class StringSlice(s: IR, start: IR, end: IR) extends IR
-final case class StringLength(s: IR) extends IR
-
 final case class In(i: Int, _typ: Type) extends IR
 
 // FIXME: should be type any
