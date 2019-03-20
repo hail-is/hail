@@ -224,12 +224,19 @@ object JSONAnnotationImpex {
         jv.extract[Locus]
       case (_, TInterval(pointType, _)) =>
         jv match {
-          case JObject(List(("start", sjv), ("end", ejv), ("includeStart", isjv), ("includeEnd", iejv))) =>
-            Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
-              importAnnotation(ejv, pointType, parent + ".end", padNulls),
-              importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
-              importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
-            )
+          case JObject(list) =>
+            val m = list.toMap
+            (m.get("start"), m.get("end"), m.get("includeStart"), m.get("includeEnd")) match {
+              case (Some(sjv), Some(ejv), Some(isjv), Some(iejv)) =>
+                Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
+                  importAnnotation(ejv, pointType, parent + ".end", padNulls),
+                  importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
+                  importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
+                )
+              case _ =>
+                warn(s"Can't convert JSON value $jv to type $t at $parent.")
+                null
+            }
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null
