@@ -804,8 +804,7 @@ class ArrayNumericExpression(ArrayExpression):
 class NDArrayExpression(CollectionExpression):
 
     def __getitem__(self, item):
-        # Explicitly creating IRs that are supported in CxxCompile
-        idxs = ir.MakeArray([ir.I64(idx) for idx in item], ir.tarray(ir.tint64))
+        idxs = to_expr(item, ir.tarray(ir.tint64))
         return construct_expr(ir.NDArrayRef(self._ir, idxs), self._type.element_type)
 
 

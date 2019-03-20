@@ -45,9 +45,8 @@ object SparkBackend {
         throw new CXXUnsupportedOperation("'cpp' flag not enabled.")
       cxxExecute(hc.sc, ir, optimize)
     } catch {
-      case e: CXXUnsupportedOperation =>
-        throw e
-//        CompileAndEvaluate(ir, optimize = optimize)
+      case _: CXXUnsupportedOperation =>
+        CompileAndEvaluate(ir, optimize = optimize)
     }
   }
 }

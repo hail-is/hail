@@ -38,12 +38,3 @@ object FoldConstants {
       case _ => None
     })
 }
-
-object Interpretable {
-  def apply(ir: IR): Boolean = {
-    ir match {
-      case _: MakeNDArray | _: NDArrayRef => true
-      case _ => false
-    }
-  }
-}
