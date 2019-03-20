@@ -1,6 +1,6 @@
 #!/bin/bash
 set -ex
 
-flake8 batch
-pylint batch --rcfile batch/pylintrc --score=n
+conda activate hail-batch
+
 make test-local-in-cluster
