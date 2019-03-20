@@ -5,12 +5,15 @@ class JWTClient:
     __ALGORITHM = 'HS256'
 
     def _verify_key_preqrequisites(self, secret_key):
-        assert isinstance(secret_key, str)
-        n_bytes = len(secret_key.encode('utf-8'))
-        if n_bytes < 256:
+        if isinstance(secret_key, str):
+            key_bytes = secret_key.encode('utf-8')
+        else:
+            assert isinstance(secret_key, bytes), type(secret_key)
+            key_bytes = secret_key
+        if len(key_bytes) < 256:
             raise ValueError(
-                f'found secret key with {n_bytes} bytes, but secret key must '
-                f'have at least 256 bytes')
+                f'found secret key with {len(key_bytes)} bytes, but secret key '
+                f'must have at least 256 bytes')
 
     def __init__(self, secret_key):
         self._verify_key_preqrequisites(secret_key)
