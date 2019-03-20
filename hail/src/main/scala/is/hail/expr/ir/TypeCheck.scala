@@ -25,7 +25,7 @@ object TypeCheck {
 
   private def check(mir: MatrixIR): Unit = checkChildren(mir)
 
-  private def check(bmir: BlockMatrixIR): Unit = () // FIXME
+  private def check(bmir: BlockMatrixIR): Unit = checkChildren(bmir)
 
   private def checkChildren(ir: BaseIR, baseEnv: Option[BindingEnv[Type]] = None): Unit = {
     ir.children
