@@ -7,6 +7,45 @@ from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGro
 
 
 class Pipeline:
+    """
+    Object representing the distributed acyclic graph (DAG) of jobs to run.
+
+    Examples
+    --------
+
+    Create a pipeline object:
+
+    >>> p = Pipeline()
+
+    Create a new pipeline task that prints hello to a temporary file `t.ofile`:
+
+    >>> t = p.new_task()
+    >>> t.command(f'echo "hello" > {t.ofile}')
+
+    Write the temporary file `t.ofile` to a permanent location
+
+    >>> p.write_output(t.ofile, 'output/hello.txt')
+
+    Execute the DAG:
+
+    >>> p.run()
+
+    Parameters
+    ----------
+    backend: :func:`.Backend`, optional
+        Backend used to execute the jobs. Default is :class:`.LocalBackend`
+    default_image: :obj:`str`, optional
+        Docker image to use by default if not specified by a task.
+    default_memory: :obj:`str`, optional
+        Memory setting to use by default if not specified by a task. Only
+        applicable if a docker image is specified for the :class:`.LocalBackend`
+        or the :class:`.BatchBackend`.
+    default_cpu: :obj:`str`, optional
+        CPU setting to use by default if not specified by a task. Only
+        applicable if a docker image is specified for the :class:`.LocalBackend`
+        or the :class:`.BatchBackend`.
+    """
+
     _counter = 0
     _uid_prefix = "__PIPELINE__"
     _regex_pattern = r"(?P<PIPELINE>{}\d+)".format(_uid_prefix)
@@ -29,6 +68,20 @@ class Pipeline:
         self._default_cpu = default_cpu
 
     def new_task(self):
+        """
+        Initialize a new task object with default memory, docker image,
+        and CPU settings if specified upon pipeline creation.
+
+        Examples
+        --------
+
+        >>> t = p.new_task()
+
+        Returns
+        -------
+        :class:`.Task`
+        """
+
         t = Task(pipeline=self)
         self._tasks.append(t)
         if self._default_image is not None:
@@ -82,12 +135,68 @@ class Pipeline:
         return rg
 
     def read_input(self, path, extension=None):
+        """
+        Create a new input resource file object representing a single file.
+
+        Examples
+        --------
+
+        Read the file `hello.txt`:
+
+        >>> p = Pipeline()
+        >>> input = p.read_input('hello.txt')
+        >>> t = p.new_task()
+        >>> t.command(f"cat {input}")
+        >>> p.run()
+
+        Parameters
+        ----------
+        path: :obj:`str`
+            File path to read.
+        extension: :obj:`str`, optional
+            File extension to use.
+
+        Returns
+        -------
+        :class:`.InputResourceFile`
+        """
+
         irf = self._new_input_resource_file(path)
         if extension is not None:
             irf.add_extension(extension)
         return irf
 
     def read_input_group(self, **kwargs):
+        """
+        Create a new resource group representing a mapping of identifier to
+        input resource files.
+
+        Examples
+        --------
+
+        Read a binary PLINK file:
+
+        >>> p = Pipeline()
+        >>> bfile = p.read_input_group(bed="data/example.bed",
+        ...                            bim="data/example.bim",
+        ...                            fam="data/example.fam")
+        >>> t = p.new_task()
+        >>> t.command(f"plink --bfile {bfile} --geno --out {t.geno}")
+        >>> t.command(f"wc -l {bfile.fam}")
+        >>> t.command(f"wc -l {bfile.bim}")
+        >>> p.run()
+
+        Parameters
+        ----------
+        kwargs: :obj:`dict` of :obj:`str` to :obj:`str`
+            Key word arguments where the name/key is the identifier and the value
+            is the file path.
+
+        Returns
+        -------
+        :class:`.InputResourceFile`
+        """
+
         root = self._tmp_file()
         new_resources = {name: self._new_input_resource_file(file, root + '.' + name) for name, file in kwargs.items()}
         rg = ResourceGroup(None, root, **new_resources)
@@ -95,6 +204,38 @@ class Pipeline:
         return rg
 
     def write_output(self, resource, dest):  # pylint: disable=R0201
+        """
+        Write resource file or resource file group to an output destination.
+
+        Examples
+        --------
+
+        Write a single task intermediate to a permanent location:
+
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> t.command(f'echo "hello" > {t.ofile}')
+        >>> p.write_output(t.ofile, 'output/hello.txt')
+        >>> p.run()
+
+        Notes
+        -----
+        All :class:`.TaskResourceFile` are temporary files and must be written
+        to a permanent location using :meth:`.write_output` if the output needs
+        to be saved.
+
+        Parameters
+        ----------
+        resource: :class:`.ResourceFile` or :class:`.ResourceGroup`
+            Resource to be written to a file.
+        dest: :obj:`str`
+            Destination file path. For a single :class:`.ResourceFile`, this will
+            simply be `dest`. For a :class:`.ResourceGroup`, `dest` is the file
+            root and each resource file will be written to `{root}.identifier`
+            where `identifier` is the identifier of the file in the
+            :class:`.ResourceGroup` map.
+        """
+
         if not isinstance(resource, Resource):
             raise Exception(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
         if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
@@ -105,9 +246,55 @@ class Pipeline:
         resource._add_output_path(dest)
 
     def select_tasks(self, pattern):
+        """
+        Select all tasks in the pipeline whose label matches `pattern`.
+
+        Examples
+        --------
+
+        Select tasks in pipeline matching `qc`:
+
+        >>> p = Pipeline()
+        >>> t = p.new_task().label('qc')
+        >>> qc_tasks = p.select_tasks('qc')
+        >>> assert qc_tasks == [t]
+
+        Parameters
+        ----------
+        pattern: :obj:`str`
+            Regex pattern matching task labels.
+
+        Returns
+        -------
+        :obj:`list` of :class:`.Task`
+        """
+
         return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]
 
     def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True):
+        """
+        Execute a pipeline.
+
+        Examples
+        --------
+
+        Create a simple pipeline and execute it:
+
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> t.command('echo "hello"')
+        >>> p.run()
+
+        Parameters
+        ----------
+        dry_run: :obj:`bool`, optional
+            If `True`, don't execute code.
+        verbose: :obj:`bool`, optional
+            If `True`, print debugging output.
+        delete_scratch_on_exit: :obj:`bool`, optional
+            If `True`, delete temporary directories with intermediate files.
+        """
+
         dependencies = {task: task._dependencies for task in self._tasks}
         ordered_tasks = []
         niter = 0
@@ -127,7 +314,7 @@ class Pipeline:
                 raise ValueError("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        self._backend.run(self, dry_run, verbose, delete_scratch_on_exit)
+        self._backend._run(self, dry_run, verbose, delete_scratch_on_exit)
 
     def __str__(self):
         return self._uid
