@@ -18,7 +18,7 @@ export PYTHONPATH=$(ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python
 export JAR=../hail/build/libs/hail-all-spark.jar
 export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$JAR --conf spark.executor.extraClassPath=$JAR pyspark-shell"
 
-python apiserver/apiserver.py >apiserver.log 2>&1 &
+python apiserver/apiserver.py &
 server_pid=$!
 
 ../until-with-fuel 30 curl -fL http://localhost:5000/healthcheck
@@ -27,5 +27,3 @@ export HAIL_TEST_SERVICE_BACKEND_URL=http://localhost:5000
 
 python3 -m unittest test.hail.table.test_table.Tests.test_range_table
 python3 -m unittest test.hail.linalg.test_linalg.Tests.test_matrix_ops
-
-cat apiserver.log
