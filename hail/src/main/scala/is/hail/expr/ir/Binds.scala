@@ -83,6 +83,8 @@ object ChildEnvWithoutBindings {
   def apply(ir: BaseIR, i: Int, env: BindingEnv[Type]): BindingEnv[Type] = {
     ir match {
       case ArrayAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
+      case ApplyAggOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
+      case ApplyScanOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
       case MatrixAggregate(_, _) => empty
       case TableAggregate(_, _) => empty
       case _ => env
