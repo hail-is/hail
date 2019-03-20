@@ -129,11 +129,14 @@ class SparkEnv {
 struct SparkFunctionContext {
   RegionPtr region_;
   SparkEnv spark_env_;
+  const char * literals_;
 
-  SparkFunctionContext(RegionPtr region, jobject spark_utils) :
-  region_(region), spark_env_(spark_utils) { }
+  SparkFunctionContext(RegionPtr region, jobject spark_utils, const char * literals) :
+  region_(region), spark_env_(spark_utils), literals_(literals) { }
 
-  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr) { }
+  SparkFunctionContext(RegionPtr region, const char * literals) : SparkFunctionContext(region, nullptr, literals) { }
+
+  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr, nullptr) { }
 };
 
 }
