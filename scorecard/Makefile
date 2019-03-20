@@ -7,7 +7,7 @@ SCORECARD_IMAGE = gcr.io/$(PROJECT)/scorecard:$(shell docker images -q --no-trun
 build:
 	make -C ../docker build
 	-docker pull gcr.io/$(PROJECT)/scorecard
-	docker build . -t scorecard --cache-from scorecard,base,ubuntu:18.04
+	docker build -t scorecard --cache-from scorecard,base,ubuntu:18.04 .
 
 push: build
 	docker tag scorecard $(SCORECARD_IMAGE)

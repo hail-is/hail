@@ -25,8 +25,8 @@ build/pylint: $(PY_FILES) build/conda-env
 
 build:
 	make -C ../docker build
-	-docker pull gcr.io/$(PROJECT)/scorecard
-	docker build -t batch .
+	-docker pull gcr.io/$(PROJECT)/batch
+	docker build -t batch --cache-from batch,base,ubuntu:18.04 .
 
 build-test:
 	docker build -t batch-test -f Dockerfile.test .
