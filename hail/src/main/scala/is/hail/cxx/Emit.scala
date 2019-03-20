@@ -809,8 +809,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val flags = fb.variable("flags", "int", s"${rowMajort.v} ? 1 : 0")
         val shapeVec = fb.variable("shapeVec", "std::vector<long>",
           s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
-        val entries = fb.variable("entries", "const char *",
-          s"${dataContainer.cxxImpl}::elements_address(${ datat.v })")
+        val dataArr = fb.variable("dataArr", "const char *", datat.v)
         present(
           s"""
              |({
@@ -818,13 +817,17 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shapet.setup }
              | ${ datat.setup }
              | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
-             |   throw new FatalError("NDArray does not support missingness");
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
              | }
              |
              | ${ flags.define }
              | ${ shapeVec.define }
-             | ${ entries.define }
-             | make_ndarray($flags, $elemSize, $shapeVec, $entries);
+             | ${ dataArr.define }
+             | if (n_elements($shapeVec) != load_length($dataArr)) {
+             |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
+             | }
+             |
+             | make_ndarray($flags, $elemSize, $shapeVec, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
              |})
              |""".stripMargin)
 
@@ -844,7 +847,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ ndt.setup }
              | ${ idxst.setup }
              | if (${ ndt.m } || ${ idxst.m }) {
-             |   throw new FatalError("NDArray does not support missingness");
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
              | }
              |
              | ${ idxsVec.define }

@@ -13,6 +13,7 @@ struct NDArray {
 
 NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, const char *data);
 char const *load_ndarray_addr(NDArray nd, std::vector<long> indices);
+int n_elements(std::vector<long> &shape);
 
 void set_strides_row_major(std::vector<long> &strides, std::vector<long> &shape);
 void set_strides_col_major(std::vector<long> &strides, std::vector<long> &shape);
@@ -49,6 +50,15 @@ char const *load_ndarray_addr(NDArray nd, std::vector<long> indices) {
   }
 
   return nd.data + offset * nd.elem_size;
+}
+
+int n_elements(std::vector<long> &shape) {
+  int total = 1;
+  for (int i = 0; i < shape.size(); ++i) {
+    total *= shape[i];
+  }
+
+  return total;
 }
 
 void set_strides_row_major(std::vector<long> &strides, std::vector<long> &shape) {
