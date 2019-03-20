@@ -1671,10 +1671,8 @@ object RichContextRDDRegionValue {
       if (stageLocally) {
         val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
         val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
-        context.addTaskCompletionListener { context =>
-          hConf.delete(rowsPartPath, recursive = false)
-          hConf.delete(entriesPartPath, recursive = false)
-        }
+        context.addTaskCompletionListener(new HConfDelete(hConf, rowsPartPath, recursive = false))
+        context.addTaskCompletionListener(new HConfDelete(hConf, entriesPartPath, recursive = false))
         (rowsPartPath, entriesPartPath)
       } else
         (finalRowsPartPath, finalEntriesPartPath)

@@ -9,6 +9,7 @@ import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
 import is.hail.sparkextras._
+import is.hail.utils.Closer
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
@@ -103,9 +104,7 @@ private class BgenRDD(
           new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
-          context.addTaskCompletionListener { context =>
-            index.close()
-          }
+          context.addTaskCompletionListener(new Closer(index))
           if (keys == null)
             new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(), index).flatten
           else {

@@ -180,9 +180,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   private[this] def sparkManagedContext(): C = {
     val c = mkc()
-    TaskContext.get().addTaskCompletionListener { _ =>
-      c.close()
-    }
+    TaskContext.get.addTaskCompletionListener(new Closer(c))
     c
   }
 
