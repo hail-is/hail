@@ -24,6 +24,8 @@ build/pylint: $(PY_FILES) build/conda-env
 	mkdir -p build && touch $@
 
 build:
+	make -C ../docker build
+	-docker pull gcr.io/$(PROJECT)/scorecard
 	docker build -t batch .
 
 build-test:

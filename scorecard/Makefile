@@ -5,6 +5,7 @@ PROJECT = $(shell gcloud config get-value project)
 SCORECARD_IMAGE = gcr.io/$(PROJECT)/scorecard:$(shell docker images -q --no-trunc scorecard:latest | sed -e 's,[^:]*:,,')
 
 build:
+	make -C ../docker build
 	-docker pull gcr.io/$(PROJECT)/scorecard
 	docker build . -t scorecard --cache-from scorecard,base,ubuntu:18.04
 
