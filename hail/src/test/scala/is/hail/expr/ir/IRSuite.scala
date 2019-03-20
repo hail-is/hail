@@ -898,6 +898,43 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testNDArrayRef() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
+      MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeArray(shape.map(I64), TArray(TInt64())), rowMajor)
+    }
+    def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
+      NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
+    }
+
+    def scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
+    def scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
+    assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
+    assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
+
+    def vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
+    def vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
+    assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(1)), -1.0)
+    assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(1)), -1.0)
+
+    def threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
+    def threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
+    def sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
+    def sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
+    assertEvalsTo(sevenRowMajor, 7.0)
+    assertEvalsTo(sevenColMajor, 7.0)
+
+    def cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
+    def cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
+    def centerRowMajor = makeNDArrayRef(cubeRowMajor, FastSeq(1, 1, 1))
+    def centerColMajor = makeNDArrayRef(cubeColMajor, FastSeq(1, 1, 1))
+    assertEvalsTo(centerRowMajor, 13.0)
+    assertEvalsTo(centerColMajor, 13.0)
+  }
+
   @Test def testLeftJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 
