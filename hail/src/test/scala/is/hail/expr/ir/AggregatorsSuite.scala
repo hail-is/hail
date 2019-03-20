@@ -765,7 +765,8 @@ class AggregatorsSuite extends SparkSuite {
         ApplyAggOp(constrArgs,
           initOpArgs,
           seqOpArgs,
-          AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ)))),
+          AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))),
+        false),
       (agg, aggType),
       expected)
   }
@@ -859,7 +860,9 @@ class AggregatorsSuite extends SparkSuite {
             FastSeq(),
             None,
             FastSeq(Ref("x", TInt32())),
-            aggSig))),
+            aggSig),
+          false),
+        false),
       (agg, aggType),
       expected
     )
@@ -888,7 +891,7 @@ class AggregatorsSuite extends SparkSuite {
             FastSeq(),
             Some(FastSeq(I32(2))),
             FastSeq(Ref("g", TCall())),
-            aggSig))),
+            aggSig), false), false),
       (agg, aggType),
       expected
     )
@@ -913,7 +916,7 @@ class AggregatorsSuite extends SparkSuite {
             FastIndexedSeq(I32(2)),
             None,
             FastSeq(Ref("x", TFloat64()), Ref("y", TInt32())),
-            aggSig))),
+            aggSig), false), false),
       (agg, aggType),
       expected
     )
@@ -933,7 +936,7 @@ class AggregatorsSuite extends SparkSuite {
               FastSeq(),
               None,
               FastSeq(Ref("x", TInt32())),
-              aggSig)))),
+              aggSig), false), false), false),
       (agg, aggType),
       expected
     )
@@ -970,7 +973,7 @@ class AggregatorsSuite extends SparkSuite {
           AggFilter(Ref("x", TBoolean()),
             ApplyAggOp(FastSeq(), None,
               FastSeq(Ref("y", TInt64())),
-              aggSig)),
+              aggSig), false),
       (agg, aggType),
       5L)
   }
@@ -989,7 +992,7 @@ class AggregatorsSuite extends SparkSuite {
         "y",
         ApplyAggOp(FastSeq(), None,
           FastSeq(Ref("y", TInt64())),
-          aggSig)),
+          aggSig), false),
       (agg, aggType),
       15L)
   }
@@ -1009,7 +1012,8 @@ class AggregatorsSuite extends SparkSuite {
             IndexedSeq(),
             None,
             IndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
-            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64())))
+            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          false
         )
       )
     }

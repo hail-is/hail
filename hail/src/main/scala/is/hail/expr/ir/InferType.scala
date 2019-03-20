@@ -39,7 +39,7 @@ object InferType {
           cnsq.typ
       case Let(name, value, body) =>
         body.typ
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, _) =>
         body.typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
@@ -97,13 +97,13 @@ object InferType {
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
           idxs.typ.required && 
           coerce[TArray](idxs.typ).elementType.required)
-      case AggFilter(_, aggIR) =>
+      case AggFilter(_, aggIR, _) =>
         aggIR.typ
-      case AggExplode(array, name, aggBody) =>
+      case AggExplode(array, name, aggBody, _) =>
         aggBody.typ
-      case AggGroupBy(key, aggIR) =>
+      case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
-      case AggArrayPerElement(a, name, aggBody) => TArray(aggBody.typ)
+      case AggArrayPerElement(a, name, aggBody, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>
