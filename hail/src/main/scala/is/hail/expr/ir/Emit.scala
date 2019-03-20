@@ -435,7 +435,7 @@ private class Emit(
         strict(PContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
-        val atyp = coerce[PContainer](ir.pType)
+        val atyp = coerce[PContainer](x.pType)
         val eltType = -atyp.elementType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(mb, vab)
@@ -481,6 +481,9 @@ private class Emit(
             sorter.toRegion()))
 
       case ToArray(a) =>
+        emit(a)
+
+      case ToStream(a) =>
         emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
