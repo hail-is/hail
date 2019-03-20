@@ -34,7 +34,7 @@ class LocalBackend(Backend):
         self._tmp_dir = tmp_dir
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
-        tmpdir = self._tmp_dir()
+        tmpdir = self._get_scratch_dir()
 
         script = ['#!/bin/bash',
                   'set -e' + 'x' if verbose else '',
@@ -123,7 +123,7 @@ class LocalBackend(Backend):
                 if delete_scratch_on_exit:
                     sp.run(f'rm -r {tmpdir}', shell=True)
 
-    def _tmp_dir(self):
+    def _get_scratch_dir(self):
         def _get_random_name():
             directory = self._tmp_dir + '/pipeline-{}/'.format(uuid.uuid4().hex[:12])
 
