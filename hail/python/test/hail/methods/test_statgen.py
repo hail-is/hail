@@ -1246,36 +1246,23 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
-        _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores,
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
+        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
                               statistics='kin', block_size=32)
 
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, min_kinship=0.01,
-                              statistics='kin2', block_size=16)
+        assert kin1._same(kin_s1, tolerance=1e-4)
 
-        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, min_kinship=0.1,
-                              statistics='kin20', block_size=32)
+        assert kin1.count() == 50 * 49 / 2
 
-        kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=128)
-        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=16)
+        assert kin2.count() > 0
+        assert kin2.filter(kin2.kin < 0.01).count() == 0
 
-        self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
-        self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
-        self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
-        self.assertTrue(kin4._same(kin_s4, tolerance=1e-2))
-
-        self.assertTrue(kin1.count() == 50 * 49 / 2)
-
-        self.assertTrue(kin2.count() > 0)
-        self.assertTrue(kin2.filter(kin2.kin < 0.01).count() == 0)
-
-        self.assertTrue(kin3.count() > 0)
-        self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
+        assert kin3.count() > 0
+        assert kin3.filter(kin3.kin < 0.1).count() == 0
 
     @skip_unless_spark_backend()
     def test_pcrelate_issue_5263(self):
