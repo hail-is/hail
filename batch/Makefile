@@ -12,12 +12,12 @@ clean:
 	rm -f $(PY_CHECKERS)
 
 flake8-stmp: $(PY_FILES)
-       python -m flake8 batch
-       touch $@
+	python -m flake8 batch
+	touch $@
 
 pylint-stmp: $(PY_FILES)
-       python -m pylint --rcfile batch/pylintrc batch --score=n
-       touch $@
+	python -m pylint --rcfile batch/pylintrc batch --score=n
+	touch $@
 
 build:
 	make -C ../docker build
