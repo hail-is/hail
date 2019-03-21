@@ -29,4 +29,4 @@ ENV SPARK_HOME /spark-2.2.0-bin-hadoop2.7
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 
 COPY requirements.txt .
-RUN python3 -m pip install -U -r requirements.txt
+RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
