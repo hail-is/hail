@@ -34,7 +34,7 @@ object Streamify {
     case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
       ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, keyf, joinf)
     case If(cond, cnsq, altr) =>
-      If(cond, streamify(cnsq), streamify(altr))
+      ToStream(If(cond, unstreamify(cnsq), unstreamify(altr)))
     case Let(n, v, b) =>
       Let(n, v, streamify(b))
     case _ =>
