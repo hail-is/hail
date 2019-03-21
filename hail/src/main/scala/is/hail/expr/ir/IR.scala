@@ -32,6 +32,16 @@ sealed trait IR extends BaseIR {
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
+  override def deepCopy(): this.type = {
+
+    val cp = super.deepCopy()
+    if (_typ != null)
+      cp._typ = _typ
+    if (_ptype != null)
+      cp._ptype = _ptype
+    cp
+  }
+
   def size: Int = 1 + children.map {
       case x: IR => x.size
       case _ => 0
