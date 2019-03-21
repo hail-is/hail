@@ -96,6 +96,7 @@ def register_functions():
     register_function("sum", (dtype("array<?T:numeric>"),), dtype("?T"))
     register_function("toInt64", (dtype("?T:numeric"),), dtype("int64"))
     register_function("contains", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("bool"))
+    register_function("contains", (dtype("array<?T>"),dtype("?T"),), dtype("bool"))
     register_function("contains", (dtype("set<?T>"),dtype("?T"),), dtype("bool"))
     register_function("-", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("-", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))

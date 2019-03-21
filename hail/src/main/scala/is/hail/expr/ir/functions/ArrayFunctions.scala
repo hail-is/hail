@@ -48,6 +48,21 @@ object ArrayFunctions extends RegistryFunctions {
       ))
   }
 
+  def contains(a: IR, value: IR): IR = {
+    val t = -coerce[TArray](a.typ).elementType
+    ArrayFold(
+      a,
+      False(),
+      "acc",
+      "elt",
+      invoke("||",
+        Ref("acc", TBoolean()),
+        ApplyComparisonOp(
+          EQWithNA(t, value.typ),
+          Ref("elt", t),
+          value)))
+  }
+
   def sum(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
     val sum = genUID()
@@ -72,6 +87,8 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (a, c) =>
       extend(a, MakeArray(Seq(c), TArray(c.typ)))
     }
+
+    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean()) { (a, e) => contains(a, e)}
 
     val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
       Array(

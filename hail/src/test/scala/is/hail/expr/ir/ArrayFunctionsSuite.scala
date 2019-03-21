@@ -4,7 +4,7 @@ import is.hail.ExecStrategy
 import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual.{TArray, TInt32}
+import is.hail.expr.types.virtual.{TArray, TInt32, TString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -253,6 +253,45 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "flatten")
   def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]) {
     assertEvalsTo(invoke("flatten", MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32())))), expected)
+  }
 
+  @Test def testContains() {
+    val t = TArray(TString())
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq() -> t),
+      expected=false)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq(null) -> t),
+      expected=false)
+
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b") -> t),
+      expected=true)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b", null) -> t),
+      expected=true)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq((null, t)),
+      expected=null)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), NA(t.elementType)),
+      args = FastIndexedSeq((null, t)),
+      expected=null)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), NA(t.elementType)),
+      args = FastIndexedSeq(FastIndexedSeq("a", null) -> t),
+      expected=true)
   }
 }
