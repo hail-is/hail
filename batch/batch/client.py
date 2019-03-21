@@ -10,6 +10,7 @@ from . import api, schemas
 
 class Job:
     def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
+        assert id is not None
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
