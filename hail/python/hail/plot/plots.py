@@ -462,7 +462,7 @@ def _get_scatter_plot_elements(
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=nullable(int), missing_label=str)
+           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
 def scatter(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
@@ -476,6 +476,7 @@ def scatter(
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
+        collect_all: bool = False,
         n_divisions: int = 500,
         missing_label: str = 'NA'
 ) -> Union[bokeh.plotting.Figure, Column]:
@@ -534,9 +535,10 @@ def scatter(
         Plot width
     height: int
         Plot height
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-        If set to ``None``, then all datapoints are plotted.
     missing_label: str
         Label to use when a point is missing data for a categorical label
 
@@ -554,7 +556,7 @@ def scatter(
     if isinstance(y, NumericExpression):
         y = ('y', y)
 
-    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=None if collect_all else n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
 
@@ -609,7 +611,7 @@ def scatter(
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=nullable(int), missing_label=str)
+           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
 def joint_plot(
         x: Union[NumericExpression, Tuple[str, NumericExpression]],
         y: Union[NumericExpression, Tuple[str, NumericExpression]],
@@ -623,6 +625,7 @@ def joint_plot(
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
+        collect_all: bool = False,
         n_divisions: int = 500,
         missing_label: str = 'NA'
 ) -> Column:
@@ -681,9 +684,10 @@ def joint_plot(
             Plot width
         height: int
             Plot height
+        collect_all : bool
+            Whether to collect all values or downsample before plotting.
         n_divisions : int
             Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-            If set to ``None``, then all datapoints are plotted.
         missing_label: str
             Label to use when a point is missing data for a categorical label
 
@@ -703,7 +707,7 @@ def joint_plot(
         y = ('y', y)
 
     label_cols = list(label.keys())
-    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=None if collect_all else None, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
 
@@ -830,18 +834,19 @@ def joint_plot(
     return gridplot(first_row, [sp, yp])
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), n_divisions=nullable(int))
-def qq(pvals, n_divisions=500):
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), collect_all=bool, n_divisions=int)
+def qq(pvals, collect_all=False, n_divisions=500):
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
     Parameters
     ----------
     pvals : List[float] or :class:`.Float64Expression`
         P-values to be plotted.
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
+        This parameter will be ignored if pvals is a Python object.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-        If set to ``None``, then all datapoints are plotted.
-        This parameter will be ignored if pvals is a Python object.
 
     Returns
     -------
@@ -850,7 +855,7 @@ def qq(pvals, n_divisions=500):
     if isinstance(pvals, Expression):
         source = pvals._indices.source
         if source is not None:
-            if n_divisions is None:
+            if collect_all:
                 pvals = pvals.collect()
                 spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
                 exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
@@ -885,8 +890,8 @@ def qq(pvals, n_divisions=500):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), n_divisions=nullable(int), significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisions=500, significance_line=5e-8):
+           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -901,10 +906,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
         Size of markers in screen space units.
     hover_fields : Dict[str, :class:`.Expression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
+    collect_all : bool
+        Whether to collect all values or downsample before plotting.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-        If set to ``None``, then all datapoints are plotted.
-        This parameter will be ignored if pvals is a Python object.
     significance_line : float, optional
         p-value at which to add a horizontal, dotted red line indicating
         genome-wide significance.  If ``None``, no line is added.
@@ -925,7 +930,12 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
 
     pvals = -hail.log10(pvals)
 
-    source_pd = _collect_scatter_plot_data(('_global_locus', locus.global_position()), ('_pval', pvals), fields=hover_fields, n_divisions=n_divisions)
+    source_pd = _collect_scatter_plot_data(
+        ('_global_locus', locus.global_position()),
+        ('_pval', pvals),
+        fields=hover_fields,
+        n_divisions=None if collect_all else n_divisions
+    )
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]
 
