@@ -47,6 +47,7 @@ class API():
         return response.json()
 
     def get_job(self, url, job_id):
+        assert job_id is not None
         response = requests.get(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
