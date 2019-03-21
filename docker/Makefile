@@ -25,6 +25,7 @@ deploy: push
 else
 build-stmp: Dockerfile.base
 	docker build -t base -f Dockerfile.base .
+	touch build-stmp
 endif
 
 clean:
