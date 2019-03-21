@@ -11,7 +11,7 @@ object Pretty {
 
   def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
     val s = Pretty(ir)
-    if (s.length > maxLen) s else s.substring(0, maxLen)
+    if (s.length < maxLen) s else s.substring(0, maxLen)
   }
 
   def prettyStringLiteral(s: String): String =

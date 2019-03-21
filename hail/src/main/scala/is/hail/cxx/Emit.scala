@@ -858,9 +858,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.NDArrayMap(child, elemName, body) =>
         val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val cxxElemType = typeToCXXType(elemPType)
         val newElemPType = body.pType
         val newDataContainer = PArray(newElemPType)
-        val cxxElemType = typeToCXXType(elemPType)
 
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
@@ -869,31 +869,32 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyt = outer.emit(body,
           env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
 
-        val nElements = fb.variable("length", "long", s"n_elements($nd.shape)")
+        val length = fb.variable("length", "long", s"n_elements($nd.shape)")
         val sab = resultRegion.arrayBuilder(fb, newDataContainer)
         val data = fb.variable("data", "const char *")
 
-        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
+        val childPretty = StringEscapeUtils.escapeString(ir.Pretty.short(child))
+        val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
         present(
           s"""
              |({
              | ${ nd.define }
-             | ${ nElements.define }
+             | ${ length.define }
              | ${ elemRef.define }
              | ${ data.define }
-             | ${ ndt.setup }
              |
+             | ${ ndt.setup }
              | if (${ ndt.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
+             |   ${ fb.nativeError("NDArray cannot be missing. IR: %s".format(childPretty)) }
              | }
              |
-             | ${ sab.start(nElements.toString) }
-             | for (auto i = 0; i < $nElements; ++i) {
+             | ${ sab.start(length.toString) }
+             | for (auto i = 0; i < $length; ++i) {
              |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
              |
              |   ${ bodyt.setup }
              |   if (${ bodyt.m }) {
-             |     ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
+             |     ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
              |   }
              |
              |   ${ sab.add(bodyt.v) }
