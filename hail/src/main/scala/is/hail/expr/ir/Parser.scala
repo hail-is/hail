@@ -612,6 +612,11 @@ object IRParser {
         val shape = ir_value_expr(env)(it)
         val rowMajor = ir_value_expr(env)(it)
         MakeNDArray(data, shape, rowMajor)
+      case "NDArrayMap" =>
+        val name = identifier(it)
+        val nd = ir_value_expr(env)(it)
+        val body = ir_value_expr(env)(it)
+        NDArrayMap(nd, name, body)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)
