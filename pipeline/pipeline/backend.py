@@ -138,7 +138,7 @@ class LocalBackend(Backend):
 
 class BatchBackend(Backend):
     """
-    Backend that executes pipelines on a k8s cluster using `batch`.
+    Backend that executes pipelines on a Kubernetes cluster using `batch`.
 
     Examples
     --------

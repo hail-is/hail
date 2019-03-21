@@ -228,7 +228,8 @@ class Task:
         the get attribute syntax of `task.{identifier}` or the get item syntax of
         `task['identifier']`. If an object for that identifier doesn't exist,
         then one will be created automatically (only allowed in the :meth:`.command`
-        method).
+        method). The identifier name can be any valid Python identifier
+        such as `ofile5000`.
 
         All :class:`.TaskResourceFile` are temporary files and must be written
         to a permanent location using :func:`.Pipeline.write_output` if the output needs
@@ -324,6 +325,7 @@ class Task:
         Parameters
         ----------
         memory: :obj:`str` or :obj:`float` or :obj:`int`
+            Value is in GB.
 
         Returns
         -------
@@ -333,7 +335,7 @@ class Task:
         self._memory = memory
         return self
 
-    def cpu(self, cpu):
+    def cpu(self, cores):
         """
         Set the task's CPU requirements.
 
@@ -348,7 +350,7 @@ class Task:
 
         Parameters
         ----------
-        cpu: :obj:`str` or :obj:`float` or :obj:`int`
+        cores: :obj:`str` or :obj:`float` or :obj:`int`
 
         Returns
         -------
@@ -356,7 +358,7 @@ class Task:
             Same task object with CPU requirements set.
         """
 
-        self._cpu = cpu
+        self._cpu = cores
         return self
 
     def image(self, image):

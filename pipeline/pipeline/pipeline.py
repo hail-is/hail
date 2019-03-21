@@ -39,7 +39,7 @@ class Pipeline:
     default_memory: :obj:`str`, optional
         Memory setting to use by default if not specified by a task. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.BatchBackend`.
+        or the :class:`.BatchBackend`. Value is in GB.
     default_cpu: :obj:`str`, optional
         CPU setting to use by default if not specified by a task. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
