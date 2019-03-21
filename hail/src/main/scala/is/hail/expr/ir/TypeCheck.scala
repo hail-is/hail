@@ -102,7 +102,7 @@ object TypeCheck {
         assert(row_major.typ.isOfType(TBoolean()))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(coerce[TStreamable](idxs.typ).isOfType(TInt64()))
+        assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
@@ -144,7 +144,7 @@ object TypeCheck {
         val ltyp = coerce[TStreamable](left.typ)
         val rtyp = coerce[TStreamable](right.typ)
         assert(compare.typ.isOfType(TInt32()))
-        assert(coerce[TStreamable](x.typ) == join.typ)
+        assert(coerce[TStreamable](x.typ).elementType == join.typ)
       case x@ArrayFor(a, valueName, body) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(body.typ == TVoid)
