@@ -268,7 +268,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
       args = FastIndexedSeq(FastIndexedSeq(null) -> t),
       expected=false)
 
-
     assertEvalsTo(
       invoke("contains", In(0, t), Str("a")),
       args = FastIndexedSeq(FastIndexedSeq("c", "a", "b") -> t),

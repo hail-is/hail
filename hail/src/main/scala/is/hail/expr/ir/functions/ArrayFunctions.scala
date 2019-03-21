@@ -88,7 +88,7 @@ object ArrayFunctions extends RegistryFunctions {
       extend(a, MakeArray(Seq(c), TArray(c.typ)))
     }
 
-    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean()) { (a, e) => contains(a, e)}
+    registerIR("contains", TArray(tv("T")), tv("T"), TBoolean()) { (a, e) => contains(a, e) }
 
     val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
       Array(
