@@ -1,7 +1,9 @@
-FROM debian:9.5
+FROM ubuntu:18.04
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
+
+ENV LANG C.UTF-8
 
 # - libnlopt-dev is for nloptr, a dependency of SKAT:
 #   https://github.com/jyypma/nloptr/issues/40
@@ -9,15 +11,10 @@ USER root
 # - r-cran-ncdf4, r-cran-rnetcdf, libcurl4-openssl-dev, and libxml2-dve are
 # - depenendencies for the three biolite packages
 RUN apt-get update && \
-  apt-get -y install gnupg2 lsb-release curl apt-transport-https && \
-  curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
-  echo "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" >> /etc/apt/sources.list && \
-  echo "deb http://ftp.debian.org/debian $(lsb_release -cs) main contrib non-free" >> /etc/apt/sources.list && \
-  apt-get update && \
   apt-get -y install \
     bash \
     cmake \
-    docker-ce \
+    docker.io \
     g++ \
     git \
     libcurl4-openssl-dev \
@@ -36,7 +33,6 @@ RUN apt-get update && \
     wget \
     xsltproc \
   && \
-  pip3 install --no-cache-dir flake8 pylint && \
   rm -rf /var/lib/apt/lists/*
 
 RUN wget https://repo.anaconda.com/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O miniconda.sh && \
