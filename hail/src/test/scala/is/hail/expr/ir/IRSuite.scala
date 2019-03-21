@@ -961,17 +961,11 @@ class IRSuite extends SparkSuite {
 
     def bools = MakeNDArray(
       MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())), shape, False())
-    def sameBools = NDArrayMap(bools, "e", Ref("e", TBoolean()))
-    def t = NDArrayRef(sameBools, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    def f = NDArrayRef(sameBools, MakeArray(FastSeq(0L, 1L), TArray(TInt64())))
-    assertEvalsTo(t, true)
-    assertEvalsTo(f, false)
-
-//    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
-//    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-//    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 1L), TArray(TInt64())))
-//    assertEvalsTo(one, 1L)
-//    assertEvalsTo(zero, 0L)
+    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
+    assertEvalsTo(one, 1L)
+    assertEvalsTo(zero, 0L)
   }
 
   @Test def testLeftJoinRightDistinct() {

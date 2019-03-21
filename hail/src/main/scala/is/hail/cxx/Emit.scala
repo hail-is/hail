@@ -392,10 +392,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val m = fb.variable("m", "bool")
 
-        var s = ir.Pretty(x)
-        if (s.length > 100)
-          s = s.substring(0, 100)
-        s = StringEscapeUtils.escapeString(s)
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
 
         triplet(Code(at.setup, it.setup,
           s"""
@@ -836,6 +833,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shapeVec = fb.variable("shapeVec", "std::vector<long>",
           s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
         val dataArr = fb.variable("dataArr", "const char *", datat.v)
+
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
           s"""
              |({
@@ -843,7 +842,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shapet.setup }
              | ${ datat.setup }
              | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ flags.define }
@@ -872,29 +871,37 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val nElements = fb.variable("length", "long", s"n_elements($nd.shape)")
         val sab = resultRegion.arrayBuilder(fb, newDataContainer)
+        val data = fb.variable("data", "const char *")
 
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
           s"""
              |({
              | ${ nd.define }
              | ${ nElements.define }
              | ${ elemRef.define }
+             | ${ data.define }
              | ${ ndt.setup }
-             | ${ bodyt.setup }
              |
-             | if (${ ndt.m } || ${ bodyt.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             | if (${ ndt.m }) {
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ sab.start(nElements.toString) }
              | for (auto i = 0; i < $nElements; ++i) {
              |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
+             |
+             |   ${ bodyt.setup }
+             |   if (${ bodyt.m }) {
+             |     ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
+             |   }
+             |
              |   ${ sab.add(bodyt.v) }
              |   ${ sab.advance() }
              | }
-             | const char *data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
+             | $data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
              |
-             | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, data);
+             | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, $data);
              |})
            """.stripMargin)
 
@@ -908,13 +915,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val idxsVec = fb.variable("idxsVec", "std::vector<long>",
           s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
+
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
           s"""
              |({
              | ${ ndt.setup }
              | ${ idxst.setup }
              | if (${ ndt.m } || ${ idxst.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ idxsVec.define }
@@ -946,11 +955,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val len = fb.variable("len", "int")
         val llen = fb.variable("llen", "long")
 
-        var s = ir.Pretty(x)
-        if (s.length > 100)
-          s = s.substring(0, 100)
-        s = StringEscapeUtils.escapeString(s)
-
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
 
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         new ArrayEmitter(
