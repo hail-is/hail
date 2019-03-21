@@ -2612,3 +2612,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
+
+    def test_variant_str(self):
+        assert hl.eval(
+            hl.variant_str(hl.struct(locus=hl.parse_locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
+        assert hl.eval(hl.variant_str(hl.parse_locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
+        with pytest.raises(ValueError):
+            hl.variant_str()
