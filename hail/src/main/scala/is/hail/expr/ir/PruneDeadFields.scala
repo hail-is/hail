@@ -820,7 +820,7 @@ object PruneDeadFields {
 
         unifyEnvs(
           zeroEnv,
-          bodyEnv.deleteEval(valueName),
+          bodyEnv.deleteEval(valueName).deleteEval(accumName),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
       case ArrayScan(a, zero, accumName, valueName, body) =>
@@ -856,7 +856,22 @@ object PruneDeadFields {
           combEnv.deleteEval(l).deleteEval(r),
           memoizeValueIR(left, lType.copy(elementType = lRequested), memo),
           memoizeValueIR(right, rType.copy(elementType = rRequested), memo))
+      case ArraySort(a, left, right, compare) =>
+        val compEnv = memoizeValueIR(compare, compare.typ, memo)
 
+        val aType = a.typ.asInstanceOf[TArray]
+        val requestedElementType = unifySeq(
+          aType.elementType,
+          compEnv.eval.lookupOption(left).map(_.result()).getOrElse(Array()) ++
+          compEnv.eval.lookupOption(right).map(_.result()).getOrElse(Array()))
+
+        // Is it possible to prune array element type based on the comparison IR?
+        val aEnv = memoizeValueIR(a, aType.copy(requestedElementType), memo)
+
+        unifyEnvs(
+          compEnv.deleteEval(left).deleteEval(right),
+          aEnv
+        )
       case ArrayFor(a, valueName, body) =>
         assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TArray]
@@ -904,13 +919,13 @@ object PruneDeadFields {
           memoizeValueIR(aggIR, requestedType, memo)
         )
       case AggGroupBy(key, aggIR, isScan) =>
-        val keyEnv = memoizeValueIR(key, key.typ, memo)
+        val keyEnv = memoizeValueIR(key, requestedType.asInstanceOf[TDict].keyType, memo)
         unifyEnvs(
           if (isScan)
             BindingEnv(scan = Some(keyEnv.eval))
           else
             BindingEnv(agg = Some(keyEnv.eval)),
-          memoizeValueIR(aggIR, requestedType, memo)
+          memoizeValueIR(aggIR, requestedType.asInstanceOf[TDict].valueType, memo)
         )
       case AggArrayPerElement(a, name, aggBody, isScan) =>
         val aType = a.typ.asInstanceOf[TArray]
