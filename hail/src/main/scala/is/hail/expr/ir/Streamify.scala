@@ -33,18 +33,37 @@ object Streamify {
       }
     case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
       ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, keyf, joinf)
+    case If(cond, cnsq, altr) =>
+      If(cond, streamify(cnsq), streamify(altr))
+    case Let(n, v, b) =>
+      Let(n, v, streamify(b))
     case _ =>
       ToStream(streamableNode)
   }
 
-  private[this] def unstreamify(streamableNode: IR): IR = {
-    val streamified = streamify(streamableNode)
-    streamified match {
-      case StreamRange(start, stop, step) => ArrayRange(start, stop, step)
-      case MakeStream(args, t) => MakeArray(args, TArray(t.elementType, t.required))
-      case ToStream(a) => a
-      case _ => ToArray(streamableNode)
-    }
+  private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
+    case _: MakeArray | _: ArrayRange => streamableNode
+    case StreamRange(start, stop, step) => ArrayRange(start, stop, step)
+    case MakeStream(args, t) => MakeArray(args, TArray(t.elementType, t.required))
+    case ToArray(a) =>
+      a.typ match {
+        case _: TArray => ToArray(streamify(a))
+        case _ => streamableNode
+      }
+    case ToStream(a) =>
+      a.typ match {
+        case _: TStream => ToArray(a)
+        case _ => a
+      }
+    case If(cond, cnsq, altr) =>
+      If(cond, unstreamify(cnsq), unstreamify(altr))
+    case Let(n, v, b) =>
+      Let(n, v, unstreamify(streamableNode))
+    case _ =>
+      streamify(streamableNode) match {
+        case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
+        case s => ToArray(s)
+      }
   }
 
   def apply(node: IR): IR = node match {
