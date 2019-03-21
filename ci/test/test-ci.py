@@ -127,6 +127,7 @@ def test_pull_request_comment_does_not_overwrite_approval():
 
 def get_pr(source_ref):
     status = ci_get('/status', status_code=200)
+    print('status', status)
     assert 'prs' in status
     assert '_watched_targets' in status
     all_prs = [PR.from_json(x) for x in status['prs']]
