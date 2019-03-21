@@ -364,27 +364,22 @@ class Tests(unittest.TestCase):
         kt4 = hl.utils.range_table(1)
         kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
 
-        assert kt4.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ['quam']
+        assert kt.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ['quam']
 
     def test_table_matrix_join_combinations(self):
         m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
-        vkt = vkt.select(vkt.qual)
-        vkt = vkt.annotate(qual2=m.index_rows(vkt.key).qual)
-        assert vkt.filter(vkt.qual != vkt.qual2).count() == 0
+        assert vkt.filter(vkt.qual != m.index_rows(vkt.key).qual).count() == 0
 
-        m2 = m.annotate_rows(qual2=vkt.index(m.row_key).qual)
-        assert m2.filter_rows(m2.qual != m2.qual2).count_rows() == 0
+        assert m.filter_rows(m.qual != vkt.index(m.row_key).qual).count_rows() == 0
 
-        m3 = m.annotate_rows(qual2=m.index_rows(m.row_key).qual)
-        assert m3.filter_rows(m3.qual != m3.qual2).count_rows() == 0
+        assert m.filter_rows(m.qual != m.index_rows(m.row_key).qual).count_rows() == 0
 
-        kt5 = hl.utils.range_table(1).annotate(key='C1589').key_by('key')
-        m4 = m.annotate_cols(foo=m.s[:5])
-        m4 = m4.annotate_cols(idx=kt5[m4.foo].idx)
+        kt5 = hl.utils.range_table(1).annotate(s='C1589').key_by('s')
+        m2 = m.annotate_cols(foo=m.s[:5])
         n_C1589 = m.filter_cols(m.s[:5] == 'C1589').count_cols()
         assert n_C1589 > 1
-        assert m4.filter_cols(hl.is_defined(m4.idx)).count_cols() == n_C1589
+        assert m2.filter_cols(hl.is_defined(kt5[m2.foo].idx)).count_cols() == n_C1589
 
     def test_index_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
