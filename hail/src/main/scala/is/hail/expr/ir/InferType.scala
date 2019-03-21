@@ -5,12 +5,6 @@ import is.hail.utils._
 
 // FIXME: strip all requiredness logic when possible
 object InferType {
-  private[this] def propagateStreamable(t: TStreamable, elt: Type): TStreamable =
-    t match {
-      case _: TStream => TStream(elt, t.required)
-      case _: TArray => TArray(elt, t.required)
-    }
-
   def apply(ir: IR): Type = {
     ir match {
       case I32(_) => TInt32()
@@ -86,21 +80,21 @@ object InferType {
         val elt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
-        propagateStreamable(coerce[TStreamable](a.typ), body.typ.setRequired(false))
+        coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
       case ArrayFilter(a, name, cond) =>
         a.typ
       case ArrayFlatMap(a, name, body) =>
-        propagateStreamable(coerce[TStreamable](a.typ), coerce[TIterable](body.typ).elementType)
+        coerce[TStreamable](a.typ).copyStreamable(coerce[TIterable](body.typ).elementType)
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
-        propagateStreamable(coerce[TStreamable](a.typ), zero.typ)
+        coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        propagateStreamable(coerce[TStreamable](left.typ), join.typ)
+        coerce[TStreamable](left.typ).copyStreamable(join.typ)
       case NDArrayRef(nd, idxs) =>
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 

@@ -1266,7 +1266,7 @@ object PruneDeadFields {
       case Ref(name, t) =>
         Ref(name, in.lookupOption(name).getOrElse(t))
       case MakeArray(args, t) =>
-        val depArray = requestedType.asInstanceOf[TStreamable]
+        val depArray = requestedType.asInstanceOf[TArray]
         MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), depArray)
       case ArrayMap(a, name, body) =>
         val a2 = rebuild(a, in, memo)
