@@ -265,7 +265,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
-        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
+        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')))
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 

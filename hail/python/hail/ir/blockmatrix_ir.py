@@ -129,13 +129,15 @@ class BlockMatrixAgg(BlockMatrixIR):
 class BlockMatrixFilter(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, indices_to_keep=sequenceof(sequenceof(int)))
     def __init__(self, child, indices_to_keep):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.indices_to_keep = indices_to_keep
 
-    def render(self, r):
-        formatted_indices = _serialize_list([_serialize_list(idxs) for idxs in self.indices_to_keep])
-        return f'(BlockMatrixFilter {formatted_indices} {r(self.child)})'
+    def head_str(self):
+        return _serialize_list([_serialize_list(idxs) for idxs in self.indices_to_keep])
+
+    def _eq(self, other):
+        return self.indices_to_keep == other.indices_to_keep
 
     def _compute_type(self):
         assert len(self.indices_to_keep) == 2
@@ -196,6 +198,12 @@ class BlockMatrixRandom(BlockMatrixIR):
                                     self.gaussian,
                                     _serialize_list(self.shape),
                                     self.block_size)
+
+    def _eq(self, other):
+        return self.seed == other.seed and \
+               self.gaussian == other.gaussian and \
+               self.shape == other.shape and \
+               self.block_size == other.block_size
 
     def _compute_type(self):
         assert len(self.shape) == 2

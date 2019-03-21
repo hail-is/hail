@@ -1566,7 +1566,7 @@ class BlockMatrixWrite(IR):
         return BlockMatrixWrite(child, self.writer)
 
     def head_str(self):
-        return self.writer.render()
+        return f'"{self.writer.render()}"'
 
     def _eq(self, other):
         return self.writer == other.writer
@@ -1632,7 +1632,7 @@ class MatrixToValueApply(IR):
 
 class BlockMatrixToValueApply(IR):
     def __init__(self, child, config):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.config = config
 
@@ -1641,11 +1641,11 @@ class BlockMatrixToValueApply(IR):
         new_instance = self.__class__
         return new_instance(child, self.config)
 
-    def render(self, r):
-        return f'(BlockMatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+    def head_str(self):
+        return dump_json(self.config)
 
-    def __eq__(self, other):
-        return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
+    def _eq(self, other):
+        return other.config == self.config
 
     def _compute_type(self, env, agg_env):
         assert self.config['name'] == 'GetElement'

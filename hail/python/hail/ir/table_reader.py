@@ -67,7 +67,7 @@ class TableFromBlockMatrixNativeReader(TableReader):
         self.path = path
         self.n_partitions = n_partitions
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'TableFromBlockMatrixNativeReader',
                   'path': self.path,
                   'nPartitions': self.n_partitions}

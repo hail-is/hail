@@ -117,7 +117,7 @@ class Renderer(object):
                         builder.append(f'(JavaBlockMatrix {jir_id})')
                     else:
                         assert isinstance(x, ir.IR)
-                        builder.append('(JavaIR {jir_id})')
+                        builder.append(f'(JavaIR {jir_id})')
                 else:
                     head = x.render_head(self)
                     if head != '':

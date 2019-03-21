@@ -549,11 +549,8 @@ class MatrixToTableApply(TableIR):
 
 class BlockMatrixToTable(TableIR):
     def __init__(self, child):
-        super().__init__()
+        super().__init__(child)
         self.child = child
-
-    def render(self, r):
-        return f'(BlockMatrixToTable {r(self.child)})'
 
     def _compute_type(self):
         self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])

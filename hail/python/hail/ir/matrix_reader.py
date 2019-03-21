@@ -11,7 +11,7 @@ from ..utils.java import escape_str
 
 class MatrixReader(object):
     @abc.abstractmethod
-    def render(self):
+    def render(self, r):
         pass
 
     @abc.abstractmethod
@@ -24,7 +24,7 @@ class MatrixNativeReader(MatrixReader):
     def __init__(self, path):
         self.path = path
 
-    def render(self):
+    def render(self, r):
         reader = {'name': 'MatrixNativeReader',
                   'path': self.path}
         return escape_str(json.dumps(reader))
@@ -43,7 +43,7 @@ class MatrixRangeReader(MatrixReader):
         self.n_cols = n_cols
         self.n_partitions = n_partitions
 
-    def render(self):
+    def render(self, r):
         reader = {'name': 'MatrixRangeReader',
                   'nRows': self.n_rows,
                   'nCols': self.n_cols,
@@ -102,7 +102,7 @@ class MatrixVCFReader(MatrixReader):
         self.find_replace = find_replace
         self._partitions_json = _partitions_json
 
-    def render(self):
+    def render(self, r):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
@@ -156,13 +156,14 @@ class MatrixBGENReader(MatrixReader):
             assert (isinstance(included_variants, Table))
         self.included_variants = included_variants
 
-    def render(self):
+    def render(self, r):
         reader = {'name': 'MatrixBGENReader',
                   'files': self.path,
                   'sampleFile': self.sample_file,
                   'indexFileMap': self.index_file_map,
                   'nPartitions': self.n_partitions,
                   'blockSizeInMB': self.block_size,
+                   # FIXME: This has to be wrong. The included_variants IR is not included as a child
                   'includedVariants': r(self.included_variants._tir) if self.included_variants else None
                   }
         return escape_str(json.dumps(reader))
@@ -195,7 +196,7 @@ class MatrixPLINKReader(MatrixReader):
         self.contig_recoding = contig_recoding
         self.skip_invalid_loci = skip_invalid_loci
 
-    def render(self):
+    def render(self, r):
         reader = {'name': 'MatrixPLINKReader',
                   'bed': self.bed,
                   'bim': self.bim,
@@ -243,7 +244,7 @@ class MatrixGENReader(MatrixReader):
             'skipInvalidLoci': skip_invalid_loci
         }
 
-    def render(self):
+    def render(self, r):
         return escape_str(json.dumps(self.config))
 
     def __eq__(self, other):

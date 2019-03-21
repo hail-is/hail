@@ -30,8 +30,8 @@ class MatrixRead(MatrixIR):
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
 
-    def head_str(self):
-        return f'None {self.drop_cols} {self.drop_rows} "{self.reader.render()}"'
+    def render_head(self, r):
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
 
     def _eq(self, other):
         return self.reader == other.reader and self.drop_cols == other.drop_cols and self.drop_rows == other.drop_rows
@@ -498,8 +498,8 @@ class JavaMatrixVectorRef(MatrixIR):
         self.vec_ref = vec_ref
         self.idx = idx
 
-    def render(self, r):
-        return f'(JavaMatrixVectorRef {self.vec_ref.jid} {self.idx})'
+    def head_str(self):
+        return f'{self.vec_ref.jid} {self.idx}'
 
     def _compute_type(self):
         self._type = self.vec_ref.item_type
