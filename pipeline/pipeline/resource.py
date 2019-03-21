@@ -19,6 +19,10 @@ class Resource:
 
 
 class ResourceFile(Resource, str):
+    """
+    Class representing a single file resource. There exist two subclasses:
+    :class:`.InputResourceFile` and :class:`.TaskResourceFile`.
+    """
     _counter = 0
     _uid_prefix = "__RESOURCE_FILE__"
     _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)
@@ -68,6 +72,32 @@ class ResourceFile(Resource, str):
         return self._resource_group
 
     def add_extension(self, extension):
+        """
+        Specify the file extension to use.
+
+        Examples
+        --------
+
+        >>> p = Pipeline()
+        >>> t = p.new_task()
+        >>> t.command(f'echo "hello" > {t.ofile}')
+        >>> t.ofile.add_extension('.txt')
+
+        Notes
+        -----
+        The default file name for a :class:`.ResourceFile` is a unique
+        identifier with no file extensions.
+
+        Parameters
+        ----------
+        extension: :obj:`str`
+            File extension to use.
+
+        Returns
+        -------
+        :class:`.ResourceFile`
+            Same resource file with the extension specified
+        """
         if self._has_extension:
             raise Exception("Resource already has a file extension added.")
         self._value += extension
@@ -82,6 +112,10 @@ class ResourceFile(Resource, str):
 
 
 class InputResourceFile(ResourceFile):
+    """
+    Class representing a resource from an input file.
+    """
+
     def __init__(self, value):
         self._input_path = None
         super().__init__(value)
@@ -96,6 +130,16 @@ class InputResourceFile(ResourceFile):
 
 
 class TaskResourceFile(ResourceFile):
+    """
+    Class representing an intermediate file from a task.
+
+    Notes
+    -----
+    All :class:`.TaskResourceFile` are temporary files and must be written
+    to a permanent location using :func:`.Pipeline.write_output` if the output needs
+    to be saved.
+    """
+
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
@@ -103,6 +147,46 @@ class TaskResourceFile(ResourceFile):
 
 
 class ResourceGroup(Resource):
+    """
+    Class representing a mapping of identifiers to a resource file.
+
+    Examples
+    --------
+
+    Initialize a pipeline and create a new task:
+
+    >>> p = Pipeline()
+    >>> t = p.new_task()
+
+    Read a set of input files as a resource group:
+
+    >>> bfile = p.read_input_group(bed="data/example.bed",
+    ...                            bim="data/example.bim",
+    ...                            fam="data/example.fam")
+
+    Reference the entire file group:
+
+    >>> t.command(f"plink --bfile {bfile} --geno 0.2 --out {t.ofile}")
+
+    Reference a single file:
+
+    >>> t.command(f"wc -l {bfile.fam}")
+
+    Create a resource group from a task intermediate:
+
+    >>> t.declare_resource_group(ofile={'bed': '{root}.bed',
+    ...                                 'bim': '{root}.bim',
+    ...                                 'fam': '{root}.fam'})
+    >>> t.command(f"plink --bfile {bfile} --make-bed --out {t.ofile}")
+
+    Notes
+    -----
+    All files in the resource group are copied between tasks even if only one
+    file in the resource group is mentioned. This is to account for files that
+    are implicitly assumed to always be together such as a FASTA file and its
+    index.
+    """
+
     _counter = 0
     _uid_prefix = "__RESOURCE_GROUP__"
     _regex_pattern = r"(?P<RESOURCE_GROUP>{}\d+)".format(_uid_prefix)

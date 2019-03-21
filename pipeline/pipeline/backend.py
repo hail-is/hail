@@ -10,16 +10,31 @@ from .utils import escape_string, flatten
 
 class Backend:
     @abc.abstractmethod
-    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         return
 
 
 class LocalBackend(Backend):
+    """
+    Backend that executes pipelines on a local computer.
+
+    Examples
+    --------
+
+    >>> local_backend = LocalBackend(tmp_dir='/tmp/user/')
+    >>> p = Pipeline(backend=local_backend)
+
+    Parameters
+    ----------
+    tmp_dir: :obj:`str`, optional
+        Temporary directory to use.
+    """
+
     def __init__(self, tmp_dir='/tmp/'):
         self._tmp_dir = tmp_dir
 
-    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
-        tmpdir = self.tmp_dir()
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
+        tmpdir = self._get_scratch_dir()
 
         script = ['#!/bin/bash',
                   'set -e' + 'x' if verbose else '',
@@ -108,7 +123,7 @@ class LocalBackend(Backend):
                 if delete_scratch_on_exit:
                     sp.run(f'rm -r {tmpdir}', shell=True)
 
-    def tmp_dir(self):
+    def _get_scratch_dir(self):
         def _get_random_name():
             directory = self._tmp_dir + '/pipeline-{}/'.format(uuid.uuid4().hex[:12])
 
@@ -122,10 +137,25 @@ class LocalBackend(Backend):
 
 
 class BatchBackend(Backend):
+    """
+    Backend that executes pipelines on a Kubernetes cluster using `batch`.
+
+    Examples
+    --------
+
+    >>> batch_backend = BatchBackend(tmp_dir='http://localhost:5000')
+    >>> p = Pipeline(backend=batch_backend)
+
+    Parameters
+    ----------
+    url: :obj:`str`
+        URL to batch server.
+    """
+
     def __init__(self, url):
         self._batch_client = batch.client.BatchClient(url)
 
-    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
         if dry_run:
             raise NotImplementedError
 
