@@ -20,6 +20,7 @@ object Bindings {
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TArray](a.typ).elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TArray](ll.typ).elementType, r -> -coerce[TArray](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> -coerce[TArray](a.typ).elementType, right -> -coerce[TArray](a.typ).elementType) else empty
+    case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> -coerce[TNDArray](nd.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
     case Uniroot(argname, _, _, _) => if (i == 0) Array(argname -> TFloat64()) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
