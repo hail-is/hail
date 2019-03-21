@@ -42,8 +42,8 @@ RUN wget https://repo.anaconda.com/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O
   rm miniconda.sh
 ENV PATH $PATH:/opt/conda/bin
 
-RUN MAKEFLAGS=-j4 Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
-    MAKEFLAGS=-j4 Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
+RUN MAKEFLAGS=-j$(nproc) Rscript -e 'install.packages(c("jsonlite", "SKAT", "logistf"), repos = "http://cran.us.r-project.org")' && \
+    MAKEFLAGS=-j$(nproc) Rscript -e 'source("https://bioconductor.org/biocLite.R"); biocLite("GENESIS"); biocLite("SNPRelate"); biocLite("GWASTools")'
 
 # this seems easier than getting the keys right for apt
 #
