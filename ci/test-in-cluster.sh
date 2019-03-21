@@ -31,7 +31,7 @@ export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
 export BATCH_SERVER_URL=http://127.0.0.1:5001
 
 pushd ../batch
-python -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 popd
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
