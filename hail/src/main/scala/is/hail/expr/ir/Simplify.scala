@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -166,6 +166,15 @@ object Simplify {
 
     case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
       ArrayRef(a, i)
+
+    case ToArray(x) if x.typ.isInstanceOf[TArray] => x
+
+    case ApplyIR("contains", Seq(ToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", x, element)
+
+    case ApplyIR("contains", Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
+      invoke("contains", Literal(TSet(t.asInstanceOf[TArray].elementType, t.required), v.asInstanceOf[IndexedSeq[_]].toSet), element)
+
+    case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", x, element)
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
