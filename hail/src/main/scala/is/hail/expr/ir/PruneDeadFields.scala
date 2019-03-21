@@ -862,10 +862,10 @@ object PruneDeadFields {
         val aType = a.typ.asInstanceOf[TArray]
         val requestedElementType = unifySeq(
           aType.elementType,
+          Array(requestedType.asInstanceOf[TArray].elementType) ++
           compEnv.eval.lookupOption(left).map(_.result()).getOrElse(Array()) ++
           compEnv.eval.lookupOption(right).map(_.result()).getOrElse(Array()))
 
-        // Is it possible to prune array element type based on the comparison IR?
         val aEnv = memoizeValueIR(a, aType.copy(requestedElementType), memo)
 
         unifyEnvs(
