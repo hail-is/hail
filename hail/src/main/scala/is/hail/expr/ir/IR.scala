@@ -114,13 +114,13 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
-  def unify(args: Seq[IR], typ: TStreamable = null): MakeArray = {
+  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
     assert(typ != null || args.nonEmpty)
-    var t: TStreamable = typ
+    var t: TArray = typ
     if (t == null) {
       t = if (args.tail.forall(_.typ == args.head.typ)) {
-        TStream(args.head.typ)
-      } else TStream(args.head.typ.deepOptional())
+        TArray(args.head.typ)
+      } else TArray(args.head.typ.deepOptional())
     }
     assert(t.elementType.deepOptional() == t.elementType ||
       args.forall(a => a.typ == t.elementType),
@@ -138,7 +138,7 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], _typ: TStreamable) extends IR
+final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 final case class ArrayRef(a: IR, i: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
