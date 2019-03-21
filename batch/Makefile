@@ -9,11 +9,11 @@ PY_CHECKERS = flake8-stmp pylint-stmp
 BATCH_PORT ?= 5000
 
 flake8-stmp: $(PY_FILES)
-	python -m flake8 batch
+	python3 -m flake8 batch
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	python -m pylint --rcfile batch/pylintrc batch --score=n
+	python3 -m pylint --rcfile batch/pylintrc batch --score=n
 	touch $@
 
 check: $(PY_CHECKERS)
@@ -42,10 +42,10 @@ run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run:
-	python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+	python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 run-local: run
-	BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+	BATCH_USE_KUBE_CONFIG=1 python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
 	sed -e "s,@image@,$$(cat batch-test-image)," \
