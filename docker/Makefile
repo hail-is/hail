@@ -17,13 +17,11 @@ ifeq ($(IN_HAIL_CI),1)
 
 PROJECT = $(shell gcloud config get-value project)
 BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
-SPARK_BASE_IMAGE = gcr.io/$(PROJECT)/spark-base:$(shell docker images -q --no-trunc spark-base:latest | sed -e 's,[^:]*:,,')
 
 push: build
+	docker push base
 	docker tag base $(BASE_IMAGE)
 	docker push $(BASE_IMAGE)
-	docker tag spark-base $(SPARK_BASE_IMAGE)
-	docker push $(SPARK_BASE_IMAGE)
 
 deploy: push
 endif
