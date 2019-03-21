@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, SortField}
 import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
@@ -64,5 +64,20 @@ class SimplifySuite extends SparkSuite {
     val identityBroadcast = BlockMatrixBroadcast(bmir, IndexedSeq(0, 1), IndexedSeq(2, 2), 10)
 
     assert(Simplify(identityBroadcast) == bmir)
+  }
+
+  @Test def testContainsRewrites() {
+    assertEvalsTo(invoke("contains", Literal(TArray(TString()), FastIndexedSeq("a")), In(0, TString())),
+      FastIndexedSeq("a" -> TString()),
+      true)
+
+    assertEvalsTo(invoke("contains", ToSet(In(0, TArray(TString()))), Str("a")),
+      FastIndexedSeq(FastIndexedSeq("a") -> TArray(TString())),
+      true)
+
+
+    assertEvalsTo(invoke("contains", ToArray(In(0, TSet(TString()))), Str("a")),
+      FastIndexedSeq(Set("a") -> TSet(TString())),
+      true)
   }
 }
