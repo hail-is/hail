@@ -1201,6 +1201,9 @@ class Table(ExprContainer):
 
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
+    def _show(self, n, width, truncate, types):
+        return _Show(self, n, width, truncate, types)
+
     class _Show:
         def __init__(self, table, n, width, truncate, types):
             self.table = table
@@ -1408,7 +1411,7 @@ class Table(ExprContainer):
             import shutil
             (columns, lines) = shutil.get_terminal_size((80, 10))
             width = width or columns
-            n = n or math.max(10, (lines - 10))
+            n = n or min(max(10, (lines - 10)), 100)
         if handler is None:
             try:
                 from IPython.display import display
