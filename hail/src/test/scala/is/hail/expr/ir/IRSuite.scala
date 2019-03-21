@@ -471,7 +471,6 @@ class IRSuite extends SparkSuite {
     assertComparesTo(TFloat64(), 1.0, 0.0, true)
   }
 
-
   @Test def testApplyComparisonOpLT() {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
       assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -586,6 +585,15 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32())), 5)
     assertEvalsTo(Let("v", NA(TInt32()), Ref("v", TInt32())), null)
     assertEvalsTo(Let("v", I32(5), NA(TInt32())), null)
+    assertEvalsTo(ArrayMap(Let("v", I32(5), ArrayRange(0, Ref("v", TInt32()), 1)), "x", Ref("x", TInt32()) + I32(2)),
+      FastIndexedSeq(2, 3, 4, 5, 6))
+    assertEvalsTo(
+      ArrayMap(Let("q", I32(2),
+      ArrayMap(Let("v", Ref("q", TInt32()) + I32(3),
+        ArrayRange(0, Ref("v", TInt32()), 1)),
+        "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
+        "y", Ref("y", TInt32()) + I32(3)),
+      FastIndexedSeq(5, 6, 7, 8, 9))
   }
 
   @Test def testMakeArray() {

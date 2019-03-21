@@ -1065,6 +1065,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
+      case ir.Let(name, value, body) =>
+        val vt = emit(resultRegion, value, env).memoize(fb)
+        val bodyEnv = env.bind(name, EmitTriplet(value.pType, "", vt.m, vt.v, resultRegion))
+        val ae = emitArray(resultRegion, body, bodyEnv, sameRegion)
+
+        val setup =
+          s"""
+             |${ vt.setup }
+             |${ ae.setup }
+           """.stripMargin
+
+        new ArrayEmitter(setup, ae.m, ae.setupLen, None, ae.arrayRegion) {
+          def emit(f: (Code, Code) => Code): Code = ae.emit(f)
+        }
+
       case _ =>
         val pArray = x.pType.asInstanceOf[PArray]
         val t = emit(resultRegion, x, env)
