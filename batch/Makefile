@@ -1,15 +1,12 @@
 .PHONY: build build-test \
   push push-test \
   run-docker run \
-  test test-local deploy clean
+  test test-local deploy clean check
 
 PROJECT = $(shell gcloud config get-value project)
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 PY_CHECKERS = flake8-stmp pylint-stmp
 BATCH_PORT ?= 5000
-
-clean:
-	rm -f $(PY_CHECKERS)
 
 flake8-stmp: $(PY_FILES)
 	python -m flake8 batch
@@ -18,6 +15,8 @@ flake8-stmp: $(PY_FILES)
 pylint-stmp: $(PY_FILES)
 	python -m pylint --rcfile batch/pylintrc batch --score=n
 	touch $@
+
+check: $(PY_CHECKERS)
 
 build:
 	make -C ../docker build
@@ -54,14 +53,14 @@ test: push-test
 	kubectl create -f test-batch-pod.yaml
 
 ifneq ($(PY_CHECK),false)
-test-local: $(PY_CHECKERS)
+test-local: check
 endif
 test-local:
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: $(PY_CHECKERS)
+test-local-in-cluster: check
 	POD_NAMESPACE='test' ./test-locally.sh
 
 deploy: push
@@ -71,3 +70,6 @@ deploy: push
 	kubectl delete persistentvolumeclaim --all --namespace test
 	kubectl delete persistentvolumeclaim --all --namespace batch-pods
 	kubectl -n default apply -f deployment.yaml
+
+clean:
+	rm -f $(PY_CHECKERS)

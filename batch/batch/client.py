@@ -263,7 +263,7 @@ class BatchClient:
         job_id_by_name = {}
 
         # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id): # pylint: disable=unused-argument
+        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
             job = job_id_by_name.get(id)
             if job:
                 return job
