@@ -13,7 +13,7 @@ object BindingEnv {
 }
 
 case class BindingEnv[V](
-  eval: Env[V],
+  eval: Env[V] = Env.empty[V],
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None
 ) {

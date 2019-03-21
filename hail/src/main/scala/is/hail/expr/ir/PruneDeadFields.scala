@@ -665,7 +665,9 @@ object PruneDeadFields {
     val expectedBindingSet = Set("row", "global")
     depEnvUnified.m.keys.foreach { k =>
       if (!expectedBindingSet.contains(k))
-        throw new RuntimeException(s"found unexpected free variable in pruning: $k\n  ${ Pretty(ir) }")
+        throw new RuntimeException(s"found unexpected free variable in pruning: $k\n" +
+          s"  ${depEnv.pretty(_.result().mkString(","))}\n" +
+          s"  ${ Pretty(ir) }")
     }
 
     val min = minimal(base)
@@ -878,8 +880,8 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
-            aEnv.copy(eval = Env.empty, scan = Some(aEnv.eval))
+            BindingEnv(scan = bodyEnv.scan.map(_.delete(name))),
+            BindingEnv(scan = Some(aEnv.eval))
           )
         } else {
           val valueType = unifySeq(
@@ -888,26 +890,26 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
-            aEnv.copy(eval = Env.empty, agg = Some(aEnv.eval))
+            BindingEnv(agg = bodyEnv.agg.map(_.delete(name))),
+            BindingEnv(agg = Some(aEnv.eval))
           )
         }
       case AggFilter(cond, aggIR, isScan) =>
         val condEnv = memoizeValueIR(cond, cond.typ, memo)
         unifyEnvs(
           if (isScan)
-            condEnv.copy(scan = Some(condEnv.eval))
+            BindingEnv(scan = Some(condEnv.eval))
           else
-            condEnv.copy(agg = Some(condEnv.eval)),
+            BindingEnv(agg = Some(condEnv.eval)),
           memoizeValueIR(aggIR, requestedType, memo)
         )
       case AggGroupBy(key, aggIR, isScan) =>
         val keyEnv = memoizeValueIR(key, key.typ, memo)
         unifyEnvs(
           if (isScan)
-            keyEnv.copy(scan = Some(keyEnv.eval))
+            BindingEnv(scan = Some(keyEnv.eval))
           else
-            keyEnv.copy(agg = Some(keyEnv.eval)),
+            BindingEnv(agg = Some(keyEnv.eval)),
           memoizeValueIR(aggIR, requestedType, memo)
         )
       case AggArrayPerElement(a, name, aggBody, isScan) =>
@@ -922,8 +924,8 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
-            aEnv.copy(eval = Env.empty, scan = Some(aEnv.eval))
+            BindingEnv(scan = bodyEnv.scan.map(_.delete(name))),
+            BindingEnv(scan = Some(aEnv.eval))
           )
         } else {
           val valueType = unifySeq(
@@ -932,8 +934,8 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
-            aEnv.copy(eval = Env.empty, agg = Some(aEnv.eval))
+            BindingEnv(agg = bodyEnv.agg.map(_.delete(name))),
+            BindingEnv(agg = Some(aEnv.eval))
           )
         }
       case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, _) =>
@@ -962,7 +964,7 @@ object PruneDeadFields {
           queryEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
         val aEnv = memoizeValueIR(a, aType.copy(elementType = requestedElemType), memo)
         unifyEnvs(
-          queryEnv.copy[ArrayBuilder[Type]](eval = concatEnvs(Array(queryEnv.eval, queryEnv.agg.get.delete(name))), agg = None),
+          BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.agg.get.delete(name)))),
           aEnv)
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
