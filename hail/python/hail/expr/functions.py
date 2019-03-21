@@ -2934,7 +2934,7 @@ def zip_with_index(a, index_first=True):
     >>> hl.eval(hl.zip_with_index(['A', 'B', 'C']))
     [(0, 'A'), (1, 'B'), (2, 'C')]
 
-    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C'], first=False))
+    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C'], index_first=False))
     [('A', 0), ('B', 1), ('C', 2)]
 
 
