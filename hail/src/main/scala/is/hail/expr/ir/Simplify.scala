@@ -295,7 +295,7 @@ object Simplify {
             g1.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g1s, g1.typ), f.name): IR)) ++
               g2.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g2s, g2.typ), f.name): IR)))))
     case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
-      MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(children.head.typ.globalType))))
+      MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TStream(children.head.typ.globalType))))
     case TableGetGlobals(TableZipUnchecked(left, _)) => TableGetGlobals(left)
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)

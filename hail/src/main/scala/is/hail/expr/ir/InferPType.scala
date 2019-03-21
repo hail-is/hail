@@ -5,6 +5,12 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object InferPType {
+  private[this] def propagateStreamable(t: PStreamable, elt: PType): PType =
+    t match {
+      case _: PStream => PStream(elt, t.required)
+      case _: PArray => PArray(elt, t.required)
+    }
+
   def apply(ir: IR): PType = {
     ir match {
       case I32(_) => PInt32()
@@ -21,9 +27,9 @@ object InferPType {
       case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
-      case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PArray].elementType)
+      case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PStreamable].elementType)
       case _: ArrayLen => PInt32()
-      case _: ArrayRange => PArray(PInt32())
+      case _: ArrayRange => PStream(PInt32())
       case _: LowerBoundOnOrderedCollection => PInt32()
       case _: ArrayFor => PVoid
       case _: InitOp => PVoid
@@ -55,9 +61,9 @@ object InferPType {
       case a: AbstractApplyNode[_] => PType.canonical(a.typ)
       case _: Uniroot => PFloat64()
       case ArrayRef(a, i) =>
-        coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
+        coerce[PIterable](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
       case ArraySort(a, _, _, _) =>
-        val et = coerce[PArray](a.pType).elementType
+        val et = coerce[PIterable](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>
         val elt = coerce[PIterable](a.pType).elementType
@@ -72,28 +78,28 @@ object InferPType {
         val elt = coerce[PIterable](a.pType).elementType
         PStream(elt, a.pType.required)
       case GroupByKey(collection) =>
-        val elt = coerce[PBaseStruct](coerce[PArray](collection.pType).elementType)
+        val elt = coerce[PBaseStruct](coerce[PIterable](collection.pType).elementType)
         // FIXME requiredness
         PDict(elt.types(0), PArray(elt.types(1), required = false), collection.pType.required)
       case ArrayMap(a, name, body) =>
         // FIXME: requiredness artifact of former IR bug, remove when possible
-        PArray(body.pType.setRequired(false), a.typ.required)
+        propagateStreamable(coerce[PStreamable](a.pType), body.pType.setRequired(false))
       case ArrayFilter(a, name, cond) =>
-        PArray(coerce[PArray](a.pType).elementType, a.pType.required)
+        a.pType
       case ArrayFlatMap(a, name, body) =>
-        PArray(coerce[PContainer](body.pType).elementType, a.pType.required)
+        propagateStreamable(coerce[PStreamable](a.pType), coerce[PIterable](body.pType).elementType)
       case ArrayFold(a, zero, accumName, valueName, body) =>
         zero.pType
       case ArrayScan(a, zero, accumName, valueName, body) =>
-        PArray(zero.pType)
+        propagateStreamable(coerce[PStreamable](a.pType), zero.pType)
       case ArrayAgg(_, _, query) =>
         query.pType
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        PArray(join.pType)
+        propagateStreamable(coerce[PStreamable](left.pType), join.pType)
       case NDArrayRef(nd, idxs) =>
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&
-          coerce[PArray](idxs.pType).elementType.required)
+          coerce[PStreamable](idxs.pType).elementType.required)
       case AggFilter(_, aggIR, _) =>
         aggIR.pType
       case AggExplode(array, name, aggBody, _) =>
@@ -145,7 +151,7 @@ object InferPType {
       case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case BlockMatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case CollectDistributedArray(_, _, _, _, body) => PArray(body.pType)
-      case ReadPartition(_, _, _, rowType) => PType.canonical(TArray(rowType))
+      case ReadPartition(_, _, _, rowType) => PType.canonical(TStream(rowType))
     }
   }
 }

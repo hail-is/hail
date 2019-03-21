@@ -5,6 +5,12 @@ import is.hail.utils._
 
 // FIXME: strip all requiredness logic when possible
 object InferType {
+  private[this] def propagateStreamable(t: TStreamable, elt: Type): TStreamable =
+    t match {
+      case _: TStream => TStream(elt, t.required)
+      case _: TArray => TArray(elt, t.required)
+    }
+
   def apply(ir: IR): Type = {
     ir match {
       case I32(_) => TInt32()
@@ -21,9 +27,9 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
-      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TArray].elementType)
+      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TStreamable].elementType)
       case _: ArrayLen => TInt32()
-      case _: ArrayRange => TArray(TInt32())
+      case _: ArrayRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
       case _: InitOp => TVoid
@@ -59,10 +65,10 @@ object InferType {
       case _: Uniroot => TFloat64()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
-        coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
+        coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
       case ArraySort(a, _, _, compare) =>
         assert(compare.typ.isOfType(TBoolean()))
-        val et = coerce[TArray](a.typ).elementType
+        val et = coerce[TStreamable](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>
         val et = coerce[TIterable](a.typ).elementType
@@ -77,29 +83,29 @@ object InferType {
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt, a.typ.required)
       case GroupByKey(collection) =>
-        val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
+        val elt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
-        TArray(body.typ.setRequired(false), a.typ.required)
+        propagateStreamable(coerce[TStreamable](a.typ), body.typ.setRequired(false))
       case ArrayFilter(a, name, cond) =>
-        TArray(coerce[TArray](a.typ).elementType, a.typ.required)
+        a.typ
       case ArrayFlatMap(a, name, body) =>
-        TArray(coerce[TContainer](body.typ).elementType, a.typ.required)
+        propagateStreamable(coerce[TStreamable](a.typ), coerce[TIterable](body.typ).elementType)
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
-        TArray(zero.typ)
+        propagateStreamable(coerce[TStreamable](a.typ), zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        TArray(join.typ)
+        propagateStreamable(coerce[TStreamable](left.typ), join.typ)
       case NDArrayRef(nd, idxs) =>
-        assert(idxs.typ.isOfType(TArray(TInt64())))
+        assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
           idxs.typ.required && 
-          coerce[TArray](idxs.typ).elementType.required)
+          coerce[TStreamable](idxs.typ).elementType.required)
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
       case AggExplode(array, name, aggBody, _) =>
@@ -154,7 +160,7 @@ object InferType {
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
-      case ReadPartition(_, _, _, rowType) => TArray(rowType)
+      case ReadPartition(_, _, _, rowType) => TStream(rowType)
     }
   }
 }

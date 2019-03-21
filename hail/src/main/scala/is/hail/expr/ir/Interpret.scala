@@ -311,7 +311,7 @@ object Interpret {
           aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
 
       case ToArray(c) =>
-        val ordering = coerce[TContainer](c.typ).elementType.ordering.toOrdering
+        val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
         val cValue = interpret(c, env, args, agg)
         if (cValue == null)
           null

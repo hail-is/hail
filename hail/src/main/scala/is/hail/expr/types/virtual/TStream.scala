@@ -7,7 +7,24 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TStream(elementType: Type, override val required: Boolean = false) extends TIterable {
+trait TStreamable extends TIterable {
+  def copyStreamable(elt: Type, req: Boolean = required): TStreamable = {
+    this match {
+      case _: TArray => TArray(elt, req)
+      case _: TStream => TStream(elt, req)
+    }
+  }
+
+  override def unify(concrete: Type): Boolean = {
+    concrete match {
+      case t: TStreamable => elementType.unify(t.elementType)
+      case _ => false
+    }
+  }
+
+}
+
+final case class TStream(elementType: Type, override val required: Boolean = false) extends TStreamable {
   lazy val physicalType: PStream = PStream(elementType.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -26,13 +43,6 @@ final case class TStream(elementType: Type, override val required: Boolean = fal
 
   override def canCompare(other: Type): Boolean =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
-
-  override def unify(concrete: Type): Boolean = {
-    concrete match {
-      case TStream(celementType, _) => elementType.unify(celementType)
-      case _ => false
-    }
-  }
 
   override def subst() = TStream(elementType.subst().setRequired(false))
 
