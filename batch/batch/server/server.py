@@ -213,7 +213,6 @@ class Job:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -229,7 +228,6 @@ class Job:
                 v1.delete_namespaced_pod(
                     self._pod_name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:

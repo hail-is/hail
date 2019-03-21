@@ -8,7 +8,7 @@
 # R0914 too many local variables
 # W0603 using the global statement
 # R0902 too many instance attributes
-disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R0801,too-many-function-args
+disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R0801
 
 [FORMAT]
 # String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
