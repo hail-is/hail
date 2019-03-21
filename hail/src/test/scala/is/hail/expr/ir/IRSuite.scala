@@ -589,7 +589,7 @@ class IRSuite extends SparkSuite {
       FastIndexedSeq(2, 3, 4, 5, 6))
     assertEvalsTo(
       ArrayMap(Let("q", I32(2),
-      ArrayMap(Let("v", I32(5),
+      ArrayMap(Let("v", Ref("q", TInt32()) + I32(3),
         ArrayRange(0, Ref("v", TInt32()), 1)),
         "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
         "y", Ref("y", TInt32()) + I32(3)),
