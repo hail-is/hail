@@ -1370,8 +1370,8 @@ class Table(ExprContainer):
 
         return s
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=nullable(anyfunc))
-    def show(self, n=10, width=90, truncate=None, types=True, handler=None):
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1404,6 +1404,11 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n is None or width is None:
+            import shutil
+            (columns, lines) = shutil.get_terminal_size((80, 10))
+            width = width or columns
+            n = n or lines
         if handler is None:
             try:
                 from IPython.display import display
