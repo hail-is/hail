@@ -186,6 +186,32 @@ class Pipeline:
         >>> t.command(f"wc -l {bfile.bim}")
         >>> p.run()
 
+        Read a FASTA file and it's index (file extensions matter!):
+
+        >>> fasta = p.read_input_group({'fasta': 'data/example.fasta',
+        ...                             'fasta.idx': 'data/example.fasta.idx'})
+
+        Create a resource group where the identifiers don't match the file extensions:
+
+        >>> rg = p.read_input_group(foo='data/foo.txt',
+        ...                         bar='data/bar.txt')
+
+        `rg.foo` and `rg.bar` will not have the `.txt` file extension and
+        instead will be `{root}.foo` and `{root}.bar` where `{root}` is a random
+        identifier.
+
+        Notes
+        -----
+        The identifier is used to refer to
+        a specific resource file. For example, given the resource group `rg`, you
+        can use the attribute notation `rg.identifier` or the get item notation
+        `rg[identifier]`.
+
+        The file extensions for each file are derived from the identifier.
+        This is equivalent to `"{root}.identifier"` from
+        :meth:`.Task.declare_resource_group`. We are planning on adding flexibility
+        to incorporate more complicated extensions in the future such as `.vcf.bgz`.
+
         Parameters
         ----------
         kwargs: :obj:`dict` of :obj:`str` to :obj:`str`
