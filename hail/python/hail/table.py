@@ -1408,7 +1408,7 @@ class Table(ExprContainer):
             import shutil
             (columns, lines) = shutil.get_terminal_size((80, 10))
             width = width or columns
-            n = n or lines
+            n = n or math.max(10, (lines - 10))
         if handler is None:
             try:
                 from IPython.display import display
