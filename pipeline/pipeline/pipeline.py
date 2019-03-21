@@ -211,6 +211,8 @@ class Pipeline:
         This is equivalent to `"{root}.identifier"` from
         :meth:`.Task.declare_resource_group`. We are planning on adding flexibility
         to incorporate more complicated extensions in the future such as `.vcf.bgz`.
+        For now, use :func:`ResourceFile.add_extension` to add an extension to a
+        resource file.
 
         Parameters
         ----------
