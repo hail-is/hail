@@ -1,6 +1,9 @@
-.PHONY: install-hail-locally build push run run-hail rm deploy
+.PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar
 
 PROJECT = $(shell gcloud config get-value project)
+
+build-hail-shadow-jar:
+	cd ../hail && ./gradlew shadowJar
 
 install-hail-locally:
 	rm -rf build
@@ -62,3 +65,6 @@ deploy: push
 	  -e "s,@hail_jupyter_image@,$(HAIL_JUPYTER_IMAGE),g" \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
+
+test: build-hail-shadow-jar
+	./test-apiserver.sh
