@@ -13,10 +13,12 @@ object BindingEnv {
 }
 
 case class BindingEnv[V](
-  eval: Env[V],
+  eval: Env[V] = Env.empty[V],
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None
 ) {
+  def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
+
   def promoteAgg: BindingEnv[V] = {
     assert(agg.isDefined)
     BindingEnv(agg.get)
@@ -33,17 +35,30 @@ case class BindingEnv[V](
   def bindEval(bindings: (String, V)*): BindingEnv[V] =
     copy(eval = eval.bindIterable(bindings))
 
+  def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
+
   def bindAgg(name: String, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))
 
   def bindAgg(bindings: (String, V)*): BindingEnv[V] =
     copy(agg = Some(agg.get.bindIterable(bindings)))
 
+  def aggOrEmpty: Env[V] = agg.getOrElse(Env.empty)
+
   def bindScan(name: String, v: V): BindingEnv[V] =
     copy(scan = Some(scan.get.bind(name, v)))
 
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
+
+  def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
+
+  def pretty(valuePrinter: V => String = _.toString): String = {
+    s"""BindingEnv:
+       |  Eval:${eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")}
+       |  Agg: ${agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}
+       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}""".stripMargin
+  }
 }
 
 class Env[V] private(val m: Map[Env.K, V]) {
