@@ -939,7 +939,7 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            BindingEnv(scan = bodyEnv.scan.map(_.delete(name))),
+            bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
             BindingEnv(scan = Some(aEnv.eval))
           )
         } else {
@@ -949,7 +949,7 @@ object PruneDeadFields {
 
           val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
           unifyEnvs(
-            BindingEnv(agg = bodyEnv.agg.map(_.delete(name))),
+            bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
             BindingEnv(agg = Some(aEnv.eval))
           )
         }
