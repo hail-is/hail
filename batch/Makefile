@@ -43,16 +43,16 @@ install-cloud-sql-proxy:
 		chmod +x cloud_sql_proxy
 
 run-cloud-sql-proxy: local-cloud-sql-config install-cloud-sql-proxy
-	$(eval config := $(shell pwd)/secrets/batch-test-cloud-sql-config.json)
+	$(eval config := $(shell pwd)/batch-secrets/batch-test-cloud-sql-config.json)
 	$(eval connection_name := $(shell jq -r '.connection_name' $(config)))
 	$(eval port := $(shell jq -r '.port' $(config)))
 	./cloud_sql_proxy -instances=$(connection_name)=tcp:$(port) &
 
 local-cloud-sql-config:
-	mkdir -p secrets
-	kubectl get secret batch-test-cloud-sql-config -n batch-pods -o "jsonpath={.data.batch-test-cloud-sql-config\.json}" | base64 --decode > secrets/batch-test-cloud-sql-config.json
-	jq '.host = "127.0.0.1" | .port = $(CLOUD_SQL_PORT)' secrets/batch-test-cloud-sql-config.json > secrets/tmp.batch-test-cloud-sql-config.json
-	mv secrets/tmp.batch-test-cloud-sql-config.json secrets/batch-test-cloud-sql-config.json
+	mkdir -p batch-secrets
+	kubectl get secret batch-test-cloud-sql-config -n batch-pods -o "jsonpath={.data.batch-test-cloud-sql-config\.json}" | base64 --decode > batch-secrets/batch-test-cloud-sql-config.json
+	jq '.host = "127.0.0.1" | .port = $(CLOUD_SQL_PORT)' batch-secrets/batch-test-cloud-sql-config.json > batch-secrets/tmp.batch-test-cloud-sql-config.json
+	mv batch-secrets/tmp.batch-test-cloud-sql-config.json batch-secrets/batch-test-cloud-sql-config.json
 
 push: build
 	docker tag batch $(BATCH_LATEST)
@@ -73,7 +73,7 @@ run:
 	python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 run-local: run-cloud-sql-proxy
-	CLOUD_SQL_CONFIG_PATH=secrets/batch-test-cloud-sql-config.json \
+	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json \
             BATCH_USE_KUBE_CONFIG=1 \
             python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
@@ -111,4 +111,4 @@ test-deploy: push-test
 	kubectl -n $(TEST_NAMESPACE) apply -f deployment.yaml
 
 clean:
-	rm -f $(PY_CHECKERS) && rm -rf secrets
+	rm -f $(PY_CHECKERS) && rm -rf batch-secrets

@@ -90,7 +90,7 @@ routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
 config_path = os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                             '/secrets/batch-production-cloud-sql-config.json')
+                             '/batch-secrets/batch-production-cloud-sql-config.json')
 with open(config_path, 'r') as f:
     config = json.loads(f.read().strip())
 

@@ -24,7 +24,7 @@ spec:
         - containerPort: 5000
         volumeMounts:
         - name: batch-production-cloud-sql-config
-          mountPath: /secrets
+          mountPath: /batch-secrets
           readOnly: true
       volumes:
       - name: batch-production-cloud-sql-config
