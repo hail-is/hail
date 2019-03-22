@@ -37,7 +37,7 @@ object Compile {
     val emitEnv = args.zipWithIndex
       .foldLeft(ir.Env[ir.IR]()){ case (env, ((arg, argType), i)) =>
         env.bind(arg -> ir.In(i, argType.virtualType)) }
-    val (v, mods, emitLiterals) = Emit(fb, ir.Subst(body, BindingEnv(emitEnv)))
+    val (v, mods, emitLiterals) = Emit(fb, ir.Subst(ir.Streamify(body), BindingEnv(emitEnv)))
 
     val (literals, litvars) = emitLiterals.unzip
     val litType = PTuple(literals.map { case (t, _) => t })
