@@ -999,7 +999,12 @@ class Tests(unittest.TestCase):
             x2 = [hl.struct(y=[1])],
             x3 = {1},
             x4 = {1: 'foo'},
-            x5 = {hl.struct(foo=5): 'bar'}
+            x5 = {hl.struct(foo=5): 'bar'},
+            x6 = hl.tuple(()),
+            x7 = hl.tuple(('3',)),
+            x8 = hl.tuple(('3', 3)),
+            x9 = 4.2,
+            x10 = hl.dict({'hello': 3, 'bar': 5})
         )
         ht.show()
 
