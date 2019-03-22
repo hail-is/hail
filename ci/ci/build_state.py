@@ -102,7 +102,6 @@ class Mergeable(object):
         return f'successful build'
 
     def to_dict(self):
-        assert self.id is not None
         return {
             'type': 'Mergeable',
             'target_sha': self.target_sha,
