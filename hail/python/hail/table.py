@@ -1339,10 +1339,10 @@ class Table(ExprContainer):
         return s
 
     def _html_str(self, n, types):
-        import cgi
+        import html
 
         def hl_format(v):
-            return cgi.escape(Table._hl_repr(v))
+            return html.escape(Table._hl_repr(v))
 
         t = self
         t = t.flatten()
@@ -1361,7 +1361,7 @@ class Table(ExprContainer):
         s += '<thead style="font-weight: bold;">'
         s += format_line(fields)
         if types:
-            s += format_line([cgi.escape(str(t.row[f].dtype)) for f in fields])
+            s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
         s += '</thead><tbody>'
         for row in rows:
             s += format_line([row[f] for f in row])
