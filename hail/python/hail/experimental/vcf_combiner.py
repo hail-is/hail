@@ -175,6 +175,9 @@ def quick_summary(mt):
 def summarize(mt):
     """Computes summary statistics
 
+    Calls :func:`.quick_summary`. Calling both this and :func:`.quick_summary`, will lead
+    to :func:`.quick_summary` being executed twice.
+
     Note
     ----
     You will not be able to run :func:`.combine_gvcfs` with the output of this
@@ -340,7 +343,7 @@ def reannotate(mt, gatk_ht, summ_ht):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2019-03-04, the schema returned by the combiner is as follows:
+# As of 2019-03-22, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -352,13 +355,6 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'locus': locus<GRCh38>
 #     'alleles': array<str>
 #     'rsid': str
-#     'info': struct {
-#         MQ_DP: int32,
-#         QUALapprox: int32,
-#         RAW_MQ: float64,
-#         VarDP: int32,
-#         SB_TABLE: array<int32>
-#     }
 # ----------------------------------------
 # Entry fields:
 #     'BaseQRankSum': float64
@@ -374,9 +370,14 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'MIN_DP': int32
 #     'MQ': float64
 #     'MQRankSum': float64
+#     'MQ_DP': int32
+#     'QUALapprox': int32
 #     'PID': str
+#     'RAW_MQ': float64
 #     'RGQ': int32
 #     'ReadPosRankSum': float64
+#     'SB': array<int32>
+#     'VarDP': int32
 # ----------------------------------------
 # Column key: ['s']
 # Row key: ['locus']
