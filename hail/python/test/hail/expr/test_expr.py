@@ -305,6 +305,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_approx_cdf(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(hl.agg.approx_cdf(table.i))
+        table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
+        table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
+        table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
+
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
         assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
