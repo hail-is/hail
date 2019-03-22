@@ -213,7 +213,6 @@ class Job:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -229,7 +228,6 @@ class Job:
                 v1.delete_namespaced_pod(
                     self._pod_name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -301,7 +299,8 @@ class Job:
         else:
             self.refresh_parents_and_maybe_create()
 
-    def refresh_parents_and_maybe_create(self):
+    # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
+    def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
             self.parent_new_state(parent_job._state, parent, parent_job.exit_code)

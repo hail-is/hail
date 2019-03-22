@@ -8,7 +8,7 @@ RUN apt-get update && \
     unzip bzip2 \
     wget curl \
     emacs25-nox \
-    default-jdk-headless \
+    openjdk-8-jre-headless \
     python3 python3-pip && \
   rm -rf /var/lib/apt/lists/*
 
@@ -18,11 +18,15 @@ RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     /google-cloud-sdk/bin/gcloud components install beta kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
-RUN python3 -m pip install -U \
-  pip decorator pylint pytest flake8 \
-  requests \
-  jinja2 \
-  asyncinit aiohttp aiodns aiohttp_jinja2 uvloop>=0.12 \
-  werkzeug flask flask-cors Flask_Sockets \
-  kubernetes google-cloud-storage \
-  PyGithub cerberus humanize libsass authlib
+RUN wget -nv -O spark-2.2.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz && \
+  tar xzf spark-2.2.0-bin-hadoop2.7.tgz && \
+  rm spark-2.2.0-bin-hadoop2.7.tgz
+
+RUN wget -nv -O /spark-2.2.0-bin-hadoop2.7/jars/gcs-connector-hadoop2-latest.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-latest.jar
+COPY core-site.xml /spark-2.2.0-bin-hadoop2.7/conf/core-site.xml
+
+ENV SPARK_HOME /spark-2.2.0-bin-hadoop2.7
+ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
+
+COPY requirements.txt .
+RUN python3 -m pip install --no-cache-dir -U -r requirements.txt

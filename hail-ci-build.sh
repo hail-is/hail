@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+export IN_HAIL_CI=1
+
 PROJECTS=$(cat projects.yaml | grep '^- project: ' | sed 's/^- project: //')
 
 for project in $PROJECTS; do
