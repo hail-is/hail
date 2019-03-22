@@ -65,10 +65,10 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
-            ir.AggFilter(ir.TrueIR(), ir.I32(0)),
-            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
-            ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
-            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
+            ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
+            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
+            ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
+            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
@@ -81,8 +81,6 @@ class ValueIRTests(unittest.TestCase):
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
-            ir.StringSlice(st, ir.I32(1), ir.I32(2)),
-            ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),
@@ -322,5 +320,5 @@ class ValueTests(unittest.TestCase):
                     ir.Ref("global"),
                     [("foo", row_v)],
                     None))
-            new_globals = hl.eval(hl.Table(map_globals_ir).globals)
-            self.assertEquals(new_globals, hl.Struct(foo=v))
+            new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
+            self.assertEqual(new_globals, hl.Struct(foo=v))

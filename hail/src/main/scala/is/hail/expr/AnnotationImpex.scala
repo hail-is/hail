@@ -224,12 +224,19 @@ object JSONAnnotationImpex {
         jv.extract[Locus]
       case (_, TInterval(pointType, _)) =>
         jv match {
-          case JObject(List(("start", sjv), ("end", ejv), ("includeStart", isjv), ("includeEnd", iejv))) =>
-            Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
-              importAnnotation(ejv, pointType, parent + ".end", padNulls),
-              importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
-              importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
-            )
+          case JObject(list) =>
+            val m = list.toMap
+            (m.get("start"), m.get("end"), m.get("includeStart"), m.get("includeEnd")) match {
+              case (Some(sjv), Some(ejv), Some(isjv), Some(iejv)) =>
+                Interval(importAnnotation(sjv, pointType, parent + ".start", padNulls),
+                  importAnnotation(ejv, pointType, parent + ".end", padNulls),
+                  importAnnotation(isjv, TBooleanRequired, parent + ".includeStart", padNulls).asInstanceOf[Boolean],
+                  importAnnotation(iejv, TBooleanRequired, parent + ".includeEnd", padNulls).asInstanceOf[Boolean]
+                )
+              case _ =>
+                warn(s"Can't convert JSON value $jv to type $t at $parent.")
+                null
+            }
           case _ =>
             warn(s"Can't convert JSON value $jv to type $t at $parent.")
             null
@@ -261,10 +268,9 @@ object TableAnnotationImpex {
       t match {
         case _: TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
         case _: TString => a.asInstanceOf[String]
-        case d: TDict => JsonMethods.compact(d.toJSON(a))
-        case it: TIterable => JsonMethods.compact(it.toJSON(a))
+        case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case TInterval(TLocus(rg, _), _) =>
+        case TInterval(TLocus(_, _), _) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
@@ -289,7 +295,7 @@ object TableAnnotationImpex {
       case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
+      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case _: TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

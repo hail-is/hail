@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
+import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
@@ -9,10 +10,9 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
-class OrderingSuite extends TestNGSuite {
+class OrderingSuite extends SparkSuite {
 
   implicit val execStrats = ExecStrategy.values
 
@@ -342,16 +342,20 @@ class OrderingSuite extends TestNGSuite {
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
 
-        def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+        if (closestI == asArray.length) {
+          !dict.contains(key) ==> asArray.forall { keyI =>
+            val otherKey = keyI.asInstanceOf[Row].get(0)
+            pDict.keyType.virtualType.ordering.compare(key, otherKey) > 0
+          }
+        } else {
+          def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+          val maybeEqual = getKey(closestI)
+          val closestIIsClosest =
+            (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+              (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
 
-        val maybeEqual = getKey(closestI)
-
-        val closestIIsClosest =
-          (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
-            (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
-
-        dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
-
+          dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
+        }
       }
     }
     p.check()

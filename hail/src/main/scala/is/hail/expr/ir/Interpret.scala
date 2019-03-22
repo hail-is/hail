@@ -27,6 +27,7 @@ object Interpret {
       tir
 
     val lowered = LowerMatrixIR(LiftNonCompilable(tiropt).asInstanceOf[TableIR])
+
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
@@ -71,11 +72,11 @@ object Interpret {
 
     def optimizeIR(canGenerateLiterals: Boolean) {
       ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some("Interpret"))
-      TypeCheck(ir, typeEnv, agg.map { agg =>
+      TypeCheck(ir, BindingEnv(typeEnv, agg = agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
         }
-      })
+      }))
     }
 
     if (optimize) optimizeIR(true)
@@ -462,7 +463,8 @@ object Interpret {
             aggregator.get.seqOp(interpret(a))
         }
 
-      case x@AggFilter(cond, aggIR) =>
+      case x@AggFilter(cond, aggIR, isScan) =>
+        assert(!isScan)
         // filters elements under aggregation environment
         val Some((aggElements, aggElementType)) = agg
         val newAgg = aggElements.filter { row =>
@@ -474,7 +476,8 @@ object Interpret {
         }
         interpret(aggIR, agg = Some(newAgg -> aggElementType))
 
-      case x@AggExplode(array, name, aggBody) =>
+      case x@AggExplode(array, name, aggBody, isScan) =>
+        assert(!isScan)
         // adds exploded array to elements under aggregation environment
         val Some((aggElements, aggElementType)) = agg
         val newAggElementType = aggElementType.appendKey(name, coerce[TArray](array.typ).elementType)
@@ -488,7 +491,8 @@ object Interpret {
           }
         }
         interpret(aggBody, agg = Some(newAgg -> newAggElementType))
-      case x@AggGroupBy(key, aggIR) =>
+      case x@AggGroupBy(key, aggIR, isScan) =>
+        assert(!isScan)
         // evaluates one aggregation per key in aggregation environment
         val Some((aggElements, aggElementType)) = agg
         val groupedAgg = aggElements.groupBy { row =>
@@ -502,7 +506,7 @@ object Interpret {
           interpret(aggIR, agg=Some(row, aggElementType))
         }
 
-      case x@AggArrayPerElement(a, name, aggBody) => ???
+      case x@AggArrayPerElement(a, name, aggBody, isScan) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
@@ -665,23 +669,6 @@ object Interpret {
           null
         else
           oValue.asInstanceOf[Row].get(idx)
-      case StringSlice(s, start, end) =>
-        val Array(maybeString, vstart: Int, vend: Int) =
-          Array(s, start, end).map(interpret(_, env, args, agg))
-        if (maybeString == null)
-          null
-        else {
-          val vs = maybeString.asInstanceOf[String]
-          val length = vs.length
-          var start_ = if (vstart < 0) vstart + length else vstart
-          start_ = math.min(math.max(start_, 0), length)
-          var end_ = if (vend < 0) vend + length else vend
-          end_ = math.min(math.max(end_, start_), length)
-          vs.substring(start_, end_)
-        }
-      case StringLength(s) =>
-        val vs = interpret(s).asInstanceOf[String]
-        if (vs == null) null else vs.getBytes().length
       case In(i, _) =>
         val (a, _) = args(i)
         a

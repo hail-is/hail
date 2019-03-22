@@ -1,3 +1,4 @@
+import collections
 import json
 import os
 
@@ -12,19 +13,25 @@ from .ci_logging import log
 from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH, \
     GCS_BUCKET_PREFIX
 from .environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
-from .git_state import FQSHA, FQRef
+from .git_state import FQSHA, FQRef, Repo
 from .github import latest_sha_for_ref
 from .http_helper import post_repo, BadStatus
 from .sentinel import Sentinel
 from .shell_helper import shell
 
 
+RESOURCES = collections.defaultdict(
+    lambda: {'requests': {'cpu': '0.100', 'memory': '0.100G'}})
+RESOURCES[Repo('hail-is', 'hail')] = {
+    'requests': {'cpu': '3.7', 'memory': '4G'}}
+
+
 def try_new_build(source, target):
     img = maybe_get_image(target, source)
     if img:
         attributes = {
-            'target': json.dumps(target.to_json()),
-            'source': json.dumps(source.to_json()),
+            'target': json.dumps(target.to_dict()),
+            'source': json.dumps(source.to_dict()),
             'image': img,
             'type': BUILD_JOB_TYPE
         }
@@ -42,10 +49,7 @@ def try_new_build(source, target):
                     'TARGET_BRANCH': target.ref.name,
                     'TARGET_SHA': target.sha
                 },
-                resources={'requests': {
-                    'cpu': '3.7',
-                    'memory': '4G'
-                }},
+                resources=RESOURCES[target.ref.repo],
                 tolerations=[{
                     'key': 'preemptible',
                     'value': 'true'
@@ -158,7 +162,7 @@ class GitHubPR(object):
                         target_sha)
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
     def short_str(self):
         tsha = self.target_sha
@@ -169,13 +173,13 @@ class GitHubPR(object):
             f'{self.state};'
         )
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'state': self.state,
             'number': self.number,
             'title': self.title,
-            'source': self.source.to_json(),
-            'target_ref': self.target_ref.to_json(),
+            'source': self.source.to_dict(),
+            'target_ref': self.target_ref.to_dict(),
             'target_sha': self.target_sha
         }
 
@@ -319,7 +323,7 @@ class PR(object):
         return PR(source, target, 'pending', Unknown(), number, title)
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
     def short_str(self):
         return (
@@ -344,12 +348,12 @@ class PR(object):
             d['title'],
         )
 
-    def to_json(self):
+    def to_dict(self):
         return {
-            'target': self.target.to_json(),
-            'source': self.source.to_json(),
+            'target': self.target.to_dict(),
+            'source': self.source.to_dict(),
             'review': self.review,
-            'build': self.build.to_json(),
+            'build': self.build.to_dict(),
             'number': self.number,
             'title': self.title
         }
@@ -434,7 +438,7 @@ class PR(object):
                 return self._new_build(Building(job, image, target.sha))
             else:
                 log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
-                job.cancel()
+                job.delete()
                 return self
 
     def refresh_from_missing_job(self):

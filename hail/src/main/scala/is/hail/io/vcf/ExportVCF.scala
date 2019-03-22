@@ -159,7 +159,7 @@ object ExportVCF {
   def checkFormatSignature(tg: TStruct) {
     tg.fields.foreach { fd =>
       val valid = fd.typ match {
-        case it: TIterable => validFormatType(it.elementType)
+        case it: TContainer => validFormatType(it.elementType)
         case t => validFormatType(t)
       }
       if (!valid)

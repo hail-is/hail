@@ -435,7 +435,7 @@ private class Emit(
         strict(PContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
-        val atyp = coerce[PContainer](ir.pType)
+        val atyp = coerce[PContainer](x.pType)
         val eltType = -atyp.elementType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(mb, vab)
@@ -481,6 +481,9 @@ private class Emit(
             sorter.toRegion()))
 
       case ToArray(a) =>
+        emit(a)
+
+      case ToStream(a) =>
         emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
@@ -1024,43 +1027,6 @@ private class Emit(
         EmitTriplet(setup,
           xmo || !t.isFieldDefined(region, xo, idx),
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
-
-      case StringSlice(s, start, end) =>
-        val t = coerce[PString](s.pType)
-        val cs = emit(s)
-        val cstart = emit(start)
-        val cend = emit(end)
-        val vs = mb.newLocal[Long]()
-        val vstart = mb.newLocal[Int]()
-        val vend = mb.newLocal[Int]()
-        val vlen = mb.newLocal[Int]()
-        val vnewLen = mb.newLocal[Int]()
-        val sliced = Code(
-          vs := coerce[Long](cs.v),
-          vstart := coerce[Int](cstart.v),
-          vend := coerce[Int](cend.v),
-          vlen := PString.loadLength(region, vs),
-          vstart := (vstart < 0).mux(vstart + vlen, vstart),
-          vstart := (vstart < 0).mux(0, vstart),
-          vend := (vend < 0).mux(vend + vlen, vend),
-          vend := (vend < 0).mux(0, vend),
-          vstart := (vstart > vlen).mux(vlen, vstart),
-          vend := (vend > vlen).mux(vlen, vend),
-          vnewLen := vend - vstart,
-          // if vstart = vlen = vend, then we want an empty string, but memcpy
-          // with a pointer one past the end of the allocated region is probably
-          // not safe, so for *all* empty slices, we just inline the code to
-          // stick the length (the contents is size zero so we needn't allocate
-          // for it or really do anything)
-          (vnewLen <= 0).mux(
-            region.appendInt(0),
-            region.appendStringSlice(region, vs, vstart, vnewLen)))
-        strict(sliced, cs, cstart, cend)
-
-      case StringLength(s) =>
-        val t = coerce[PString](s.pType)
-        val cs = emit(s)
-        strict(PString.loadLength(region, coerce[Long](cs.v)), cs)
 
       case In(i, typ) =>
         EmitTriplet(Code._empty,

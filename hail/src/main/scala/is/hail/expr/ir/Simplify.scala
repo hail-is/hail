@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -166,6 +166,15 @@ object Simplify {
 
     case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
       ArrayRef(a, i)
+
+    case ToArray(x) if x.typ.isInstanceOf[TArray] => x
+
+    case ApplyIR("contains", Seq(ToArray(x), element)) if x.typ.isInstanceOf[TSet] => invoke("contains", x, element)
+
+    case ApplyIR("contains", Seq(Literal(t, v), element)) if t.isInstanceOf[TArray] =>
+      invoke("contains", Literal(TSet(t.asInstanceOf[TArray].elementType, t.required), v.asInstanceOf[IndexedSeq[_]].toSet), element)
+
+    case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", x, element)
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
@@ -438,7 +447,9 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
-    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) => TableMapGlobals(child, Let("global", ng1, ng2))
+    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      TableMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -533,7 +544,9 @@ object Simplify {
 
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
-    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {

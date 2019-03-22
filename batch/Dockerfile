@@ -1,10 +1,4 @@
-FROM alpine:3.8
-
-RUN apk add --no-cache \
-  py3-cffi \
-  py3-cryptography \
-  python3 \
-  && true
+FROM base
 
 COPY setup.py /batch/
 COPY MANIFEST.in /batch/

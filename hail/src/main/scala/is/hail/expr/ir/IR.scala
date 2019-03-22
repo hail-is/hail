@@ -26,11 +26,21 @@ sealed trait IR extends BaseIR {
     _typ
   }
 
-  override def children: IndexedSeq[BaseIR] =
+  lazy val children: IndexedSeq[BaseIR] =
     Children(this)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
+
+  override def deepCopy(): this.type = {
+
+    val cp = super.deepCopy()
+    if (_typ != null)
+      cp._typ = _typ
+    if (_ptype != null)
+      cp._ptype = _ptype
+    cp
+  }
 
   def size: Int = 1 + children.map {
       case x: IR => x.size
@@ -95,7 +105,7 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
-final case class AggLet(name: String, value: IR, body: IR) extends IR
+final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
@@ -161,6 +171,7 @@ final case class ArraySort(a: IR, left: String, right: String, compare: IR) exte
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
+final case class ToStream(a: IR) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -186,17 +197,17 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
 
 final case class NDArrayRef(nd: IR, idxs: IR) extends IR
 
-final case class AggFilter(cond: IR, aggIR: IR) extends IR
+final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
+final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
 
-final case class AggGroupBy(key: IR, aggIR: IR) extends IR
+final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, name: String, aggBody: IR) extends IR
+final case class AggArrayPerElement(a: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -256,9 +267,6 @@ final case class GetField(o: IR, name: String) extends IR
 final case class MakeTuple(types: Seq[IR]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
-final case class StringSlice(s: IR, start: IR, end: IR) extends IR
-final case class StringLength(s: IR) extends IR
-
 final case class In(i: Int, _typ: Type) extends IR
 
 // FIXME: should be type any
@@ -273,7 +281,7 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 
   lazy val explicitNode: IR = {
     val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-    var body = conversion(refs)
+    var body = conversion(refs).deepCopy()
 
     // foldRight because arg1 should be at the top so it is evaluated first
     refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
@@ -321,11 +329,9 @@ final case class TableCollect(child: TableIR) extends IR
 
 final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
 
-final case class MatrixMultiWrite(
-  override val children: IndexedSeq[MatrixIR],
-  writer: MatrixNativeMultiWriter) extends IR {
-  private val t = children.head.typ
-  require(children.forall(_.typ == t))
+final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
 }
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR

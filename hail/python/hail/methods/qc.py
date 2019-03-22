@@ -864,7 +864,11 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size)).persist()
+    annotations = Table(TableToTableApply(ht._tir,
+                                          {'name': 'Nirvana',
+                                           'config': config,
+                                           'blockSize': block_size}
+                                          )).persist()
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})

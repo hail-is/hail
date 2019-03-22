@@ -374,11 +374,10 @@ def add_regex_pattern(mt, field_list, regex_pattern, prefix=True, axis='rows'):
            beta=expr_float64,
            is_popstrat=bool,
            cov_coef_dict=nullable(dict),
-           cov_regex=nullable(str),
-           normalize_gt=bool)
+           cov_regex=nullable(str))
 def calculate_phenotypes(mt, genotype, h2, beta, is_popstrat=False, cov_coef_dict=None,
-                         cov_regex=None, normalize_gt=True):
-    '''Simulate phenotypes given betas and genotypes. Adding population stratification is optional'''
+                         cov_regex=None):
+    '''Calculates phenotypes given betas and genotypes. Adding population stratification is optional'''
     check_mt_sources(mt,genotype,beta)
     check_popstrat_args(is_popstrat=is_popstrat,cov_coef_dict=cov_coef_dict,cov_regex=cov_regex)
     mt1 = mt._annotate_all(row_exprs={'__beta':beta},
@@ -386,10 +385,7 @@ def calculate_phenotypes(mt, genotype, h2, beta, is_popstrat=False, cov_coef_dic
                            global_exprs={'__is_popstrat':is_popstrat,
                                          '__cov_coef_dict':none_to_null(cov_coef_dict),
                                          '__cov_regex':none_to_null(cov_regex)})
-    if normalize_gt:
-        mt2 = normalize_genotypes(mt1.__gt)
-    else:
-        mt2 = mt1.annotate_entries(__norm_gt = mt1.__gt)
+    mt2 = normalize_genotypes(mt1.__gt)
     print('\rCalculating phenotypes{}...'.format(' w/ population stratification' if is_popstrat else '').ljust(81))
     mt3 = mt2.annotate_cols(__y_no_noise = hl.agg.sum(mt2.__beta * mt2.__norm_gt))
     if h2 is None:

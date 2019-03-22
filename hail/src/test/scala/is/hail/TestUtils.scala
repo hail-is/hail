@@ -401,9 +401,7 @@ object TestUtils {
     expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
 
-    TypeCheck(x,
-      env.mapValues(_._2),
-      agg.map(_._2.toEnv))
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t.typeCheck(expected), t)
@@ -473,12 +471,9 @@ object TestUtils {
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
     partitionsJSON: String = null): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    } // Needed for tests
+    rg.foreach { referenceGenome =>
+      ReferenceGenome.addReference(referenceGenome)
+    }
     val entryFloatType = TFloat64()._toPretty
 
     val reader = MatrixVCFReader(
@@ -496,8 +491,6 @@ object TestUtils {
       TextInputFilterAndReplace(),
       partitionsJSON
     )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
 

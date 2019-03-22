@@ -227,7 +227,7 @@ object CompileDecoder {
       cp.invoke[Boolean]("skipInvalidLoci").mux(
         Code(
           invalidLocus :=
-            (if (settings.rg.nonEmpty) {
+            (if (settings.rgBc.nonEmpty) {
               !csettings.invoke[Option[ReferenceGenome]]("rg")
                 .invoke[ReferenceGenome]("get")
                 .invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position)
@@ -246,7 +246,7 @@ object CompileDecoder {
             ),
             Code._empty // if locus is valid, continue
           )),
-        if (settings.rg.nonEmpty) {
+        if (settings.rgBc.nonEmpty) {
           // verify the locus is valid before continuing
           csettings.invoke[Option[ReferenceGenome]]("rg")
             .invoke[ReferenceGenome]("get")

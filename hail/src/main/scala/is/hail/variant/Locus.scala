@@ -65,8 +65,6 @@ object Locus {
 }
 
 case class Locus(contig: String, position: Int) {
-  def compare(that: Locus, rg: ReferenceGenome): Int = rg.compare(this, that)
-
   def toRow: Row = Row(contig, position)
 
   def toJSON: JValue = JObject(

@@ -17,6 +17,7 @@ import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.Partition
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
 import org.json4s.{CustomSerializer, JObject}
@@ -40,7 +41,7 @@ case class BgenFileMetadata(
   path: String,
   indexPath: String,
   header: BgenHeader,
-  referenceGenome: Option[ReferenceGenome],
+  rg: Option[ReferenceGenome],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
   nVariants: Long,
@@ -247,7 +248,7 @@ object LoadBgen {
     files.map(LoadBgen.readState(hConf, _)).toArray
 
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
-    getReferenceGenome(fileMetadata.map(_.referenceGenome))
+    getReferenceGenome(fileMetadata.map(_.rg))
 
   def getReferenceGenome(rgs: Array[Option[ReferenceGenome]]): Option[ReferenceGenome] = {
     if (rgs.distinct.length != 1)
@@ -450,10 +451,8 @@ case class MatrixBGENReader(
       EntriesWithFields(includeGT, includeGP, includeDosage),
       dropCols,
       RowFields(includeLid, includeRsid, includeOffset, includeFileIdx),
-      referenceGenome,
+      referenceGenome.map(_.broadcast),
       indexAnnotationType)
-
-//    assert(tr.typ == settings.matrixType)
 
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)

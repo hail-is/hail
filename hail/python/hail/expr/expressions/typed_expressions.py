@@ -449,7 +449,7 @@ class ArrayExpression(CollectionExpression):
         -------
         This method takes time proportional to the length of the array. If a
         pipeline uses this method on the same array several times, it may be
-        more efficient to convert the array to a set first
+        more efficient to convert the array to a set first early in the script
         (:func:`~hail.expr.functions.set`).
 
         Returns
@@ -457,8 +457,7 @@ class ArrayExpression(CollectionExpression):
         :class:`.BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        import hail as hl
-        return hl.any(lambda x: x == item, self)
+        return self._method("contains", tbool, item)
 
     @typecheck_method(item=expr_any)
     def append(self, item):
@@ -2066,7 +2065,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return apply_expr(lambda x: StringLength(x), tint32, self)
+        return apply_expr(lambda x: Apply("length", x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):

@@ -5,11 +5,7 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class LocusIntervalSuite extends SparkSuite {
-  val rg = ReferenceGenome.GRCh37
-  val pord = rg.locusType.ordering
-
-  def genomicInterval(contig: String, start: Int, end: Int): Interval =
-    Interval(Locus(contig, start), Locus(contig, end), true, false)
+  def rg = ReferenceGenome.GRCh37
 
   @Test def testParser() {
     val xMax = rg.contigLength("X")

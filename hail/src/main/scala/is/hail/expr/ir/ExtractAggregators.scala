@@ -43,7 +43,7 @@ object ExtractAggregators {
       case Ref(name, typ) =>
         assert(typ.isRealizable)
         ir
-      case x@AggLet(name, value, body) =>
+      case x@AggLet(name, value, body, _) =>
         ab3 += x
         extract(body)
       case x: ApplyAggOp =>
@@ -53,7 +53,7 @@ object ExtractAggregators {
           x.initOpArgs.map(InitOp(i, _, x.aggSig)),
           SeqOp(i, x.seqOpArgs, x.aggSig))
         GetTupleElement(result, i)
-      case AggFilter(cond, aggIR) =>
+      case AggFilter(cond, aggIR, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
         val transformed = this.extract(aggIR, ab, newBuilder, ab3, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
@@ -61,7 +61,7 @@ object ExtractAggregators {
         ab2 += AggOps(io,
           If(cond, Begin(seqOp), Begin(FastIndexedSeq())))
         transformed
-      case AggExplode(array, name, aggBody) =>
+      case AggExplode(array, name, aggBody, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
         val transformed = this.extract(aggBody, ab, newBuilder, ab3, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
@@ -70,7 +70,7 @@ object ExtractAggregators {
           io,
           ArrayFor(array, name, Begin(seqOp)))
         transformed
-      case AggGroupBy(key, aggIR) =>
+      case AggGroupBy(key, aggIR, _) =>
 
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()
@@ -92,7 +92,7 @@ object ExtractAggregators {
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
 
-      case AggArrayPerElement(a, name, aggBody) =>
+      case AggArrayPerElement(a, name, aggBody, _) =>
 
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()

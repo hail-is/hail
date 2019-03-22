@@ -29,8 +29,6 @@ object InferType {
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: Begin => TVoid
-      case _: StringLength => TInt32()
-      case _: StringSlice => TString()
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
@@ -41,7 +39,7 @@ object InferType {
           cnsq.typ
       case Let(name, value, body) =>
         body.typ
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, _) =>
         body.typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
@@ -67,14 +65,17 @@ object InferType {
         val et = coerce[TArray](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>
-        val et = coerce[TArray](a.typ).elementType
+        val et = coerce[TIterable](a.typ).elementType
         TSet(et, a.typ.required)
       case ToDict(a) =>
-        val elt = coerce[TBaseStruct](coerce[TArray](a.typ).elementType)
+        val elt = coerce[TBaseStruct](coerce[TIterable](a.typ).elementType)
         TDict(elt.types(0), elt.types(1), a.typ.required)
       case ToArray(a) =>
-        val et = coerce[TContainer](a.typ).elementType
-        TArray(et, a.typ.required)
+        val elt = coerce[TIterable](a.typ).elementType
+        TArray(elt, a.typ.required)
+      case ToStream(a) =>
+        val elt = coerce[TIterable](a.typ).elementType
+        TStream(elt, a.typ.required)
       case GroupByKey(collection) =>
         val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
@@ -99,13 +100,13 @@ object InferType {
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
           idxs.typ.required && 
           coerce[TArray](idxs.typ).elementType.required)
-      case AggFilter(_, aggIR) =>
+      case AggFilter(_, aggIR, _) =>
         aggIR.typ
-      case AggExplode(array, name, aggBody) =>
+      case AggExplode(array, name, aggBody, _) =>
         aggBody.typ
-      case AggGroupBy(key, aggIR) =>
+      case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
-      case AggArrayPerElement(a, name, aggBody) => TArray(aggBody.typ)
+      case AggArrayPerElement(a, name, aggBody, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>

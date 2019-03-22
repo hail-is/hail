@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
-import is.hail.asm4s.{ClassFieldRef, Code, FunctionBuilder}
+import is.hail.asm4s.Code
 import is.hail.check.Gen
 import is.hail.expr.types._
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
@@ -22,10 +22,11 @@ import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, Referen
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.TaskContext
+import org.apache.spark.broadcast.Broadcast
 
 abstract class RGBase extends Serializable {
-  val locusType: TLocus
-  val intervalType: TInterval
+  def locusType: TLocus
 
   def name: String
 
@@ -63,8 +64,6 @@ abstract class RGBase extends Serializable {
 
   def compare(c1: String, c2: String): Int
 
-  def compare(l1: Locus, l2: Locus): Int
-
   def unify(concrete: RGBase): Boolean
 
   def isBound: Boolean
@@ -72,6 +71,30 @@ abstract class RGBase extends Serializable {
   def clear(): Unit
 
   def subst(): RGBase
+
+  @transient lazy val broadcastRGBase: BroadcastRGBase = new BroadcastRGBase(this)
+}
+
+class BroadcastRGBase(rgParam: RGBase) extends Serializable {
+  @transient private[this] val rg: RGBase = rgParam
+
+  private[this] val rgBc: Broadcast[ReferenceGenome] = {
+    if (TaskContext.get != null)
+      null
+    else
+      rgParam match {
+        case rg: ReferenceGenome => rg.broadcast
+        case _ => null
+      }
+  }
+
+  def value: RGBase = {
+    val t = if (rg != null)
+      rg
+    else
+      rgBc.value
+    t
+  }
 }
 
 case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[String, Int],
@@ -130,13 +153,25 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   val yContigIndices = yContigs.map(contigsIndex)
   val mtContigIndices = mtContigs.map(contigsIndex)
 
-  val locusOrdering = new Ordering[Locus] {
-    def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(contigsIndex, x, y)
+  val locusOrdering = {
+    val localContigsIndex = contigsIndex
+    new Ordering[Locus] {
+      def compare(x: Locus, y: Locus): Int = ReferenceGenome.compare(localContigsIndex, x, y)
+    }
   }
 
   // must be constructed after orderings
-  val locusType: TLocus = TLocus(this)
-  val intervalType: TInterval = TInterval(locusType)
+  @transient @volatile var _locusType: TLocus = _
+
+  def locusType: TLocus = {
+    if (_locusType == null) {
+      synchronized {
+        if (_locusType == null)
+          _locusType = TLocus(this)
+      }
+    }
+    _locusType
+  }
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -282,8 +317,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def compare(contig1: String, contig2: String): Int = ReferenceGenome.compare(contigsIndex, contig1, contig2)
 
-  def compare(l1: Locus, l2: Locus): Int = ReferenceGenome.compare(contigsIndex, l1, l2)
-
   def validateContigRemap(contigMapping: Map[String, String]) {
     val badContigs = mutable.Set[(String, String)]()
 
@@ -418,6 +451,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
+  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.sc.broadcast(this)
+
   override def hashCode: Int = {
     import org.apache.commons.lang.builder.HashCodeBuilder
 
@@ -524,42 +559,40 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
 object ReferenceGenome {
   var references: Map[String, ReferenceGenome] = Map()
-  val GRCh37: ReferenceGenome = fromResource("reference/grch37.json")
-  val GRCh38: ReferenceGenome = fromResource("reference/grch38.json")
-  val GRCm38: ReferenceGenome = fromResource("reference/grcm38.json")
-  val hailReferences = references.keySet
+  var GRCh37: ReferenceGenome = _
+  var GRCh38: ReferenceGenome = _
+  var GRCm38: ReferenceGenome = _
+  var hailReferences: Set[String] = _
+
+  if (TaskContext.get == null) {
+    GRCh37 = fromResource("reference/grch37.json")
+    GRCh38 = fromResource("reference/grch38.json")
+    GRCm38 = fromResource("reference/grcm38.json")
+    hailReferences = references.keySet
+  }
 
   def addReference(rg: ReferenceGenome) {
-    if (hasReference(rg.name))
-      fatal(s"Cannot add reference genome. `${ rg.name }' already exists. Choose a reference name NOT in the following list:\n  " +
-        s"@1", references.keys.truncatable("\n  "))
-    rg.addIRFunctions()
-    references += (rg.name -> rg)
+    references.get(rg.name) match {
+      case Some(rg2) =>
+        if (rg != rg2) {
+          fatal(s"Cannot add reference genome `${ rg.name }', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
+            s"@1", references.keys.truncatable("\n  "))
+        }
+      case None =>
+        rg.addIRFunctions()
+        references += (rg.name -> rg)
+    }
   }
 
   def getReference(name: String): ReferenceGenome = {
     references.get(name) match {
       case Some(rg) => rg
-      case None => fatal(s"Cannot get reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
+      case None => fatal(s"Reference genome `$name' does not exist. Choose a reference name from the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
     }
   }
 
   def hasReference(name: String): Boolean = references.contains(name)
-
-  def removeReference(name: String): Unit = {
-    val nonBuiltInReferences = references.keySet -- hailReferences
-
-    if (hailReferences.contains(name))
-      fatal(s"Cannot remove reference genome. `$name' is a built-in Hail reference. Choose a reference name from the following list:\n  " +
-        s"@1", nonBuiltInReferences.truncatable("\n  "))
-    if (!hasReference(name))
-      fatal(s"Cannot remove reference genome. `$name' does not exist. Choose a reference name from the following list:\n  " +
-        s"@1", nonBuiltInReferences.truncatable("\n  "))
-
-    references(name).removeIRFunctions()
-    references -= name
-  }
 
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
@@ -664,8 +697,8 @@ object ReferenceGenome {
   def getReferences(t: Type): Set[ReferenceGenome] = {
     var rgs = Set[ReferenceGenome]()
     MapTypes.foreach {
-      case tl@TLocus(rg, _) =>
-        rgs += rg.asInstanceOf[ReferenceGenome]
+      case tl: TLocus =>
+        rgs += tl.rg.asInstanceOf[ReferenceGenome]
       case _ => 
     }(t)
     rgs
@@ -736,7 +769,6 @@ object ReferenceGenome {
 
 case class RGVariable(var rg: RGBase = null) extends RGBase {
   val locusType: TLocus = TLocus(this)
-  val intervalType: TInterval = TInterval(locusType)
 
   override def toString = "?RG"
 
@@ -797,7 +829,5 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def inYPar(locus: Locus): Boolean = ???
 
   def compare(c1: String, c2: String): Int = ???
-
-  def compare(l1: Locus, l2: Locus): Int = ???
 }
 

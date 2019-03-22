@@ -9,7 +9,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
+import org.json4s.JsonAST.{JArray, JObject, JString}
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
@@ -157,18 +157,18 @@ case class MatrixType(
     MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
   }
 
-  def globalEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
 
-  def rowEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("va" -> rvRowType)
 
-  def colEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val colEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("sa" -> colType)
 
-  def entryEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("sa" -> colType)
     .bind("va" -> rvRowType)
@@ -189,8 +189,17 @@ case class MatrixType(
 
   def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField match {
-      case TLocus(rg: ReferenceGenome, _) => rg
-    }
+    firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+  }
+
+  def pyJson: JObject = {
+    JObject(
+      "row" -> JString(rowType.toString),
+      "row_key" -> JArray(rowKey.toList.map(JString(_))),
+      "col" -> JString(colType.toString),
+      "col_key" -> JArray(colKey.toList.map(JString(_))),
+      "entry" -> JString(entryType.toString),
+      "global" -> JString(globalType.toString)
+    )
   }
 }

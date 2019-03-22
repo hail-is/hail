@@ -2923,8 +2923,9 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 
         return bind(_, [hl.len(a) for a in arrays])
 
-@typecheck(a=expr_array())
-def zip_with_index(a):
+
+@typecheck(a=expr_array(), index_first=bool)
+def zip_with_index(a, index_first=True):
     """Returns an array of (index, element) tuples.
 
     Examples
@@ -2933,16 +2934,24 @@ def zip_with_index(a):
     >>> hl.eval(hl.zip_with_index(['A', 'B', 'C']))
     [(0, 'A'), (1, 'B'), (2, 'C')]
 
+    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C'], index_first=False))
+    [('A', 0), ('B', 1), ('C', 2)]
+
+
     Parameters
     ----------
     a : :class:`.ArrayExpression`
+    index_first: :obj:`bool`
+        If ``True``, the index is the first value of the element tuples. If
+        ``False``, the index is the second value.
 
     Returns
     -------
     :class:`.ArrayExpression`
-        Array of (index, element) tuples.
+        Array of (index, element) or (element, index) tuples.
     """
-    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i])), a)
+    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i]) if index_first else (aa[i], i)), a)
+
 
 @typecheck(f=func_spec(1, expr_any),
            collection=expr_oneof(expr_set(), expr_array()))
@@ -3003,7 +3012,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: StringLength(x), tint32, x)
+        return apply_expr(lambda x: Apply("length", x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
+import is.hail.SparkSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.utils.FastSeq
@@ -9,18 +10,18 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
-class LocusFunctionsSuite extends TestNGSuite {
+class LocusFunctionsSuite extends SparkSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  val grch38: ReferenceGenome = ReferenceGenome.GRCh38
+  def grch38: ReferenceGenome = ReferenceGenome.GRCh38
 
-  val locusIR: Apply = {
+  def locusIR: Apply = {
     val fn = grch38.wrapFunctionName("Locus")
     Apply(fn, FastSeq(Str("chr22"), I32(1)))
   }
 
-  val locus = Locus("chr22", 1, grch38)
+  def locus = Locus("chr22", 1, grch38)
 
   @Test def contig() {
     assertEvalsTo(invoke("contig", locusIR), locus.contig)

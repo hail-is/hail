@@ -29,8 +29,6 @@ object InferPType {
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
       case _: Begin => PVoid
-      case _: StringLength => PInt32()
-      case _: StringSlice => PString()
       case Die(_, t) => PType.canonical(t)
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
@@ -41,7 +39,7 @@ object InferPType {
           cnsq.pType
       case Let(name, value, body) =>
         body.pType
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, _) =>
         body.pType
       case ApplyBinaryPrimOp(op, l, r) =>
         PType.canonical(BinaryOp.getReturnType(op, l.typ, r.typ)).setRequired(l.pType.required && r.pType.required)
@@ -62,14 +60,17 @@ object InferPType {
         val et = coerce[PArray](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>
-        val et = coerce[PArray](a.pType).elementType
-        PSet(et, a.pType.required)
+        val elt = coerce[PIterable](a.pType).elementType
+        PSet(elt, a.pType.required)
       case ToDict(a) =>
-        val elt = coerce[PBaseStruct](coerce[PArray](a.pType).elementType)
+        val elt = coerce[PBaseStruct](coerce[PIterable](a.pType).elementType)
         PDict(elt.types(0), elt.types(1), a.pType.required)
       case ToArray(a) =>
-        val et = coerce[PContainer](a.pType).elementType
-        PArray(et, a.pType.required)
+        val elt = coerce[PIterable](a.pType).elementType
+        PArray(elt, a.pType.required)
+      case ToStream(a) =>
+        val elt = coerce[PIterable](a.pType).elementType
+        PStream(elt, a.pType.required)
       case GroupByKey(collection) =>
         val elt = coerce[PBaseStruct](coerce[PArray](collection.pType).elementType)
         // FIXME requiredness
@@ -93,13 +94,13 @@ object InferPType {
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&
           coerce[PArray](idxs.pType).elementType.required)
-      case AggFilter(_, aggIR) =>
+      case AggFilter(_, aggIR, _) =>
         aggIR.pType
-      case AggExplode(array, name, aggBody) =>
+      case AggExplode(array, name, aggBody, _) =>
         aggBody.pType
-      case AggGroupBy(key, aggIR) =>
+      case AggGroupBy(key, aggIR, _) =>
         PDict(PType.canonical(key.pType), aggIR.pType)
-      case AggArrayPerElement(a, name, aggBody) => PArray(aggBody.pType)
+      case AggArrayPerElement(a, name, aggBody, _) => PArray(aggBody.pType)
       case ApplyAggOp(_, _, _, aggSig) =>
         PType.canonical(AggOp.getType(aggSig))
       case ApplyScanOp(_, _, _, aggSig) =>

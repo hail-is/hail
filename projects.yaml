@@ -1,19 +1,24 @@
+- project: docker
 - project: auth-gateway
 - project: batch
+  dependencies: ["docker"]
 - project: ci
   dependencies: ["batch"]
 - project: cloudtools
 - project: etc
-- project: notebook
-- project: notebook2
 - project: gateway
 - project: hail
 - project: apiserver
+  dependencies: ["hail"]
 - project: image-fetcher
 - project: letsencrypt
+- project: notebook
+- project: notebook2
+  dependencies: ["apiserver"]
 - project: pipeline
   dependencies: ["batch"]
 - project: scorecard
+  dependencies: ["docker"]
 - project: site
 - project: upload
 - project: vdc

@@ -22,7 +22,7 @@ case class TextTableReaderOptions(
   typeMapStr: Map[String, String],
   comment: Array[String],
   separator: String,
-  missing: String,
+  missing: Set[String],
   noHeader: Boolean,
   impute: Boolean,
   nPartitionsOpt: Option[Int],
@@ -150,7 +150,7 @@ object TextTableReader {
   }
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: String, quote: java.lang.Character): Array[Option[Type]] = {
+    delimiter: String, missing: Set[String], quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
 
     val matchTypes: Array[Type] = Array(TBoolean(), TInt32(), TInt64(), TFloat64())
@@ -174,7 +174,7 @@ object TextTableReader {
           var i = 0
           while (i < nFields) {
             val field = split(i)
-            if (field != missing) {
+            if (!missing.contains(field)) {
               var j = 0
               while (j < nMatchers) {
                 ma.update(i, j, ma(i, j) && matchers(j)(field))
@@ -332,7 +332,7 @@ object TextTableReader {
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
     val options = TextTableReaderOptions(
       files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
-      missing, noHeader, impute, Some(nPartitions),
+      Set(missing), noHeader, impute, Some(nPartitions),
       if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
     val tr = TextTableReader(options)
     new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
@@ -391,7 +391,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
             val typ = f.typ
             val field = sp(useColIndices(i))
             try {
-              if (field == options.missing)
+              if (options.missing.contains(field))
                 rvb.setMissing()
               else
                 rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))

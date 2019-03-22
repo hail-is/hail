@@ -3,15 +3,12 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TString, TStruct}
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
-import is.hail.sparkextras.ContextRDD
+import is.hail.expr.types.virtual._
+import is.hail.rvd.RVDPartitioner
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.TestUtils._
-import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
-import org.testng.annotations.{BeforeClass, DataProvider, Test}
+import org.testng.annotations.{DataProvider, Test}
 import is.hail.TestUtils._
 
 class TableIRSuite extends SparkSuite {
@@ -28,11 +25,7 @@ class TableIRSuite extends SparkSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
-  implicit val execStrats = ExecStrategy.interpretOnly
-
-  @BeforeClass def ensureHCDefined() {
-    initializeHailContext()
-  }
+  implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))
@@ -97,13 +90,22 @@ class TableIRSuite extends SparkSuite {
     val expected = Array.tabulate(10)(Row(_)).filter(_.get(0) == 4).toFastIndexedSeq
 
     assertEvalsTo(TableCollect(node), Row(expected, Row(4)))
+  }
 
-    val kt = getKT
-    assertEvalsTo(TableCount(TableFilter(kt.tir,
-      GetField(Ref("row", kt.typ.rowType), "field1").ceq(3))), 1L)
+  @Test def testTableMapWithLiterals() {
+    val t = TableRange(10, 2)
+    val node = TableMapRows(t,
+      InsertFields(Ref("row", t.typ.rowType),
+        FastIndexedSeq(
+          "a" -> Str("foo"),
+          "b" -> Literal(TTuple(TInt32(), TString()), Row(1, "hello")))))
+
+    val expected = Array.tabulate(10)(Row(_, "foo", Row(1, "hello"))).toFastIndexedSeq
+    assertEvalsTo(TableCollect(node), Row(expected, Row()))
   }
 
   @Test def testScanCountBehavesLikeIndex() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref("row", t.typ.rowType)
 
@@ -114,6 +116,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testScanCollectBehavesLikeRange() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref("row", t.typ.rowType)
 
@@ -284,6 +287,7 @@ class TableIRSuite extends SparkSuite {
     leftProject: Set[Int],
     rightProject: Set[Int]
   ) {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
     val left = new Table(hc, TableKeyBy(
       TableParallelize(
@@ -324,6 +328,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableKeyBy() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("field1", TString()), ("field2", TInt32()))
@@ -336,6 +341,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableParallelize() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
     val value = Row(IndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 
@@ -349,6 +355,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val row = Ref("row", TStruct("idx" -> TInt32()))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
     val t2 =
@@ -363,6 +370,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableRename() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
     assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32())))
@@ -373,6 +381,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableWrite() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = tmpDir.createLocalTempFile(extension = "ht")
     Interpret(TableWrite(table, path))
@@ -383,6 +392,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableMultiWayZipJoin() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val rowSig = TStruct(
       "id" -> TInt32(),
       "name" -> TString(),
@@ -428,6 +438,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableMultiWayZipJoinGlobals() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val t1 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(5))))
     val t2 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(0))))
     val t3 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> NA(TInt32()))))

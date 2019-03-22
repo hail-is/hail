@@ -133,3 +133,21 @@ class BlockMatrixIR(BaseIR):
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)
+
+
+class JIRVectorReference(object):
+    def __init__(self, jid, length, item_type):
+        self.jid = jid
+        self.length = length
+        self.item_type = item_type
+
+    def __len__(self):
+        return self.length
+
+    def __del__(self):
+        try:
+            Env.hc()._jhc.pyRemoveIrVector(self.jid)
+        # there is only so much we can do if the attempt to remove the unused IR fails,
+        # especially since this will often get called during interpreter shutdown.
+        except Exception:
+            pass

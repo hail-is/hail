@@ -277,3 +277,24 @@ class Tests(unittest.TestCase):
         f = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f(1, 3)), 24)
+
+    def test_mt_full_outer_join(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
+        mt1 = mt1.annotate_rows(r1=hl.rand_unif(0, 1))
+        mt1 = mt1.annotate_entries(e1=hl.rand_unif(0, 1))
+
+        mt2 = hl.utils.range_matrix_table(10, 10)
+        mt2 = mt2.annotate_cols(c1=hl.rand_unif(0, 1))
+        mt2 = mt2.annotate_rows(r1=hl.rand_unif(0, 1))
+        mt2 = mt2.annotate_entries(e1=hl.rand_unif(0, 1))
+
+        mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
+        assert(mtj.aggregate_entries(hl.agg.all(mtj.left_entry == mt1.index_entries(mtj.row_key, mtj.col_key))))
+        assert(mtj.aggregate_entries(hl.agg.all(mtj.right_entry == mt2.index_entries(mtj.row_key, mtj.col_key))))
+
+        mt2 = mt2.key_cols_by(new_col_key = 5 - (mt2.col_idx // 2)) # duplicate col keys
+        mt1 = mt1.key_rows_by(new_row_key = 5 - (mt1.row_idx // 2)) # duplicate row keys
+        mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
+
+        assert(mtj.count() == (15, 15))

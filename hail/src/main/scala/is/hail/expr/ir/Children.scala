@@ -24,7 +24,7 @@ object Children {
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>
       Array(value, body)
-    case AggLet(name, value, body) =>
+    case AggLet(name, value, body, _) =>
       Array(value, body)
     case Ref(name, typ) =>
       none
@@ -52,6 +52,8 @@ object Children {
       Array(a)
     case ToArray(a) =>
       Array(a)
+    case ToStream(a) =>
+      Array(a)
     case LowerBoundOnOrderedCollection(orderedCollection, elem, _) =>
       Array(orderedCollection, elem)
     case GroupByKey(collection) =>
@@ -74,13 +76,13 @@ object Children {
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
       Array(nd, idxs)
-    case AggFilter(cond, aggIR) =>
+    case AggFilter(cond, aggIR, _) =>
       Array(cond, aggIR)
-    case AggExplode(array, _, aggBody) =>
+    case AggExplode(array, _, aggBody, _) =>
       Array(array, aggBody)
-    case AggGroupBy(key, aggIR) =>
+    case AggGroupBy(key, aggIR, _) =>
       Array(key, aggIR)
-    case AggArrayPerElement(a, name, aggBody) => Array(a, aggBody)
+    case AggArrayPerElement(a, name, aggBody, _) => Array(a, aggBody)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -103,10 +105,6 @@ object Children {
       types.toFastIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
-    case StringSlice(s, start, n) =>
-      Array(s, start, n)
-    case StringLength(s) =>
-      Array(s)
     case In(i, typ) =>
       none
     case Die(message, typ) =>

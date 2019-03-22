@@ -123,7 +123,9 @@ object CodecSpec {
 }
 
 trait CodecSpec extends Serializable {
-  def buildEncoder(t: PType): (OutputStream) => Encoder
+  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
+
+  def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
 
@@ -179,12 +181,12 @@ object ShowBuf {
 
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder = {
-    if (HailContext.get != null && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
+  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
+    if (HailContext.get.flags.get("cpp") != null && requestedType == t) {
       val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
-      val f = EmitPackEncoder(t)
+      val f = EmitPackEncoder(t, requestedType)
       out: OutputStream => new CompiledPackEncoder(child.buildOutputBuffer(out), f)
     }
   }
@@ -246,10 +248,11 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 }
 
 final class MemoryBuffer extends Serializable {
-  var capacity: Int = 8
-  var mem: Array[Byte] = new Array[Byte](capacity)
+  var mem: Array[Byte] = new Array[Byte](8)
   var pos: Int = 0
   var end: Int = 0
+
+  def capacity: Int = mem.length
 
   def clear() {
     pos = 0
@@ -261,8 +264,7 @@ final class MemoryBuffer extends Serializable {
   }
 
   def grow(n: Int) {
-    capacity = math.max(capacity * 2, end + n)
-    mem = util.Arrays.copyOf(mem, capacity)
+    mem = util.Arrays.copyOf(mem, math.max(capacity * 2, end + n))
   }
 
   def copyFrom(src: MemoryBuffer) {
@@ -1303,11 +1305,67 @@ object EmitPackEncoder { self =>
     }
   }
 
-  def emitBaseStruct(t: PBaseStruct, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+  def emitStruct(t: PStruct, requestedType: PStruct, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    val writeMissingBytes =
+      if (requestedType.size == t.size)
+        out.writeBytes(region, off, t.nMissingBytes)
+      else {
+        var c: Code[Unit] = Code._empty[Unit]
+        var j = 0
+        var n = 0
+        while (j < requestedType.size) {
+          var b = const(0)
+          var k = 0
+          while (k < 8 && j < requestedType.size) {
+            val rf = requestedType.fields(j)
+            if (!rf.typ.required) {
+              val i = t.fieldIdx(rf.name)
+              b = b | (t.isFieldMissing(region, off, i).toI << k)
+              k += 1
+            }
+            j += 1
+          }
+          if (k > 0) {
+            c = Code(c, out.writeByte(b.toB))
+            n += 1
+          }
+        }
+        assert(n == requestedType.nMissingBytes)
+        c
+      }
+
     val foff = mb.newField[Long]
 
-    val nMissingBytes = t.nMissingBytes
-    val writeMissingBytes = out.writeBytes(region, off, nMissingBytes)
+    val fieldEmitters = requestedType.fields.zipWithIndex.map { case (rf, j) =>
+      val i = t.fieldIdx(rf.name)
+      val f = t.fields(i)
+      new Emitter {
+        def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
+          val mb = mbLike.mb
+          val region = mb.getArg[Region](1).load()
+          val offset = mb.getArg[Long](2).load()
+          val out = mb.getArg[OutputBuffer](3).load()
+
+          t.isFieldDefined(region, foff, i).mux(
+            self.emit(f.typ, rf.typ, mb, region, t.fieldOffset(foff, i), out),
+            Code._empty[Unit])
+        }
+
+        def estimatedSize: Int = emitTypeSize(rf.typ)
+      }
+    }
+
+    Code(
+      writeMissingBytes,
+      foff := off,
+      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)),
+      Code._empty[Unit])
+  }
+
+  def emitTuple(t: PTuple, requestedType: PTuple, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    val foff = mb.newField[Long]
+
+    val writeMissingBytes = out.writeBytes(region, off, t.nMissingBytes)
 
     val fieldEmitters = t.types.zipWithIndex.map { case (ft, i) =>
       new Emitter {
@@ -1318,7 +1376,7 @@ object EmitPackEncoder { self =>
           val out = mb.getArg[OutputBuffer](3).load()
 
           t.isFieldDefined(region, foff, i).mux(
-            self.emit(ft, mb, region, t.fieldOffset(foff, i), out),
+            self.emit(ft, requestedType.types(i), mb, region, t.fieldOffset(foff, i), out),
             Code._empty[Unit])
         }
 
@@ -1333,7 +1391,7 @@ object EmitPackEncoder { self =>
       Code._empty[Unit])
   }
 
-  def emitArray(t: PArray, mb: MethodBuilder, region: Code[Region], aoff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+  def emitArray(t: PArray, requestedType: PArray, mb: MethodBuilder, region: Code[Region], aoff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     val length = region.loadInt(aoff)
 
     val writeLen = out.writeInt(length)
@@ -1351,7 +1409,7 @@ object EmitPackEncoder { self =>
       Code.whileLoop(
         i < length,
         Code(t.isElementDefined(region, aoff, i).mux(
-          emit(t.elementType, mb, region, t.elementOffset(aoff, length, i), out),
+          emit(t.elementType, requestedType.elementType, mb, region, t.elementOffset(aoff, length, i), out),
           Code._empty[Unit]),
           i := i + const(1))))
 
@@ -1365,10 +1423,11 @@ object EmitPackEncoder { self =>
       out.writeBytes(region, boff + const(4), length))
   }
 
-  def emit(t: PType, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+  def emit(t: PType, requestedType: PType, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     t.fundamentalType match {
-      case t: PBaseStruct => emitBaseStruct(t, mb, region, off, out)
-      case t: PArray => emitArray(t, mb, region, region.loadAddress(off), out)
+      case t: PStruct => emitStruct(t, requestedType.fundamentalType.asInstanceOf[PStruct], mb, region, off, out)
+      case t: PTuple => emitTuple(t, requestedType.fundamentalType.asInstanceOf[PTuple], mb, region, off, out)
+      case t: PArray => emitArray(t, requestedType.fundamentalType.asInstanceOf[PArray], mb, region, region.loadAddress(off), out)
       case _: PBoolean => out.writeBoolean(region.loadBoolean(off))
       case _: PInt32 => out.writeInt(region.loadInt(off))
       case _: PInt64 => out.writeLong(region.loadLong(off))
@@ -1378,14 +1437,14 @@ object EmitPackEncoder { self =>
     }
   }
 
-  def apply(t: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
+  def apply(t: PType, requestedType: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
     val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]
     val mb = fb.apply_method
     val region = mb.getArg[Region](1).load()
     val offset = mb.getArg[Long](2).load()
     val out = mb.getArg[OutputBuffer](3).load()
 
-    mb.emit(emit(t, mb, region, offset, out))
+    mb.emit(emit(t, requestedType, mb, region, offset, out))
     fb.result()
   }
 }
@@ -1602,10 +1661,6 @@ object RichContextRDDRegionValue {
     makeEntriesEnc: (OutputStream) => Encoder
   ): (String, Long) = {
     val fullRowType = t.rowType
-    val rowsRVType = MatrixType.getRowType(fullRowType)
-    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
-    val rowFieldIndices = Array.range(0, fullRowType.size).filter(_ != localEntriesIndex)
-    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
     val context = TaskContext.get
     val f = partFile(partDigits, idx, context)
@@ -1634,26 +1689,12 @@ object RichContextRDDRegionValue {
 
             var rowCount = 0L
 
-            val rvb = new RegionValueBuilder()
-
             it.foreach { rv =>
-              val region = ctx.region
-              rvb.set(region)
-              rvb.start(rowsRVType)
-              rvb.startStruct()
-              rvb.addFields(fullRowType, rv, rowFieldIndices)
-              rvb.endStruct()
-
               rowsEN.writeByte(1)
-              rowsEN.writeRegionValue(region, rvb.end())
-
-              rvb.start(entriesRVType)
-              rvb.startStruct()
-              rvb.addField(fullRowType, rv, localEntriesIndex)
-              rvb.endStruct()
+              rowsEN.writeRegionValue(rv.region, rv.offset)
 
               entriesEN.writeByte(1)
-              entriesEN.writeRegionValue(region, rvb.end())
+              entriesEN.writeRegionValue(rv.region, rv.offset)
 
               ctx.region.clear()
 
@@ -1754,9 +1795,9 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
+    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value

@@ -8,71 +8,96 @@ class NormalizeNames {
     count.toString
   }
 
-  def apply(ir: IR, env: Env[String]): IR = apply(ir, env, None)
+  def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
 
-  def apply(ir: IR, env: Env[String], aggEnv: Option[Env[String]]): IR = {
-    def normalize(ir: IR, env: Env[String] = env, aggEnv: Option[Env[String]] = aggEnv): IR = apply(ir, env, aggEnv)
+  def apply(ir: IR, env: BindingEnv[String]): IR = {
+    def normalize(ir: IR, env: BindingEnv[String] = env): IR = apply(ir, env)
 
     ir match {
       case Let(name, value, body) =>
         val newName = gen()
-        Let(newName, normalize(value), normalize(body, env.bind(name, newName)))
+        Let(newName, normalize(value), normalize(body, env.copy(eval = env.eval.bind(name, newName))))
       case Ref(name, typ) =>
-        Ref(env.lookup(name), typ)
-      case AggLet(name, value, body) =>
+        Ref(env.eval.lookup(name), typ)
+      case AggLet(name, value, body, isScan) =>
         val newName = gen()
-        AggLet(newName, normalize(value), normalize(body, env, Some(aggEnv.get.bind(name, newName))))
+        val (valueEnv, bodyEnv) = if (isScan)
+          env.promoteScan -> env.bindScan(name, newName)
+        else
+          env.promoteAgg -> env.bindAgg(name, newName)
+        AggLet(newName, normalize(value, valueEnv), normalize(body, bodyEnv), isScan)
       case ArraySort(a, left, right, compare) =>
         val newLeft = gen()
         val newRight = gen()
-        ArraySort(normalize(a), newLeft, newRight, normalize(compare, env.bind(left -> newLeft, right -> newRight)))
+        ArraySort(normalize(a), newLeft, newRight, normalize(compare, env.bindEval(left -> newLeft, right -> newRight)))
       case ArrayMap(a, name, body) =>
         val newName = gen()
-        ArrayMap(normalize(a), newName, normalize(body, env.bind(name, newName)))
+        ArrayMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
       case ArrayFilter(a, name, body) =>
         val newName = gen()
-        ArrayFilter(normalize(a), newName, normalize(body, env.bind(name, newName)))
+        ArrayFilter(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
       case ArrayFlatMap(a, name, body) =>
         val newName = gen()
-        ArrayFlatMap(normalize(a), newName, normalize(body, env.bind(name, newName)))
+        ArrayFlatMap(normalize(a), newName, normalize(body, env.bindEval(name, newName)))
       case ArrayFold(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
-        ArrayFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bind(accumName -> newAccumName, valueName -> newValueName)))
+        ArrayFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val newAccumName = gen()
         val newValueName = gen()
-        ArrayScan(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bind(accumName -> newAccumName, valueName -> newValueName)))
+        ArrayScan(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bindEval(accumName -> newAccumName, valueName -> newValueName)))
       case ArrayFor(a, valueName, body) =>
         val newValueName = gen()
-        ArrayFor(normalize(a), newValueName, normalize(body, env.bind(valueName, newValueName)))
+        ArrayFor(normalize(a), newValueName, normalize(body, env.bindEval(valueName, newValueName)))
       case ArrayAgg(a, name, body) =>
-        assert(aggEnv.isEmpty)
+        assert(env.agg.isEmpty)
         val newName = gen()
-        ArrayAgg(normalize(a), newName, normalize(body, env, Some(env.bind(name, newName))))
+        ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
       case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
         val newL = gen()
         val newR = gen()
-        val newEnv = env.bind(l -> newL, r -> newR)
+        val newEnv = env.bindEval(l -> newL, r -> newR)
         ArrayLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
-      case AggExplode(a, name, aggBody) =>
+      case AggExplode(a, name, aggBody, isScan) =>
         val newName = gen()
-        AggExplode(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
-      case AggFilter(cond, aggIR) =>
-        AggFilter(normalize(cond, aggEnv.get, None), normalize(aggIR))
-      case AggGroupBy(key, aggIR) =>
-        AggGroupBy(normalize(key, aggEnv.get, None), normalize(aggIR))
-      case AggArrayPerElement(a, name, aggBody) =>
+        val (aEnv, bodyEnv) = if (isScan)
+          env.promoteScan -> env.bindScan(name, newName)
+        else
+          env.promoteAgg -> env.bindAgg(name, newName)
+        AggExplode(normalize(a, aEnv), newName, normalize(aggBody, bodyEnv), isScan)
+      case AggFilter(cond, aggIR, isScan) =>
+        val condEnv = if (isScan)
+          env.promoteScan
+        else
+          env.promoteAgg
+        AggFilter(normalize(cond, condEnv), normalize(aggIR), isScan)
+      case AggGroupBy(key, aggIR, isScan) =>
+        val keyEnv = if (isScan)
+          env.promoteScan
+        else
+          env.promoteAgg
+        AggGroupBy(normalize(key, keyEnv), normalize(aggIR), isScan)
+      case AggArrayPerElement(a, name, aggBody, isScan) =>
         val newName = gen()
-        AggArrayPerElement(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
+        val (aEnv, bodyEnv) = if (isScan)
+          env.promoteScan -> env.bindScan(name, newName)
+        else
+          env.promoteAgg -> env.bindAgg(name, newName)
+        AggArrayPerElement(normalize(a, aEnv), newName, normalize(aggBody, bodyEnv), isScan)
       case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
         ApplyAggOp(ctorArgs.map(a => normalize(a)),
           initOpArgs.map(_.map(a => normalize(a))),
-          seqOpArgs.map(a => normalize(a, aggEnv.get, None)),
+          seqOpArgs.map(a => normalize(a, env.promoteAgg)),
+          aggSig)
+      case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        ApplyAggOp(ctorArgs.map(a => normalize(a)),
+          initOpArgs.map(_.map(a => normalize(a))),
+          seqOpArgs.map(a => normalize(a, env.promoteScan)),
           aggSig)
       case Uniroot(argname, function, min, max) =>
         val newArgname = gen()
-        Uniroot(newArgname, normalize(function, env.bind(argname, newArgname)), normalize(min), normalize(max))
+        Uniroot(newArgname, normalize(function, env.bindEval(argname, newArgname)), normalize(min), normalize(max))
       case _ =>
         // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
