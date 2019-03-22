@@ -1504,6 +1504,13 @@ class StructExpression(Mapping[str, Expression], Expression):
         to_keep = [f for f in self.dtype.keys() if f not in to_drop]
         return self.select(*to_keep)
 
+    def flatten(self):
+        def _flatten(prefix, s):
+            if isinstance(s, StructExpression):
+                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
+            else:
+                return [(prefix, s)]
+        return self.select(**{k: v for (f, e) in self.items() for (k, v) in _flatten(f, e)})
 
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
