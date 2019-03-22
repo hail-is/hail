@@ -376,9 +376,10 @@ class Tests(unittest.TestCase):
         assert m.filter_rows(m.qual != m.index_rows(m.row_key).qual).count_rows() == 0
 
         kt5 = hl.utils.range_table(1).annotate(s='C1589').key_by('s')
-        m2 = m.annotate_cols(foo=m.s[:5])
         n_C1589 = m.filter_cols(m.s[:5] == 'C1589').count_cols()
         assert n_C1589 > 1
+
+        m2 = m.annotate_cols(foo=m.s[:5])
         assert m2.filter_cols(hl.is_defined(kt5[m2.foo].idx)).count_cols() == n_C1589
 
     def test_index_globals(self):
