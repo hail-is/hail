@@ -71,6 +71,19 @@ def try_new_build(source, target):
                         'name': f'hail-ci-{VERSION}-service-account-key',
                         'readOnly': True
                     }
+                }, {
+                    'volume': {
+                        'name': 'batch-test-cloud-sql-config',
+                        'secret': {
+                            'optional': False,
+                            'secretName': 'batch-test-cloud-sql-config'
+                        }
+                    },
+                    'volume_mount': {
+                        'mountPath': '/batch-secrets',
+                        'name': 'batch-test-cloud-sql-config',
+                        'readOnly': True
+                    }
                 }])
             return Building(job, img, target.sha)
         except Exception as e:
