@@ -15,6 +15,7 @@ case class AggSignature(
   seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
+final case class ApproxCDF() extends AggOp
 final case class CallStats() extends AggOp
 final case class Collect() extends AggOp
 final case class CollectAsSet() extends AggOp
@@ -54,6 +55,17 @@ object AggOp {
     getOption(aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
 
   val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
+
+    case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) =>
+      val resType = QuantilesAggregator.resultType(elType)
+      val constrArgTypes: Array[Class[_]] = Array(classOf[Int])
+      elType match {
+        case _: TInt32 => CodeAggregator[RegionValueApproxCDFIntAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Int]))
+        case _: TInt64 => CodeAggregator[RegionValueApproxCDFLongAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Long]))
+        case _: TFloat32 => CodeAggregator[RegionValueApproxCDFFloatAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Float]))
+        case _: TFloat64 => CodeAggregator[RegionValueApproxCDFDoubleAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Double]))
+    }
+
     case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
       CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
 
@@ -221,6 +233,7 @@ object AggOp {
   }
 
   val fromString: PartialFunction[String, AggOp] = {
+    case "approxCDF" | "ApproxCDF" => ApproxCDF()
     case "fraction" | "Fraction" => Fraction()
     case "stats" | "Statistics" => Statistics()
     case "collect" | "Collect" => Collect()
