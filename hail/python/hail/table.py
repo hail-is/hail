@@ -1202,7 +1202,7 @@ class Table(ExprContainer):
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     def _show(self, n, width, truncate, types):
-        return _Show(self, n, width, truncate, types)
+        return Table._Show(self, n, width, truncate, types)
 
     class _Show:
         def __init__(self, table, n, width, truncate, types):
@@ -1369,7 +1369,7 @@ class Table(ExprContainer):
 
         if has_more:
             n_rows = len(rows)
-            s += f"<p>showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }</p>\n"
+            s += f"<p>showing top { n_rows } { plural('row', n_rows) }</p>\n"
 
         return s
 
@@ -1418,7 +1418,7 @@ class Table(ExprContainer):
                 handler = display
             except ImportError:
                 handler = print
-        handler(Table._Show(self, n, width, truncate, types))
+        handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs) -> 'StructExpression':
         """Expose the row values as if looked up in a dictionary, indexing
