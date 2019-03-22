@@ -924,6 +924,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})
              |""".stripMargin)
+
+      case _: ir.ArrayRange | _: ir.MakeArray =>
+        fatal("ArrayRange and MakeArray must be emitted as a stream.")
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
@@ -936,7 +939,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
     val elemType = coerce[PStream](x.pType).elementType
 
     x match {
-      case ir.ArrayRange(start, stop, step) =>
+      case ir.StreamRange(start, stop, step) =>
         fb.translationUnitBuilder().include("<limits.h>")
         val startt = emit(resultRegion, start, env)
         val stopt = emit(resultRegion, stop, env)
@@ -991,7 +994,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.MakeArray(args, t) =>
+      case ir.MakeStream(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {

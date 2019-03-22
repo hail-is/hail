@@ -42,9 +42,8 @@ object Streamify {
   }
 
   private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
-    case _: MakeArray | _: ArrayRange => streamableNode
-    case StreamRange(start, stop, step) => ArrayRange(start, stop, step)
-    case MakeStream(args, t) => MakeArray(args, TArray(t.elementType, t.required))
+    case ArrayRange(start, stop, step) => ToArray(StreamRange(start, stop, step))
+    case MakeArray(args, t) => ToArray(MakeStream(args, TStream(t.elementType, t.required)))
     case ToArray(a) =>
       a.typ match {
         case _: TArray => ToArray(streamify(a))
