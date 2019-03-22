@@ -1233,7 +1233,7 @@ class Table(ExprContainer):
             s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
         elif v.dtype == hl.tstr:
             s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-        elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
+        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
             s = "(" + hl.delimit([Table._hl_repr(v[i]) for i in range(len(v))], ",") + ")"
         else:
             s = hl.str(v)
