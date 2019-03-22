@@ -16,10 +16,10 @@ class JWTClient:
         else:
             assert isinstance(secret_key, bytes), type(secret_key)
             key_bytes = secret_key
-        if len(key_bytes) < 256:
+        if len(key_bytes) < 32:
             raise ValueError(
                 f'found secret key with {len(key_bytes)} bytes, but secret key '
-                f'must have at least 256 bytes')
+                f'must have at least 32 bytes (i.e. 256 bits)')
 
     def __init__(self, secret_key):
         JWTClient._verify_key_preqrequisites(secret_key)
