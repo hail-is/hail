@@ -183,7 +183,7 @@ appended with a unique identifier "_N".
     |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    70 |
     |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    60 |
     +-------+-------+-----+-------+-------+-------+-------+-------+-------+
-
+    <BLANKLINE>
     +----------+
     | B        |
     +----------+
@@ -194,7 +194,7 @@ appended with a unique identifier "_N".
     | "mouse"  |
     | "rabbit" |
     +----------+
-
+    <BLANKLINE>
 
 In addition to the :meth:`.Table.join` method, Hail provides another
 join syntax using Python's bracket indexing syntax. The syntax looks like
