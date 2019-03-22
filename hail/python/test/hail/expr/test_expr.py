@@ -2589,8 +2589,8 @@ class Tests(unittest.TestCase):
         np_scalar = np.array(scalar)
         h_scalar = hl._ndarray(scalar)
         h_np_scalar = hl._ndarray(np_scalar)
-        self.assertEqual(hl.eval(h_scalar[[]]), 5.0)
-        self.assertEqual(hl.eval(h_np_scalar[[]]), 5.0)
+        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
+        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
 
         cube = [[[0, 1],
                  [2, 3]],
