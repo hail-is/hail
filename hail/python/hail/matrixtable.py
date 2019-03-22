@@ -2550,19 +2550,20 @@ class MatrixTable(ExprContainer):
         """
 
         def estimate_size(struct_expression):
-            return sum(len(str(x.dtype)) + 3
-                       for x in struct_expression.flatten().values())
+            return sum(max(len(f), len(str(x.dtype))) + 3
+                       for f, x in struct_expression.flatten().items())
 
         if n_cols is None:
             characters_per_field = 10
             import shutil
             (characters, _) = shutil.get_terminal_size((80, 10))
+            characters -= 6 # borders
             key_characters = estimate_size(self.row_key)
             characters -= key_characters
             if include_row_fields:
                 characters -= estimate_size(self.row_value)
             characters = max(characters, 0)
-            n_cols = max(5, characters // estimate_size(self.entry))
+            n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
 
         t = self.localize_entries('entries', 'cols')
         t = t.key_by()
