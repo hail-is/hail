@@ -185,12 +185,12 @@ class Tests(unittest.TestCase):
         expected = expected.annotate_entries(entry=hl.float64(expected.row_idx * cols + expected.col_idx))
         expected = expected.key_cols_by(col_idx=hl.int64(expected.col_idx))
         expected = expected.key_rows_by(row_idx=hl.int64(expected.row_idx))
-        self.assertTrue(expected._same(actual))
+        assert expected._same(actual)
 
-        bm = BlockMatrix.random(2000, 2048, block_size=512, seed=0)
+        bm = BlockMatrix.random(50, 100, block_size=25, seed=0)
         mt = bm.to_matrix_table_row_major(n_partitions)
         mt_round_trip = BlockMatrix.from_entry_expr(mt.entry.entry).to_matrix_table_row_major()
-        self.assertTrue(mt._same(mt_round_trip))
+        assert mt._same(mt_round_trip)
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
@@ -199,10 +199,10 @@ class Tests(unittest.TestCase):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
-        x = BlockMatrix.from_numpy(nx)
-        c = BlockMatrix.from_numpy(nc)
-        r = BlockMatrix.from_numpy(nr)
-        m = BlockMatrix.from_numpy(nm)
+        x = BlockMatrix.from_numpy(nx, block_size=8)
+        c = BlockMatrix.from_numpy(nc, block_size=8)
+        r = BlockMatrix.from_numpy(nr, block_size=8)
+        m = BlockMatrix.from_numpy(nm, block_size=8)
 
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))

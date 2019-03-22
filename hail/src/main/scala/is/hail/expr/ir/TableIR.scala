@@ -674,7 +674,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
   private val newRowType = first.typ.keyType ++ newValueType
 
-  def typ: TableType = first.typ.copy(
+  lazy val typ: TableType = first.typ.copy(
     rowType = newRowType,
     globalType = newGlobalType
   )
@@ -1466,7 +1466,7 @@ case class CastMatrixToTable(
   colsFieldName: String
 ) extends TableIR {
 
-  def typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
+  lazy val typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
 
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType
     .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)))
@@ -1499,7 +1499,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   def globalF(old: String): String = globalMap.getOrElse(old, old)
 
-  def typ: TableType = child.typ.copy(
+  lazy val typ: TableType = child.typ.copy(
     rowType = child.typ.rowType.rename(rowMap),
     globalType = child.typ.globalType.rename(globalMap),
     key = child.typ.key.map(k => rowMap.getOrElse(k, k))
