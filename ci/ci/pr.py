@@ -476,5 +476,5 @@ class PR(object):
                         job,
                         job.attributes['image'],
                         self.target.sha))
-        job.delete()
+        job.cancel()
         return x

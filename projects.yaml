@@ -1,6 +1,7 @@
 - project: docker
 - project: auth-gateway
 - project: batch
+  dependencies: ["docker"]
 - project: ci
   dependencies: ["batch"]
 - project: cloudtools
