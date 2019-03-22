@@ -866,7 +866,7 @@ object PruneDeadFields {
           compEnv.eval.lookupOption(left).map(_.result()).getOrElse(Array()) ++
           compEnv.eval.lookupOption(right).map(_.result()).getOrElse(Array()))
 
-        val aEnv = memoizeValueIR(a, aType.copy(requestedElementType), memo)
+        val aEnv = memoizeValueIR(a, aType.copy(elementType = requestedElementType), memo)
 
         unifyEnvs(
           compEnv.deleteEval(left).deleteEval(right),
@@ -1307,6 +1307,11 @@ object PruneDeadFields {
         val a2 = rebuild(a, in, memo)
         val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         ArrayFor(a2, valueName, body2)
+      case ArraySort(a, left, right, compare) =>
+        val a2 = rebuild(a, in, memo)
+        val et = -a2.typ.asInstanceOf[TArray].elementType
+        val compare2 = rebuild(compare, in.bind(left -> et, right -> et), memo)
+        ArraySort(a2, left, right, compare2)
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         // drop unnecessary field IRs
