@@ -80,7 +80,7 @@ def try_new_build(source, target):
                         }
                     },
                     'volume_mount': {
-                        'mountPath': '/secrets',
+                        'mountPath': '/batch/secrets',
                         'name': 'batch-test-cloud-sql-config',
                         'readOnly': True
                     }
