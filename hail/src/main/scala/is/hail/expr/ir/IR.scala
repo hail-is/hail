@@ -116,7 +116,7 @@ final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 object MakeArray {
   def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
     assert(typ != null || args.nonEmpty)
-    var t = typ
+    var t: TArray = typ
     if (t == null) {
       t = if (args.tail.forall(_.typ == args.head.typ)) {
         TArray(args.head.typ)
@@ -148,15 +148,15 @@ object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
     val l = genUID()
     val r = genUID()
-    val atyp = coerce[TContainer](a.typ)
+    val atyp = coerce[TIterable](a.typ)
     val compare = if (onKey) {
       a.typ match {
         case atyp: TDict =>
           ApplyComparisonOp(Compare(atyp.keyType), GetField(Ref(l, atyp.elementType), "key"), GetField(Ref(r, atyp.elementType), "key"))
-        case atyp: TArray if atyp.elementType.isInstanceOf[TStruct] =>
+        case atyp: TStreamable if atyp.elementType.isInstanceOf[TStruct] =>
           val elt = coerce[TStruct](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
-        case atyp: TArray if atyp.elementType.isInstanceOf[TTuple] =>
+        case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
           val elt = coerce[TTuple](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
       }
@@ -178,14 +178,14 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 final case class GroupByKey(collection: IR) extends IR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TArray = coerce[TArray](super.typ)
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
   def elementTyp: Type = typ.elementType
 }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
-  override def typ: TArray = super.typ.asInstanceOf[TArray]
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TArray = coerce[TArray](super.typ)
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 

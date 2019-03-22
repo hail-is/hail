@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
 import is.hail.linalg._

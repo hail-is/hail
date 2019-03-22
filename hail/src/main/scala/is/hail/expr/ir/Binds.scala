@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TContainer, TFloat64, Type}
+import is.hail.expr.types.virtual._
 
 object Binds {
   def apply(x: IR, v: String, i: Int): Boolean = Bindings(x, i).exists(_._1 == v)
@@ -49,9 +49,9 @@ object AggBindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case AggLet(name, value, _, false) => if (i == 1) Array(name -> value.typ) else empty
-    case AggExplode(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
-    case AggArrayPerElement(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
-    case ArrayAgg(a, name, _) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case AggExplode(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TIterable].elementType) else empty
+    case AggArrayPerElement(a, name, _, false) => if (i == 1) Array(name -> a.typ.asInstanceOf[TIterable].elementType) else empty
+    case ArrayAgg(a, name, _) => if (i == 1) Array(name -> a.typ.asInstanceOf[TIterable].elementType) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.entryEnv.m else empty
     case TableAggregateByKey(child, _) => if (i == 1) child.typ.rowEnv.m else empty
@@ -69,8 +69,8 @@ object ScanBindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case AggLet(name, value, _, true) => if (i == 1) Array(name -> value.typ) else empty
-    case AggExplode(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
-    case AggArrayPerElement(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TContainer].elementType) else empty
+    case AggExplode(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TIterable].elementType) else empty
+    case AggArrayPerElement(a, name, _, true) => if (i == 1) Array(name -> a.typ.asInstanceOf[TIterable].elementType) else empty
     case MatrixMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty
     case MatrixMapCols(child, _, _) => if (i == 1) child.typ.colEnv.m else empty
     case TableMapRows(child, _) => if (i == 1) child.typ.rowEnv.m else empty

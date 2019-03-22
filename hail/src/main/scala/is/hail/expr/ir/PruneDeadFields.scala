@@ -13,7 +13,7 @@ object PruneDeadFields {
     else
       t match {
         case ts: TStruct => TStruct(ts.required, path(index) -> subsetType(ts.field(path(index)).typ, path, index + 1))
-        case ta: TArray => TArray(subsetType(ta.elementType, path, index), ta.required)
+        case ta: TStreamable => ta.copyStreamable(subsetType(ta.elementType, path, index))
       }
   }
 
@@ -29,6 +29,7 @@ object PruneDeadFields {
             isSupertype(mt1.colType, mt2.colType) &&
             isSupertype(mt1.entryType, mt2.entryType)
         case (TArray(et1, r1), TArray(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
+        case (TStream(et1, r1), TStream(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TSet(et1, r1), TSet(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
         case (TDict(kt1, vt1, r1), TDict(kt2, vt2, r2)) => (!r1 || r2) && isSupertype(kt1, kt2) && isSupertype(vt1, vt2)
         case (s1: TStruct, s2: TStruct) =>
@@ -134,7 +135,7 @@ object PruneDeadFields {
   def minimal[T <: Type](base: T): T = {
     val result = base match {
       case ts: TStruct => TStruct(ts.required)
-      case ta: TArray => TArray(minimal(ta.elementType), ta.required)
+      case ta: TStreamable => ta.copyStreamable(minimal(ta.elementType))
       case t => t
     }
     result.asInstanceOf[T]
@@ -182,8 +183,8 @@ object PruneDeadFields {
           case tt: TTuple =>
             val subTuples = children.map(_.asInstanceOf[TTuple])
             TTuple(tt.required, tt.types.indices.map(i => unifySeq(tt.types(i), subTuples.map(_.types(i)))): _*)
-          case ta: TArray =>
-            TArray(unifySeq(ta.elementType, children.map(_.asInstanceOf[TArray].elementType)), ta.required)
+          case ta: TStreamable =>
+            ta.copyStreamable(unifySeq(ta.elementType, children.map(_.asInstanceOf[TStreamable].elementType)))
           case _ =>
             assert(children.forall(_.asInstanceOf[Type].isOfType(t)))
             base
@@ -329,10 +330,10 @@ object PruneDeadFields {
         }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val gType = requestedType.globalType.fieldOption(globalName)
-          .map(_.typ.asInstanceOf[TArray].elementType)
+          .map(_.typ.asInstanceOf[TStreamable].elementType)
           .getOrElse(TStruct()).asInstanceOf[TStruct]
         val rType = requestedType.rowType.fieldOption(fieldName)
-          .map(_.typ.asInstanceOf[TArray].elementType)
+          .map(_.typ.asInstanceOf[TStreamable].elementType)
           .getOrElse(TStruct()).asInstanceOf[TStruct]
         val child1 = children.head
         val dep = child1.typ.copy(
@@ -348,7 +349,7 @@ object PruneDeadFields {
         val prunedPreExlosionFieldType = try {
           val t = getExplodedField(requestedType)
           preExplosionFieldType match {
-            case ta: TArray => ta.copy(elementType = t)
+            case ta: TStreamable => ta.copyStreamable(t)
             case ts: TSet => ts.copy(elementType = t)
           }
         } catch {
@@ -428,7 +429,7 @@ object PruneDeadFields {
             requestedType.globalType,
           colType = if (requestedType.globalType.hasField(colsFieldName))
             unify(child.typ.colType, minChild.colType,
-              requestedType.globalType.field(colsFieldName).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
+              requestedType.globalType.field(colsFieldName).typ.asInstanceOf[TStreamable].elementType.asInstanceOf[TStruct])
           else
             minChild.colType,
           rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
@@ -468,8 +469,12 @@ object PruneDeadFields {
       case MatrixMapEntries(child, newEntries) =>
         val irDep = memoizeAndGetDep(newEntries, requestedType.entryType, child.typ, memo)
         val depMod = requestedType.copy(rvRowType = TStruct(requestedType.rvRowType.required, requestedType.rvRowType.fields.map { f =>
-          if (f.name == MatrixType.entriesIdentifier)
-            f.name -> f.typ.asInstanceOf[TArray].copy(elementType = irDep.entryType)
+          if (f.name == MatrixType.entriesIdentifier) {
+            f.name -> (f.typ match {
+              case t: TStreamable => t.copyStreamable(irDep.entryType)
+              case t: TStream => t.copy(elementType = irDep.entryType)
+            })
+          }
           else
             f.name -> f.typ
         }: _*))
@@ -508,14 +513,14 @@ object PruneDeadFields {
             if (colKeySet.contains(f.name))
               f.name -> f.typ
             else {
-              f.name -> f.typ.asInstanceOf[TArray].elementType
+              f.name -> f.typ.asInstanceOf[TStreamable].elementType
             }
           }: _*),
           rvRowType = requestedType.rvRowType.copy(fields = requestedType.rvRowType.fields.map { f =>
             if (f.name == MatrixType.entriesIdentifier)
               f.copy(typ = TArray(
                 TStruct(requestedType.entryType.required, requestedType.entryType.fields.map(ef =>
-                  ef.name -> ef.typ.asInstanceOf[TArray].elementType): _*), f.typ.required))
+                  ef.name -> ef.typ.asInstanceOf[TStreamable].elementType): _*), f.typ.required))
             else
               f
           })
@@ -599,7 +604,7 @@ object PruneDeadFields {
         val prunedPreExlosionFieldType = try {
           val t = getExplodedField(requestedType)
           preExplosionFieldType match {
-            case ta: TArray => ta.copy(elementType = t)
+            case ta: TStreamable => ta.copyStreamable(t)
             case ts: TSet => ts.copy(elementType = t)
           }
         } catch {
@@ -615,7 +620,7 @@ object PruneDeadFields {
         val prunedPreExplosionFieldType = try {
           val t = getExplodedField(requestedType)
           preExplosionFieldType match {
-            case ta: TArray => ta.copy(elementType = t)
+            case ta: TStreamable => ta.copyStreamable(t)
             case ts: TSet => ts.copy(elementType = t)
           }
         } catch {
@@ -769,49 +774,49 @@ object PruneDeadFields {
         ab += requestedType
         BindingEnv.empty.bindEval(name -> ab)
       case MakeArray(args, _) =>
-        val eltType = requestedType.asInstanceOf[TArray].elementType
+        val eltType = requestedType.asInstanceOf[TStreamable].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
       case ArrayRef(a, i) =>
         unifyEnvs(
-          memoizeValueIR(a, a.typ.asInstanceOf[TArray].copy(elementType = requestedType), memo),
+          memoizeValueIR(a, a.typ.asInstanceOf[TStreamable].copyStreamable(requestedType), memo),
           memoizeValueIR(i, i.typ, memo))
       case ArrayLen(a) =>
         memoizeValueIR(a, minimal(a.typ), memo)
       case ArrayMap(a, name, body) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body,
-          requestedType.asInstanceOf[TArray].elementType,
+          requestedType.asInstanceOf[TStreamable].elementType,
           memo)
         val valueType = unifySeq(
           aType.elementType,
           bodyEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
         unifyEnvs(
           bodyEnv.deleteEval(name),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case ArrayFilter(a, name, cond) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(cond, cond.typ, memo)
         val valueType = unifySeq(
           aType.elementType,
-          FastIndexedSeq(requestedType.asInstanceOf[TArray].elementType) ++
+          FastIndexedSeq(requestedType.asInstanceOf[TStreamable].elementType) ++
             bodyEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
         unifyEnvs(
           bodyEnv.deleteEval(name),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case ArrayFlatMap(a, name, body) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = unifySeq(
           aType.elementType,
           bodyEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
         unifyEnvs(
           bodyEnv.deleteEval(name),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
         val bodyEnv = memoizeValueIR(body, body.typ, memo)
         val valueType = unifySeq(
@@ -821,10 +826,10 @@ object PruneDeadFields {
         unifyEnvs(
           zeroEnv,
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case ArrayScan(a, zero, accumName, valueName, body) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val zeroEnv = memoizeValueIR(zero, zero.typ, memo)
         val bodyEnv = memoizeValueIR(body, body.typ, memo)
         val valueType = unifySeq(
@@ -833,14 +838,14 @@ object PruneDeadFields {
         unifyEnvs(
           zeroEnv,
           bodyEnv.deleteEval(valueName).deleteEval(accumName),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        val lType = left.typ.asInstanceOf[TArray]
-        val rType = right.typ.asInstanceOf[TArray]
+        val lType = left.typ.asInstanceOf[TStreamable]
+        val rType = right.typ.asInstanceOf[TStreamable]
 
         val compEnv = memoizeValueIR(compare, compare.typ, memo)
-        val joinEnv = memoizeValueIR(join, requestedType.asInstanceOf[TArray].elementType, memo)
+        val joinEnv = memoizeValueIR(join, requestedType.asInstanceOf[TStreamable].elementType, memo)
 
         val combEnv = unifyEnvs(compEnv, joinEnv)
 
@@ -854,19 +859,19 @@ object PruneDeadFields {
 
         unifyEnvs(
           combEnv.deleteEval(l).deleteEval(r),
-          memoizeValueIR(left, lType.copy(elementType = lRequested), memo),
-          memoizeValueIR(right, rType.copy(elementType = rRequested), memo))
+          memoizeValueIR(left, lType.copyStreamable(lRequested), memo),
+          memoizeValueIR(right, rType.copyStreamable(rRequested), memo))
       case ArraySort(a, left, right, compare) =>
         val compEnv = memoizeValueIR(compare, compare.typ, memo)
 
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val requestedElementType = unifySeq(
           aType.elementType,
-          Array(requestedType.asInstanceOf[TArray].elementType) ++
+          Array(requestedType.asInstanceOf[TStreamable].elementType) ++
           compEnv.eval.lookupOption(left).map(_.result()).getOrElse(Array()) ++
           compEnv.eval.lookupOption(right).map(_.result()).getOrElse(Array()))
 
-        val aEnv = memoizeValueIR(a, aType.copy(elementType = requestedElementType), memo)
+        val aEnv = memoizeValueIR(a, aType.copyStreamable(requestedElementType), memo)
 
         unifyEnvs(
           compEnv.deleteEval(left).deleteEval(right),
@@ -874,17 +879,17 @@ object PruneDeadFields {
         )
       case ArrayFor(a, valueName, body) =>
         assert(requestedType == TVoid)
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body, body.typ, memo)
         val valueType = unifySeq(
           aType.elementType,
           bodyEnv.eval.lookupOption(valueName).map(_.result()).getOrElse(Array()))
         unifyEnvs(
           bodyEnv.deleteEval(valueName),
-          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          memoizeValueIR(a, aType.copyStreamable(valueType), memo)
         )
       case AggExplode(a, name, body, isScan) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(body,
           requestedType,
           memo)
@@ -893,7 +898,7 @@ object PruneDeadFields {
             aType.elementType,
             bodyEnv.scanOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
 
-          val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
             BindingEnv(scan = bodyEnv.scan.map(_.delete(name))),
             BindingEnv(scan = Some(aEnv.eval))
@@ -903,7 +908,7 @@ object PruneDeadFields {
             aType.elementType,
             bodyEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
 
-          val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
             BindingEnv(agg = bodyEnv.agg.map(_.delete(name))),
             BindingEnv(agg = Some(aEnv.eval))
@@ -928,16 +933,16 @@ object PruneDeadFields {
           memoizeValueIR(aggIR, requestedType.asInstanceOf[TDict].valueType, memo)
         )
       case AggArrayPerElement(a, name, aggBody, isScan) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(aggBody,
-          requestedType.asInstanceOf[TArray].elementType,
+          requestedType.asInstanceOf[TStreamable].elementType,
           memo)
         if (isScan) {
           val valueType = unifySeq(
             aType.elementType,
             bodyEnv.scanOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
 
-          val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
             bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
             BindingEnv(scan = Some(aEnv.eval))
@@ -947,7 +952,7 @@ object PruneDeadFields {
             aType.elementType,
             bodyEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
 
-          val aEnv = memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+          val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
             bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
             BindingEnv(agg = Some(aEnv.eval))
@@ -972,12 +977,12 @@ object PruneDeadFields {
 
         BindingEnv(eval = initEnv.eval, scan = Some(seqOpEnv.eval))
       case ArrayAgg(a, name, query) =>
-        val aType = a.typ.asInstanceOf[TArray]
+        val aType = a.typ.asInstanceOf[TStreamable]
         val queryEnv = memoizeValueIR(query, requestedType, memo)
         val requestedElemType = unifySeq(
           aType.elementType,
           queryEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
-        val aEnv = memoizeValueIR(a, aType.copy(elementType = requestedElemType), memo)
+        val aEnv = memoizeValueIR(a, aType.copyStreamable(requestedElemType), memo)
         unifyEnvs(
           BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.agg.get.delete(name)))),
           aEnv)
@@ -1039,7 +1044,7 @@ object PruneDeadFields {
         memoizeTableIR(child, TableType(
           unify(child.typ.rowType,
             minimalChild.rowType,
-            rStruct.fieldOption("rows").map(_.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]).getOrElse(TStruct())),
+            rStruct.fieldOption("rows").map(_.typ.asInstanceOf[TStreamable].elementType.asInstanceOf[TStruct]).getOrElse(TStruct())),
           minimalChild.key,
           rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())),
           memo)
@@ -1262,16 +1267,16 @@ object PruneDeadFields {
         Ref(name, in.lookupOption(name).getOrElse(t))
       case MakeArray(args, t) =>
         val depArray = requestedType.asInstanceOf[TArray]
-        MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), requestedType.asInstanceOf[TArray])
+        MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), depArray)
       case ArrayMap(a, name, body) =>
         val a2 = rebuild(a, in, memo)
-        ArrayMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        ArrayMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFilter(a, name, cond) =>
         val a2 = rebuild(a, in, memo)
-        ArrayFilter(a2, name, rebuild(cond, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        ArrayFilter(a2, name, rebuild(cond, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFlatMap(a, name, body) =>
         val a2 = rebuild(a, in, memo)
-        ArrayFlatMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TArray].elementType), memo))
+        ArrayFlatMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFold(a, zero, accumName, valueName, body) =>
         val a2 = rebuild(a, in, memo)
         val z2 = rebuild(zero, in, memo)
@@ -1280,7 +1285,7 @@ object PruneDeadFields {
           z2,
           accumName,
           valueName,
-          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         )
       case ArrayScan(a, zero, accumName, valueName, body) =>
         val a2 = rebuild(a, in, memo)
@@ -1290,14 +1295,14 @@ object PruneDeadFields {
           z2,
           accumName,
           valueName,
-          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         )
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         val left2 = rebuild(left, in, memo)
         val right2 = rebuild(right, in, memo)
 
-        val ltyp = left2.typ.asInstanceOf[TArray]
-        val rtyp = right2.typ.asInstanceOf[TArray]
+        val ltyp = left2.typ.asInstanceOf[TStreamable]
+        val rtyp = right2.typ.asInstanceOf[TStreamable]
         ArrayLeftJoinDistinct(
           left2, right2, l, r,
           rebuild(compare, in.bind(l -> -ltyp.elementType, r -> -rtyp.elementType), memo),
@@ -1305,11 +1310,11 @@ object PruneDeadFields {
 
       case ArrayFor(a, valueName, body) =>
         val a2 = rebuild(a, in, memo)
-        val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
+        val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         ArrayFor(a2, valueName, body2)
       case ArraySort(a, left, right, compare) =>
         val a2 = rebuild(a, in, memo)
-        val et = -a2.typ.asInstanceOf[TArray].elementType
+        val et = -a2.typ.asInstanceOf[TStreamable].elementType
         val compare2 = rebuild(compare, in.bind(left -> et, right -> et), memo)
         ArraySort(a2, left, right, compare2)
       case MakeStruct(fields) =>
@@ -1370,7 +1375,7 @@ object PruneDeadFields {
         ArrayAgg(
           a2,
           name,
-          rebuild(query, in.bind(name, a2.typ.asInstanceOf[TArray].elementType), memo)
+          rebuild(query, in.bind(name, a2.typ.asInstanceOf[TStreamable].elementType), memo)
         )
       case _ =>
         ir.copy(ir.children.map {
@@ -1397,8 +1402,8 @@ object PruneDeadFields {
             }
           )
           Let(uid, ir, ms)
-        case ta: TArray =>
-          val ra = rType.asInstanceOf[TArray]
+        case ta: TStreamable =>
+          val ra = rType.asInstanceOf[TStreamable]
           val uid = genUID()
           val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
