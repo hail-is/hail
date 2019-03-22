@@ -2579,3 +2579,28 @@ class Tests(unittest.TestCase):
         mt.summarize()
         mt.entries().summarize()
         mt.x1.summarize()
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray(self):
+        import numpy as np
+
+        scalar = 5.0
+        np_scalar = np.array(scalar)
+        h_scalar = hl._ndarray(scalar)
+        h_np_scalar = hl._ndarray(np_scalar)
+        self.assertEqual(hl.eval(h_scalar[[]]), 5.0)
+        self.assertEqual(hl.eval(h_np_scalar[[]]), 5.0)
+
+        cube = [[[0, 1],
+                 [2, 3]],
+                [[4, 5],
+                 [6, 7]]]
+        h_cube = hl._ndarray(cube)
+        h_np_cube = hl._ndarray(np.array(cube))
+        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
+        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
+        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
+        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+
+        self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])

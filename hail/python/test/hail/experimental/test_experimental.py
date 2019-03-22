@@ -291,10 +291,3 @@ class Tests(unittest.TestCase):
         mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
 
         assert(mtj.count() == (15, 15))
-        
-    @run_with_cxx_compile()
-    def test_ndarray(self):
-        a = np.array([[0, 1], [2, 3]])
-        ha = hl.experimental.ndarray(a)
-        self.assertEqual(hl.eval(ha[0, 1]), 1)
-        self.assertEqual(hl.eval(ha[1, 0]), 2)

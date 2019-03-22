@@ -801,7 +801,7 @@ class ArrayNumericExpression(ArrayExpression):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
 
-class NDArrayExpression(CollectionExpression):
+class NDArrayExpression(Expression):
 
     def __getitem__(self, item):
         idxs = to_expr(item, ir.tarray(ir.tint64))
