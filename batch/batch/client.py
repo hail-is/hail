@@ -10,7 +10,6 @@ from . import api, schemas
 
 class Job:
     def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
-        assert id is not None
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
@@ -56,9 +55,13 @@ class Job:
     def delete(self):
         self.client._delete_job(self.id)
 
-        self.id = None
-        self.attributes = None
-        self._status = None
+        # this object should not be referenced again
+        del self.client
+        del self.id
+        del self.attributes
+        del self.parent_ids
+        del self.scratch_folder
+        del self._status
 
     def log(self):
         return self.client._get_job_log(self.id)
