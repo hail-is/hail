@@ -1341,14 +1341,11 @@ class Table(ExprContainer):
     def _html_str(self, n, types):
         import html
 
-        def hl_format(v):
-            return html.escape(Table._hl_repr(v))
-
         t = self
         t = t.flatten()
         fields = list(t.row)
 
-        formatted_t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
+        formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
         rows = formatted_t.take(n + 1)
 
         has_more = len(rows) > n
@@ -1364,7 +1361,7 @@ class Table(ExprContainer):
             s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
         s += '</thead><tbody>'
         for row in rows:
-            s += format_line([row[f] for f in row])
+            s += format_line([html.esscape(row[f]) for f in row])
         s += '</tbody></table>'
 
         if has_more:
