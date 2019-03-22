@@ -1,3 +1,3 @@
 .PHONY: test
 test:
-	python -m pytest ${PYTEST_ARGS:- -v --failed-first} test
+	python3 -m pytest ${PYTEST_ARGS:- -v --failed-first} test
