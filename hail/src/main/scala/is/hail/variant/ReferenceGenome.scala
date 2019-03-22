@@ -564,12 +564,10 @@ object ReferenceGenome {
   var GRCm38: ReferenceGenome = _
   var hailReferences: Set[String] = _
 
-  if (TaskContext.get == null) {
-    GRCh37 = fromResource("reference/grch37.json")
-    GRCh38 = fromResource("reference/grch38.json")
-    GRCm38 = fromResource("reference/grcm38.json")
-    hailReferences = references.keySet
-  }
+  GRCh37 = fromResource("reference/grch37.json")
+  GRCh38 = fromResource("reference/grch38.json")
+  GRCm38 = fromResource("reference/grcm38.json")
+  hailReferences = references.keySet
 
   def addReference(rg: ReferenceGenome) {
     references.get(rg.name) match {
