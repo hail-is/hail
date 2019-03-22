@@ -20,7 +20,7 @@ def unlocalize(mt):
         return mt._unlocalize_entries('__entries', '__cols', ['s'])
     return mt
 
-def transform_one(mt) -> Table:
+def transform_one(mt, vardp_outlier=100_000) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
@@ -70,7 +70,8 @@ def transform_one(mt) -> Table:
                                 hl.null(e.PL.dtype.element_type)),
                             ReadPosRankSum=row.info.ReadPosRankSum,
                             SB=e.SB,
-                            VarDP=row.info.VarDP,
+                            VarDP=hl.cond(row.info.VarDP > vardp_outlier,
+                                          row.info.DP, row.info.VarDP),
                         ))),
             ),
             mt.row.dtype)
