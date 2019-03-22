@@ -16,7 +16,7 @@ def test_fewer_than_256_bits_is_error():
         hj.JWTClient(secrets.token_bytes(31))
         assert False
     except ValueError as err:
-        assert re.search('found secret key with 255 bytes', str(err))
+        assert re.search('found secret key with 31 bytes', str(err))
 
 
 def test_bad_input_is_error():
@@ -44,7 +44,7 @@ def test_modified_cyphertext_is_error():
         c1 = hj.JWTClient(hj.JWTClient.generate_key())
         c2 = hj.JWTClient(hj.JWTClient.generate_key())
         json = {'hello': 'world'}
-        c2.decode(c1.encode(json) + "evil")
+        c2.decode(str(c1.encode(json)) + "evil")
         assert False
     except jwt.exceptions.DecodeError:
         pass
