@@ -1361,7 +1361,7 @@ class Table(ExprContainer):
             s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
         s += '</thead><tbody>'
         for row in rows:
-            s += format_line([html.esscape(row[f]) for f in row])
+            s += format_line([html.escape(row[f]) for f in row])
         s += '</tbody></table>'
 
         if has_more:
