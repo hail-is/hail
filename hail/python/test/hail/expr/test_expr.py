@@ -2615,7 +2615,7 @@ class Tests(unittest.TestCase):
 
     def test_variant_str(self):
         assert hl.eval(
-            hl.variant_str(hl.struct(locus=hl.parse_locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
-        assert hl.eval(hl.variant_str(hl.parse_locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
+            hl.variant_str(hl.struct(locus=hl.locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
+        assert hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
         with pytest.raises(ValueError):
             hl.variant_str()
