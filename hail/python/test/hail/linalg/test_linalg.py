@@ -182,14 +182,14 @@ class Tests(unittest.TestCase):
         actual = bm.to_matrix_table_row_major(n_partitions)
 
         expected = hl.utils.range_matrix_table(rows, cols)
-        expected = expected.annotate_entries(entry=hl.float64(expected.row_idx * cols + expected.col_idx))
+        expected = expected.annotate_entries(element=hl.float64(expected.row_idx * cols + expected.col_idx))
         expected = expected.key_cols_by(col_idx=hl.int64(expected.col_idx))
         expected = expected.key_rows_by(row_idx=hl.int64(expected.row_idx))
         assert expected._same(actual)
 
         bm = BlockMatrix.random(50, 100, block_size=25, seed=0)
         mt = bm.to_matrix_table_row_major(n_partitions)
-        mt_round_trip = BlockMatrix.from_entry_expr(mt.entry.entry).to_matrix_table_row_major()
+        mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
     def test_elementwise_ops(self):
