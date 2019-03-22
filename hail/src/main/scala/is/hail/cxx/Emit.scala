@@ -48,9 +48,9 @@ class Orderings {
 
       case TString(_) | TBinary(_) => "BinaryOrd"
 
-      case t: TContainer =>
-        val lContainerP = lp.asInstanceOf[PContainer]
-        val rContainerP = rp.asInstanceOf[PContainer]
+      case t: TIterable =>
+        val lContainerP = coerce[PIterable](lp).asPContainer
+        val rContainerP = coerce[PIterable](rp).asPContainer
 
         val lElemP = lContainerP.elementType
         val rElemP = rContainerP.elementType
@@ -382,7 +382,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
       case ir.ArrayRef(a, i) =>
-        val pContainer = a.pType.asInstanceOf[PContainer]
+        val pContainer = a.pType.asInstanceOf[PStreamable].asPArray
         val at = emit(a)
         val it = emit(i)
 
@@ -417,7 +417,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.ArrayLen(a) =>
         val t = emit(a, env)
-        triplet(t.setup, t.m, a.pType.asInstanceOf[PContainer].cxxLoadLength(t.v))
+        triplet(t.setup, t.m, a.pType.asInstanceOf[PStreamable].asPArray.cxxLoadLength(t.v))
 
       case ir.GetField(o, name) =>
         val fieldIdx = o.typ.asInstanceOf[TStruct].fieldIdx(name)
@@ -509,7 +509,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         emit(a)
 
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
-        val containerPType = a.pType.asInstanceOf[PContainer]
+        val containerPType = a.pType.asInstanceOf[PIterable]
         val ae = emitArray(resultRegion, a, env, sameRegion = false)
         val am = fb.variable("am", "bool", ae.m)
 
@@ -567,13 +567,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           accm.toString, accv.toString)
 
       case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap | _: ir.MakeArray =>
-        val containerPType = x.pType.asInstanceOf[PContainer]
+        val containerPType = x.pType.asInstanceOf[PStreamable]
         val useOneRegion = !containerPType.elementType.isPrimitive
 
         val ae = emitArray(resultRegion, x, env, useOneRegion)
         ae.length match {
           case Some(length) =>
-            val sab = resultRegion.arrayBuilder(fb, containerPType)
+            val sab = resultRegion.arrayBuilder(fb, containerPType.asPArray)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -598,7 +598,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
             val ms = fb.variable("ms", "std::vector<bool>")
             val i = fb.variable("i", "int")
-            val sab = resultRegion.arrayBuilder(fb, containerPType)
+            val sab = resultRegion.arrayBuilder(fb, containerPType.asPArray)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -635,8 +635,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.ArraySort(a, l, r, comp) =>
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-        val aType = coerce[PContainer](a.pType)
-        val eltType = coerce[TContainer](a.typ).elementType
+        val aType = coerce[PStreamable](a.pType)
+        val eltType = coerce[TStreamable](a.typ).elementType
         val cxxType = typeToCXXType(eltType.physicalType)
         val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
 
@@ -651,7 +651,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         lt.end()
         ltClass.end()
 
-        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ }")
+        val sorter = fb.variable("sorter", aType.asPArray.cxxArraySorter(ltClass.name), s"{ }")
         resultRegion.use()
 
         EmitTriplet(aType, array.setup, array.m,
@@ -668,7 +668,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val a = x.children(0).asInstanceOf[ir.IR]
-        val eltType = coerce[TContainer](a.typ).elementType
+        val eltType = coerce[TIterable](a.typ).elementType
         val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
         val cxxType = typeToCXXType(eltType.physicalType)
         val l = ir.In(0, eltType)
@@ -708,7 +708,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         eq.end()
         eqClass.end()
 
-        val sorter = fb.variable("sorter", coerce[PContainer](x.pType).cxxArraySorter(ltClass.name), s"{ }")
+        val sorter = fb.variable("sorter", coerce[PIterable](x.pType).asPContainer.cxxArraySorter(ltClass.name), s"{ }")
         resultRegion.use()
 
         EmitTriplet(x.pType, array.setup, array.m,
@@ -737,7 +737,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
         val spec = CodecSpec.defaultUncompressed
-        val ctxType = coerce[PArray](c.pType).elementType
+        val ctxType = coerce[PStreamable](c.pType).elementType
 
         val contexts = emit(c)
         val globals = emit(g).memoize(fb)
@@ -801,12 +801,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
         val ctxs = fb.variable("ctxs", "char *")
         val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
-        val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PArray](c.pType).cxxImpl }>"
+        val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PStreamable](c.pType).asPArray.cxxImpl }>"
         val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
         val resDec = PackDecoder(body.pType, body.pType, spec.child, fb.translationUnitBuilder())
 
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-        val arrayBuilder = StagedContainerBuilder.builderType(coerce[PArray](x.pType))
+        val arrayBuilder = StagedContainerBuilder.builderType(coerce[PStreamable](x.pType).asPArray)
         val resultsDecoder = s"SparkEnv::ArrayDecoder<${ resDec.name }, $arrayBuilder>"
 
         EmitTriplet(
@@ -824,9 +824,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           resultRegion)
 
       case ir.MakeNDArray(data, shape, rowMajor) =>
-        val dataContainer = data.pType.asInstanceOf[PContainer]
+        val dataContainer = data.pType.asInstanceOf[PStreamable].asPArray
         val elemPType = dataContainer.elementType
-        val shapeContainer = shape.pType.asInstanceOf[PContainer]
+        val shapeContainer = shape.pType.asInstanceOf[PStreamable].asPArray
         val datat = emit(data)
         val shapet = emit(shape)
         val rowMajort = emit(rowMajor)
@@ -860,7 +860,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
         val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
-        val idxsContainer = idxs.pType.asInstanceOf[PContainer]
+        val idxsContainer = idxs.pType.asInstanceOf[PStreamable].asPArray
 
         val ndt = emit(nd)
         val idxst = emit(idxs)
@@ -889,7 +889,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
     emit(ctx.region, x, env)
   def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
 
-    val elemType = x.pType.asInstanceOf[PContainer].elementType
+    val elemType = x.pType.asInstanceOf[PIterable].elementType
 
     x match {
       case ir.ArrayRange(start, stop, step) =>
@@ -1006,7 +1006,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
       case ir.ArrayMap(a, name, body) =>
-        val aElementPType = a.pType.asInstanceOf[PContainer].elementType
+        val aElementPType = a.pType.asInstanceOf[PStreamable].elementType
         val ae = emitArray(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
 
@@ -1034,7 +1034,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
       case ir.ArrayFlatMap(a, name, body) =>
-        val aElementPType = a.pType.asInstanceOf[PContainer].elementType
+        val aElementPType = a.pType.asInstanceOf[PStreamable].elementType
 
         val ae = emitArray(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
@@ -1081,7 +1081,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
       case _ =>
-        val pArray = x.pType.asInstanceOf[PArray]
+        val pArray = coerce[PStreamable](x.pType).asPArray
         val t = emit(resultRegion, x, env)
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
 

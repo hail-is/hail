@@ -604,7 +604,7 @@ object IRParser {
         val l = identifier(it)
         val r = identifier(it)
         val a = ir_value_expr(env)(it)
-        val elt = coerce[TArray](a.typ).elementType
+        val elt = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
@@ -631,24 +631,24 @@ object IRParser {
       case "ArrayMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayMap(a, name, body)
       case "ArrayFilter" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFilter(a, name, body)
       case "ArrayFlatMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFlatMap(a, name, body)
       case "ArrayFold" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TArray](a.typ).elementType
+        val eltType = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
       case "ArrayScan" =>
@@ -656,7 +656,7 @@ object IRParser {
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TArray](a.typ).elementType
+        val eltType = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayScan(a, zero, accumName, valueName, body)
       case "ArrayLeftJoinDistinct" =>
@@ -664,18 +664,20 @@ object IRParser {
         val r = identifier(it)
         val left = ir_value_expr(env)(it)
         val right = ir_value_expr(env)(it)
-        val comp = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
-        val join = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
+        val lelt = coerce[TStreamable](left.typ).elementType
+        val relt = coerce[TStreamable](right.typ).elementType
+        val comp = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
+        val join = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
         ArrayLeftJoinDistinct(left, right, l, r, comp, join)
       case "ArrayFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
         ArrayFor(a, name, body)
       case "ArrayAgg" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
         ArrayAgg(a, name, query)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
@@ -686,7 +688,7 @@ object IRParser {
         val name = identifier(it)
         val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         AggExplode(a, name, aggBody, isScan)
       case "AggGroupBy" =>
         val isScan = boolean_literal(it)
@@ -697,7 +699,7 @@ object IRParser {
         val name = identifier(it)
         val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         AggArrayPerElement(a, name, aggBody, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
@@ -843,7 +845,7 @@ object IRParser {
         val gname = identifier(it)
         val ctxs = ir_value_expr(env)(it)
         val globals = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (cname, coerce[TArray](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        val body = ir_value_expr(env + (cname, coerce[TStreamable](ctxs.typ).elementType) + (gname, globals.typ))(it)
         CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)

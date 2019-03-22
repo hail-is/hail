@@ -19,7 +19,7 @@ class OrderingSuite extends SparkSuite {
   def recursiveSize(t: Type): Int = {
     val inner = t match {
       case ti: TInterval => recursiveSize(ti.pointType)
-      case tc: TContainer => recursiveSize(tc.elementType)
+      case tc: TIterable => recursiveSize(tc.elementType)
       case tbs: TBaseStruct =>
         tbs.types.map { t => recursiveSize(t) }.sum
       case _ => 0

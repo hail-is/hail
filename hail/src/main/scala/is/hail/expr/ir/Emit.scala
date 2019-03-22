@@ -60,7 +60,7 @@ case class ArrayIteratorTriplet(calcLength: Code[Unit], length: Option[Code[Int]
   def wrapContinuation(contMap: (Emit.F, Code[Boolean], Code[_]) => Code[Unit]): ArrayIteratorTriplet =
     copy(calcLength = calcLength, length = length, arrayEmitter = { cont: Emit.F => arrayEmitter(contMap(cont, _, _)) })
 
-  def toEmitTriplet(mb: MethodBuilder, aTyp: PArray): EmitTriplet = {
+  def toEmitTriplet(mb: MethodBuilder, aTyp: PStreamable): EmitTriplet = {
     val srvb = new StagedRegionValueBuilder(mb, aTyp)
 
     length match {
@@ -390,7 +390,7 @@ private class Emit(
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
-        val pArray = coerce[PArray](a.pType)
+        val pArray = coerce[PStreamable](a.pType).asPArray
         val ati = coerce[Long](typeToTypeInfo(pArray))
         val codeA = emit(a)
         val codeI = emit(i)
@@ -435,7 +435,7 @@ private class Emit(
         strict(PContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
-        val atyp = coerce[PContainer](x.pType)
+        val atyp = coerce[PIterable](x.pType)
         val eltType = -atyp.elementType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(mb, vab)
@@ -487,7 +487,7 @@ private class Emit(
         emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val typ = coerce[PContainer](orderedCollection.pType)
+        val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
         val a = emit(orderedCollection)
         val e = emit(elem)
         val bs = new BinarySearch(mb, typ, keyOnly = onKey)
@@ -506,7 +506,7 @@ private class Emit(
 
       case GroupByKey(collection) =>
         //sort collection by group
-        val atyp = coerce[PArray](collection.pType)
+        val atyp = coerce[PStreamable](collection.pType).asPArray
         val etyp = coerce[PBaseStruct](atyp.elementType)
         val ktyp = etyp.types(0)
         val vtyp = etyp.types(1)
@@ -577,7 +577,7 @@ private class Emit(
                     structbuilder.start(),
                     structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
                     structbuilder.advance(),
-                    structbuilder.addArray(coerce[PArray](eltOut.types(1)), { arraybuilder =>
+                    structbuilder.addArray(coerce[PStreamable](eltOut.types(1)).asPArray, { arraybuilder =>
                       Code(
                         arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
                         Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
@@ -596,11 +596,11 @@ private class Emit(
             ))))
 
       case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct =>
-        emitArrayIterator(ir).toEmitTriplet(mb, coerce[PArray](ir.pType))
+        emitArrayIterator(ir).toEmitTriplet(mb, coerce[PStreamable](ir.pType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
         val typ = ir.typ
-        val tarray = coerce[TArray](a.typ)
+        val tarray = coerce[TStreamable](a.typ)
         val tti = typeToTypeInfo(typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean](name2 + "_missing")
@@ -645,7 +645,7 @@ private class Emit(
         ), xmaccum, xvaccum)
 
       case ArrayFor(a, valueName, body) =>
-        val tarray = coerce[TArray](a.typ)
+        val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
         val xvv = coerce[Any](mb.newField(valueName)(eti))
@@ -678,7 +678,7 @@ private class Emit(
 
         val codeInit = emit(init, rvas = Some(rvas))
 
-        val tarray = coerce[TArray](a.typ)
+        val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
         val xvv = coerce[Any](mb.newField(name)(eti))
@@ -1241,7 +1241,7 @@ private class Emit(
         emitArrayIterator(a).copy(length = None).wrapContinuation(filterCont)
 
       case x@ArrayFlatMap(a, name, body) =>
-        val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TArray](a.typ).elementType))
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(coerce[TStreamable](a.typ).elementType))
         val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
         val bodyenv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
@@ -1264,7 +1264,7 @@ private class Emit(
         emitArrayIterator(a).copy(length = None).wrapContinuation(bodyCont)
 
       case x@ArrayMap(a, name, body) =>
-        val elt = coerce[TArray](a.typ).elementType
+        val elt = coerce[TStreamable](a.typ).elementType
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
@@ -1280,7 +1280,7 @@ private class Emit(
         emitArrayIterator(a).wrapContinuation(mapCont)
 
       case x@ArrayScan(a, zero, accumName, eltName, body) =>
-        val elt = coerce[TArray](a.typ).elementType
+        val elt = coerce[TStreamable](a.typ).elementType
         val accumTypeInfo = coerce[Any](typeToTypeInfo(zero.typ))
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmbody = mb.newField[Boolean]()
@@ -1362,9 +1362,9 @@ private class Emit(
 
       case x@ArrayLeftJoinDistinct(left, right, l, r, compKey, join) =>
         // no missing
-        val lelt = coerce[TArray](left.typ).elementType
-        val relt = coerce[TArray](right.typ).elementType
-        val rtyp = coerce[PArray](right.pType)
+        val lelt = coerce[TStreamable](left.typ).elementType
+        val relt = coerce[TStreamable](right.typ).elementType
+        val rtyp = coerce[PStreamable](right.pType).asPArray
 
         val larray = emitArrayIterator(left)
         val rarray = emitArrayIterator(right).toEmitTriplet(mb, rtyp)
@@ -1416,7 +1416,7 @@ private class Emit(
         ArrayIteratorTriplet(larray.calcLength, larray.length, ae)
 
       case _ =>
-        val t: PArray = coerce[PArray](ir.pType)
+        val t: PArray = coerce[PStreamable](ir.pType).asPArray
         val i = mb.newLocal[Int]("i")
         val len = mb.newLocal[Int]("len")
         val aoff = mb.newLocal[Long]("aoff")
