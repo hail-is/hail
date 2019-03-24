@@ -146,11 +146,11 @@ def refresh_batch_state():
         job for job in jobs
         if job.attributes and job.attributes.get('type', None) == BUILD_JOB_TYPE
     ]
-    refresh_ci_build_jobs(build_jobs)
     deploy_jobs = [
         job for job in jobs
         if job.attributes and job.attributes.get('type', None) == DEPLOY_JOB_TYPE
     ]
+    refresh_ci_build_jobs(build_jobs)
     refresh_deploy_jobs(deploy_jobs)
     return '', 200
 
