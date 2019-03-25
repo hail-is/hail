@@ -79,8 +79,9 @@ def array_windows(a, radius):
 
 @typecheck(locus_expr=expr_locus(),
            radius=oneof(int, float),
-           coord_expr=nullable(expr_float64))
-def locus_windows(locus_expr, radius, coord_expr=None):
+           coord_expr=nullable(expr_float64),
+           _localize=bool)
+def locus_windows(locus_expr, radius, coord_expr=None, _localize=False):
     """Returns start and stop indices for window around each locus.
 
     Examples
@@ -166,50 +167,38 @@ def locus_windows(locus_expr, radius, coord_expr=None):
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
     if coord_expr is None:
-        global_pos_list = locus_expr.global_position().collect()
-        n_loci = len(global_pos_list)
-        global_pos = np.zeros(n_loci, dtype=np.int64)
-        for i, p in enumerate(global_pos_list):
-            if p is None:
-                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
-            global_pos[i] = p
-        coord = global_pos
-        del global_pos_list
+        coord_expr = locus_expr.position
     else:
         check_row_indexed('locus_windows', coord_expr)
-        global_pos_and_coord =\
-            hl.tuple([locus_expr.global_position(), coord_expr]).collect()  # raises exception if sources differ
-        n_loci = len(global_pos_and_coord)
 
-        global_pos = np.zeros(n_loci, dtype=np.int64)
-        coord = np.zeros(n_loci, dtype=np.float64)
-        for i, x in enumerate(global_pos_and_coord):
-            if x[0] is None:
-                raise ValueError(f"locus_windows: missing value for 'locus_expr' global position at row {i}")
-            global_pos[i] = x[0]
-            if x[1] is None:
-                raise ValueError(f"locus_windows: missing value for 'coord_expr' at row {i}")
-            coord[i] = x[1]
-        del global_pos_and_coord
+    rg = locus_expr.dtype.reference_genome
+    contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
+    src = locus_expr._indices.source
 
-    if n_loci == 0:
-        return np.zeros(shape=0, dtype=np.int64), np.zeros(shape=0, dtype=np.int64)
+    if locus_expr not in src._fields_inverse:
+        raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
 
-    contig_name = locus_expr.dtype.reference_genome.contigs
-    contig_len = locus_expr.dtype.reference_genome.lengths
-    contig_cum_len = np.cumsum([contig_len[name] for name in contig_name])
+    if isinstance(src, hl.MatrixTable):
+        if src._fields_inverse[locus_expr] != src.row_key.dtype.fields[0]:
+            raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
+        contig_groups = src.aggregate_rows(contig_group_expr, _localize=False)
+    else:
+        if src._fields_inverse[locus_expr] != src.key.dtype.fields[0]:
+            raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
+        contig_groups = src.aggregate(contig_group_expr, _localize=False)
 
-    assert(global_pos[-1] < contig_cum_len[-1])
+    coords = hl.sorted(hl.array(contig_groups)).map(lambda t:
+                                                    (hl.case()
+                                                     .when(hl.is_defined(t[0]), t[1])
+                                                     .or_error("locus_windows: missing value for 'locus_expr'.")))
+    starts_and_stops = hl._locus_windows_per_contig(coords, radius)
 
-    contig_start_idx = _compute_contig_start_idx(global_pos, contig_cum_len)
-    n_contigs = len(contig_start_idx)
-    contig_start_idx.append(n_loci)
-    contig_bounds = [array_windows(coord[contig_start_idx[c]:contig_start_idx[c + 1]], radius)
-                     for c in range(n_contigs)]
-    starts = np.concatenate([contig_start_idx[c] + contig_bounds[c][0] for c in range(n_contigs)])
-    stops = np.concatenate([contig_start_idx[c] + contig_bounds[c][1] for c in range(n_contigs)])
+    if _localize:
+        return starts_and_stops
 
-    return starts, stops
+    starts, stops = hl.eval(starts_and_stops)
+
+    return np.array(starts), np.array(stops)
 
 
 def _compute_contig_start_idx(global_pos, contig_cum_len):

@@ -8,9 +8,9 @@ import is.hail.asm4s
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.variant._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.{PArray, PBaseStruct, PString, PTuple}
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils._
 
 object LocusFunctions extends RegistryFunctions {
 
@@ -83,6 +83,79 @@ object LocusFunctions extends RegistryFunctions {
               allelesBuilder.advance()))
         }),
         srvb.offset)
+    }
+
+    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64())), TFloat64(), TTuple(TArray(TInt32()), TArray(TInt32()))) {
+      (mb: EmitMethodBuilder, coords: Code[Long], radius: Code[Double]) =>
+        val region: Code[Region] = getRegion(mb)
+
+        val groupedt = PArray(PArray(PFloat64()))
+        val coordt = types.coerce[PArray](groupedt.elementType)
+        val rt = PTuple(FastIndexedSeq(PArray(PInt64()), PArray(PInt64())))
+
+        val ncontigs = mb.newLocal[Int]("ncontigs")
+        val totalLen = mb.newLocal[Int]("l")
+        val iContig = mb.newLocal[Int]
+
+        val len = mb.newLocal[Int]("l")
+        val i = mb.newLocal[Int]("i")
+        val idx = mb.newLocal[Int]("i")
+        val coordsPerContig = mb.newLocal[Long]("coords")
+        val offset = mb.newLocal[Int]("offset")
+        val lastCoord = mb.newLocal[Double]("coord")
+
+        val getCoord = { i: Code[Int] =>
+          asm4s.coerce[Double](region.loadIRIntermediate(PFloat64())(coordt.elementOffset(coordsPerContig, len, i)))
+        }
+
+        def forAllContigs(c: Code[Unit]): Code[Unit] = {
+          Code(iContig := 0,
+            Code.whileLoop(iContig < ncontigs,
+              coordsPerContig := asm4s.coerce[Long](
+                region.loadIRIntermediate(coordt)(
+                  groupedt.elementOffset(coords, ncontigs, iContig))),
+              c,
+              iContig += 1))
+        }
+
+        val startCond = getCoord(i) > (getCoord(idx) + radius)
+        val endCond = getCoord(i) >= (getCoord(idx) - radius)
+
+        val addIdxWithCondition = { (cond: Code[Boolean], sab: StagedRegionValueBuilder) =>
+          Code(
+            sab.start(totalLen),
+            offset := 0,
+            forAllContigs(
+              Code(
+                i := 0,
+                idx := 0,
+                len := coordt.loadLength(region, coordsPerContig),
+                len.ceq(0).mux(lastCoord := 0.0, lastCoord := getCoord(0)),
+                Code.whileLoop(i < len,
+                  coordt.isElementMissing(region, coordsPerContig, i).mux(
+                    Code._fatal(
+                      const("locus_windows: missing value for 'coord_expr' at row ")
+                        .concat((offset + i).toS)),
+                      (lastCoord > getCoord(i)).mux(
+                        Code._fatal("locus_windows: 'coord_expr' must be in ascending order within each contig."),
+                        lastCoord := getCoord(i))),
+                    Code.whileLoop((idx < len) && cond, idx += 1),
+                  sab.addInt(offset + idx),
+                  sab.advance(),
+                  i += 1),
+                offset := offset + len)))
+        }
+
+        val srvb = new StagedRegionValueBuilder(mb, rt)
+        Code(
+          ncontigs := groupedt.loadLength(region, coords),
+          totalLen := 0,
+          forAllContigs(totalLen := totalLen + coordt.loadLength(region, coordsPerContig)),
+          srvb.start(),
+          srvb.addArray(PArray(PInt32()), addIdxWithCondition(startCond, _)),
+          srvb.advance(),
+          srvb.addArray(PArray(PInt32()), addIdxWithCondition(endCond, _)),
+          srvb.end())
     }
   }
 }
