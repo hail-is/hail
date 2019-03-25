@@ -74,6 +74,8 @@ object Children {
       Array(a, body)
     case ArrayAgg(a, name, query) =>
       Array(a, query)
+    case MakeNDArray(data, shape, row_major, _) =>
+      Array(data, shape, row_major)
     case NDArrayRef(nd, idxs) =>
       Array(nd, idxs)
     case NDArrayMap(nd, _, body) =>

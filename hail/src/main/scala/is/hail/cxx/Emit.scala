@@ -820,7 +820,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(data, shape, rowMajor) =>
+      case ir.MakeNDArray(data, shape, rowMajor, typ) =>
         val dataContainer = data.pType.asInstanceOf[PStreamable].asPArray
         val elemPType = dataContainer.elementType
         val shapeContainer = shape.pType.asInstanceOf[PStreamable].asPArray
@@ -847,7 +847,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |
              | ${ flags.define }
              | ${ shapeVec.define }
+             |
+             | if (${typ.nDims} != $shapeVec.size()) {
+             |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
+             | }
+             |
              | ${ dataArr.define }
+             |
              | if (n_elements($shapeVec) != load_length($dataArr)) {
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
@@ -857,7 +863,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |""".stripMargin)
 
       case ir.NDArrayMap(child, elemName, body) =>
-        val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val childTyp = child.pType.asInstanceOf[PNDArray]
+        val elemPType = childTyp.elementType
         val cxxElemType = typeToCXXType(elemPType)
         val newElemPType = body.pType
         val newDataContainer = PArray(newElemPType)
@@ -875,31 +882,50 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val childPretty = StringEscapeUtils.escapeString(ir.Pretty.short(child))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
+
+        val nDims = childTyp.nDims
+
+        def genLoops(dim: Int, idxVars: Seq[(Variable, Variable)] = Seq.empty): Code = {
+          if (dim == 0) {
+            val index = idxVars.map{ case (idxVar, d) => s"$idxVar * $nd.strides[$d]" }.mkString(" + ")
+            s"""
+               | $elemRef = load_element<$cxxElemType>($nd.data + ($index) * $nd.elem_size);
+               |
+               | ${ bodyt.setup }
+               | if (${ bodyt.m }) {
+               |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
+               | }
+               |
+               | ${ sab.add(bodyt.v) }
+               | ${ sab.advance() }
+             """.stripMargin
+          } else {
+            val i = fb.variable("i", "long")
+            val currDim = fb.variable("dim", "int", s"$nd.flags ? $nDims - $dim : $dim - 1")
+            s"""
+               | ${ i.define }
+               | ${ currDim.define }
+               | for ($i = 0; $i < $nd.shape[$currDim]; ++$i) {
+               |  ${genLoops(dim - 1, idxVars :+ (i, currDim)) }
+               | }
+           """.stripMargin
+          }
+        }
+
         present(
           s"""
              |({
+             | ${ ndt.setup }
+             | if (${ ndt.m }) {
+             |   ${ fb.nativeError("NDArray cannot be missing. IR: %s".format(childPretty)) }
+             | }
              | ${ nd.define }
              | ${ length.define }
              | ${ elemRef.define }
              | ${ data.define }
              |
-             | ${ ndt.setup }
-             | if (${ ndt.m }) {
-             |   ${ fb.nativeError("NDArray cannot be missing. IR: %s".format(childPretty)) }
-             | }
-             |
              | ${ sab.start(length.toString) }
-             | for (auto i = 0; i < $length; ++i) {
-             |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
-             |
-             |   ${ bodyt.setup }
-             |   if (${ bodyt.m }) {
-             |     ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
-             |   }
-             |
-             |   ${ sab.add(bodyt.v) }
-             |   ${ sab.advance() }
-             | }
+             | ${ genLoops(nDims) }
              | $data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
              |
              | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, $data);

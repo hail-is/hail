@@ -910,7 +910,11 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-      MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeArray(shape.map(I64), TArray(TInt64())), rowMajor)
+      val typ = TNDArray(TFloat64(), shape.length)
+      MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())),
+        MakeArray(shape.map(I64), TArray(TInt64())),
+        rowMajor,
+        typ)
     }
     def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
       NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
@@ -949,18 +953,18 @@ class IRSuite extends SparkSuite {
     def data = 0 until 10
     def shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
 
-    def positives = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    def positives = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True(), TNDArray(TFloat64(), 2))
     def negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
     assertEvalsTo(NDArrayRef(positives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
     assertEvalsTo(NDArrayRef(negatives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
 
-    def trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    def trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True(), TNDArray(TBoolean(), 2))
     def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
     assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
     assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
 
     def bools = MakeNDArray(
-      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())), shape, False())
+      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())), shape, False(), TNDArray(TBoolean(), 2))
     def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
     def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
     def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
@@ -1264,7 +1268,7 @@ class IRSuite extends SparkSuite {
     val a = Ref("a", TArray(TInt32()))
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
-    val nd = Ref("nd", TNDArray(TFloat64()))
+    val nd = Ref("nd", TNDArray(TFloat64(), 2))
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
@@ -1310,7 +1314,8 @@ class IRSuite extends SparkSuite {
       MakeNDArray(
         MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
         MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
-        True()),
+        True(),
+        TNDArray(TFloat64(), 1)),
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       ArrayRef(a, i),
@@ -1541,8 +1546,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
-      "nd" -> TNDArray(TFloat64()),
-      "nd2" -> TNDArray(TArray(TString())),
+      "nd" -> TNDArray(TFloat64(), 1),
+      "nd2" -> TNDArray(TArray(TString()), 1),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),

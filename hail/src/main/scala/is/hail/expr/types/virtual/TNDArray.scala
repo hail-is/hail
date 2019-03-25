@@ -6,8 +6,8 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TNDArray(elementType: Type, override val required: Boolean = false) extends Type {
-  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, required)
+final case class TNDArray(elementType: Type, nDims: Int, override val required: Boolean = false) extends Type {
+  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
