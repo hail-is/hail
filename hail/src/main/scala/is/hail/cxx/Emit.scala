@@ -942,7 +942,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | }
              |
              | ${ idxsVec.define }
-             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, $idxsVec));
+             | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})
              |""".stripMargin)
       case _ =>
