@@ -95,3 +95,27 @@ case class SparkFunctionContext(sparkEnv: Code, region: EmitRegion)
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
 }
+
+class NDArrayLoopEmitter(fb: FunctionBuilder, nd: Variable, nDims: Int, loopBody: Seq[(Variable, Variable)] => Code) {
+
+  def emit(): Code = {
+    emitLoops(nDims)
+  }
+
+  private def emitLoops(dim: Int, idxVars: Seq[(Variable, Variable)] = Seq.empty): Code = {
+    dim match {
+      case 0 => loopBody(idxVars)
+      case _ =>
+        val i = fb.variable("i", "long")
+        val currDim = fb.variable("dim", "int", s"$nd.flags ? $nDims - $dim : $dim - 1")
+
+        s"""
+           | ${ i.define }
+           | ${ currDim.define }
+           | for ($i = 0; $i < $nd.shape[$currDim]; ++$i) {
+           |  ${emitLoops(dim - 1, idxVars :+ (i, currDim)) }
+           | }
+           """.stripMargin
+    }
+  }
+}

@@ -885,31 +885,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val nDims = childTyp.nDims
 
-        def genLoops(dim: Int, idxVars: Seq[(Variable, Variable)] = Seq.empty): Code = {
-          if (dim == 0) {
-            val index = idxVars.map{ case (idxVar, d) => s"$idxVar * $nd.strides[$d]" }.mkString(" + ")
-            s"""
-               | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
-               |
-               | ${ bodyt.setup }
-               | if (${ bodyt.m }) {
-               |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
-               | }
-               |
-               | ${ sab.add(bodyt.v) }
-               | ${ sab.advance() }
+        def loopBody(idxVars: Seq[(Variable, Variable)]): Code = {
+          val index = idxVars.map{ case (idx, dim) => s"$idx * $nd.strides[$dim]" }.mkString(" + ")
+          s"""
+             | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
+             |
+             | ${ bodyt.setup }
+             | if (${ bodyt.m }) {
+             |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
+             | }
+             |
+             | ${ sab.add(bodyt.v) }
+             | ${ sab.advance() }
              """.stripMargin
-          } else {
-            val i = fb.variable("i", "long")
-            val currDim = fb.variable("dim", "int", s"$nd.flags ? $nDims - $dim : $dim - 1")
-            s"""
-               | ${ i.define }
-               | ${ currDim.define }
-               | for ($i = 0; $i < $nd.shape[$currDim]; ++$i) {
-               |  ${genLoops(dim - 1, idxVars :+ (i, currDim)) }
-               | }
-           """.stripMargin
-          }
         }
 
         present(
@@ -925,7 +913,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ data.define }
              |
              | ${ sab.start(length.toString) }
-             | ${ genLoops(nDims) }
+             | ${ new NDArrayLoopEmitter(fb, nd, nDims, loopBody).emit() }
              | $data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
              |
              | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, $data);
