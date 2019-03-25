@@ -160,6 +160,8 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
+        self._assert_eq(bm.to_numpy(_force_blocking=True), a)
+
     def test_to_table(self):
         schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
         rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
