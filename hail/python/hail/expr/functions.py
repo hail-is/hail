@@ -11,6 +11,8 @@ from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
 
+import numpy as np
+
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
@@ -3517,6 +3519,48 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     array_t = hl.tarray(t)
     ir = MakeArray([], array_t)
     return construct_expr(ir, array_t)
+
+
+def _ndarray(collection, row_major=True):
+    def list_shape(x):
+        if isinstance(x, list):
+            dim_len = builtins.len(x)
+            first, rest = x[0], x[1:]
+            inner_shape = list_shape(first)
+            for e in rest:
+                other_inner_shape = list_shape(e)
+                if inner_shape != other_inner_shape:
+                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+            return [dim_len] + inner_shape
+        else:
+            return []
+
+    def deep_flatten(l):
+        result = []
+        for e in l:
+            if isinstance(e, list):
+                result.extend(deep_flatten(e))
+            else:
+                result.append(e)
+
+        return result
+
+    if isinstance(collection, np.ndarray):
+        nd = collection.astype(np.float64)
+        data = list(nd.flat)
+        shape = nd.shape
+    elif isinstance(collection, list):
+        shape = list_shape(collection)
+        data = deep_flatten(collection)
+    else:
+        shape = []
+        data = hl.array([collection])
+
+    shape_expr = to_expr(shape, ir.tarray(ir.tint64))
+    data_expr = hl.array(data)
+
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+    return construct_expr(ndir, ndir.typ)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
