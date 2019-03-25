@@ -1,5 +1,6 @@
 - project: docker
 - project: auth-gateway
+- project: hailjwt
 - project: batch
   dependencies: ["docker"]
 - project: ci
