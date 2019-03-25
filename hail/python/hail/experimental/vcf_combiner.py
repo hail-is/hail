@@ -20,11 +20,14 @@ def unlocalize(mt):
         return mt._unlocalize_entries('__entries', '__cols', ['s'])
     return mt
 
-def transform_one(mt) -> Table:
+def transform_one(mt, vardp_outlier=100_000) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
     :func:`.import_vcfs` with `array_elements_required=False`.
+
+    There is a strong assumption that this function will be called on a matrix
+    table with one column.
     """
     mt = localize(mt)
     if mt.row.dtype not in _transform_rows_function_map:
@@ -35,25 +38,11 @@ def transform_one(mt) -> Table:
                     locus=row.locus,
                     alleles=hl.cond(has_non_ref, row.alleles[:-1], row.alleles),
                     rsid=row.rsid,
-                    info=row.info.annotate(
-                        SB_TABLE=hl.array([
-                            hl.sum(row.__entries.map(lambda d: d.SB[0])),
-                            hl.sum(row.__entries.map(lambda d: d.SB[1])),
-                            hl.sum(row.__entries.map(lambda d: d.SB[2])),
-                            hl.sum(row.__entries.map(lambda d: d.SB[3])),
-                        ])
-                    ).select(
-                        "MQ_DP",
-                        "QUALapprox",
-                        "RAW_MQ",
-                        "SB_TABLE",
-                        "VarDP",
-                    ),
                     __entries=row.__entries.map(
                         lambda e:
                         hl.struct(
-                            BaseQRankSum=row.info['BaseQRankSum'],
-                            ClippingRankSum=row.info['ClippingRankSum'],
+                            BaseQRankSum=row.info.BaseQRankSum,
+                            ClippingRankSum=row.info.ClippingRankSum,
                             DP=e.DP,
                             END=row.info.END,
                             GQ=e.GQ,
@@ -69,14 +58,20 @@ def transform_one(mt) -> Table:
                                                 e.PL,
                                                 hl.null(e.PL.dtype))),
                             MIN_DP=e.MIN_DP,
-                            MQ=row.info['MQ'],
-                            MQRankSum=row.info['MQRankSum'],
+                            MQ=row.info.MQ,
+                            MQRankSum=row.info.MQRankSum,
+                            MQ_DP=row.info.MQ_DP,
+                            QUALapprox=row.info.QUALapprox,
                             PID=e.PID,
+                            RAW_MQ=row.info.RAW_MQ,
                             RGQ=hl.cond(
                                 has_non_ref,
                                 e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
                                 hl.null(e.PL.dtype.element_type)),
-                            ReadPosRankSum=row.info['ReadPosRankSum'],
+                            ReadPosRankSum=row.info.ReadPosRankSum,
+                            SB=e.SB,
+                            VarDP=hl.cond(row.info.VarDP > vardp_outlier,
+                                          row.info.DP, row.info.VarDP),
                         ))),
             ),
             mt.row.dtype)
@@ -129,17 +124,6 @@ def combine(ts):
                     locus=row.locus,
                     alleles=alleles.globl,
                     rsid=hl.find(hl.is_defined, row.data.map(lambda d: d.rsid)),
-                    info=hl.struct(
-                        MQ_DP=hl.sum(row.data.map(lambda d: d.info.MQ_DP)),
-                        QUALapprox=hl.sum(row.data.map(lambda d: d.info.QUALapprox)),
-                        RAW_MQ=hl.sum(row.data.map(lambda d: d.info.RAW_MQ)),
-                        VarDP=hl.sum(row.data.map(lambda d: d.info.VarDP)),
-                        SB_TABLE=hl.array([
-                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[0])),
-                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[1])),
-                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[2])),
-                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[3]))
-                        ])),
                     __entries=hl.bind(
                         lambda combined_allele_index:
                         hl.range(0, hl.len(row.data)).flatmap(
@@ -173,14 +157,33 @@ def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
     return hl.call(la[lgt[0]], la[lgt[1]])
 
+def quick_summary(mt):
+    """compute aggregate INFO fields that do not require densify"""
+    return mt.annotate_rows(
+        info=hl.struct(
+            MQ_DP=hl.agg.sum(mt.entry.MQ_DP),
+            QUALapprox=hl.agg.sum(mt.entry.QUALapprox),
+            RAW_MQ=hl.agg.sum(mt.entry.RAW_MQ),
+            VarDP=hl.agg.sum(mt.entry.VarDP),
+            SB_TABLE=hl.array([
+                hl.agg.sum(mt.entry.SB[0]),
+                hl.agg.sum(mt.entry.SB[1]),
+                hl.agg.sum(mt.entry.SB[2]),
+                hl.agg.sum(mt.entry.SB[3]),
+            ])))
+
 def summarize(mt):
     """Computes summary statistics
+
+    Calls :func:`.quick_summary`. Calling both this and :func:`.quick_summary`, will lead
+    to :func:`.quick_summary` being executed twice.
 
     Note
     ----
     You will not be able to run :func:`.combine_gvcfs` with the output of this
     function.
     """
+    mt = quick_summary(mt)
     mt = hl.experimental.densify(mt)
     return mt.annotate_rows(info=hl.rbind(
         hl.agg.call_stats(lgt_to_gt(mt.LGT, mt.LA), mt.alleles),
@@ -210,7 +213,8 @@ def finalize(mt):
     You will not be able to run :func:`.combine_gvcfs` with the output of this
     function.
     """
-    return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
+    return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum',
+                   'MQ_DP', 'QUALapprox', 'RAW_MQ', 'VarDP', 'SB')
 
 def reannotate(mt, gatk_ht, summ_ht):
     """Re-annotate a sparse MT with annotations from certain GATK tools
@@ -339,7 +343,7 @@ def reannotate(mt, gatk_ht, summ_ht):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2019-03-04, the schema returned by the combiner is as follows:
+# As of 2019-03-22, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -351,13 +355,6 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'locus': locus<GRCh38>
 #     'alleles': array<str>
 #     'rsid': str
-#     'info': struct {
-#         MQ_DP: int32,
-#         QUALapprox: int32,
-#         RAW_MQ: float64,
-#         VarDP: int32,
-#         SB_TABLE: array<int32>
-#     }
 # ----------------------------------------
 # Entry fields:
 #     'BaseQRankSum': float64
@@ -373,9 +370,14 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'MIN_DP': int32
 #     'MQ': float64
 #     'MQRankSum': float64
+#     'MQ_DP': int32
+#     'QUALapprox': int32
 #     'PID': str
+#     'RAW_MQ': float64
 #     'RGQ': int32
 #     'ReadPosRankSum': float64
+#     'SB': array<int32>
+#     'VarDP': int32
 # ----------------------------------------
 # Column key: ['s']
 # Row key: ['locus']
