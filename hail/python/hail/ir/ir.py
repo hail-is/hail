@@ -702,6 +702,7 @@ class ArrayFold(IR):
         return other.accum_name == self.accum_name and \
                other.value_name == self.value_name
 
+    @property
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
 
