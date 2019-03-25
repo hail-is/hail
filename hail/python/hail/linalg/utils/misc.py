@@ -81,7 +81,7 @@ def array_windows(a, radius):
            radius=oneof(int, float),
            coord_expr=nullable(expr_float64),
            _localize=bool)
-def locus_windows(locus_expr, radius, coord_expr=None, _localize=False):
+def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     """Returns start and stop indices for window around each locus.
 
     Examples
@@ -193,7 +193,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=False):
                                                      .or_error("locus_windows: missing value for 'locus_expr'.")))
     starts_and_stops = hl._locus_windows_per_contig(coords, radius)
 
-    if _localize:
+    if not _localize:
         return starts_and_stops
 
     starts, stops = hl.eval(starts_and_stops)
