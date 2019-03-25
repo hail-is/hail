@@ -63,18 +63,20 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
                                 e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
                                 hl.null(e.PL.dtype.element_type)),
                             SB=e.SB,
-                            gvcf_info=hl.struct(
-                                ClippingRankSum=row.info.ClippingRankSum,
-                                BaseQRankSum=row.info.BaseQRankSum,
-                                MQ=row.info.MQ,
-                                MQRankSum=row.info.MQRankSum,
-                                MQ_DP=row.info.MQ_DP,
-                                QUALapprox=row.info.QUALapprox,
-                                RAW_MQ=row.info.RAW_MQ,
-                                ReadPosRankSum=row.info.ReadPosRankSum,
-                                VarDP=hl.cond(row.info.VarDP > vardp_outlier,
-                                              row.info.DP, row.info.VarDP),
-                            )
+                            gvcf_info=hl.case()
+                                .when(hl.is_missing(row.info.END),
+                                      hl.struct(
+                                          ClippingRankSum=row.info.ClippingRankSum,
+                                          BaseQRankSum=row.info.BaseQRankSum,
+                                          MQ=row.info.MQ,
+                                          MQRankSum=row.info.MQRankSum,
+                                          MQ_DP=row.info.MQ_DP,
+                                          QUALapprox=row.info.QUALapprox,
+                                          RAW_MQ=row.info.RAW_MQ,
+                                          ReadPosRankSum=row.info.ReadPosRankSum,
+                                          VarDP=hl.cond(row.info.VarDP > vardp_outlier,
+                                                        row.info.DP, row.info.VarDP)))
+                                .or_missing()
                         ))),
             ),
             mt.row.dtype)
