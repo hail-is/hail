@@ -1552,7 +1552,7 @@ class BlockMatrix(object):
     @typecheck_method(n_partitions=nullable(int))
     def to_matrix_table_row_major(self, n_partitions=None):
         """Returns a matrix table with row key of `row_idx` and col key `col_idx`, whose
-        entries are structs of a single field `entry`.
+        entries are structs of a single field `element`.
 
         Parameters
         ----------
@@ -1565,7 +1565,7 @@ class BlockMatrix(object):
             Matrix table where each entry corresponds to an entry in the block matrix.
         """
         t = self.to_table_row_major(n_partitions)
-        t = t.transmute(entries=t.entries.map(lambda i: hl.struct(entry=i)))
+        t = t.transmute(entries=t.entries.map(lambda i: hl.struct(element=i)))
         t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
