@@ -838,6 +838,7 @@ def variant_str(*args) -> 'StringExpression':
     Parameters
     ----------
     args
+        Arguments (see notes).
 
     Returns
     -------
