@@ -39,7 +39,7 @@ NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, const
   return nd;
 }
 
-char const *load_ndarray_addr(NDArray nd, std::vector<long> indices) {
+char const *load_indices(NDArray nd, std::vector<long> indices) {
   if (indices.size() != nd.shape.size()) {
     throw new FatalError("Number of indices must match number of dimensions.");
   }
