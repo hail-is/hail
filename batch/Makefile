@@ -16,7 +16,8 @@ PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; 
 PY_CHECKERS = flake8-stmp pylint-stmp
 
 BATCH_PORT ?= 5000
-CLOUD_SQL_PORT ?= 3307
+
+include ../cloud-sql.mk
 
 flake8-stmp: $(PY_FILES)
 	python3 -m flake8 batch
@@ -35,24 +36,6 @@ build:
 
 build-test:
 	docker build -t batch-test -f Dockerfile.test .
-
-# https://cloud.google.com/sql/docs/mysql/quickstart-proxy-test
-install-cloud-sql-proxy:
-	test -f cloud_sql_proxy || \
-		curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.darwin.amd64 && \
-		chmod +x cloud_sql_proxy
-
-run-cloud-sql-proxy: local-cloud-sql-config install-cloud-sql-proxy
-	$(eval config := $(shell pwd)/batch-secrets/batch-test-cloud-sql-config.json)
-	$(eval connection_name := $(shell jq -r '.connection_name' $(config)))
-	$(eval port := $(shell jq -r '.port' $(config)))
-	./cloud_sql_proxy -instances=$(connection_name)=tcp:$(port) &
-
-local-cloud-sql-config:
-	mkdir -p batch-secrets
-	kubectl get secret batch-test-cloud-sql-config -n batch-pods -o "jsonpath={.data.batch-test-cloud-sql-config\.json}" | base64 --decode > batch-secrets/batch-test-cloud-sql-config.json
-	jq '.host = "127.0.0.1" | .port = $(CLOUD_SQL_PORT)' batch-secrets/batch-test-cloud-sql-config.json > batch-secrets/tmp.batch-test-cloud-sql-config.json
-	mv batch-secrets/tmp.batch-test-cloud-sql-config.json batch-secrets/batch-test-cloud-sql-config.json
 
 push: build
 	docker tag batch $(BATCH_LATEST)
