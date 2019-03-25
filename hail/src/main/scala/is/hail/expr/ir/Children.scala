@@ -42,8 +42,8 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
-    case MakeNDArray(data, shape, row_major) =>
-      Array(data, shape, row_major)
+    case MakeNDArray(data, shape, rowMajor) =>
+      Array(data, shape, rowMajor)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
