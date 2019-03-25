@@ -213,7 +213,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present("")
 
       case _: ir.Str | _: ir.Literal =>
-        val v: Any = x match {
+        val v: Any = (x: @unchecked) match {
           case ir.Str(s) => s
           case ir.Literal(_, l) => l
         }
@@ -674,7 +674,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val l = ir.In(0, eltType)
         val r = ir.In(1, eltType)
 
-        val (ltIR, eqIR, removeMissing) = x match {
+        val (ltIR, eqIR, removeMissing) = (x: @unchecked) match {
           case ir.ToSet(_) =>
             val lt = ir.ApplyComparisonOp(ir.Compare(eltType), l, r) < 0
             val eq = ir.ApplyComparisonOp(ir.EQWithNA(eltType), l, r)

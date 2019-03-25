@@ -470,10 +470,7 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newEntries, requestedType.entryType, child.typ, memo)
         val depMod = requestedType.copy(rvRowType = TStruct(requestedType.rvRowType.required, requestedType.rvRowType.fields.map { f =>
           if (f.name == MatrixType.entriesIdentifier) {
-            f.name -> (f.typ match {
-              case t: TStreamable => t.copyStreamable(irDep.entryType)
-              case t: TStream => t.copy(elementType = irDep.entryType)
-            })
+            f.name -> f.typ.asInstanceOf[TArray].copy(irDep.entryType)
           }
           else
             f.name -> f.typ
