@@ -889,7 +889,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           if (dim == 0) {
             val index = idxVars.map{ case (idxVar, d) => s"$idxVar * $nd.strides[$d]" }.mkString(" + ")
             s"""
-               | $elemRef = load_element<$cxxElemType>($nd.data + ($index) * $nd.elem_size);
+               | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
                |
                | ${ bodyt.setup }
                | if (${ bodyt.m }) {
