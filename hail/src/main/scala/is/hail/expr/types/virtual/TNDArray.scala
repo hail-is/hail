@@ -15,7 +15,15 @@ final case class TNDArray(elementType: Type, nDims: Int, override val required: 
     sb.append('>')
   }
   
-  def _toPretty = s"NDArray[$elementType]"
+  def _toPretty = s"NDArray[$elementType,$nDims]"
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+    sb.append("NDArray[")
+    elementType.pretty(sb, indent, compact)
+    sb.append(",")
+    sb.append(nDims)
+    sb.append("]")
+  }
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 

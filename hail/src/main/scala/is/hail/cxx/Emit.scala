@@ -903,10 +903,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
-             | ${ ndt.setup }
-             | if (${ ndt.m }) {
-             |   ${ fb.nativeError("NDArray cannot be missing. IR: %s".format(childPretty)) }
-             | }
              | ${ nd.define }
              | ${ length.define }
              | ${ elemRef.define }
@@ -930,17 +926,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val idxsVec = fb.variable("idxsVec", "std::vector<long>",
           s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
-
-        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
           s"""
              |({
-             | ${ ndt.setup }
-             | ${ idxst.setup }
-             | if (${ ndt.m } || ${ idxst.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
-             | }
-             |
              | ${ idxsVec.define }
              | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})

@@ -1268,7 +1268,6 @@ class IRSuite extends SparkSuite {
     val a = Ref("a", TArray(TInt32()))
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
-    val nd = Ref("nd", TNDArray(TFloat64(), 2))
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
@@ -1298,6 +1297,12 @@ class IRSuite extends SparkSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
+    val nd = MakeNDArray(
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+      True(),
+      TNDArray(TFloat64(), 1))
+
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -1311,11 +1316,7 @@ class IRSuite extends SparkSuite {
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
-      MakeNDArray(
-        MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
-        MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
-        True(),
-        TNDArray(TFloat64(), 1)),
+      nd,
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       ArrayRef(a, i),
