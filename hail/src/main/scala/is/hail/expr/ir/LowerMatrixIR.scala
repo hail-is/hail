@@ -169,7 +169,7 @@ object LowerMatrixIR {
         }
 
         val b0 = f(ir)
-        
+
         val b: IRProxy =
           if (ContainsAgg(b0)) {
             irRange(0, 'row (entriesField).len)
@@ -316,39 +316,47 @@ object LowerMatrixIR {
     case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
       val colKey = child.typ.colKey
 
+      val idx1 = Symbol(genUID())
+      val idx2 = Symbol(genUID())
+      val idx3 = Symbol(genUID())
+      val idx4 = Symbol(genUID())
+      val keyMap = Symbol(genUID())
+      val elementIdx = Symbol(genUID())
       lower(child)
-        .mapGlobals('global.insertFields('__key_map ->
+        .mapGlobals('global.insertFields(keyMap ->
           let(__cols_field = 'global (colsField)) {
             irRange(0, '__cols_field.len)
-              .map('idx ~> let(__cols_field_element = '__cols_field ('idx)) {
-                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> 'idx)
+              .map(idx1 ~> let(__cols_field_element = '__cols_field (idx1)) {
+                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> idx1)
               })
               .groupByKey
               .toArray
           }))
         .mapRows('row.insertFields(entriesField ->
-          let(__entries = 'row (entriesField), __key_map = 'global ('__key_map)) {
+          let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
             irRange(0, '__key_map.len)
-              .map('idx ~> '__key_map ('idx)
+              .map(idx2 ~> '__key_map (idx2)
                 .apply('value)
-                .arrayAgg('__element_idx ~>
-                  aggLet(va = 'row, g = '__entries ('__element_idx), sa = 'global (colsField)('__element_idx)) {
-                    entryExpr
-                  }))
-          }))
+                .arrayAgg(elementIdx ~>
+                  let(va = 'row) {
+                    aggLet(va = 'row, g = '__entries (elementIdx), sa = 'global (colsField)(elementIdx)) {
+                      entryExpr
+                    }}))}))
         .mapGlobals(
           'global.insertFields(colsField ->
-            let(__key_map = 'global ('__key_map)) {
+            let(__key_map = 'global (keyMap)) {
               irRange(0, '__key_map.len)
-                .map('idx ~>
+                .map(idx3 ~>
                   concatStructs(
-                    '__key_map ('idx)('key),
-                    '__key_map ('idx)('value)
-                      .arrayAgg('sa ~> colExpr)
+                    '__key_map (idx3)('key),
+                    '__key_map (idx3)('value)
+                      .arrayAgg(idx4 ~> aggLet(sa = 'global (colsField)(idx4)) {
+                        colExpr
+                      })
                   )
                 )
             }
-          ).dropFields('__key_map))
+          ).dropFields(keyMap))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
