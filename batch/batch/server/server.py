@@ -146,8 +146,12 @@ class JobTask:  # pylint: disable=R0903
 class Job:
     def _next_task(self):
         self._task_idx += 1
-        if self._task_idx < len(self._tasks):
+        while self._task_idx < len(self._tasks):
             self._current_task = self._tasks[self._task_idx]
+            if self._current_task is not None:
+                return
+            self._task_idx += 1
+        self._current_task = None
 
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
@@ -238,7 +242,7 @@ class Job:
 
     def _read_logs(self):
         logs = {jt.name: _read_file(_log_path(self.id, jt.name))
-                for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
+                for idx, jt in enumerate(self._tasks) if idx < self._task_idx and jt is not None}
         if self._state == 'Created':
             if self._pod_name:
                 try:
@@ -277,7 +281,6 @@ class Job:
                        JobTask(self.id, 'main', pod_spec),
                        JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
 
-        self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
         self._next_task()
         assert self._current_task is not None
