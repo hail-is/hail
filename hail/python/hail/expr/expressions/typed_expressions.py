@@ -2081,13 +2081,51 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(s.replace(' ', '_'))
-        'The_quick_brown_fox'
+        Replace spaces with underscores in a Hail string:
+
+        >>> hl.eval(hl.str("The quick  brown fox").replace(' ', '_'))
+        'The_quick__brown_fox'
+
+        Remove the leading zero in contigs in variant strings in a table:
+
+        >>> t = hl.import_table('data/leading-zero-variants.txt')
+        >>> t.show()
+        +----------------+
+        | variant        |
+        +----------------+
+        | str            |
+        +----------------+
+        | "01:1000:A:T"  |
+        | "01:10001:T:G" |
+        | "02:99:A:C"    |
+        | "02:893:G:C"   |
+        | "22:100:A:T"   |
+        | "X:10:C:A"     |
+        +----------------+
+        <BLANKLINE>
+        >>> t = t.annotate(variant = t.variant.replace("^0([0-9])", "$1"))
+        >>> t.show()
+        +---------------+
+        | variant       |
+        +---------------+
+        | str           |
+        +---------------+
+        | "1:1000:A:T"  |
+        | "1:10001:T:G" |
+        | "2:99:A:C"    |
+        | "2:893:G:C"   |
+        | "22:100:A:T"  |
+        | "X:10:C:A"    |
+        +---------------+
+        <BLANKLINE>
 
         Notes
         -----
-        The regex expressions used should follow
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+
+        The regex expressions used should follow `Java regex syntax
+        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_. In
+        the Java regular expression syntax, a dollar sign, ``$1``, refers to the
+        first group, not the canonical ``\\1``.
 
         Parameters
         ----------
@@ -2096,7 +2134,6 @@ class StringExpression(Expression):
 
         Returns
         -------
-
         """
         return self._method("replace", tstr, pattern1, pattern2)
 
