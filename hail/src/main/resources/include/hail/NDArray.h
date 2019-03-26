@@ -12,28 +12,21 @@ struct NDArray {
   const char *data;
 };
 
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, const char *data);
+NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
 char const *load_indices(NDArray &nd, std::vector<long> indices);
 char const *load_index(NDArray &nd, int index);
 int n_elements(std::vector<long> &shape);
+std::vector<long> make_strides(int row_major, std::vector<long> &shape);
+std::vector<long> strides_row_major(std::vector<long> &shape);
+std::vector<long> strides_col_major(std::vector<long> &shape);
 
-void set_strides_row_major(std::vector<long> &strides, std::vector<long> &shape);
-void set_strides_col_major(std::vector<long> &strides, std::vector<long> &shape);
-
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, const char *data) {
+NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data) {
   NDArray nd;
   nd.flags = flags;
   nd.offset = 0;
   nd.elem_size = elem_size;
   nd.shape = shape;
   nd.data = data;
-
-  std::vector<long> strides(shape.size());
-  if (flags == 1) {
-    set_strides_row_major(strides, shape);
-  } else {
-    set_strides_col_major(strides, shape);
-  }
   nd.strides = strides;
 
   return nd;
@@ -68,22 +61,32 @@ int n_elements(std::vector<long> &shape) {
   return total;
 }
 
-void set_strides_row_major(std::vector<long> &strides, std::vector<long> &shape) {
+std::vector<long> make_strides(int row_major, std::vector<long> &shape) {
+  return (row_major == 1) ? strides_row_major(shape) : strides_col_major(shape);
+}
+
+std::vector<long> strides_row_major(std::vector<long> &shape) {
+  std::vector<long> strides(shape.size());
+
   if (shape.size() > 0) {
     strides[shape.size() - 1] = 1;
     for (int i = shape.size() - 2; i >= 0; --i) {
       strides[i] = shape[i + 1] * strides[i + 1];
     }
   }
+  return strides;
 }
 
-void set_strides_col_major(std::vector<long> &strides, std::vector<long> &shape) {
+std::vector<long> strides_col_major(std::vector<long> &shape) {
+  std::vector<long> strides(shape.size());
+
   if (shape.size() > 0) {
     strides[0] = 1;
     for (int i = 1; i < shape.size(); ++i) {
       strides[i] = shape[i - 1] * strides[i - 1];
     }
   }
+  return strides;
 }
 
 #endif

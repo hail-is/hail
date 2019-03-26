@@ -858,7 +858,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
              |
-             | make_ndarray($flags, $elemSize, $shapeVec, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             | make_ndarray($flags, $elemSize, $shapeVec, make_strides($flags, $shapeVec), ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
              |})
              |""".stripMargin)
 
@@ -866,53 +866,42 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val childTyp = child.pType.asInstanceOf[PNDArray]
         val elemPType = childTyp.elementType
         val cxxElemType = typeToCXXType(elemPType)
-        val newElemPType = body.pType
-        val newDataContainer = PArray(newElemPType)
-
-        val ndt = emit(child)
-        val nd = fb.variable("nd", "NDArray", ndt.v)
-
         val elemRef = fb.variable("elemRef", cxxElemType)
         val bodyt = outer.emit(body,
           env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
-
-        val length = fb.variable("length", "long", s"n_elements($nd.shape)")
-        val sab = resultRegion.arrayBuilder(fb, newDataContainer)
-        val data = fb.variable("data", "const char *")
-
-        val childPretty = StringEscapeUtils.escapeString(ir.Pretty.short(child))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
-        val nDims = childTyp.nDims
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val rowMajor = fb.variable("rowMajor", "long", s"$nd.flags")
+        val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
 
-        def loopBody(idxVars: Seq[(Variable, Variable)]): Code = {
-          val index = idxVars.map{ case (idx, dim) => s"$idx * $nd.strides[$dim]" }.mkString(" + ")
-          s"""
-             | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
-             |
-             | ${ bodyt.setup }
-             | if (${ bodyt.m }) {
-             |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
-             | }
-             |
-             | ${ sab.add(bodyt.v) }
-             | ${ sab.advance() }
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until childTyp.nDims) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            assert(idxVars.length == childTyp.nDims)
+            val index = idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $nd.strides[$dim]" }.mkString(" + ")
+            s"""
+               |({
+               | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
+               |
+               | ${ bodyt.setup }
+               | if (${ bodyt.m }) {
+               |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
+               | }
+               |
+               | ${ bodyt.v };
+               |})
              """.stripMargin
+          }
         }
 
         present(
           s"""
              |({
              | ${ nd.define }
-             | ${ length.define }
              | ${ elemRef.define }
-             | ${ data.define }
              |
-             | ${ sab.start(length.toString) }
-             | ${ new NDArrayLoopEmitter(fb, nd, nDims, loopBody).emit() }
-             | $data = ${newDataContainer.cxxImpl}::elements_address(${ sab.end() });
-             |
-             | make_ndarray($nd.flags, ${newElemPType.byteSize}, $nd.shape, $data);
+             | ${ emitter.emit() };
              |})
            """.stripMargin)
 
