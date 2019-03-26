@@ -555,7 +555,7 @@ class tndarray(HailType):
         raise NotImplementedError
 
     def __str__(self):
-        return "ndarray<{}>".format(self.element_type)
+        return "ndarray<{}, {}>".format(self.element_type, self.ndim)
 
     def _eq(self, other):
         return isinstance(other, tndarray) and self.element_type == other.element_type
@@ -563,10 +563,12 @@ class tndarray(HailType):
     def _pretty(self, l, indent, increment):
         l.append('ndarray<')
         self.element_type._pretty(l, indent, increment)
+        l.append(', ')
+        l.append(str(self.ndim))
         l.append('>')
 
     def _parsable_string(self):
-        return "NDArray[" + self.element_type._parsable_string() + "]"
+        return f'NDArray[{self.element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError

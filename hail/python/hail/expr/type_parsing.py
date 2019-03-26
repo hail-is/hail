@@ -79,8 +79,8 @@ class TypeConstructor(NodeVisitor):
         return hl.tarray(t)
 
     def visit_ndarray(self, node, visited_children):
-        tndarray, _, angle_bracket, t, angle_bracket = visited_children
-        return hl.tndarray(t)
+        tndarray, _, angle_bracket, t, comma, ndim, angle_bracket = visited_children
+        return hl.tndarray(t, ndim)
 
     def visit_set(self, node, visited_children):
         tset, _, angle_bracket, t, angle_bracket = visited_children
