@@ -39,7 +39,7 @@ char const *load_indices(NDArray nd, std::vector<long> indices) {
 
   int index = 0;
   for (int i = 0; i < indices.size(); ++i) {
-    if (indices[i] < 0 || indices[i] > nd.shape[i]) {
+    if (indices[i] < 0 || indices[i] >= nd.shape[i]) {
       throw new FatalError(("Invalid index: " + std::to_string(indices[i])).c_str());
     }
     index += nd.strides[i] * indices[i];
