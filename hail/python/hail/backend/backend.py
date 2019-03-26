@@ -83,9 +83,8 @@ class SparkBackend(Backend):
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = Renderer(stop_at_jir=True)
-            code = r(ir)
             # FIXME parse should be static
-            ir._jir = ir.parse(code, ir_map=r.jirs)
+            ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
     def execute(self, ir):
@@ -173,9 +172,8 @@ class LocalBackend(Backend):
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = Renderer(stop_at_jir=True)
-            code = r(ir)
             # FIXME parse should be static
-            ir._jir = ir.parse(code, ir_map=r.jirs)
+            ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
     def execute(self, ir):
@@ -189,9 +187,8 @@ class ServiceBackend(Backend):
 
     def _render(self, ir):
         r = Renderer()
-        code = r(ir)
         assert len(r.jirs) == 0
-        return code
+        return r(ir)
 
     def execute(self, ir):
         code = self._render(ir)
