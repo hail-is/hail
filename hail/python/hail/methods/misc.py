@@ -158,7 +158,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     nodes = nodes.filter(nodes.mis_nodes.contains(nodes.node), keep)
     nodes = nodes.select_globals()
     if keyed:
-        return nodes.key_by('node')
+        return nodes.key_by('node').distinct()
     return nodes
 
 
