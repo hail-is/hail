@@ -326,7 +326,7 @@ object IRBuilder {
   }
 
   def subst(x: IRProxy, env: Env[IRProxy], aggEnv: Env[IRProxy] = Env.empty): IRProxy = (e: E) => {
-    Subst(x(e), env.mapValues(_ (e)), aggEnv.mapValues(_ (e)))
+    Subst(x(e), BindingEnv(env.mapValues(_ (e)), agg = Some(aggEnv.mapValues(_ (e)))))
   }
 
   def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)

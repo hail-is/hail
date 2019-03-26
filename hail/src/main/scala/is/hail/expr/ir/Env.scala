@@ -76,6 +76,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
 
   def delete(name: String): Env[V] = new Env(m - name)
 
+  def delete(names: Iterable[String]): Env[V] = new Env(m -- names)
+
   def lookup(r: Ref): V =
     lookup(r.name)
 

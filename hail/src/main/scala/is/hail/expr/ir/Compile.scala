@@ -42,7 +42,7 @@ object Compile {
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
 
-    ir = Subst(ir, env)
+    ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ir, fb, nSpecialArgs)
