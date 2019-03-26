@@ -734,7 +734,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         childRVDs.map(_.repartition(newPartitioner))
       }
     val newPartitioner = repartitionedRVDs(0).partitioner
-    val newRVDType = RVDType(localNewRowType, localRVDType.key)
+    val newRVDType = RVDType(localNewRowType, typ.key)
     val rvd = RVD(
       typ = newRVDType,
       partitioner = newPartitioner,
