@@ -1895,7 +1895,7 @@ class Table(ExprContainer):
         --------
         Subset to the first three rows:
 
-        >>> table_result = table1.render_head(3)
+        >>> table_result = table1.head(3)
         >>> table_result.count()
         3
 
