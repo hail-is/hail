@@ -1179,6 +1179,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(scores.count(), mt.count_cols())
         self.assertEqual(loadings.count(), n_rows)
 
+        assert len(scores.globals) == 0
+        assert len(loadings.globals) == 0
+
         # compute PCA with numpy
         def normalize(a):
             ms = np.mean(a, axis=0, keepdims=True)
