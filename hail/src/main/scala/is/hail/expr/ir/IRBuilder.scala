@@ -239,7 +239,7 @@ object IRBuilder {
 
     def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
-      AggExplode(array, f.s.name, f.body(env))
+      AggExplode(array, f.s.name, f.body(env), isScan = false)
     }
 
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
