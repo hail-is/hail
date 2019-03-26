@@ -805,7 +805,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(item=oneof(int, tuple))
     def __getitem__(self, item):
-        ndim = self._ir.typ.ndim
+        ndim = self._type.ndim
         if isinstance(item, int):
             item = (item,)
 
