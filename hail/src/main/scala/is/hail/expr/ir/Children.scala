@@ -42,7 +42,7 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
-    case MakeNDArray(data, shape, rowMajor) =>
+    case MakeNDArray(_, data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
@@ -74,8 +74,6 @@ object Children {
       Array(a, body)
     case ArrayAgg(a, name, query) =>
       Array(a, query)
-    case MakeNDArray(data, shape, row_major, _) =>
-      Array(data, shape, row_major)
     case NDArrayRef(nd, idxs) =>
       Array(nd, idxs)
     case NDArrayMap(nd, _, body) =>

@@ -510,15 +510,18 @@ class tndarray(HailType):
     ----------
     element_type : :class:`.HailType`
         Element type of array.
+    ndim : int32
+        Number of dimensions.
 
     See Also
     --------
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type)
-    def __init__(self, element_type):
+    @typecheck_method(element_type=hail_type, ndim=int)
+    def __init__(self, element_type, ndim):
         self._element_type = element_type
+        self._ndim = ndim
         super(tndarray, self).__init__()
 
     @property
@@ -531,6 +534,17 @@ class tndarray(HailType):
             Element type.
         """
         return self._element_type
+
+    @property
+    def ndim(self):
+        """NDArray number of dimensions.
+
+        Returns
+        -------
+        `int32`
+            Number of dimensions.
+        """
+        return self._ndim
 
     def _traverse(self, obj, f):
         if f(self, obj):

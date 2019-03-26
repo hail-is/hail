@@ -21,7 +21,7 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
-      case MakeNDArray(_, _, _, t) => t
+      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, nDim)
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()

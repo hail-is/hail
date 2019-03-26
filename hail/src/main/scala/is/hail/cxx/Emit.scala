@@ -820,7 +820,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(data, shape, rowMajor, typ) =>
+      case ir.MakeNDArray(nDim, data, shape, rowMajor) =>
         val dataContainer = data.pType.asInstanceOf[PStreamable].asPArray
         val elemPType = dataContainer.elementType
         val shapeContainer = shape.pType.asInstanceOf[PStreamable].asPArray
@@ -848,7 +848,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ flags.define }
              | ${ shapeVec.define }
              |
-             | if (${typ.nDims} != $shapeVec.size()) {
+             | if ($nDim != $shapeVec.size()) {
              |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
              | }
              |
