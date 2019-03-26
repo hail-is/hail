@@ -36,7 +36,7 @@ object Subst {
                 apply(child, BindingEnv(env.agg.get.delete(sb)))
               } else {
                 if (b.isEmpty && ab.isEmpty && sb.isEmpty) // optimize the common case
-                  apply(e, env)
+                  apply(child, env)
                 else {
                   apply(child,
                     env.copy(eval = env.eval.delete(b),
