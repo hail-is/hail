@@ -7,6 +7,7 @@ from hail.expr.types import *
 from hail.typecheck import *
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
+from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 
 
 def _env_bind(env, k, v):
@@ -21,16 +22,14 @@ class I32(IR):
         super().__init__()
         self.x = x
 
+    def _eq(self, other):
+        return self.x == other.x
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.x)
+        return I32(self.x)
 
-    def render(self, r):
-        return '(I32 {})'.format(self.x)
-
-    def __eq__(self, other):
-        return isinstance(other, I32) and \
-               other.x == self.x
+    def head_str(self):
+        return self.x
 
     def _compute_type(self, env, agg_env):
         self._type = tint32
@@ -42,16 +41,14 @@ class I64(IR):
         super().__init__()
         self.x = x
 
+    def _eq(self, other):
+        return self.x == other.x
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.x)
+        return I64(self.x)
 
-    def render(self, r):
-        return '(I64 {})'.format(self.x)
-
-    def __eq__(self, other):
-        return isinstance(other, I64) and \
-               other.x == self.x
+    def head_str(self):
+        return self.x
 
     def _compute_type(self, env, agg_env):
         self._type = tint64
@@ -63,19 +60,18 @@ class F32(IR):
         super().__init__()
         self.x = x
 
+    def _eq(self, other):
+        return self.x == other.x
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.x)
+        return F32(self.x)
 
-    def render(self, r):
-        return '(F32 {})'.format(self.x)
-
-    def __eq__(self, other):
-        return isinstance(other, F32) and \
-               other.x == self.x
+    def head_str(self):
+        return self.x
 
     def _compute_type(self, env, agg_env):
         self._type = tfloat32
+
 
 class F64(IR):
     @typecheck_method(x=numeric)
@@ -83,16 +79,14 @@ class F64(IR):
         super().__init__()
         self.x = x
 
+    def _eq(self, other):
+        return self.x == other.x
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.x)
+        return F64(self.x)
 
-    def render(self, r):
-        return '(F64 {})'.format(self.x)
-
-    def __eq__(self, other):
-        return isinstance(other, F64) and \
-               other.x == self.x
+    def head_str(self):
+        return self.x
 
     def _compute_type(self, env, agg_env):
         self._type = tfloat64
@@ -104,16 +98,14 @@ class Str(IR):
         super().__init__()
         self.x = x
 
+    def _eq(self, other):
+        return self.x == other.x
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.x)
+        return Str(self.x)
 
-    def render(self, r):
-        return '(Str "{}")'.format(escape_str(self.x))
-
-    def __eq__(self, other):
-        return isinstance(other, Str) and \
-               other.x == self.x
+    def head_str(self):
+        return f'"{escape_str(self.x)}"'
 
     def _compute_type(self, env, agg_env):
         self._type = tstr
@@ -124,14 +116,10 @@ class FalseIR(IR):
         super().__init__()
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance()
+        return FalseIR()
 
-    def render(self, r):
-        return '(False)'
-
-    def __eq__(self, other):
-        return isinstance(other, FalseIR)
+    def _ir_name(self):
+        return 'False'
 
     def _compute_type(self, env, agg_env):
         self._type = tbool
@@ -142,14 +130,10 @@ class TrueIR(IR):
         super().__init__()
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance()
+        return TrueIR()
 
-    def render(self, r):
-        return '(True)'
-
-    def __eq__(self, other):
-        return isinstance(other, TrueIR)
+    def _ir_name(self):
+        return 'True'
 
     def _compute_type(self, env, agg_env):
         self._type = tbool
@@ -160,14 +144,7 @@ class Void(IR):
         super().__init__()
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance()
-
-    def render(self, r):
-        return '(Void)'
-
-    def __eq__(self, other):
-        return isinstance(other, Void)
+        return Void()
 
     def _compute_type(self, env, agg_env):
         self._type = tvoid
@@ -184,18 +161,15 @@ class Cast(IR):
     def typ(self):
         return self._typ
 
+    def _eq(self, other):
+        return self._typ == other._typ
+
     @typecheck_method(v=IR)
     def copy(self, v):
-        new_instance = self.__class__
-        return new_instance(v, self._typ)
+        return Cast(v, self.typ)
 
-    def render(self, r):
-        return '(Cast {} {})'.format(self._typ._parsable_string(), r(self.v))
-
-    def __eq__(self, other):
-        return isinstance(other, Cast) and \
-        other.v == self.v and \
-        other._typ == self._typ
+    def head_str(self):
+        return self._typ._parsable_string()
 
     def _compute_type(self, env, agg_env):
         self.v._compute_type(env, agg_env)
@@ -212,16 +186,14 @@ class NA(IR):
     def typ(self):
         return self._typ
 
+    def _eq(self, other):
+        return self._typ == other._typ
+
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self._typ)
+        return NA(self._typ)
 
-    def render(self, r):
-        return '(NA {})'.format(self._typ._parsable_string())
-
-    def __eq__(self, other):
-        return isinstance(other, NA) and \
-               other._typ == self._typ
+    def head_str(self):
+        return self._typ._parsable_string()
 
     def _compute_type(self, env, agg_env):
         self._type = self._typ
@@ -235,15 +207,7 @@ class IsNA(IR):
 
     @typecheck_method(value=IR)
     def copy(self, value):
-        new_instance = self.__class__
-        return new_instance(value)
-
-    def render(self, r):
-        return '(IsNA {})'.format(r(self.value))
-
-    def __eq__(self, other):
-        return isinstance(other, IsNA) and \
-               other.value == self.value
+        return IsNA(value)
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(env, agg_env)
@@ -260,25 +224,15 @@ class If(IR):
 
     @typecheck_method(cond=IR, cnsq=IR, altr=IR)
     def copy(self, cond, cnsq, altr):
-        new_instance = self.__class__
-        return new_instance(cond, cnsq, altr)
-
-    def render(self, r):
-        return '(If {} {} {})'.format(r(self.cond), r(self.cnsq), r(self.altr))
-
-    def __eq__(self, other):
-        return isinstance(other, If) and \
-               other.cond == self.cond and \
-               other.cnsq == self.cnsq and \
-               other.altr == self.altr
+        return If(cond, cnsq, altr)
 
     def _compute_type(self, env, agg_env):
         self.cond._compute_type(env, agg_env)
         self.cnsq._compute_type(env, agg_env)
         self.altr._compute_type(env, agg_env)
-        assert(self.cnsq.typ == self.altr.typ)
+        assert (self.cnsq.typ == self.altr.typ)
         self._type = self.cnsq.typ
-    
+
 
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
@@ -290,21 +244,17 @@ class Let(IR):
 
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
-        new_instance = self.__class__
-        return new_instance(self.name, value, body)
+        return Let(self.name, value, body)
 
-    def render(self, r):
-        return '(Let {} {} {})'.format(escape_id(self.name), r(self.value), r(self.body))
+    def head_str(self):
+        return escape_id(self.name)
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def __eq__(self, other):
-        return isinstance(other, Let) and \
-               other.name == self.name and \
-               other.value == self.value and \
-               other.body == self.body
+    def _eq(self, other):
+        return other.name == self.name
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(env, agg_env)
@@ -319,15 +269,13 @@ class Ref(IR):
         self.name = name
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.name)
+        return Ref(self.name)
 
-    def render(self, r):
-        return '(Ref {})'.format(escape_id(self.name))
+    def head_str(self):
+        return escape_id(self.name)
 
-    def __eq__(self, other):
-        return isinstance(other, Ref) and \
-               other.name == self.name
+    def _eq(self, other):
+        return other.name == self.name
 
     def _compute_type(self, env, agg_env):
         self._type = env[self.name]
@@ -343,19 +291,17 @@ class TopLevelReference(Ref):
         return True
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.name)
+        return TopLevelReference(self.name)
 
-    def __eq__(self, other):
-        return isinstance(other, TopLevelReference) and \
-               other.name == self.name
+    def _ir_name(self):
+        return 'Ref'
 
     def _compute_type(self, env, agg_env):
         assert self.name in env, f'{self.name} not found in {env}'
         self._type = env[self.name]
 
 
-class ApplyBinaryOp(IR):
+class ApplyBinaryPrimOp(IR):
     @typecheck_method(op=str, l=IR, r=IR)
     def __init__(self, op, l, r):
         super().__init__(l, r)
@@ -365,17 +311,13 @@ class ApplyBinaryOp(IR):
 
     @typecheck_method(l=IR, r=IR)
     def copy(self, l, r):
-        new_instance = self.__class__
-        return new_instance(self.op, l, r)
+        return ApplyBinaryPrimOp(self.op, l, r)
 
-    def render(self, r):
-        return '(ApplyBinaryPrimOp {} {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
+    def head_str(self):
+        return escape_id(self.op)
 
-    def __eq__(self, other):
-        return isinstance(other, ApplyBinaryOp) and \
-               other.op == self.op and \
-               other.l == self.l and \
-               other.r == self.r
+    def _eq(self, other):
+        return other.op == self.op
 
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
@@ -387,9 +329,9 @@ class ApplyBinaryOp(IR):
                 self._type = tfloat32
         else:
             self._type = self.l.typ
-                
 
-class ApplyUnaryOp(IR):
+
+class ApplyUnaryPrimOp(IR):
     @typecheck_method(op=str, x=IR)
     def __init__(self, op, x):
         super().__init__(x)
@@ -398,16 +340,13 @@ class ApplyUnaryOp(IR):
 
     @typecheck_method(x=IR)
     def copy(self, x):
-        new_instance = self.__class__
-        return new_instance(self.op, x)
+        return ApplyUnaryPrimOp(self.op, x)
 
-    def render(self, r):
-        return '(ApplyUnaryPrimOp {} {})'.format(escape_id(self.op), r(self.x))
+    def head_str(self):
+        return escape_id(self.op)
 
-    def __eq__(self, other):
-        return isinstance(other, ApplyUnaryOp) and \
-               other.op == self.op and \
-               other.x == self.x
+    def _eq(self, other):
+        return other.op == self.op
 
     def _compute_type(self, env, agg_env):
         self.x._compute_type(env, agg_env)
@@ -424,17 +363,13 @@ class ApplyComparisonOp(IR):
 
     @typecheck_method(l=IR, r=IR)
     def copy(self, l, r):
-        new_instance = self.__class__
-        return new_instance(self.op, l, r)
+        return ApplyComparisonOp(self.op, l, r)
 
-    def render(self, r):
-        return '(ApplyComparisonOp {} {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
+    def head_str(self):
+        return escape_id(self.op)
 
-    def __eq__(self, other):
-        return isinstance(other, ApplyComparisonOp) and \
-               other.op == self.op and \
-               other.l == self.l and \
-               other.r == self.r
+    def _eq(self, other):
+        return other.op == self.op
 
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
@@ -450,18 +385,13 @@ class MakeArray(IR):
         self._type = type
 
     def copy(self, *args):
-        new_instance = self.__class__
-        return new_instance(list(args), self._type)
+        return MakeArray(args, self._type)
 
-    def render(self, r):
-        return '(MakeArray {} {})'.format(
-            self._type._parsable_string() if self._type is not None else 'None',
-            ' '.join([r(x) for x in self.args]))
+    def head_str(self):
+        return self._type._parsable_string() if self._type is not None else 'None'
 
-    def __eq__(self, other):
-        return isinstance(other, MakeArray) and \
-               other.args == self.args and \
-               other._type == self._type
+    def _eq(self, other):
+        return other._type == self._type
 
     def _compute_type(self, env, agg_env):
         for a in self.args:
@@ -479,16 +409,7 @@ class ArrayRef(IR):
 
     @typecheck_method(a=IR, i=IR)
     def copy(self, a, i):
-        new_instance = self.__class__
-        return new_instance(a, i)
-
-    def render(self, r):
-        return '(ArrayRef {} {})'.format(r(self.a), r(self.i))
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayRef) and \
-               other.a == self.a and \
-               other.i == self.i
+        return ArrayRef(a, i)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -504,19 +425,12 @@ class ArrayLen(IR):
 
     @typecheck_method(a=IR)
     def copy(self, a):
-        new_instance = self.__class__
-        return new_instance(a)
-
-    def render(self, r):
-        return '(ArrayLen {})'.format(r(self.a))
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayLen) and \
-               other.a == self.a
+        return ArrayLen(a)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self._type = tint32
+
 
 class ArrayRange(IR):
     @typecheck_method(start=IR, stop=IR, step=IR)
@@ -528,17 +442,7 @@ class ArrayRange(IR):
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
-        new_instance = self.__class__
-        return new_instance(start, stop, step)
-
-    def render(self, r):
-        return '(ArrayRange {} {} {})'.format(r(self.start), r(self.stop), r(self.step))
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayRange) and \
-               other.start == self.start and \
-               other.stop == self.stop and \
-               other.step == self.step
+        return ArrayRange(start, stop, step)
 
     def _compute_type(self, env, agg_env):
         self.start._compute_type(env, agg_env)
@@ -557,20 +461,7 @@ class MakeNDArray(IR):
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        new_instance = self.__class__
-        return new_instance(data, shape, row_major)
-
-    def render(self, r):
-        return '(MakeNDArray {} {} {})'.format(
-            r(self.data),
-            r(self.shape),
-            r(self.row_major))
-
-    def __eq__(self, other):
-        return isinstance(other, MakeNDArray) and \
-               other.data == self.data and \
-               other.shape == self.shape and \
-               other.row_major == self.row_major
+        return MakeNDArray(data, shape, row_major)
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
@@ -588,16 +479,7 @@ class NDArrayRef(IR):
 
     @typecheck_method(nd=IR, idxs=IR)
     def copy(self, nd, idxs):
-        new_instance = self.__class__
-        return new_instance(nd, idxs)
-
-    def render(self, r):
-        return '(NDArrayRef {} {})'.format(r(self.nd), r(self.idxs))
-
-    def __eq__(self, other):
-        return isinstance(other, NDArrayRef) and \
-               other.nd == self.nd and \
-               other.idxs == self.idxs
+        return NDArrayRef(nd, idxs)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
@@ -616,21 +498,17 @@ class ArraySort(IR):
 
     @typecheck_method(a=IR, compare=IR)
     def copy(self, a, compare):
-        new_instance = self.__class__
-        return new_instance(a, self.l_name, self.r_name, compare)
+        return ArraySort(a, self.l_name, self.r_name, compare)
 
-    def render(self, r):
-        return '(ArraySort {} {} {} {})'.format(self.l_name, self.r_name, r(self.a), r(self.compare))
+    def head_str(self):
+        return f'{escape_id(self.l_name)} {escape_id(self.r_name)}'
 
     @property
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
 
     def __eq__(self, other):
-        return isinstance(other, ArraySort) and \
-               other.a == self.a and \
-               other.compare == self.compare and \
-               other.l_name == self.l_name and other.r_name == self.r_name
+        return other.l_name == self.l_name and other.r_name == self.r_name
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -645,15 +523,7 @@ class ToSet(IR):
 
     @typecheck_method(a=IR)
     def copy(self, a):
-        new_instance = self.__class__
-        return new_instance(a)
-
-    def render(self, r):
-        return '(ToSet {})'.format(r(self.a))
-
-    def __eq__(self, other):
-        return isinstance(other, ToSet) and \
-               other.a == self.a
+        return ToSet(a)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -668,15 +538,7 @@ class ToDict(IR):
 
     @typecheck_method(a=IR)
     def copy(self, a):
-        new_instance = self.__class__
-        return new_instance(a)
-
-    def render(self, r):
-        return '(ToDict {})'.format(r(self.a))
-
-    def __eq__(self, other):
-        return isinstance(other, ToDict) and \
-               other.a == self.a
+        return ToDict(a)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -691,19 +553,12 @@ class ToArray(IR):
 
     @typecheck_method(a=IR)
     def copy(self, a):
-        new_instance = self.__class__
-        return new_instance(a)
-
-    def render(self, r):
-        return '(ToArray {})'.format(r(self.a))
-
-    def __eq__(self, other):
-        return isinstance(other, ToArray) and \
-               other.a == self.a
+        return ToArray(a)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self._type = tarray(self.a.typ.element_type)
+
 
 class LowerBoundOnOrderedCollection(IR):
     @typecheck_method(ordered_collection=IR, elem=IR, on_key=bool)
@@ -715,22 +570,16 @@ class LowerBoundOnOrderedCollection(IR):
 
     @typecheck_method(ordered_collection=IR, elem=IR)
     def copy(self, ordered_collection, elem):
-        new_instance = self.__class__
-        return new_instance(ordered_collection, elem, self.on_key)
+        return LowerBoundOnOrderedCollection(ordered_collection, elem, self.on_key)
 
-    def render(self, r):
-        return '(LowerBoundOnOrderedCollection {} {} {})'.format(self.on_key, r(self.ordered_collection), r(self.elem))
-
-    def __eq__(self, other):
-        return isinstance(other, LowerBoundOnOrderedCollection) and \
-               other.ordered_collection == self.ordered_collection and \
-               other.elem == self.elem and \
-               other.on_key == self.on_key
+    def head_str(self):
+        return self.on_key
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.elem._compute_type(env, agg_env)
         self._type = tint32
+
 
 class GroupByKey(IR):
     @typecheck_method(collection=IR)
@@ -740,20 +589,13 @@ class GroupByKey(IR):
 
     @typecheck_method(collection=IR)
     def copy(self, collection):
-        new_instance = self.__class__
-        return new_instance(collection)
-
-    def render(self, r):
-        return '(GroupByKey {})'.format(r(self.collection))
-
-    def __eq__(self, other):
-        return isinstance(other, GroupByKey) and \
-               other.collection == self.collection
+        return GroupByKey(collection)
 
     def _compute_type(self, env, agg_env):
         self.collection._compute_type(env, agg_env)
         self._type = tdict(self.collection.typ.element_type.types[0],
                            tarray(self.collection.typ.element_type.types[1]))
+
 
 class ArrayMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -765,26 +607,23 @@ class ArrayMap(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        new_instance = self.__class__
-        return new_instance(a, self.name, body)
+        return ArrayMap(a, self.name, body)
 
-    def render(self, r):
-        return '(ArrayMap {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
+    def head_str(self):
+        return escape_id(self.name)
+
+    def _eq(self, other):
+        return self.name == other.name
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def __eq__(self, other):
-        return isinstance(other, ArrayMap) and \
-               other.a == self.a and \
-               other.name == self.name and \
-               other.body == self.body
-
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
         self._type = tarray(self.body.typ)
+
 
 class ArrayFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -796,26 +635,23 @@ class ArrayFilter(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        new_instance = self.__class__
-        return new_instance(a, self.name, body)
+        return ArrayFilter(a, self.name, body)
 
-    def render(self, r):
-        return '(ArrayFilter {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
+    def head_str(self):
+        return escape_id(self.name)
+
+    def _eq(self, other):
+        return self.name == other.name
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
 
-    def __eq__(self, other):
-        return isinstance(other, ArrayFilter) and \
-               other.a == self.a and \
-               other.name == self.name and \
-               other.body == self.body
-
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
         self._type = self.a.typ
+
 
 class ArrayFlatMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -827,21 +663,17 @@ class ArrayFlatMap(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        new_instance = self.__class__
-        return new_instance(a, self.name, body)
+        return ArrayFlatMap(a, self.name, body)
 
-    def render(self, r):
-        return '(ArrayFlatMap {} {} {})'.format(escape_id(self.name), r(self.a), r(self.body))
+    def head_str(self):
+        return escape_id(self.name)
+
+    def _eq(self, other):
+        return self.name == other.name
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayFlatMap) and \
-               other.a == self.a and \
-               other.name == self.name and \
-               other.body == self.body
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -861,25 +693,18 @@ class ArrayFold(IR):
 
     @typecheck_method(a=IR, zero=IR, body=IR)
     def copy(self, a, zero, body):
-        new_instance = self.__class__
-        return new_instance(a, zero, self.accum_name, self.value_name, body)
+        return ArrayFold(a, zero, self.accum_name, self.value_name, body)
 
-    def render(self, r):
-        return '(ArrayFold {} {} {} {} {})'.format(
-            escape_id(self.accum_name), escape_id(self.value_name),
-            r(self.a), r(self.zero), r(self.body))
+    def head_str(self):
+        return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
+
+    def _eq(self, other):
+        return other.accum_name == self.accum_name and \
+               other.value_name == self.value_name
 
     @property
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayFold) and \
-               other.a == self.a and \
-               other.zero == self.zero and \
-               other.accum_name == self.accum_name and \
-               other.value_name == self.value_name and \
-               other.body == self.body
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -891,7 +716,7 @@ class ArrayFold(IR):
             agg_env)
         self._type = self.zero.typ
 
-        
+
 class ArrayScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
@@ -904,25 +729,18 @@ class ArrayScan(IR):
 
     @typecheck_method(a=IR, zero=IR, body=IR)
     def copy(self, a, zero, body):
-        new_instance = self.__class__
-        return new_instance(a, zero, self.accum_name, self.value_name, body)
+        return ArrayScan(a, zero, self.accum_name, self.value_name, body)
 
-    def render(self, r):
-        return '(ArrayScan {} {} {} {} {})'.format(
-            escape_id(self.accum_name), escape_id(self.value_name),
-            r(self.a), r(self.zero), r(self.body))
+    def head_str(self):
+        return f'{escape_id(self.accum_name)} {escape_id(self.value_name)}'
+
+    def _eq(self, other):
+        return other.accum_name == self.accum_name and \
+               other.value_name == self.value_name
 
     @property
     def bound_variables(self):
         return {self.accum_name, self.value_name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayScan) and \
-               other.a == self.a and \
-               other.zero == self.zero and \
-               other.accum_name == self.accum_name and \
-               other.value_name == self.value_name and \
-               other.body == self.body
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -948,26 +766,18 @@ class ArrayLeftJoinDistinct(IR):
 
     @typecheck_method(left=IR, right=IR, compare=IR, join=IR)
     def copy(self, left, right, compare, join):
-        new_instance = self.__class__
-        return new_instance(left, right, self.l_name, self.r_name, compare, join)
+        return ArrayLeftJoinDistinct(left, right, self.l_name, self.r_name, compare, join)
 
-    def render(self, r):
-        return '(ArrayLeftJoinDistinct {} {} {} {} {} {})'.format(
-            escape_id(self.l_name), escape_id(self.r_name),
-            r(self.left), r(self.right), r(self.compare), r(self.join))
+    def head_str(self):
+        return f'{escape_id(self.l_name)} {escape_id(self.r_name)}'
+
+    def _eq(self, other):
+        return other.l_name == self.l_name and \
+               other.r_name == self.r_name
 
     @property
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayLeftJoinDistinct) and \
-               other.left == self.left and \
-               other.right == self.right and \
-               other.l_name == self.l_name and \
-               other.r_name == self.r_name and \
-               other.compare == self.compare and \
-               other.join == self.join
 
 
 class ArrayFor(IR):
@@ -980,21 +790,17 @@ class ArrayFor(IR):
 
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
-        new_instance = self.__class__
-        return new_instance(a, self.value_name, body)
+        return ArrayFor(a, self.value_name, body)
 
-    def render(self, r):
-        return '(ArrayFor {} {} {})'.format(escape_id(self.value_name), r(self.a), r(self.body))
+    def head_str(self):
+        return escape_id(self.value_name)
+
+    def _eq(self, other):
+        return self.value_name == other.value_name
 
     @property
     def bound_variables(self):
         return {self.value_name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, ArrayFor) and \
-               other.a == self.a and \
-               other.value_name == self.value_name and \
-               other.body == self.body
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
@@ -1012,16 +818,13 @@ class AggFilter(IR):
 
     @typecheck_method(cond=IR, agg_ir=IR)
     def copy(self, cond, agg_ir):
-        new_instance = self.__class__
-        return new_instance(cond, agg_ir, self.is_scan)
+        return AggFilter(cond, agg_ir, self.is_scan)
 
-    def render(self, r):
-        return '(AggFilter {} {} {})'.format(self.is_scan, r(self.cond), r(self.agg_ir))
+    def head_str(self):
+        return str(self.is_scan)
 
-    def __eq__(self, other):
-        return isinstance(other, AggFilter) and \
-               other.cond == self.cond and \
-               other.agg_ir == self.agg_ir
+    def _eq(self, other):
+        return self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.cond._compute_type(agg_env, None)
@@ -1040,21 +843,17 @@ class AggExplode(IR):
 
     @typecheck_method(array=IR, agg_body=IR)
     def copy(self, array, agg_body):
-        new_instance = self.__class__
-        return new_instance(array, self.name, agg_body, self.is_scan)
+        return AggExplode(array, self.name, agg_body, self.is_scan)
 
-    def render(self, r):
-        return '(AggExplode {} {} {} {})'.format(escape_id(self.name), self.is_scan, r(self.array), r(self.agg_body))
+    def head_str(self):
+        return f'{escape_id(self.name)} {self.is_scan}'
+
+    def _eq(self, other):
+        return self.name == other.name and self.is_scan == other.is_scan
 
     @property
     def bound_variables(self):
         return {self.name} | super().bound_variables
-
-    def __eq__(self, other):
-        return isinstance(other, AggExplode) and \
-               other.array == self.array and \
-               other.name == self.name and \
-               other.agg_body == self.agg_body
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
@@ -1072,21 +871,19 @@ class AggGroupBy(IR):
 
     @typecheck_method(key=IR, agg_ir=IR)
     def copy(self, key, agg_ir):
-        new_instance = self.__class__
-        return new_instance(key, agg_ir, self.is_scan)
+        return AggGroupBy(key, agg_ir, self.is_scan)
 
-    def render(self, r):
-        return '(AggGroupBy {} {} {})'.format(self.is_scan, r(self.key), r(self.agg_ir))
+    def head_str(self):
+        return str(self.is_scan)
 
-    def __eq__(self, other):
-        return isinstance(other, AggGroupBy) and \
-               other.key == self.key and \
-               other.agg_ir == self.agg_ir
+    def _eq(self, other):
+        return self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.key._compute_type(agg_env, None)
         self.agg_ir._compute_type(env, agg_env)
         self._type = tdict(self.key.typ, self.agg_ir.typ)
+
 
 class AggArrayPerElement(IR):
     @typecheck_method(array=IR, name=str, agg_ir=IR, is_scan=bool)
@@ -1099,17 +896,13 @@ class AggArrayPerElement(IR):
 
     @typecheck_method(array=IR, agg_ir=IR)
     def copy(self, array, agg_ir):
-        new_instance = self.__class__
-        return new_instance(array, self.name, agg_ir, self.is_scan)
+        return AggArrayPerElement(array, self.name, agg_ir, self.is_scan)
 
-    def render(self, r):
-        return '(AggArrayPerElement {} {} {} {})'.format(escape_id(self.name), self.is_scan, r(self.array), r(self.agg_ir))
+    def head_str(self):
+        return f'{escape_id(self.name)} {self.is_scan}'
 
-    def __eq__(self, other):
-        return isinstance(other, AggArrayPerElement) and \
-               other.array == self.array and \
-               other.name == self.name and \
-               other.agg_ir == self.agg_ir
+    def _eq(self, other):
+        return self.name == other.name and self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
@@ -1127,10 +920,13 @@ def _register(registry, name, f):
     else:
         registry[name] = [f]
 
+
 _aggregator_registry = {}
+
 
 def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
     _register(_aggregator_registry, name, (ctor_params, init_params, seq_params, ret_type))
+
 
 def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
     if name in _aggregator_registry:
@@ -1149,12 +945,10 @@ def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
             else:
                 init_match = init_args is None
             if (init_match
-                and all(p.unify(a) for p, a in zip(ctor_params, ctor_args))
-                and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
+                    and all(p.unify(a) for p, a in zip(ctor_params, ctor_args))
+                    and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
                 return ret_type.subst()
     raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
-            
-            
 
 
 class BaseApplyAggOp(IR):
@@ -1179,13 +973,15 @@ class BaseApplyAggOp(IR):
         seq_op_args = args[-n_seq_op_args:]
         return new_instance(self.agg_op, constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args)
 
-    def render(self, r):
-        return '({} {} ({}) {} ({}))'.format(
-            self.__class__.__name__,
-            self.agg_op,
-            ' '.join([r(x) for x in self.constructor_args]),
-            '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None',
-            ' '.join([r(x) for x in self.seq_op_args]))
+    def head_str(self):
+        return f' {self.agg_op} '
+
+    def render_children(self, r):
+        return [
+            ParensRenderer(self.constructor_args),
+            RenderableStr('None') if not self.init_op_args else ParensRenderer(self.init_op_args),
+            ParensRenderer(self.seq_op_args)
+        ]
 
     @property
     def aggregations(self):
@@ -1214,6 +1010,7 @@ class BaseApplyAggOp(IR):
             [a.typ for a in self.init_op_args] if self.init_op_args else None,
             [a.typ for a in self.seq_op_args])
 
+
 class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
                       constructor_args=sequenceof(IR),
@@ -1239,15 +1036,7 @@ class Begin(IR):
         self.xs = xs
 
     def copy(self, *xs):
-        new_instance = self.__class__
-        return new_instance(list(xs))
-
-    def render(self, r):
-        return '(Begin {})'.format(' '.join([r(x) for x in self.xs]))
-
-    def __eq__(self, other):
-        return isinstance(other, Begin) \
-               and other.xs == self.xs
+        return Begin(xs)
 
     def _compute_type(self, env, agg_env):
         for x in self.xs:
@@ -1262,12 +1051,11 @@ class MakeStruct(IR):
         self.fields = fields
 
     def copy(self, *irs):
-        new_instance = self.__class__
         assert len(irs) == len(self.fields)
-        return new_instance([(n, ir) for (n, _), ir in zip(self.fields, irs)])
+        return MakeStruct([(n, ir) for (n, _), ir in zip(self.fields, irs)])
 
-    def render(self, r):
-        return '(MakeStruct {})'.format(' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
+    def render_children(self, r):
+        return [InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields]
 
     def __eq__(self, other):
         return isinstance(other, MakeStruct) \
@@ -1288,16 +1076,13 @@ class SelectFields(IR):
 
     @typecheck_method(old=IR)
     def copy(self, old):
-        new_instance = self.__class__
-        return new_instance(old, self.fields)
+        return SelectFields(old, self.fields)
 
-    def render(self, r):
-        return '(SelectFields ({}) {})'.format(' '.join(map(escape_id, self.fields)), r(self.old))
+    def head_str(self):
+        return '({})'.format(' '.join(map(escape_id, self.fields)))
 
-    def __eq__(self, other):
-        return isinstance(other, SelectFields) and \
-               other.old == self.old and \
-               other.fields == self.fields
+    def _eq(self, other):
+        return self.fields == other.fields
 
     def _compute_type(self, env, agg_env):
         self.old._compute_type(env, agg_env)
@@ -1305,6 +1090,20 @@ class SelectFields(IR):
 
 
 class InsertFields(IR):
+    class IFRenderField(Renderable):
+        def __init__(self, field, child):
+            self.field = field
+            self.child = child
+
+        def render_head(self, r: 'Renderer'):
+            return f'({self.field} '
+
+        def render_tail(self, r: 'Renderer'):
+            return ')'
+
+        def render_children(self, r: 'Renderer'):
+            return [self.child]
+
     @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
     def __init__(self, old, fields, field_order):
         super().__init__(old, *[ir for (f, ir) in fields])
@@ -1313,15 +1112,15 @@ class InsertFields(IR):
         self.field_order = field_order
 
     def copy(self, *args):
-        new_instance = self.__class__
         assert len(args) == len(self.fields) + 1
-        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])], self.field_order)
+        return InsertFields(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])], self.field_order)
 
-    def render(self, r):
-        return '(InsertFields {} {} {})'.format(
+    def render_children(self, r):
+        return [
             self.old,
-            'None' if self.field_order is None else parsable_strings(self.field_order),
-            ' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
+            hail.ir.RenderableStr('None' if self.field_order is None else parsable_strings(self.field_order)),
+            *(InsertFields.IFRenderField(escape_id(f), x) for f, x in self.fields)
+        ]
 
     def __eq__(self, other):
         return isinstance(other, InsertFields) and \
@@ -1347,20 +1146,17 @@ class GetField(IR):
 
     @typecheck_method(o=IR)
     def copy(self, o):
-        new_instance = self.__class__
-        return new_instance(o, self.name)
+        return GetField(o, self.name)
 
-    def render(self, r):
-        return '(GetField {} {})'.format(escape_id(self.name), r(self.o))
+    def head_str(self):
+        return escape_id(self.name)
+
+    def _eq(self, other):
+        return self.name == other.name
 
     @property
     def is_nested_field(self):
         return self.o.is_nested_field
-
-    def __eq__(self, other):
-        return isinstance(other, GetField) and \
-               other.o == self.o and \
-               other.name == self.name
 
     def _compute_type(self, env, agg_env):
         self.o._compute_type(env, agg_env)
@@ -1374,15 +1170,7 @@ class MakeTuple(IR):
         self.elements = elements
 
     def copy(self, *args):
-        new_instance = self.__class__
-        return new_instance(list(args))
-
-    def render(self, r):
-        return '(MakeTuple {})'.format(' '.join([r(x) for x in self.elements]))
-
-    def __eq__(self, other):
-        return isinstance(other, MakeTuple) and \
-               other.elements == self.elements
+        return MakeTuple(args)
 
     def _compute_type(self, env, agg_env):
         for x in self.elements:
@@ -1399,21 +1187,17 @@ class GetTupleElement(IR):
 
     @typecheck_method(o=IR)
     def copy(self, o):
-        new_instance = self.__class__
-        return new_instance(o, self.idx)
+        return GetTupleElement(o, self.idx)
 
-    def render(self, r):
-        return '(GetTupleElement {} {})'.format(self.idx, r(self.o))
+    def head_str(self):
+        return self.idx
 
-    def __eq__(self, other):
-        return isinstance(other, GetTupleElement) and \
-               other.o == self.o and \
-               other.idx == self.idx
+    def _eq(self, other):
+        return self.idx == other.idx
 
     def _compute_type(self, env, agg_env):
         self.o._compute_type(env, agg_env)
         self._type = self.o.typ.types[self.idx]
-
 
 class In(IR):
     @typecheck_method(i=int, typ=hail_type)
@@ -1427,15 +1211,13 @@ class In(IR):
         return self._typ
 
     def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.i, self._typ)
+        return In(self.i, self._typ)
 
-    def render(self, r):
-        return '(In {} {})'.format(self._typ._parsable_string(), self.i)
+    def head_str(self):
+        return f'{self._typ._parsable_string()} {self.i}'
 
-    def __eq__(self, other):
-        return isinstance(other, In) and \
-               other.i == self.i and \
+    def _eq(self, other):
+        return other.i == self.i and \
                other._typ == self._typ
 
     def _compute_type(self, env, agg_env):
@@ -1445,7 +1227,7 @@ class In(IR):
 class Die(IR):
     @typecheck_method(message=IR, typ=hail_type)
     def __init__(self, message, typ):
-        super().__init__()
+        super().__init__(message)
         self.message = message
         self._typ = typ
 
@@ -1453,17 +1235,14 @@ class Die(IR):
     def typ(self):
         return self._typ
 
-    def copy(self):
-        new_instance = self.__class__
-        return new_instance(self.message, self._typ)
+    def copy(self, message):
+        return Die(message, self._typ)
 
-    def render(self, r):
-        return '(Die {} {})'.format(self._typ._parsable_string(), r(self.message))
+    def head_str(self):
+        return self._typ._parsable_string()
 
-    def __eq__(self, other):
-        return isinstance(other, Die) and \
-               other.message == self.message and \
-               other._typ == self._typ
+    def _eq(self, other):
+        return other._typ == self._typ
 
     def _compute_type(self, env, agg_env):
         self._type = self._typ
@@ -1472,11 +1251,14 @@ class Die(IR):
 _function_registry = {}
 _seeded_function_registry = {}
 
+
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
 
+
 def register_seeded_function(name, param_types, ret_type):
     _register(_seeded_function_registry, name, (param_types, ret_type))
+
 
 def _lookup_function_return_type(registry, fkind, name, arg_types):
     if name in registry:
@@ -1490,8 +1272,10 @@ def _lookup_function_return_type(registry, fkind, name, arg_types):
                 return ret_type.subst()
     raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
 
+
 def lookup_function_return_type(name, arg_types):
     return _lookup_function_return_type(_function_registry, 'function', name, arg_types)
+
 
 def lookup_seeded_function_return_type(name, arg_types):
     return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
@@ -1505,16 +1289,13 @@ class Apply(IR):
         self.args = args
 
     def copy(self, *args):
-        new_instance = self.__class__
-        return new_instance(self.function, *args)
+        return Apply(self.function, *args)
 
-    def render(self, r):
-        return '(Apply {} {})'.format(escape_id(self.function), ' '.join([r(x) for x in self.args]))
+    def head_str(self):
+        return escape_id(self.function)
 
-    def __eq__(self, other):
-        return isinstance(other, Apply) and \
-               other.function == self.function and \
-               other.args == self.args
+    def _eq(self, other):
+        return other.function == self.function
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
@@ -1532,19 +1313,14 @@ class ApplySeeded(IR):
         self.seed = seed
 
     def copy(self, *args):
-        new_instance = self.__class__
-        return new_instance(self.function, self.seed, *args)
+        return ApplySeeded(self.function, self.seed, *args)
 
-    def render(self, r):
-        return '(ApplySeeded {} {} {})'.format(
-            escape_id(self.function),
-            self.seed,
-            ' '.join([r(x) for x in self.args]))
+    def head_str(self):
+        return f'{escape_id(self.function)} {self.seed}'
 
-    def __eq__(self, other):
-        return isinstance(other, Apply) and \
-               other.function == self.function and \
-               other.args == self.args
+    def _eq(self, other):
+        return other.function == self.function and \
+               other.seed == self.seed
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
@@ -1564,23 +1340,17 @@ class Uniroot(IR):
 
     @typecheck_method(function=IR, min=IR, max=IR)
     def copy(self, function, min, max):
-        new_instance = self.__class__
-        return new_instance(self.argname, function, min, max)
+        return Uniroot(self.argname, function, min, max)
 
-    def render(self, r):
-        return '(Uniroot {} {} {} {})'.format(
-            escape_id(self.argname), r(self.function), r(self.min), r(self.max))
+    def head_str(self):
+        return escape_id(self.argname)
 
     @property
     def bound_variables(self):
         return {self.argname} | super().bound_variables
 
-    def __eq__(self, other):
-        return isinstance(other, Uniroot) and \
-               other.argname == self.argname and \
-               other.function == self.function and \
-               other.min == self.min and \
-               other.max == self.max
+    def _eq(self, other):
+        return other.argname == self.argname
 
     def _compute_type(self, env, agg_env):
         self.function._compute_type(_env_bind(env, self.argname, tfloat64), agg_env)
@@ -1597,15 +1367,7 @@ class TableCount(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child)
-
-    def render(self, r):
-        return '(TableCount {})'.format(r(self.child))
-
-    def __eq__(self, other):
-        return isinstance(other, TableCount) and \
-               other.child == self.child
+        return TableCount(child)
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1620,19 +1382,12 @@ class TableGetGlobals(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child)
-
-    def render(self, r):
-        return '(TableGetGlobals {})'.format(r(self.child))
-
-    def __eq__(self, other):
-        return isinstance(other, TableGetGlobals) and \
-               other.child == self.child
+        return TableGetGlobals(child)
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
         self._type = self.child.typ.global_type
+
 
 class TableCollect(IR):
     @typecheck_method(child=TableIR)
@@ -1642,15 +1397,7 @@ class TableCollect(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child)
-
-    def render(self, r):
-        return '(TableCollect {})'.format(r(self.child))
-
-    def __eq__(self, other):
-        return isinstance(other, TableCollect) and \
-               other.child == self.child
+        return TableCollect(child)
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1667,16 +1414,7 @@ class TableAggregate(IR):
 
     @typecheck_method(child=TableIR, query=IR)
     def copy(self, child, query):
-        new_instance = self.__class__
-        return new_instance(child, query)
-
-    def render(self, r):
-        return '(TableAggregate {} {})'.format(r(self.child), r(self.query))
-
-    def __eq__(self, other):
-        return isinstance(other, TableAggregate) and \
-               other.child == self.child and \
-               other.query == self.query
+        return TableAggregate(child, query)
 
     def _compute_type(self, env, agg_env):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
@@ -1692,11 +1430,7 @@ class MatrixAggregate(IR):
 
     @typecheck_method(child=MatrixIR, query=IR)
     def copy(self, child, query):
-        new_instance = self.__class__
-        return new_instance(child, query)
-
-    def render(self, r):
-        return '(MatrixAggregate {} {})'.format(r(self.child), r(self.query))
+        return MatrixAggregate(child, query)
 
     def __eq__(self, other):
         return isinstance(other, MatrixAggregate) and \
@@ -1720,18 +1454,15 @@ class TableWrite(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
+        return TableWrite(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
 
-    def render(self, r):
-        return '(TableWrite "{}" {} {} {} {})'.format(escape_str(self.path), self.overwrite, self.stage_locally,
-                                                      "\"" + escape_str(self._codec_spec) + "\"" if self._codec_spec else "None",
-                                                        r(self.child))
+    def head_str(self):
+        return '"{}" {} {} {}'.format(escape_str(self.path), self.overwrite, self.stage_locally,
+                                      "\"" + escape_str(
+                                          self._codec_spec) + "\"" if self._codec_spec else "None")
 
-    def __eq__(self, other):
-        return isinstance(other, TableWrite) and \
-               other.child == self.child and \
-               other.path == self.path and \
+    def _eq(self, other):
+        return other.path == self.path and \
                other.overwrite == self.overwrite and \
                other.stage_locally == self.stage_locally and \
                other._codec_spec == self._codec_spec
@@ -1759,23 +1490,19 @@ class TableExport(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
+        return TableExport(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
-    def render(self, r):
-        return '(TableExport "{}" {} {} {} "{}" {})'.format(
+    def head_str(self):
+        return '"{}" {} {} {} "{}"'.format(
             escape_str(self.path),
             f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
             self.export_type,
             escape_str(self.delimiter),
-            r(self.child)
         )
 
-    def __eq__(self, other):
-        return isinstance(other, TableExport) and \
-               other.child == self.child and \
-               other.path == self.path and \
+    def _eq(self, other):
+        return other.path == self.path and \
                other.types_file == self.types_file and \
                other.header == self.header and \
                other.export_type == self.export_type and \
@@ -1795,18 +1522,13 @@ class MatrixWrite(IR):
 
     @typecheck_method(child=MatrixIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.matrix_writer)
+        return MatrixWrite(child, self.matrix_writer)
 
-    def render(self, r):
-        return '(MatrixWrite "{}" {})'.format(
-            r(self.matrix_writer),
-            r(self.child))
+    def head_str(self):
+        return f'"{self.matrix_writer.render()}"'
 
-    def __eq__(self, other):
-        return isinstance(other, MatrixWrite) and \
-               other.child == self.child and \
-               other.matrix_writer == self.matrix_writer
+    def _eq(self, other):
+        return other.matrix_writer == self.matrix_writer
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1820,18 +1542,13 @@ class MatrixMultiWrite(IR):
         self.writer = writer
 
     def copy(self, *children):
-        new_instance = self.__class__
-        return new_instance(list(children), self.writer)
+        return MatrixMultiWrite(children, self.writer)
 
-    def render(self, r):
-        return '(MatrixMultiWrite "{}" {})'.format(
-            r(self.writer),
-            ' '.join(map(r, self.children)))
+    def head_str(self):
+        return f'"{self.writer.render()}"'
 
-    def __eq__(self, other):
-        return isinstance(other, MatrixMultiWrite) and \
-               other.children == self.children and \
-               other.writer == self.writer
+    def _eq(self, other):
+        return other.writer == self.writer
 
     def _compute_type(self, env, agg_env):
         for x in self.children:
@@ -1847,16 +1564,13 @@ class BlockMatrixWrite(IR):
         self.writer = writer
 
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.writer)
+        return BlockMatrixWrite(child, self.writer)
 
-    def render(self, r):
-        return f'(BlockMatrixWrite "{r(self.writer)}" {r(self.child)})'
+    def head_str(self):
+        return f'"{self.writer.render()}"'
 
-    def __eq__(self, other):
-        return isinstance(other, BlockMatrixWrite) and \
-               other.child == self.child and \
-               other.writer == self.writer
+    def _eq(self, other):
+        return self.writer == other.writer
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1871,14 +1585,13 @@ class TableToValueApply(IR):
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.config)
+        return TableToValueApply(child, self.config)
 
-    def render(self, r):
-        return f'(TableToValueApply {dump_json(self.config)} {r(self.child)})'
+    def head_str(self):
+        return dump_json(self.config)
 
-    def __eq__(self, other):
-        return isinstance(other, TableToValueApply) and other.child == self.child and other.config == self.config
+    def _eq(self, other):
+        return other.config == self.config
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
@@ -1897,14 +1610,13 @@ class MatrixToValueApply(IR):
 
     @typecheck_method(child=MatrixIR)
     def copy(self, child):
-        new_instance = self.__class__
-        return new_instance(child, self.config)
+        return MatrixToValueApply(child, self.config)
 
-    def render(self, r):
-        return f'(MatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+    def head_str(self):
+        return dump_json(self.config)
 
-    def __eq__(self, other):
-        return isinstance(other, MatrixToValueApply) and other.child == self.child and other.config == self.config
+    def _eq(self, other):
+        return other.config == self.config
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
@@ -1921,7 +1633,7 @@ class MatrixToValueApply(IR):
 
 class BlockMatrixToValueApply(IR):
     def __init__(self, child, config):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.config = config
 
@@ -1930,11 +1642,11 @@ class BlockMatrixToValueApply(IR):
         new_instance = self.__class__
         return new_instance(child, self.config)
 
-    def render(self, r):
-        return f'(BlockMatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+    def head_str(self):
+        return dump_json(self.config)
 
-    def __eq__(self, other):
-        return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
+    def _eq(self, other):
+        return other.config == self.config
 
     def _compute_type(self, env, agg_env):
         assert self.config['name'] == 'GetElement'
@@ -1952,13 +1664,11 @@ class Literal(IR):
     def copy(self):
         return Literal(self._typ, self.value)
 
-    def render(self, r):
-        return f'(Literal {self._typ._parsable_string()} ' \
-               f'"{escape_str(self._typ._to_json(self.value))}")'
+    def head_str(self):
+        return f'{self._typ._parsable_string()} {dump_json(self._typ._convert_to_json_na(self.value))}'
 
-    def __eq__(self, other):
-        return isinstance(other, Literal) and \
-               other._typ == self._typ and \
+    def _eq(self, other):
+        return other._typ == self._typ and \
                other.value == self.value
 
     def _compute_type(self, env, agg_env):
@@ -1982,6 +1692,7 @@ class Join(IR):
         Join._idx += 1
 
     def copy(self, virtual_ir):
+        # FIXME: This is pretty fucked, Joins should probably be tracked on Expression?
         new_instance = self.__class__
         new_instance = new_instance(virtual_ir,
                                     self.temp_vars,
@@ -1997,8 +1708,14 @@ class Join(IR):
         matches += super(Join, self).search(criteria)
         return matches
 
-    def render(self, r):
-        return r(self.virtual_ir)
+    def render_head(self, r):
+        return self.virtual_ir.render_head(r)
+
+    def render_tail(self, r):
+        return self.virtual_ir.render_tail(r)
+
+    def render_children(self, r):
+        return self.virtual_ir.render_children(r)
 
     def _compute_type(self, env, agg_env):
         self.virtual_ir._compute_type(env, agg_env)
@@ -2011,8 +1728,14 @@ class JavaIR(IR):
         self._jir = jir
         super().__init__()
 
-    def render(self, r):
-        return f'(JavaIR {r.add_jir(self._jir)})'
+    def copy(self):
+        return JavaIR(self._jir)
+
+    def render_head(self, r):
+        return f'(JavaIR{r.add_jir(self._jir)}'
+
+    def _eq(self, other):
+        return self._jir == other._jir
 
     def _compute_type(self, env, agg_env):
         self._type = dtype(self._jir.typ().toString())
@@ -2077,7 +1800,8 @@ def subst(ir, env, agg_env):
                           ir.is_scan)
     elif isinstance(ir, ApplyAggOp):
         subst_constr_args = [x.map_ir(lambda x: _subst(x)) for x in ir.constructor_args]
-        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args] if ir.init_op_args else ir.init_op_args
+        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in
+                              ir.init_op_args] if ir.init_op_args else ir.init_op_args
         subst_seq_op_args = [subst(x, agg_env, {}) for x in ir.seq_op_args]
         return ApplyAggOp(ir.agg_op,
                           subst_constr_args,
