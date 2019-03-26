@@ -57,7 +57,7 @@ object Streamify {
     case If(cond, cnsq, altr) =>
       If(cond, unstreamify(cnsq), unstreamify(altr))
     case Let(n, v, b) =>
-      Let(n, v, unstreamify(streamableNode))
+      Let(n, v, unstreamify(b))
     case _ =>
       streamify(streamableNode) match {
         case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
