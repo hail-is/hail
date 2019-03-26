@@ -688,6 +688,8 @@ class Tests(unittest.TestCase):
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
+    def test_min_partitions(self):
+        assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
