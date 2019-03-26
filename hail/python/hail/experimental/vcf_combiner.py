@@ -20,6 +20,7 @@ def unlocalize(mt):
         return mt._unlocalize_entries('__entries', '__cols', ['s'])
     return mt
 
+# vardp_outlier is needed due to a mistake in generating gVCFs
 def transform_one(mt, vardp_outlier=100_000) -> Table:
     """transforms a gvcf into a form suitable for combining
 
@@ -41,8 +42,6 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
                     __entries=row.__entries.map(
                         lambda e:
                         hl.struct(
-                            BaseQRankSum=row.info.BaseQRankSum,
-                            ClippingRankSum=row.info.ClippingRankSum,
                             DP=e.DP,
                             END=row.info.END,
                             GQ=e.GQ,
@@ -58,20 +57,26 @@ def transform_one(mt, vardp_outlier=100_000) -> Table:
                                                 e.PL,
                                                 hl.null(e.PL.dtype))),
                             MIN_DP=e.MIN_DP,
-                            MQ=row.info.MQ,
-                            MQRankSum=row.info.MQRankSum,
-                            MQ_DP=row.info.MQ_DP,
-                            QUALapprox=row.info.QUALapprox,
                             PID=e.PID,
-                            RAW_MQ=row.info.RAW_MQ,
                             RGQ=hl.cond(
                                 has_non_ref,
                                 e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
                                 hl.null(e.PL.dtype.element_type)),
-                            ReadPosRankSum=row.info.ReadPosRankSum,
                             SB=e.SB,
-                            VarDP=hl.cond(row.info.VarDP > vardp_outlier,
-                                          row.info.DP, row.info.VarDP),
+                            gvcf_info=hl.case()
+                                .when(hl.is_missing(row.info.END),
+                                      hl.struct(
+                                          ClippingRankSum=row.info.ClippingRankSum,
+                                          BaseQRankSum=row.info.BaseQRankSum,
+                                          MQ=row.info.MQ,
+                                          MQRankSum=row.info.MQRankSum,
+                                          MQ_DP=row.info.MQ_DP,
+                                          QUALapprox=row.info.QUALapprox,
+                                          RAW_MQ=row.info.RAW_MQ,
+                                          ReadPosRankSum=row.info.ReadPosRankSum,
+                                          VarDP=hl.cond(row.info.VarDP > vardp_outlier,
+                                                        row.info.DP, row.info.VarDP)))
+                                .or_missing()
                         ))),
             ),
             mt.row.dtype)
@@ -161,10 +166,10 @@ def quick_summary(mt):
     """compute aggregate INFO fields that do not require densify"""
     return mt.annotate_rows(
         info=hl.struct(
-            MQ_DP=hl.agg.sum(mt.entry.MQ_DP),
-            QUALapprox=hl.agg.sum(mt.entry.QUALapprox),
-            RAW_MQ=hl.agg.sum(mt.entry.RAW_MQ),
-            VarDP=hl.agg.sum(mt.entry.VarDP),
+            MQ_DP=hl.agg.sum(mt.entry.gvcf_info.MQ_DP),
+            QUALapprox=hl.agg.sum(mt.entry.gvcf_info.QUALapprox),
+            RAW_MQ=hl.agg.sum(mt.entry.gvcf_info.RAW_MQ),
+            VarDP=hl.agg.sum(mt.entry.gvcf_info.VarDP),
             SB_TABLE=hl.array([
                 hl.agg.sum(mt.entry.SB[0]),
                 hl.agg.sum(mt.entry.SB[1]),
@@ -192,15 +197,15 @@ def summarize(mt):
             AC=gs.AC[1:],  # The VCF spec indicates that AC and AF have Number=A, so we need
             AF=gs.AF[1:],  # to drop the first element from each of these.
             AN=gs.AN,
-            BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
-            ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
+            BaseQRankSum=hl.median(hl.agg.collect(mt.entry.gvcf_info.BaseQRankSum)),
+            ClippingRankSum=hl.median(hl.agg.collect(mt.entry.gvcf_info.ClippingRankSum)),
             DP=hl.agg.sum(mt.entry.DP),
-            MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
-            MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+            MQ=hl.median(hl.agg.collect(mt.entry.gvcf_info.MQ)),
+            MQRankSum=hl.median(hl.agg.collect(mt.entry.gvcf_info.MQRankSum)),
             MQ_DP=mt.info.MQ_DP,
             QUALapprox=mt.info.QUALapprox,
             RAW_MQ=mt.info.RAW_MQ,
-            ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
+            ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.gvcf_info.ReadPosRankSum)),
             SB_TABLE=mt.info.SB_TABLE,
             VarDP=mt.info.VarDP,
         )))
@@ -213,8 +218,7 @@ def finalize(mt):
     You will not be able to run :func:`.combine_gvcfs` with the output of this
     function.
     """
-    return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum',
-                   'MQ_DP', 'QUALapprox', 'RAW_MQ', 'VarDP', 'SB')
+    return mt.drop('gvcf_info')
 
 def reannotate(mt, gatk_ht, summ_ht):
     """Re-annotate a sparse MT with annotations from certain GATK tools
@@ -343,7 +347,7 @@ def reannotate(mt, gatk_ht, summ_ht):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2019-03-22, the schema returned by the combiner is as follows:
+# As of 2019-03-25, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -357,8 +361,6 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'rsid': str
 # ----------------------------------------
 # Entry fields:
-#     'BaseQRankSum': float64
-#     'ClippingRankSum': float64
 #     'DP': int32
 #     'END': int32
 #     'GQ': int32
@@ -368,16 +370,20 @@ def reannotate(mt, gatk_ht, summ_ht):
 #     'LPGT': call
 #     'LPL': array<int32>
 #     'MIN_DP': int32
-#     'MQ': float64
-#     'MQRankSum': float64
-#     'MQ_DP': int32
-#     'QUALapprox': int32
 #     'PID': str
-#     'RAW_MQ': float64
 #     'RGQ': int32
-#     'ReadPosRankSum': float64
 #     'SB': array<int32>
-#     'VarDP': int32
+#     'gvcf_info': struct {
+#         ClippingRankSum: float64,
+#         BaseQRankSum: float64,
+#         MQ: float64,
+#         MQRankSum: float64,
+#         MQ_DP: int32,
+#         QUALapprox: int32,
+#         RAW_MQ: float64,
+#         ReadPosRankSum: float64,
+#         VarDP: int32
+#     }
 # ----------------------------------------
 # Column key: ['s']
 # Row key: ['locus']
