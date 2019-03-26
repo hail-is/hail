@@ -43,7 +43,7 @@ class TextTableReader(TableReader):
             'missing': missing,
             'noHeader': no_header,
             'impute': impute,
-            'nPartitions': min_partitions,
+            'nPartitionsOpt': min_partitions,
             'quoteStr': quote,
             'skipBlankLines': skip_blank_lines,
             'forceBGZ': force_bgz,
