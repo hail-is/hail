@@ -742,7 +742,7 @@ def joint_plot(
         for factor_col in factor_cols:
             factor_colors = colors.get(factor_col, _get_categorical_palette(list(set(source_pd[factor_col]))))
             factor_colors = dict(zip(factor_colors.factors, factor_colors.palette))
-            density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df[axis], density=True))
+            density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df['x' if x_axis else 'y'], density=True))
             for factor, (dens, edges) in density_data.iteritems():
                 edges = edges[:-1]
                 xy = (edges, dens) if x_axis else (dens, edges)
