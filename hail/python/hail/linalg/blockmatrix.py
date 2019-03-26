@@ -2068,12 +2068,13 @@ class BlockMatrix(object):
         n_cols = max(rects, key=lambda r: r[4])[4]
 
         nd = np.zeros(shape=(n_rows, n_cols))
+        f = new_local_temp_file()
         for rect, file_path in zip(rects, rect_files):
-            with hl.utils.hadoop_open(file_path, 'rb') as f:
-                if binary:
-                    rect_data = np.reshape(np.frombuffer(f.read()), (rect[2]-rect[1], rect[4]-rect[3]))
-                else:
-                    rect_data = np.loadtxt(f, ndmin=2)
+            hl.utils.hadoop_copy(file_path, f)
+            if binary:
+                rect_data = np.reshape(np.fromfile(f), (rect[2]-rect[1], rect[4]-rect[3]))
+            else:
+                rect_data = np.loadtxt(f, ndmin=2)
             nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
 
         return nd
