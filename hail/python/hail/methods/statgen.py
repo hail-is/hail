@@ -1497,14 +1497,13 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         'entryField': field,
         'k': k,
         'computeLoadings': compute_loadings
-    }))
-         .cache())
+    })).persist())
 
     g = t.index_globals()
     scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
     if not compute_loadings:
         t = None
-    return hl.eval(g.eigenvalues), scores, t
+    return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
 @typecheck(call_expr=expr_call,
