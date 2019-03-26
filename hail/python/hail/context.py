@@ -182,7 +182,7 @@ class HailContext(object):
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
-         min_block_size=1, branching_factor=50, tmp_dir='/tmp',
+         min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379, _backend=None):
     """Initialize Hail and Spark.
