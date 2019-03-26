@@ -10,7 +10,7 @@ set -e
 
 COMPUTE_ENGINE_SERVICE_ACCOUNT=$(gcloud iam service-accounts list \
                                      | grep -e 'Compute Engine default service account' \
-                                     | sed 's:Compute Engine default service account[ ]*::')
+                                     | sed 's:Compute Engine default service account[ ]*::' | awk '{print $1}')
 
 mkdir -p ${HOME}/.hail/gcs-keys/
 
