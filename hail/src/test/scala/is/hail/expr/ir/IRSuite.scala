@@ -968,7 +968,7 @@ class IRSuite extends SparkSuite {
       shape, False())
     def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
     def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
+    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
     assertEvalsTo(one, 1L)
     assertEvalsTo(zero, 0L)
   }
