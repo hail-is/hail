@@ -879,7 +879,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until childTyp.nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             assert(idxVars.length == childTyp.nDims)
-            val index = idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $nd.strides[$dim]" }.mkString(" + ")
+            val index = foldWithStrides(idxVars, s"$nd.strides")
             s"""
                |({
                | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
@@ -900,6 +900,67 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ nd.define }
              | ${ elemRef.define }
+             |
+             | ${ emitter.emit() };
+             |})
+           """.stripMargin)
+
+      case ir.NDArrayMap2(lChild, rChild, lName, rName, body) =>
+        val lType = lChild.pType.asInstanceOf[PNDArray]
+        val lElemType = lType.elementType
+        val cxxLElemType = typeToCXXType(lElemType)
+        val rElemType = rChild.pType.asInstanceOf[PNDArray].elementType
+        val cxxRElemType = typeToCXXType(rElemType)
+
+        val lRef = fb.variable("lRef", cxxLElemType)
+        val rRef = fb.variable("rRef", cxxRElemType)
+        val bodyt = outer.emit(body,
+          env.bind(
+            (lName, EmitTriplet(lElemType, "", "false", lRef.toString, resultRegion)),
+            (rName, EmitTriplet(rElemType, "", "false", rRef.toString, resultRegion))))
+        val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
+
+        val lt = emit(lChild)
+        val rt = emit(rChild)
+        val l = fb.variable("l", "NDArray", lt.v)
+        val r = fb.variable("r", "NDArray", rt.v)
+
+        val rowMajor = fb.variable("rowMajor", "long", s"$l.flags")
+        val shape = fb.variable("shape", "std::vector<long>", s"$l.shape")
+
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until lType.nDims) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val lIndex = foldWithStrides(idxVars, s"$l.strides")
+            val rIndex = foldWithStrides(idxVars, s"$r.strides")
+
+            s"""
+               |({
+               | $lRef = load_element<$cxxLElemType>(load_index($l, $lIndex));
+               | $rRef = load_element<$cxxRElemType>(load_index($r, $rIndex));
+               |
+               | ${ bodyt.setup }
+               | if (${ bodyt.m }) {
+               |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
+               | }
+               |
+               | ${ bodyt.v };
+               |})
+             """.stripMargin
+          }
+        }
+
+        present(
+          s"""
+             |({
+             | ${ l.define }
+             | ${ r.define }
+             |
+             | if ($l.shape != $r.shape) {
+             |   ${ fb.nativeError("Cannot Map2 with NDArrays of different shape") }
+             | }
+             |
+             | ${ lRef.define }
+             | ${ rRef.define }
              |
              | ${ emitter.emit() };
              |})

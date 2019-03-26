@@ -620,6 +620,13 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val body = ir_value_expr(env)(it)
         NDArrayMap(nd, name, body)
+      case "NDArrayMap2" =>
+        val lName = identifier(it)
+        val rName = identifier(it)
+        val l = ir_value_expr(env)(it)
+        val r = ir_value_expr(env)(it)
+        val body = ir_value_expr(env)(it)
+        NDArrayMap2(l, r, lName, rName, body)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)

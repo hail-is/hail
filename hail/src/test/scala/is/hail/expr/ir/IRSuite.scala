@@ -919,29 +919,29 @@ class IRSuite extends SparkSuite {
       NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
     }
 
-    def scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
-    def scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
+    val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
+    val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
     assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
 
-    def vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
-    def vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
+    val vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
+    val vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
     assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(1)), -1.0)
     assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(1)), -1.0)
 
-    def threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
-    def threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
-    def sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
-    def sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
+    val threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
+    val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
+    val sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
+    val sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
     assertEvalsTo(sevenRowMajor, 7.0)
     assertEvalsTo(sevenColMajor, 7.0)
 
-    def cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
-    def cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
-    def centerRowMajor = makeNDArrayRef(cubeRowMajor, FastSeq(1, 1, 1))
-    def centerColMajor = makeNDArrayRef(cubeColMajor, FastSeq(1, 1, 1))
+    val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
+    val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
+    val centerRowMajor = makeNDArrayRef(cubeRowMajor, FastSeq(1, 1, 1))
+    val centerColMajor = makeNDArrayRef(cubeColMajor, FastSeq(1, 1, 1))
     assertEvalsTo(centerRowMajor, 13.0)
     assertEvalsTo(centerColMajor, 13.0)
   }
@@ -953,24 +953,43 @@ class IRSuite extends SparkSuite {
     val shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
     val nDim = 2
 
-    def positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
-    def negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
+    val positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
     assertEvalsTo(NDArrayRef(positives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
     assertEvalsTo(NDArrayRef(negatives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
 
-    def trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
-    def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
+    val trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
     assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
     assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
 
-    def bools = MakeNDArray(nDim,
+    val bools = MakeNDArray(nDim,
       MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
       shape, False())
-    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
-    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
+    val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+    val one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    val zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
     assertEvalsTo(one, 1L)
     assertEvalsTo(zero, 0L)
+  }
+
+  @Test def testNDArrayMap2() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val shape = MakeArray(FastSeq(2L, 2L).map(I64), TArray(TInt64()))
+    val numbers = MakeNDArray(2,
+      MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())),
+      shape, True())
+    val bools = MakeNDArray(2,
+      MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())),
+      shape, True())
+
+    val numsPlusLengths = NDArrayMap2(numbers, bools, "n", "b",
+      ApplyBinaryPrimOp(Add(), Ref("n", TFloat64()), If(Ref("b", TBoolean()), F64(10), F64(20))))
+    val ten = NDArrayRef(numsPlusLengths, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    val twentyTwo = NDArrayRef(numsPlusLengths, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
+    assertEvalsTo(ten, 10.0)
+    assertEvalsTo(twentyTwo, 22.0)
   }
 
   @Test def testLeftJoinRightDistinct() {
