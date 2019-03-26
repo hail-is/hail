@@ -1,22 +1,16 @@
+from collections import Counter
+
+import itertools
 import pandas
 import pyspark
-import warnings
-
 from typing import *
 
-import hail as hl
 from hail.expr.expressions import *
-from hail.expr.types import *
 from hail.expr.table_type import *
-from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
-from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
-
-from collections import OrderedDict, Counter
-import itertools
 
 table_type = lazy()
 
@@ -25,6 +19,12 @@ class Ascending(object):
     def __init__(self, col):
         self.col = col
 
+    def __eq__(self, other):
+        return isinstance(other, Ascending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
+
     def _j_obj(self):
         return scala_package_object(Env.hail().table).asc(self.col)
 
@@ -32,6 +32,12 @@ class Ascending(object):
 class Descending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Descending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).desc(self.col)

@@ -7,7 +7,7 @@ from ..utils.java import escape_str
 
 class BlockMatrixReader(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -20,7 +20,7 @@ class BlockMatrixNativeReader(BlockMatrixReader):
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'BlockMatrixNativeReader',
                   'path': self.path}
         return escape_str(json.dumps(reader))
@@ -37,7 +37,7 @@ class BlockMatrixBinaryReader(BlockMatrixReader):
         self.shape = shape
         self.block_size = block_size
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'BlockMatrixBinaryReader',
                   'path': self.path,
                   'shape': self.shape,

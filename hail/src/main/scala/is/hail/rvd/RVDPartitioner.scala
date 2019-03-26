@@ -106,11 +106,15 @@ class RVDPartitioner(
     rangeBounds.map(_.coarsen(newKeyLen))
 
   def coarsen(newKeyLen: Int): RVDPartitioner = {
-    assert(newKeyLen <= kType.size)
-    new RVDPartitioner(
-      kType.truncate(newKeyLen),
-      coarsenedRangeBounds(newKeyLen),
-      math.min(allowedOverlap, newKeyLen))
+    if (newKeyLen == kType.size)
+      this
+    else {
+      assert(newKeyLen < kType.size)
+      new RVDPartitioner(
+        kType.truncate(newKeyLen),
+        coarsenedRangeBounds(newKeyLen),
+        math.min(allowedOverlap, newKeyLen))
+    }
   }
 
   def strictify: RVDPartitioner = extendKey(kType)

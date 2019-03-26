@@ -33,7 +33,7 @@ This is the list of things you need to do to add a new IR node.
 
  - Support it in Children and Copy
 
- - Implement it in Interpret
+ - Implement it in Interpret or add it to Interpretable as false
 
  - Implement it in Emit (the compiler) or add it to Compilable as false
 

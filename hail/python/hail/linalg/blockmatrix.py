@@ -1,23 +1,24 @@
-import numpy as np
-import scipy.linalg as spla
-import itertools
 import os
+
+import itertools
+import numpy as np
 import re
+import scipy.linalg as spla
 
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr
-from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
-    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
+from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
+from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
+    BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
+    ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
+from hail.table import Table
+from hail.typecheck import *
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
-from hail.typecheck import *
-from hail.table import Table
-from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 
 block_matrix_type = lazy()
 
@@ -1236,14 +1237,14 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map(ApplyUnaryOp('-', Ref('element')))
+        return self._apply_map(ApplyUnaryPrimOp('-', Ref('element')))
 
     def _unary_func_ir(self, hail_func):
         return hail_func(construct_expr(Ref('element'), self.element_type))._ir
 
     @staticmethod
     def _binary_op_ir(op):
-        return ApplyBinaryOp(op, Ref('l'), Ref('r'))
+        return ApplyBinaryPrimOp(op, Ref('l'), Ref('r'))
 
     @typecheck_method(f=IR)
     def _apply_map(self, f):

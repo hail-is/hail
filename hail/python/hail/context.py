@@ -398,3 +398,7 @@ def _set_flags(**flags):
     if len(invalid) != 0:
         raise FatalError("Flags {} not valid. Valid flags: \n    {}"
                          .format(', '.join(invalid), '\n    '.join(available)))
+
+
+def _get_flags(*flags):
+    return {flag: Env.hc()._jhc.flags().get(flag) for flag in flags}

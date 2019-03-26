@@ -11,6 +11,8 @@ from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
 
+import numpy as np
+
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
@@ -3519,6 +3521,48 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     return construct_expr(ir, array_t)
 
 
+def _ndarray(collection, row_major=True):
+    def list_shape(x):
+        if isinstance(x, list):
+            dim_len = builtins.len(x)
+            first, rest = x[0], x[1:]
+            inner_shape = list_shape(first)
+            for e in rest:
+                other_inner_shape = list_shape(e)
+                if inner_shape != other_inner_shape:
+                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+            return [dim_len] + inner_shape
+        else:
+            return []
+
+    def deep_flatten(l):
+        result = []
+        for e in l:
+            if isinstance(e, list):
+                result.extend(deep_flatten(e))
+            else:
+                result.append(e)
+
+        return result
+
+    if isinstance(collection, np.ndarray):
+        nd = collection.astype(np.float64)
+        data = list(nd.flat)
+        shape = nd.shape
+    elif isinstance(collection, list):
+        shape = list_shape(collection)
+        data = deep_flatten(collection)
+    else:
+        shape = []
+        data = hl.array([collection])
+
+    shape_expr = to_expr(shape, ir.tarray(ir.tint64))
+    data_expr = hl.array(data)
+
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+    return construct_expr(ndir, ndir.typ)
+
+
 @typecheck(key_type=hail_type, value_type=hail_type)
 def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str]) -> DictExpression:
     """Returns an empty dictionary with key type `key_type` and value type
@@ -4440,7 +4484,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
             .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .when(y > 0, construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
             .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 def _bit_op(x, y, op):
@@ -4453,7 +4497,7 @@ def _bit_op(x, y, op):
     y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
-    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+    return construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
@@ -4648,7 +4692,7 @@ def bit_not(x):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
 @typecheck(s=expr_str)
