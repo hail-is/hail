@@ -166,6 +166,16 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     if radius < 0:
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
+
+    # check loci are in sorted order
+    loci = locus_expr.global_position().collect()
+    last_pos = hl.fold(lambda a, elt: (hl.case()
+                                         .when(a > elt, elt)
+                                         .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
+                        -1, loci)
+    if hl.eval(last_pos) < 0:
+        raise ValueError("locus_windows: 'locus_expr' has length 0.")
+
     if coord_expr is None:
         coord_expr = locus_expr.position
     else:
@@ -175,16 +185,9 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
     src = locus_expr._indices.source
 
-    if locus_expr not in src._fields_inverse:
-        raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
-
     if isinstance(src, hl.MatrixTable):
-        if src._fields_inverse[locus_expr] != src.row_key.dtype.fields[0]:
-            raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
         contig_groups = src.aggregate_rows(contig_group_expr, _localize=False)
     else:
-        if src._fields_inverse[locus_expr] != src.key.dtype.fields[0]:
-            raise ValueError(f"locus_windows: source must have 'locus_expr' as first key.")
         contig_groups = src.aggregate(contig_group_expr, _localize=False)
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t:
