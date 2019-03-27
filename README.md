@@ -45,7 +45,7 @@ If you use Hail for published work, please cite the software:
 
 The Hail team has several sources of funding at the Broad Institute:
 - The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
-- PI Benjamin Neale and PI Daniel MacArthur. Their scientific leadership has been essential for solving the right problems.
+- Principal Investigators Benjamin Neale and Daniel MacArthur, whose scientific leadership has been essential for solving the right problems.
 - Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
 
 We are grateful for generous support from:
