@@ -1222,6 +1222,10 @@ class ImportMatrixTableTests(unittest.TestCase):
                           no_header=True,
                           row_key=['foo'])
 
+    @skip_unless_spark_backend()
+    def test_import_matrix_table_no_cols(self):
+        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'))
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
