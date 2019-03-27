@@ -12,6 +12,8 @@ final case class TNDArray(elementType: Type, nDims: Int, override val required: 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
     elementType.pyString(sb)
+    sb.append(", ")
+    sb.append(nDims.toString)
     sb.append('>')
   }
   

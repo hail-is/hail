@@ -23,7 +23,7 @@ class Tests(unittest.TestCase):
             tdict(tstr, tint32),
             tarray(tstr),
             tndarray(tstr, 1),
-            tndarray(tfloat64, 1),
+            tndarray(tfloat64, 2),
             tset(tint64),
             tlocus('GRCh37'),
             tlocus('GRCh38'),

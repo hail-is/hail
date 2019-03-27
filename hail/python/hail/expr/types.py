@@ -81,6 +81,7 @@ def dtype(type_str):
         str = "tstr" / "str"
         locus = ("tlocus" / "locus") _ "[" identifier "]"
         array = ("tarray" / "array") _ "<" type ">"
+        ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
         struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
