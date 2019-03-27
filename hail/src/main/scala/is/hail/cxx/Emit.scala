@@ -563,7 +563,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           val containerPType = x.pType.asInstanceOf[PArray]
           val useOneRegion = !containerPType.elementType.isPrimitive
 
-          val ae = emitStream(resultRegion, x, env, useOneRegion)
+          val ae = emitStream(resultRegion, a, env, useOneRegion)
           val sab = resultRegion.arrayBuilder(fb, containerPType)
           ae.length match {
             case Some(length) =>
