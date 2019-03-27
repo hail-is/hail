@@ -498,12 +498,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
-      case ir.ToArray(a) =>
-        emit(a)
-
-      case ir.ToStream(a) =>
-        emit(a)
-
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
         val eltType = a.pType.asInstanceOf[PStream].elementType
         val ae = emitStream(resultRegion, a, env, sameRegion = false)
