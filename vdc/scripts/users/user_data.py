@@ -94,7 +94,7 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
         modified += 1
     except HttpError as e:
         if e.resp.status != 404:
-           raise e
+            raise e
 
     try:
         delete_kube_service_acccount(user_obj['ksa_name'], kube_namespace)
@@ -113,10 +113,8 @@ def create_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='de
 
     if existing is None:
         res = create_all(google_project, kube_namespace)
-        success = table.insert(user_id, **res)
+        table.insert(user_id, **res)
 
-        if success is False:
-            raise f"Couldn't insert entries for {user_id}"
         return res
 
     else:

@@ -2,12 +2,12 @@ import unittest
 from user_data import create_all, create_all_idempotent, delete_all_idempotent
 from google.cloud import storage
 import uuid
-
 from globals import k8s, gcloud_service
 
 user_id = f'test-user-{uuid.uuid4().hex}'
 google_project = 'hail-vdc'
 kube_namespace = 'default'
+
 
 class TestCreatea(unittest.TestCase):
     def test_create_all(self):
@@ -55,7 +55,7 @@ class TestCreatea(unittest.TestCase):
             self.fail(f"Couldn't read created google service account")
 
         try:
-            bucket = storage.Client().get_bucket(bucket_name)
+            storage.Client().get_bucket(bucket_name)
         except Exception:
             self.fail("Couldn't read created bucket")
 
@@ -65,6 +65,45 @@ class TestCreatea(unittest.TestCase):
         delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
 
         print(f"Deleted {user_id}")
+
+    def test_delete_partial_k8s_sa(self):
+        data = create_all(google_project, kube_namespace)
+
+        try:
+            k8s.delete_namespaced_service_account(name=data['ksa_name'], namespace=kube_namespace, body={})
+        except Exception:
+            self.fail(f"Couldn't delete kubernetes service account")
+
+        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
+
+        print(f"Deleted using delete_all_idempotent, with missing k8s namespace, for {user_id}")
+
+    def test_delete_partial_gcloud_sa(self):
+        data = create_all(google_project, kube_namespace)
+
+        gsa_name = f"projects/-/serviceAccounts/{data['gsa_email']}"
+
+        try:
+            gcloud_service.projects().serviceAccounts().delete(name=gsa_name)
+        except Exception:
+            self.fail(f"Couldn't delete created google service account")
+
+        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
+
+        print(f"Deleted using delete_all_idempotent, with missing gcloud service account, for {user_id}")
+
+    def test_delete_partial_bucket(self):
+        data = create_all(google_project, kube_namespace)
+
+        try:
+            bucket = storage.Client().get_bucket(data['bucket_name'])
+            bucket.delete()
+        except Exception:
+            self.fail("Couldn't delete created bucket")
+
+        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
+
+        print(f"Deleted using delete_all_idempotent, with missing gcloud bucket, for {user_id}")
 
 
 if __name__ == "__main__":

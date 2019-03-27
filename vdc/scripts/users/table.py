@@ -1,7 +1,7 @@
 import mysql.connector
 import os
 import base64
-from globals import k8s, kube_client
+from globals import k8s
 
 SQL_HOST_DEF = os.environ.get('SQL_HOST')
 
@@ -15,29 +15,23 @@ class Table:
     def getSecrets():
         secrets = {}
 
-        try:
-            res = k8s.read_namespaced_secret('create-users', 'default')
-            data = res.data
+        res = k8s.read_namespaced_secret('create-users', 'default')
+        data = res.data
 
-            if SQL_HOST_DEF is not None:
-                host = SQL_HOST_DEF
-            else:
-                host = Table.getSecret(data['host'])
+        if SQL_HOST_DEF is not None:
+            host = SQL_HOST_DEF
+        else:
+            host = Table.getSecret(data['host'])
 
-            secrets['user'] = Table.getSecret(data['user'])
-            secrets['password'] = Table.getSecret(data['password'])
-            secrets['database'] = Table.getSecret(data['db'])
-            secrets['host'] = host
-        except kube_client.rest.ApiException as e:
-            print(e)
+        secrets['user'] = Table.getSecret(data['user'])
+        secrets['password'] = Table.getSecret(data['password'])
+        secrets['database'] = Table.getSecret(data['db'])
+        secrets['host'] = host
 
         return secrets
 
     def __init__(self):
         secrets = Table.getSecrets()
-
-        if not secrets:
-            raise "Couldn't read secret"
 
         self.cnx = mysql.connector.connect(**secrets)
 
@@ -64,8 +58,7 @@ class Table:
 
         cursor.close()
 
-        return cnt == 1
-
+        assert cnt == 1
 
     def delete(self, user_id):
         cursor = self.cnx.cursor()
