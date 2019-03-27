@@ -1389,6 +1389,24 @@ class BlockMatrix(object):
         """
         return self._apply_map(self._unary_func_ir(hl.sqrt))
 
+    def ceil(self):
+        """Element-wise ceiling.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return self._apply_map(self._unary_func_ir(hl.ceil))
+
+    def floor(self):
+        """Element-wise floor.
+
+        Returns
+        -------
+        :class:`.BlockMatrix`
+        """
+        return self._apply_map(self._unary_func_ir(hl.floor))
+
     def abs(self):
         """Element-wise absolute value.
 
