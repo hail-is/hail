@@ -1102,7 +1102,8 @@ class BlockMatrix(object):
         writer = BlockMatrixBinaryWriter(uri)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
-    def to_numpy(self):
+    @typecheck_method(_force_blocking=bool)
+    def to_numpy(self, _force_blocking=False):
         """Collects the block matrix into a `NumPy ndarray
         <https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html>`__.
 
@@ -1119,14 +1120,14 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-        path = new_local_temp_file()
-        uri = local_path_uri(path)
 
-        if self.n_rows * self.n_cols > 1 << 31:
-            self.export_blocks(uri, binary=True)
+        if self.n_rows * self.n_cols > 1 << 31 or _force_blocking:
+            path = new_temp_file()
+            self.export_blocks(path, binary=True)
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
 
-        self.tofile(uri)
+        path = new_local_temp_file()
+        self.tofile(path)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
     @property
@@ -1544,7 +1545,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table where each row corresponds to a row in the block matrix.
         """
-        path = new_local_temp_file()
+        path = new_temp_file()
 
         self.write(path, overwrite=True, force_row_major=True)
         reader = TableFromBlockMatrixNativeReader(path, n_partitions)
@@ -2061,20 +2062,21 @@ class BlockMatrix(object):
                 raise ValueError(f'Invalid rectangle file name: {fname}')
             return rect_idx_and_bounds
 
-        rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
-        rects = [parse_rects(file) for file in rect_files]
+        rect_files = [file['path'] for file in hl.utils.hadoop_ls(path) if not re.match(r'.*\.crc', file['path'])]
+        rects = [parse_rects(os.path.basename(file_path)) for file_path in rect_files]
 
         n_rows = max(rects, key=lambda r: r[2])[2]
         n_cols = max(rects, key=lambda r: r[4])[4]
 
         nd = np.zeros(shape=(n_rows, n_cols))
-        for rect, file in zip(rects, rect_files):
-            file_path = f'{path}/{file}'
+        f = new_local_temp_file()
+        uri = local_path_uri(f)
+        for rect, file_path in zip(rects, rect_files):
+            hl.utils.hadoop_copy(file_path, uri)
             if binary:
-                rect_data = np.reshape(np.fromfile(file_path), (rect[2]-rect[1], rect[4]-rect[3]))
+                rect_data = np.reshape(np.fromfile(f), (rect[2]-rect[1], rect[4]-rect[3]))
             else:
-                rect_data = np.loadtxt(file_path, ndmin=2)
-
+                rect_data = np.loadtxt(f, ndmin=2)
             nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
 
         return nd
