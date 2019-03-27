@@ -1,45 +1,79 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
+
+import scala.collection.mutable
+
 object ForwardLets {
-  def extract(x: IR): (String, IR, IR) = (x: @unchecked) match {
-    case Let(name, value, body) => (name, value, body)
-    case AggLet(name, value, body) => (name, value, body)
-  }
+  def apply(ir0: BaseIR): BaseIR = {
+    val ir1 = new NormalizeNames(stopAtRelational = false, allowFreeVariables = true).apply(ir0)
+    val UsesAndDefs(uses, _) = ComputeUsesAndDefs(ir1, freeVariablesError = false)
+    val nestingDepth = NestingDepth(ir1)
 
-  private def rewriteIR(ir0: IR): IR = {
-    val UsesAndDefs(uses, _) = ComputeUsesAndDefs(ir0)
-    val nestingDepth = NestingDepth(ir0)
+    def rewriteTable(tir: TableIR): BaseIR = rewriteChildren(tir)
 
-    def rewrite(ir: IR, env: Env[IR]): IR = {
+    def rewriteMatrix(mir: MatrixIR): BaseIR = rewriteChildren(mir)
+
+    def rewriteBlockMatrix(bmir: BlockMatrixIR): BaseIR = rewriteChildren(bmir)
+
+    def rewriteChildren(ir: BaseIR): BaseIR = {
+      ir.copy(ir.children.map {
+        case child: IR => rewrite(child, BindingEnv.empty)
+        case tir: TableIR => rewriteTable(tir)
+        case mir: MatrixIR => rewriteMatrix(mir)
+        case bmir: BlockMatrixIR => rewriteBlockMatrix(bmir)
+      })
+    }
+
+    def rewrite(ir: IR, env: BindingEnv[IR]): BaseIR = {
+
+      def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
+        value.isInstanceOf[Ref] || refs.isEmpty || refs.size == 1 && nestingDepth.lookup(refs.head) == nestingDepth.lookup(base)
+      }
+
+      def mapRewrite(): BaseIR = ir.copy(ir.children
+        .iterator
+        .zipWithIndex
+        .map {
+          case (ir1: IR, i) =>
+            if (UsesAggEnv(ir, i))
+              rewrite(ir1, BindingEnv(env.aggOrEmpty))
+            else if (UsesScanEnv(ir, i))
+              rewrite(ir1, BindingEnv(env.scanOrEmpty))
+            else
+              rewrite(ir1, env)
+          case (tir: TableIR, _) => rewriteTable(tir)
+          case (mir: MatrixIR, _) => rewriteMatrix(mir)
+          case (bmir: BlockMatrixIR, _) => rewriteBlockMatrix(bmir)
+        }.toFastIndexedSeq)
+
       ir match {
-        case _: Let | _: AggLet =>
-          val (name, value, body) = extract(ir)
+        case Let(name, value, body) =>
           val refs = uses.lookup(ir)
-
-          if (value.isInstanceOf[Ref] ||
-            refs.isEmpty ||
-            (refs.size == 1 && nestingDepth.lookup(refs.head) == nestingDepth.lookup(ir)))
-            rewrite(body, env.bind(name -> value))
-          else
-            MapIR(rewrite(_, env))(ir)
-        case x@Ref(name, _) =>
-          env.lookupOption(name) match {
-            case Some(fwd) => fwd
-            case None => x
-          }
+          if (shouldForward(value, refs, ir)) {
+            rewrite(body, env.bindEval(name -> value))
+          } else
+            mapRewrite()
+        case AggLet(name, value, body, isScan) =>
+          val refs = uses.lookup(ir)
+          if (shouldForward(value, refs, ir)) {
+            if (isScan)
+              rewrite(body, env.copy(scan = Some(env.scanOrEmpty.bind(name -> value))))
+            else
+              rewrite(body, env.copy(agg = Some(env.aggOrEmpty.bind(name -> value))))
+          } else
+            mapRewrite()
+        case x@Ref(name, _) => env.eval.lookupOption(name).getOrElse(x)
         case _ =>
-          MapIR(rewrite(_, env))(ir)
+          mapRewrite()
       }
     }
 
-    rewrite(ir0, Env.empty)
+    ir1 match {
+      case ir: IR => rewrite(ir, BindingEnv.empty)
+      case tir: TableIR => rewriteTable(tir)
+      case mir: MatrixIR => rewriteMatrix(mir)
+      case bmir: BlockMatrixIR => rewriteBlockMatrix(bmir)
+    }
   }
-
-  def apply(ir0: BaseIR, needsCopy: Boolean = true): BaseIR =
-    MapIRSubtrees(rewriteIR)(
-      new NormalizeNames().apply(
-        (if (needsCopy) ir0.deepCopy() else ir0).asInstanceOf[IR],
-        Env.empty[String],
-        Some(Env.empty[String]),
-        freeVariables = true))
 }

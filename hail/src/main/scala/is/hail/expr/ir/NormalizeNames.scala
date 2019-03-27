@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
-class NormalizeNames {
+import is.hail.utils._
+
+class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
   def gen(): String = {
@@ -10,15 +12,57 @@ class NormalizeNames {
 
   def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
 
-  def apply(ir: IR, env: BindingEnv[String]): IR = {
-    def normalize(ir: IR, env: BindingEnv[String] = env): IR = apply(ir, env)
+  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir, env)
+
+  def apply(ir: BaseIR): BaseIR = {
+    ir match {
+      case ir: IR => normalizeIR(ir, BindingEnv.empty)
+      case baseIR => normalizeBaseIR(baseIR)
+    }
+  }
+
+  private def normalizeBaseIR(ir0: BaseIR): BaseIR = {
+    if (stopAtRelational)
+      return ir0
+
+    assert(!ir0.isInstanceOf[IR])
+
+    ir0.copy(ir0.children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (ir: IR, i) =>
+          val b = Bindings(ir0, i).map { case (binding, _) => binding -> binding }
+          val ab = AggBindings(ir0, i).map { case (binding, _) => binding -> binding }
+          val sb = ScanBindings(ir0, i).map { case (binding, _) => binding -> binding }
+
+          normalizeIR(ir, BindingEnv(
+            Env.fromSeq(b),
+            agg = if (ab.nonEmpty) Some(Env.fromSeq(ab)) else None,
+            scan = if (sb.nonEmpty) Some(Env.fromSeq(sb)) else None
+          ))
+        case (child, _) => normalizeBaseIR(child)
+      }.toFastIndexedSeq)
+  }
+
+  private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
+
+    def normalize(ir: IR, env: BindingEnv[String] = env): IR = normalizeIR(ir, env)
 
     ir match {
       case Let(name, value, body) =>
         val newName = gen()
         Let(newName, normalize(value), normalize(body, env.copy(eval = env.eval.bind(name, newName))))
       case Ref(name, typ) =>
-        Ref(env.eval.lookup(name), typ)
+        val newName = env.eval.lookupOption(name) match {
+          case Some(n) => n
+          case None =>
+            if (!allowFreeVariables)
+              throw new RuntimeException(s"found free variable in normalize: $name")
+            else
+              name
+        }
+        Ref(newName, typ)
       case AggLet(name, value, body, isScan) =>
         val newName = gen()
         val (valueEnv, bodyEnv) = if (isScan)
@@ -103,6 +147,7 @@ class NormalizeNames {
         // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
           case c: IR => normalize(c)
+          case other => normalizeBaseIR(other)
         })
     }
   }

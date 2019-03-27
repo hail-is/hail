@@ -418,7 +418,7 @@ object TestUtils {
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
+        assert(t.valuesSimilar(res, expected), s"($res, $expected, strategy=$strat)")
       } catch {
         case e: Exception =>
           if (execStrats.contains(strat)) throw e
