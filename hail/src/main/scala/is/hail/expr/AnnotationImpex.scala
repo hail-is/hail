@@ -261,10 +261,9 @@ object TableAnnotationImpex {
       t match {
         case _: TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
         case _: TString => a.asInstanceOf[String]
-        case d: TDict => JsonMethods.compact(d.toJSON(a))
-        case it: TIterable => JsonMethods.compact(it.toJSON(a))
+        case t: TContainer => JsonMethods.compact(t.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case TInterval(TLocus(rg, _), _) =>
+        case TInterval(TLocus(_, _), _) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
             s"${ i.start }-${ i.end.asInstanceOf[Locus].position }"
@@ -289,7 +288,7 @@ object TableAnnotationImpex {
       case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)
+      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case _: TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

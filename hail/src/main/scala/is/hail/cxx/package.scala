@@ -9,14 +9,21 @@ package object cxx {
 
   def typeToCXXType(pType: PType): Type = {
     pType.virtualType.fundamentalType match {
+      case _: TBinary | _: TArray | _: TBaseStruct => "const char *"
+      case _ => typeToNonConstCXXType(pType)
+    }
+  }
+
+  def typeToNonConstCXXType(pType: PType): Type = {
+    pType.virtualType.fundamentalType match {
       case _: TInt32 => "int"
       case _: TInt64 => "long"
       case _: TFloat32 => "float"
       case _: TFloat64 => "double"
       case _: TBoolean => "bool"
-      case _: TBinary => "const char *"
-      case _: TArray => "const char *"
-      case _: TBaseStruct => "const char *"
+      case _: TBinary => "char *"
+      case _: TArray => "char *"
+      case _: TBaseStruct => "char *"
       case TVoid => "void"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }

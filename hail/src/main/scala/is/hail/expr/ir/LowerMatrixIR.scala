@@ -154,23 +154,46 @@ object LowerMatrixIR {
           let (global = 'global.dropFields(colsField)) { newGlobals }
           .insertFields(colsField -> 'global(colsField)))
 
-    case MatrixMapRows(child, newRow) =>
-      def lowerApplyAggOp(x: IRProxy): IRProxy = lift {
-        case x@(_: ApplyAggOp | _: AggFilter | _: AggExplode | _: AggGroupBy) =>
-          val env = Env("sa" -> 'global (colsField)('i),
-            "g" -> 'row (entriesField)('i))
-          irRange(0, 'global (colsField).len)
-            .filter('i ~> !'row(entriesField)('i).isNA)
-            .arrayAgg('i ~>
-              subst(x, env, env))
-        case _ =>
-          MapIRProxy(lowerApplyAggOp)(x)
-      }(x)
+    case MatrixMapRows(child, newRow) => {
+      def liftScans(ir: IR): IRProxy = {
+        val scans = new ArrayBuilder[(String, IR)]
+
+        def f(ir: IR): IR = ir match {
+          case x@(_: ApplyScanOp | _: AggFilter | _: AggExplode | _: AggGroupBy) if ContainsScan(x) =>
+            assert(!ContainsAgg(x))
+            val s = genUID()
+            scans += (s -> x)
+            Ref(s, x.typ)
+          case _ =>
+            MapIR(f)(ir)
+        }
+
+        val b0 = f(ir)
+        
+        val b: IRProxy =
+          if (ContainsAgg(b0)) {
+            irRange(0, 'row (entriesField).len)
+              .filter('i ~> !'row (entriesField)('i).isNA)
+              .arrayAgg('i ~>
+                (aggLet(sa = 'global (colsField)('i),
+                  g = 'row (entriesField)('i),
+                  va = 'row)
+                  in b0))
+          } else
+            b0
+
+        scans.result().foldLeft(b) { case (acc, (s, x)) =>
+          (env: E) => {
+            Let(s, x, acc(env))
+          }
+        }
+      }
 
       lower(child)
         .mapRows(
-          subst(lowerApplyAggOp(newRow), Env("va" -> 'row, "global" -> 'global))
+          subst(liftScans(newRow), Env("va" -> 'row, "global" -> 'global))
             .insertFields(entriesField -> 'row (entriesField)))
+    }
 
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->

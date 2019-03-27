@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
@@ -51,6 +51,8 @@ object TestRandomFunctions extends RegistryFunctions {
 }
 
 class RandomFunctionsSuite extends SparkSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   val counter = ApplySeeded("counter_seeded", FastSeq(), 0L)
   val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L)

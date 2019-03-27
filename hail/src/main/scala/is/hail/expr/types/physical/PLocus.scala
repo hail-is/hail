@@ -11,6 +11,10 @@ import is.hail.variant._
 import scala.reflect.{ClassTag, classTag}
 
 object PLocus {
+  def apply(rg: RGBase): PLocus = PLocus(rg.broadcastRGBase)
+
+  def apply(rg: RGBase, required: Boolean): PLocus = PLocus(rg.broadcastRGBase, required)
+
   def representation(required: Boolean = false): PStruct = PStruct(
       required,
       "contig" -> PString(required = true),
@@ -22,8 +26,10 @@ object PLocus {
   }
 }
 
-case class PLocus(rg: RGBase, override val required: Boolean = false) extends ComplexPType {
-  lazy val virtualType: TLocus = TLocus(rg, required)
+case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false) extends ComplexPType {
+  def rg: RGBase = rgBc.value
+
+  lazy val virtualType: TLocus = TLocus(rgBc, required)
 
   def _toPretty = s"Locus($rg)"
 
@@ -37,6 +43,8 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
   override def unsafeOrdering(): UnsafeOrdering = {
     val repr = representation.fundamentalType
 
+    val localRGBc = rgBc
+
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val cOff1 = repr.loadField(r1, o1, 0)
@@ -45,7 +53,7 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
         val contig1 = PString.loadString(r1, cOff1)
         val contig2 = PString.loadString(r2, cOff2)
 
-        val c = rg.compare(contig1, contig2)
+        val c = localRGBc.value.compare(contig1, contig2)
         if (c != 0)
           return c
 

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.ExecStrategy.ExecStrategy
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -18,9 +19,8 @@ import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
-import org.apache.commons.math3.stat.descriptive.AggregateSummaryStatistics
 import org.apache.spark.sql.Row
-import org.testng.annotations.{BeforeClass, DataProvider, Test}
+import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -76,7 +76,7 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
-  @BeforeClass def ensureHCDefined() { initializeHailContext() }
+  implicit val execStrats = ExecStrategy.values
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
@@ -95,6 +95,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testStr() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(Str("Hail"), "Hail")
   }
 
@@ -175,209 +177,389 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testApplyBinaryPrimOpAdd() {
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), I32(3)), 8)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, I32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, i32na), null)
+    def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), sum)
+    }
+    assertSumsTo(TInt32(), 5, 3, 8)
+    assertSumsTo(TInt32(), 5, null, null)
+    assertSumsTo(TInt32(), null, 3, null)
+    assertSumsTo(TInt32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), I64(3)), 8L)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, I64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, i64na), null)
+    assertSumsTo(TInt64(), 5L, 3L, 8L)
+    assertSumsTo(TInt64(), 5L, null, null)
+    assertSumsTo(TInt64(), null, 3L, null)
+    assertSumsTo(TInt64(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), F32(3)), 8F)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), f32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, F32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, f32na), null)
+    assertSumsTo(TFloat32(), 5.0f, 3.0f, 8.0f)
+    assertSumsTo(TFloat32(), 5.0f, null, null)
+    assertSumsTo(TFloat32(), null, 3.0f, null)
+    assertSumsTo(TFloat32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), F64(3)), 8D)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), f64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, F64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, f64na), null)
+    assertSumsTo(TFloat64(), 5.0, 3.0, 8.0)
+    assertSumsTo(TFloat64(), 5.0, null, null)
+    assertSumsTo(TFloat64(), null, 3.0, null)
+    assertSumsTo(TFloat64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpSubtract() {
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), I32(3)), 2)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, I32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), I64(3)), 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, I64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 3)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), F32(3)), 2F)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), f32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, F32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, f32na), null)
+    assertExpected(TInt64(), 5L, 2L, 3L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), F64(3)), 2D)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), f64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, F64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, f64na), null)
+    assertExpected(TFloat32(), 5f, 2f, 3f)
+    assertExpected(TFloat32(), 5f, null, null)
+    assertExpected(TFloat32(), null, 2f, null)
+    assertExpected(TFloat32(), null, null, null)
+
+    assertExpected(TFloat64(), 5d, 2d, 3d)
+    assertExpected(TFloat64(), 5d, null, null)
+    assertExpected(TFloat64(), null, 2d, null)
+    assertExpected(TFloat64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpMultiply() {
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), I32(3)), 15)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, I32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), I64(3)), 15L)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, I64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 10)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
+    
+    assertExpected(TInt64(), 5L, 2L, 10L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), F32(3)), 15F)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), f32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, F32(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, f32na), null)
+    assertExpected(TFloat32(), 5f, 2f, 10f)
+    assertExpected(TFloat32(), 5f, null, null)
+    assertExpected(TFloat32(), null, 2f, null)
+    assertExpected(TFloat32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), F64(3)), 15D)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), f64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, F64(3)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, f64na), null)
+    assertExpected(TFloat64(), 5d, 2d, 10d)
+    assertExpected(TFloat64(), 5d, null, null)
+    assertExpected(TFloat64(), null, 2d, null)
+    assertExpected(TFloat64(), null, null, null)
+
   }
 
   @Test def testApplyBinaryPrimOpFloatingPointDivide() {
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), I32(2)), 2.5F)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), I64(2)), 2.5F)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, I64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 2.5f)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), F32(2)), 2.5F)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), f32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, F32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, f32na), null)
+    assertExpected(TInt64(), 5L, 2L, 2.5f)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), F64(2)), 2.5D)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), f64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, F64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, f64na), null)
+    assertExpected(TFloat32(), 5f, 2f, 2.5f)
+    assertExpected(TFloat32(), 5f, null, null)
+    assertExpected(TFloat32(), null, 2f, null)
+    assertExpected(TFloat32(), null, null, null)
+
+    assertExpected(TFloat64(), 5d, 2d, 2.5d)
+    assertExpected(TFloat64(), 5d, null, null)
+    assertExpected(TFloat64(), null, 2d, null)
+    assertExpected(TFloat64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), I32(2)), 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), I64(2)), 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, I64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 2)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), F32(2)), 2F)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), f32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, F32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, f32na), null)
+    assertExpected(TInt64(), 5L, 2L, 2L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
 
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), F64(2)), 2D)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), f64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, F64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, f64na), null)
+    assertExpected(TFloat32(), 5f, 2f, 2f)
+    assertExpected(TFloat32(), 5f, null, null)
+    assertExpected(TFloat32(), null, 2f, null)
+    assertExpected(TFloat32(), null, null, null)
+
+    assertExpected(TFloat64(), 5d, 2d, 2d)
+    assertExpected(TFloat64(), 5d, null, null)
+    assertExpected(TFloat64(), null, 2d, null)
+    assertExpected(TFloat64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(2)), 5 & 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(2)), -5 & 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(-2)), 5 & -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(-2)), -5 & -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(2)), 5L & 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(2)), -5L & 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(-2)), 5L & -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(-2)), -5L & -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, I64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 5 & 2)
+    assertExpected(TInt32(), -5, 2, -5 & 2)
+    assertExpected(TInt32(), 5, -2, 5 & -2)
+    assertExpected(TInt32(), -5, -2, -5 & -2)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
+
+    assertExpected(TInt64(), 5L, 2L, 5L & 2L)
+    assertExpected(TInt64(), -5L, 2L, -5L & 2L)
+    assertExpected(TInt64(), 5L, -2L, 5L & -2L)
+    assertExpected(TInt64(), -5L, -2L, -5L & -2L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(2)), 5 | 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(2)), -5 | 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(-2)), 5 | -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(-2)), -5 | -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(2)), 5L | 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(2)), -5L | 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(-2)), 5L | -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(-2)), -5L | -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, I64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 5 | 2)
+    assertExpected(TInt32(), -5, 2, -5 | 2)
+    assertExpected(TInt32(), 5, -2, 5 | -2)
+    assertExpected(TInt32(), -5, -2, -5 | -2)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
+
+    assertExpected(TInt64(), 5L, 2L, 5L | 2L)
+    assertExpected(TInt64(), -5L, 2L, -5L | 2L)
+    assertExpected(TInt64(), 5L, -2L, 5L | -2L)
+    assertExpected(TInt64(), -5L, -2L, -5L | -2L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(2)), 5 ^ 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(2)), -5 ^ 2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(-2)), 5 ^ -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(-2)), -5 ^ -2)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, i32na), null)
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(2)), 5L ^ 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(2)), -5L ^ 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(-2)), 5L ^ -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(-2)), -5L ^ -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), i64na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, I64(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, i64na), null)
+    assertExpected(TInt32(), 5, 2, 5 ^ 2)
+    assertExpected(TInt32(), -5, 2, -5 ^ 2)
+    assertExpected(TInt32(), 5, -2, 5 ^ -2)
+    assertExpected(TInt32(), -5, -2, -5 ^ -2)
+    assertExpected(TInt32(), 5, null, null)
+    assertExpected(TInt32(), null, 2, null)
+    assertExpected(TInt32(), null, null, null)
+
+    assertExpected(TInt64(), 5L, 2L, 5L ^ 2L)
+    assertExpected(TInt64(), -5L, 2L, -5L ^ 2L)
+    assertExpected(TInt64(), 5L, -2L, 5L ^ -2L)
+    assertExpected(TInt64(), -5L, -2L, -5L ^ -2L)
+    assertExpected(TInt64(), 5L, null, null)
+    assertExpected(TInt64(), null, 2L, null)
+    assertExpected(TInt64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), I32(2)), 5 << 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(-5), I32(2)), -5 << 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, i32na), null)
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), In(0, t), In(1, TInt32())), FastIndexedSeq(x -> t, y -> TInt32()), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I32(2)), 5L << 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I32(2)), -5L << 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, i32na), null)
+    assertShiftsTo(TInt32(), 5, 2, 5 << 2)
+    assertShiftsTo(TInt32(), -5, 2, -5 << 2)
+    assertShiftsTo(TInt32(), 5, null, null)
+    assertShiftsTo(TInt32(), null, 2, null)
+    assertShiftsTo(TInt32(), null, null, null)
+
+    assertShiftsTo(TInt64(), 5L, 2, 5L << 2)
+    assertShiftsTo(TInt64(), -5L, 2, -5L << 2)
+    assertShiftsTo(TInt64(), 5L, null, null)
+    assertShiftsTo(TInt64(), null, 2, null)
+    assertShiftsTo(TInt64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpRightShift(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(0xff5), I32(2)), 0xff5 >> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(-5), I32(2)), -5 >> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, i32na), null)
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(RightShift(), In(0, t), In(1, TInt32())), FastIndexedSeq(x -> t, y -> TInt32()), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(0xffff5), I32(2)), 0xffff5L >> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I32(2)), -5L >> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, i32na), null)
+    assertShiftsTo(TInt32(), 0xff5, 2, 0xff5 >> 2)
+    assertShiftsTo(TInt32(), -5, 2, -5 >> 2)
+    assertShiftsTo(TInt32(), 5, null, null)
+    assertShiftsTo(TInt32(), null, 2, null)
+    assertShiftsTo(TInt32(), null, null, null)
+
+    assertShiftsTo(TInt64(), 0xffff5L, 2, 0xffff5L >> 2)
+    assertShiftsTo(TInt64(), -5L, 2, -5L >> 2)
+    assertShiftsTo(TInt64(), 5L, null, null)
+    assertShiftsTo(TInt64(), null, 2, null)
+    assertShiftsTo(TInt64(), null, null, null)
   }
 
   @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(0xff5), I32(2)), 0xff5 >>> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(-5), I32(2)), -5 >>> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, i32na), null)
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+      assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), In(0, t), In(1, TInt32())), FastIndexedSeq(x -> t, y -> TInt32()), expected)
+    }
 
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(0xffff5), I32(2)), 0xffff5L >>> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I32(2)), -5L >>> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), i32na), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, I32(2)), null)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, i32na), null)
+    assertShiftsTo(TInt32(), 0xff5, 2, 0xff5 >>> 2)
+    assertShiftsTo(TInt32(), -5, 2, -5 >>> 2)
+    assertShiftsTo(TInt32(), 5, null, null)
+    assertShiftsTo(TInt32(), null, 2, null)
+    assertShiftsTo(TInt32(), null, null, null)
+
+    assertShiftsTo(TInt64(), 0xffff5L, 2, 0xffff5L >>> 2)
+    assertShiftsTo(TInt64(), -5L, 2, -5L >>> 2)
+    assertShiftsTo(TInt64(), 5L, null, null)
+    assertShiftsTo(TInt64(), null, 2, null)
+    assertShiftsTo(TInt64(), null, null, null)
+  }
+
+  @Test def testApplyComparisonOpGT() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(GT(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, false)
+    assertComparesTo(TInt32(), 0, 1, false)
+    assertComparesTo(TInt32(), 1, 0, true)
+
+    assertComparesTo(TInt64(), 1L, 1L, false)
+    assertComparesTo(TInt64(), 0L, 1L, false)
+    assertComparesTo(TInt64(), 1L, 0L, true)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, false)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, false)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, true)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, false)
+    assertComparesTo(TFloat64(), 0.0, 1.0, false)
+    assertComparesTo(TFloat64(), 1.0, 0.0, true)
+
+  }
+
+  @Test def testApplyComparisonOpGTEQ() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(GTEQ(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, true)
+    assertComparesTo(TInt32(), 0, 1, false)
+    assertComparesTo(TInt32(), 1, 0, true)
+
+    assertComparesTo(TInt64(), 1L, 1L, true)
+    assertComparesTo(TInt64(), 0L, 1L, false)
+    assertComparesTo(TInt64(), 1L, 0L, true)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, true)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, false)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, true)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, true)
+    assertComparesTo(TFloat64(), 0.0, 1.0, false)
+    assertComparesTo(TFloat64(), 1.0, 0.0, true)
+  }
+
+
+  @Test def testApplyComparisonOpLT() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, false)
+    assertComparesTo(TInt32(), 0, 1, true)
+    assertComparesTo(TInt32(), 1, 0, false)
+
+    assertComparesTo(TInt64(), 1L, 1L, false)
+    assertComparesTo(TInt64(), 0L, 1L, true)
+    assertComparesTo(TInt64(), 1L, 0L, false)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, false)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, true)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, false)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, false)
+    assertComparesTo(TFloat64(), 0.0, 1.0, true)
+    assertComparesTo(TFloat64(), 1.0, 0.0, false)
+
+  }
+
+  @Test def testApplyComparisonOpLTEQ() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(LTEQ(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, true)
+    assertComparesTo(TInt32(), 0, 1, true)
+    assertComparesTo(TInt32(), 1, 0, false)
+
+    assertComparesTo(TInt64(), 1L, 1L, true)
+    assertComparesTo(TInt64(), 0L, 1L, true)
+    assertComparesTo(TInt64(), 1L, 0L, false)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, true)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, true)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, false)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, true)
+    assertComparesTo(TFloat64(), 0.0, 1.0, true)
+    assertComparesTo(TFloat64(), 1.0, 0.0, false)
+
+  }
+
+  @Test def testApplyComparisonOpEQ() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(EQ(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, expected = true)
+    assertComparesTo(TInt32(), 0, 1, expected = false)
+    assertComparesTo(TInt32(), 1, 0, expected = false)
+
+    assertComparesTo(TInt64(), 1L, 1L, expected = true)
+    assertComparesTo(TInt64(), 0L, 1L, expected = false)
+    assertComparesTo(TInt64(), 1L, 0L, expected = false)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, expected = true)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, expected = false)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, expected = false)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, expected = true)
+    assertComparesTo(TFloat64(), 0.0, 1.0, expected = false)
+    assertComparesTo(TFloat64(), 1.0, 0.0, expected = false)
+  }
+
+  @Test def testApplyComparisonOpNE() {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+      assertEvalsTo(ApplyComparisonOp(NEQ(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
+    }
+
+    assertComparesTo(TInt32(), 1, 1, expected = false)
+    assertComparesTo(TInt32(), 0, 1, expected = true)
+    assertComparesTo(TInt32(), 1, 0, expected = true)
+
+    assertComparesTo(TInt64(), 1L, 1L, expected = false)
+    assertComparesTo(TInt64(), 0L, 1L, expected = true)
+    assertComparesTo(TInt64(), 1L, 0L, expected = true)
+
+    assertComparesTo(TFloat32(), 1.0f, 1.0f, expected = false)
+    assertComparesTo(TFloat32(), 0.0f, 1.0f, expected = true)
+    assertComparesTo(TFloat32(), 1.0f, 0.0f, expected = true)
+
+    assertComparesTo(TFloat64(), 1.0, 1.0, expected = false)
+    assertComparesTo(TFloat64(), 0.0, 1.0, expected = true)
+    assertComparesTo(TFloat64(), 1.0, 0.0, expected = true)
   }
 
   @Test def testIf() {
@@ -438,6 +620,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGetTupleElement() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
 
@@ -462,6 +646,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArraySort() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
@@ -472,6 +658,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testToSet() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ToSet(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
@@ -487,6 +675,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testToDict() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
 
     val a = MakeArray(FastIndexedSeq(
@@ -520,6 +710,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testSetContains() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = TSet(TInt32())
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
@@ -538,6 +730,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testDictContains() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = TDict(TInt32(), TString())
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
@@ -557,6 +751,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TArray(TInt32()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
@@ -580,6 +776,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionSet() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TSet(TInt32()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
@@ -599,6 +797,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionDict() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TDict(TInt32(), TString()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = true), null)
 
@@ -686,6 +886,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArrayScan() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
       ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
@@ -697,6 +899,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLeftJoinRightDistinct() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
       val compF = { (l: IR, r: IR) =>
         ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
@@ -745,14 +949,33 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArrayRange() {
-    assertEvalsTo(ArrayRange(I32(0), I32(5), NA(TInt32())), null)
-    assertEvalsTo(ArrayRange(I32(0), NA(TInt32()), I32(1)), null)
-    assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
+    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]) {
+      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
+        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), step -> TInt32()),
+        expected = expected)
+    }
+    assertEquals(0, 5, null, null)
+    assertEquals(0, null, 1, null)
+    assertEquals(null, 5, 1, null)
 
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
+
+    for {
+      start <- -2 to 2
+      stop <- -2 to 8
+      step <- 1 to 3
+    } {
+      assertEquals(start, stop, step, expected = Array.range(start, stop, step).toFastIndexedSeq)
+      assertEquals(start, stop, -step, expected = Array.range(start, stop, -step).toFastIndexedSeq)
+    }
+    // this needs to be written this way because of a bug in Scala's Array.range
+    val expected = Array.tabulate(11)(Int.MinValue + _ * (Int.MaxValue / 5)).toFastIndexedSeq
+    assertEquals(Int.MinValue, Int.MaxValue, Int.MaxValue / 5, expected)
   }
 
   @Test def testArrayAgg() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
     assertEvalsTo(
       ArrayAgg(
@@ -763,6 +986,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testInsertFields() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val s = TStruct("a" -> TInt64(), "b" -> TString())
     val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
 
@@ -861,6 +1086,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGetField() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val s = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc")))
     val na = NA(TStruct("a" -> TInt64(), "b" -> TString()))
 
@@ -870,15 +1097,19 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableCount() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
   @Test def testTableGetGlobals() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32()), Row(1)))), Row(1))
   }
 
   @Test def testTableAggregate() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val table = Table.range(hc, 3, Some(2))
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
@@ -886,6 +1117,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testMatrixAggregate() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val matrix = MatrixTable.range(hc, 5, 5, None)
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
@@ -893,6 +1126,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGroupByKey() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
 
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
@@ -915,6 +1150,8 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "compareDifferentTypes")
   def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
     assertEvalsTo(ApplyComparisonOp(GT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
@@ -1439,6 +1676,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val t1 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
     val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
@@ -1452,6 +1691,7 @@ class IRSuite extends SparkSuite {
 
 
   @Test def testAggLet() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val ir = TableRange(2, 2)
       .aggregate(
         aggLet(a = 'row('idx).toL + I64(1)) {

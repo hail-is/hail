@@ -9,7 +9,7 @@ gcloud auth configure-docker
 
 while true
 do
-    for image in `curl -sSL http://notebook/worker-image`
+    for image in $(curl -sSL http://notebook/worker-image) google/cloud-sdk
     do
     	docker pull $image
     done

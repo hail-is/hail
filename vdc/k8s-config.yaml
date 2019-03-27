@@ -144,6 +144,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["*"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["*"]
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -323,3 +326,43 @@ roleRef:
   kind: Role
   name: delete-batch-pods-pvc
   apiGroup: "rbac.authorization.k8s.io"
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: batch-pods
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: batch-pods
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: test
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: test
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100

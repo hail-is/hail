@@ -1,3 +1,4 @@
+import warnings
 from math import log, isnan, log10
 
 import numpy as np
@@ -37,8 +38,8 @@ def show(obj):
     bokeh.io.show(obj)
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
-           bins=int, legend=nullable(str), title=nullable(str))
-def histogram(data, range=None, bins=50, legend=None, title=None):
+           bins=int, legend=nullable(str), title=nullable(str), log=bool)
+def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     """Create a histogram.
 
     Parameters
@@ -53,6 +54,8 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
         Label of data on the x-axis.
     title : str
         Title of the histogram.
+    log : bool
+        Plot the log10 of the bin counts.
 
     Returns
     -------
@@ -74,7 +77,15 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
         else:
             return ValueError('Invalid input')
 
-    p = figure(title=title, x_axis_label=legend, y_axis_label='Frequency', background_fill_color='#EEEEEE')
+    if log:
+        data.bin_freq = [log10(x) for x in data.bin_freq]
+        data.n_larger = log10(data.n_larger)
+        data.n_smaller = log10(data.n_smaller)
+        y_axis_label = 'log10 Frequency'
+    else:
+        y_axis_label = 'Frequency'
+
+    p = figure(title=title, x_axis_label=legend, y_axis_label=y_axis_label, background_fill_color='#EEEEEE')
     p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],

@@ -24,7 +24,7 @@ def execute():
     try:
         jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
         typ = hl.dtype(jir.typ().toString())
-        value = Env.hail().expr.ir.CompileAndEvaluate.evaluateToJSON(jir)
+        value = Env.hail().backend.spark.SparkBackend.executeJSON(jir)
         result = {
             'type': str(typ),
             'value': value
@@ -133,17 +133,6 @@ def create_reference_from_fasta():
             data['y_contigs'],
             data['mt_contigs'],
             data['par'])
-        return '', 204
-    except FatalError as e:
-        return flask.jsonify({
-            'message': e.args[0]
-        }), 400
-
-@app.route('/references/delete', methods=['DELETE'])
-def delete_reference():
-    try:
-        data = flask.request.json
-        Env.hail().variant.ReferenceGenome.removeReference(data['name'])
         return '', 204
     except FatalError as e:
         return flask.jsonify({

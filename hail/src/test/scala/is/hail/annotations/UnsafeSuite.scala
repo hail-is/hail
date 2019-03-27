@@ -54,6 +54,7 @@ class UnsafeSuite extends SparkSuite {
     val region = Region()
     val region2 = Region()
     val region3 = Region()
+    val region4 = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -95,6 +96,25 @@ class UnsafeSuite extends SparkSuite {
         val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
+
+        val aos2 = new ByteArrayOutputStream()
+        val en2 = codecSpec.buildEncoder(t.physicalType, requestedType.physicalType)(aos2)
+        en2.writeRegionValue(region, offset)
+        en2.flush()
+
+        region4.clear()
+        val ais4 = new ByteArrayInputStream(aos2.toByteArray)
+        val dec4 = codecSpec.buildDecoder(requestedType.physicalType, requestedType.physicalType)(ais4)
+        val offset4 = dec4.readRegionValue(region4)
+        val ur4 = new UnsafeRow(requestedType.physicalType, region4, offset4)
+        assert(requestedType.typeCheck(ur4))
+        if (!requestedType.valuesSimilar(a2, ur4)) {
+          println(t)
+          println(requestedType)
+          println(a2)
+          println(ur4)
+        }
+        assert(requestedType.valuesSimilar(a2, ur4))
       }
 
       true

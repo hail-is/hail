@@ -79,10 +79,9 @@ inline long lfloordiv(long n, long d) {
 
 template<bool elem_required, size_t elem_size, size_t elem_align>
 class BaseArrayImpl {
-private:
-  static constexpr size_t array_elem_size = round_up_offset(elem_size, elem_align);
-  
 public:
+  static constexpr size_t array_elem_size = round_up_offset(elem_size, elem_align);
+
   static int load_length(const char *a) {
     return load_int(a);
   }

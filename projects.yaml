@@ -4,13 +4,14 @@
   dependencies: ["batch"]
 - project: cloudtools
 - project: etc
-- project: notebook
-- project: notebook2
 - project: gateway
 - project: hail
 - project: apiserver
 - project: image-fetcher
 - project: letsencrypt
+- project: notebook
+- project: notebook2
+  dependencies: ["apiserver"]
 - project: pipeline
   dependencies: ["batch"]
 - project: scorecard

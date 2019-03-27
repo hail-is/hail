@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
@@ -10,6 +11,8 @@ import org.scalatest.testng.TestNGSuite
 
 class ArrayFunctionsSuite extends TestNGSuite {
   val naa = NA(TArray(TInt32()))
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(

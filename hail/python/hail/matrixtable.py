@@ -3825,6 +3825,60 @@ class MatrixTable(ExprContainer):
 
         return t
 
+    @typecheck_method(rows=bool, cols=bool, entries=bool)
+    def summarize(self, *, rows=True, cols=True, entries=True):
+        """Compute and print summary information about the fields in the matrix table.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        rows : :obj:`bool`
+            Compute summary for the row fields.
+        cols : :obj:`bool`
+            Compute summary for the column fields.
+        entries : :obj:`bool`
+            Compute summary for the entry fields.
+        """
+
+        if cols:
+            computations, printers = hl.expr.generic_summary(self.col, prefix='[col]', skip_top=True)
+            results = self.aggregate_cols(computations)
+            print('Columns')
+            print('=======')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+        if rows:
+            computations, printers = hl.expr.generic_summary(self.row, prefix='[row]', skip_top=True)
+            results = self.aggregate_rows(computations)
+            print('Rows')
+            print('====')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+        if entries:
+            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry]', skip_top=True)
+            results = self.aggregate_entries(computations)
+            print('Entries')
+            print('=======')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+
+
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
         mt = mt.select_entries(entry_field).select_cols().select_globals()

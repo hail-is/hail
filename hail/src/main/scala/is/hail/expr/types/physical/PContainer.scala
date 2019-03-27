@@ -13,8 +13,7 @@ object PContainer {
     region.loadInt(aoff)
 }
 
-abstract class PContainer extends PType {
-  def elementType: PType
+abstract class PContainer extends PIterable {
 
   def elementByteSize: Long
 
@@ -226,6 +225,17 @@ abstract class PContainer extends PType {
         s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
     }
   }
+
+  def cxxArrayBuilder: String = {
+    elementType match {
+      case _: PStruct | _: PTuple =>
+        s"ArrayAddrBuilder<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }, ${ alignment }>"
+      case _ =>
+        s"ArrayLoadBuilder<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize }, ${ elementType.alignment }, ${ alignment }>"
+    }
+  }
+
+  def cxxArraySorter(ltClass: String): String = s"ArraySorter<$cxxArrayBuilder, $ltClass>"
 
   def cxxLoadLength(a: cxx.Code): cxx.Code = {
     s"$cxxImpl::load_length($a)"

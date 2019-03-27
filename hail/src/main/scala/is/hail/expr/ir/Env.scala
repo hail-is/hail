@@ -25,8 +25,9 @@ class Env[V] private (val m: Map[Env.K,V]) {
   def bind(name: String, v: V): Env[V] =
     new Env(m + (name -> v))
 
-  def bind(bindings: (String, V)*): Env[V] =
-    new Env(m ++ bindings)
+  def bind(bindings: (String, V)*): Env[V] = bindIterable(bindings)
+
+  def bindIterable(bindings: Iterable[(String, V)]): Env[V] = if (bindings.isEmpty) this else new Env(m ++ bindings)
 
   def freshName(prefix: String): String = {
     var i = 0

@@ -58,13 +58,16 @@ def make_logger():
 log = make_logger()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
-
 POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
+POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
+log.info(f'POD_NAMESPACE {POD_NAMESPACE}')
+log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
+
+STORAGE_CLASS_NAME = 'batch'
 
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
@@ -78,15 +81,29 @@ log.info(f'instance_id = {instance_id}')
 
 class JobTask:  # pylint: disable=R0903
     @staticmethod
-    def copy_task(job_id, task_name, files):
-        if files:
-            container = kube.client.V1Container(image='alpine',
-                                                name=task_name,
-                                                command=['echo', 'hello'])
-
-            spec = kube.client.V1PodSpec(containers=[container],
-                                         restart_policy='Never')
-
+    def copy_task(job_id, task_name, files, copy_service_account_name):
+        if files is not None:
+            assert copy_service_account_name is not None
+            authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
+            copies = ' & '.join([f'gsutil cp {src} {dst}' for (src, dst) in files])
+            wait = 'wait'
+            sh_expression = f'{authenticate} && ({copies} ; {wait})'
+            container = kube.client.V1Container(
+                image='google/cloud-sdk:237.0.0-alpine',
+                name=task_name,
+                command=['/bin/sh', '-c', sh_expression],
+                volume_mounts=[
+                    kube.client.V1VolumeMount(
+                        mount_path='/gcp-sa-key',
+                        name='gcp-sa-key')])
+            spec = kube.client.V1PodSpec(
+                containers=[container],
+                restart_policy='Never',
+                volumes=[
+                    kube.client.V1Volume(
+                        secret=kube.client.V1SecretVolumeSource(
+                            secret_name=f'gcp-sa-key-{copy_service_account_name}'),
+                        name='gcp-sa-key')])
             return JobTask(job_id, task_name, spec)
         return None
 
@@ -114,9 +131,46 @@ class Job:
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
+    def _create_pvc(self):
+        pvc = v1.create_namespaced_persistent_volume_claim(
+            POD_NAMESPACE,
+            kube.client.V1PersistentVolumeClaim(
+                metadata=kube.client.V1ObjectMeta(
+                    generate_name=f'job-{self.id}-',
+                    labels={'app': 'batch-job',
+                            'hail.is/batch-instance': instance_id}),
+                spec=kube.client.V1PersistentVolumeClaimSpec(
+                    access_modes=['ReadWriteOnce'],
+                    volume_mode='Filesystem',
+                    resources=kube.client.V1ResourceRequirements(
+                        requests={'storage': POD_VOLUME_SIZE}),
+                    storage_class_name=STORAGE_CLASS_NAME)),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
+        return pvc
+
     def _create_pod(self):
-        assert not self._pod_name
+        assert self._pod_name is None
         assert self._current_task is not None
+
+        if len(self._tasks) > 1:
+            if self._pvc is None:
+                self._pvc = self._create_pvc()
+            current_pod_spec = self._current_task.pod_template.spec
+            if current_pod_spec.volumes is None:
+                current_pod_spec.volumes = []
+            current_pod_spec.volumes.append(
+                kube.client.V1Volume(
+                    persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=self._pvc.metadata.name),
+                    name=self._pvc.metadata.name))
+            for container in current_pod_spec.containers:
+                if container.volume_mounts is None:
+                    container.volume_mounts = []
+                container.volume_mounts.append(
+                    kube.client.V1VolumeMount(
+                        mount_path='/io',
+                        name=self._pvc.metadata.name))
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
@@ -132,8 +186,24 @@ class Job:
                                                                    self.id,
                                                                    self._current_task.name))
 
-    def _delete_pod(self):
-        if self._pod_name:
+    def _delete_pvc(self):
+        if self._pvc is not None:
+            try:
+                v1.delete_namespaced_persistent_volume_claim(
+                    self._pvc.metadata.name,
+                    POD_NAMESPACE,
+                    kube.client.V1DeleteOptions(),
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kube.client.rest.ApiException as err:
+                if err.status == 404:
+                    log.info(f'persistent volume claim {self._pvc.metadata.name} in '
+                             f'{self._pvc.metadata.namespace} is already deleted')
+                    return
+                raise
+
+    def _delete_k8s_resources(self):
+        self._delete_pvc()
+        if self._pod_name is not None:
             try:
                 v1.delete_namespaced_pod(
                     self._pod_name,
@@ -143,8 +213,7 @@ class Job:
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
                     pass
-                else:
-                    raise
+                raise
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
@@ -168,7 +237,8 @@ class Job:
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files):
+                 scratch_folder, input_files, output_files, copy_service_account_name,
+                 always_run):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -177,14 +247,16 @@ class Job:
         self.parent_ids = parent_ids
         self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
+        self.always_run = always_run
 
+        self._pvc = None
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
 
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files)]
+                       JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
@@ -231,27 +303,34 @@ class Job:
                 log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id, maybe_exit_code):
-        if new_state == 'Complete' and maybe_exit_code == 0:
-            log.info(f'parent {parent_id} successfully complete for {self.id}')
+        def update():
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
                 assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
                 if self._state != 'Cancelled':
-                    log.info(f'all parents successfully complete for {self.id},'
+                    log.info(f'all parents complete for {self.id},'
                              f' creating pod')
                     self._create_pod()
                 else:
-                    log.info(f'all parents successfully complete for {self.id},'
+                    log.info(f'all parents complete for {self.id},'
                              f' but it is already cancelled')
+
+        if new_state == 'Complete' and maybe_exit_code == 0:
+            log.info(f'parent {parent_id} successfully complete for {self.id}')
+            update()
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
-            self.incomplete_parent_ids.discard(parent_id)
-            self.cancel()
+            if not self.always_run:
+                self.cancel()
+            else:
+                log.info(f'job {self.id} is set to always run despite '
+                         f' parents deleted, cancelled, or failed.')
+                update()
 
     def cancel(self):
         if self.is_complete():
             return
-        self._delete_pod()
+        self._delete_k8s_resources()
         self.set_state('Cancelled')
 
     def delete(self):
@@ -261,7 +340,7 @@ class Job:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
 
-        self._delete_pod()
+        self._delete_k8s_resources()
         self.set_state('Cancelled')
 
     def is_complete(self):
@@ -295,9 +374,13 @@ class Job:
             self._pod_name = None
 
         self._next_task()
-        if self.exit_code == 0 and self._has_next_task():
-            self._create_pod()
-            return
+        if self.exit_code == 0:
+            if self._has_next_task():
+                self._create_pod()
+                return
+            self._delete_pvc()
+        else:
+            self._delete_pvc()
 
         self.set_state('Complete')
 
@@ -350,11 +433,17 @@ def create_job():  # pylint: disable=R0912
     schema = {
         # will be validated when creating pod
         'spec': schemas.pod_spec,
+        'copy_service_account_name': {'type': 'string'},
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'scratch_folder': {'type': 'string'},
-        'input_files': {'type': 'list', 'schema': {'type': 'string'}},
-        'output_files': {'type': 'list', 'schema': {'type': 'string'}},
+        'input_files': {
+            'type': 'list',
+            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
+        'output_files': {
+            'type': 'list',
+            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
+        'always_run': {'type': 'boolean'},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -390,12 +479,23 @@ def create_job():  # pylint: disable=R0912
     scratch_folder = parameters.get('scratch_folder')
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
+    copy_service_account_name = parameters.get('copy_service_account_name')
+    always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
 
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
+
+    if not both_or_neither(input_files is None and output_files is None,
+                           copy_service_account_name is None):
+        abort(400,
+              f'invalid request: if either input_files or ouput_files is set, '
+              f'then the service account must be specified; otherwise the '
+              f'service account must not be specified. input_files: {input_files}, '
+              f'output_files: {output_files}, copy_service_account_name: '
+              f'{copy_service_account_name}')
 
     job = Job(
         pod_spec,
@@ -405,8 +505,16 @@ def create_job():  # pylint: disable=R0912
         parent_ids,
         scratch_folder,
         input_files,
-        output_files)
+        output_files,
+        copy_service_account_name,
+        always_run)
     return jsonify(job.to_json())
+
+
+def both_or_neither(x, y):  # pylint: disable=C0103
+    assert isinstance(x, bool)
+    assert isinstance(y, bool)
+    return x == y
 
 
 @app.route('/jobs', methods=['GET'])

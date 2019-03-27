@@ -438,7 +438,9 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
-    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) => TableMapGlobals(child, Let("global", ng1, ng2))
+    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      TableMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -533,7 +535,9 @@ object Simplify {
 
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
-    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
+      val uid = genUID()
+      MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
