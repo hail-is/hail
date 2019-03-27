@@ -684,7 +684,7 @@ def stats(expr) -> StructExpression:
     Compute statistics about field `HT`:
 
     >>> table1.aggregate(agg.stats(table1.HT))
-    Struct(mean=66.75, stdev=4.656984002549289, min=60.0, max=72.0, n=4, sum=267.0)
+    Struct(mean=66.75, stdev=4.656984..., min=60.0, max=72.0, n=4, sum=267.0)  # doctest: +ELLIPSIS
 
     Notes
     -----
