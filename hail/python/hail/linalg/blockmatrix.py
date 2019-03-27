@@ -1127,7 +1127,8 @@ class BlockMatrix(object):
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
 
         path = new_local_temp_file()
-        self.tofile(path)
+        uri = local_path_uri(path)
+        self.tofile(uri)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
     @property
