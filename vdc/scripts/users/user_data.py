@@ -23,7 +23,7 @@ def create_google_service_account(sa_name, google_project):
             }).execute()
 
 
-def delete_google_service_account(gsa_email, google_project):
+def delete_google_service_account(gsa_email):
     return gcloud_service.projects().serviceAccounts().delete(name=f'projects/-/serviceAccounts/{gsa_email}').execute()
 
 
@@ -90,7 +90,7 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
         pass
 
     try:
-        delete_google_service_account(user_obj['gsa_email'], google_project)
+        delete_google_service_account(user_obj['gsa_email'])
         modified += 1
     except HttpError as e:
         if e.resp.status != 404:
