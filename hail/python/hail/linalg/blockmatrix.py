@@ -2069,8 +2069,9 @@ class BlockMatrix(object):
 
         nd = np.zeros(shape=(n_rows, n_cols))
         f = new_local_temp_file()
+        uri = local_path_uri(f)
         for rect, file_path in zip(rects, rect_files):
-            hl.utils.hadoop_copy(file_path, f)
+            hl.utils.hadoop_copy(file_path, uri)
             if binary:
                 rect_data = np.reshape(np.fromfile(f), (rect[2]-rect[1], rect[4]-rect[3]))
             else:
