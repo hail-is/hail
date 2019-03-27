@@ -60,7 +60,7 @@ final case class TStream(elementType: Type, override val required: Boolean = fal
   override def genNonmissingValue: Gen[Annotation] =
     throw new UnsupportedOperationException("Streams don't have associated annotations.")
 
-  val ordering: ExtendedOrdering =
+  lazy val ordering: ExtendedOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
   override def scalaClassTag: ClassTag[Iterator[AnyRef]] = classTag[Iterator[AnyRef]]
