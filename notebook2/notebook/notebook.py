@@ -21,9 +21,10 @@ import requests
 import uuid
 import hashlib
 import jwt
+import kubernetes as kube
+import os
 
 from table import Table
-from globals import k8s, kube
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -73,12 +74,12 @@ INSTANCE_ID = uuid.uuid4().hex
 POD_PORT = 8888
 
 SECRET_KEY = read_string('/notebook-secrets/secret-key')
-SECURE_COOKIE_FLAG = os.environ.get("NOTEBOOK_DEBUG") != "1"
+USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
     SECRET_KEY = SECRET_KEY,
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
-    SESSION_COOKIE_SECURE = SECURE_COOKIE_FLAG
+    SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
 )
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
@@ -97,6 +98,12 @@ auth0 = oauth.register(
 )
 
 user_table = Table()
+
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+    kube.config.load_kube_config()
+else:
+    kube.config.load_incluster_config()
+k8s = kube.client.CoreV1Api()
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
@@ -117,12 +124,10 @@ def jwt_decode(token):
         return None
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
     except jwt.exceptions.InvalidTokenError as e:
-        log.exception(e)
-        payload = None
-
-    return payload
+        log.warn(f'found invalid token {e}')
+        return None
 
 
 def jwt_encode(payload):
@@ -131,9 +136,8 @@ def jwt_encode(payload):
 
 def get_domain(host):
     parts = host.split('.')
-    p_len = len(parts)
 
-    return f"{parts[p_len - 2]}.{parts[p_len - 1]}"
+    return f"{parts[-2]}.{parts[-1]}"
 
 
 def attach_user():
@@ -522,7 +526,7 @@ def auth0_callback():
         redir = redirect('/')
 
     response = flask.make_response(redir)
-    response.set_cookie('user', jwt_encode(g.user), domain=get_domain(request.host), secure=SECURE_COOKIE_FLAG, httponly=True, samesite='Lax')
+    response.set_cookie('user', jwt_encode(g.user), domain=get_domain(request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
 
     return response
 
@@ -560,7 +564,7 @@ def logout():
     params = {'returnTo': external_url_for(''), 'client_id': AUTH0_CLIENT_ID}
     redir = redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
     resp = flask.make_response(redir)
-    resp.set_cookie('user', '', expires=0, domain=get_domain(request.host))
+    resp.delete_cookie('user', domain=get_domain(request.host))
 
     return resp
 

@@ -21,29 +21,23 @@ class Table:
     def getSecrets():
         secrets = {}
 
-        try:
-            res = k8s.read_namespaced_secret('get-users', 'default')
-            data = res.data
+        res = k8s.read_namespaced_secret('get-users', 'default')
+        data = res.data
 
-            if SQL_HOST_DEF is not None:
-                host = SQL_HOST_DEF
-            else:
-                host = Table.getSecret(data['host'])
+        if SQL_HOST_DEF is not None:
+            host = SQL_HOST_DEF
+        else:
+            host = Table.getSecret(data['host'])
 
-            secrets['user'] = Table.getSecret(data['user'])
-            secrets['password'] = Table.getSecret(data['password'])
-            secrets['database'] = Table.getSecret(data['db'])
-            secrets['host'] = host
-        except kube.client.rest.ApiException as e:
-            print(e)
+        secrets['user'] = Table.getSecret(data['user'])
+        secrets['password'] = Table.getSecret(data['password'])
+        secrets['database'] = Table.getSecret(data['db'])
+        secrets['host'] = host
 
         return secrets
 
     def __init__(self):
         secrets = Table.getSecrets()
-
-        if not secrets:
-            raise "Couldn't read get-users secret"
 
         self.cnx = mysql.connector.connect(**secrets)
 
@@ -60,12 +54,6 @@ class Table:
         res = cursor.fetchone()
         cursor.close()
 
-        if res is None:
-            return {
-                'id': None,
-                'gsa_email': None,
-                'ksa_name': None,
-                'bucket_name': None,
-            }
+        assert res is not None
 
         return res
