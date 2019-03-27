@@ -386,6 +386,8 @@ class Tests(unittest.TestCase):
 
         self._assert_close(m ** 3, nm ** 3)
         self._assert_close(m.sqrt(), np.sqrt(nm))
+        self._assert_close(m.ceil(), np.ceil(nm))
+        self._assert_close(m.floor(), np.floor(nm))
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
