@@ -873,7 +873,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
-        val rowMajor = fb.variable("rowMajor", "long", s"$nd.flags")
+        val rowMajor = fb.variable("rowMajor", "int", s"$nd.flags")
         val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until childTyp.nDims) {
@@ -898,6 +898,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
+             | ${ ndt.setup }
+             |
              | ${ nd.define }
              | ${ elemRef.define }
              |
@@ -925,7 +927,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val l = fb.variable("l", "NDArray", lt.v)
         val r = fb.variable("r", "NDArray", rt.v)
 
-        val rowMajor = fb.variable("rowMajor", "long", s"$l.flags")
+        val rowMajor = fb.variable("rowMajor", "int", s"$l.flags")
         val shape = fb.variable("shape", "std::vector<long>", s"$l.shape")
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until lType.nDims) {
@@ -952,6 +954,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
+             | ${ lt.setup }
+             | ${ rt.setup }
+             |
              | ${ l.define }
              | ${ r.define }
              |
@@ -979,6 +984,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
+             | ${ ndt.setup }
+             | ${ idxst.setup }
+             |
              | ${ idxsVec.define }
              | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})

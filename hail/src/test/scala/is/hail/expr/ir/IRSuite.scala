@@ -984,10 +984,10 @@ class IRSuite extends SparkSuite {
       MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())),
       shape, True())
 
-    val numsPlusLengths = NDArrayMap2(numbers, bools, "n", "b",
+    val actual = NDArrayMap2(numbers, bools, "n", "b",
       ApplyBinaryPrimOp(Add(), Ref("n", TFloat64()), If(Ref("b", TBoolean()), F64(10), F64(20))))
-    val ten = NDArrayRef(numsPlusLengths, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    val twentyTwo = NDArrayRef(numsPlusLengths, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
+    val ten = NDArrayRef(actual, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    val twentyTwo = NDArrayRef(actual, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
     assertEvalsTo(ten, 10.0)
     assertEvalsTo(twentyTwo, 22.0)
   }
