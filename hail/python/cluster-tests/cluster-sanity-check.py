@@ -10,3 +10,4 @@ mt._force_count_rows()
 
 bm = BlockMatrix.random(10, 11)
 bm.to_numpy(_force_blocking=True)
+bm.to_numpy()
