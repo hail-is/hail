@@ -167,15 +167,6 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
 
-    # check loci are in sorted order
-    loci = locus_expr.global_position().collect()
-    last_pos = hl.fold(lambda a, elt: (hl.case()
-                                         .when(a > elt, elt)
-                                         .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
-                        -1, loci)
-    if hl.eval(last_pos) < 0:
-        raise ValueError("locus_windows: 'locus_expr' has length 0.")
-
     if coord_expr is None:
         coord_expr = locus_expr.position
     else:
@@ -183,12 +174,23 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
     rg = locus_expr.dtype.reference_genome
     contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
+
+    # check loci are in sorted order
+    last_pos = hl.fold(lambda a, elt: (hl.case()
+                                         .when(a > elt, elt)
+                                         .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
+                        -1, hl.agg.collect(locus_expr.global_position()))
     src = locus_expr._indices.source
 
     if isinstance(src, hl.MatrixTable):
+        if src.aggregate_rows(last_pos) < 0:
+            raise ValueError("locus_windows: 'locus_expr' has length 0.")
         contig_groups = src.aggregate_rows(contig_group_expr, _localize=False)
     else:
+        if src.aggregate(last_pos) < 0:
+            raise ValueError("locus_windows: 'locus_expr' has length 0.")
         contig_groups = src.aggregate(contig_group_expr, _localize=False)
+
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t:
                                                     (hl.case()
