@@ -392,10 +392,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val m = fb.variable("m", "bool")
 
-        var s = ir.Pretty(x)
-        if (s.length > 100)
-          s = s.substring(0, 100)
-        s = StringEscapeUtils.escapeString(s)
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
 
         triplet(Code(at.setup, it.setup,
           s"""
@@ -823,7 +820,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(data, shape, rowMajor) =>
+      case ir.MakeNDArray(nDim, data, shape, rowMajor) =>
         val dataContainer = data.pType.asInstanceOf[PStreamable].asPArray
         val elemPType = dataContainer.elementType
         val shapeContainer = shape.pType.asInstanceOf[PStreamable].asPArray
@@ -836,6 +833,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shapeVec = fb.variable("shapeVec", "std::vector<long>",
           s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
         val dataArr = fb.variable("dataArr", "const char *", datat.v)
+
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
           s"""
              |({
@@ -843,19 +842,68 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shapet.setup }
              | ${ datat.setup }
              | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
+             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ flags.define }
              | ${ shapeVec.define }
+             |
+             | if ($nDim != $shapeVec.size()) {
+             |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
+             | }
+             |
              | ${ dataArr.define }
+             |
              | if (n_elements($shapeVec) != load_length($dataArr)) {
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
              |
-             | make_ndarray($flags, $elemSize, $shapeVec, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             | make_ndarray($flags, $elemSize, $shapeVec, make_strides($flags, $shapeVec), ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
              |})
              |""".stripMargin)
+
+      case ir.NDArrayMap(child, elemName, body) =>
+        val childTyp = child.pType.asInstanceOf[PNDArray]
+        val elemPType = childTyp.elementType
+        val cxxElemType = typeToCXXType(elemPType)
+        val elemRef = fb.variable("elemRef", cxxElemType)
+        val bodyt = outer.emit(body,
+          env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
+        val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
+
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val rowMajor = fb.variable("rowMajor", "long", s"$nd.flags")
+        val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
+
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until childTyp.nDims) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            assert(idxVars.length == childTyp.nDims)
+            val index = idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $nd.strides[$dim]" }.mkString(" + ")
+            s"""
+               |({
+               | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
+               |
+               | ${ bodyt.setup }
+               | if (${ bodyt.m }) {
+               |   ${ fb.nativeError("NDArrayMap body cannot be missing. IR: %s".format(bodyPretty)) }
+               | }
+               |
+               | ${ bodyt.v };
+               |})
+             """.stripMargin
+          }
+        }
+
+        present(
+          s"""
+             |({
+             | ${ nd.define }
+             | ${ elemRef.define }
+             |
+             | ${ emitter.emit() };
+             |})
+           """.stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
@@ -870,14 +918,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
-             | ${ ndt.setup }
-             | ${ idxst.setup }
-             | if (${ ndt.m } || ${ idxst.m }) {
-             |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(x)) }
-             | }
-             |
              | ${ idxsVec.define }
-             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, $idxsVec));
+             | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})
              |""".stripMargin)
       case _ =>
@@ -905,11 +947,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val len = fb.variable("len", "int")
         val llen = fb.variable("llen", "long")
 
-        var s = ir.Pretty(x)
-        if (s.length > 100)
-          s = s.substring(0, 100)
-        s = StringEscapeUtils.escapeString(s)
-
+        val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
 
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         new ArrayEmitter(

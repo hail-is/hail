@@ -910,7 +910,10 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-      MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeArray(shape.map(I64), TArray(TInt64())), rowMajor)
+      MakeNDArray(shape.length,
+        MakeArray(data.map(F64), TArray(TFloat64())),
+        MakeArray(shape.map(I64), TArray(TInt64())),
+        rowMajor)
     }
     def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
       NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
@@ -941,6 +944,33 @@ class IRSuite extends SparkSuite {
     def centerColMajor = makeNDArrayRef(cubeColMajor, FastSeq(1, 1, 1))
     assertEvalsTo(centerRowMajor, 13.0)
     assertEvalsTo(centerColMajor, 13.0)
+  }
+
+  @Test def testNDArrayMap() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val data = 0 until 10
+    val shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
+    val nDim = 2
+
+    def positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    def negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
+    assertEvalsTo(NDArrayRef(positives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
+    assertEvalsTo(NDArrayRef(negatives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
+
+    def trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
+    assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
+    assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
+
+    def bools = MakeNDArray(nDim,
+      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
+      shape, False())
+    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
+    assertEvalsTo(one, 1L)
+    assertEvalsTo(zero, 0L)
   }
 
   @Test def testLeftJoinRightDistinct() {
@@ -1239,7 +1269,6 @@ class IRSuite extends SparkSuite {
     val a = Ref("a", TArray(TInt32()))
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
-    val nd = Ref("nd", TNDArray(TFloat64()))
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
@@ -1269,6 +1298,11 @@ class IRSuite extends SparkSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
+    val nd = MakeNDArray(2,
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+      True())
+
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -1282,11 +1316,9 @@ class IRSuite extends SparkSuite {
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
-      MakeNDArray(
-        MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
-        MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
-        True()),
+      nd,
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
+      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1515,8 +1547,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
-      "nd" -> TNDArray(TFloat64()),
-      "nd2" -> TNDArray(TArray(TString())),
+      "nd" -> TNDArray(TFloat64(), 1),
+      "nd2" -> TNDArray(TArray(TString()), 1),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),

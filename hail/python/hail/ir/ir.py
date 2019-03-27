@@ -452,22 +452,26 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(data=IR, shape=IR, row_major=IR)
-    def __init__(self, data, shape, row_major):
+    @typecheck_method(ndim=int, data=IR, shape=IR, row_major=IR)
+    def __init__(self, ndim, data, shape, row_major):
         super().__init__(data, shape, row_major)
+        self.ndim = ndim
         self.data = data
         self.shape = shape
         self.row_major = row_major
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        return MakeNDArray(data, shape, row_major)
+        return MakeNDArray(self.ndim, data, shape, row_major)
+
+    def head_str(self):
+        return f'{self.ndim}'
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
         self.shape._compute_type(env, agg_env)
         self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type)
+        self._type = tndarray(self.data.typ.element_type, self.ndim)
 
 
 class NDArrayRef(IR):

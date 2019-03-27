@@ -21,7 +21,7 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
-      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TStreamable].elementType)
+      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, nDim)
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
@@ -95,6 +95,9 @@ object InferType {
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
+        TArray(join.typ)
+      case NDArrayMap(nd, _, body) =>
+        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDims, nd.typ.required)
       case NDArrayRef(nd, idxs) =>
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
