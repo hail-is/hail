@@ -180,17 +180,16 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
                                          .when(a > elt, elt)
                                          .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
                         -1, hl.agg.collect(locus_expr.global_position()))
+    checked_contig_groups = (hl.case()
+                               .when(last_pos >= 0, contig_group_expr)
+                               .or_error("locus_windows: 'locus_expr' has length 0"))
+
     src = locus_expr._indices.source
 
     if isinstance(src, hl.MatrixTable):
-        if src.aggregate_rows(last_pos) < 0:
-            raise ValueError("locus_windows: 'locus_expr' has length 0.")
-        contig_groups = src.aggregate_rows(contig_group_expr, _localize=False)
+        contig_groups = src.aggregate_rows(checked_contig_groups, _localize=False)
     else:
-        if src.aggregate(last_pos) < 0:
-            raise ValueError("locus_windows: 'locus_expr' has length 0.")
-        contig_groups = src.aggregate(contig_group_expr, _localize=False)
-
+        contig_groups = src.aggregate(checked_contig_groups, _localize=False)
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t:
                                                     (hl.case()
