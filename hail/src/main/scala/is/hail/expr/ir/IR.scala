@@ -197,9 +197,14 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
+final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
 
 final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+
+final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

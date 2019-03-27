@@ -95,14 +95,17 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@MakeNDArray(data, shape, rowMajor) =>
+      case x@MakeNDArray(nDim, data, shape, rowMajor) =>
+        assert(nDim >= 0)
         assert(data.typ.isInstanceOf[TStreamable])
-        assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
         assert(shape.typ.isOfType(TArray(TInt64())))
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
+        assert(idxs.typ.isOfType(TArray(TInt64())))
+      case x@NDArrayMap(_, _, body) =>
+        assert(x.elementTyp == body.typ)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))

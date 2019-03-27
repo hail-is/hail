@@ -81,6 +81,7 @@ def dtype(type_str):
         str = "tstr" / "str"
         locus = ("tlocus" / "locus") _ "[" identifier "]"
         array = ("tarray" / "array") _ "<" type ">"
+        ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
         struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -510,15 +511,18 @@ class tndarray(HailType):
     ----------
     element_type : :class:`.HailType`
         Element type of array.
+    ndim : int32
+        Number of dimensions.
 
     See Also
     --------
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type)
-    def __init__(self, element_type):
+    @typecheck_method(element_type=hail_type, ndim=int)
+    def __init__(self, element_type, ndim):
         self._element_type = element_type
+        self._ndim = ndim
         super(tndarray, self).__init__()
 
     @property
@@ -532,6 +536,17 @@ class tndarray(HailType):
         """
         return self._element_type
 
+    @property
+    def ndim(self):
+        """NDArray number of dimensions.
+
+        Returns
+        -------
+        `int32`
+            Number of dimensions.
+        """
+        return self._ndim
+
     def _traverse(self, obj, f):
         if f(self, obj):
             for elt in obj:
@@ -541,7 +556,7 @@ class tndarray(HailType):
         raise NotImplementedError
 
     def __str__(self):
-        return "ndarray<{}>".format(self.element_type)
+        return "ndarray<{}, {}>".format(self.element_type, self.ndim)
 
     def _eq(self, other):
         return isinstance(other, tndarray) and self.element_type == other.element_type
@@ -549,10 +564,12 @@ class tndarray(HailType):
     def _pretty(self, l, indent, increment):
         l.append('ndarray<')
         self.element_type._pretty(l, indent, increment)
+        l.append(', ')
+        l.append(str(self.ndim))
         l.append('>')
 
     def _parsable_string(self):
-        return "NDArray[" + self.element_type._parsable_string() + "]"
+        return f'NDArray[{self.element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError

@@ -358,8 +358,10 @@ object IRParser {
       case "NDArray" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
+        punctuation(it, ",")
+        val nDims = int32_literal(it)
         punctuation(it, "]")
-        TNDArray(elementType, req)
+        TNDArray(elementType, nDims, req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -608,10 +610,16 @@ object IRParser {
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
+        val nDim = int32_literal(it)
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         val rowMajor = ir_value_expr(env)(it)
-        MakeNDArray(data, shape, rowMajor)
+        MakeNDArray(nDim, data, shape, rowMajor)
+      case "NDArrayMap" =>
+        val name = identifier(it)
+        val nd = ir_value_expr(env)(it)
+        val body = ir_value_expr(env)(it)
+        NDArrayMap(nd, name, body)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)

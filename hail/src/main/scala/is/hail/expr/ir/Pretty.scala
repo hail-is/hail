@@ -8,6 +8,12 @@ import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
+
+  def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
+    val s = Pretty(ir)
+    if (s.length < maxLen) s else s.substring(0, maxLen)
+  }
+
   def prettyStringLiteral(s: String): String =
     "\"" + StringEscapeUtils.escapeString(s) + "\""
 
@@ -176,6 +182,8 @@ object Pretty {
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggArrayPerElement(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case MakeNDArray(nDim, _, _, _) => nDim.toString
+            case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
