@@ -1234,7 +1234,10 @@ class Table(ExprContainer):
         elif v.dtype == hl.tstr:
             s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
         elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
-            s = "(" + hl.delimit([Table._hl_repr(v[i]) for i in range(len(v))], ",") + ")"
+            if len(v) == 0:
+                s = '()'
+            else:
+                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
         else:
             s = hl.str(v)
         return hl.cond(hl.is_defined(v), s, "NA")
