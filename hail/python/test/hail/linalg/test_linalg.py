@@ -381,7 +381,7 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nm, m / m)
 
     def test_special_elementwise_ops(self):
-        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
         m = BlockMatrix.from_numpy(nm)
 
         self._assert_close(m ** 3, nm ** 3)
