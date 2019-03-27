@@ -2588,6 +2588,13 @@ class Tests(unittest.TestCase):
         mt.entries().summarize()
         mt.x1.summarize()
 
+    def test_variant_str(self):
+        assert hl.eval(
+            hl.variant_str(hl.struct(locus=hl.locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
+        assert hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
+        with pytest.raises(ValueError):
+            hl.variant_str()
+
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_ref(self):
@@ -2625,9 +2632,3 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(c[0, 0]), True)
         self.assertEqual(hl.eval(c[1, 2]), True)
 
-    def test_variant_str(self):
-        assert hl.eval(
-            hl.variant_str(hl.struct(locus=hl.locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
-        assert hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
-        with pytest.raises(ValueError):
-            hl.variant_str()

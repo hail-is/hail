@@ -16,7 +16,8 @@ object TVariable {
     "float64" -> ((t: Type) => t.isInstanceOf[TFloat64]),
     "locus" -> ((t: Type) => t.isInstanceOf[TLocus]),
     "struct" -> ((t: Type) => t.isInstanceOf[TStruct]),
-    "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]))
+    "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]),
+    "ndarray" -> ((t: Type) => t.isInstanceOf[TNDArray]))
 
   private[this] val namedBoxes: mutable.Map[String, Box[Type]] = mutable.Map()
 

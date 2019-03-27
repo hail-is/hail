@@ -1449,7 +1449,8 @@ class tvariable(HailType):
         'float64': lambda x: x == tfloat64,
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
-        'tuple': lambda x: isinstance(x, ttuple)
+        'tuple': lambda x: isinstance(x, ttuple),
+        'ndarray': lambda x: isinstance(x, tndarray)
     }
 
     def __init__(self, name, cond):

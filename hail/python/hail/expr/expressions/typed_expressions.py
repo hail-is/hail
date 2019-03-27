@@ -801,19 +801,6 @@ class ArrayNumericExpression(ArrayExpression):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
 
-class NDArrayExpression(Expression):
-
-    @typecheck_method(item=oneof(int, tuple))
-    def __getitem__(self, item):
-        ndim = self._type.ndim
-        if isinstance(item, int):
-            item = (item,)
-
-        if len(item) != ndim:
-            raise ValueError(f'Must specify one index per dimension. Expected {ndim} dimensions but got {len(item)}')
-
-        idxs = to_expr(item, ir.tarray(ir.tint64))
-        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -3053,6 +3040,21 @@ class IntervalExpression(Expression):
         :class:`.BooleanExpression`
         """
         return self._method("includesEnd", tbool)
+
+
+class NDArrayExpression(NumericExpression):
+
+    @typecheck_method(item=oneof(int, tuple))
+    def __getitem__(self, item):
+        ndim = self._type.ndim
+        if isinstance(item, int):
+            item = (item,)
+
+        if len(item) != ndim:
+            raise ValueError(f'Must specify one index per dimension. Expected {ndim} dimensions but got {len(item)}')
+
+        idxs = to_expr(item, ir.tarray(ir.tint64))
+        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
 
 
 scalars = {tbool: BooleanExpression,
