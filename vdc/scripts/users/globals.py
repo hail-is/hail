@@ -13,11 +13,9 @@ else:
 kube_client = kube.client
 k8s = kube.client.CoreV1Api()
 
-# Get credentials
 credentials = service_account.Credentials.from_service_account_file(
     filename=os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
     scopes=['https://www.googleapis.com/auth/cloud-platform'])
 
-# Create the Cloud IAM service object
 gcloud_service = googleapiclient.discovery.build(
     'iam', 'v1', credentials=credentials)
