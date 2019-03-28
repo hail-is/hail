@@ -187,12 +187,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
                                .when(last_pos >= 0, contig_group_expr)
                                .or_error("locus_windows: 'locus_expr' has length 0"))
 
-    src = locus_expr._indices.source
-
-    if isinstance(src, hl.MatrixTable):
-        contig_groups = src.aggregate_rows(checked_contig_groups, _localize=False)
-    else:
-        contig_groups = src.aggregate(checked_contig_groups, _localize=False)
+    contig_groups = checked_contig_groups._aggregation_method(checked_contig_groups, _localize=False)
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t: t[1])
     starts_and_stops = hl._locus_windows_per_contig(coords, radius)
@@ -201,24 +196,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
         return starts_and_stops
 
     starts, stops = hl.eval(starts_and_stops)
-
     return np.array(starts), np.array(stops)
-
-
-def _compute_contig_start_idx(global_pos, contig_cum_len):
-    last = global_pos[0]
-    contig_start_idx = [0]
-    cum_len_iter = iter(contig_cum_len)
-    cum_len = next(cum_len_iter)
-    for i in range(len(global_pos)):
-        curr = global_pos[i]
-        if curr < last:
-            raise ValueError("locus_windows: 'locus_expr' global position must be in ascending order")
-        while curr >= cum_len:
-            contig_start_idx.append(i)
-            cum_len = next(cum_len_iter)
-        last = curr
-    return contig_start_idx
 
 
 def _check_dims(a, name, ndim, min_size=1):
