@@ -474,6 +474,34 @@ class MakeNDArray(IR):
         self._type = tndarray(self.data.typ.element_type, self.ndim)
 
 
+class NDArrayMap(IR):
+    @typecheck_method(nd=IR, name=str, body=IR)
+    def __init__(self, nd, name, body):
+        super().__init__(nd, body)
+        self.nd = nd
+        self.name = name
+        self.body = body
+
+    @typecheck_method(nd=IR, body=IR)
+    def copy(self, nd, body):
+        return NDArrayMap(nd, self.name, body)
+
+    def head_str(self):
+        return escape_id(self.name)
+
+    def _eq(self, other):
+        return self.name == other.name
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.name, self.nd.typ.element_type), agg_env)
+        self._type = tndarray(self.body.typ, self.nd.typ.ndim)
+
+
 class NDArrayRef(IR):
     @typecheck_method(nd=IR, idxs=IR)
     def __init__(self, nd, idxs):

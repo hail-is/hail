@@ -815,6 +815,38 @@ class NDArrayExpression(Expression):
         idxs = to_expr(item, ir.tarray(ir.tint64))
         return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
 
+    @typecheck_method(f=func_spec(1, expr_any))
+    def map(self, f):
+        """Transform each element of an NDArray.
+
+        Examples
+        --------
+
+        >>> hl.eval(nd.map(lambda x: x ** 3))
+        [[1.0, 8.0],
+         [27.0, 64.0]]
+
+        Parameters
+        ----------
+        f : function ( (arg) -> :class:`.Expression`)
+            Function to transform each element of the NDArray.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+            NDArray where each element has been transformed according to `f`.
+        """
+
+        element_type, ndim = self._type.element_type, self._type.ndim
+        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: self._type.__class__(t, ndim))
+
+        assert isinstance(self._type, tndarray)
+        return ndarray_map
+
+
+class NDArrayNumericExpression(NDArrayExpression):
+    pass
+
 
 class SetExpression(CollectionExpression):
     """Expression of type :class:`.tset`.
@@ -3064,6 +3096,8 @@ def construct_expr(ir: IR,
         return Expression(ir, None, indices, aggregations)
     if isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
+    if isinstance(type, tndarray) and is_numeric(type.element_type):
+        return NDArrayNumericExpression(ir, type, indices, aggregations)
     elif type in scalars:
         return scalars[type](ir, type, indices, aggregations)
     elif type.__class__ in typ_to_expr:

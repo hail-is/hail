@@ -3014,7 +3014,7 @@ def zip_with_index(a, index_first=True):
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array()))
+           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def map(f: Callable, collection):
     """Transform each element of a collection.
 
@@ -3218,9 +3218,9 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
         return min(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def abs(x):
-    """Take the absolute value of a numeric value or array.
+    """Take the absolute value of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3233,21 +3233,22 @@ def abs(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+        print("HIIIIII")
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def sign(x):
-    """Returns the sign of a numeric value or array.
+    """Returns the sign of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3270,13 +3271,13 @@ def sign(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)

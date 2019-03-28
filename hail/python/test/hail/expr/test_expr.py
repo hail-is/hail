@@ -2590,7 +2590,7 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
-    def test_ndarray(self):
+    def test_ndarray_ref(self):
         import numpy as np
 
         scalar = 5.0
@@ -2612,6 +2612,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_map(self):
+        a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
+        b = hl.map(lambda x: -x, a)
+        c = hl.map(lambda x: True, a)
+
+        self.assertEqual(hl.eval(b[0, 0]), -2)
+        self.assertEqual(hl.eval(b[1, 2]), -7)
+        self.assertEqual(hl.eval(c[0, 0]), True)
+        self.assertEqual(hl.eval(c[1, 2]), True)
 
     def test_variant_str(self):
         assert hl.eval(
