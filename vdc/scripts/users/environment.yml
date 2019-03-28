@@ -7,4 +7,4 @@ dependencies:
       - google-api-python-client
       - google-cloud-storage
       - shortuuid
-      - mysql-connector-python
+      - PyMySQL

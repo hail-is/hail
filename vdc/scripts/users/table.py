@@ -1,4 +1,4 @@
-import mysql.connector
+import pymysql
 import os
 import base64
 from globals import v1
@@ -25,7 +25,7 @@ class Table:
 
         secrets['user'] = Table.getSecret(data['user'])
         secrets['password'] = Table.getSecret(data['password'])
-        secrets['database'] = Table.getSecret(data['db'])
+        secrets['db'] = Table.getSecret(data['db'])
         secrets['host'] = host
 
         return secrets
@@ -33,41 +33,32 @@ class Table:
     def __init__(self):
         secrets = Table.getSecrets()
 
-        self.cnx = mysql.connector.connect(**secrets)
+        self.cnx = pymysql.connect(**secrets,
+                                   cursorclass=pymysql.cursors.DictCursor)
+
+    def __del__(self):
+        self.cnx.close()
 
     def get(self, user_id):
-        cursor = self.cnx.cursor(dictionary=True)
-
-        cursor.execute("SELECT * FROM user_data WHERE user_id=%s", (user_id,))
-        res = cursor.fetchone()
-        cursor.close()
-
-        return res
+        with self.cnx.cursor() as cursor:
+            cursor.execute("SELECT * FROM user_data WHERE user_id=%s", (user_id,))
+            return cursor.fetchone()
 
     def insert(self, user_id, gsa_email, ksa_name, bucket_name):
-        cursor = self.cnx.cursor()
-        cursor.execute(
-            """
-            INSERT INTO user_data
-                (user_id, gsa_email, ksa_name, bucket_name)
-                VALUES (%s, %s, %s, %s)
-            """, (user_id, gsa_email, ksa_name, bucket_name))
-        self.cnx.commit()
+        with self.cnx.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO user_data
+                    (user_id, gsa_email, ksa_name, bucket_name)
+                    VALUES (%s, %s, %s, %s)
+                """, (user_id, gsa_email, ksa_name, bucket_name))
+            self.cnx.commit()
 
-        cnt = cursor.rowcount
-
-        cursor.close()
-
-        assert cnt == 1
+            assert cursor.rowcount == 1
 
     def delete(self, user_id):
-        cursor = self.cnx.cursor()
-        cursor.execute("DELETE FROM user_data WHERE user_id=%s", (user_id,))
+        with self.cnx.cursor() as cursor:
+            cursor.execute("DELETE FROM user_data WHERE user_id=%s", (user_id,))
+            self.cnx.commit()
 
-        self.cnx.commit()
-
-        cnt = cursor.rowcount
-
-        cursor.close()
-
-        return cnt == 1
+            return cursor.rowcount == 1
