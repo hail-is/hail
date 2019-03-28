@@ -41,7 +41,8 @@ class Table:
 
     def get(self, user_id):
         with self.cnx.cursor() as cursor:
-            cursor.execute("SELECT * FROM user_data WHERE user_id=%s", (user_id,))
+            cursor.execute(
+                "SELECT * FROM user_data WHERE user_id=%s", (user_id,))
             return cursor.fetchone()
 
     def insert(self, user_id, gsa_email, ksa_name, bucket_name):
@@ -58,7 +59,8 @@ class Table:
 
     def delete(self, user_id):
         with self.cnx.cursor() as cursor:
-            cursor.execute("DELETE FROM user_data WHERE user_id=%s", (user_id,))
+            cursor.execute(
+                "DELETE FROM user_data WHERE user_id=%s", (user_id,))
             self.cnx.commit()
 
             return cursor.rowcount == 1

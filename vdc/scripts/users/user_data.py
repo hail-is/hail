@@ -15,16 +15,17 @@ def create_service_id():
 
 def create_google_service_account(sa_name, google_project):
     return gcloud_service.projects().serviceAccounts().create(
-            name=f'projects/{google_project}',
-            body={
-                "accountId": sa_name, "serviceAccount": {
-                    "displayName": "user"
-                }
-            }).execute()
+        name=f'projects/{google_project}',
+        body={
+            "accountId": sa_name, "serviceAccount": {
+                "displayName": "user"
+            }
+        }).execute()
 
 
 def delete_google_service_account(gsa_email):
-    return gcloud_service.projects().serviceAccounts().delete(name=f'projects/-/serviceAccounts/{gsa_email}').execute()
+    return gcloud_service.projects().serviceAccounts().delete(
+        name=f'projects/-/serviceAccounts/{gsa_email}').execute()
 
 
 def create_kube_service_acccount(namespace):
@@ -43,7 +44,8 @@ def create_kube_service_acccount(namespace):
 
 
 def delete_kube_service_acccount(ksa_name, namespace):
-    return v1.delete_namespaced_service_account(name=ksa_name, namespace=namespace, body={})
+    return v1.delete_namespaced_service_account(name=ksa_name,
+                                                namespace=namespace, body={})
 
 
 def create_bucket(sa_name, gsa_email):
@@ -107,7 +109,8 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
         return 404
 
 
-def create_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='default'):
+def create_all_idempotent(user_id, google_project='hail-vdc',
+                          kube_namespace='default'):
     table = Table()
     existing = table.get(user_id)
 
@@ -121,7 +124,8 @@ def create_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='de
         return existing
 
 
-def delete_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='default'):
+def delete_all_idempotent(user_id, google_project='hail-vdc',
+                          kube_namespace='default'):
     table = Table()
     existing = table.get(user_id)
 

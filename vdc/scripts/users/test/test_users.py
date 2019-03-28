@@ -18,8 +18,10 @@ class TestCreate(unittest.TestCase):
         bucket_name = data['bucket_name']
 
         try:
-            v1.read_namespaced_service_account(name=ksa_name, namespace=kube_namespace)
-            v1.delete_namespaced_service_account(name=ksa_name, namespace=kube_namespace, body={})
+            v1.read_namespaced_service_account(
+                name=ksa_name, namespace=kube_namespace)
+            v1.delete_namespaced_service_account(
+                name=ksa_name, namespace=kube_namespace, body={})
         except Exception:
             self.fail(f"Couldn't read created kubernetes service account")
 
@@ -38,14 +40,17 @@ class TestCreate(unittest.TestCase):
         print("Created and deleted", data)
 
     def test_create_all_idempotent(self):
-        data = create_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
+        data = create_all_idempotent(
+            user_id, google_project=google_project,
+            kube_namespace=kube_namespace)
 
         ksa_name = data['ksa_name']
         gsa_name = f"projects/-/serviceAccounts/{data['gsa_email']}"
         bucket_name = data['bucket_name']
 
         try:
-            v1.read_namespaced_service_account(name=ksa_name, namespace=kube_namespace)
+            v1.read_namespaced_service_account(
+                name=ksa_name, namespace=kube_namespace)
         except Exception:
             self.fail(f"Couldn't read created kubernetes service account")
 
@@ -62,7 +67,9 @@ class TestCreate(unittest.TestCase):
         print("Created", data)
 
     def test_delete_all_idempotent(self):
-        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
+        delete_all_idempotent(
+            user_id, google_project=google_project,
+            kube_namespace=kube_namespace)
 
         print(f"Deleted {user_id}")
 
@@ -70,13 +77,14 @@ class TestCreate(unittest.TestCase):
         data = create_all(google_project, kube_namespace)
 
         try:
-            v1.delete_namespaced_service_account(name=data['ksa_name'], namespace=kube_namespace, body={})
+            v1.delete_namespaced_service_account(
+                name=data['ksa_name'], namespace=kube_namespace, body={})
         except Exception:
             self.fail(f"Couldn't delete kubernetes service account")
 
-        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
-
-        print(f"Deleted using delete_all_idempotent, with missing v1 namespace, for {user_id}")
+        delete_all_idempotent(
+            user_id, google_project=google_project,
+            kube_namespace=kube_namespace)
 
     def test_delete_partial_gcloud_sa(self):
         data = create_all(google_project, kube_namespace)
@@ -88,9 +96,9 @@ class TestCreate(unittest.TestCase):
         except Exception:
             self.fail(f"Couldn't delete created google service account")
 
-        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
-
-        print(f"Deleted using delete_all_idempotent, with missing gcloud service account, for {user_id}")
+        delete_all_idempotent(
+            user_id, google_project=google_project,
+            kube_namespace=kube_namespace)
 
     def test_delete_partial_bucket(self):
         data = create_all(google_project, kube_namespace)
@@ -101,9 +109,9 @@ class TestCreate(unittest.TestCase):
         except Exception:
             self.fail("Couldn't delete created bucket")
 
-        delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
-
-        print(f"Deleted using delete_all_idempotent, with missing gcloud bucket, for {user_id}")
+        delete_all_idempotent(
+            user_id, google_project=google_project,
+            kube_namespace=kube_namespace)
 
 
 if __name__ == "__main__":

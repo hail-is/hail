@@ -18,8 +18,9 @@ kubernetes
 libsass
 pip
 pylint
-pymysql
+PyMySQL==0.9.*
 pytest
 requests
 uvloop>=0.12
 werkzeug
+shortuuid==0.5.*

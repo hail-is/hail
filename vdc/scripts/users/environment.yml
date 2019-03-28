@@ -3,8 +3,11 @@ dependencies:
   - python=3.6
   - pip
   - pip:
-      - kubernetes
-      - google-api-python-client
-      - google-cloud-storage
-      - shortuuid
-      - PyMySQL
+      - pytest==4.*
+      - flake8==3.*
+      - pylint==2.*
+      - kubernetes==9.*
+      - google-api-python-client==1.*
+      - google-cloud-storage==1.*
+      - PyMySQL==0.9.*
+      - shortuuid==0.5.*
