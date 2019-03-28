@@ -1827,6 +1827,64 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
 
 
+@typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
+def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
+    """Samples from a normal distribution with mean `mean` and covariance matrix `cov`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [0.5515477294463427, -1.1782691532205807]
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [-1.127240906867922, 1.4495317887283203]
+
+    Notes
+    -----
+    The covariance of a 2d normal distribution is a 2x2 symmetric matrix
+    [[a, b], [b, c]]. This is specified in `cov` as a length 3 array [a, b, c].
+    The covariance matrix must be positive semi-definite, i.e. a>0, c>0, and
+    a*d - c^2 > 0.
+
+    If `mean` and `cov` are both None, draws from the standard 2d normal
+    distribution.
+
+    Parameters
+    ----------
+    mean : :class:`.ArrayNumericExpression`, optional
+        Mean of normal distribution. Array of length 2.
+    cov : :class:`.ArrayNumericExpression`, optional
+        Covariance of normal distribution. Array of length 3.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.ArrayFloat64Expression`
+    """
+    if mean is None:
+        m1 = 0
+        m2 = 0
+    else:
+        m1 = mean[0]
+        m2 = mean[1]
+    if cov is None:
+        s11 = 1
+        s12 = 0
+        s22 = 1
+    else:
+        s11 = cov[0]
+        s12 = cov[1]
+        s22 = cov[2]
+    x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
+    root_s11 = hl.sqrt(s11)
+    return hl.array([
+        m1 + root_s11 * x[0],
+        m2 + (s12 / rool_s11) * x[0]
+           + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])
+
+
 @typecheck(lamb=expr_float64, seed=nullable(int))
 def rand_pois(lamb, seed=None) -> Float64Expression:
     """Samples from a `Poisson distribution
