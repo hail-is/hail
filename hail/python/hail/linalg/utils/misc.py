@@ -179,7 +179,10 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     last_pos = hl.fold(lambda a, elt: (hl.case()
                                          .when(a <= elt, elt)
                                          .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
-                        -1, hl.agg.collect(locus_expr.global_position()))
+                       -1,
+                       hl.agg.collect(hl.case()
+                                        .when(hl.is_defined(locus_expr), locus_expr.global_position())
+                                        .or_error("locus_windows: missing value for 'locus_expr'.")))
     checked_contig_groups = (hl.case()
                                .when(last_pos >= 0, contig_group_expr)
                                .or_error("locus_windows: 'locus_expr' has length 0"))
@@ -191,10 +194,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     else:
         contig_groups = src.aggregate(checked_contig_groups, _localize=False)
 
-    coords = hl.sorted(hl.array(contig_groups)).map(lambda t:
-                                                    (hl.case()
-                                                     .when(hl.is_defined(t[0]), t[1])
-                                                     .or_error("locus_windows: missing value for 'locus_expr'.")))
+    coords = hl.sorted(hl.array(contig_groups)).map(lambda t: t[1])
     starts_and_stops = hl._locus_windows_per_contig(coords, radius)
 
     if not _localize:
