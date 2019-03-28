@@ -5,7 +5,9 @@ import is.hail.utils._
 object Subst {
   def apply(e: IR): IR = apply(e, BindingEnv.empty[IR])
 
-  def apply(e: IR, env: BindingEnv[IR]): IR = subst(e, env)
+  def apply(e: IR, env: BindingEnv[IR]): IR = {
+    subst(e, env)
+  }
 
   private def subst(e: IR, env: BindingEnv[IR]): IR = {
     if (env.allEmpty)
@@ -21,7 +23,7 @@ object Subst {
             .zipWithIndex
             .map { case (child: IR, i) =>
 
-              val childEnv = ChildEnvWithoutBindings(child, i, env)
+              val childEnv = ChildEnvWithoutBindings(e, i, env)
               val b = Bindings(e, i).map(_._1)
               val ab = AggBindings(e, i).map(_._1)
               val sb = ScanBindings(e, i).map(_._1)
