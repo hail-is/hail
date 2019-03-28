@@ -177,7 +177,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
     # check loci are in sorted order
     last_pos = hl.fold(lambda a, elt: (hl.case()
-                                         .when(a > elt, elt)
+                                         .when(a <= elt, elt)
                                          .or_error("locus_windows: 'locus_expr' global position must be in ascending order.")),
                         -1, hl.agg.collect(locus_expr.global_position()))
     checked_contig_groups = (hl.case()
