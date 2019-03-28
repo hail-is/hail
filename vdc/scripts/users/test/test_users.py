@@ -6,7 +6,7 @@ from globals import v1, gcloud_service
 
 user_id = f'test-user-{uuid.uuid4().hex}'
 google_project = 'hail-vdc'
-kube_namespace = 'default'
+kube_namespace = 'test'
 
 
 class TestCreatea(unittest.TestCase):
@@ -45,7 +45,7 @@ class TestCreatea(unittest.TestCase):
         bucket_name = data['bucket_name']
 
         try:
-            v1.read_namespaced_service_account(name=ksa_name, namespace='default')
+            v1.read_namespaced_service_account(name=ksa_name, namespace=kube_namespace)
         except Exception:
             self.fail(f"Couldn't read created kubernetes service account")
 
