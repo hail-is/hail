@@ -3044,14 +3044,18 @@ class IntervalExpression(Expression):
 
 class NDArrayExpression(NumericExpression):
 
+    @property
+    def ndim(self):
+        return self._type.ndim.value
+
     @typecheck_method(item=oneof(int, tuple))
     def __getitem__(self, item):
-        ndim = self._type.ndim
         if isinstance(item, int):
             item = (item,)
 
-        if len(item) != ndim:
-            raise ValueError(f'Must specify one index per dimension. Expected {ndim} dimensions but got {len(item)}')
+        if len(item) != self.ndim:
+            raise ValueError(f'Must specify one index per dimension. '
+                             f'Expected {self.ndim} dimensions but got {len(item)}')
 
         idxs = to_expr(item, ir.tarray(ir.tint64))
         return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)

@@ -359,7 +359,7 @@ object IRParser {
         punctuation(it, "[")
         val elementType = type_expr(it)
         punctuation(it, ",")
-        val nDims = int32_literal(it)
+        val nDims = type_expr(it)
         punctuation(it, "]")
         TNDArray(elementType, nDims, req)
       case "Set" =>
@@ -385,6 +385,11 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields, req)
+      case "Nat" =>
+        punctuation(it, "(")
+        val n = int32_literal(it)
+        punctuation(it, ")")
+        TNat(n, req)
     }
     assert(typ.required == req)
     typ

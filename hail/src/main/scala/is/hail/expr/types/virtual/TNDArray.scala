@@ -6,14 +6,14 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TNDArray(elementType: Type, nDims: Int, override val required: Boolean = false) extends Type {
-  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
+final case class TNDArray(elementType: Type, nDims: Type, override val required: Boolean = false) extends Type {
+  lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
     elementType.pyString(sb)
     sb.append(", ")
-    sb.append(nDims.toString)
+    nDims.pyString(sb)
     sb.append('>')
   }
   
@@ -23,7 +23,7 @@ final case class TNDArray(elementType: Type, nDims: Int, override val required: 
     sb.append("NDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(",")
-    sb.append(nDims)
+    nDims.pretty(sb, indent, compact)
     sb.append("]")
   }
 

@@ -22,7 +22,7 @@ object InferType {
       case In(_, t) => t
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
-      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, nDim)
+      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, TNat(nDim))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())

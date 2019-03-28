@@ -38,6 +38,7 @@ __all__ = [
     'tcall',
     'tvoid',
     'tvariable',
+    'tnat',
     'hts_entry_schema',
 ]
 
@@ -519,7 +520,7 @@ class tndarray(HailType):
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type, ndim=int)
+    @typecheck_method(element_type=hail_type, ndim=hail_type)
     def __init__(self, element_type, ndim):
         self._element_type = element_type
         self._ndim = ndim
@@ -542,7 +543,7 @@ class tndarray(HailType):
 
         Returns
         -------
-        `int32`
+        :class:`.HailType`
             Number of dimensions.
         """
         return self._ndim
@@ -551,6 +552,7 @@ class tndarray(HailType):
         if f(self, obj):
             for elt in obj:
                 self.element_type._traverse(elt, f)
+                self.ndim._traverse(elt, f)
 
     def _typecheck_one_level(self, annotation):
         raise NotImplementedError
@@ -565,17 +567,29 @@ class tndarray(HailType):
         l.append('ndarray<')
         self.element_type._pretty(l, indent, increment)
         l.append(', ')
-        l.append(str(self.ndim))
+        self.element_type._pretty(l, indent, increment)
         l.append('>')
 
     def _parsable_string(self):
-        return f'NDArray[{self.element_type._parsable_string()},{self.ndim}]'
+        return f'NDArray[{self.element_type._parsable_string()},{self.ndim._parsable_string()}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError
 
     def _convert_to_json(self, x):
         raise NotImplementedError
+
+    def clear(self):
+        self.element_type.clear()
+        self.ndim.clear()
+
+    def unify(self, t):
+        return isinstance(t, tndarray) and \
+               self.element_type.unify(t.element_type) and \
+               self.ndim.unify(t.ndim)
+
+    def subst(self):
+        return tndarray(self.element_type.subst(), self.ndim.subst())
 
 
 class tarray(HailType):
@@ -1290,6 +1304,41 @@ class tinterval(HailType):
         self.point_type.clear()
 
 
+class tnat(HailType):
+    def __init__(self, value):
+        self.value = value
+        super(tnat, self).__init__()
+
+    def _traverse(self, obj, f):
+        pass
+
+    def _typecheck_one_level(self, annotation):
+        raise NotImplementedError
+
+    def __str__(self):
+        return f'Nat<{self.value}>'
+
+    def _eq(self, other):
+        return self.value == other.value
+
+    def _pretty(self, l, indent, increment):
+        l.append("nat<")
+        l.append(str(self.value))
+        l.append(">")
+
+    def _parsable_string(self):
+        return f'Nat({self.value})'
+
+    def clear(self):
+        pass
+
+    def unify(self, t):
+        return isinstance(t, tnat) and self.value == t.value
+
+    def subst(self):
+        return self
+
+
 class Box(object):
     named_boxes = {}
 
@@ -1450,7 +1499,7 @@ class tvariable(HailType):
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
         'tuple': lambda x: isinstance(x, ttuple),
-        'ndarray': lambda x: isinstance(x, tndarray)
+        'nat': lambda x: isinstance(x, tnat)
     }
 
     def __init__(self, name, cond):
