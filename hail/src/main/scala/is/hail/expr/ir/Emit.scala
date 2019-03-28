@@ -441,7 +441,7 @@ private class Emit(
         val sorter = new ArraySorter(mb, vab)
 
         val (array, compare, distinct) = (x: @unchecked) match {
-          case ArraySort(a, l, r, comp) => (a, Subst(comp, Env[IR](l -> In(0, eltType), r -> In(1, eltType))), Code._empty[Unit])
+          case ArraySort(a, l, r, comp) => (a, Subst(comp, BindingEnv(Env[IR](l -> In(0, eltType), r -> In(1, eltType)))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
             val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty)
@@ -1159,7 +1159,7 @@ private class Emit(
   private def getAsDependentFunction[A1: TypeInfo, R: TypeInfo](
     ir: IR, argEnv: Env[IR], env: Emit.E, errorMsg: String
   ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
-    val (newIR, getEnv) = capturedReferences(Subst(ir, argEnv))
+    val (newIR, getEnv) = capturedReferences(Subst(ir, BindingEnv(argEnv)))
     val f = mb.fb.newDependentFunction[Region, A1, Boolean, R]
 
     val newEnv = getEnv(env, f)
@@ -1385,7 +1385,7 @@ private class Emit(
         val et = new Emit(compKeyF, 1).emit(compKey, fenv)
         compKeyF.emit(Code(et.setup, et.m.mux(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing"), et.value[Int])))
         val joinF = mb.fb.newMethod(typeInfo[Region], typeToTypeInfo(relt), typeInfo[Boolean], typeToTypeInfo(join.typ))
-        val jet = new Emit(joinF, 1).emit(Subst(join, Env[IR](r -> In(0, relt))), fenv)
+        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, relt)))), fenv)
         joinF.emit(Code(jet.setup, jet.m.mux(Code._fatal("ArrayLeftJoinDistinct: joined can't be missing"), jet.v)))
 
         val ae = { cont: Emit.F =>

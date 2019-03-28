@@ -19,7 +19,7 @@ object FoldConstants {
                _: Die => None
           case MakeStruct(fields) if fields.isEmpty => None
           case Let(name, value, body) if IsConstant(value) =>
-            Some(FoldConstants(Subst(body, Env.empty[IR].bind(name, value)), canGenerateLiterals))
+            Some(FoldConstants(Subst(body, BindingEnv(Env.empty[IR].bind(name, value))), canGenerateLiterals))
           case _ if IsConstant(ir) => None
           case _ if !Interpretable(ir) => None
           case _ =>

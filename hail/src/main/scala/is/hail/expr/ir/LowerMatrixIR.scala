@@ -189,9 +189,10 @@ object LowerMatrixIR {
         }
       }
 
+      val e = Env[IRProxy]("va" -> 'row, "global" -> 'global)
       lower(child)
         .mapRows(
-          subst(liftScans(newRow), Env("va" -> 'row, "global" -> 'global))
+          subst(liftScans(newRow), BindingEnv(e, scan=Some(e)))
             .insertFields(entriesField -> 'row (entriesField)))
     }
 
