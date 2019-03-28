@@ -81,15 +81,13 @@ object ScanBindings {
 
 
 object ChildEnvWithoutBindings {
-  private val empty = BindingEnv.empty[Type]
-
-  def apply(ir: BaseIR, i: Int, env: BindingEnv[Type]): BindingEnv[Type] = {
+  def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
       case ArrayAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
-      case ApplyAggOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
-      case ApplyScanOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
-      case MatrixAggregate(_, _) => empty
-      case TableAggregate(_, _) => empty
+      case ApplyAggOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) BindingEnv.empty[T] else env
+      case ApplyScanOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) BindingEnv.empty[T] else env
+      case MatrixAggregate(_, _) => BindingEnv.empty[T]
+      case TableAggregate(_, _) => BindingEnv.empty[T]
       case _ => env
     }
   }
