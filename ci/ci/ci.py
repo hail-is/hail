@@ -9,7 +9,7 @@ from batch.client import Job
 from flask import Flask, request, jsonify, render_template, redirect
 from flask_cors import CORS
 
-from .batch_helper import try_to_cancel_job, job_ordering
+from .batch_helper import try_to_delete_job, job_ordering
 from .ci_logging import log
 from .constants import BUILD_JOB_TYPE, GCS_BUCKET, GCS_BUCKET_PREFIX, \
     DEPLOY_JOB_TYPE
@@ -40,7 +40,7 @@ def handle_invalid_usage(error):
 
 @app.route('/status')
 def status():
-    return jsonify(prs.to_json())
+    return jsonify(prs.to_dict())
 
 
 @app.route('/push', methods=['POST'])
@@ -146,11 +146,11 @@ def refresh_batch_state():
         job for job in jobs
         if job.attributes and job.attributes.get('type', None) == BUILD_JOB_TYPE
     ]
-    refresh_ci_build_jobs(build_jobs)
     deploy_jobs = [
         job for job in jobs
         if job.attributes and job.attributes.get('type', None) == DEPLOY_JOB_TYPE
     ]
+    refresh_ci_build_jobs(build_jobs)
     refresh_deploy_jobs(deploy_jobs)
     return '', 200
 
@@ -172,15 +172,15 @@ def refresh_ci_build_jobs(jobs):
         else:
             if job_ordering(job, job2) > 0:
                 log.info(
-                    f'cancelling {job2.id}, preferring {job.id}'
+                    f'deleting {job2.id}, preferring {job.id}'
                 )
-                try_to_cancel_job(job2)
+                try_to_delete_job(job2)
                 latest_jobs[key] = job
             else:
                 log.info(
-                    f'cancelling {job.id}, preferring {job2.id}'
+                    f'deleting {job.id}, preferring {job2.id}'
                 )
-                try_to_cancel_job(job)
+                try_to_delete_job(job)
     prs.refresh_from_ci_jobs(latest_jobs)
 
 def refresh_deploy_jobs(jobs):
@@ -203,15 +203,15 @@ def refresh_deploy_jobs(jobs):
         else:
             if job_ordering(job, job2) > 0:
                 log.info(
-                    f'cancelling {job2.id}, preferring {job.id}'
+                    f'deleting {job2.id}, preferring {job.id}'
                 )
-                try_to_cancel_job(job2)
+                try_to_delete_job(job2)
                 latest_jobs[target] = job
             else:
                 log.info(
-                    f'cancelling {job.id}, preferring {job2.id}'
+                    f'deleting {job.id}, preferring {job2.id}'
                 )
-                try_to_cancel_job(job)
+                try_to_delete_job(job)
     prs.refresh_from_deploy_jobs(latest_jobs)
 
 

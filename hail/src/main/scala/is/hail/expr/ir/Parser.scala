@@ -358,8 +358,10 @@ object IRParser {
       case "NDArray" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
+        punctuation(it, ",")
+        val nDims = int32_literal(it)
         punctuation(it, "]")
-        TNDArray(elementType, req)
+        TNDArray(elementType, nDims, req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -562,6 +564,12 @@ object IRParser {
         val value = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> value.typ))(it)
         Let(name, value, body)
+      case "AggLet" =>
+        val name = identifier(it)
+        val isScan = boolean_literal(it)
+        val value = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (name -> value.typ))(it)
+        AggLet(name, value, body, isScan)
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
@@ -598,14 +606,20 @@ object IRParser {
         val l = identifier(it)
         val r = identifier(it)
         val a = ir_value_expr(env)(it)
-        val elt = coerce[TArray](a.typ).elementType
+        val elt = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
+        val nDim = int32_literal(it)
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
-        val row_major = ir_value_expr(env)(it)
-        MakeNDArray(data, shape, row_major)
+        val rowMajor = ir_value_expr(env)(it)
+        MakeNDArray(nDim, data, shape, rowMajor)
+      case "NDArrayMap" =>
+        val name = identifier(it)
+        val nd = ir_value_expr(env)(it)
+        val body = ir_value_expr(env)(it)
+        NDArrayMap(nd, name, body)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)
@@ -613,6 +627,7 @@ object IRParser {
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
+      case "ToStream" => ToStream(ir_value_expr(env)(it))
       case "LowerBoundOnOrderedCollection" =>
         val onKey = boolean_literal(it)
         val col = ir_value_expr(env)(it)
@@ -624,24 +639,24 @@ object IRParser {
       case "ArrayMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayMap(a, name, body)
       case "ArrayFilter" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFilter(a, name, body)
       case "ArrayFlatMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFlatMap(a, name, body)
       case "ArrayFold" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TArray](a.typ).elementType
+        val eltType = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
       case "ArrayScan" =>
@@ -649,7 +664,7 @@ object IRParser {
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TArray](a.typ).elementType
+        val eltType = coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayScan(a, zero, accumName, valueName, body)
       case "ArrayLeftJoinDistinct" =>
@@ -657,37 +672,43 @@ object IRParser {
         val r = identifier(it)
         val left = ir_value_expr(env)(it)
         val right = ir_value_expr(env)(it)
-        val comp = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
-        val join = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
+        val lelt = coerce[TStreamable](left.typ).elementType
+        val relt = coerce[TStreamable](right.typ).elementType
+        val comp = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
+        val join = ir_value_expr(env.update(Map(l -> lelt, r -> relt)))(it)
         ArrayLeftJoinDistinct(left, right, l, r, comp, join)
       case "ArrayFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
         ArrayFor(a, name, body)
       case "ArrayAgg" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
         ArrayAgg(a, name, query)
       case "AggFilter" =>
+        val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
-        AggFilter(cond, aggIR)
+        AggFilter(cond, aggIR, isScan)
       case "AggExplode" =>
         val name = identifier(it)
+        val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
-        AggExplode(a, name, aggBody)
+        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        AggExplode(a, name, aggBody, isScan)
       case "AggGroupBy" =>
+        val isScan = boolean_literal(it)
         val key = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
-        AggGroupBy(key, aggIR)
+        AggGroupBy(key, aggIR, isScan)
       case "AggArrayPerElement" =>
         val name = identifier(it)
+        val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
-        AggArrayPerElement(a, name, aggBody)
+        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        AggArrayPerElement(a, name, aggBody, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -738,14 +759,6 @@ object IRParser {
         val idx = int32_literal(it)
         val tuple = ir_value_expr(env)(it)
         GetTupleElement(tuple, idx)
-      case "StringSlice" =>
-        val s = ir_value_expr(env)(it)
-        val start = ir_value_expr(env)(it)
-        val end = ir_value_expr(env)(it)
-        StringSlice(s, start, end)
-      case "StringLength" =>
-        val s = ir_value_expr(env)(it)
-        StringLength(s)
       case "In" =>
         val typ = type_expr(it)
         val idx = int32_literal(it)
@@ -840,7 +853,7 @@ object IRParser {
         val gname = identifier(it)
         val ctxs = ir_value_expr(env)(it)
         val globals = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (cname, coerce[TArray](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        val body = ir_value_expr(env + (cname, coerce[TStreamable](ctxs.typ).elementType) + (gname, globals.typ))(it)
         CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)
@@ -1109,9 +1122,9 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixCollectColsByKey(child)
       case "MatrixRepartition" =>
-        val child = matrix_ir(env)(it)
         val n = int32_literal(it)
         val strategy = int32_literal(it)
+        val child = matrix_ir(env)(it)
         MatrixRepartition(child, n, strategy)
       case "MatrixUnionRows" =>
         val children = matrix_ir_children(env)(it)
@@ -1147,6 +1160,10 @@ object IRParser {
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
+      case "JavaMatrixVectorRef" =>
+        val id = int32_literal(it)
+        val idx = int32_literal(it)
+        HailContext.get.irVectors(id)(idx).asInstanceOf[MatrixIR]
     }
   }
 

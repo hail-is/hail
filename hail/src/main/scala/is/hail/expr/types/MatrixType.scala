@@ -9,7 +9,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
+import org.json4s.JsonAST.{JArray, JObject, JString}
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
@@ -49,12 +49,12 @@ case class MatrixType(
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
 
-  val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
-  val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
-  val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
-  val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
+  lazy val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
+  lazy val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
+  lazy val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
+  lazy val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
-  val entriesRVType: TStruct = TStruct(
+  lazy val entriesRVType: TStruct = TStruct(
     MatrixType.entriesIdentifier -> TArray(entryType))
 
   assert({
@@ -62,24 +62,24 @@ case class MatrixType(
     rowKey.forall(rowFields.contains)
   }, s"$rowKey: $rowType")
 
-  val (rowKeyStruct, _) = rowType.select(rowKey)
+  lazy val (rowKeyStruct, _) = rowType.select(rowKey)
   def extractRowKey: Row => Row = rowType.select(rowKey)._2
-  val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
-  val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
+  lazy val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
+  lazy val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
   def extractRowValue: Annotation => Annotation = rowType.filterSet(rowKey.toSet, include = false)._2
-  val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
+  lazy val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
 
-  val (colKeyStruct, _) = colType.select(colKey)
+  lazy val (colKeyStruct, _) = colType.select(colKey)
   def extractColKey: Row => Row = colType.select(colKey)._2
-  val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
-  val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
+  lazy val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
+  lazy val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
   def extractColValue: Annotation => Annotation = colType.filterSet(colKey.toSet, include = false)._2
-  val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
+  lazy val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
-  val colsTableType: TableType =
+  lazy val colsTableType: TableType =
     TableType(colType, colKey, globalType)
 
-  val rowsTableType: TableType =
+  lazy val rowsTableType: TableType =
     TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
@@ -190,5 +190,16 @@ case class MatrixType(
   def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
     firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+  }
+
+  def pyJson: JObject = {
+    JObject(
+      "row" -> JString(rowType.toString),
+      "row_key" -> JArray(rowKey.toList.map(JString(_))),
+      "col" -> JString(colType.toString),
+      "col_key" -> JArray(colKey.toList.map(JString(_))),
+      "entry" -> JString(entryType.toString),
+      "global" -> JString(globalType.toString)
+    )
   }
 }

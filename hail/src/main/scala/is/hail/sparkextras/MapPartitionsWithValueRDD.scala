@@ -3,6 +3,7 @@ package is.hail.sparkextras
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 
+import scala.annotation.meta.param
 import scala.reflect.ClassTag
 
 case class MapPartitionsWithValueRDDPartition[V](
@@ -13,11 +14,11 @@ case class MapPartitionsWithValueRDDPartition[V](
 
 class MapPartitionsWithValueRDD[T: ClassTag, U: ClassTag, V](
   var prev: RDD[T],
-  @transient values: Array[V],
+  @(transient @param) values: Array[V],
   f: (Int, V, Iterator[T]) => Iterator[U],
   preservesPartitioning: Boolean) extends RDD[U](prev) {
 
-  override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
+  @transient override val partitioner = if (preservesPartitioning) firstParent[T].partitioner else None
 
   override def getPartitions: Array[Partition] = {
     firstParent[T].partitions.map(p => MapPartitionsWithValueRDDPartition(p, values(p.index)))

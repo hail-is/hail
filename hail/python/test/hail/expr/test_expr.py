@@ -305,6 +305,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_approx_cdf(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(hl.agg.approx_cdf(table.i))
+        table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
+        table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
+        table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
+
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
         assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
@@ -2579,3 +2587,28 @@ class Tests(unittest.TestCase):
         mt.summarize()
         mt.entries().summarize()
         mt.x1.summarize()
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray(self):
+        import numpy as np
+
+        scalar = 5.0
+        np_scalar = np.array(scalar)
+        h_scalar = hl._ndarray(scalar)
+        h_np_scalar = hl._ndarray(np_scalar)
+        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
+        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
+
+        cube = [[[0, 1],
+                 [2, 3]],
+                [[4, 5],
+                 [6, 7]]]
+        h_cube = hl._ndarray(cube)
+        h_np_cube = hl._ndarray(np.array(cube))
+        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
+        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
+        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
+        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+
+        self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])

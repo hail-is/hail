@@ -10,17 +10,21 @@ import is.hail.utils.using
 
 import scala.collection.mutable
 
-class SparkUtils(mods: Array[(String, NativeModule)]) {
+class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
 
-  private[this] val loadedModules: Map[String, NativeModule] = mods.toMap
-  def getModule(id: String): (String, Array[Byte]) =
-    (loadedModules(id).getKey, loadedModules(id).getBinary)
+  type Literals = Array[Byte]
+
+  private[this] val loadedModules: Map[String, (Literals, NativeModule)] = mods.toMap
+  def getModule(id: String): (Literals, String, Array[Byte]) = {
+    val (lit, mod) = loadedModules(id)
+    (lit, mod.getKey, mod.getBinary)
+  }
 
   def parallelizeComputeCollect(modID: String, bodyf: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
 
     val sc = HailContext.get.sc
     val rdd = sc.parallelize[Array[Byte]](contexts, numSlices = contexts.length)
-    val (key, bin) = getModule(modID)
+    val (lit, key, bin) = getModule(modID)
 
     val globalsBC = sc.broadcast(globals)
 
@@ -38,7 +42,7 @@ class SparkUtils(mods: Array[(String, NativeModule)]) {
 
       Region.scoped { region =>
         using(new ByteArrayOutputStream()) { baos =>
-          val objs = new ObjectArray(baos, new ByteArrayInputStream(ctx), new ByteArrayInputStream(gs))
+          val objs = new ObjectArray(baos, new ByteArrayInputStream(ctx), new ByteArrayInputStream(gs), new ByteArrayInputStream(lit))
           f(st, region.get(), objs.get())
           assert(st.ok, st.toString())
           objs.close()

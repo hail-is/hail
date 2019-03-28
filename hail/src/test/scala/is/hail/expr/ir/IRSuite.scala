@@ -236,7 +236,7 @@ class IRSuite extends SparkSuite {
     assertExpected(TInt32(), 5, null, null)
     assertExpected(TInt32(), null, 2, null)
     assertExpected(TInt32(), null, null, null)
-    
+
     assertExpected(TInt64(), 5L, 2L, 10L)
     assertExpected(TInt64(), 5L, null, null)
     assertExpected(TInt64(), null, 2L, null)
@@ -471,7 +471,6 @@ class IRSuite extends SparkSuite {
     assertComparesTo(TFloat64(), 1.0, 0.0, true)
   }
 
-
   @Test def testApplyComparisonOpLT() {
     def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
       assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -586,6 +585,15 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32())), 5)
     assertEvalsTo(Let("v", NA(TInt32()), Ref("v", TInt32())), null)
     assertEvalsTo(Let("v", I32(5), NA(TInt32())), null)
+    assertEvalsTo(ArrayMap(Let("v", I32(5), ArrayRange(0, Ref("v", TInt32()), 1)), "x", Ref("x", TInt32()) + I32(2)),
+      FastIndexedSeq(2, 3, 4, 5, 6))
+    assertEvalsTo(
+      ArrayMap(Let("q", I32(2),
+      ArrayMap(Let("v", Ref("q", TInt32()) + I32(3),
+        ArrayRange(0, Ref("v", TInt32()), 1)),
+        "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
+        "y", Ref("y", TInt32()) + I32(3)),
+      FastIndexedSeq(5, 6, 7, 8, 9))
   }
 
   @Test def testMakeArray() {
@@ -898,6 +906,73 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testNDArrayRef() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
+      MakeNDArray(shape.length,
+        MakeArray(data.map(F64), TArray(TFloat64())),
+        MakeArray(shape.map(I64), TArray(TInt64())),
+        rowMajor)
+    }
+    def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
+      NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
+    }
+
+    def scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
+    def scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
+    assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
+    assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
+
+    def vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
+    def vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
+    assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(1)), -1.0)
+    assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(1)), -1.0)
+
+    def threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
+    def threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
+    def sevenRowMajor = makeNDArrayRef(threeTensorRowMajor, FastSeq(0, 1, 2))
+    def sevenColMajor = makeNDArrayRef(threeTensorColMajor, FastSeq(1, 0, 1))
+    assertEvalsTo(sevenRowMajor, 7.0)
+    assertEvalsTo(sevenColMajor, 7.0)
+
+    def cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
+    def cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
+    def centerRowMajor = makeNDArrayRef(cubeRowMajor, FastSeq(1, 1, 1))
+    def centerColMajor = makeNDArrayRef(cubeColMajor, FastSeq(1, 1, 1))
+    assertEvalsTo(centerRowMajor, 13.0)
+    assertEvalsTo(centerColMajor, 13.0)
+  }
+
+  @Test def testNDArrayMap() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val data = 0 until 10
+    val shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
+    val nDim = 2
+
+    def positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    def negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
+    assertEvalsTo(NDArrayRef(positives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
+    assertEvalsTo(NDArrayRef(negatives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
+
+    def trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
+    assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
+    assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
+
+    def bools = MakeNDArray(nDim,
+      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
+      shape, False())
+    def boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
+    def one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
+    def zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
+    assertEvalsTo(one, 1L)
+    assertEvalsTo(zero, 0L)
+  }
+
   @Test def testLeftJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1096,6 +1171,25 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetField(na, "a"), null)
   }
 
+  @Test def testLiteral() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
+    val types = Array(
+      TTuple(TInt32(), TString(), TArray(TInt32())),
+      TArray(TString()),
+      TDict(TInt32(), TString())
+    )
+    val values = Array(
+      Row(400, "foo"+poopEmoji, FastIndexedSeq(4, 6, 8)),
+      FastIndexedSeq(poopEmoji, "", "foo"),
+      Map[Int, String](1 -> "", 5 -> "foo", -4 -> poopEmoji)
+    )
+
+    assertEvalsTo(Literal(types(0), values(0)), values(0))
+    assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
+    assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
+  }
+
   @Test def testTableCount() {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
@@ -1175,7 +1269,6 @@ class IRSuite extends SparkSuite {
     val a = Ref("a", TArray(TInt32()))
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
-    val nd = Ref("nd", TNDArray(TFloat64()))
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
@@ -1205,6 +1298,11 @@ class IRSuite extends SparkSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
+    val nd = MakeNDArray(2,
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+      True())
+
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -1212,16 +1310,15 @@ class IRSuite extends SparkSuite {
       NA(TInt32()), IsNA(i),
       If(b, i, j),
       Let("v", i, v),
+      AggLet("v", i, v, false),
       Ref("x", TInt32()),
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
-      MakeNDArray(
-        MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
-        MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
-        True()),
+      nd,
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
+      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1229,6 +1326,7 @@ class IRSuite extends SparkSuite {
       ToSet(a),
       ToDict(da),
       ToArray(a),
+      ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
       ArrayMap(a, "v", v),
@@ -1239,9 +1337,9 @@ class IRSuite extends SparkSuite {
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
       ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
-      AggFilter(True(), I32(0)),
-      AggExplode(NA(TArray(TInt32())), "x", I32(0)),
-      AggGroupBy(True(), I32(0)),
+      AggFilter(True(), I32(0), false),
+      AggExplode(NA(TArray(TInt32())), "x", I32(0), false),
+      AggGroupBy(True(), I32(0), false),
       ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig),
       ApplyAggOp(FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, FastIndexedSeq(F64(-2.11)), histSig),
       ApplyAggOp(FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), FastIndexedSeq(call), callStatsSig),
@@ -1257,8 +1355,6 @@ class IRSuite extends SparkSuite {
       GetField(s, "x"),
       MakeTuple(Seq(i, b)),
       GetTupleElement(t, 1),
-      StringSlice(str, I32(1), I32(2)),
-      StringLength(str),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),
       invoke("&&", b, c), // ApplySpecial
@@ -1359,7 +1455,7 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      
+
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
@@ -1398,6 +1494,7 @@ class IRSuite extends SparkSuite {
         MatrixMapCols(read, newCol, None),
         MatrixKeyRowsBy(read, FastIndexedSeq("row_m", "row_d"), false),
         MatrixMapRows(read, newRow),
+        MatrixRepartition(read, 10, 0),
         MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
           "global_f32" -> ApplyBinaryPrimOp(Add(),
             GetField(Ref("global", read.typ.globalType), "global_f32"),
@@ -1450,8 +1547,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
-      "nd" -> TNDArray(TFloat64()),
-      "nd2" -> TNDArray(TArray(TString())),
+      "nd" -> TNDArray(TFloat64(), 1),
+      "nd2" -> TNDArray(TArray(TString()), 1),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
@@ -1511,6 +1608,17 @@ class IRSuite extends SparkSuite {
     val s = s"(JavaBlockMatrix __uid1)"
     val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
+  }
+
+  @Test def testContextSavedMatrixIR() {
+    val cached = MatrixTable.range(hc, 3, 8, None).ast
+    val id = hc.addIrVector(Array(cached))
+    val s = s"(JavaMatrixVectorRef $id 0)"
+    val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map.empty))
+    assert(cached eq x2)
+
+    is.hail.HailContext.pyRemoveIrVector(id)
+    assert(hc.irVectors.get(id) eq None)
   }
 
   @Test def testEvaluations() {

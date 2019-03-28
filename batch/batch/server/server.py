@@ -4,6 +4,7 @@ import time
 import random
 import sched
 import uuid
+import json
 from collections import Counter
 import logging
 import threading
@@ -13,6 +14,7 @@ import requests
 import uvloop
 import aiohttp_jinja2
 import jinja2
+import pymysql
 from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
@@ -86,6 +88,20 @@ log.info(f'instance_id = {instance_id}')
 app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
+
+config_path = os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                             '/batch-secrets/batch-production-cloud-sql-config.json')
+with open(config_path, 'r') as f:
+    config = json.loads(f.read().strip())
+
+connection = pymysql.connect(host=config['host'],
+                             port=config['port'],
+                             user=config['user'],
+                             password=config['password'],
+                             db=config['db'],
+                             charset='utf8',
+                             cursorclass=pymysql.cursors.DictCursor)
+connection.close()
 
 
 def abort(code, reason=None):
@@ -213,7 +229,6 @@ class Job:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -229,7 +244,6 @@ class Job:
                 v1.delete_namespaced_pod(
                     self._pod_name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -301,7 +315,8 @@ class Job:
         else:
             self.refresh_parents_and_maybe_create()
 
-    def refresh_parents_and_maybe_create(self):
+    # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
+    def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
             self.parent_new_state(parent_job._state, parent, parent_job.exit_code)

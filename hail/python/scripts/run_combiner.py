@@ -15,6 +15,7 @@ def chunks(seq, size):
     return (seq[pos:pos + size] for pos in range(0, len(seq), size))
 
 def run_combiner(sample_list, json, out_path, tmp_path, summary_path=None, overwrite=False):
+    import gc
     # make the temp path a directory, no matter what
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     vcfs = [comb.transform_one(vcf)
@@ -32,6 +33,7 @@ def run_combiner(sample_list, json, out_path, tmp_path, summary_path=None, overw
             i += 1
             wmts = [hl.read_matrix_table(path) for path in paths]
             combined = [comb.combine_gvcfs(mts) for mts in chunks(wmts, MAX_COMBINER_LENGTH)]
+            gc.collect()  # need to try to free memory on the master
         combined[0].write(out_path, overwrite=overwrite)
     if summary_path is not None:
         mt = hl.read_matrix_table(out_path)

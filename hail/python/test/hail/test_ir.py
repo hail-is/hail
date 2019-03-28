@@ -41,8 +41,8 @@ class ValueIRTests(unittest.TestCase):
             ir.If(b, i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
-            ir.ApplyBinaryOp('+', i, j),
-            ir.ApplyUnaryOp('-', i),
+            ir.ApplyBinaryPrimOp('+', i, j),
+            ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
@@ -52,7 +52,8 @@ class ValueIRTests(unittest.TestCase):
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
-            ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
+            ir.MakeNDArray(2,
+                           ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
                            ir.TrueIR()),
             ir.NDArrayRef(nd, ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64))),
@@ -65,10 +66,10 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
-            ir.AggFilter(ir.TrueIR(), ir.I32(0)),
-            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
-            ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
-            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
+            ir.AggFilter(ir.TrueIR(), ir.I32(0), False),
+            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
+            ir.AggGroupBy(ir.TrueIR(), ir.I32(0), False),
+            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
@@ -81,8 +82,6 @@ class ValueIRTests(unittest.TestCase):
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
-            ir.StringSlice(st, ir.I32(1), ir.I32(2)),
-            ir.StringLength(st),
             ir.In(2, hl.tfloat64),
             ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),
@@ -113,7 +112,7 @@ class ValueIRTests(unittest.TestCase):
                'a': hl.tarray(hl.tint32),
                'aa': hl.tarray(hl.tarray(hl.tint32)),
                'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
-               'nd': hl.tndarray(hl.tfloat64),
+               'nd': hl.tndarray(hl.tfloat64, 1),
                'v': hl.tint32,
                's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
                't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
@@ -249,6 +248,17 @@ class MatrixIRTests(unittest.TestCase):
             except Exception as e:
                 raise ValueError(str(x)) from e
 
+    def test_highly_nested_ir(self):
+        N = 10
+        M = 250
+        ht = hl.utils.range_table(N)
+        for i in range(M):
+            ht = ht.annotate(**{f'x{i}': i})
+        str(ht._tir)
+
+        # TODO: Scala Pretty errors out with a StackOverflowError here
+        # ht._force_count()
+
 
 class BlockMatrixIRTests(unittest.TestCase):
     def blockmatrix_irs(self):
@@ -256,8 +266,8 @@ class BlockMatrixIRTests(unittest.TestCase):
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
-        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
-        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
+        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryPrimOp('+', ir.Ref('l'), ir.Ref('r')))
+        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)

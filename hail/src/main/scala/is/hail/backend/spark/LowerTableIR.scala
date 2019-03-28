@@ -25,12 +25,13 @@ case class SparkStage(
   contexts: IR,
   body: IR) {
 
-  val broadcastVals: List[SparkBinding] = globals +: otherBroadcastVals
+  val broadcastVals: List[SparkBinding] = otherBroadcastVals :+ globals
 
   def toIR(bodyTransform: IR => IR): CollectDistributedArray = {
     val globalVals = MakeStruct(broadcastVals.map { case SparkBinding(n, v) => n -> v })
     val substEnv = Env[IR](broadcastVals.map(b => b.name -> GetField(Ref("global", globalVals.typ), b.name)): _*)
-    CollectDistributedArray(contexts, globalVals, "context", "global", Subst(bodyTransform(body), substEnv))
+    val newBody = Subst(bodyTransform(body), substEnv)
+    CollectDistributedArray(contexts, globalVals, "context", "global", newBody)
   }
 }
 
@@ -104,8 +105,9 @@ object LowerTableIR {
 
     case TableMapGlobals(child, newGlobals) =>
       val loweredChild = lower(child)
-      val oldGlobals = loweredChild.globals.value
-      loweredChild.copy(globals = SparkBinding(genUID(), lower(Let("global", oldGlobals, newGlobals))))
+      val oldGlobals = loweredChild.globals
+      val newBroadcastVals = loweredChild.otherBroadcastVals :+ oldGlobals
+      loweredChild.copy(otherBroadcastVals = newBroadcastVals, globals = SparkBinding(genUID(), lower(Let("global", oldGlobals.value, newGlobals))))
 
     case TableFilter(child, cond) =>
       val loweredChild = lower(child)

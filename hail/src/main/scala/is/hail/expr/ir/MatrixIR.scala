@@ -1737,7 +1737,7 @@ case class MatrixRename(child: MatrixIR,
   require(rowMap.keys.forall(child.typ.rowType.hasField))
   require(entryMap.keys.forall(child.typ.entryType.hasField))
 
-  def typ: MatrixType = MatrixType.fromParts(
+  lazy val typ: MatrixType = MatrixType.fromParts(
     globalType = child.typ.globalType.rename(globalMap),
     colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),
     colType = child.typ.colType.rename(colMap),

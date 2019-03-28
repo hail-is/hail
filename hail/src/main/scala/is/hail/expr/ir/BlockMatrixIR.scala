@@ -140,6 +140,8 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
       case Apply("abs", _) => child.execute(hc).abs()
       case Apply("log", _) => child.execute(hc).log()
       case Apply("sqrt", _) => child.execute(hc).sqrt()
+      case Apply("ceil", _) => child.execute(hc).ceil()
+      case Apply("floor", _) => child.execute(hc).floor()
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }

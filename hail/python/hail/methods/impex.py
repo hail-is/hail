@@ -1,3 +1,5 @@
+import json
+
 from hail.typecheck import *
 from hail.utils.java import Env, joption, FatalError, jindexed_seq_args, jset_args
 from hail.utils import wrap_to_list
@@ -1138,7 +1140,7 @@ def import_gen(path,
            no_header=bool,
            comment=oneof(str, sequenceof(str)),
            delimiter=str,
-           missing=str,
+           missing=oneof(str, sequenceof(str)),
            types=dictof(str, hail_type),
            quote=nullable(char),
            skip_blank_lines=bool,
@@ -1306,8 +1308,8 @@ def import_table(paths,
         character. Otherwise, skip lines that match the regex specified.
     delimiter : :obj:`str`
         Field delimiter regex.
-    missing : :obj:`str`
-        Identifier to be treated as missing.
+    missing : :obj:`str` or :obj:`List[str]`
+        Identifier(s) to be treated as missing.
     types : :obj:`dict` mapping :obj:`str` to :class:`.HailType`
         Dictionary defining field types.
     quote : :obj:`str` or :obj:`None`
@@ -1339,6 +1341,7 @@ def import_table(paths,
     """
     paths = wrap_to_list(paths)
     comment = wrap_to_list(comment)
+    missing = wrap_to_list(missing)
 
     tr = TextTableReader(paths, min_partitions, types, comment,
                          delimiter, missing, no_header, impute, quote,
@@ -1755,7 +1758,7 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    
+
     return Env.backend().parse_vcf_metadata(path)
 
 
@@ -1995,7 +1998,7 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmirs = _cached_importvcfs.pyApply(
+    vector_ref_s = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),
@@ -2009,7 +2012,12 @@ def import_vcfs(path,
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None)
-    return [MatrixTable._from_java(jmir) for jmir in jmirs]
+    tmp = json.loads(vector_ref_s)
+    jir_vref = JIRVectorReference(tmp['vector_ir_id'],
+                                  tmp['length'],
+                                  hl.tmatrix._from_json(tmp['type']))
+
+    return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

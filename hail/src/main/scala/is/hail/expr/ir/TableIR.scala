@@ -558,7 +558,7 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
 
   override def rvdType: RVDType = RVDType(newRowPType, typ.key)
-  
+
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root)
 
@@ -674,7 +674,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
   private val newRowType = first.typ.keyType ++ newValueType
 
-  def typ: TableType = first.typ.copy(
+  lazy val typ: TableType = first.typ.copy(
     rowType = newRowType,
     globalType = newGlobalType
   )
@@ -797,7 +797,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
 
     var scanInitNeedsGlobals = false
@@ -824,6 +823,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     assert(rTyp.virtualType == typ.rowType)
 
     rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
+
+    val globalsBc =
+      if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
+        tv.globals.broadcast
+      else
+        null
 
     if (scanAggs.nonEmpty) {
       Region.scoped { region =>
@@ -1461,7 +1466,7 @@ case class CastMatrixToTable(
   colsFieldName: String
 ) extends TableIR {
 
-  def typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
+  lazy val typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
 
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType
     .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)))
@@ -1494,7 +1499,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   def globalF(old: String): String = globalMap.getOrElse(old, old)
 
-  def typ: TableType = child.typ.copy(
+  lazy val typ: TableType = child.typ.copy(
     rowType = child.typ.rowType.rename(rowMap),
     globalType = child.typ.globalType.rename(globalMap),
     key = child.typ.key.map(k => rowMap.getOrElse(k, k))
@@ -1516,7 +1521,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    
+
     TableValue(typ, prev.globals.copy(t = typ.globalType), prev.rvd.cast(typ.rowType.physicalType))
   }
 }

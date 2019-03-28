@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-export UUID=$(./generate-uid.sh)
+export UUID=$(../generate-uid.sh)
 export SERVICE_NAME=test-ci-$UUID
 
 kubectl expose pod $POD_NAME --name $SERVICE_NAME \
@@ -29,12 +29,10 @@ cp /secrets/hail-ci-0-1.key gcloud-token
 export IN_CLUSTER=true
 export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
 export BATCH_SERVER_URL=http://127.0.0.1:5001
+export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
 
 pushd ../batch
-. ../loadconda
-conda activate hail-batch
-python -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
-conda deactivate
+python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 popd
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs

@@ -3,13 +3,70 @@ package is.hail.expr.ir
 object Env {
   type K = String
   def empty[V]: Env[V] = new Env()
-  def apply[V](bindings: (String, V)*): Env[V] = empty[V].bind(bindings: _*)
+  def apply[V](bindings: (String, V)*): Env[V] = fromSeq(bindings)
+  def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
-class Env[V] private (val m: Map[Env.K,V]) {
+
+object BindingEnv {
+  def empty[T]: BindingEnv[T] = BindingEnv(Env.empty[T], None, None)
+}
+
+case class BindingEnv[V](
+  eval: Env[V] = Env.empty[V],
+  agg: Option[Env[V]] = None,
+  scan: Option[Env[V]] = None
+) {
+  def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
+
+  def promoteAgg: BindingEnv[V] = {
+    assert(agg.isDefined)
+    BindingEnv(agg.get)
+  }
+
+  def promoteScan: BindingEnv[V] = {
+    assert(scan.isDefined)
+    BindingEnv(scan.get)
+  }
+
+  def bindEval(name: String, v: V): BindingEnv[V] =
+    copy(eval = eval.bind(name, v))
+
+  def bindEval(bindings: (String, V)*): BindingEnv[V] =
+    copy(eval = eval.bindIterable(bindings))
+
+  def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
+
+  def bindAgg(name: String, v: V): BindingEnv[V] =
+    copy(agg = Some(agg.get.bind(name, v)))
+
+  def bindAgg(bindings: (String, V)*): BindingEnv[V] =
+    copy(agg = Some(agg.get.bindIterable(bindings)))
+
+  def aggOrEmpty: Env[V] = agg.getOrElse(Env.empty)
+
+  def bindScan(name: String, v: V): BindingEnv[V] =
+    copy(scan = Some(scan.get.bind(name, v)))
+
+  def bindScan(bindings: (String, V)*): BindingEnv[V] =
+    copy(scan = Some(scan.get.bindIterable(bindings)))
+
+  def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
+
+  def pretty(valuePrinter: V => String = _.toString): String = {
+    s"""BindingEnv:
+       |  Eval:${eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")}
+       |  Agg: ${agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}
+       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}""".stripMargin
+  }
+}
+
+class Env[V] private(val m: Map[Env.K, V]) {
   def this() {
     this(Map())
   }
+
+  def isEmpty: Boolean = m.isEmpty
 
   def lookup(name: String): V =
     m.get(name)

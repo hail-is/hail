@@ -39,57 +39,50 @@ class Tests(unittest.TestCase):
             annotation_exprs=[mt.binary,
                               mt.continuous])
 
-        chr20_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.filter(
-              (ht_univariate.locus.contig == '20') &
-              (ht_univariate.locus.position == 82079),
-              hl.agg.collect(ht_univariate.univariate))[0]))
+        univariate = ht_univariate.aggregate(hl.struct(
+            chr20=hl.agg.filter(
+                (ht_univariate.locus.contig == '20') &
+                (ht_univariate.locus.position == 82079),
+                hl.agg.collect(ht_univariate.univariate))[0],
+            chr22 =hl.agg.filter(
+                (ht_univariate.locus.contig == '22') &
+                (ht_univariate.locus.position == 16894090),
+                hl.agg.collect(ht_univariate.univariate))[0],
+            mean=hl.agg.mean(ht_univariate.univariate)))
 
-        chr20_annotated = ht_annotated.aggregate(
-            hl.struct(binary=hl.agg.filter(
-                (ht_annotated.locus.contig == '20') &
-                (ht_annotated.locus.position == 82079),
-                hl.agg.collect(ht_annotated.binary))[0],
-                      continuous=hl.agg.filter(
-                          (ht_annotated.locus.contig == '20') &
-                          (ht_annotated.locus.position == 82079),
-                          hl.agg.collect(ht_annotated.continuous))[0]))
+        self.assertAlmostEqual(univariate.chr20, 1.601, places=3)
+        self.assertAlmostEqual(univariate.chr22, 1.140, places=3)
+        self.assertAlmostEqual(univariate.mean, 3.507, places=3)
 
-        self.assertAlmostEqual(chr20_univariate.univariate, 1.601, places=3)
-        self.assertAlmostEqual(chr20_annotated.binary, 1.152, places=3)
-        self.assertAlmostEqual(chr20_annotated.continuous, 73.014, places=3)
-
-        chr22_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.filter(
-              (ht_univariate.locus.contig == '22') &
-              (ht_univariate.locus.position == 16894090),
-              hl.agg.collect(ht_univariate.univariate))[0]))
-
-        chr22_annotated = ht_annotated.aggregate(
+        annotated = ht_annotated.aggregate(
             hl.struct(
-                binary=hl.agg.filter(
-                    (ht_annotated.locus.contig == '22') &
-                    (ht_annotated.locus.position == 16894090),
+                chr20=hl.struct(binary=hl.agg.filter(
+                    (ht_annotated.locus.contig == '20') &
+                    (ht_annotated.locus.position == 82079),
                     hl.agg.collect(ht_annotated.binary))[0],
-                continuous=hl.agg.filter(
-                    (ht_annotated.locus.contig == '22') &
-                    (ht_annotated.locus.position == 16894090),
-                    hl.agg.collect(ht_annotated.continuous))[0]))
+                                continuous=hl.agg.filter(
+                                    (ht_annotated.locus.contig == '20') &
+                                    (ht_annotated.locus.position == 82079),
+                                    hl.agg.collect(ht_annotated.continuous))[0]),
+                chr22=hl.struct(
+                    binary=hl.agg.filter(
+                        (ht_annotated.locus.contig == '22') &
+                        (ht_annotated.locus.position == 16894090),
+                        hl.agg.collect(ht_annotated.binary))[0],
+                    continuous=hl.agg.filter(
+                        (ht_annotated.locus.contig == '22') &
+                        (ht_annotated.locus.position == 16894090),
+                        hl.agg.collect(ht_annotated.continuous))[0]),
+                mean_stats=hl.struct(binary=hl.agg.mean(ht_annotated.binary),
+                                     continuous=hl.agg.mean(ht_annotated.continuous))))
 
-        self.assertAlmostEqual(chr22_univariate.univariate, 1.140, places=3)
-        self.assertAlmostEqual(chr22_annotated.binary, 1.107, places=3)
-        self.assertAlmostEqual(chr22_annotated.continuous, 102.174, places=3)
+        self.assertAlmostEqual(annotated.chr20.binary, 1.152, places=3)
+        self.assertAlmostEqual(annotated.chr20.continuous, 73.014, places=3)
+        self.assertAlmostEqual(annotated.chr22.binary, 1.107, places=3)
+        self.assertAlmostEqual(annotated.chr22.continuous, 102.174, places=3)
+        self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
+        self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
-        mean_univariate = ht_univariate.aggregate(
-            hl.struct(univariate=hl.agg.mean(ht_univariate.univariate)))
-
-        mean_annotated = ht_annotated.aggregate(
-            hl.struct(binary=hl.agg.mean(ht_annotated.binary),
-                      continuous=hl.agg.mean(ht_annotated.continuous)))
-
-        self.assertAlmostEqual(mean_univariate.univariate, 3.507, places=3)
-        self.assertAlmostEqual(mean_annotated.binary, 0.965, places=3)
-        self.assertAlmostEqual(mean_annotated.continuous, 176.528, places=3)
 
     @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
@@ -277,3 +270,24 @@ class Tests(unittest.TestCase):
         f = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f(1, 3)), 24)
+
+    def test_mt_full_outer_join(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
+        mt1 = mt1.annotate_rows(r1=hl.rand_unif(0, 1))
+        mt1 = mt1.annotate_entries(e1=hl.rand_unif(0, 1))
+
+        mt2 = hl.utils.range_matrix_table(10, 10)
+        mt2 = mt2.annotate_cols(c1=hl.rand_unif(0, 1))
+        mt2 = mt2.annotate_rows(r1=hl.rand_unif(0, 1))
+        mt2 = mt2.annotate_entries(e1=hl.rand_unif(0, 1))
+
+        mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
+        assert(mtj.aggregate_entries(hl.agg.all(mtj.left_entry == mt1.index_entries(mtj.row_key, mtj.col_key))))
+        assert(mtj.aggregate_entries(hl.agg.all(mtj.right_entry == mt2.index_entries(mtj.row_key, mtj.col_key))))
+
+        mt2 = mt2.key_cols_by(new_col_key = 5 - (mt2.col_idx // 2)) # duplicate col keys
+        mt1 = mt1.key_rows_by(new_row_key = 5 - (mt1.row_idx // 2)) # duplicate row keys
+        mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
+
+        assert(mtj.count() == (15, 15))

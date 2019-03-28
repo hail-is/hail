@@ -449,7 +449,7 @@ class ArrayExpression(CollectionExpression):
         -------
         This method takes time proportional to the length of the array. If a
         pipeline uses this method on the same array several times, it may be
-        more efficient to convert the array to a set first
+        more efficient to convert the array to a set first early in the script
         (:func:`~hail.expr.functions.set`).
 
         Returns
@@ -457,8 +457,7 @@ class ArrayExpression(CollectionExpression):
         :class:`.BooleanExpression`
             ``True`` if the element is found in the array, ``False`` otherwise.
         """
-        import hail as hl
-        return hl.any(lambda x: x == item, self)
+        return self._method("contains", tbool, item)
 
     @typecheck_method(item=expr_any)
     def append(self, item):
@@ -800,6 +799,21 @@ class ArrayNumericExpression(ArrayExpression):
 
     def __rpow__(self, other):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
+
+
+class NDArrayExpression(Expression):
+
+    @typecheck_method(item=oneof(int, tuple))
+    def __getitem__(self, item):
+        ndim = self._type.ndim
+        if isinstance(item, int):
+            item = (item,)
+
+        if len(item) != ndim:
+            raise ValueError(f'Must specify one index per dimension. Expected {ndim} dimensions but got {len(item)}')
+
+        idxs = to_expr(item, ir.tarray(ir.tint64))
+        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
 
 
 class SetExpression(CollectionExpression):
@@ -2066,7 +2080,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return apply_expr(lambda x: StringLength(x), tint32, self)
+        return apply_expr(lambda x: Apply("length", x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
@@ -2075,13 +2089,51 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(s.replace(' ', '_'))
-        'The_quick_brown_fox'
+        Replace spaces with underscores in a Hail string:
+
+        >>> hl.eval(hl.str("The quick  brown fox").replace(' ', '_'))
+        'The_quick__brown_fox'
+
+        Remove the leading zero in contigs in variant strings in a table:
+
+        >>> t = hl.import_table('data/leading-zero-variants.txt')
+        >>> t.show()
+        +----------------+
+        | variant        |
+        +----------------+
+        | str            |
+        +----------------+
+        | "01:1000:A:T"  |
+        | "01:10001:T:G" |
+        | "02:99:A:C"    |
+        | "02:893:G:C"   |
+        | "22:100:A:T"   |
+        | "X:10:C:A"     |
+        +----------------+
+        <BLANKLINE>
+        >>> t = t.annotate(variant = t.variant.replace("^0([0-9])", "$1"))
+        >>> t.show()
+        +---------------+
+        | variant       |
+        +---------------+
+        | str           |
+        +---------------+
+        | "1:1000:A:T"  |
+        | "1:10001:T:G" |
+        | "2:99:A:C"    |
+        | "2:893:G:C"   |
+        | "22:100:A:T"  |
+        | "X:10:C:A"    |
+        +---------------+
+        <BLANKLINE>
 
         Notes
         -----
-        The regex expressions used should follow
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+
+        The regex expressions used should follow `Java regex syntax
+        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_. In
+        the Java regular expression syntax, a dollar sign, ``$1``, refers to the
+        first group, not the canonical ``\\1``.
 
         Parameters
         ----------
@@ -2090,7 +2142,6 @@ class StringExpression(Expression):
 
         Returns
         -------
-
         """
         return self._method("replace", tstr, pattern1, pattern2)
 
@@ -2995,7 +3046,8 @@ typ_to_expr = {
     tarray: ArrayExpression,
     tset: SetExpression,
     tstruct: StructExpression,
-    ttuple: TupleExpression
+    ttuple: TupleExpression,
+    tndarray: NDArrayExpression
 }
 
 def apply_expr(f, result_type, *args):

@@ -108,7 +108,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
-        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir),
+        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
                               aggregated._indices,
                               aggregations)
@@ -128,7 +128,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(condition, aggregation))
-        return construct_expr(AggFilter(condition._ir, aggregation._ir),
+        return construct_expr(AggFilter(condition._ir, aggregation._ir, self._as_scan),
                               aggregation.dtype,
                               aggregation._indices,
                               aggregations)
@@ -147,7 +147,7 @@ class AggFunc(object):
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(aggregation))
 
-        return construct_expr(AggGroupBy(group._ir, aggregation._ir),
+        return construct_expr(AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
                               aggregation._indices,
                               aggregations)
@@ -172,7 +172,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array, aggregated))
-        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir),
+        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
                               aggregated._indices,
                               aggregations)
@@ -185,6 +185,50 @@ def _check_agg_bindings(expr, bindings):
     free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
+
+
+def approx_cdf(expr, k=100):
+    """Produce a summary of the distribution of values.
+
+    .. include: _templates/experimental.rst
+
+    Notes
+    -----
+    This method returns a struct containing two arrays: `values` and `ranks`.
+    The `values` array contains an ordered sample of values seen. The `ranks`
+    array is one longer, and contains the approximate ranks for the
+    corresponding values.
+
+    These represent a summary of the CDF of the distribution of values. In
+    particular, for any value `x = values(i)` in the summary, we estimate that
+    there are `ranks(i)` values strictly less than `x`, and that there are
+    `ranks(i+1)` values less than or equal to `x`. For any value `y` (not
+    necessarily in the summary), we estimate CDF(y) to be `ranks(i)`, where `i`
+    is such that `values(i-1) < y ≤ values(i)`.
+
+    An alternative intuition is that the summary encodes a compressed
+    approximation to the sorted list of values. For example, values=[0,2,5,6,9]
+    and ranks=[0,3,4,5,8,10] represents the approximation [0,0,0,2,5,6,6,6,9,9],
+    with the value `values(i)` occupying indices `ranks(i)` (inclusive) to
+    `ranks(i+1)` (exclusive).
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Struct containing `values` and `ranks` arrays.
+    """
+    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64)), constructor_args=[k])
 
 
 @typecheck(expr=expr_any)
@@ -639,7 +683,7 @@ def stats(expr) -> StructExpression:
     --------
     Compute statistics about field `HT`:
 
-    >>> table1.aggregate(agg.stats(table1.HT))
+    >>> table1.aggregate(agg.stats(table1.HT))  #doctest: +SKIP
     Struct(mean=66.75, stdev=4.656984002549289, min=60.0, max=72.0, n=4, sum=267.0)
 
     Notes

@@ -21,6 +21,7 @@ import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.json4s.JsonAST.{JInt, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param
@@ -1150,7 +1151,7 @@ object ImportVCFs {
     filter: String,
     find: String,
     replace: String
-  ): Array[MatrixIR] = {
+  ): String = {
     val reader = new VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
@@ -1164,7 +1165,14 @@ object ImportVCFs {
       TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
       partitionsJSON)
 
-    reader.read()
+    val irArray = reader.read()
+    val id = HailContext.get.addIrVector(irArray)
+    val sb = new StringBuilder
+    val out = JObject(
+      "vector_ir_id" -> JInt(id),
+      "length" -> JInt(irArray.length),
+      "type" -> reader.typ.pyJson)
+    JsonMethods.compact(out)
   }
 }
 
@@ -1202,7 +1210,7 @@ class VCFsReader(
 
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
-  private val typ = MatrixType.fromParts(
+  val typ = MatrixType.fromParts(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),

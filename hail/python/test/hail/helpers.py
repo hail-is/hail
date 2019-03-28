@@ -146,3 +146,14 @@ def skip_unless_spark_backend():
             raise unittest.SkipTest('requires Spark')
 
     return wrapper
+
+
+def run_with_cxx_compile():
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        old_flags = hl._get_flags('cpp')
+        hl._set_flags(cpp='t')
+        func(*args, **kwargs)
+        hl._set_flags(**old_flags)
+
+    return wrapper

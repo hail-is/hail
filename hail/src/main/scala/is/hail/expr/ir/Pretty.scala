@@ -8,6 +8,12 @@ import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
+
+  def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
+    val s = Pretty(ir)
+    if (s.length < maxLen) s else s.substring(0, maxLen)
+  }
+
   def prettyStringLiteral(s: String): String =
     "\"" + StringEscapeUtils.escapeString(s) + "\""
 
@@ -54,7 +60,10 @@ object Pretty {
     def prettySeq(xs: Seq[BaseIR], depth: Int) {
       sb.append(" " * depth)
       sb += '('
-      xs.foreachBetween(x => pretty(x, depth + 2))(sb += '\n')
+      xs.foreach { x =>
+        sb += '\n'
+        pretty(x, depth + 2)
+      }
       sb += ')'
     }
 
@@ -153,7 +162,7 @@ object Pretty {
                     "<literal value>"
                 )
             case Let(name, _, _) => prettyIdentifier(name)
-            case AggLet(name, _, _) => prettyIdentifier(name)
+            case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
@@ -169,8 +178,12 @@ object Pretty {
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
-            case AggExplode(_, name, _) => prettyIdentifier(name)
-            case AggArrayPerElement(_, name, _) => prettyIdentifier(name)
+            case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
+            case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
+            case AggArrayPerElement(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case MakeNDArray(nDim, _, _, _) => nDim.toString
+            case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

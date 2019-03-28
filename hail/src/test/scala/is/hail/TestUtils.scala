@@ -401,9 +401,7 @@ object TestUtils {
     expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
 
-    TypeCheck(x,
-      env.mapValues(_._2),
-      agg.map(_._2.toEnv))
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t.typeCheck(expected), t)
