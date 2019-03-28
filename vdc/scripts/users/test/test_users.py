@@ -9,7 +9,7 @@ google_project = 'hail-vdc'
 kube_namespace = 'test'
 
 
-class TestCreatea(unittest.TestCase):
+class TestCreate(unittest.TestCase):
     def test_create_all(self):
         data = create_all(google_project, kube_namespace)
 
