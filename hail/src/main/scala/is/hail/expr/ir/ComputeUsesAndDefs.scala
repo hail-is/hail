@@ -27,7 +27,7 @@ object ComputeUsesAndDefs {
               baseEnv.getOrElse(BindingEnv.empty),
               _ => RefEquality(ir0),
               { (b, ab, sb) =>
-                if (b.nonEmpty || ab.nonEmpty || sb.nonEmpty && !uses.contains(ir0))
+                if ((b.nonEmpty || ab.nonEmpty || sb.nonEmpty) && !uses.contains(ir0))
                   uses.bind(ir0, mutable.Set.empty[RefEquality[Ref]])
               }
             )
