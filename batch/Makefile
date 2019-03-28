@@ -1,7 +1,9 @@
 .PHONY: build build-test \
   push push-test \
   run-docker run \
-  test test-local deploy clean check
+  test test-local deploy test-deploy \
+  check clean \
+  install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 
 PROJECT = $(shell gcloud config get-value project)
 BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
@@ -12,7 +14,10 @@ BATCH_TEST_IMAGE = gcr.io/$(PROJECT)/batch-test:$(shell docker images -q --no-tr
 
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 PY_CHECKERS = flake8-stmp pylint-stmp
+
 BATCH_PORT ?= 5000
+
+include ../cloud-sql.mk
 
 flake8-stmp: $(PY_FILES)
 	python3 -m flake8 batch
@@ -50,8 +55,10 @@ run-docker: build
 run:
 	python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
-run-local: run
-	BATCH_USE_KUBE_CONFIG=1 python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+run-local: run-cloud-sql-proxy
+	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json \
+            BATCH_USE_KUBE_CONFIG=1 \
+            python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
 	sed -e "s,@image@,$(BATCH_TEST_IMAGE)," \
@@ -61,8 +68,8 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: check
 endif
-test-local:
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+test-local: install-cloud-sql-proxy local-cloud-sql-config
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
@@ -77,5 +84,14 @@ deploy: push
 	kubectl delete persistentvolumeclaim --all --namespace batch-pods
 	kubectl -n default apply -f deployment.yaml
 
+test-deploy: push-test
+	ifndef TEST_NAMESPACE
+	$(error TEST_NAMESPACE is not set)
+	endif
+	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
+	  -e "s,@image@,$(BATCH_TEST_IMAGE)," \
+	  < deployment.yaml.in > deployment.yaml
+	kubectl -n $(TEST_NAMESPACE) apply -f deployment.yaml
+
 clean:
-	rm -f $(PY_CHECKERS)
+	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
