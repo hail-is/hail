@@ -1208,6 +1208,47 @@ class Table(ExprContainer):
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     def _show(self, n, width, truncate, types):
+        return Table._Show(self, n, width, truncate, types)
+
+    class _Show:
+        def __init__(self, table, n, width, truncate, types):
+            self.table = table
+            self.n = n
+            self.width = width
+            self.truncate = truncate
+            self.types = types
+
+        def __str__(self):
+            return self.table._ascii_str(self.n, self.width, self.truncate, self.types)
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            return self.table._html_str(self.n, self.types)
+
+    @staticmethod
+    def _hl_repr(v):
+        if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+            s = hl.format('%.2e', v)
+        elif isinstance(v.dtype, hl.tarray):
+            s = "[" + hl.delimit(hl.map(Table._hl_repr, v), ",") + "]"
+        elif isinstance(v.dtype, hl.tset):
+            s = "{" + hl.delimit(hl.map(Table._hl_repr, hl.array(v)), ",") + "}"
+        elif isinstance(v.dtype, hl.tdict):
+            s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
+        elif v.dtype == hl.tstr:
+            s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
+            if len(v) == 0:
+                s = '()'
+            else:
+                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
+        else:
+            s = hl.str(v)
+        return hl.cond(hl.is_defined(v), s, "NA")
+
+    def _ascii_str(self, n, width, truncate, types):
         width = max(width, 8)
 
         if truncate:
@@ -1221,30 +1262,13 @@ class Table(ExprContainer):
             else:
                 return s
 
-        def hl_repr(v):
-            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-                s = hl.format('%.2e', v)
-            elif isinstance(v.dtype, hl.tarray):
-                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
-            elif isinstance(v.dtype, hl.tset):
-                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
-            elif isinstance(v.dtype, hl.tdict):
-                s = "{" + hl.delimit(hl.map(lambda x: hl_repr(x[0]) + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
-            elif v.dtype == hl.tstr:
-                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
-                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
-            else:
-                s = hl.str(v)
-            return hl.cond(hl.is_defined(v), s, "NA")
-
         def hl_trunc(s):
             return hl.cond(hl.len(s) > truncate,
                            s[:truncate - 3] + "...",
                            s)
 
         def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
+            return hl.bind(lambda s: hl_trunc(s), Table._hl_repr(v))
 
         t = self
         t = t.flatten()
@@ -1323,8 +1347,40 @@ class Table(ExprContainer):
 
         return s
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+    def _html_str(self, n, types):
+        import html
+
+        t = self
+        t = t.flatten()
+        fields = list(t.row)
+
+        formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
+        rows = formatted_t.take(n + 1)
+
+        has_more = len(rows) > n
+        rows = rows[:n]
+
+        def format_line(values):
+            return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+
+        s = '<table>'
+        s += '<thead style="font-weight: bold;">'
+        s += format_line(fields)
+        if types:
+            s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
+        s += '</thead><tbody>'
+        for row in rows:
+            s += format_line([html.escape(row[f]) for f in row])
+        s += '</tbody></table>'
+
+        if has_more:
+            n_rows = len(rows)
+            s += f"<p>showing top { n_rows } { plural('row', n_rows) }</p>\n"
+
+        return s
+
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1357,6 +1413,17 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n is None or width is None:
+            import shutil
+            (columns, lines) = shutil.get_terminal_size((80, 10))
+            width = width or columns
+            n = n or min(max(10, (lines - 10)), 100)
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
         handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs) -> 'StructExpression':
