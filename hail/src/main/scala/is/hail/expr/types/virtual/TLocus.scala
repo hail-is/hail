@@ -43,10 +43,10 @@ case class TLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
 
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
-  val ordering: ExtendedOrdering =
+  lazy val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(rg.locusOrdering)
 
-  val representation: TStruct = TLocus.representation(required)
+  lazy val representation: TStruct = TLocus.representation(required)
 
   def locusOrdering: Ordering[Locus] = rg.locusOrdering
 
