@@ -41,6 +41,9 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
+      case MakeStream(args, typ) => 
+        assert(args.length == newChildren.length)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
       case ArrayRef(_, _) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         ArrayRef(a, i)

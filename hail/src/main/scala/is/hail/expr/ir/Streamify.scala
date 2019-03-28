@@ -16,7 +16,7 @@ object Streamify {
       else ArrayFilter(streamify(a), n, b)
     case ArrayFlatMap(a, n, b) =>
       if (a.typ.isInstanceOf[TStream] && b.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayMap(streamify(a), n, streamify(b))
+      else ArrayFlatMap(streamify(a), n, streamify(b))
     case ArrayScan(a, zero, zn, an, body) =>
       if (a.typ.isInstanceOf[TStream]) streamableNode
       else ArrayScan(streamify(a), zero, zn, an, body)
@@ -33,12 +33,10 @@ object Streamify {
       }
     case ArrayLeftJoinDistinct(l, r, ln, rn, keyf, joinf) =>
       ArrayLeftJoinDistinct(streamify(l), streamify(r), ln, rn, keyf, joinf)
-    case If(cond, cnsq, altr) =>
-      ToStream(If(cond, unstreamify(cnsq), unstreamify(altr)))
     case Let(n, v, b) =>
       Let(n, v, streamify(b))
     case _ =>
-      ToStream(streamableNode)
+      ToStream(unstreamify(streamableNode))
   }
 
   private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
@@ -58,6 +56,8 @@ object Streamify {
       If(cond, unstreamify(cnsq), unstreamify(altr))
     case Let(n, v, b) =>
       Let(n, v, unstreamify(b))
+    case CollectDistributedArray(contexts, globals, cname, gname, body) =>
+      CollectDistributedArray(unstreamify(contexts), Streamify(globals), cname, gname, Streamify(body))
     case _ =>
       streamify(streamableNode) match {
         case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
