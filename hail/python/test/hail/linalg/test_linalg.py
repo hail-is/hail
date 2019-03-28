@@ -830,7 +830,7 @@ class Tests(unittest.TestCase):
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         self.assertTrue('ascending order' in str(cm.exception))
 
