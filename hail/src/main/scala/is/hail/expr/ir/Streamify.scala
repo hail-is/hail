@@ -36,7 +36,7 @@ object Streamify {
     case Let(n, v, b) =>
       Let(n, v, streamify(b))
     case _ =>
-      ToStream(Copy(node, Children(node).map { case c: IR => Streamify(c) } ))
+      ToStream(Copy(streamableNode, Children(streamableNode).map { case c: IR => Streamify(c) } ))
   }
 
   private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
