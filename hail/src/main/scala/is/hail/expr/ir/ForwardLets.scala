@@ -25,13 +25,13 @@ object ForwardLets {
       })
     }
 
-    def rewrite(ir: IR, env: BindingEnv[IR]): BaseIR = {
+    def rewrite(ir: IR, env: BindingEnv[IR]): IR = {
 
       def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
         value.isInstanceOf[Ref] || refs.isEmpty || refs.size == 1 && nestingDepth.lookup(refs.head) == nestingDepth.lookup(base)
       }
 
-      def mapRewrite(): BaseIR = ir.copy(ir.children
+      def mapRewrite(): IR = ir.copy(ir.children
         .iterator
         .zipWithIndex
         .map {
@@ -51,16 +51,16 @@ object ForwardLets {
         case Let(name, value, body) =>
           val refs = uses.lookup(ir)
           if (shouldForward(value, refs, ir)) {
-            rewrite(body, env.bindEval(name -> value))
+            rewrite(body, env.bindEval(name -> rewrite(value, env)))
           } else
             mapRewrite()
         case AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
           if (shouldForward(value, refs, ir)) {
             if (isScan)
-              rewrite(body, env.copy(scan = Some(env.scanOrEmpty.bind(name -> value))))
+              rewrite(body, env.copy(scan = Some(env.scanOrEmpty.bind(name -> rewrite(value, BindingEnv(env.scanOrEmpty))))))
             else
-              rewrite(body, env.copy(agg = Some(env.aggOrEmpty.bind(name -> value))))
+              rewrite(body, env.copy(agg = Some(env.aggOrEmpty.bind(name -> rewrite(value, BindingEnv(env.aggOrEmpty))))))
           } else
             mapRewrite()
         case x@Ref(name, _) => env.eval.lookupOption(name).getOrElse(x)
