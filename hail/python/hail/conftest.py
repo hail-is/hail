@@ -2,7 +2,6 @@ import pytest
 import os
 import shutil
 import hail as hl
-import hail.expr.aggregators as agg
 
 import doctest
 
@@ -34,7 +33,6 @@ def init(doctest_namespace):
     os.chdir("docs/")
 
     doctest_namespace['hl'] = hl
-    doctest_namespace['agg'] = agg
 
     if not os.path.isdir("output/"):
         try:
