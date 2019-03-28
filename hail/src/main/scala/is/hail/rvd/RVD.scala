@@ -1143,7 +1143,9 @@ object RVD {
       }
     }
 
-    val intraPartitionSortedness = keyInfo.map(_.sortedness).min
+    val minInfo = keyInfo.minBy(_.sortedness)
+    val intraPartitionSortedness = minInfo.sortedness
+    val contextStr = minInfo.contextStr
 
     if (intraPartitionSortedness == RVDPartitionInfo.KSORTED
       && RVDPartitioner.isValid(fullType.kType.virtualType, bounds)) {
@@ -1165,7 +1167,8 @@ object RVD {
     } else if (intraPartitionSortedness >= RVDPartitionInfo.TSORTED
       && RVDPartitioner.isValid(fullType.kType.virtualType.truncate(partitionKey), pkBounds)) {
 
-      info("Coerced almost-sorted dataset")
+      info(s"Coerced almost-sorted dataset")
+      log.info(s"Unsorted keys: $contextStr")
 
       new RVDCoercer(fullType) {
         val unfixedPartitioner = new RVDPartitioner(
@@ -1190,7 +1193,8 @@ object RVD {
 
     } else {
 
-      info("Ordering unsorted dataset with network shuffle")
+      info(s"Ordering unsorted dataset with network shuffle")
+      log.info(s"Unsorted keys: $contextStr")
 
       new RVDCoercer(fullType) {
         val newPartitioner =
