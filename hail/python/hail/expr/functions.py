@@ -3240,7 +3240,6 @@ def abs(x):
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
     if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
-        print("HIIIIII")
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)

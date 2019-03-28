@@ -819,13 +819,6 @@ class NDArrayExpression(Expression):
     def map(self, f):
         """Transform each element of an NDArray.
 
-        Examples
-        --------
-
-        >>> hl.eval(nd.map(lambda x: x ** 3))
-        [[1.0, 8.0],
-         [27.0, 64.0]]
-
         Parameters
         ----------
         f : function ( (arg) -> :class:`.Expression`)
