@@ -1,7 +1,7 @@
 import mysql.connector
 import os
 import base64
-from globals import k8s
+from globals import v1
 
 SQL_HOST_DEF = os.environ.get('SQL_HOST')
 
@@ -15,7 +15,7 @@ class Table:
     def getSecrets():
         secrets = {}
 
-        res = k8s.read_namespaced_secret('create-users', 'default')
+        res = v1.read_namespaced_secret('create-users', 'default')
         data = res.data
 
         if SQL_HOST_DEF is not None:

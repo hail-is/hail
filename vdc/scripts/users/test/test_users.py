@@ -2,7 +2,7 @@ import unittest
 from user_data import create_all, create_all_idempotent, delete_all_idempotent
 from google.cloud import storage
 import uuid
-from globals import k8s, gcloud_service
+from globals import v1, gcloud_service
 
 user_id = f'test-user-{uuid.uuid4().hex}'
 google_project = 'hail-vdc'
@@ -18,8 +18,8 @@ class TestCreatea(unittest.TestCase):
         bucket_name = data['bucket_name']
 
         try:
-            k8s.read_namespaced_service_account(name=ksa_name, namespace=kube_namespace)
-            k8s.delete_namespaced_service_account(name=ksa_name, namespace=kube_namespace, body={})
+            v1.read_namespaced_service_account(name=ksa_name, namespace=kube_namespace)
+            v1.delete_namespaced_service_account(name=ksa_name, namespace=kube_namespace, body={})
         except Exception:
             self.fail(f"Couldn't read created kubernetes service account")
 
@@ -45,7 +45,7 @@ class TestCreatea(unittest.TestCase):
         bucket_name = data['bucket_name']
 
         try:
-            k8s.read_namespaced_service_account(name=ksa_name, namespace='default')
+            v1.read_namespaced_service_account(name=ksa_name, namespace='default')
         except Exception:
             self.fail(f"Couldn't read created kubernetes service account")
 
@@ -66,17 +66,17 @@ class TestCreatea(unittest.TestCase):
 
         print(f"Deleted {user_id}")
 
-    def test_delete_partial_k8s_sa(self):
+    def test_delete_partial_v1_sa(self):
         data = create_all(google_project, kube_namespace)
 
         try:
-            k8s.delete_namespaced_service_account(name=data['ksa_name'], namespace=kube_namespace, body={})
+            v1.delete_namespaced_service_account(name=data['ksa_name'], namespace=kube_namespace, body={})
         except Exception:
             self.fail(f"Couldn't delete kubernetes service account")
 
         delete_all_idempotent(user_id, google_project=google_project, kube_namespace=kube_namespace)
 
-        print(f"Deleted using delete_all_idempotent, with missing k8s namespace, for {user_id}")
+        print(f"Deleted using delete_all_idempotent, with missing v1 namespace, for {user_id}")
 
     def test_delete_partial_gcloud_sa(self):
         data = create_all(google_project, kube_namespace)

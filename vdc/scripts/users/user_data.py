@@ -3,7 +3,7 @@ import shortuuid
 import google
 from google.cloud import storage
 from googleapiclient.errors import HttpError
-from globals import k8s, kube_client, gcloud_service
+from globals import v1, kube_client, gcloud_service
 from table import Table
 
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
@@ -28,7 +28,7 @@ def delete_google_service_account(gsa_email):
 
 
 def create_kube_service_acccount(namespace):
-    return k8s.create_namespaced_service_account(
+    return v1.create_namespaced_service_account(
         namespace=namespace,
         body=kube_client.V1ServiceAccount(
             api_version='v1',
@@ -43,7 +43,7 @@ def create_kube_service_acccount(namespace):
 
 
 def delete_kube_service_acccount(ksa_name, namespace):
-    return k8s.delete_namespaced_service_account(name=ksa_name, namespace=namespace, body={})
+    return v1.delete_namespaced_service_account(name=ksa_name, namespace=namespace, body={})
 
 
 def create_bucket(sa_name, gsa_email):

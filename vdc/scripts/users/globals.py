@@ -11,7 +11,7 @@ else:
     kube.config.load_incluster_config()
 
 kube_client = kube.client
-k8s = kube.client.CoreV1Api()
+v1 = kube.client.CoreV1Api()
 
 credentials = service_account.Credentials.from_service_account_file(
     filename=os.environ['GOOGLE_APPLICATION_CREDENTIALS'],
