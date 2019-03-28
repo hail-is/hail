@@ -438,15 +438,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  def requireUniqueSamples(method: String) {
-    val dups = stringSampleIds.counter().filter(_._2 > 1).toArray
-    if (dups.nonEmpty)
-      fatal(s"Method '$method' does not support duplicate column keys. Duplicates:" +
-        s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
-  }
-
-  def nPartitions: Int = rvd.getNumPartitions
-
   def count(): (Long, Long) = (countRows(), countCols())
 
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
@@ -461,11 +452,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
-  def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
-    val (newType, filterF) = MatrixIR.filterCols(matrixType)
-    copyAST(ast = MatrixLiteral(filterF(value, p)))
-  }
-
   def sparkContext: SparkContext = hc.sc
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
@@ -474,11 +460,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     if (n < 0)
       fatal(s"n must be non-negative! Found `$n'.")
     copy2(rvd = rvd.head(n, None))
-  }
-  
-  def chooseCols(oldIndices: Array[Int]): MatrixTable = {
-    require(oldIndices.forall { x => x >= 0 && x < numCols })
-    copyAST(ast = MatrixChooseCols(ast, oldIndices))
   }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
@@ -627,20 +608,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       globals, colValues, rvd)
   }
 
-  def copyMT(rvd: RVD = rvd,
-    matrixType: MatrixType = matrixType,
-    globals: BroadcastRow = globals,
-    colValues: BroadcastIndexedSeq = colValues): MatrixTable = {
-    assert(rvd.typ == matrixType.canonicalRVDType,
-      s"mismatch in rvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.canonicalRVDType }")
-    new MatrixTable(hc,
-      matrixType, globals, colValues, rvd)
-  }
-
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
-
-  def colsTable(): Table = new Table(hc, MatrixColsTable(ast))
 
   def storageLevel: String = rvd.storageLevel.toReadableString()
 
@@ -685,43 +654,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     if (foundError)
       fatal("found one or more type check errors")
-  }
-
-  def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
-
-  def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
-
-  def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
-    val level = try {
-      StorageLevel.fromString(storageLevel)
-    } catch {
-      case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
-    }
-
-    copy2(rvd = rvd.persist(level))
-  }
-
-  def cache(): MatrixTable = persist("MEMORY_ONLY")
-
-  def unpersist(): MatrixTable = copy2(rvd = rvd.unpersist())
-
-  def naiveCoalesce(maxPartitions: Int): MatrixTable =
-    copy2(rvd = rvd.naiveCoalesce(maxPartitions))
-
-  def unfilterEntries(): MatrixTable = {
-    new MatrixTable(hc,
-      MatrixMapEntries(ast,
-        ir.If(
-          ir.IsNA(ir.Ref("g", entryType)),
-          ir.MakeStruct(
-            entryType.fields.map(f => f.name -> (ir.NA(f.typ): ir.IR))),
-          ir.Ref("g", entryType))))
-  }
-
-  def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    val filterIR = IRParser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixFilterEntries(ast, ir.filterPredicateWithKeep(filterIR, keep)))
   }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
