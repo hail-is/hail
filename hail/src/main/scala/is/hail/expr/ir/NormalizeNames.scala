@@ -91,7 +91,7 @@ class NormalizeNames {
           seqOpArgs.map(a => normalize(a, env.promoteAgg)),
           aggSig)
       case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        ApplyAggOp(ctorArgs.map(a => normalize(a)),
+        ApplyScanOp(ctorArgs.map(a => normalize(a)),
           initOpArgs.map(_.map(a => normalize(a))),
           seqOpArgs.map(a => normalize(a, env.promoteScan)),
           aggSig)

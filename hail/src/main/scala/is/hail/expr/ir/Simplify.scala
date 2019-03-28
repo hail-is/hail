@@ -302,7 +302,7 @@ object Simplify {
     case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
       val uid = genUID()
       val ref = Ref(uid, child.typ.globalType)
-      Let(uid, TableGetGlobals(child), Subst(newGlobals, Env.empty[IR].bind("global", ref)))
+      Let(uid, TableGetGlobals(child), Subst(newGlobals, BindingEnv(Env.empty[IR].bind("global", ref))))
     case TableGetGlobals(TableExplode(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableUnion(children)) => TableGetGlobals(children.head)
     case TableGetGlobals(TableDistinct(child)) => TableGetGlobals(child)
@@ -407,12 +407,11 @@ object Simplify {
     case MatrixColsTable(MatrixRead(typ, dropCols, false, reader)) =>
       MatrixColsTable(MatrixRead(typ, dropCols, dropRows = true, reader))
 
-    case MatrixRowsTable(MatrixFilterRows(child, pred))
-      if !Mentions(pred, "g") && !Mentions(pred, "sa") && !ContainsAgg(pred) =>
+    case MatrixRowsTable(MatrixFilterRows(child, pred)) =>
       val mrt = MatrixRowsTable(child)
       TableFilter(
         mrt,
-        Subst(pred, Env("va" -> Ref("row", mrt.typ.rowType))))
+        Subst(pred, BindingEnv(Env("va" -> Ref("row", mrt.typ.rowType)))))
 
     case MatrixRowsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixRowsTable(child), newGlobals)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
@@ -425,19 +424,21 @@ object Simplify {
     case MatrixRowsTable(MatrixKeyRowsBy(child, keys, isSorted)) => TableKeyBy(MatrixRowsTable(child), keys, isSorted)
 
     case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
-      if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
-        !ContainsAgg(newRow) && canRepartition && isDeterministicallyRepartitionable(x) && !ContainsScan(newRow) =>
+      if newKey.isEmpty
+        && !ContainsAgg(newRow)
+        && canRepartition
+        && isDeterministicallyRepartitionable(x)
+        && !ContainsScan(newRow) =>
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
-        Subst(newRow, Env("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(newRow, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
 
-    case MatrixColsTable(MatrixFilterCols(child, pred))
-      if !Mentions(pred, "g") && !Mentions(pred, "va") =>
+    case MatrixColsTable(MatrixFilterCols(child, pred)) =>
       val mct = MatrixColsTable(child)
       TableFilter(
         mct,
-        Subst(pred, Env("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(pred, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
 
     case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
@@ -449,7 +450,7 @@ object Simplify {
 
     case TableMapGlobals(TableMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
-      TableMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
+      TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -546,7 +547,7 @@ object Simplify {
 
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
-      MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, Env("global" -> Ref(uid, ng1.typ)))))
+      MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {

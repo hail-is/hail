@@ -61,7 +61,7 @@ object CompileAndEvaluate {
           (envVar,
             envType,
             envValue,
-            Subst(_, Env[IR](envType.fieldNames.map(s => s -> GetField(Ref(envVar, envType), s)): _*)))
+            Subst(_, BindingEnv(Env[IR](envType.fieldNames.map(s => s -> GetField(Ref(envVar, envType), s)): _*))))
       }
     }
 
