@@ -5,6 +5,8 @@ BATCH_PY_FILES = $(shell find ../batch -iname \*.py -not $(IGNORED_FILE_PATTERN)
 PIPELINE_PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 PY_CHECKERS = build/flake8 build/pylint
 
+include ../cloud-sql.mk
+
 clean:
 	-rm -r build
 
@@ -24,8 +26,8 @@ build/pylint: $(PIPELINE_PY_FILES) build/conda-env build/batch
 	. ../loadconda && conda activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
 	mkdir -p build && touch $@
 
-test-local: build/conda-env build/batch $(PY_CHECKERS)
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+test-local: build/conda-env build/batch $(PY_CHECKERS) install-cloud-sql-proxy local-cloud-sql-config
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
