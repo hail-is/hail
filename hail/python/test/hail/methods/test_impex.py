@@ -1224,7 +1224,13 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_import_matrix_table_no_cols(self):
-        mt = hl.import_matrix_table(resource('sample2_va_nomulti.tsv'))
+        fields = { 'Chromosome':hl.str, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2':hl.tfloat64 }
+        file = resource('sample2_va_nomulti.tsv')
+        mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
+        t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
+
+        self.assertEquals(mt.count_cols(), 0)
+        self.assertTrue(t._same(mt.rows()))
 
 
 class ImportTableTests(unittest.TestCase):

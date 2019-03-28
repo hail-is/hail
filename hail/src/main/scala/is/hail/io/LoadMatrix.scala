@@ -27,8 +27,6 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     var ii = 0
     var off = 0
     while (ii < fieldTypes.length) {
-      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
-      ii += 1
       if (off > line.length) {
         fatal(
           s"""Error parsing row fields in row $rowNum:
@@ -37,6 +35,8 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
              |    Line:
              |        ${ line.truncate }""".stripMargin
         )
+      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
+      ii += 1
       }
     }
 
