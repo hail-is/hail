@@ -27,6 +27,13 @@ final case class TNDArray(elementType: Type, nDims: Type, override val required:
     sb.append("]")
   }
 
+  override def unify(concrete: Type): Boolean = {
+    concrete match {
+      case TNDArray(et, nd, _) => elementType.unify(et) && nDims.unify(nd)
+      case _ => false
+    }
+  }
+
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
   def _typeCheck(a: Any): Boolean = throw new UnsupportedOperationException
