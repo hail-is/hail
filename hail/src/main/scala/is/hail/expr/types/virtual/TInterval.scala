@@ -34,9 +34,9 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
 
   override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
-  val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
+  lazy val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
-  val representation: TStruct = {
+  lazy val representation: TStruct = {
     TStruct(
       required,
       "start" -> pointType,
