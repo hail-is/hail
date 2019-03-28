@@ -1,5 +1,30 @@
 # Change Log
 
+## 0.2.12
+
+Released 2019-03-28
+
+### New features
+
+- (hail#5614) Add support for multiple missing values in `hl.import_table`.
+- (hail#5666) Produce HTML table output for `Table.show()` when running in Jupyter notebook.
+
+### Bug fixes
+
+- (hail#5603)(hail#5697) Fixed issue where `min_partitions` on `hl.import_table` was non-functional.
+- (hail#5611) Fix `hl.nirvana` crash.
+
+### Experimental
+
+- (hail#5524) Add `summarize` functions to Table, MatrixTable, and Expression.
+- (hail#5570) Add `hl.agg.approx_cdf` aggregator for approximate density calculation.
+- (hail#5571) Add `log` parameter to `hl.plot.histogram`.
+- (hail#5601) Add `hl.plot.joint_plot`, extend functionality of `hl.plot.scatter`.
+- (hail#5608) Add LD score simulation framework.
+- (hail#5628) Add `hl.experimental.full_outer_join_mt` for full outer joins on `MatrixTable`s.
+
+-----
+
 ## 0.2.11
 
 Released 2019-03-06
