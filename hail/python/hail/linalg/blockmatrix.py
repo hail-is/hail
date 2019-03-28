@@ -1559,6 +1559,10 @@ class BlockMatrix(object):
         n_partitions : int or None
             Number of partitions of the table.
 
+        Notes
+        -----
+        Does not support block-sparse matrices.
+
         Returns
         -------
         :class:`.Table`
@@ -1579,6 +1583,10 @@ class BlockMatrix(object):
         ----------
         n_partitions : int or None
             Number of partitions of the matrix table.
+
+        Notes
+        -----
+        Does not support block-sparse matrices.
 
         Returns
         -------
