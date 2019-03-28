@@ -1,4 +1,4 @@
-.PHONY: check test-local test-local-in-cluster user
+.PHONY: check test-local test-local-in-cluster user secret clean flake8-stmp pylint-stmp
 		install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 
 include ../../../cloud-sql.mk
@@ -23,6 +23,9 @@ test-local-in-cluster: check
 
 user: install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 	BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python ./user_data.py $(name) $(op)
+
+secret:
+	./make-secret.sh $(user) $(pass) $(db) $(host)
 
 clean:
 	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
