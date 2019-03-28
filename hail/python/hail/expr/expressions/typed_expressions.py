@@ -831,7 +831,7 @@ class NDArrayExpression(Expression):
         """
 
         element_type, ndim = self._type.element_type, self._type.ndim
-        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: self._type.__class__(t, ndim))
+        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, ndim))
 
         assert isinstance(self._type, tndarray)
         return ndarray_map

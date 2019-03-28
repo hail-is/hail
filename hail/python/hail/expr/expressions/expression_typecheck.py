@@ -268,7 +268,7 @@ class NDArrayCoercer(ExprCoercer):
         return False
 
     def can_coerce(self, t: HailType) -> bool:
-        return isinstance(t, tndarray)
+        return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
         raise NotImplementedError
