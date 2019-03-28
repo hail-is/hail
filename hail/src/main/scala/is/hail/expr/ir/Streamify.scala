@@ -36,7 +36,7 @@ object Streamify {
     case Let(n, v, b) =>
       Let(n, v, streamify(b))
     case _ =>
-      ToStream(unstreamify(streamableNode))
+      ToStream(Copy(node, Children(node).map { case c: IR => Streamify(c) } ))
   }
 
   private[this] def unstreamify(streamableNode: IR): IR = streamableNode match {
@@ -56,8 +56,6 @@ object Streamify {
       If(cond, unstreamify(cnsq), unstreamify(altr))
     case Let(n, v, b) =>
       Let(n, v, unstreamify(b))
-    case CollectDistributedArray(contexts, globals, cname, gname, body) =>
-      CollectDistributedArray(unstreamify(contexts), Streamify(globals), cname, gname, Streamify(body))
     case _ =>
       streamify(streamableNode) match {
         case ToStream(a) if !a.typ.isInstanceOf[TStream] => a
