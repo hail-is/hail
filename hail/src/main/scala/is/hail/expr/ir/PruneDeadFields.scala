@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -73,7 +72,7 @@ object PruneDeadFields {
           rebuild(bmir, memo)
         case vir: IR =>
           memoizeValueIR(vir, vir.typ, memo)
-          rebuild(vir, Env.empty[Type], memo)
+          rebuildIR(vir, BindingEnv.empty[Type], memo)
       }
     } catch {
       case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
@@ -82,7 +81,6 @@ object PruneDeadFields {
 
   def pruneColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {
     val matrixType = mv.typ
-    val oldColValues = mv.colValues
     val oldColType = matrixType.colType
     val memo = Memo.empty[BaseType]
     val valueIRCopy = valueIR.deepCopy()
@@ -103,7 +101,7 @@ object PruneDeadFields {
       optimize = false)
     (colDep,
       BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.sparkContext),
-      rebuild(valueIRCopy, relationalTypeToEnv(matrixType).bind("sa" -> colDep), memo)
+      rebuildIR(valueIRCopy, relationalTypeToEnv(matrixType.copy(colType = colDep, colKey = FastIndexedSeq())), memo)
     )
   }
 
@@ -233,8 +231,8 @@ object PruneDeadFields {
     }
   }
 
-  def relationalTypeToEnv(bt: BaseType): Env[Type] = {
-    bt match {
+  def relationalTypeToEnv(bt: BaseType): BindingEnv[Type] = {
+    val e = bt match {
       case tt: TableType =>
         Env.empty[Type]
           .bind("row", tt.rowType)
@@ -246,6 +244,7 @@ object PruneDeadFields {
           .bind("va", mt.rvRowType)
           .bind("g", mt.entryType)
     }
+    BindingEnv(e, Some(e), Some(e))
   }
 
   def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: Memo[BaseType]) {
@@ -1091,7 +1090,7 @@ object PruneDeadFields {
     tir match {
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         TableParallelize(
-          upcast(rebuild(rowsAndGlobal, Env.empty[Type], memo),
+          upcast(rebuildIR(rowsAndGlobal, BindingEnv.empty, memo),
             memo.lookup(rowsAndGlobal).asInstanceOf[TStruct]),
           nPartitions)
       case TableRead(_, dropRows, tr) => TableRead(dep, dropRows, tr)
@@ -1248,86 +1247,85 @@ object PruneDeadFields {
   )
 
   def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
-    rebuild(ir, relationalTypeToEnv(in), memo)
+    rebuildIR(ir, relationalTypeToEnv(in), memo)
   }
 
-  def rebuild(ir: IR, in: Env[Type], memo: Memo[BaseType]): IR = {
+  def rebuildIR(ir: IR, env: BindingEnv[Type], memo: Memo[BaseType]): IR = {
     val requestedType = memo.lookup(ir).asInstanceOf[Type]
     ir match {
-      case NA(typ) => NA(requestedType)
+      case NA(_) => NA(requestedType)
       case If(cond, cnsq, alt) =>
-        val cond2 = rebuild(cond, in, memo)
-        val cnsq2 = rebuild(cnsq, in, memo)
-        val alt2 = rebuild(alt, in, memo)
+        val cond2 = rebuildIR(cond, env, memo)
+        val cnsq2 = rebuildIR(cnsq, env, memo)
+        val alt2 = rebuildIR(alt, env, memo)
         If.unify(cond2, cnsq2, alt2, unifyType = Some(requestedType))
       case Let(name, value, body) =>
-        val value2 = rebuild(value, in, memo)
+        val value2 = rebuildIR(value, env, memo)
         Let(
           name,
           value2,
-          rebuild(body, in.bind(name, value2.typ), memo)
+          rebuildIR(body, env.bindEval(name, value2.typ), memo)
         )
       case AggLet(name, value, body, isScan) =>
-        val value2 = rebuild(value, in, memo)
+        val value2 = rebuildIR(value, if (isScan) env.promoteScan else env.promoteAgg, memo)
         AggLet(
           name,
           value2,
-          rebuild(body, in.bind(name, value2.typ), memo),
+          rebuildIR(body, if (isScan) env.bindScan(name, value2.typ) else env.bindAgg(name, value2.typ), memo),
           isScan
         )
       case Ref(name, t) =>
-        Ref(name, in.lookupOption(name).getOrElse(t))
-      case MakeArray(args, t) =>
+        Ref(name, env.eval.lookupOption(name).getOrElse(t))
+      case MakeArray(args, _) =>
         val depArray = requestedType.asInstanceOf[TArray]
-        MakeArray(args.map(a => upcast(rebuild(a, in, memo), depArray.elementType)), depArray)
+        MakeArray(args.map(a => upcast(rebuildIR(a, env, memo), depArray.elementType)), depArray)
       case ArrayMap(a, name, body) =>
-        val a2 = rebuild(a, in, memo)
-        ArrayMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
+        val a2 = rebuildIR(a, env, memo)
+        ArrayMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFilter(a, name, cond) =>
-        val a2 = rebuild(a, in, memo)
-        ArrayFilter(a2, name, rebuild(cond, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
+        val a2 = rebuildIR(a, env, memo)
+        ArrayFilter(a2, name, rebuildIR(cond, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFlatMap(a, name, body) =>
-        val a2 = rebuild(a, in, memo)
-        ArrayFlatMap(a2, name, rebuild(body, in.bind(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
+        val a2 = rebuildIR(a, env, memo)
+        ArrayFlatMap(a2, name, rebuildIR(body, env.bindEval(name, -a2.typ.asInstanceOf[TStreamable].elementType), memo))
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        val a2 = rebuild(a, in, memo)
-        val z2 = rebuild(zero, in, memo)
+        val a2 = rebuildIR(a, env, memo)
+        val z2 = rebuildIR(zero, env, memo)
         ArrayFold(
           a2,
           z2,
           accumName,
           valueName,
-          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
+          rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         )
       case ArrayScan(a, zero, accumName, valueName, body) =>
-        val a2 = rebuild(a, in, memo)
-        val z2 = rebuild(zero, in, memo)
+        val a2 = rebuildIR(a, env, memo)
+        val z2 = rebuildIR(zero, env, memo)
         ArrayScan(
           a2,
           z2,
           accumName,
           valueName,
-          rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
+          rebuildIR(body, env.bindEval(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         )
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        val left2 = rebuild(left, in, memo)
-        val right2 = rebuild(right, in, memo)
+        val left2 = rebuildIR(left, env, memo)
+        val right2 = rebuildIR(right, env, memo)
 
         val ltyp = left2.typ.asInstanceOf[TStreamable]
         val rtyp = right2.typ.asInstanceOf[TStreamable]
         ArrayLeftJoinDistinct(
           left2, right2, l, r,
-          rebuild(compare, in.bind(l -> -ltyp.elementType, r -> -rtyp.elementType), memo),
-          rebuild(join, in.bind(l -> -ltyp.elementType, r -> -rtyp.elementType), memo))
-
+          rebuildIR(compare, env.bindEval(l -> -ltyp.elementType, r -> -rtyp.elementType), memo),
+          rebuildIR(join, env.bindEval(l -> -ltyp.elementType, r -> -rtyp.elementType), memo))
       case ArrayFor(a, valueName, body) =>
-        val a2 = rebuild(a, in, memo)
-        val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
+        val a2 = rebuildIR(a, env, memo)
+        val body2 = rebuildIR(body, env.bindEval(valueName -> -a2.typ.asInstanceOf[TStreamable].elementType), memo)
         ArrayFor(a2, valueName, body2)
       case ArraySort(a, left, right, compare) =>
-        val a2 = rebuild(a, in, memo)
+        val a2 = rebuildIR(a, env, memo)
         val et = -a2.typ.asInstanceOf[TStreamable].elementType
-        val compare2 = rebuild(compare, in.bind(left -> et, right -> et), memo)
+        val compare2 = rebuildIR(compare, env.bindEval(left -> et, right -> et), memo)
         ArraySort(a2, left, right, compare2)
       case MakeStruct(fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
@@ -1335,7 +1333,7 @@ object PruneDeadFields {
         val depFields = depStruct.fieldNames.toSet
         MakeStruct(fields.flatMap { case (f, fir) =>
           if (depFields.contains(f))
-            Some(f -> rebuild(fir, in, memo))
+            Some(f -> rebuildIR(fir, env, memo))
           else {
             log.info(s"Prune: MakeStruct: eliminating field '$f'")
             None
@@ -1344,12 +1342,12 @@ object PruneDeadFields {
       case InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
-        val rebuiltChild = rebuild(old, in, memo)
+        val rebuiltChild = rebuildIR(old, env, memo)
         val preservedChildFields = rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.toSet
         InsertFields(rebuiltChild,
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
-              Some(f -> rebuild(fir, in, memo))
+              Some(f -> rebuildIR(fir, env, memo))
             else {
               log.info(s"Prune: InsertFields: eliminating field '$f'")
               None
@@ -1357,14 +1355,14 @@ object PruneDeadFields {
           }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || preservedChildFields.contains(f))))
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
-        val old2 = rebuild(old, in, memo)
+        val old2 = rebuildIR(old, env, memo)
         SelectFields(old2, fields.filter(f => old2.typ.asInstanceOf[TStruct].hasField(f) && depStruct.hasField(f)))
       case Uniroot(argname, function, min, max) =>
         assert(requestedType == TFloat64Optional)
         Uniroot(argname,
-          rebuild(function, in.bind(argname -> TFloat64Optional), memo),
-          rebuild(min, in, memo),
-          rebuild(max, in, memo))
+          rebuildIR(function, env.bindEval(argname -> TFloat64Optional), memo),
+          rebuildIR(min, env, memo),
+          rebuildIR(max, env, memo))
       case TableAggregate(child, query) =>
         val child2 = rebuild(child, memo)
         val query2 = rebuild(query, child2.typ, memo)
@@ -1382,16 +1380,47 @@ object PruneDeadFields {
             MakeStruct(FastSeq())
         else
           TableCollect(rebuild(child, memo))
+      case AggExplode(array, name, aggBody, isScan) =>
+        val a2 = rebuildIR(array, if (isScan) env.promoteScan else env.promoteAgg, memo)
+        val a2t = a2.typ.asInstanceOf[TStreamable].elementType
+        val body2 = rebuildIR(aggBody, if (isScan) env.bindScan(name, a2t) else env.bindAgg(name, a2t), memo)
+        AggExplode(a2, name, body2, isScan)
+      case AggFilter(cond, aggIR, isScan) =>
+        val cond2 = rebuildIR(cond, if (isScan) env.promoteScan else env.promoteAgg, memo)
+        val aggIR2 = rebuildIR(aggIR, env, memo)
+        AggFilter(cond2, aggIR2, isScan)
+      case AggGroupBy(key, aggIR, isScan) =>
+        val key2 = rebuildIR(key, if (isScan) env.promoteScan else env.promoteAgg, memo)
+        val aggIR2 = rebuildIR(aggIR, env, memo)
+        AggGroupBy(key2, aggIR2, isScan)
+      case AggArrayPerElement(a, name, aggBody, isScan) =>
+        val a2 = rebuildIR(a, if (isScan) env.promoteScan else env.promoteAgg, memo)
+        val a2t = a2.typ.asInstanceOf[TStreamable].elementType
+        val aggBody2 = rebuildIR(aggBody, if (isScan) env.bindScan(name, a2t) else env.bindAgg(name, a2t), memo)
+        AggArrayPerElement(a2, name, aggBody2, isScan)
       case ArrayAgg(a, name, query) =>
-        val a2 = rebuild(a, in, memo)
-        ArrayAgg(
-          a2,
-          name,
-          rebuild(query, in.bind(name, a2.typ.asInstanceOf[TStreamable].elementType), memo)
-        )
+        val a2 = rebuildIR(a, env, memo)
+        val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
+        ArrayAgg(a2, name, query2)
+      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        val constructorArgs2 = constructorArgs.map(rebuildIR(_, BindingEnv.empty[Type], memo))
+        val initOpArgs2 = initOpArgs.map(_.map(rebuildIR(_, env, memo)))
+        val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteAgg, memo))
+        ApplyAggOp(constructorArgs2, initOpArgs2, seqOpArgs2,
+          aggSig.copy(constructorArgs = constructorArgs2.map(_.typ),
+            initOpArgs = initOpArgs2.map(_.map(_.typ)),
+            seqOpArgs = seqOpArgs2.map(_.typ)))
+      case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        val constructorArgs2 = constructorArgs.map(rebuildIR(_, BindingEnv.empty[Type], memo))
+        val initOpArgs2 = initOpArgs.map(_.map(rebuildIR(_, env, memo)))
+        val seqOpArgs2 = seqOpArgs.map(rebuildIR(_, env.promoteScan, memo))
+        ApplyScanOp(constructorArgs2, initOpArgs2, seqOpArgs2,
+          aggSig.copy(constructorArgs = constructorArgs2.map(_.typ),
+            initOpArgs = initOpArgs2.map(_.map(_.typ)),
+            seqOpArgs = seqOpArgs2.map(_.typ)))
       case _ =>
         ir.copy(ir.children.map {
-          case valueIR: IR => rebuild(valueIR, in, memo)
+          case valueIR: IR => rebuildIR(valueIR, env, memo) // FIXME: assert IR does not bind or change env
           case mir: MatrixIR => rebuild(mir, memo)
           case tir: TableIR => rebuild(tir, memo)
           case bmir: BlockMatrixIR => bmir //NOTE Currently no BlockMatrixIRs would have dead fields
