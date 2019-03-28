@@ -1299,7 +1299,7 @@ class IRSuite extends SparkSuite {
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
     val nd = MakeNDArray(2,
-      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
       MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
       True())
 
