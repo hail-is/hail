@@ -28,7 +28,13 @@ object ForwardLets {
     def rewrite(ir: IR, env: BindingEnv[IR]): IR = {
 
       def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
-        value.isInstanceOf[Ref] || refs.isEmpty || refs.size == 1 && nestingDepth.lookup(refs.head) == nestingDepth.lookup(base)
+        (value.isInstanceOf[Ref] ||
+          IsConstant(value) ||
+          refs.isEmpty ||
+          refs.size == 1 &&
+            nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
+            !ContainsScan(value) &&
+            !ContainsAgg(value))
       }
 
       def mapRewrite(): IR = ir.copy(ir.children
