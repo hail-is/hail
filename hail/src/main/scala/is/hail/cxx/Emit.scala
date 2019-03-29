@@ -816,19 +816,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(nDim, data, shape, rowMajor) =>
-        val dataContainer = data.pType.asInstanceOf[PStreamable].asPArray
+      case ir.MakeNDArray(nDim, dataIR, shapeIR, rowMajorIR) =>
+        val dataContainer = dataIR.pType.asInstanceOf[PStreamable].asPArray
         val elemPType = dataContainer.elementType
-        val shapeContainer = shape.pType.asInstanceOf[PStreamable].asPArray
-        val datat = emit(data)
-        val shapet = emit(shape)
-        val rowMajort = emit(rowMajor)
+        val shapeContainer = shapeIR.pType.asInstanceOf[PStreamable].asPArray
+        val datat = emit(dataIR)
+        val shapet = emit(shapeIR)
+        val rowMajort = emit(rowMajorIR)
 
         val elemSize = elemPType.byteSize
-        val flags = fb.variable("flags", "int", s"${rowMajort.v} ? 1 : 0")
-        val shapeVec = fb.variable("shapeVec", "std::vector<long>",
+        val shape = fb.variable("shape", "std::vector<long>",
           s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
-        val dataArr = fb.variable("dataArr", "const char *", datat.v)
+        val strides = fb.variable("strides", "std::vector<long>", s"make_strides(${rowMajort.v}, $shape)")
+        val data = fb.variable("data", "const char *", datat.v)
 
         val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
         present(
@@ -841,20 +841,20 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
-             | ${ flags.define }
-             | ${ shapeVec.define }
+             | ${ shape.define }
+             | ${ strides.define }
              |
-             | if ($nDim != $shapeVec.size()) {
+             | if ($nDim != $shape.size()) {
              |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
              | }
              |
-             | ${ dataArr.define }
+             | ${ data.define }
              |
-             | if (n_elements($shapeVec) != load_length($dataArr)) {
+             | if (n_elements($shape) != load_length($data)) {
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
              |
-             | make_ndarray($flags, $elemSize, $shapeVec, make_strides($flags, $shapeVec), ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             | make_ndarray(0, $elemSize, $shape, $strides, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
              |})
              |""".stripMargin)
 
@@ -870,10 +870,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
-        val rowMajor = fb.variable("rowMajor", "int", s"$nd.flags")
         val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until nDims) {
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             assert(idxVars.length == nDims)
             val index = linearizeIndices(idxVars, s"$nd.strides")
@@ -925,10 +924,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val l = fb.variable("l", "NDArray", lt.v)
         val r = fb.variable("r", "NDArray", rt.v)
 
-        val rowMajor = fb.variable("rowMajor", "int", s"$l.flags")
         val shape = fb.variable("shape", "std::vector<long>", s"$l.shape")
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until nDims) {
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             val lIndex = linearizeIndices(idxVars, s"$l.strides")
             val rIndex = linearizeIndices(idxVars, s"$r.strides")
@@ -966,6 +964,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ rRef.define }
              |
              | ${ emitter.emit() };
+             |})
            """.stripMargin)
 
       case ir.NDArrayBroadcast(child, indexExpr) =>
@@ -988,19 +987,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${ strides.define }
              |
              |  ${ permuteShapeAndStrides }
-             |  make_ndarray($nd.flags, $nd.elem_size, $shape, $strides, $nd.data);
+             |  make_ndarray($nd.offset, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
 
-      case ir.NDArrayRef(nd, idxs) =>
+      case ir.NDArrayRef(nd, idxsIR) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
         val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
-        val idxsContainer = idxs.pType.asInstanceOf[PStreamable].asPArray
+        val idxsContainer = idxsIR.pType.asInstanceOf[PStreamable].asPArray
 
         val ndt = emit(nd)
-        val idxst = emit(idxs)
+        val idxst = emit(idxsIR)
 
-        val idxsVec = fb.variable("idxsVec", "std::vector<long>",
+        val idxs = fb.variable("idxs", "std::vector<long>",
           s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
         present(
           s"""
@@ -1008,8 +1007,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ ndt.setup }
              | ${ idxst.setup }
              |
-             | ${ idxsVec.define }
-             | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
+             | ${ idxs.define }
+             | load_element<$elemType>(load_indices(${ndt.v}, $idxs));
              |})
              |""".stripMargin)
 

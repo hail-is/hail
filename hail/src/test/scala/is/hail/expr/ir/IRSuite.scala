@@ -906,26 +906,32 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
+    MakeNDArray(shape.length,
+      MakeArray(data.map(F64), TArray(TFloat64())),
+      MakeArray(shape.map(I64), TArray(TInt64())),
+      rowMajor)
+  }
+
+  def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
+    NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
+  }
+
+  val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
+  val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
+  val vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
+  val vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
+  val threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
+  val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
+  val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
+  val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
+
   @Test def testNDArrayRef() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-      MakeNDArray(shape.length,
-        MakeArray(data.map(F64), TArray(TFloat64())),
-        MakeArray(shape.map(I64), TArray(TInt64())),
-        rowMajor)
-    }
-    def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
-      NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
-    }
-
-    val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
-    val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
     assertEvalsTo(makeNDArrayRef(scalarColMajor, FastSeq()), 3.0)
 
-    val vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
-    val vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
     assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(vectorColMajor, FastSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(vectorRowMajor, FastSeq(1)), -1.0)
@@ -994,9 +1000,9 @@ class IRSuite extends SparkSuite {
 
   @Test def testNDArrayBroadcast() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
-    val shape = MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64()))
 
-    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())), shape, True())
+    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
+      MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
     val transpose = NDArrayBroadcast(mat, IndexedSeq(1, 0))
     val identity = NDArrayBroadcast(mat, IndexedSeq(0, 1))
 
@@ -1009,6 +1015,12 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(NDArrayRef(mat, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
+
+    val partialTranspose = NDArrayBroadcast(cubeRowMajor, IndexedSeq(0, 2, 1))
+    val idx = MakeArray(FastSeq(0L, 1L, 0L), TArray(TInt64()))
+    val mirroredIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
+    assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
+    assertEvalsTo(NDArrayRef(partialTranspose, mirroredIdx), 3.0)
   }
 
   @Test def testLeftJoinRightDistinct() {

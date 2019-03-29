@@ -4,7 +4,6 @@
 #include <vector>
 
 struct NDArray {
-  int flags; // least sig. bit denotes if row major
   int offset;
   size_t elem_size;
   std::vector<long> shape;
@@ -12,7 +11,7 @@ struct NDArray {
   const char *data;
 };
 
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
+NDArray make_ndarray(size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
 char const *load_indices(NDArray &nd, std::vector<long> indices);
 char const *load_index(NDArray &nd, int index);
 int n_elements(std::vector<long> &shape);
@@ -20,10 +19,9 @@ std::vector<long> make_strides(int row_major, std::vector<long> &shape);
 std::vector<long> strides_row_major(std::vector<long> &shape);
 std::vector<long> strides_col_major(std::vector<long> &shape);
 
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data) {
+NDArray make_ndarray(int offset, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data) {
   NDArray nd;
-  nd.flags = flags;
-  nd.offset = 0;
+  nd.offset = offset;
   nd.elem_size = elem_size;
   nd.shape = shape;
   nd.data = data;

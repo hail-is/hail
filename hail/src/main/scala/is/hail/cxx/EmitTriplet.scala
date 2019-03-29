@@ -101,20 +101,19 @@ abstract class NDArrayLoopEmitter(
   resultRegion: EmitRegion,
   resultElemType: PType,
   resultShape: Variable,
-  rowMajor: Variable,
   outputIndices: Seq[Int]) {
 
   fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
   private[this] val container = PArray(resultElemType)
   private[this] val builder = fb.variable("builder", StagedContainerBuilder.builderType(container))
 
-  private[this] val strides = fb.variable("strides", "std::vector<long>", s"make_strides($rowMajor, $resultShape)")
-  private[this] val idxVars = outputIndices.map{ i => fb.variable(s"dim${i}_", "int") }
+  // Always stores the result as row-major
+  private[this] val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $resultShape)")
 
   def outputElement(idxVars: Seq[Variable]): Code
 
   def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
-    idxVars.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
+    idxs.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
         s"$idx * $strides[$dim] + $linearIndex"
     }
   }
@@ -124,32 +123,26 @@ abstract class NDArrayLoopEmitter(
     s"""
       |({
       | ${ data.define }
-      | ${ rowMajor.define }
       | ${ resultShape.define }
       | ${ strides.define }
       |
       | ${ builder.defineWith(s"{ (int) n_elements($resultShape), $resultRegion }") }
       | $builder.clear_missing_bits();
       |
-      | if ($rowMajor) {
-      |   ${ emitLoops(idxVars, leftToRight = true) }
-      | } else {
-      |   ${ emitLoops(idxVars, leftToRight = false) }
-      | }
+      | ${ emitLoops() }
       |
       | $data = ${container.cxxImpl}::elements_address($builder.offset());
-      | make_ndarray($rowMajor, ${resultElemType.byteSize}, $resultShape, $strides, $data);
+      | make_ndarray(0, ${resultElemType.byteSize}, $resultShape, $strides, $data);
       |})
     """.stripMargin
   }
 
-  private def emitLoops(idxs: Seq[Variable], leftToRight: Boolean): Code = {
-    val outIndex = linearizeIndices(idxs, strides.toString)
-    val dimIter = if (leftToRight) idxs.zipWithIndex else idxs.zipWithIndex.reverseIterator
-
+  private def emitLoops(): Code = {
+    val idxVars = outputIndices.map{ i => fb.variable(s"dim${i}_", "int") }
+    val outIndex = linearizeIndices(idxVars, strides.toString)
     val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
 
-    dimIter.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
+    idxVars.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
       s"""
          |${ dimVar.define }
          |for ($dimVar = 0; $dimVar < $resultShape[$dimIdx]; ++$dimVar) {
