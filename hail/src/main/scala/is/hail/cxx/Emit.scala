@@ -17,7 +17,7 @@ object Emit {
 
   def noContext(fb: FunctionBuilder, x: ir.IR): EmitTriplet = {
     val emitter = new Emitter(fb, nSpecialArgs = 0, SparkFunctionContext(fb))
-    val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
+    val res = emitter.emit(ir.Streamify(x), ir.Env.empty[EmitTriplet])
     if (res.region.used) { throw new CXXUnsupportedOperation("can't use region if none is provided.") }
     if (emitter.modules.size != 0) { throw new CXXUnsupportedOperation("can't generate modules for this function.") }
     if (emitter.literals.nonEmpty) { throw new CXXUnsupportedOperation("can't use literals in 0-argument function.") }
@@ -52,9 +52,6 @@ class Orderings {
       case t: TIterable =>
         val lContainerP = coerce[PIterable](lp).asPContainer
         val rContainerP = coerce[PIterable](rp).asPContainer
-
-        val lElemP = lContainerP.elementType
-        val rElemP = rContainerP.elementType
 
         val elemOrd = ordering(tub, lContainerP.elementType, rContainerP.elementType)
 
@@ -189,6 +186,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   val literals: mutable.Map[(PType, Any), Variable] = mutable.Map()
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
+    assert(!x.typ.isInstanceOf[TStream])
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v, resultRegion)
 
@@ -500,15 +498,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
-      case ir.ToArray(a) =>
-        emit(a)
-
-      case ir.ToStream(a) =>
-        emit(a)
-
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
-        val containerPType = a.pType.asInstanceOf[PIterable]
-        val ae = emitArray(resultRegion, a, env, sameRegion = false)
+        val eltType = a.pType.asInstanceOf[PStream].elementType
+        val ae = emitStream(resultRegion, a, env, sameRegion = false)
         val am = fb.variable("am", "bool", ae.m)
 
         val zerot = emit(zero)
@@ -534,8 +526,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${
             ae.emit { case (m, v) =>
               val vm = fb.variable("vm", "bool")
-              val vv = fb.variable("vv", typeToCXXType(containerPType.elementType))
-              val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString, ae.arrayRegion)
+              val vv = fb.variable("vv", typeToCXXType(eltType))
+              val vt = EmitTriplet(eltType, "", vm.toString, vv.toString, ae.arrayRegion)
 
               val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
 
@@ -564,79 +556,82 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |""".stripMargin,
           accm.toString, accv.toString)
 
-      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap | _: ir.MakeArray =>
-        val containerPType = x.pType.asInstanceOf[PStreamable]
-        val useOneRegion = !containerPType.elementType.isPrimitive
+      case ir.ToArray(a) =>
+        if (a.typ.isInstanceOf[TContainer])
+          emit(a)
+        else {
+          val containerPType = x.pType.asInstanceOf[PArray]
+          val useOneRegion = !containerPType.elementType.isPrimitive
 
-        val ae = emitArray(resultRegion, x, env, useOneRegion)
-        ae.length match {
-          case Some(length) =>
-            val sab = resultRegion.arrayBuilder(fb, containerPType.asPArray)
-            triplet(ae.setup, ae.m,
-              s"""
-                 |({
-                 |  ${ ae.setupLen }
-                 |  ${ sab.start(length) }
-                 |  ${
-                ae.emit { case (m, v) =>
-                  s"""
-                     |if (${ m })
-                     |  ${ sab.setMissing() }
-                     |else
-                     |  ${ sab.add(v) }
-                     |${ sab.advance() }
-                     |""".stripMargin
+          val ae = emitStream(resultRegion, a, env, useOneRegion)
+          val sab = resultRegion.arrayBuilder(fb, containerPType)
+          ae.length match {
+            case Some(length) =>
+              triplet(ae.setup, ae.m,
+                s"""
+                   |({
+                   |  ${ ae.setupLen }
+                   |  ${ sab.start(length) }
+                   |  ${
+                  ae.emit { case (m, v) =>
+                    s"""
+                       |if (${ m })
+                       |  ${ sab.setMissing() }
+                       |else
+                       |  ${ sab.add(v) }
+                       |${ sab.advance() }
+                       |""".stripMargin
+                  }
                 }
-              }
-                 |  ${ sab.end() };
-                 |})
-                 |""".stripMargin)
+                   |  ${ sab.end() };
+                   |})
+                   |""".stripMargin)
 
-          case None =>
-            val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
-            val ms = fb.variable("ms", "std::vector<bool>")
-            val i = fb.variable("i", "int")
-            val sab = resultRegion.arrayBuilder(fb, containerPType.asPArray)
-            triplet(ae.setup, ae.m,
-              s"""
-                 |({
-                 |  ${ ae.setupLen }
-                 |  ${ xs.define }
-                 |  ${ ms.define }
-                 |  ${
-                ae.emit { case (m, v) =>
-                  s"""
-                     |if (${ m }) {
-                     |  $ms.push_back(true);
-                     |  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
-                     |} else {
-                     |  $ms.push_back(false);
-                     |  $xs.push_back($v);
-                     |}
-                     |""".stripMargin
+            case None =>
+              val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
+              val ms = fb.variable("ms", "std::vector<bool>")
+              val i = fb.variable("i", "int")
+              triplet(ae.setup, ae.m,
+                s"""
+                   |({
+                   |  ${ ae.setupLen }
+                   |  ${ xs.define }
+                   |  ${ ms.define }
+                   |  ${
+                  ae.emit { case (m, v) =>
+                    s"""
+                       |if (${ m }) {
+                       |  $ms.push_back(true);
+                       |  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
+                       |} else {
+                       |  $ms.push_back(false);
+                       |  $xs.push_back($v);
+                       |}
+                       |""".stripMargin
+                  }
                 }
-              }
-                 |  ${ sab.start(s"$xs.size()") }
-                 |  ${ i.define }
-                 |  for ($i = 0; $i < $xs.size(); ++$i) {
-                 |    if ($ms[$i])
-                 |      ${ sab.setMissing() }
-                 |   else
-                 |      ${ sab.add(s"$xs[$i]") }
-                 |    ${ sab.advance() }
-                 |  }
-                 |  ${ sab.end() };
-                 |})
-                 |""".stripMargin)
+                   |  ${ sab.start(s"$xs.size()") }
+                   |  ${ i.define }
+                   |  for ($i = 0; $i < $xs.size(); ++$i) {
+                   |    if ($ms[$i])
+                   |      ${ sab.setMissing() }
+                   |   else
+                   |      ${ sab.add(s"$xs[$i]") }
+                   |    ${ sab.advance() }
+                   |  }
+                   |  ${ sab.end() };
+                   |})
+                   |""".stripMargin)
+          }
         }
 
       case ir.ArraySort(a, l, r, comp) =>
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-        val aType = coerce[PStreamable](a.pType)
-        val eltType = coerce[TStreamable](a.typ).elementType
+        val aType = coerce[PStream](a.pType)
+        val eltType = coerce[TStream](a.typ).elementType
         val cxxType = typeToCXXType(eltType.physicalType)
-        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+        val array = emitStream(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
         val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
@@ -666,8 +661,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val a = x.children(0).asInstanceOf[ir.IR]
-        val eltType = coerce[TIterable](a.typ).elementType
-        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+        val eltType = coerce[TStream](a.typ).elementType
+        val array = emitStream(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
         val cxxType = typeToCXXType(eltType.physicalType)
         val l = ir.In(0, eltType)
         val r = ir.In(1, eltType)
@@ -923,6 +918,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | load_element<$elemType>(load_indices(${ndt.v}, $idxsVec));
              |})
              |""".stripMargin)
+
+      case _: ir.ArrayRange | _: ir.MakeArray =>
+        fatal("ArrayRange and MakeArray must be emitted as a stream.")
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
@@ -930,12 +928,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
   def emit(x: ir.IR, env: E): EmitTriplet =
     emit(ctx.region, x, env)
-  def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
-
-    val elemType = x.pType.asInstanceOf[PIterable].elementType
+  def emitStream(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
+    assert(x.typ.isInstanceOf[TStream])
+    val elemType = coerce[PStream](x.pType).elementType
 
     x match {
-      case ir.ArrayRange(start, stop, step) =>
+      case ir.StreamRange(start, stop, step) =>
         fb.translationUnitBuilder().include("<limits.h>")
         val startt = emit(resultRegion, start, env)
         val stopt = emit(resultRegion, stop, env)
@@ -990,7 +988,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.MakeArray(args, t) =>
+      case ir.MakeStream(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
@@ -1017,7 +1015,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
       case ir.ArrayFilter(a, name, cond) =>
-        val ae = emitArray(resultRegion, a, env, sameRegion)
+        val ae = emitStream(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(elemType))
@@ -1046,7 +1044,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.ArrayMap(a, name, body) =>
         val aElementPType = a.pType.asInstanceOf[PStreamable].elementType
-        val ae = emitArray(resultRegion, a, env, sameRegion)
+        val ae = emitStream(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
 
         val vm = fb.variable("m", "bool")
@@ -1075,12 +1073,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.ArrayFlatMap(a, name, body) =>
         val aElementPType = a.pType.asInstanceOf[PStreamable].elementType
 
-        val ae = emitArray(resultRegion, a, env, sameRegion)
+        val ae = emitStream(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
 
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(aElementPType))
-        val bodyt = outer.emitArray(arrayRegion, body,
+        val bodyt = outer.emitStream(arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)), sameRegion)
 
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, bodyt.arrayRegion) {
@@ -1107,7 +1105,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.Let(name, value, body) =>
         val vt = emit(resultRegion, value, env).memoize(fb)
         val bodyEnv = env.bind(name, EmitTriplet(value.pType, "", vt.m, vt.v, resultRegion))
-        val ae = emitArray(resultRegion, body, bodyEnv, sameRegion)
+        val ae = emitStream(resultRegion, body, bodyEnv, sameRegion)
 
         val setup =
           s"""
@@ -1119,9 +1117,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           def emit(f: (Code, Code) => Code): Code = ae.emit(f)
         }
 
-      case _ =>
-        val pArray = coerce[PStreamable](x.pType).asPArray
-        val t = emit(resultRegion, x, env)
+      case ir.ToStream(array) =>
+        val pArray = coerce[PStreamable](array.pType).asPArray
+        val t = emit(resultRegion, array, env)
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
 
         val a = fb.variable("a", "const char *", t.v)
@@ -1145,6 +1143,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |""".stripMargin
           }
         }
+      case _ =>
+        throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
   }
 }

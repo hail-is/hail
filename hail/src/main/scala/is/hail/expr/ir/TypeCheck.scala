@@ -86,12 +86,21 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
+      case x@MakeStream(args, typ) =>
+        assert(typ != null)
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
+        }
       case x@ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
       case x@ArrayRange(a, b, c) =>
+        assert(a.typ.isOfType(TInt32()))
+        assert(b.typ.isOfType(TInt32()))
+        assert(c.typ.isOfType(TInt32()))
+      case x@StreamRange(a, b, c) =>
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
