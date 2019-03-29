@@ -21,7 +21,7 @@ test-local: check install-cloud-sql-proxy instance.cloudsql
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: check
+test-in-cluster: check
 	pytest
 
 user: install-cloud-sql-proxy instance.cloudsql

@@ -5,13 +5,11 @@ Associate a user id to kubernetes service account, google cloud service account,
 ### Run
 
 ```sh
-BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python user_secrets.py "<some_user_id>"
+make user name=<some_name> op=<create|delete>
 ```
 
 ### Test
 
 ```sh
-BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python test_users.py
+make test-local
 ```
-
-To run on localhost, specify `BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1` and use [Cloud SQL Proxy](https://cloud.google.com/sql/docs/mysql/sql-proxy)
