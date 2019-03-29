@@ -254,20 +254,21 @@ class ArrayCoercer(ExprCoercer):
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
+# NDArrayExpressions must be created explicity using `hl._ndarray`
 class NDArrayCoercer(ExprCoercer):
-    def __init__(self, t: HailType):
+    def __init__(self, ec: ExprCoercer = AnyCoercer()):
         super(NDArrayCoercer, self).__init__()
-        self.t = t
+        self.ec = ec
 
     @property
     def str_t(self):
-        return f'ndarray<{self.t}>'
+        return f'ndarray<{self.ec.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
         return False
 
     def can_coerce(self, t: HailType) -> bool:
-        return isinstance(t, tndarray) and self.t == t.element_type
+        return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
         raise NotImplementedError
@@ -456,7 +457,7 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
     elif isinstance(t, tarray):
         return expr_array(coercer_from_dtype(t.element_type))
     elif isinstance(t, tndarray):
-        return expr_ndarray(t.element_type)
+        return expr_ndarray(coercer_from_dtype(t.element_type))
     elif isinstance(t, tset):
         return expr_set(coercer_from_dtype(t.element_type))
     elif isinstance(t, tdict):
