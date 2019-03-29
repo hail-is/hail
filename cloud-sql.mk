@@ -1,6 +1,6 @@
 .PHONY: install-cloud-sql-proxy
 
-CLOUD_SQL_PORT ?= 3307
+CLOUD_SQL_PORT ?= 3306
 
 install-cloud-sql-proxy:
 	test -f cloud_sql_proxy || \
