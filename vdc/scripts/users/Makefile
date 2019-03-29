@@ -3,7 +3,7 @@
 
 include ../../../cloud-sql.mk
 
-PY_CHECKERS = flake8-stmp pylint-stmp
+INSTANCE = $(shell kubectl get secret create-users -o json | jq -r ".data.instance" | base64 -D)
 
 flake8-stmp:
 	python3 -m flake8 ./
@@ -11,21 +11,27 @@ flake8-stmp:
 pylint-stmp:
 	python3 -m pylint --rcfile ../../../batch/batch/pylintrc ./ --score=n
 
-check: $(PY_CHECKERS)
+check: flake8-stmp pylint-stmp
 
-test-local: check install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
-	BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 pytest
+instance.cloudsql:
+	echo "$(INSTANCE)" > $@
+
+test-local: check install-cloud-sql-proxy instance.cloudsql
+	./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: check
 	pytest
 
-user: install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
-	BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python ./user_data.py $(name) $(op)
+user: install-cloud-sql-proxy instance.cloudsql
+	./run-locally.sh $(name) $(op)
+
+user-in-cluster:
+	python ./user_data.py $(name) $(op)
 
 secret:
-	./make-secret.sh $(user) $(pass) $(db) $(host)
+	./make-secret.sh $(user) $(pass) $(db) $(host) $(instance)
 
 clean:
-	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
+	rm -rf instance.cloudsql
