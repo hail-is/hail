@@ -592,6 +592,10 @@ object IRParser {
         val typ = opt(it, type_expr).map(_.asInstanceOf[TArray]).orNull
         val args = ir_value_children(env)(it)
         MakeArray.unify(args, typ)
+      case "MakeStream" =>
+        val typ = opt(it, type_expr).map(_.asInstanceOf[TStream]).orNull
+        val args = ir_value_children(env)(it)
+        MakeStream(args, typ)
       case "ArrayRef" =>
         val a = ir_value_expr(env)(it)
         val i = ir_value_expr(env)(it)
@@ -602,6 +606,11 @@ object IRParser {
         val stop = ir_value_expr(env)(it)
         val step = ir_value_expr(env)(it)
         ArrayRange(start, stop, step)
+      case "StreamRange" =>
+        val start = ir_value_expr(env)(it)
+        val stop = ir_value_expr(env)(it)
+        val step = ir_value_expr(env)(it)
+        StreamRange(start, stop, step)
       case "ArraySort" =>
         val l = identifier(it)
         val r = identifier(it)
