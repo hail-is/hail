@@ -1845,7 +1845,7 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     The covariance of a 2d normal distribution is a 2x2 symmetric matrix
     [[a, b], [b, c]]. This is specified in `cov` as a length 3 array [a, b, c].
     The covariance matrix must be positive semi-definite, i.e. a>0, c>0, and
-    a*d - c^2 > 0.
+    a*c - b^2 > 0.
 
     If `mean` and `cov` are both None, draws from the standard 2d normal
     distribution.
@@ -1864,25 +1864,25 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
     :class:`.ArrayFloat64Expression`
     """
     if mean is None:
-        m1 = 0
-        m2 = 0
-    else:
+        mean = [0, 0]
+    if cov is None:
+        cov = [1, 0, 1]
+
+    def f(mean, cov):
         m1 = mean[0]
         m2 = mean[1]
-    if cov is None:
-        s11 = 1
-        s12 = 0
-        s22 = 1
-    else:
         s11 = cov[0]
         s12 = cov[1]
         s22 = cov[2]
-    x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
-    root_s11 = hl.sqrt(s11)
-    return hl.array([
-        m1 + root_s11 * x[0],
-        m2 + (s12 / rool_s11) * x[0]
-           + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])
+
+        x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
+        return hl.rbind(hl.sqrt(s11), (lambda root_s11:
+            hl.array([
+               m1 + root_s11 * x[0],
+               m2 + (s12 / root_s11) * x[0]
+                  + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])))
+
+    return hl.rbind(mean, cov, f)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
