@@ -10,6 +10,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import plural
 
 import numpy as np
 
@@ -829,6 +830,63 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+
+
+def variant_str(*args) -> 'StringExpression':
+    """Create a variant colon-delimited string.
+
+    Parameters
+    ----------
+    args
+        Arguments (see notes).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+
+    Notes
+    -----
+    Expects either one argument of type
+    ``struct{locus: locus<RG>, alleles: array<str>``, or two arguments of type
+    ``locus<RG>`` and ``array<str>``. The function returns a string of the form
+
+    .. code-block:: text
+
+        CHR:POS:REF:ALT1,ALT2,...ALTN
+        e.g.
+        1:1:A:T
+        16:250125:AAA:A,CAA
+
+    Examples
+    --------
+    >>> hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'C']))
+    '1:10000:A:T,C'
+    """
+    args = [to_expr(arg) for arg in args]
+
+    def type_error():
+        raise ValueError(f"'variant_str' expects arguments of the following types:\n"
+                         f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
+                         f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
+                         f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
+                         f"of type {', '.join(builtins.str(x.dtype) for x in args)}")
+
+    if builtins.len(args) == 1:
+        [s] = args
+        t = s.dtype
+        if not isinstance(t, tstruct) \
+                or not builtins.len(t) == 2 \
+                or not isinstance(t[0], tlocus) \
+                or not t[1] == tarray(tstr):
+            type_error()
+        return hl.rbind(s, lambda x: hl.str(x[0]) + ":" + x[1][0] + ":" + hl.delimit(x[1][1:]))
+    elif builtins.len(args) == 2:
+        [locus, alleles] = args
+        if not isinstance(locus.dtype, tlocus) or not alleles.dtype == tarray(tstr):
+            type_error()
+        return hl.str(locus) + ":" + hl.rbind(alleles, lambda x: x[0] + ":" + hl.delimit(x[1:]))
+    else:
+        type_error()
 
 
 @typecheck(gp=expr_array(expr_float64))
