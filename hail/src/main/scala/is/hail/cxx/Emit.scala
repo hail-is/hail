@@ -879,7 +879,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until childTyp.nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             assert(idxVars.length == childTyp.nDims)
-            val index = foldWithStrides(idxVars, s"$nd.strides")
+            val index = linearizeIndices(idxVars, s"$nd.strides")
             s"""
                |({
                | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
@@ -932,8 +932,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until lType.nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIndex = foldWithStrides(idxVars, s"$l.strides")
-            val rIndex = foldWithStrides(idxVars, s"$r.strides")
+            val lIndex = linearizeIndices(idxVars, s"$l.strides")
+            val rIndex = linearizeIndices(idxVars, s"$r.strides")
 
             s"""
                |({

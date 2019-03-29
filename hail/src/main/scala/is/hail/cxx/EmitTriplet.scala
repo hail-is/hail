@@ -113,7 +113,7 @@ abstract class NDArrayLoopEmitter(
 
   def outputElement(idxVars: Seq[Variable]): Code
 
-  def foldWithStrides(idxs: Seq[Variable], strides: Code): Code = {
+  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
     idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $strides[$dim]" }.mkString(" + ")
   }
 
@@ -142,7 +142,7 @@ abstract class NDArrayLoopEmitter(
   }
 
   private def emitLoops(idxs: Seq[Variable], leftToRight: Boolean): Code = {
-    val outIndex = foldWithStrides(idxs, strides.toString)
+    val outIndex = linearizeIndices(idxs, strides.toString)
     val dimIter = if (leftToRight) idxs.zipWithIndex else idxs.zipWithIndex.reverseIterator
 
     val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
