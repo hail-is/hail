@@ -4,6 +4,7 @@ from functools import wraps, update_wrapper
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.functions import rbind, float32, _quantile_from_cdf
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list
@@ -235,6 +236,14 @@ def approx_cdf(expr, k=100):
         Struct containing `values` and `ranks` arrays.
     """
     return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64)), constructor_args=[k])
+
+
+@typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
+def approx_quantiles(expr, qs, k=100) -> NumericExpression:
+    if isinstance(qs.dtype, tarray):
+        return rbind(approx_cdf(expr, k), lambda cdf: qs.map(lambda q: _quantile_from_cdf(cdf, float32(q))))
+    else:
+        return rbind(approx_cdf(expr, k), lambda cdf: _quantile_from_cdf(cdf, qs))
 
 
 @typecheck(expr=expr_any)

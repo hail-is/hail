@@ -9,6 +9,7 @@ from bokeh.models import *
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import row, column, gridplot
+from ipywidgets import interact
 from itertools import cycle
 
 from hail.expr import aggregators
@@ -31,7 +32,7 @@ def output_notebook():
     """
     bokeh.io.output_notebook()
 
-def show(obj):
+def show(obj, interact=None):
     """Immediately display a Bokeh object or application.  Calls
     :func:`bokeh.io.show`.
 
@@ -39,13 +40,169 @@ def show(obj):
     ----------
     obj
         A Bokeh object to display.
+    interact
+        A handle returned by a plotting method with `interactive=True`.
     """
-    bokeh.io.show(obj)
+    if interact is None:
+        bokeh.io.show(obj)
+    else:
+        handle = bokeh.io.show(obj, notebook_handle=True)
+        interact(handle)
+
+def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
+    """Create a cumulative density plot.
+
+    Parameters
+    ----------
+    data : :class:`.Struct` or :class:`.Float64Expression`
+        Sequence of data to plot.
+    k : int
+        Accuracy parameter.
+    legend : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+    normalize: bool
+        Whether or not the cumulative data should be normalized.
+    log: bool
+        Whether or not the y-axis should be of type log.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    if normalize:
+        y_axis_label = 'Quantile'
+    else:
+        y_axis_label = 'Rank'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        background_fill_color='#EEEEEE',
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom')
+    p.add_tools(HoverTool(tooltips=[("value", "$x"), ("rank", "@top")], mode='vline'))
+
+    ranks = np.array(data.ranks)
+    values = np.array(data.values)
+    if normalize:
+        ranks = ranks / ranks[-1]
+
+    # invisible, there to support tooltips
+    p.quad(top=ranks[1:-1],
+           bottom=ranks[1:-1],
+           left=values[:-1],
+           right=values[1:],
+           fill_alpha=0,
+           line_alpha=0)
+    p.step(x=[*values, values[-1]],
+           y=ranks,
+           line_width=2,
+           line_color='black',
+           legend=legend)
+    return p
+
+
+def pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
+    """Create a density plot.
+
+    Parameters
+    ----------
+    data : :class:`.Struct` or :class:`.Float64Expression`
+        Sequence of data to plot.
+    k : int
+        Accuracy parameter.
+    smoothing : float
+        Degree of smoothing.
+    legend : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+    log : bool
+        Plot the log10 of the bin counts.
+    interactive : bool
+        If `True`, return a handle to pass to :func:`.show`.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    y_axis_label = 'Frequency'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom',
+        background_fill_color='#EEEEEE')
+
+    n = data.ranks[-1]
+    weights = np.diff(data.ranks[1:-1])
+    min = data.values[0]
+    max = data.values[-1]
+    values = np.array(data.values[1:-1])
+    slope = 1 / (max - min)
+
+    def f(x, prev, smoothing=smoothing):
+        inv_scale = (np.sqrt(n * slope) / smoothing) * np.sqrt(prev / weights)
+        diff = x[:, np.newaxis] - values
+        grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+        return np.sum(grid, axis=1)
+
+    round1 = f(values, np.full(len(values), slope))
+    x_d = np.linspace(min, max, 1000)
+    final = f(x_d, round1)
+
+    l = p.line(x_d, final, line_width=2, line_color='black', legend=legend)
+
+    if interactive:
+        def mk_interact(handle):
+            def update(smoothing=smoothing):
+                final = f(x_d, round1, smoothing)
+                l.data_source.data = {'x': x_d, 'y': final}
+                bokeh.io.push_notebook(handle)
+            interact(update, smoothing=(.02, .8, .005))
+        return (p, mk_interact)
+    else:
+        return p
+
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
-           bins=int, legend=nullable(str), title=nullable(str), log=bool)
-def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
+           bins=int, legend=nullable(str), title=nullable(str), log=bool, interactive=bool)
+def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False):
     """Create a histogram.
+
+    Notes
+    -----
+    `data` can be a :class:`.Float64Expression`, or the result of the :func:`.agg.hist`
+    or :func:`.agg.approx_cdf` aggregators.
 
     Parameters
     ----------
@@ -68,6 +225,8 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
+            if interactive:
+                raise ValueError("'interactive' flag can only be used on data from 'approx_cdf'.")
             agg_f = data._aggregation_method()
             if range is not None:
                 start = range[0]
@@ -81,6 +240,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
+    elif 'values' in data:
+        cdf = data
+        hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
+        data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
+
 
     if log:
         data.bin_freq = [log10(x) for x in data.bin_freq]
@@ -90,8 +254,16 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     else:
         y_axis_label = 'Frequency'
 
-    p = figure(title=title, x_axis_label=legend, y_axis_label=y_axis_label, background_fill_color='#EEEEEE')
-    p.quad(
+    x_span = data.bin_edges[-1] - data.bin_edges[0]
+    x_start = data.bin_edges[0] - .05 * x_span
+    x_end = data.bin_edges[-1] + .05 * x_span
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        background_fill_color='#EEEEEE',
+        x_range=(x_start, x_end))
+    q = p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
         legend=legend, line_color='black')
@@ -105,7 +277,23 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
             bottom=0, top=data.n_smaller,
             left=data.bin_edges[0] - (data.bin_edges[1] - data.bin_edges[0]), right=data.bin_edges[0],
             line_color='black', fill_color='red', legend='Outliers Below')
-    return p
+    if interactive:
+        def mk_interact(handle):
+            def update(bins=bins, phase=0):
+                if phase > 0 and phase < 1:
+                    bins = bins + 1
+                    delta = (cdf.values[-1] - cdf.values[0]) / bins
+                    edges = np.linspace(cdf.values[0] - (1 - phase) * delta, cdf.values[-1] + phase * delta, bins)
+                else:
+                    edges = np.linspace(cdf.values[0], cdf.values[-1], bins)
+                hist, edges = np.histogram(cdf.values, bins=edges, weights=np.diff(cdf.ranks), density=True)
+                new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
+                q.data_source.data = new_data
+                bokeh.io.push_notebook(handle)
+            interact(update, bins=(0, 5*bins), phase=(0, 1, .01))
+        return (p, mk_interact)
+    else:
+        return p
 
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
