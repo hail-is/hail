@@ -213,6 +213,8 @@ final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: I
   def elementTyp: Type = typ.elementType
 }
 
+final case class NDArrayBroadcast(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR

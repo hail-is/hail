@@ -992,6 +992,25 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(twentyTwo, 22.0)
   }
 
+  @Test def testNDArrayBroadcast() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    val shape = MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64()))
+
+    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())), shape, True())
+    val transpose = NDArrayBroadcast(mat, IndexedSeq(1, 0))
+    val identity = NDArrayBroadcast(mat, IndexedSeq(0, 1))
+
+    val topLeftIndex = MakeArray(FastSeq(0L, 0L), TArray(TInt64()))
+    val bottomLeftIndex = MakeArray(FastSeq(1L, 0L), TArray(TInt64()))
+
+    assertEvalsTo(NDArrayRef(mat, topLeftIndex), 1.0)
+    assertEvalsTo(NDArrayRef(identity, topLeftIndex), 1.0)
+    assertEvalsTo(NDArrayRef(transpose, topLeftIndex), 1.0)
+    assertEvalsTo(NDArrayRef(mat, bottomLeftIndex), 3.0)
+    assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
+    assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
+  }
+
   @Test def testLeftJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 

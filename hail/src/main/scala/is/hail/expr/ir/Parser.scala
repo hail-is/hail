@@ -636,6 +636,10 @@ object IRParser {
         val r = ir_value_expr(env)(it)
         val body = ir_value_expr(env)(it)
         NDArrayMap2(l, r, lName, rName, body)
+      case "NDArrayBroadcast" =>
+        val indexExpr = int32_literals(it)
+        val nd = ir_value_expr(env)(it)
+        NDArrayBroadcast(nd, indexExpr)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)

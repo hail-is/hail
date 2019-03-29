@@ -966,6 +966,29 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ rRef.define }
              |
              | ${ emitter.emit() };
+           """.stripMargin)
+
+      case ir.NDArrayBroadcast(child, indexExpr) =>
+        assert(indexExpr.length == child.typ.asInstanceOf[TNDArray].nDims,
+          "Cannot realize broadcast that is not a transpose")
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val shape = fb.variable("shape", "std::vector<long>")
+        val strides = fb.variable("strides", "std::vector<long>")
+
+        val permuteShapeAndStrides = indexExpr
+          .map{ i => s"$shape.push_back($nd.shape[$i]); $strides.push_back($nd.strides[$i]);" }
+          .mkString("\n")
+        present(
+          s"""
+             |({
+             |  ${ ndt.setup }
+             |  ${ nd.define }
+             |  ${ shape.define }
+             |  ${ strides.define }
+             |
+             |  ${ permuteShapeAndStrides }
+             |  make_ndarray($nd.flags, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
 
