@@ -100,6 +100,8 @@ object InferType {
         TArray(join.typ)
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDims, nd.typ.required)
+      case NDArrayMap2(l, _, _, _, body) =>
+        TNDArray(body.typ, coerce[TNDArray](l.typ).nDims, l.typ.required)
       case NDArrayRef(nd, idxs) =>
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 

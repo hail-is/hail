@@ -185,6 +185,7 @@ object Pretty {
             case AggArrayPerElement(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case MakeNDArray(nDim, _, _, _) => nDim.toString
             case NDArrayMap(_, name, _) => prettyIdentifier(name)
+            case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

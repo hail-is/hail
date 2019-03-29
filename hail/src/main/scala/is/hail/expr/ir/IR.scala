@@ -208,6 +208,11 @@ final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   def elementTyp: Type = typ.elementType
 }
 
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
