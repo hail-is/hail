@@ -82,6 +82,8 @@ object Children {
       Array(nd, idxs)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
+    case NDArrayMap2(l, r, _, _, body) =>
+      Array(l, r, body)
     case AggFilter(cond, aggIR, _) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody, _) =>

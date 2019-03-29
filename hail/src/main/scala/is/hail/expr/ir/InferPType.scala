@@ -101,6 +101,8 @@ object InferPType {
         PArray(join.pType)
       case NDArrayMap(nd, _, body) =>
         PNDArray(body.pType, coerce[TNDArray](nd.typ).nDims, nd.typ.required)
+      case NDArrayMap2(l, _, _, _, body) =>
+        PNDArray(body.pType, coerce[TNDArray](l.typ).nDims, l.typ.required)
       case NDArrayRef(nd, idxs) =>
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&
