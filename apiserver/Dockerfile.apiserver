@@ -2,4 +2,6 @@ FROM hail-base
 
 COPY apiserver /apiserver
 
+ENV HAIL_SPARK_PROPERTIES "spark.driver.port=9001,spark.blockManager.port=9002"
+
 CMD ["/bin/bash", "-c", "source activate hail; python /apiserver/apiserver.py"]
