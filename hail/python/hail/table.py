@@ -981,6 +981,10 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Warning
+        -------
+        Do not export to a path that is being read from in the same pipeline.
+
         Parameters
         ----------
         output : :obj:`str`
