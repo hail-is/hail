@@ -22,13 +22,13 @@ test-local: check install-cloud-sql-proxy instance.cloudsql
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-in-cluster: check
-	pytest
+	python3 -m pytest
 
 user: install-cloud-sql-proxy instance.cloudsql
 	./run-locally.sh $(name) $(op)
 
 user-in-cluster:
-	python ./user_data.py $(name) $(op)
+	python3 ./user_data.py $(name) $(op)
 
 secret:
 	./make-secret.sh $(user) $(pass) $(db) $(host) $(instance)
