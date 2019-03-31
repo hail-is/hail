@@ -1316,7 +1316,7 @@ class tnat(HailType):
         raise NotImplementedError
 
     def __str__(self):
-        return f'Nat<{self.value}>'
+        return f'nat<{self.value}>'
 
     def _eq(self, other):
         return self.value == other.value
@@ -1333,7 +1333,7 @@ class tnat(HailType):
         pass
 
     def unify(self, t):
-        return isinstance(t, tnat) and self.value == t.value
+        return isinstance(t, tnat)
 
     def subst(self):
         return self

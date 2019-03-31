@@ -8,6 +8,19 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {
+  val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
+    Array(
+      ("*", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
+      ("/", TInt32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("/", TInt64(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("/", TFloat32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("/", TFloat64(), TFloat64(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
+      ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
+      ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
+      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
+      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
+
   def mean(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
     val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
@@ -78,19 +91,6 @@ object ArrayFunctions extends RegistryFunctions {
     val one = Cast(I64(1), t)
     ArrayFold(a, one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
   }
-
-  val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
-    Array(
-      ("*", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
-      ("/", TInt32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TInt64(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TFloat32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("/", TFloat64(), TFloat64(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-      ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
-      ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
-      ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
 
   def registerAll() {
     registerIR("isEmpty", TArray(tv("T")), TBoolean())(isEmpty)

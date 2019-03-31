@@ -875,7 +875,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, rowMajor, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            assert(idxVars.length == childTyp.nDims)
+            assert(idxVars.length == nDims)
             val index = linearizeIndices(idxVars, s"$nd.strides")
             s"""
                |({

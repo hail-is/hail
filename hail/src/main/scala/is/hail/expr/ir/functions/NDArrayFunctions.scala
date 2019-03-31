@@ -7,20 +7,17 @@ import is.hail.expr.types.virtual._
 object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
     for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
-      registerIR(stringOp, TNDArray(argType, tv("U", "nat")), argType,
-        TNDArray(retType, tv("U"))) { (a, c) =>
+      registerIR(stringOp, TNDArray(argType, tv("U", "nat")), argType, TNDArray(retType, tv("U"))) { (a, c) =>
         val i = genUID()
         NDArrayMap(a, i, irOp(Ref(i, c.typ), c))
       }
 
-      registerIR(stringOp, argType, TNDArray(argType, tv("U", "nat")),
-        TNDArray(retType, tv("U"))) { (a, c) =>
+      registerIR(stringOp, argType, TNDArray(argType, tv("U", "nat")), TNDArray(retType, tv("U"))) { (a, c) =>
         val i = genUID()
         NDArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }
 
-      registerIR(stringOp, TNDArray(argType, tv("U", "nat")), TNDArray(argType, tv("U")),
-        TNDArray(argType, tv("U"))) { (l, r) =>
+      registerIR(stringOp, TNDArray(argType, tv("U", "nat")), TNDArray(argType, tv("U")), TNDArray(retType, tv("U"))) { (l, r) =>
         val lid = genUID()
         val rid = genUID()
         val lElemRef = Ref(lid, coerce[TNDArray](l.typ).elementType)

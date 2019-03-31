@@ -2632,3 +2632,26 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(c[0, 0]), True)
         self.assertEqual(hl.eval(c[1, 2]), True)
 
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_ops(self):
+        def assert_eq(expr, expected):
+            self.assertEqual(hl.eval(expr), expected)
+
+        e = 2.0
+        x = [2.0]
+        col = [[1.0], [2.0]]
+        row = [1.0, 2.0]
+        cube = [[[0, 1],
+                 [2, 3]],
+                [[4, 5],
+                 [6, 7]]]
+
+        ne = hl._ndarray(e)
+        nx = hl._ndarray(x)
+        ncol = hl._ndarray(col)
+        nrow = hl._ndarray(row)
+        ncube = hl._ndarray(cube)
+
+        assert_eq((ne - e)[()], 0.0)
+        assert_eq((e - ne)[()], 0.0)

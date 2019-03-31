@@ -114,7 +114,9 @@ abstract class NDArrayLoopEmitter(
   def outputElement(idxVars: Seq[Variable]): Code
 
   def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
-    idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $strides[$dim]" }.mkString(" + ")
+    idxVars.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
+        s"$idx * $strides[$dim] + $linearIndex"
+    }
   }
 
   def emit(): Code = {
