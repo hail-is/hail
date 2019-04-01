@@ -18,12 +18,12 @@ def deserialize(api_client, data, klass):
 
     if type(klass) == str:
         if klass.startswith('list['):
-            sub_kls = re.match('list\[(.*)\]', klass).group(1)
+            sub_kls = re.match(r'list\[(.*)\]', klass).group(1)
             return [deserialize(api_client, sub_data, sub_kls)
                     for sub_data in data]
 
         if klass.startswith('dict('):
-            sub_kls = re.match('dict\(([^,]*), (.*)\)', klass).group(2)
+            sub_kls = re.match(r'dict\(([^,]*), (.*)\)', klass).group(2)
             return {k: deserialize(api_client, v, sub_kls)
                     for k, v in data.items()}
 
@@ -56,8 +56,8 @@ def deserialize_primitive(data, klass):
     """
     try:
         return klass(data)
-    except UnicodeEncodeError:
-        return unicode(data)  # FIXME: What should this be?
+    # except UnicodeEncodeError:
+    #     return unicode(data)  # FIXME: What should this be?
     except TypeError:
         return data
 
