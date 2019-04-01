@@ -3,11 +3,11 @@ import re
 from kubernetes.client import models
 
 
-def deserialize(api_client, data, klass):
+def deserialize(api_client, data, klass):  # pylint: disable=R0911
     if data is None:
         return None
 
-    if type(klass) == str:
+    if isinstance(klass, str):
         if klass.startswith('list['):
             sub_kls = re.match(r'list\[(.*)\]', klass).group(1)
             return [deserialize(api_client, sub_data, sub_kls)
@@ -26,11 +26,11 @@ def deserialize(api_client, data, klass):
 
     if klass in api_client.PRIMITIVE_TYPES:
         return deserialize_primitive(data, klass)
-    elif klass == object:
+    if klass == object:
         return deserialize_object(data)
-    elif klass == date:
+    if klass == date:
         return deserialize_date(data)
-    elif klass == datetime:
+    if klass == datetime:
         return deserialize_datatime(data)
     else:
         return deserialize_model(api_client, data, klass)
