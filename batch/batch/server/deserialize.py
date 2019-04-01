@@ -4,15 +4,6 @@ from kubernetes.client import models
 
 
 def deserialize(api_client, data, klass):
-    """
-    Deserializes dict, list, str into an object.
-
-    :param data: dict, list or str.
-    :param klass: class literal, or string of class name.
-
-    :return: object.
-    """
-
     if data is None:
         return None
 
@@ -46,14 +37,6 @@ def deserialize(api_client, data, klass):
 
 
 def deserialize_primitive(data, klass):
-    """
-    Deserializes string to primitive type.
-
-    :param data: str.
-    :param klass: class literal.
-
-    :return: int, long, float, str, bool.wha
-    """
     try:
         return klass(data)
     # except UnicodeEncodeError:
@@ -63,12 +46,6 @@ def deserialize_primitive(data, klass):
 
 
 def deserialize_date(string):
-    """
-    Deserializes string to date.
-
-    :param string: str.
-    :return: date.
-    """
     try:
         from dateutil.parser import parse
         return parse(string).date()
@@ -79,14 +56,6 @@ def deserialize_date(string):
 
 
 def deserialize_datatime(string):
-    """
-    Deserializes string to datetime.
-
-    The string should be in iso8601 datetime format.
-
-    :param string: str.
-    :return: datetime.
-    """
     try:
         from dateutil.parser import parse
         return parse(string)
@@ -97,22 +66,10 @@ def deserialize_datatime(string):
 
 
 def deserialize_object(value):
-    """
-    Return a original value.
-
-    :return: object.
-    """
     return value
 
 
 def deserialize_model(api_client, data, klass):
-    """
-    Deserializes list or dict to model.
-    :param data: dict, list.
-    :param klass: class literal.
-    :return: model object.
-    """
-
     if not klass.swagger_types and not hasattr(klass, 'get_real_child_model'):
         return data
 
