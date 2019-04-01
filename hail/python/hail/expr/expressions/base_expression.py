@@ -825,3 +825,6 @@ class Expression(object):
 
     def _aggregation_method(self):
         return self._selector_and_agg_method()[1](self._indices.source)
+
+    def _select_method(self):
+        return self._selector_and_agg_method()[0]

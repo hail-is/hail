@@ -3,6 +3,7 @@ import numpy as np
 import hail as hl
 from hail.typecheck import *
 from hail.expr.expressions import expr_locus, expr_float64, check_row_indexed
+from hail.utils.java import Env
 
 
 @typecheck(a=np.ndarray,
@@ -166,11 +167,35 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
     if radius < 0:
         raise ValueError(f"locus_windows: 'radius' must be non-negative, found {radius}")
     check_row_indexed('locus_windows', locus_expr)
+    if coord_expr is not None:
+        check_row_indexed('locus_windows', coord_expr)
 
+    src = locus_expr._indices.source
+    select_fields = []
+    annotate_fields = {}
+
+    if locus_expr not in src._fields_inverse:
+        locus = Env.get_uid()
+        annotate_fields[locus] = locus_expr
+    else:
+        locus = src._fields_inverse[locus_expr]
+        select_fields.append(locus)
+
+    if coord_expr is not None:
+        if coord_expr not in src._fields_inverse:
+            coords = Env.get_uid()
+            annotate_fields[coords] = coord_expr
+        else:
+            coords = src._fields_inverse[coord_expr]
+            select_fields.append(coords)
+
+    new_src = locus_expr._select_method(*select_fields, **annotate_fields)
+
+    locus_expr = new_src[locus]
     if coord_expr is None:
         coord_expr = locus_expr.position
     else:
-        check_row_indexed('locus_windows', coord_expr)
+        coord_expr = new_src[coords]
 
     rg = locus_expr.dtype.reference_genome
     contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
