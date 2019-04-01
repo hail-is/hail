@@ -464,6 +464,13 @@ class Tests(unittest.TestCase):
         joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
+    def test_multi_way_zip_join_key_downcast(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz'))
+        mt = mt.key_rows_by('locus')
+        ht = mt.rows()
+        j = hl.Table._multi_way_zip_join([ht, ht], 'd', 'g')
+        j._force_count()
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
