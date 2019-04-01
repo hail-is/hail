@@ -3079,9 +3079,6 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __neg__(self):
         """Negate elements of the ndarray.
 
-        Examples
-        --------
-
         Returns
         -------
         :class:`.NDArrayNumericExpression`
@@ -3091,9 +3088,6 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __add__(self, other):
         """Positionally add an array or a scalar.
-
-        Examples
-        --------
 
         Parameters
         ----------
@@ -3113,9 +3107,6 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __sub__(self, other):
         """Positionally subtract a ndarray or a scalar.
 
-        Examples
-        --------
-
         Parameters
         ----------
         other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
@@ -3133,9 +3124,6 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __mul__(self, other):
         """Positionally multiply by a ndarray or a scalar.
-
-        Examples
-        --------
 
         Parameters
         ----------
@@ -3164,9 +3152,6 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __truediv__(self, other):
         """Positionally divide by a ndarray or a scalar.
 
-        Examples
-        --------
-
         Parameters
         ----------
         other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
@@ -3184,9 +3169,6 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __floordiv__(self, other):
         """Positionally divide by a ndarray or a scalar using floor division.
-
-        Examples
-        --------
 
         Parameters
         ----------
