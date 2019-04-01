@@ -399,7 +399,7 @@ object LowerMatrixIR {
       val idx = Symbol(genUID())
       lower(child)
         .aggregate(irRange(0, 'row (entriesField).len)
-          .arrayAgg(idx ~> aggLet(va = 'row, sa = 'global (colsField)('idx), g = 'row (entriesField)('idx)) {
+          .aggExplode(idx ~> aggLet(va = 'row, sa = 'global (colsField)(idx), g = 'row (entriesField)(idx)) {
             query
           }))
   }
