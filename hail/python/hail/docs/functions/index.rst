@@ -179,6 +179,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     parse_locus
     parse_variant
     parse_locus_interval
+    variant_str
     call
     unphased_diploid_gt_index_call
     parse_call

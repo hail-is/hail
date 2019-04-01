@@ -34,22 +34,4 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def variantsAndAnnotations: RDD[(Variant, Annotation)] =
     variantRDD.map { case (v, (va, gs)) => (v, va) }
-
-  def reorderCols(newIds: Array[Annotation]): MatrixTable = {
-    require(newIds.length == vsm.numCols)
-    require(newIds.areDistinct())
-
-    val sampleSet = vsm.colKeys.toSet[Annotation]
-    val newSampleSet = newIds.toSet
-
-    val notInDataset = newSampleSet -- sampleSet
-    if (notInDataset.nonEmpty)
-      fatal(s"Found ${ notInDataset.size } ${ plural(notInDataset.size, "sample ID") } in new ordering that are not in dataset:\n  " +
-        s"@1", notInDataset.truncatable("\n  "))
-
-    val oldIndex = vsm.colKeys.zipWithIndex.toMap
-    val newToOld = newIds.map(oldIndex)
-
-    vsm.chooseCols(newToOld)
-  }
 }

@@ -55,9 +55,13 @@ class Job:
     def delete(self):
         self.client._delete_job(self.id)
 
-        self.id = None
-        self.attributes = None
-        self._status = None
+        # this object should not be referenced again
+        del self.client
+        del self.id
+        del self.attributes
+        del self.parent_ids
+        del self.scratch_folder
+        del self._status
 
     def log(self):
         return self.client._get_job_log(self.id)
@@ -262,7 +266,8 @@ class BatchClient:
     def create_batch_from_file(self, file):
         job_id_by_name = {}
 
-        def job_id_by_name_or_error(id, self_id):
+        # pylint confused by f-strings
+        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
             job = job_id_by_name.get(id)
             if job:
                 return job

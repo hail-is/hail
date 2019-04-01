@@ -4,7 +4,7 @@ from .matrix_type import *
 from .blockmatrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
-from .functions import _sort_by, _compare, _values_similar
+from .functions import _sort_by, _compare, _values_similar, _ndarray
 from .generic_summary import generic_summary
 __all__ = ['HailType',
            'dtype',
@@ -51,6 +51,7 @@ __all__ = ['HailType',
            'hardy_weinberg_test',
            'parse_locus',
            'parse_variant',
+           'variant_str',
            'locus',
            'locus_from_global_position',
            'interval',
@@ -81,6 +82,7 @@ __all__ = ['HailType',
            'range',
            'rand_bool',
            'rand_norm',
+           'rand_norm2d',
            'rand_pois',
            'rand_unif',
            'rand_beta',
@@ -167,6 +169,7 @@ __all__ = ['HailType',
            'bit_rshift',
            'bit_not',
            'generic_summary',
+           '_ndarray',
            '_values_similar',
            '_sort_by',
            '_compare']

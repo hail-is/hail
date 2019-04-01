@@ -1,22 +1,16 @@
+from collections import Counter
+
+import itertools
 import pandas
 import pyspark
-import warnings
-
 from typing import *
 
-import hail as hl
 from hail.expr.expressions import *
-from hail.expr.types import *
 from hail.expr.table_type import *
-from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
-from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
-
-from collections import OrderedDict, Counter
-import itertools
 
 table_type = lazy()
 
@@ -25,6 +19,12 @@ class Ascending(object):
     def __init__(self, col):
         self.col = col
 
+    def __eq__(self, other):
+        return isinstance(other, Ascending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
+
     def _j_obj(self):
         return scala_package_object(Env.hail().table).asc(self.col)
 
@@ -32,6 +32,12 @@ class Ascending(object):
 class Descending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Descending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).desc(self.col)
@@ -132,7 +138,7 @@ class GroupedTable(ExprContainer):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Notes
         -----
@@ -185,12 +191,12 @@ class GroupedTable(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -294,15 +300,15 @@ class Table(ExprContainer):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = agg.mean(table1.C1),
-    ...                                       mean_c2 = agg.mean(table1.C2),
-    ...                                       stats_c3 = agg.stats(table1.C3)))
+    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = hl.agg.mean(table1.C1),
+    ...                                       mean_c2 = hl.agg.mean(table1.C2),
+    ...                                       stats_c3 = hl.agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group by a field and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = hl.agg.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -975,6 +981,10 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Warning
+        -------
+        Do not export to a path that is being read from in the same pipeline.
+
         Parameters
         ----------
         output : :obj:`str`
@@ -1004,12 +1014,12 @@ class Table(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -1034,17 +1044,17 @@ class Table(ExprContainer):
         First, variable-length string arguments:
 
         >>> table_result = (table1.group_by('C1', 'C2')
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
         >>> table_result = (table1.group_by(table1.C1, table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Last, expression keyword arguments:
 
         >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
@@ -1054,21 +1064,21 @@ class Table(ExprContainer):
         The following two usages are equivalent, grouping by one field, `x`:
 
         >>> table_result = (table3.group_by(table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         >>> table_result = (table3.group_by(x = table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
         >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
-        ...                       .aggregate(meanZ = agg.mean(table1.Z)))
+        ...                       .aggregate(meanZ = hl.agg.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
         >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Note
         ----
@@ -1101,8 +1111,8 @@ class Table(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-        ...                            mean_x=agg.mean(table1.X)))
+        >>> table1.aggregate(hl.struct(fraction_male=hl.agg.fraction(table1.SEX == 'M'),
+        ...                            mean_x=hl.agg.mean(table1.X)))
         Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
@@ -1133,9 +1143,10 @@ class Table(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-                   _codec_spec: Optional[str] = None) -> 'Table':
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
         Parameters
@@ -1166,7 +1177,8 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
-        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_table(output)
 
     @typecheck_method(output=str,
@@ -1200,6 +1212,47 @@ class Table(ExprContainer):
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     def _show(self, n, width, truncate, types):
+        return Table._Show(self, n, width, truncate, types)
+
+    class _Show:
+        def __init__(self, table, n, width, truncate, types):
+            self.table = table
+            self.n = n
+            self.width = width
+            self.truncate = truncate
+            self.types = types
+
+        def __str__(self):
+            return self.table._ascii_str(self.n, self.width, self.truncate, self.types)
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            return self.table._html_str(self.n, self.types)
+
+    @staticmethod
+    def _hl_repr(v):
+        if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+            s = hl.format('%.2e', v)
+        elif isinstance(v.dtype, hl.tarray):
+            s = "[" + hl.delimit(hl.map(Table._hl_repr, v), ",") + "]"
+        elif isinstance(v.dtype, hl.tset):
+            s = "{" + hl.delimit(hl.map(Table._hl_repr, hl.array(v)), ",") + "}"
+        elif isinstance(v.dtype, hl.tdict):
+            s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
+        elif v.dtype == hl.tstr:
+            s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
+            if len(v) == 0:
+                s = '()'
+            else:
+                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
+        else:
+            s = hl.str(v)
+        return hl.cond(hl.is_defined(v), s, "NA")
+
+    def _ascii_str(self, n, width, truncate, types):
         width = max(width, 8)
 
         if truncate:
@@ -1213,30 +1266,13 @@ class Table(ExprContainer):
             else:
                 return s
 
-        def hl_repr(v):
-            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-                s = hl.format('%.2e', v)
-            elif isinstance(v.dtype, hl.tarray):
-                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
-            elif isinstance(v.dtype, hl.tset):
-                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
-            elif isinstance(v.dtype, hl.tdict):
-                s = "{" + hl.delimit(hl.map(lambda x: hl_repr(x[0]) + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
-            elif v.dtype == hl.tstr:
-                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
-                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
-            else:
-                s = hl.str(v)
-            return hl.cond(hl.is_defined(v), s, "NA")
-
         def hl_trunc(s):
             return hl.cond(hl.len(s) > truncate,
                            s[:truncate - 3] + "...",
                            s)
 
         def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
+            return hl.bind(lambda s: hl_trunc(s), Table._hl_repr(v))
 
         t = self
         t = t.flatten()
@@ -1315,8 +1351,40 @@ class Table(ExprContainer):
 
         return s
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+    def _html_str(self, n, types):
+        import html
+
+        t = self
+        t = t.flatten()
+        fields = list(t.row)
+
+        formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
+        rows = formatted_t.take(n + 1)
+
+        has_more = len(rows) > n
+        rows = rows[:n]
+
+        def format_line(values):
+            return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+
+        s = '<table>'
+        s += '<thead style="font-weight: bold;">'
+        s += format_line(fields)
+        if types:
+            s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
+        s += '</thead><tbody>'
+        for row in rows:
+            s += format_line([html.escape(row[f]) for f in row])
+        s += '</tbody></table>'
+
+        if has_more:
+            n_rows = len(rows)
+            s += f"<p>showing top { n_rows } { plural('row', n_rows) }</p>\n"
+
+        return s
+
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1349,6 +1417,17 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n is None or width is None:
+            import shutil
+            (columns, lines) = shutil.get_terminal_size((80, 10))
+            width = width or columns
+            n = n or min(max(10, (lines - 10)), 100)
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
         handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs) -> 'StructExpression':

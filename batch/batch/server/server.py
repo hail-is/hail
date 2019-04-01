@@ -4,18 +4,25 @@ import time
 import random
 import sched
 import uuid
+import json
 from collections import Counter
 import logging
 import threading
-from flask import Flask, request, jsonify, abort, render_template
 import kubernetes as kube
 import cerberus
 import requests
+import uvloop
+import aiohttp_jinja2
+import jinja2
+import pymysql
+from aiohttp import web
 
-from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
+from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
+
+uvloop.install()
 
 s = sched.scheduler()
 
@@ -77,6 +84,36 @@ v1 = kube.client.CoreV1Api()
 
 instance_id = uuid.uuid4().hex
 log.info(f'instance_id = {instance_id}')
+
+app = web.Application()
+routes = web.RouteTableDef()
+aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
+
+config_path = os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                             '/batch-secrets/batch-production-cloud-sql-config.json')
+with open(config_path, 'r') as f:
+    config = json.loads(f.read().strip())
+
+connection = pymysql.connect(host=config['host'],
+                             port=config['port'],
+                             user=config['user'],
+                             password=config['password'],
+                             db=config['db'],
+                             charset='utf8',
+                             cursorclass=pymysql.cursors.DictCursor)
+connection.close()
+
+
+def abort(code, reason=None):
+    if code == 400:
+        raise web.HTTPBadRequest(reason=reason)
+    if code == 404:
+        raise web.HTTPNotFound(reason=reason)
+    raise web.HTTPException(reason=reason)
+
+
+def jsonify(data):
+    return web.json_response(data)
 
 
 class JobTask:  # pylint: disable=R0903
@@ -192,7 +229,6 @@ class Job:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -208,7 +244,6 @@ class Job:
                 v1.delete_namespaced_pod(
                     self._pod_name,
                     POD_NAMESPACE,
-                    kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -280,7 +315,8 @@ class Job:
         else:
             self.refresh_parents_and_maybe_create()
 
-    def refresh_parents_and_maybe_create(self):
+    # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
+    def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
             self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
@@ -395,12 +431,12 @@ class Job:
                         f'callback for job {id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
 
         if self.batch_id:
             batch_id_batch[self.batch_id].mark_job_complete(self)
 
-    def to_json(self):
+    def to_dict(self):
         result = {
             'id': self.id,
             'state': self._state
@@ -421,14 +457,9 @@ class Job:
         return result
 
 
-app = Flask('batch')
-
-log.info(f'app.root_path = {app.root_path}')
-
-
-@app.route('/jobs/create', methods=['POST'])
-def create_job():  # pylint: disable=R0912
-    parameters = request.json
+@routes.post('/jobs/create')
+async def create_job(request):  # pylint: disable=R0912
+    parameters = await request.json()
 
     schema = {
         # will be validated when creating pod
@@ -508,7 +539,7 @@ def create_job():  # pylint: disable=R0912
         output_files,
         copy_service_account_name,
         always_run)
-    return jsonify(job.to_json())
+    return jsonify(job.to_dict())
 
 
 def both_or_neither(x, y):  # pylint: disable=C0103
@@ -517,21 +548,23 @@ def both_or_neither(x, y):  # pylint: disable=C0103
     return x == y
 
 
-@app.route('/jobs', methods=['GET'])
-def get_job_list():
-    return jsonify([job.to_json() for _, job in job_id_job.items()])
+@routes.get('/jobs')
+async def get_job_list(request):  # pylint: disable=W0613
+    return jsonify([job.to_dict() for _, job in job_id_job.items()])
 
 
-@app.route('/jobs/<int:job_id>', methods=['GET'])
-def get_job(job_id):
+@routes.get('/jobs/{job_id}')
+async def get_job(request):
+    job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    return jsonify(job.to_json())
+    return jsonify(job.to_dict())
 
 
-@app.route('/jobs/<int:job_id>/log', methods=['GET'])
-def get_job_log(job_id):  # pylint: disable=R1710
+@routes.get('/jobs/{job_id}/log')
+async def get_job_log(request):  # pylint: disable=R1710
+    job_id = int(request.match_info['job_id'])
     if job_id > max_id():
         abort(404)
 
@@ -551,8 +584,9 @@ def get_job_log(job_id):  # pylint: disable=R1710
     abort(404)
 
 
-@app.route('/jobs/<int:job_id>/delete', methods=['DELETE'])
-def delete_job(job_id):
+@routes.delete('/jobs/{job_id}/delete')
+async def delete_job(request):
+    job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
@@ -560,8 +594,9 @@ def delete_job(job_id):
     return jsonify({})
 
 
-@app.route('/jobs/<int:job_id>/cancel', methods=['POST'])
-def cancel_job(job_id):
+@routes.post('/jobs/{job_id}/cancel')
+async def cancel_job(request):
+    job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
@@ -606,7 +641,7 @@ class Batch:
 
             threading.Thread(
                 target=handler,
-                args=(self.id, job.id, self.callback, job.to_json())
+                args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
     def close(self):
@@ -616,7 +651,7 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
-    def to_json(self):
+    def to_dict(self):
         state_count = Counter([j._state for j in self.jobs])
         return {
             'id': self.id,
@@ -631,9 +666,9 @@ class Batch:
         }
 
 
-@app.route('/batches/create', methods=['POST'])
-def create_batch():
-    parameters = request.json
+@routes.post('/batches/create')
+async def create_batch(request):
+    parameters = await request.json()
 
     schema = {
         'attributes': {
@@ -649,19 +684,21 @@ def create_batch():
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
-    return jsonify(batch.to_json())
+    return jsonify(batch.to_dict())
 
 
-@app.route('/batches/<int:batch_id>', methods=['GET'])
-def get_batch(batch_id):
+@routes.get('/batches/{batch_id}')
+async def get_batch(request):
+    batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
-    return jsonify(batch.to_json())
+    return jsonify(batch.to_dict())
 
 
-@app.route('/batches/<int:batch_id>/delete', methods=['DELETE'])
-def delete_batch(batch_id):
+@routes.delete('/batches/{batch_id}/delete')
+async def delete_batch(request):
+    batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
@@ -669,8 +706,9 @@ def delete_batch(batch_id):
     return jsonify({})
 
 
-@app.route('/batches/<int:batch_id>/close', methods=['POST'])
-def close_batch(batch_id):
+@routes.post('/batches/{batch_id}/close')
+async def close_batch(request):
+    batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
@@ -691,13 +729,14 @@ def update_job_with_pod(job, pod):
         job.mark_unscheduled()
 
 
-@app.route('/pod_changed', methods=['POST'])
-def pod_changed():
-    parameters = request.json
+@routes.post('/pod_changed')
+async def pod_changed(request):
+    parameters = await request.json()
 
     pod_name = parameters['pod_name']
 
     job = pod_name_job.get(pod_name)
+
     if job and not job.is_complete():
         try:
             pod = v1.read_namespaced_pod(
@@ -712,11 +751,11 @@ def pod_changed():
 
         update_job_with_pod(job, pod)
 
-    return '', 204
+    return web.Response(status=204)
 
 
-@app.route('/refresh_k8s_state', methods=['POST'])
-def refresh_k8s_state():
+@routes.post('/refresh_k8s_state')
+async def refresh_k8s_state(request):  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
     pods = v1.list_namespaced_pod(
@@ -739,13 +778,14 @@ def refresh_k8s_state():
 
     log.info('k8s state refresh complete')
 
-    return '', 204
+    return web.Response(status=204)
 
 
-@app.route('/recent', methods=['GET'])
-def recent():
+@routes.get('/recent')
+@aiohttp_jinja2.template('recent.html')
+async def recent(request):  # pylint: disable=W0613
     recent_events = get_recent_events()
-    return render_template('recent.html', recent=list(reversed(recent_events)))
+    return {'recent': list(reversed(recent_events))}
 
 
 def run_forever(target, *args, **kwargs):
@@ -773,8 +813,9 @@ def run_once(target, *args, **kwargs):
         log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
-def flask_event_loop(port):
-    app.run(threaded=False, host='0.0.0.0', port=port)
+def aiohttp_event_loop(port):
+    app.add_routes(routes)
+    web.run_app(app, host='0.0.0.0', port=port)
 
 
 def kube_event_loop(port):
@@ -827,6 +868,6 @@ def serve(port=5000):
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
     # flask_thread = threading.Thread(target=flask_event_loop)
     # flask_thread.start()
-    run_forever(flask_event_loop, port)
+    run_forever(aiohttp_event_loop, port)
 
     kube_thread.join()

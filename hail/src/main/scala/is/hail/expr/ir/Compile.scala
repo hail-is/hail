@@ -36,13 +36,13 @@ object Compile {
 
     var ir = body
     ir = Optimize(ir, noisy = false, canGenerateLiterals = false, context = Some("Compile"))
-    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
+    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
 
-    ir = Subst(ir, env)
+    ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ir, fb, nSpecialArgs)

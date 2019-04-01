@@ -430,13 +430,13 @@ class Expression(object):
         return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
 
     def _unary_op(self, name):
-        return expressions.construct_expr(ApplyUnaryOp(name, self._ir), self._type, self._indices, self._aggregations)
+        return expressions.construct_expr(ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations)
 
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations = unify_all(self, other)
         if (name in {'+', '-', '*', '/', '//'}) and (ret_type in {tint32, tint64, tfloat32, tfloat64}):
-            op = ApplyBinaryOp(name, self._ir, other._ir)
+            op = ApplyBinaryPrimOp(name, self._ir, other._ir)
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             op = ApplyComparisonOp(name, self._ir, other._ir)
         else:

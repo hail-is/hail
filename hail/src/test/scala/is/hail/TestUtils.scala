@@ -182,7 +182,7 @@ object TestUtils {
         }
       }
 
-      val rewritten = Subst(rewrite(x), substEnv)
+      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
         MakeTuple(FastSeq(rewritten)), false)
@@ -248,7 +248,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -323,7 +323,7 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -401,9 +401,7 @@ object TestUtils {
     expected: Any)
     (implicit execStrats: Set[ExecStrategy]) {
 
-    TypeCheck(x,
-      env.mapValues(_._2),
-      agg.map(_._2.toEnv))
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t.typeCheck(expected), t)

@@ -7,7 +7,7 @@ from ..utils.java import escape_str
 
 class BlockMatrixWriter(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -23,7 +23,7 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
         self.force_row_major = force_row_major
         self.stage_locally = stage_locally
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'BlockMatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
@@ -44,7 +44,7 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'BlockMatrixBinaryWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
@@ -65,7 +65,7 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
         self.delimiter = delimiter
         self.binary = binary
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'BlockMatrixRectanglesWriter',
                   'path': self.path,
                   'rectangles': self.rectangles,

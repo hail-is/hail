@@ -35,7 +35,8 @@ object IndexReaderBuilder {
     val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
     val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
 
-    (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder, internalDecoder)
+    (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder, internalDecoder,
+      Some(keyType -> annotationType))
   }
 }
 
@@ -58,7 +59,9 @@ class IndexReader(hConf: Configuration,
   path: String,
   cacheCapacity: Int = 8,
   leafDecoderBuilder: (InputStream) => Decoder,
-  internalDecoderBuilder: (InputStream) => Decoder) extends AutoCloseable {
+  internalDecoderBuilder: (InputStream) => Decoder,
+  types: Option[(Type, Type)] = None // must be defined if not called on the driver node for RG serialization reasons
+) extends AutoCloseable {
   private[io] val metadata = IndexReader.readMetadata(hConf, path)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
@@ -67,8 +70,10 @@ class IndexReader(hConf: Configuration,
   val indexRelativePath = metadata.indexPath
 
   val version = SemanticVersion(metadata.fileVersion)
-  val keyType = IRParser.parseType(metadata.keyType)
-  val annotationType = IRParser.parseType(metadata.annotationType)
+  val (keyType, annotationType) = types match {
+    case Some((k, a)) =>(k, a)
+    case None => IRParser.parseType(metadata.keyType) -> IRParser.parseType(metadata.annotationType)
+  }
   val leafType = LeafNodeBuilder.typ(keyType, annotationType)
   val leafPType = leafType.physicalType
   val internalType = InternalNodeBuilder.typ(keyType, annotationType)

@@ -3,7 +3,7 @@ import json
 import re
 from batch.client import Job
 
-from .batch_helper import try_to_cancel_job
+from .batch_helper import try_to_delete_job
 from .ci_logging import log
 from .environment import batch_client, CONTEXT
 
@@ -69,7 +69,7 @@ class Merged(object):
     def __str__(self):
         return f'merged'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'Merged',
             'target_sha': self.target_sha
@@ -101,7 +101,7 @@ class Mergeable(object):
     def __str__(self):
         return f'successful build'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'Mergeable',
             'target_sha': self.target_sha,
@@ -136,7 +136,7 @@ class Failure(object):
     def __str__(self):
         return f'failing build {self.exit_code}, job id {self.job.id}'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'Failure',
             'exit_code': self.exit_code,
@@ -173,7 +173,7 @@ class NoMergeSHA(object):
     def __str__(self):
         return f'could not find merge sha in last build {self.exit_code}'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'NoMergeSHA',
             'exit_code': self.exit_code,
@@ -215,14 +215,14 @@ class Building(object):
         if (not isinstance(other, Failure) and
             not isinstance(other, Mergeable) and
             not isinstance(other, NoMergeSHA)):
-            log.info(f'cancelling unneeded job {self.job.id} {self} {other}')
-            try_to_cancel_job(self.job)
+            log.info(f'deleting unneeded job {self.job.id} {self} {other}')
+            try_to_delete_job(self.job)
         return other
 
     def __str__(self):
         return f'build {self.job.id} pending. target: {self.target_sha[0:12]}'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'Building',
             'job_id': self.job.id,
@@ -260,7 +260,7 @@ class Buildable(object):
     def __str__(self):
         return f'build not yet started'
 
-    def to_json(self):
+    def to_dict(self):
         return {
             'type': 'Buildable',
             'image': self.image,
@@ -292,7 +292,7 @@ class NoImage(object):
     def __str__(self):
         return f'no hail-ci-build-image found {self.target_sha[:12]}'
 
-    def to_json(self):
+    def to_dict(self):
         return {'type': 'NoImage', 'target_sha': self.target_sha}
 
     def gh_state(self):
@@ -321,7 +321,7 @@ class Unknown(object):
     def __str__(self):
         return 'unknown build state'
 
-    def to_json(self):
+    def to_dict(self):
         return {'type': 'Unknown'}
 
     def gh_state(self):

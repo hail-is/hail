@@ -22,6 +22,15 @@ spec:
         image: @image@
         ports:
         - containerPort: 5000
+        volumeMounts:
+        - name: batch-production-cloud-sql-config
+          mountPath: /batch-secrets
+          readOnly: true
+      volumes:
+      - name: batch-production-cloud-sql-config
+        secret:
+          optional: false
+          secretName: batch-production-cloud-sql-config
 ---
 apiVersion: v1
 kind: Service

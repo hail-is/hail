@@ -25,9 +25,9 @@ object Copy {
       case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
-      case AggLet(name, _, _) =>
+      case AggLet(name, _, _, isScan) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
-        AggLet(name, value, body)
+        AggLet(name, value, body, isScan)
       case Ref(name, t) => Ref(name, t)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
@@ -41,6 +41,9 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
+      case MakeStream(args, typ) => 
+        assert(args.length == newChildren.length)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ)
       case ArrayRef(_, _) =>
         val IndexedSeq(a: IR, i: IR) = newChildren
         ArrayRef(a, i)
@@ -50,12 +53,21 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
-      case MakeNDArray(_, _, _) =>
-        val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
-        MakeNDArray(data, shape, row_major)
+      case StreamRange(_, _, _) =>
+        val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
+        StreamRange(start, stop, step)
+      case MakeNDArray(nDim, _, _, _) =>
+        val IndexedSeq(data: IR, shape: IR, rowMajor: IR) = newChildren
+        MakeNDArray(nDim, data, shape, rowMajor)
       case NDArrayRef(_, _) =>
         val IndexedSeq(nd: IR, idxs: IR) = newChildren
         NDArrayRef(nd, idxs)
+      case NDArrayMap(_, name, _) =>
+        val IndexedSeq(nd: IR, body: IR) = newChildren
+        NDArrayMap(nd, name, body)
+      case NDArrayMap2(_, _, lName, rName, _) =>
+        val IndexedSeq(l: IR, r: IR, body: IR) = newChildren
+        NDArrayMap2(l, r, lName, rName, body)
       case ArraySort(_, l, r, _) =>
         val IndexedSeq(a: IR, comp: IR) = newChildren
         ArraySort(a, l, r, comp)
@@ -68,6 +80,9 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
+      case ToStream(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ToStream(a)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
         LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)
@@ -98,18 +113,18 @@ object Copy {
       case ArrayAgg(_, name, _) =>
         val IndexedSeq(a: IR, query: IR) = newChildren
         ArrayAgg(a, name, query)
-      case AggFilter(_, _) =>
+      case AggFilter(_, _, isScan) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
-        AggFilter(cond, aggIR)
-      case AggExplode(_, name, _) =>
+        AggFilter(cond, aggIR, isScan)
+      case AggExplode(_, name, _, isScan) =>
         val IndexedSeq(array: IR, aggBody: IR) = newChildren
-        AggExplode(array, name, aggBody)
-      case AggGroupBy(_, _) =>
+        AggExplode(array, name, aggBody, isScan)
+      case AggGroupBy(_, _, isScan) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
-        AggGroupBy(key, aggIR)
-      case AggArrayPerElement(a, name, aggBody) =>
+        AggGroupBy(key, aggIR, isScan)
+      case AggArrayPerElement(a, name, aggBody, isScan) =>
         val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
-        AggArrayPerElement(newA, name, newAggBody)
+        AggArrayPerElement(newA, name, newAggBody, isScan)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -147,12 +162,6 @@ object Copy {
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)
-      case StringSlice(_, _, _) =>
-        val IndexedSeq(s: IR, start: IR, n: IR) = newChildren
-        StringSlice(s, start, n)
-      case StringLength(_) =>
-        val IndexedSeq(s: IR) = newChildren
-        StringLength(s)
       case In(i, t) => In(i, t)
       case Die(_, typ) =>
         val IndexedSeq(s: IR) = newChildren

@@ -4,7 +4,8 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.ir.{IRParser, MatrixIR, TextTableReader}
+import is.hail.expr.Parser
+import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.IndexBgen
@@ -365,6 +366,10 @@ object HailContext {
       }
     }
   }
+
+  def pyRemoveIrVector(id: Int) {
+    get.irVectors.remove(id)
+  }
 }
 
 class HailContext private(val sc: SparkContext,
@@ -379,6 +384,20 @@ class HailContext private(val sc: SparkContext,
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
   var checkRVDKeys: Boolean = false
+
+  private var nextVectorId: Int = 0
+  val irVectors: mutable.Map[Int, Array[_ <: BaseIR]] = mutable.Map.empty[Int, Array[_ <: BaseIR]]
+
+  def addIrVector(irArray: Array[_ <: BaseIR]): Int = {
+    val typ = irArray.head.typ
+    irArray.foreach { ir =>
+      if (ir.typ != typ)
+        fatal("all ir vector items must have the same type")
+    }
+    irVectors(nextVectorId) = irArray
+    nextVectorId += 1
+    nextVectorId - 1
+  }
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
@@ -517,7 +536,7 @@ class HailContext private(val sc: SparkContext,
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }
-  
+
   def importMatrix(files: java.util.List[String],
     rowFields: java.util.Map[String, String],
     keyNames: java.util.List[String],

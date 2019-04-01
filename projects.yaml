@@ -1,5 +1,8 @@
+- project: docker
 - project: auth-gateway
+- project: hailjwt
 - project: batch
+  dependencies: ["docker"]
 - project: ci
   dependencies: ["batch"]
 - project: cloudtools
@@ -7,6 +10,7 @@
 - project: gateway
 - project: hail
 - project: apiserver
+  dependencies: ["hail"]
 - project: image-fetcher
 - project: letsencrypt
 - project: notebook
@@ -15,6 +19,7 @@
 - project: pipeline
   dependencies: ["batch"]
 - project: scorecard
+  dependencies: ["docker"]
 - project: site
 - project: upload
 - project: vdc

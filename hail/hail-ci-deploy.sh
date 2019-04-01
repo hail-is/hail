@@ -1,6 +1,8 @@
 #!/bin/bash
 set -ex
 
+export CXXFLAGS="${CXXFLAGS} -Werror"
+
 SPARK_VERSION=2.2.0
 BRANCH=0.2
 CLOUDTOOLS_VERSION=3

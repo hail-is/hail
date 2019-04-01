@@ -550,6 +550,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "sqrt",
     reqDense = false)
 
+  def ceil(): M = blockMap(breeze.numerics.ceil(_),
+    "ceil",
+    reqDense = false)
+
+  def floor(): M = blockMap(breeze.numerics.floor(_),
+    "floor",
+    reqDense = false)
+
   def pow(exponent: Double): M = blockMap(breezePow(_, exponent),
     s"exponentiation by negative power $exponent",
     reqDense = exponent < 0)

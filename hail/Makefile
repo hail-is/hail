@@ -1,7 +1,4 @@
-.PHONY: shadowJar test-apiserver
+.PHONY: shadowJar
 
 shadowJar:
 	./gradlew shadowJar
-
-test-apiserver: shadowJar
-	./test-apiserver.sh

@@ -478,8 +478,12 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testAggLetMemo() {
-    checkMemo(AggLet("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
-    checkMemo(AggLet("foo", ref, True()), TBoolean(), Array(empty, null))
+    checkMemo(AggLet("foo", ref,
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+      AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false),
+      TArray(justA), Array(justA, null))
+    checkMemo(AggLet("foo", ref, True(), false), TBoolean(), Array(empty, null))
   }
 
   @Test def testMakeArrayMemo() {
@@ -571,14 +575,42 @@ class PruneSuite extends SparkSuite {
     checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
   }
 
+  @Test def testAggFilterMemo(): Unit = {
+    val t = TStruct("a" -> TInt32(), "b" -> TInt64(), "c" -> TString())
+    val select = SelectFields(Ref("x", t), Seq("c"))
+    checkMemo(AggFilter(
+      ApplyComparisonOp(LT(TInt32(), TInt32()), GetField(Ref("x", t), "a"), I32(0)),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TStruct("c" -> TString())),
+      Array(null, TArray(TStruct("c" -> TString()))))
+  }
+
   @Test def testAggExplodeMemo(): Unit = {
     val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
-    checkMemo(AggExplode(Ref("x", t), "foo", Ref("foo", t.elementType)), TStruct("b" -> TInt64()), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    checkMemo(AggExplode(Ref("x", t),
+      "foo",
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TStruct("a" -> TInt32())),
+      Array(TArray(TStruct("a" -> TInt32())),
+        TArray(TStruct("a" -> TInt32()))))
   }
 
   @Test def testAggArrayPerElementMemo(): Unit = {
     val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
-    checkMemo(AggArrayPerElement(Ref("x", t), "foo", Ref("foo", t.elementType)), TArray(TStruct("b" -> TInt64())), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    checkMemo(AggArrayPerElement(Ref("x", t),
+      "foo",
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TArray(TStruct("a" -> TInt32()))),
+      Array(TArray(TStruct("a" -> TInt32())),
+        TArray(TStruct("a" -> TInt32()))))
   }
 
   @Test def testTableCountMemo() {
@@ -628,7 +660,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(TableFilter(tr, tableRefBoolean(tr.typ, "row.2")), subsetTable(tr.typ, "row.3"),
       (_: BaseIR, r: BaseIR) => {
         val tf = r.asInstanceOf[TableFilter]
-        TypeCheck(tf.pred, PruneDeadFields.relationalTypeToEnv(tf.typ), None)
+        TypeCheck(tf.pred, BindingEnv(PruneDeadFields.relationalTypeToEnv(tf.typ)))
         tf.child.typ == subsetTable(tr.typ, "row.3", "row.2")
       })
   }
@@ -638,7 +670,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(tmr, subsetTable(tmr.typ, "row.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
-        TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ), None)
+        TypeCheck(tmr.newRow, BindingEnv(PruneDeadFields.relationalTypeToEnv(tmr.child.typ)))
         tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1")
       })
   }
@@ -648,7 +680,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(tmg, subsetTable(tmg.typ, "global.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmg = r.asInstanceOf[TableMapGlobals]
-        TypeCheck(tmg.newGlobals, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
+        TypeCheck(tmg.newGlobals, BindingEnv(PruneDeadFields.relationalTypeToEnv(tmg.child.typ)))
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
       })
   }
@@ -713,7 +745,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mfc, subsetMatrixTable(mfc.typ, "global.g1"),
       (_: BaseIR, r: BaseIR) => {
         val mfc = r.asInstanceOf[MatrixFilterCols]
-        TypeCheck(mfc.pred, PruneDeadFields.relationalTypeToEnv(mfc.child.typ), None)
+        TypeCheck(mfc.pred, BindingEnv(PruneDeadFields.relationalTypeToEnv(mfc.child.typ)))
         mfc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }
     )
@@ -724,7 +756,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mfe, subsetMatrixTable(mfe.typ, "global.g1"),
       (_: BaseIR, r: BaseIR) => {
         val mfe = r.asInstanceOf[MatrixFilterEntries]
-        TypeCheck(mfe.pred, PruneDeadFields.relationalTypeToEnv(mfe.child.typ), None)
+        TypeCheck(mfe.pred, BindingEnv(PruneDeadFields.relationalTypeToEnv(mfe.child.typ)))
         mfe.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
@@ -737,7 +769,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mmr, subsetMatrixTable(mmr.typ, "global.g1", "g.e1", "va.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mmr = r.asInstanceOf[MatrixMapRows]
-        TypeCheck(mmr.newRow, PruneDeadFields.relationalTypeToEnv(mmr.child.typ), None)
+        TypeCheck(mmr.newRow, BindingEnv(PruneDeadFields.relationalTypeToEnv(mmr.child.typ)))
         mmr.child.asInstanceOf[MatrixKeyRowsBy].child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
@@ -749,7 +781,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mmc, subsetMatrixTable(mmc.typ, "global.g1", "g.e1", "sa.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mmc = r.asInstanceOf[MatrixMapCols]
-        TypeCheck(mmc.newCol, PruneDeadFields.relationalTypeToEnv(mmc.child.typ), None)
+        TypeCheck(mmc.newCol, BindingEnv(PruneDeadFields.relationalTypeToEnv(mmc.child.typ)))
         mmc.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2", "g.e1")
       }
     )
@@ -760,7 +792,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mme, subsetMatrixTable(mme.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val mme = r.asInstanceOf[MatrixMapEntries]
-        TypeCheck(mme.newEntries, PruneDeadFields.relationalTypeToEnv(mme.child.typ), None)
+        TypeCheck(mme.newEntries, BindingEnv(PruneDeadFields.relationalTypeToEnv(mme.child.typ)))
         mme.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "sa.c2", "va.r2")
       }
     )
@@ -771,7 +803,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mmg, subsetMatrixTable(mmg.typ, "global.foo", "g.e1", "va.r2"),
       (_: BaseIR, r: BaseIR) => {
         val mmg = r.asInstanceOf[MatrixMapGlobals]
-        TypeCheck(mmg.newGlobals, PruneDeadFields.relationalTypeToEnv(mmg.child.typ), None)
+        TypeCheck(mmg.newGlobals, BindingEnv(PruneDeadFields.relationalTypeToEnv(mmg.child.typ)))
         mmg.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
       }
     )
@@ -782,7 +814,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateRowsByKey]
-        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        TypeCheck(ma.entryExpr, BindingEnv(PruneDeadFields.relationalTypeToEnv(ma.child.typ)))
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
@@ -793,7 +825,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(ma, subsetMatrixTable(ma.typ, "global.g1", "g.foo"),
       (_: BaseIR, r: BaseIR) => {
         val ma = r.asInstanceOf[MatrixAggregateColsByKey]
-        TypeCheck(ma.entryExpr, PruneDeadFields.relationalTypeToEnv(ma.child.typ), None)
+        TypeCheck(ma.entryExpr, BindingEnv(PruneDeadFields.relationalTypeToEnv(ma.child.typ)))
         ma.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "sa.c2", "g.e1")
       }
     )
@@ -841,10 +873,13 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testAggLetRebuild() {
-    checkRebuild(AggLet("x", NA(ts), Ref("x", ts)), subsetTS("b"),
+    checkRebuild(AggLet("foo", NA(ref.typ),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[AggLet]
-        ir.value.typ == subsetTS("b")
+        ir.value.typ == subsetTS("a")
       })
   }
 

@@ -10,6 +10,9 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import plural
+
+import numpy as np
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -827,6 +830,63 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+
+
+def variant_str(*args) -> 'StringExpression':
+    """Create a variant colon-delimited string.
+
+    Parameters
+    ----------
+    args
+        Arguments (see notes).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+
+    Notes
+    -----
+    Expects either one argument of type
+    ``struct{locus: locus<RG>, alleles: array<str>``, or two arguments of type
+    ``locus<RG>`` and ``array<str>``. The function returns a string of the form
+
+    .. code-block:: text
+
+        CHR:POS:REF:ALT1,ALT2,...ALTN
+        e.g.
+        1:1:A:T
+        16:250125:AAA:A,CAA
+
+    Examples
+    --------
+    >>> hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'C']))
+    '1:10000:A:T,C'
+    """
+    args = [to_expr(arg) for arg in args]
+
+    def type_error():
+        raise ValueError(f"'variant_str' expects arguments of the following types:\n"
+                         f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
+                         f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
+                         f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
+                         f"of type {', '.join(builtins.str(x.dtype) for x in args)}")
+
+    if builtins.len(args) == 1:
+        [s] = args
+        t = s.dtype
+        if not isinstance(t, tstruct) \
+                or not builtins.len(t) == 2 \
+                or not isinstance(t[0], tlocus) \
+                or not t[1] == tarray(tstr):
+            type_error()
+        return hl.rbind(s, lambda x: hl.str(x[0]) + ":" + x[1][0] + ":" + hl.delimit(x[1][1:]))
+    elif builtins.len(args) == 2:
+        [locus, alleles] = args
+        if not isinstance(locus.dtype, tlocus) or not alleles.dtype == tarray(tstr):
+            type_error()
+        return hl.str(locus) + ":" + hl.rbind(alleles, lambda x: x[0] + ":" + hl.delimit(x[1:]))
+    else:
+        type_error()
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -1825,6 +1885,64 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     :class:`.Float64Expression`
     """
     return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+
+
+@typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
+def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
+    """Samples from a normal distribution with mean `mean` and covariance matrix `cov`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [0.5515477294463427, -1.1782691532205807]
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [-1.127240906867922, 1.4495317887283203]
+
+    Notes
+    -----
+    The covariance of a 2d normal distribution is a 2x2 symmetric matrix
+    [[a, b], [b, c]]. This is specified in `cov` as a length 3 array [a, b, c].
+    The covariance matrix must be positive semi-definite, i.e. a>0, c>0, and
+    a*c - b^2 > 0.
+
+    If `mean` and `cov` are both None, draws from the standard 2d normal
+    distribution.
+
+    Parameters
+    ----------
+    mean : :class:`.ArrayNumericExpression`, optional
+        Mean of normal distribution. Array of length 2.
+    cov : :class:`.ArrayNumericExpression`, optional
+        Covariance of normal distribution. Array of length 3.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.ArrayFloat64Expression`
+    """
+    if mean is None:
+        mean = [0, 0]
+    if cov is None:
+        cov = [1, 0, 1]
+
+    def f(mean, cov):
+        m1 = mean[0]
+        m2 = mean[1]
+        s11 = cov[0]
+        s12 = cov[1]
+        s22 = cov[2]
+
+        x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
+        return hl.rbind(hl.sqrt(s11), (lambda root_s11:
+            hl.array([
+               m1 + root_s11 * x[0],
+               m2 + (s12 / root_s11) * x[0]
+                  + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])))
+
+    return hl.rbind(mean, cov, f)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
@@ -2923,8 +3041,9 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 
         return bind(_, [hl.len(a) for a in arrays])
 
-@typecheck(a=expr_array())
-def zip_with_index(a):
+
+@typecheck(a=expr_array(), index_first=bool)
+def zip_with_index(a, index_first=True):
     """Returns an array of (index, element) tuples.
 
     Examples
@@ -2933,19 +3052,27 @@ def zip_with_index(a):
     >>> hl.eval(hl.zip_with_index(['A', 'B', 'C']))
     [(0, 'A'), (1, 'B'), (2, 'C')]
 
+    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C'], index_first=False))
+    [('A', 0), ('B', 1), ('C', 2)]
+
+
     Parameters
     ----------
     a : :class:`.ArrayExpression`
+    index_first: :obj:`bool`
+        If ``True``, the index is the first value of the element tuples. If
+        ``False``, the index is the second value.
 
     Returns
     -------
     :class:`.ArrayExpression`
-        Array of (index, element) tuples.
+        Array of (index, element) or (element, index) tuples.
     """
-    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i])), a)
+    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i]) if index_first else (aa[i], i)), a)
+
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array()))
+           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def map(f: Callable, collection):
     """Transform each element of a collection.
 
@@ -3003,7 +3130,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: StringLength(x), tint32, x)
+        return apply_expr(lambda x: Apply("length", x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
@@ -3149,9 +3276,9 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
         return min(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def abs(x):
-    """Take the absolute value of a numeric value or array.
+    """Take the absolute value of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3164,21 +3291,21 @@ def abs(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def sign(x):
-    """Returns the sign of a numeric value or array.
+    """Returns the sign of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3201,13 +3328,13 @@ def sign(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)
@@ -3508,6 +3635,48 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     array_t = hl.tarray(t)
     ir = MakeArray([], array_t)
     return construct_expr(ir, array_t)
+
+
+def _ndarray(collection, row_major=True):
+    def list_shape(x):
+        if isinstance(x, list):
+            dim_len = builtins.len(x)
+            first, rest = x[0], x[1:]
+            inner_shape = list_shape(first)
+            for e in rest:
+                other_inner_shape = list_shape(e)
+                if inner_shape != other_inner_shape:
+                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+            return [dim_len] + inner_shape
+        else:
+            return []
+
+    def deep_flatten(l):
+        result = []
+        for e in l:
+            if isinstance(e, list):
+                result.extend(deep_flatten(e))
+            else:
+                result.append(e)
+
+        return result
+
+    if isinstance(collection, np.ndarray):
+        nd = collection.astype(np.float64)
+        data = list(nd.flat)
+        shape = nd.shape
+    elif isinstance(collection, list):
+        shape = list_shape(collection)
+        data = deep_flatten(collection)
+    else:
+        shape = []
+        data = hl.array([collection])
+
+    shape_expr = to_expr(shape, ir.tarray(ir.tint64))
+    data_expr = hl.array(data)
+
+    ndir = ir.MakeNDArray(builtins.len(shape), data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+    return construct_expr(ndir, ndir.typ)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
@@ -4431,7 +4600,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
             .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .when(y > 0, construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
             .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 def _bit_op(x, y, op):
@@ -4444,7 +4613,7 @@ def _bit_op(x, y, op):
     y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
-    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+    return construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
@@ -4639,7 +4808,7 @@ def bit_not(x):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
 @typecheck(s=expr_str)

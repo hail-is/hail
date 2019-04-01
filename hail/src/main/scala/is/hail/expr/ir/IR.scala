@@ -32,6 +32,16 @@ sealed trait IR extends BaseIR {
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
+  override def deepCopy(): this.type = {
+
+    val cp = super.deepCopy()
+    if (_typ != null)
+      cp._typ = _typ
+    if (_ptype != null)
+      cp._ptype = _ptype
+    cp
+  }
+
   def size: Int = 1 + children.map {
       case x: IR => x.size
       case _ => 0
@@ -95,7 +105,7 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
-final case class AggLet(name: String, value: IR, body: IR) extends IR
+final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
@@ -106,7 +116,7 @@ final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 object MakeArray {
   def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
     assert(typ != null || args.nonEmpty)
-    var t = typ
+    var t: TArray = typ
     if (t == null) {
       t = if (args.tail.forall(_.typ == args.head.typ)) {
         TArray(args.head.typ)
@@ -129,24 +139,26 @@ object MakeArray {
 }
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
 final case class ArrayRef(a: IR, i: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
 
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
     val l = genUID()
     val r = genUID()
-    val atyp = coerce[TContainer](a.typ)
+    val atyp = coerce[TIterable](a.typ)
     val compare = if (onKey) {
       a.typ match {
         case atyp: TDict =>
           ApplyComparisonOp(Compare(atyp.keyType), GetField(Ref(l, atyp.elementType), "key"), GetField(Ref(r, atyp.elementType), "key"))
-        case atyp: TArray if atyp.elementType.isInstanceOf[TStruct] =>
+        case atyp: TStreamable if atyp.elementType.isInstanceOf[TStruct] =>
           val elt = coerce[TStruct](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
-        case atyp: TArray if atyp.elementType.isInstanceOf[TTuple] =>
+        case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
           val elt = coerce[TTuple](atyp.elementType)
           ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
       }
@@ -161,20 +173,21 @@ final case class ArraySort(a: IR, left: String, right: String, compare: IR) exte
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
+final case class ToStream(a: IR) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
 final case class GroupByKey(collection: IR) extends IR
 
 final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TArray = coerce[TArray](super.typ)
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
   def elementTyp: Type = typ.elementType
 }
 final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
-  override def typ: TArray = super.typ.asInstanceOf[TArray]
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
-  override def typ: TArray = coerce[TArray](super.typ)
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
@@ -186,17 +199,27 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
+final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
 
 final case class NDArrayRef(nd: IR, idxs: IR) extends IR
 
-final case class AggFilter(cond: IR, aggIR: IR) extends IR
+final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
 
-final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
 
-final case class AggGroupBy(key: IR, aggIR: IR) extends IR
+final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, name: String, aggBody: IR) extends IR
+final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
+
+final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
+
+final case class AggArrayPerElement(a: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -255,9 +278,6 @@ final case class GetField(o: IR, name: String) extends IR
 
 final case class MakeTuple(types: Seq[IR]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
-
-final case class StringSlice(s: IR, start: IR, end: IR) extends IR
-final case class StringLength(s: IR) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR
 

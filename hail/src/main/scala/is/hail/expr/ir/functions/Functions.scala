@@ -35,7 +35,7 @@ object IRFunctionRegistry {
     addIR(mname,
       argTypes.asScala.toArray.map(IRParser.parseType), IRParser.parseType(retType), { args =>
         Subst(body,
-          Env[IR](argNames.asScala.zip(args): _*))
+          BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })
   }
 

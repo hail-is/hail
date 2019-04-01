@@ -111,7 +111,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -156,7 +156,7 @@ class GroupedMatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = hl.agg.fraction(hl.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -224,7 +224,7 @@ class GroupedMatrixTable(ExprContainer):
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
         ...                          .partition_hint(5)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -261,7 +261,7 @@ class GroupedMatrixTable(ExprContainer):
         per cohort as a new column field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate_cols(mean_height = agg.mean(dataset.pheno.height))
+        ...                          .aggregate_cols(mean_height = hl.agg.mean(dataset.pheno.height))
         ...                          .result())
 
         Notes
@@ -302,7 +302,7 @@ class GroupedMatrixTable(ExprContainer):
         consequences per gene as a set as a new row field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
+        ...                          .aggregate_rows(consequences = hl.agg.collect_as_set(dataset.consequence))
         ...                          .result())
 
         Notes
@@ -343,7 +343,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         See Also
@@ -379,8 +379,8 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_rows(consequences = hl.agg.collect_as_set(dataset.consequence))
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         Aggregate to a matrix with cohort as column keys, computing the mean height
@@ -388,8 +388,8 @@ class GroupedMatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate_cols(mean_height = agg.stats(dataset.pheno.height).mean)
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_cols(mean_height = hl.agg.stats(dataset.pheno.height).mean)
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         See Also
@@ -460,7 +460,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -502,12 +502,12 @@ class MatrixTable(ExprContainer):
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
     >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.int(hl.rand_unif(0, 6))],
-    ...                                 sample_gq = agg.mean(dataset.GQ),
-    ...                                 sample_dp = agg.mean(dataset.DP))
+    ...                                 sample_gq = hl.agg.mean(dataset.GQ),
+    ...                                 sample_dp = hl.agg.mean(dataset.DP))
 
-    >>> dataset = dataset.annotate_rows(variant_gq = agg.mean(dataset.GQ),
-    ...                                 variant_dp = agg.mean(dataset.GQ),
-    ...                                 sas_hets = agg.count_where(dataset.GT.is_het()))
+    >>> dataset = dataset.annotate_rows(variant_gq = hl.agg.mean(dataset.GQ),
+    ...                                 variant_dp = hl.agg.mean(dataset.GQ),
+    ...                                 sas_hets = hl.agg.count_where(dataset.GT.is_het()))
 
     >>> dataset = dataset.annotate_entries(gq_by_dp = dataset.GQ / dataset.DP)
 
@@ -521,16 +521,16 @@ class MatrixTable(ExprContainer):
 
     Query:
 
-    >>> col_stats = dataset.aggregate_cols(hl.struct(pop_counts=agg.counter(dataset.pop),
-    ...                                              high_quality=agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
+    >>> col_stats = dataset.aggregate_cols(hl.struct(pop_counts=hl.agg.counter(dataset.pop),
+    ...                                              high_quality=hl.agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
-    >>> het_dist = dataset.aggregate_rows(agg.stats(dataset.sas_hets))
+    >>> het_dist = dataset.aggregate_rows(hl.agg.stats(dataset.sas_hets))
     >>> print(het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(hl.struct(call_rate=agg.fraction(hl.is_defined(dataset.GT)),
-    ...                                                   global_gq_mean=agg.mean(dataset.GQ)))
+    >>> entry_stats = dataset.aggregate_entries(hl.struct(call_rate=hl.agg.fraction(hl.is_defined(dataset.GT)),
+    ...                                                   global_gq_mean=hl.agg.mean(dataset.GQ)))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -905,8 +905,8 @@ class MatrixTable(ExprContainer):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_stats.mean > 20,
-        ...                                 agg.call_stats(dataset.GT, dataset.alleles))
+        >>> high_quality_calls = hl.agg.filter(dataset.sample_qc.gq_stats.mean > 20,
+        ...                                    hl.agg.call_stats(dataset.GT, dataset.alleles))
         >>> dataset_result = dataset.annotate_rows(call_stats = high_quality_calls)
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
@@ -919,7 +919,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_rows(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_rows(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -957,7 +957,7 @@ class MatrixTable(ExprContainer):
         --------
         Compute statistics about the GQ distribution per sample:
 
-        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = agg.stats(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = hl.agg.stats(dataset.GQ))
 
         Add sample metadata from a :class:`.hail.Table`.
 
@@ -967,7 +967,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_cols(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -1101,7 +1101,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset_result = dataset.select_rows(
         ...    dataset.variant_qc.gq_stats.mean,
-        ...    high_quality_cases = agg.count_where((dataset.GQ > 20) &
+        ...    high_quality_cases = hl.agg.count_where((dataset.GQ > 20) &
         ...                                         dataset.is_case))
 
         Notes
@@ -1122,7 +1122,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.select_rows(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_rows(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -1172,7 +1172,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.select_cols(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_cols(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -1516,7 +1516,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance,
 
-        >>> dataset_result = dataset.filter_rows(agg.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_rows(hl.agg.mean(dataset.GQ) > 20.0)
 
         will remove rows where the mean GQ of all entries in the row is smaller than
         20.
@@ -1588,7 +1588,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance,
 
-        >>> dataset_result = dataset.filter_cols(agg.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_cols(hl.agg.mean(dataset.GQ) > 20.0)
 
         will remove columns where the mean GQ of all entries in the column is smaller
         than 20.
@@ -1898,8 +1898,8 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
-        ...                                  mean_qual=agg.mean(dataset.qual)))
+        >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
+        ...                                  mean_qual=hl.agg.mean(dataset.qual)))
         Struct(n_high_quality=13, mean_qual=544323.8915384616)
 
         Notes
@@ -1911,8 +1911,8 @@ class MatrixTable(ExprContainer):
         the following:
 
         >>> rows_table = dataset.rows()
-        >>> rows_table.aggregate(hl.struct(n_high_quality=agg.count_where(rows_table.qual > 40),
-        ...                                mean_qual=agg.mean(rows_table.qual)))
+        >>> rows_table.aggregate(hl.struct(n_high_quality=hl.agg.count_where(rows_table.qual > 40),
+        ...                                mean_qual=hl.agg.mean(rows_table.qual)))
 
         Note
         ----
@@ -1947,8 +1947,8 @@ class MatrixTable(ExprContainer):
         Aggregate over columns:
 
         >>> dataset.aggregate_cols(
-        ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
-        ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
+        ...    hl.struct(fraction_female=hl.agg.fraction(dataset.pheno.is_female),
+        ...              case_ratio=hl.agg.count_where(dataset.is_case) / hl.agg.count()))
         Struct(fraction_female=0.48, case_ratio=1.0)
 
         Notes
@@ -1961,8 +1961,8 @@ class MatrixTable(ExprContainer):
 
         >>> cols_table = dataset.cols()
         >>> cols_table.aggregate(
-        ...     hl.struct(fraction_female=agg.fraction(cols_table.pheno.is_female),
-        ...               case_ratio=agg.count_where(cols_table.is_case) / agg.count()))
+        ...     hl.struct(fraction_female=hl.agg.fraction(cols_table.pheno.is_female),
+        ...               case_ratio=hl.agg.count_where(cols_table.is_case) / hl.agg.count()))
 
         Note
         ----
@@ -1996,8 +1996,8 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over entries:
 
-        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
-        ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
+        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
+        ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
         Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
 
         Notes
@@ -2006,8 +2006,8 @@ class MatrixTable(ExprContainer):
         the following:
 
         >>> entries_table = dataset.entries()
-        >>> entries_table.aggregate(hl.struct(global_gq_mean=agg.mean(entries_table.GQ),
-        ...                                   call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
+        >>> entries_table.aggregate(hl.struct(global_gq_mean=hl.agg.mean(entries_table.GQ),
+        ...                                   call_rate=hl.agg.fraction(hl.is_defined(entries_table.GT))))
 
         Note
         ----
@@ -2167,7 +2167,7 @@ class MatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -2198,7 +2198,7 @@ class MatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = hl.agg.fraction(hl.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -2373,9 +2373,10 @@ class MatrixTable(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None) -> 'MatrixTable':
+              _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'MatrixTable':
         """Checkpoint the matrix table to disk by writing and reading.
 
         Parameters
@@ -2407,7 +2408,8 @@ class MatrixTable(ExprContainer):
         >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
 
         """
-        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_matrix_table(output)
 
     @typecheck_method(output=str,

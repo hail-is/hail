@@ -26,7 +26,7 @@ object IRBuilder {
   implicit def symbolToSymbolProxy(s: Symbol): SymbolProxy = new SymbolProxy(s)
 
   implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = (env: E) => {
-    val irs = seq.map(_(env))
+    val irs = seq.map(_ (env))
     val elType = irs.head.typ
     MakeArray(irs, TArray(elType))
   }
@@ -48,7 +48,7 @@ object IRBuilder {
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
-    MakeTuple(values.map(_(env)))
+    MakeTuple(values.map(_ (env)))
 
   def applyAggOp(
     op: AggOp,
@@ -65,7 +65,9 @@ object IRBuilder {
 
   class TableIRProxy(val tir: TableIR) extends AnyVal {
     def empty: E = Env.empty
+
     def globalEnv: E = typ.globalEnv
+
     def env: E = typ.rowEnv
 
     def typ: TableType = tir.typ
@@ -113,7 +115,7 @@ object IRBuilder {
       ArrayRef(ir(env), idx(env))
 
     def invoke(name: String, args: IRProxy*): IRProxy = { env: E =>
-      val irArgs = Array(ir(env)) ++ args.map(_(env))
+      val irArgs = Array(ir(env)) ++ args.map(_ (env))
       is.hail.expr.ir.invoke(name, irArgs: _*)
     }
 
@@ -121,20 +123,29 @@ object IRBuilder {
       GetField(ir(env), field)
 
     def +(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Add(), ir(env), other(env))
+
     def -(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Subtract(), ir(env), other(env))
+
     def *(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Multiply(), ir(env), other(env))
+
     def /(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(FloatingPointDivide(), ir(env), other(env))
+
     def floorDiv(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(RoundToNegInfDivide(), ir(env), other(env))
 
     def &&(other: IRProxy): IRProxy = invoke("&&", ir, other)
+
     def ||(other: IRProxy): IRProxy = invoke("||", ir, other)
 
     def toI: IRProxy = (env: E) => Cast(ir(env), TInt32())
+
     def toL: IRProxy = (env: E) => Cast(ir(env), TInt64())
+
     def toF: IRProxy = (env: E) => Cast(ir(env), TFloat32())
+
     def toD: IRProxy = (env: E) => Cast(ir(env), TFloat64())
 
     def unary_-(): IRProxy = (env: E) => ApplyUnaryPrimOp(Negate(), ir(env))
+
     def unary_!(): IRProxy = (env: E) => ApplyUnaryPrimOp(Bang(), ir(env))
 
     def ceq(other: IRProxy): IRProxy = (env: E) => {
@@ -181,13 +192,6 @@ object IRBuilder {
         case _: TArray =>
           ArrayRef(ir(env), ref(lookup)(env))
       }
-    }
-
-    def typecheck(t: Type): IRProxy = (env: E) => {
-      val eval = ir(env)
-      TypeCheck(eval, env, None)
-      assert(eval.typ == t, t._toPretty + " " + eval.typ._toPretty)
-      eval
     }
 
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
@@ -264,21 +268,22 @@ object IRBuilder {
   class LambdaProxy(val s: Symbol, val body: IRProxy)
 
   class SymbolProxy(val s: Symbol) extends AnyVal {
-    def ~> (body: IRProxy): LambdaProxy = new LambdaProxy(s, body)
+    def ~>(body: IRProxy): LambdaProxy = new LambdaProxy(s, body)
   }
 
   case class BindingProxy(s: Symbol, value: IRProxy)
 
   object LetProxy {
-    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E, isAgg: Boolean): IR =
+    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E, scope: Int): IR =
       bindings match {
         case BindingProxy(sym, binding) +: rest =>
           val name = sym.name
           val value = binding(env)
-          if (isAgg)
-            AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), isAgg))
-          else
-            Let(name, value, bind(rest, body, env.bind(name -> value.typ), isAgg))
+          scope match {
+            case Scope.EVAL => Let(name, value, bind(rest, body, env.bind(name -> value.typ), scope))
+            case Scope.AGG => AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), scope), isScan = false)
+            case Scope.SCAN => AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), scope), isScan = true)
+          }
         case Seq() =>
           body(env)
       }
@@ -295,7 +300,7 @@ object IRBuilder {
     def apply(body: IRProxy): IRProxy = in(body)
 
     def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, isAgg = false)
+      LetProxy.bind(bindings, body, env, scope = Scope.EVAL)
     }
   }
 
@@ -310,18 +315,20 @@ object IRBuilder {
     def apply(body: IRProxy): IRProxy = in(body)
 
     def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, isAgg = true)
+      LetProxy.bind(bindings, body, env, scope = Scope.AGG)
     }
   }
 
   object MapIRProxy {
     def apply(f: (IRProxy) => IRProxy)(x: IRProxy): IRProxy = (e: E) => {
-        MapIR(x => f(x)(e))(x(e))
-      }
+      MapIR(x => f(x)(e))(x(e))
+    }
   }
 
-  def subst(x: IRProxy, env: Env[IRProxy], aggEnv: Env[IRProxy] = Env.empty): IRProxy = (e: E) => {
-    Subst(x(e), env.mapValues(_(e)), aggEnv.mapValues(_(e)))
+  def subst(x: IRProxy, env: BindingEnv[IRProxy]): IRProxy = (e: E) => {
+    Subst(x(e), BindingEnv(env.eval.mapValues(_ (e)),
+      agg = env.agg.map(_.mapValues(_ (e))),
+      scan = env.scan.map(_.mapValues(_ (e)))))
   }
 
   def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)

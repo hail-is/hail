@@ -8,10 +8,10 @@ PROJECT = $(shell gcloud config get-value project)
 # ensure that local iteration on the Dockerfile also uses the cache.
 # https://github.com/moby/moby/issues/20316#issuecomment-358260810
 hail-ci-build-image:
-	-docker pull debian:9.5
+	-docker pull ubuntu:18.04
 	-docker pull $(shell cat hail-ci-build-image)
 	docker build . -t hail-pr-builder -f Dockerfile.pr-builder \
-	    --cache-from $(shell cat hail-ci-build-image),hail-pr-builder,debian:9.5
+	    --cache-from $(shell cat hail-ci-build-image),hail-pr-builder,ubuntu:18.04
 
 push-hail-ci-build-image: hail-ci-build-image
 	echo "gcr.io/$(PROJECT)/hail-pr-builder:`docker images -q --no-trunc hail-pr-builder:latest | sed -e 's,[^:]*:,,'`" > hail-ci-build-image
