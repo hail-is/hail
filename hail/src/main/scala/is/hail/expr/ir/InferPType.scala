@@ -28,7 +28,7 @@ object InferPType {
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
       case MakeStream(_, t) => PType.canonical(t)
-      case MakeNDArray(nDim, data, _, _) => PNDArray(coerce[PArray](data.typ.physicalType).elementType, PNat(nDim))
+      case MakeNDArray(nDim, data, _, _) => PNDArray(coerce[PArray](data.typ.physicalType).elementType, nDim)
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())
       case _: StreamRange => PStream(PInt32())
@@ -100,9 +100,9 @@ object InferPType {
         propagateStreamable(coerce[PStreamable](left.pType), join.pType)
         PArray(join.pType)
       case NDArrayMap(nd, _, body) =>
-        PNDArray(body.pType, coerce[TNDArray](nd.typ).nDims.physicalType, nd.typ.required)
+        PNDArray(body.pType, coerce[TNDArray](nd.typ).nDims.asInstanceOf[TNat].n, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
-        PNDArray(body.pType, coerce[TNDArray](l.typ).nDims.physicalType, l.typ.required)
+        PNDArray(body.pType, coerce[TNDArray](l.typ).nDims.asInstanceOf[TNat].n, l.typ.required)
       case NDArrayRef(nd, idxs) =>
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&

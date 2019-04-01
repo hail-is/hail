@@ -1,11 +1,11 @@
 package is.hail.expr.types.virtual
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.physical.{PNat, PType}
+import is.hail.expr.types.physical.PType
 
 import scala.reflect.ClassTag
 
 final case class TNat(n: Int, override val required: Boolean = false) extends Type {
-  override def physicalType: PType = PNat(n)
+  override def physicalType: PType = throw new UnsupportedOperationException
 
   override def _toPretty: String = s"nat<$n>"
 

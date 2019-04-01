@@ -861,7 +861,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.NDArrayMap(child, elemName, body) =>
         val childTyp = child.pType.asInstanceOf[PNDArray]
         val elemPType = childTyp.elementType
-        val nDims = childTyp.nDims.asInstanceOf[PNat].n
+        val nDims = childTyp.nDims
         val cxxElemType = typeToCXXType(elemPType)
         val elemRef = fb.variable("elemRef", cxxElemType)
         val bodyt = outer.emit(body,
@@ -907,7 +907,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.NDArrayMap2(lChild, rChild, lName, rName, body) =>
         val lType = lChild.pType.asInstanceOf[PNDArray]
         val lElemType = lType.elementType
-        val nDims = lType.nDims.asInstanceOf[PNat].n
+        val nDims = lType.nDims
         val cxxLElemType = typeToCXXType(lElemType)
         val rElemType = rChild.pType.asInstanceOf[PNDArray].elementType
         val cxxRElemType = typeToCXXType(rElemType)
