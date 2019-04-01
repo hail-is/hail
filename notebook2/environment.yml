@@ -11,3 +11,4 @@ dependencies:
   - authlib
   - PyJWT==1.*
   - mysql-connector-python
+  - ./hailjwt

@@ -20,11 +20,11 @@ import re
 import requests
 import uuid
 import hashlib
-import jwt
 import kubernetes as kube
 import os
 
 from table import Table
+from hailjwt import JWTClient, get_domain
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -119,26 +119,17 @@ except FileNotFoundError as e:
         "containing the name of the docker image to use for worker pods.") from e
 
 
+jwtclient = JWTClient(SECRET_KEY)
+
 def jwt_decode(token):
     if token is None:
         return None
 
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return jwtclient.decode(token)
     except jwt.exceptions.InvalidTokenError as e:
         log.warn(f'found invalid token {e}')
         return None
-
-
-def jwt_encode(payload):
-    return jwt.encode(payload, SECRET_KEY, algorithm='HS256')
-
-
-def get_domain(host):
-    parts = host.split('.')
-
-    return f"{parts[-2]}.{parts[-1]}"
-
 
 def attach_user():
     def attach_user(f):

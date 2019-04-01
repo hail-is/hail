@@ -1,6 +1,8 @@
 FROM alpine:3.8
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
+COPY hailjwt /notebook/hailjwt
+
 RUN apk add \
   bash \
   gcc \
@@ -18,7 +20,10 @@ RUN apk add \
   kubernetes \
   'urllib3<1.24'\
   libsass \
-  authlib
+  authlib \
+  PyJWT \
+  mysql-connector-python \
+  ./hailjwt
 
 COPY notebook /notebook
 COPY notebook-worker-images /notebook
@@ -26,4 +31,5 @@ COPY notebook-worker-images /notebook
 EXPOSE 5000
 
 WORKDIR /notebook
+
 ENTRYPOINT ["python3", "notebook.py"]
