@@ -46,7 +46,7 @@ class Table:
 
         cursor.execute(
             """
-            SELECT id, gsa_email, ksa_name, bucket_name
+            SELECT id, gsa_email, ksa_name, bucket_name, secret_name
             FROM user_data
             WHERE user_id=%s
             """, (user_id,))
