@@ -1241,7 +1241,7 @@ object PruneDeadFields {
     bmir.children.map {
       case tir: TableIR => rebuild(tir, memo)
       case mir: MatrixIR => rebuild(mir, memo)
-      case ir: IR => rebuild(ir, Env.empty[Type], memo)
+      case ir: IR => rebuildIR(ir, BindingEnv.empty[Type], memo)
       case bmir: BlockMatrixIR => rebuild(bmir, memo)
     }
   )
