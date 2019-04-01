@@ -1333,7 +1333,7 @@ class tnat(HailType):
         pass
 
     def unify(self, t):
-        return isinstance(t, tnat)
+        return isinstance(t, tnat) and t.value == self.value
 
     def subst(self):
         return self

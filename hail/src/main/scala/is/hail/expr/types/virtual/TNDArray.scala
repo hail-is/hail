@@ -30,7 +30,7 @@ final case class TNDArray(elementType: Type, nDims: Type, override val required:
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TNDArray(et, nd, _) => elementType.unify(et) && nDims.unify(nd)
+      case TNDArray(cElementType, cNDims, _) => elementType.unify(cElementType) && nDims.unify(cNDims)
       case _ => false
     }
   }

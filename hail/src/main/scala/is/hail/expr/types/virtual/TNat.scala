@@ -13,5 +13,5 @@ final case class TNat(n: Int, override val required: Boolean = false) extends Ty
 
   override val ordering: ExtendedOrdering = null
 
-  override def _typeCheck(a: Any): Boolean = (a.isInstanceOf[Int] || a.isInstanceOf[Long]) && a == n
+  override def _typeCheck(a: Any): Boolean = throw new UnsupportedOperationException
 }

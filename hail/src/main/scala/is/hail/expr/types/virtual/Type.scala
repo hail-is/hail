@@ -280,7 +280,7 @@ abstract class Type extends BaseType with Serializable {
       case t2: TNDArray =>
         t.isInstanceOf[TNDArray] &&
         t.asInstanceOf[TNDArray].elementType.isOfType(t2.elementType) &&
-        t.asInstanceOf[TNDArray].nDims == t2.nDims
+        t.asInstanceOf[TNDArray].nDims.isOfType(t2.nDims)
       case TVoid => t == TVoid
     }
   }
