@@ -19,6 +19,7 @@ from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
+from .deserialize import deserialize
 
 from .. import schemas
 
@@ -486,8 +487,7 @@ async def create_job(request):  # pylint: disable=R0912
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    pod_spec = v1.api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
+    pod_spec = deserialize(v1.api_client, parameters['spec'], kube.client.V1PodSpec)
 
     batch_id = parameters.get('batch_id')
     if batch_id:
