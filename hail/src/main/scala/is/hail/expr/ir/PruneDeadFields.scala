@@ -658,7 +658,15 @@ object PruneDeadFields {
     }
   }
 
-  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: Memo[BaseType]) {}
+  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: Memo[BaseType]): Unit = {
+    memo.bind(bmir, requestedType)
+    bmir.children.foreach {
+      case mir: MatrixIR => memoizeMatrixIR(mir, mir.typ, memo)
+      case tir: TableIR => memoizeTableIR(tir, tir.typ, memo)
+      case bmir: BlockMatrixIR => memoizeBlockMatrixIR(bmir, bmir.typ, memo)
+      case ir: IR => memoizeValueIR(ir, ir.typ, memo)
+    }
+  }
 
   def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: Memo[BaseType]): TableType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
@@ -1230,7 +1238,14 @@ object PruneDeadFields {
     }
   }
 
-  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir
+  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir.copy(
+    bmir.children.map {
+      case tir: TableIR => rebuild(tir, memo)
+      case mir: MatrixIR => rebuild(mir, memo)
+      case ir: IR => rebuild(ir, Env.empty[Type], memo)
+      case bmir: BlockMatrixIR => rebuild(bmir, memo)
+    }
+  )
 
   def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
     rebuild(ir, relationalTypeToEnv(in), memo)
