@@ -2,6 +2,7 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types.physical.PNDArray
+import is.hail.utils.FastSeq
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
@@ -33,6 +34,8 @@ final case class TNDArray(elementType: Type, nDims: Type, override val required:
       case _ => false
     }
   }
+
+  override val children: Seq[Type] = FastSeq(elementType, nDims)
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 

@@ -2635,23 +2635,67 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_ops(self):
-        def assert_eq(expr, expected):
+        def expr_eq(expr, expected):
             self.assertEqual(hl.eval(expr), expected)
 
-        e = 2.0
-        x = [2.0]
-        col = [[1.0], [2.0]]
-        row = [1.0, 2.0]
-        cube = [[[0, 1],
-                 [2, 3]],
-                [[4, 5],
-                 [6, 7]]]
+        def expr_almost_eq(expr, expected):
+            self.assertAlmostEqual(hl.eval(expr), expected)
 
-        ne = hl._ndarray(e)
+        a = 2.0
+        b = 3.0
+        x = [a, b]
+        y = [b, a]
+        cube1 = [[[1, 2],
+                  [3, 4]],
+                 [[5, 6],
+                  [7, 8]]]
+        cube2 = [[[9, 10],
+                  [11, 12]],
+                 [[13, 14],
+                  [15, 16]]]
+
+        na = hl._ndarray(a)
         nx = hl._ndarray(x)
-        ncol = hl._ndarray(col)
-        nrow = hl._ndarray(row)
-        ncube = hl._ndarray(cube)
+        ny = hl._ndarray(y)
+        ncube1 = hl._ndarray(cube1)
+        ncube2 = hl._ndarray(cube2)
 
-        assert_eq((ne - e)[()], 0.0)
-        assert_eq((e - ne)[()], 0.0)
+        # with lists/numerics
+        expr_eq((na + b)[()], a + b)
+        expr_eq((b + na)[()], a + b)
+        expr_eq((nx + y)[0], a + b)
+        expr_eq((y + nx)[0], a + b)
+        expr_eq((ncube1 + cube2)[0, 0, 0], 10)
+        expr_eq((cube2 + ncube1)[0, 0, 0], 10)
+        expr_eq((ncube1 + cube2)[1, 1, 1], 24)
+        expr_eq((cube2 + ncube1)[1, 1, 1], 24)
+
+        # Addition
+        expr_eq((na + na)[()], a + a)
+        expr_eq((nx + ny)[0], a + b)
+        expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
+        expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+
+        # Subtraction
+        expr_eq((na - na)[()], a - a)
+        expr_eq((nx - nx)[0], a - a)
+        expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
+        expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+
+        # Multiplication
+        expr_eq((na * na)[()], a * a)
+        expr_eq((nx * nx)[0], a * a)
+        expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
+        expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+
+        # Division
+        expr_almost_eq((na / na)[()], a / a)
+        expr_almost_eq((nx / nx)[0], a / a)
+        expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
+        expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+
+        # Floor div
+        expr_eq((na // na)[()], a // a)
+        expr_eq((nx // nx)[0], a // a)
+        expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
+        expr_eq((ncube1 // ncube2)[1, 1, 1], 0)

@@ -3066,6 +3066,16 @@ class NDArrayNumericExpression(NDArrayExpression):
     Arithmetic with a scalar will apply the operation to each element of the ndarray.
     """
 
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        if isinstance(other, list):
+            other = hl._ndarray(other)
+        return super(NDArrayNumericExpression, self)._bin_op_numeric(name, other, ret_type_f)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        if isinstance(other, list):
+            other = hl._ndarray(other)
+        return super(NDArrayNumericExpression, self)._bin_op_numeric_reverse(name, other, ret_type_f)
+
     def __neg__(self):
         """Negate elements of the ndarray.
 
@@ -3095,15 +3105,9 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression`
             NDArray of positional sums.
         """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric("+", other)
 
     def __radd__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric_reverse("+", other)
 
     def __sub__(self, other):
@@ -3125,9 +3129,6 @@ class NDArrayNumericExpression(NDArrayExpression):
         return self._bin_op_numeric("-", other)
 
     def __rsub__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric_reverse("-", other)
 
     def __mul__(self, other):
@@ -3146,16 +3147,19 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression`
             NDArray of positional products.
         """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric("*", other)
 
     def __rmul__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric_reverse("*", other)
+
+    @staticmethod
+    def _div_ret_type_f(t):
+        assert is_numeric(t)
+        if t == tint32 or t == tint64:
+            return tfloat32
+        else:
+            # Float64 or Float32
+            return t
 
     def __truediv__(self, other):
         """Positionally divide by a ndarray or a scalar.
@@ -3173,33 +3177,10 @@ class NDArrayNumericExpression(NDArrayExpression):
         :class:`.NDArrayNumericExpression`
             NDArray of positional quotients.
         """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Positionally divide by a ndarray or a scalar using floor division.
@@ -3215,66 +3196,10 @@ class NDArrayNumericExpression(NDArrayExpression):
         -------
         :class:`.NDArrayNumericExpression`
         """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric('//', other)
 
     def __rfloordiv__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
         return self._bin_op_numeric_reverse('//', other)
-
-    def __mod__(self, other):
-        """Positionally compute the left modulo the right.
-
-        Examples
-        --------
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
-
-        Returns
-        -------
-        :class:`.NDArrayNumericExpression`
-        """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-        return self._bin_op_numeric('%', other)
-
-    def __rmod__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-        return self._bin_op_numeric_reverse('%', other)
-
-    def __pow__(self, other):
-        """Positionally raise to the power of a ndarray or a scalar.
-
-        Examples
-        --------
-
-        Parameters
-        ----------
-        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
-
-        Returns
-        -------
-        :class:`.NDArrayNumericExpression`
-        """
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-        return self._bin_op_numeric('**', other, lambda _: tfloat64)
-
-    def __rpow__(self, other):
-        if isinstance(other, list):
-            other = hl._ndarray(other)
-
-        return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
 
 
 scalars = {tbool: BooleanExpression,

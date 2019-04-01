@@ -410,8 +410,7 @@ class Expression(object):
 
         t = unify_types(scalar_type(self.dtype), scalar_type(other.dtype))
         if t is None:
-            raise NotImplementedError("'{}' {} '{}'".format(
-                self.dtype, name, other.dtype))
+            raise NotImplementedError("'{}' {} '{}'".format(self.dtype, name, other.dtype))
         if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
             t = tarray(t)
         elif isinstance(self.dtype, tndarray):

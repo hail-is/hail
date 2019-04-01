@@ -12,7 +12,7 @@ object NDArrayFunctions extends RegistryFunctions {
         NDArrayMap(a, i, irOp(Ref(i, c.typ), c))
       }
 
-      registerIR(stringOp, argType, TNDArray(argType, tv("U", "nat")), TNDArray(retType, tv("U"))) { (a, c) =>
+      registerIR(stringOp, argType, TNDArray(argType, tv("U", "nat")), TNDArray(retType, tv("U"))) { (c, a) =>
         val i = genUID()
         NDArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }

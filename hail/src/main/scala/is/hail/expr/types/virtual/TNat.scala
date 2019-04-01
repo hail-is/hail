@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 final case class TNat(n: Int, override val required: Boolean = false) extends Type {
   override def physicalType: PType = PNat(n)
 
-  override def _toPretty: String = n.toString
+  override def _toPretty: String = s"nat<$n>"
 
   override def scalaClassTag: ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException
 
