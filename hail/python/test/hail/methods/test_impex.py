@@ -1229,7 +1229,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
         t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
 
-        self.assertEquals(mt.count_cols(), 0)
+        self.assertEqual(mt.count_cols(), 0)
         self.assertTrue(t._same(mt.rows()))
 
 
