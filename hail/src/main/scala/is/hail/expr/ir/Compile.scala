@@ -35,7 +35,7 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    ir = Optimize(ir, noisy = false, canGenerateLiterals = false, context = Some("Compile"))
+    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
