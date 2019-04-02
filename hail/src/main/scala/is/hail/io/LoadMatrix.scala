@@ -27,8 +27,6 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     var ii = 0
     var off = 0
     while (ii < fieldTypes.length) {
-      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
-      ii += 1
       if (off > line.length) {
         fatal(
           s"""Error parsing row fields in row $rowNum:
@@ -38,6 +36,8 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
              |        ${ line.truncate }""".stripMargin
         )
       }
+      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
+      ii += 1
     }
 
     ii = 0
@@ -209,7 +209,7 @@ object LoadMatrix {
       lines match {
         case Array(header, first) =>
           val nCols = first.split(charRegex(sep), -1).length - nRowFields
-          if (nCols <= 0)
+          if (nCols < 0)
             fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
           (header.split(charRegex(sep), -1), nCols)
         case _ =>
