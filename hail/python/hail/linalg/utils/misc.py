@@ -171,31 +171,28 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
         check_row_indexed('locus_windows', coord_expr)
 
     src = locus_expr._indices.source
-    select_fields = []
-    annotate_fields = {}
-
     if locus_expr not in src._fields_inverse:
         locus = Env.get_uid()
-        annotate_fields[locus] = locus_expr
-    else:
-        locus = src._fields_inverse[locus_expr]
-        select_fields.append(locus)
+        annotate_fields = {locus: locus_expr}
 
-    if coord_expr is not None:
-        if coord_expr not in src._fields_inverse:
-            coords = Env.get_uid()
-            annotate_fields[coords] = coord_expr
+        if coord_expr is not None:
+            if coord_expr not in src._fields_inverse:
+                coords = Env.get_uid()
+                annotate_fields[coords] = coord_expr
+            else:
+                coords = src._fields_inverse[coord_expr]
+
+        if isinstance(src, hl.MatrixTable):
+            new_src = src.annotate_rows(**annotate_fields)
         else:
-            coords = src._fields_inverse[coord_expr]
-            select_fields.append(coords)
+            new_src = src.annotate(**annotate_fields)
 
-    new_src = locus_expr._select_method(*select_fields, **annotate_fields)
+        locus_expr = new_src[locus]
+        if coord_expr is not None:
+            coord_expr = new_src[coords]
 
-    locus_expr = new_src[locus]
     if coord_expr is None:
         coord_expr = locus_expr.position
-    else:
-        coord_expr = new_src[coords]
 
     rg = locus_expr.dtype.reference_genome
     contig_group_expr = hl.agg.group_by(hl.locus(locus_expr.contig, 1, reference_genome=rg), hl.agg.collect(coord_expr))
@@ -212,7 +209,7 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
                                .when(last_pos >= 0, contig_group_expr)
                                .or_error("locus_windows: 'locus_expr' has length 0"))
 
-    contig_groups = checked_contig_groups._aggregation_method(checked_contig_groups, _localize=False)
+    contig_groups = locus_expr._aggregation_method()(checked_contig_groups, _localize=False)
 
     coords = hl.sorted(hl.array(contig_groups)).map(lambda t: t[1])
     starts_and_stops = hl._locus_windows_per_contig(coords, radius)
