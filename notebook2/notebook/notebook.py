@@ -6,7 +6,7 @@ import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
 
-from flask import Flask, session, redirect, render_template, request
+from flask import Flask, session, redirect, render_template, request, g
 from flask_sockets import Sockets
 import flask
 import sass
@@ -14,15 +14,17 @@ from authlib.flask.client import OAuth
 from urllib.parse import urlencode
 from functools import wraps
 
-import kubernetes as kube
-
 import logging
 import os
 import re
 import requests
-import time
 import uuid
 import hashlib
+import kubernetes as kube
+import os
+
+from table import Table
+from hailjwt import JWTClient, get_domain
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -43,12 +45,6 @@ logging.basicConfig(
     handlers=[fh, ch],
     level=logging.INFO)
 
-if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-    kube.config.load_kube_config()
-else:
-    kube.config.load_incluster_config()
-k8s = kube.client.CoreV1Api()
-
 app = Flask(__name__)
 sockets = Sockets(app)
 oauth = OAuth(app)
@@ -59,9 +55,11 @@ os.makedirs(css_path, exist_ok=True)
 
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
+
 def read_string(f):
     with open(f, 'r') as f:
         return f.read().strip()
+
 
 # Must be int for Kubernetes V1 api timeout_seconds property
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
@@ -75,11 +73,13 @@ INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
+SECRET_KEY = read_string('/notebook-secrets/secret-key')
+USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = read_string('/notebook-secrets/secret-key'),
-    SESSION_COOKIE_SAMESITE = 'lax',
+    SECRET_KEY = SECRET_KEY,
+    SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
-    SESSION_COOKIE_SECURE = os.environ.get("NOTEBOOK_DEBUG") != "1"
+    SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
 )
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
@@ -97,6 +97,14 @@ auth0 = oauth.register(
     },
 )
 
+user_table = Table()
+
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+    kube.config.load_kube_config()
+else:
+    kube.config.load_incluster_config()
+k8s = kube.client.CoreV1Api()
+
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
@@ -111,11 +119,37 @@ except FileNotFoundError as e:
         "containing the name of the docker image to use for worker pods.") from e
 
 
+jwtclient = JWTClient(SECRET_KEY)
+
+def jwt_decode(token):
+    if token is None:
+        return None
+
+    try:
+        return jwtclient.decode(token)
+    except jwt.exceptions.InvalidTokenError as e:
+        log.warn(f'found invalid token {e}')
+        return None
+
+def attach_user():
+    def attach_user(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            g.user = jwt_decode(request.cookies.get('user'))
+
+            return f(*args, **kwargs)
+
+        return decorated
+    return attach_user
+
+
 def requires_auth(for_page = True):
     def auth(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            if 'user' not in session:
+            g.user = jwt_decode(request.cookies.get('user'))
+
+            if g.user is None:
                 if for_page:
                     session['referrer'] = request.url
                     return redirect(external_url_for('login'))
@@ -264,12 +298,14 @@ def get_live_user_notebooks(user_id):
     return list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
 
+
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
 
 
 @app.route('/', methods=['GET'])
+@attach_user()
 def root():
     return render_template('index.html')
 
@@ -277,7 +313,7 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(g.user['auth0_id']))
 
     # https://github.com/hail-is/hail/issues/5487
     assert len(notebooks) <= 1
@@ -315,7 +351,7 @@ def notebook_post():
 
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = user_id_transform(session['user']['id'])
+    safe_user_id = user_id_transform(g.user['auth0_id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
     session['notebook'] = notebooks_for_ui([pod])[0]
@@ -461,31 +497,39 @@ def auth0_callback():
     userinfo = auth0.get('userinfo').json()
 
     email = userinfo['email']
+    workshop_user = session.get('workshop_user', False)
 
-    if AUTHORIZED_USERS.get(email) is None:
+    if AUTHORIZED_USERS.get(email) is None and workshop_user is False:
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
-    session['user'] = {
-        'id': userinfo['sub'],
+    g.user = {
+        'auth0_id': userinfo['sub'],
         'name': userinfo['name'],
         'email': email,
         'picture': userinfo['picture'],
+        **user_table.get(userinfo['sub'])
     }
 
     if 'referrer' in session:
-        referrer = session['referrer']
+        redir = redirect(session['referrer'])
         del session['referrer']
-        return redirect(referrer)
+    else:
+        redir = redirect('/')
 
-    return redirect('/')
+    response = flask.make_response(redir)
+    response.set_cookie('user', jwtclient.encode(g.user), domain=get_domain(request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
+
+    return response
 
 
 @app.route('/error', methods=['GET'])
+@attach_user()
 def error_page():
     return render_template('error.html', error = request.args.get('err'))
 
 
 @app.route('/login', methods=['GET'])
+@attach_user()
 def login_page():
     return render_template('login.html')
 
@@ -498,19 +542,7 @@ def login_auth0():
         if workshop_password != PASSWORD:
             return redirect(external_url_for(f"error?err=Unauthorized"))
 
-        session['user'] = {
-            'id': uuid.uuid4().hex,
-            'name': "Guest",
-            'email': "N/A",
-            'picture': "N/A",
-        }
-
-        if 'referrer' in session:
-            referrer = session['referrer']
-            del session['referrer']
-            return redirect(referrer)
-
-        return redirect(external_url_for(''))
+        session['workshop_user'] = True
 
     return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
                                     audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
@@ -519,8 +551,13 @@ def login_auth0():
 @app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
+
     params = {'returnTo': external_url_for(''), 'client_id': AUTH0_CLIENT_ID}
-    return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
+    redir = redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
+    resp = flask.make_response(redir)
+    resp.delete_cookie('user', domain=get_domain(request.host))
+
+    return resp
 
 
 if __name__ == '__main__':
