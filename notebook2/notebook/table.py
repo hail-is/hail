@@ -49,7 +49,7 @@ class Table:
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT id, gsa_email, ksa_name, bucket_name, secret_name
+                SELECT id, gsa_email, ksa_name, bucket_name, gsa_key_secret_name
                 FROM user_data
                 WHERE user_id=%s
                 """, (user_id,))
