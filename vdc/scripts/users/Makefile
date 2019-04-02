@@ -1,4 +1,4 @@
-.PHONY: check test-local test-local-in-cluster user secret clean flake8-stmp pylint-stmp
+.PHONY: check test-local test-in-cluster user secret clean flake8-stmp pylint-stmp
 		install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 
 include ../../../cloud-sql.mk
