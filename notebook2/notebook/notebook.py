@@ -534,6 +534,12 @@ def login_page():
     return render_template('login.html')
 
 
+@app.route('/user', methods=['GET'])
+@requires_auth()
+def user_page():
+    return render_template('user.html', user=g.user)
+
+
 @app.route('/login', methods=['POST'])
 def login_auth0():
     workshop_password = request.form['workshop-password']
