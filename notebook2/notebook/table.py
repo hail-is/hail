@@ -1,5 +1,5 @@
 import base64
-import pymysl
+import pymysql
 import kubernetes as kube
 import os
 
