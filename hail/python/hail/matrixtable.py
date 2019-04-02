@@ -1759,6 +1759,10 @@ class MatrixTable(ExprContainer):
         col_field : :obj:`str`
             Name for computed column field (default: ``entry_stats_col``.
 
+        Returns
+        -------
+        :class:`.MatrixTable`
+
         Notes
         -----
         Adds a new row field, `row_field`, and a new column field, `col_field`,
@@ -1768,16 +1772,12 @@ class MatrixTable(ExprContainer):
            or column.
          - *n_remaining* (:data:`.int64`) - Number of entries not filtered per
            row or column.
-         - *fraction_filtered` (:data:`.float32`) - Number of filtered entries
+         - *fraction_filtered* (:data:`.float32`) - Number of filtered entries
            divided by the total number of filtered and remaining entries.
 
         See Also
         --------
-        :meth:`filter_entries`, :meth:unfilter_entries`
-
-        Returns
-        -------
-        :class:`.MatrixTable`
+        :meth:`filter_entries`, :meth:`unfilter_entries`
         """
         def result(count):
             return hl.rbind(count,
