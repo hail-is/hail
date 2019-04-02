@@ -517,7 +517,7 @@ def auth0_callback():
         redir = redirect('/')
 
     response = flask.make_response(redir)
-    response.set_cookie('user', jwt_encode(g.user), domain=get_domain(request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
+    response.set_cookie('user', jwtclient.encode(g.user), domain=get_domain(request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
 
     return response
 

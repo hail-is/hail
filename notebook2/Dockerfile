@@ -6,7 +6,7 @@ COPY notebook-worker-images /notebook/
 COPY hailjwt /notebook/hailjwt/
 
 WORKDIR /notebook
-RUN pip3 install -r /notebook/requirements.txt
+RUN pip3 install -r requirements.txt
 
 EXPOSE 5000
 
