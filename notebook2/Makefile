@@ -36,7 +36,10 @@ $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 notebook-worker-images: $(PUSHED)
 	cat $^ > $@ && test $(APISERVER_JUPYTER_IMAGE) && echo $(APISERVER_JUPYTER_IMAGE) >> $@
 
-build: $(BUILT) notebook-worker-images
+hailjwt:
+	cp -r ../hailjwt ./
+
+build: $(BUILT) notebook-worker-images hailjwt
 ifeq ($(CI_BUILD),true)
 	-docker pull gcr.io/${PROJECT}/notebook2:latest
 	docker build . -t notebook2 --cache-from=gcr.io/${PROJECT}/notebook2:latest
