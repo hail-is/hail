@@ -162,10 +162,11 @@ def requires_auth(for_page = True):
     return auth
 
 
-def start_pod(jupyter_token, image, name, user_id, gsa_key_secret_name):
+def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name):
     pod_id = uuid.uuid4().hex
 
     pod_spec = kube.client.V1PodSpec(
+        service_account_name=ksa_name,
         containers=[
             kube.client.V1Container(
                 command=[
@@ -372,7 +373,7 @@ def notebook_post():
     safe_user_id = user_id_transform(g.user['auth0_id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name,
-                    safe_user_id, g.user['gsa_key_secret_name'])
+                    safe_user_id, g.user['ksa_name'], g.user['gsa_key_secret_name'])
     session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
