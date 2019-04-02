@@ -4,7 +4,7 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = _ (array / ndarray / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / nat / locus / void / variable) _
+    type = _ (array / ndarray / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
@@ -14,7 +14,6 @@ type_grammar = Grammar(
     bool = "tbool" / "bool"
     call = "tcall" / "call"
     str = "tstr" / "str"
-    nat = ("tnat" / "nat") _ "<" identifier ">"
     locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
     ndarray = ("tndarray" / "ndarray") _ "<" type "," _ (type / int_literal)">"
@@ -71,10 +70,6 @@ class TypeConstructor(NodeVisitor):
 
     def visit_str(self, node, visited_children):
         return hl.tstr
-
-    def visit_nat(self, node, visited_children):
-        tnat, _, angle_bracket, n, angle_bracket = visited_children
-        return hl.tnat(int(n))
 
     def visit_locus(self, node, visited_children):
         tlocus, _, angle_bracket, gr, angle_bracket = visited_children
