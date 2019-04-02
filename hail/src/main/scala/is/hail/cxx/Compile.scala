@@ -4,6 +4,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.ir
+import is.hail.expr.ir.BindingEnv
 import is.hail.expr.types.physical._
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
@@ -36,7 +37,7 @@ object Compile {
     val emitEnv = args.zipWithIndex
       .foldLeft(ir.Env[ir.IR]()){ case (env, ((arg, argType), i)) =>
         env.bind(arg -> ir.In(i, argType.virtualType)) }
-    val (v, mods, emitLiterals) = Emit(fb, ir.Subst(body, emitEnv))
+    val (v, mods, emitLiterals) = Emit(fb, ir.Streamify(ir.Subst(body, BindingEnv(emitEnv))))
 
     val (literals, litvars) = emitLiterals.unzip
     val litType = PTuple(literals.map { case (t, _) => t })

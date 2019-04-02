@@ -399,6 +399,10 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
     >>> hl.export_vcf(ds, 'output/example.vcf.bgz')
 
+    Warning
+    -------
+    Do not export to a path that is being read from in the same pipeline.
+
     Parameters
     ----------
     dataset : :class:`.MatrixTable`

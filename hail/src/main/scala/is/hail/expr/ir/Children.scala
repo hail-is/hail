@@ -36,11 +36,15 @@ object Children {
       Array(l, r)
     case MakeArray(args, typ) =>
       args.toFastIndexedSeq
+    case MakeStream(args, typ) =>
+      args.toFastIndexedSeq
     case ArrayRef(a, i) =>
       Array(a, i)
     case ArrayLen(a) =>
       Array(a)
     case ArrayRange(start, stop, step) =>
+      Array(start, stop, step)
+    case StreamRange(start, stop, step) =>
       Array(start, stop, step)
     case MakeNDArray(_, data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
@@ -78,6 +82,8 @@ object Children {
       Array(nd, idxs)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
+    case NDArrayMap2(l, r, _, _, body) =>
+      Array(l, r, body)
     case AggFilter(cond, aggIR, _) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody, _) =>

@@ -138,7 +138,7 @@ class GroupedTable(ExprContainer):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Notes
         -----
@@ -191,12 +191,12 @@ class GroupedTable(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -300,15 +300,15 @@ class Table(ExprContainer):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = agg.mean(table1.C1),
-    ...                                       mean_c2 = agg.mean(table1.C2),
-    ...                                       stats_c3 = agg.stats(table1.C3)))
+    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = hl.agg.mean(table1.C1),
+    ...                                       mean_c2 = hl.agg.mean(table1.C2),
+    ...                                       stats_c3 = hl.agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group by a field and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = hl.agg.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -981,6 +981,10 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Warning
+        -------
+        Do not export to a path that is being read from in the same pipeline.
+
         Parameters
         ----------
         output : :obj:`str`
@@ -1010,12 +1014,12 @@ class Table(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -1040,17 +1044,17 @@ class Table(ExprContainer):
         First, variable-length string arguments:
 
         >>> table_result = (table1.group_by('C1', 'C2')
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
         >>> table_result = (table1.group_by(table1.C1, table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Last, expression keyword arguments:
 
         >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
@@ -1060,21 +1064,21 @@ class Table(ExprContainer):
         The following two usages are equivalent, grouping by one field, `x`:
 
         >>> table_result = (table3.group_by(table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         >>> table_result = (table3.group_by(x = table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
         >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
-        ...                       .aggregate(meanZ = agg.mean(table1.Z)))
+        ...                       .aggregate(meanZ = hl.agg.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
         >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Note
         ----
@@ -1107,8 +1111,8 @@ class Table(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-        ...                            mean_x=agg.mean(table1.X)))
+        >>> table1.aggregate(hl.struct(fraction_male=hl.agg.fraction(table1.SEX == 'M'),
+        ...                            mean_x=hl.agg.mean(table1.X)))
         Struct(fraction_male=0.5, mean_x=6.5)
 
         Note

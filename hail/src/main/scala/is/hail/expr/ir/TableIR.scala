@@ -686,7 +686,21 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val childValues = children.map(_.execute(hc))
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
-    val rvdType = childValues(0).rvd.typ
+
+    val childRVDs = childValues.map(_.rvd)
+    val repartitionedRVDs =
+      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
+        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
+        childRVDs.map(_.truncateKey(typ.key.length))
+      else {
+        info("TableMultiWayZipJoin: repartitioning children")
+        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+        childRVDs.map(_.repartition(newPartitioner))
+      }
+    val newPartitioner = repartitionedRVDs(0).partitioner
+
+    val rvdType = repartitionedRVDs(0).typ
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
@@ -722,21 +736,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       }
     }
 
-    val childRVDs = childValues.map(_.rvd)
-    val repartitionedRVDs =
-      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
-        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
-        childRVDs
-      else {
-        info("TableMultiWayZipJoin: repartitioning children")
-        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
-        childRVDs.map(_.repartition(newPartitioner))
-      }
-    val newPartitioner = repartitionedRVDs(0).partitioner
-    val newRVDType = RVDType(localNewRowType, localRVDType.key)
     val rvd = RVD(
-      typ = newRVDType,
+      typ = RVDType(localNewRowType, typ.key),
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.boundary)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))

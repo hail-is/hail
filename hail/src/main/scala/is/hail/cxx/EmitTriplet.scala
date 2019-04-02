@@ -113,6 +113,10 @@ abstract class NDArrayLoopEmitter(
 
   def outputElement(idxVars: Seq[Variable]): Code
 
+  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+    idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $strides[$dim]" }.mkString(" + ")
+  }
+
   def emit(): Code = {
     val data = fb.variable("data", "const char *")
     s"""
@@ -138,7 +142,7 @@ abstract class NDArrayLoopEmitter(
   }
 
   private def emitLoops(idxs: Seq[Variable], leftToRight: Boolean): Code = {
-    val outIndex = idxVars.zipWithIndex.map { case (idx, dim) => s"$idx * $strides[$dim]" }.mkString(" + ")
+    val outIndex = linearizeIndices(idxs, strides.toString)
     val dimIter = if (leftToRight) idxs.zipWithIndex else idxs.zipWithIndex.reverseIterator
 
     val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"

@@ -10,6 +10,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import plural
 
 import numpy as np
 
@@ -829,6 +830,63 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+
+
+def variant_str(*args) -> 'StringExpression':
+    """Create a variant colon-delimited string.
+
+    Parameters
+    ----------
+    args
+        Arguments (see notes).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+
+    Notes
+    -----
+    Expects either one argument of type
+    ``struct{locus: locus<RG>, alleles: array<str>``, or two arguments of type
+    ``locus<RG>`` and ``array<str>``. The function returns a string of the form
+
+    .. code-block:: text
+
+        CHR:POS:REF:ALT1,ALT2,...ALTN
+        e.g.
+        1:1:A:T
+        16:250125:AAA:A,CAA
+
+    Examples
+    --------
+    >>> hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'C']))
+    '1:10000:A:T,C'
+    """
+    args = [to_expr(arg) for arg in args]
+
+    def type_error():
+        raise ValueError(f"'variant_str' expects arguments of the following types:\n"
+                         f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
+                         f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
+                         f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
+                         f"of type {', '.join(builtins.str(x.dtype) for x in args)}")
+
+    if builtins.len(args) == 1:
+        [s] = args
+        t = s.dtype
+        if not isinstance(t, tstruct) \
+                or not builtins.len(t) == 2 \
+                or not isinstance(t[0], tlocus) \
+                or not t[1] == tarray(tstr):
+            type_error()
+        return hl.rbind(s, lambda x: hl.str(x[0]) + ":" + x[1][0] + ":" + hl.delimit(x[1][1:]))
+    elif builtins.len(args) == 2:
+        [locus, alleles] = args
+        if not isinstance(locus.dtype, tlocus) or not alleles.dtype == tarray(tstr):
+            type_error()
+        return hl.str(locus) + ":" + hl.rbind(alleles, lambda x: x[0] + ":" + hl.delimit(x[1:]))
+    else:
+        type_error()
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -1827,6 +1885,64 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     :class:`.Float64Expression`
     """
     return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+
+
+@typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
+def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
+    """Samples from a normal distribution with mean `mean` and covariance matrix `cov`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [0.5515477294463427, -1.1782691532205807]
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [-1.127240906867922, 1.4495317887283203]
+
+    Notes
+    -----
+    The covariance of a 2d normal distribution is a 2x2 symmetric matrix
+    [[a, b], [b, c]]. This is specified in `cov` as a length 3 array [a, b, c].
+    The covariance matrix must be positive semi-definite, i.e. a>0, c>0, and
+    a*c - b^2 > 0.
+
+    If `mean` and `cov` are both None, draws from the standard 2d normal
+    distribution.
+
+    Parameters
+    ----------
+    mean : :class:`.ArrayNumericExpression`, optional
+        Mean of normal distribution. Array of length 2.
+    cov : :class:`.ArrayNumericExpression`, optional
+        Covariance of normal distribution. Array of length 3.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.ArrayFloat64Expression`
+    """
+    if mean is None:
+        mean = [0, 0]
+    if cov is None:
+        cov = [1, 0, 1]
+
+    def f(mean, cov):
+        m1 = mean[0]
+        m2 = mean[1]
+        s11 = cov[0]
+        s12 = cov[1]
+        s22 = cov[2]
+
+        x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
+        return hl.rbind(hl.sqrt(s11), (lambda root_s11:
+            hl.array([
+               m1 + root_s11 * x[0],
+               m2 + (s12 / root_s11) * x[0]
+                  + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])))
+
+    return hl.rbind(mean, cov, f)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
@@ -2956,7 +3072,7 @@ def zip_with_index(a, index_first=True):
 
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array()))
+           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def map(f: Callable, collection):
     """Transform each element of a collection.
 
@@ -3160,9 +3276,9 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
         return min(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def abs(x):
-    """Take the absolute value of a numeric value or array.
+    """Take the absolute value of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3175,21 +3291,21 @@ def abs(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def sign(x):
-    """Returns the sign of a numeric value or array.
+    """Returns the sign of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3212,13 +3328,13 @@ def sign(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)

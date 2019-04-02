@@ -51,6 +51,8 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 
   protected[ir] def execute(hc: HailContext): BlockMatrix =
     fatal("tried to execute unexecutable IR:\n" + Pretty(this))
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 }
 
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
@@ -58,7 +60,7 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRead = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRead = {
     assert(newChildren.isEmpty)
     BlockMatrixRead(reader)
   }
@@ -114,7 +116,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixLiteral = {
     assert(newChildren.isEmpty)
     new BlockMatrixLiteral(value)
   }
@@ -129,7 +131,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap = {
     assert(newChildren.length == 1)
     BlockMatrixMap(newChildren(0).asInstanceOf[BlockMatrixIR], f)
   }
@@ -154,7 +156,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right, f)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixMap2 = {
     assert(newChildren.length == 3)
     BlockMatrixMap2(
       newChildren(0).asInstanceOf[BlockMatrixIR],
@@ -310,7 +312,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixDot = {
     assert(newChildren.length == 2)
     BlockMatrixDot(newChildren(0).asInstanceOf[BlockMatrixIR], newChildren(1).asInstanceOf[BlockMatrixIR])
   }
@@ -338,7 +340,7 @@ case class BlockMatrixBroadcast(
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixBroadcast = {
     assert(newChildren.length == 1)
     BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], inIndexExpr, shape, blockSize)
   }
@@ -390,7 +392,7 @@ case class BlockMatrixAgg(
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixAgg = {
     assert(newChildren.length == 1)
     BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr)
   }
@@ -423,7 +425,7 @@ case class BlockMatrixFilter(
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixFilter = {
     assert(newChildren.length == 1)
     BlockMatrixFilter(newChildren(0).asInstanceOf[BlockMatrixIR], indices)
   }
@@ -463,7 +465,7 @@ case class ValueToBlockMatrix(
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): ValueToBlockMatrix = {
     assert(newChildren.length == 1)
     ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], shape, blockSize)
   }
@@ -494,7 +496,7 @@ case class BlockMatrixRandom(
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRandom = {
     assert(newChildren.isEmpty)
     BlockMatrixRandom(seed, gaussian, shape, blockSize)
   }

@@ -12,15 +12,16 @@ object Bindings {
 
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case Let(name, value, _) => if (i == 1) Array(name -> value.typ) else empty
-    case ArrayMap(a, name, _) => if (i == 1) Array(name -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayFor(a, name, _) => if (i == 1) Array(name -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TArray](a.typ).elementType) else empty
-    case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TArray](ll.typ).elementType, r -> -coerce[TArray](rr.typ).elementType) else empty
-    case ArraySort(a, left, right, _) => if (i == 1) Array(left -> -coerce[TArray](a.typ).elementType, right -> -coerce[TArray](a.typ).elementType) else empty
+    case ArrayMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayFor(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty
+    case ArraySort(a, left, right, _) => if (i == 1) Array(left -> -coerce[TStreamable](a.typ).elementType, right -> -coerce[TStreamable](a.typ).elementType) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> -coerce[TNDArray](nd.typ).elementType) else empty
+    case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> -coerce[TNDArray](l.typ).elementType, rName -> -coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
     case Uniroot(argname, _, _, _) => if (i == 0) Array(argname -> TFloat64()) else empty
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
@@ -81,15 +82,13 @@ object ScanBindings {
 
 
 object ChildEnvWithoutBindings {
-  private val empty = BindingEnv.empty[Type]
-
-  def apply(ir: BaseIR, i: Int, env: BindingEnv[Type]): BindingEnv[Type] = {
+  def apply[T](ir: BaseIR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
       case ArrayAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
-      case ApplyAggOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
-      case ApplyScanOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) empty else env
-      case MatrixAggregate(_, _) => empty
-      case TableAggregate(_, _) => empty
+      case ApplyAggOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) BindingEnv.empty[T] else env
+      case ApplyScanOp(constructorArgs, _, _, _) => if (i < constructorArgs.size) BindingEnv.empty[T] else env
+      case MatrixAggregate(_, _) => BindingEnv.empty[T]
+      case TableAggregate(_, _) => BindingEnv.empty[T]
       case _ => env
     }
   }

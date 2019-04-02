@@ -139,9 +139,11 @@ object MakeArray {
 }
 
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream) extends IR
 final case class ArrayRef(a: IR, i: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR) extends IR
 
 
 object ArraySort {
@@ -202,6 +204,11 @@ final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) exten
 final case class NDArrayRef(nd: IR, idxs: IR) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
+
+final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
   def elementTyp: Type = typ.elementType
 }

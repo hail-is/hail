@@ -86,12 +86,21 @@ object TypeCheck {
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
+      case x@MakeStream(args, typ) =>
+        assert(typ != null)
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
+        }
       case x@ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         assert(x.typ == -coerce[TStreamable](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TStreamable])
       case x@ArrayRange(a, b, c) =>
+        assert(a.typ.isOfType(TInt32()))
+        assert(b.typ.isOfType(TInt32()))
+        assert(c.typ.isOfType(TInt32()))
+      case x@StreamRange(a, b, c) =>
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
@@ -105,6 +114,11 @@ object TypeCheck {
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         assert(idxs.typ.isOfType(TArray(TInt64())))
       case x@NDArrayMap(_, _, body) =>
+        assert(x.elementTyp == body.typ)
+      case x@NDArrayMap2(l, r, _, _, body) =>
+        val lTyp = coerce[TNDArray](l.typ)
+        val rTyp = coerce[TNDArray](r.typ)
+        assert(lTyp.nDims == rTyp.nDims)
         assert(x.elementTyp == body.typ)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])

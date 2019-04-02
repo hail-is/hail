@@ -54,6 +54,8 @@ spec:
           imagePullPolicy: Always
           ports:
           - containerPort: 8081
+          - containerPort: 9000
+          - containerPort: 9002
           volumeMounts:
           - mountPath: /hail-vdc-sa-key
             name: hail-vdc-sa-key
@@ -91,6 +93,8 @@ spec:
           imagePullPolicy: Always
           ports:
           - containerPort: 5000
+          - containerPort: 9001
+          - containerPort: 9002
           volumeMounts:
           - mountPath: /hail-vdc-sa-key
             name: hail-vdc-sa-key
