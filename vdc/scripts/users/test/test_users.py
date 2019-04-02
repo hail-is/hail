@@ -1,6 +1,6 @@
 import unittest
-from user_data import (create_all, create_all_idempotent,
-                       delete_all_idempotent, delete_all)
+from user_data import (create_all_idempotent, delete_all_idempotent,
+                       create_all, delete_all)
 
 from google.cloud import storage
 import uuid
@@ -27,33 +27,32 @@ class TestCreate(unittest.TestCase):
     def test_delete_partial_v1_sa(self):
         data = create_all(google_project, kube_namespace)
 
-        try:
-            v1.delete_namespaced_service_account(
-                name=data['ksa_name'], namespace=kube_namespace, body={})
-        except Exception:
-            self.fail(f"Couldn't delete kubernetes service account")
+        v1.delete_namespaced_service_account(
+            name=data['ksa_name'], namespace=kube_namespace, body={})
 
         delete_all(data, google_project, kube_namespace)
 
     def test_delete_partial_gcloud_sa(self):
         data = create_all(google_project, kube_namespace)
 
-        try:
-            gsa_name = f"projects/-/serviceAccounts/{data['gsa_email']}"
-            gcloud_service.projects().serviceAccounts().delete(name=gsa_name)
-        except Exception:
-            self.fail(f"Couldn't delete created google service account")
+        gsa_name = f"projects/-/serviceAccounts/{data['gsa_email']}"
+        gcloud_service.projects().serviceAccounts().delete(name=gsa_name)
 
         delete_all(data, google_project, kube_namespace)
 
     def test_delete_partial_bucket(self):
         data = create_all(google_project, kube_namespace)
 
-        try:
-            bucket = storage.Client().get_bucket(data['bucket_name'])
-            bucket.delete()
-        except Exception:
-            self.fail("Couldn't delete created bucket")
+        bucket = storage.Client().get_bucket(data['bucket_name'])
+        bucket.delete()
+
+        delete_all(data, google_project, kube_namespace)
+
+    def test_delete_partial_secret_gcloud_kube(self):
+        data = create_all(google_project, kube_namespace)
+        secret_name = data['secret_name']
+
+        v1.delete_namespaced_secret(secret_name, kube_namespace)
 
         delete_all(data, google_project, kube_namespace)
 

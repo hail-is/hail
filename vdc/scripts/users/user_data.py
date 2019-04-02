@@ -48,6 +48,30 @@ def delete_kube_service_acccount(ksa_name, namespace):
                                                 namespace=namespace, body={})
 
 
+def store_gsa_key_in_kube(gsa_email, kube_namespace):
+    key = gcloud_service.projects().serviceAccounts().keys().create(
+        name='projects/-/serviceAccounts/' + gsa_email, body={}
+        ).execute()
+
+    return v1.create_namespaced_secret(
+        namespace=kube_namespace,
+        body=kube_client.V1Secret(
+            api_version='v1',
+            string_data=key,
+            metadata=kube_client.V1ObjectMeta(
+                generate_name='user-secret-',
+                annotations={
+                    "gsa_email": gsa_email
+                }
+            )
+        )
+    )
+
+
+def delete_gsa_secret_in_kube(secret_name, kube_namespace):
+    return v1.delete_namespaced_secret(secret_name, kube_namespace)
+
+
 def create_bucket(sa_name, gsa_email):
     bucket = storage.Client().bucket(sa_name)
     bucket.labels = {
@@ -80,11 +104,15 @@ def create_all(google_project, kube_namespace):
     create_bucket(sa_name, out['gsa_email'])
     out['bucket_name'] = sa_name
 
+    ksa_secret_resp = store_gsa_key_in_kube(out['gsa_email'], kube_namespace)
+    out['secret_name'] = ksa_secret_resp.metadata.name
+
     return out
 
 
 def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
     modified = 0
+
     try:
         delete_bucket(user_obj['bucket_name'])
         modified += 1
@@ -100,6 +128,13 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
 
     try:
         delete_kube_service_acccount(user_obj['ksa_name'], kube_namespace)
+        modified += 1
+    except kube_client.rest.ApiException as e:
+        if e.status != 404:
+            raise e
+
+    try:
+        delete_gsa_secret_in_kube(user_obj['secret_name'], kube_namespace)
         modified += 1
     except kube_client.rest.ApiException as e:
         if e.status != 404:
