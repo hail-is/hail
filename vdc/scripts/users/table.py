@@ -50,7 +50,8 @@ class Table:
             cursor.execute(
                 """
                 INSERT INTO user_data
-                    (user_id, gsa_email, ksa_name, bucket_name, secret_name)
+                    (user_id, gsa_email, ksa_name, bucket_name,
+                    gsa_key_secret_name)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (user_id, gsa_email, ksa_name, bucket_name, secret_name))
             self.cnx.commit()

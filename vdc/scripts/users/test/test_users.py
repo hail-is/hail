@@ -50,7 +50,7 @@ class TestCreate(unittest.TestCase):
 
     def test_delete_partial_secret_gcloud_kube(self):
         data = create_all(google_project, kube_namespace)
-        secret_name = data['secret_name']
+        secret_name = data['gsa_key_secret_name']
 
         v1.delete_namespaced_secret(secret_name, kube_namespace)
 

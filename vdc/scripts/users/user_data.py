@@ -59,7 +59,7 @@ def store_gsa_key_in_kube(gsa_email, kube_namespace):
             api_version='v1',
             string_data=key,
             metadata=kube_client.V1ObjectMeta(
-                generate_name='user-secret-',
+                generate_name='gsa-key-',
                 annotations={
                     "gsa_email": gsa_email
                 }
@@ -105,7 +105,7 @@ def create_all(google_project, kube_namespace):
     out['bucket_name'] = sa_name
 
     ksa_secret_resp = store_gsa_key_in_kube(out['gsa_email'], kube_namespace)
-    out['secret_name'] = ksa_secret_resp.metadata.name
+    out['gsa_key_secret_name'] = ksa_secret_resp.metadata.name
 
     return out
 
@@ -134,7 +134,8 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
             raise e
 
     try:
-        delete_gsa_secret_in_kube(user_obj['secret_name'], kube_namespace)
+        delete_gsa_secret_in_kube(user_obj['gsa_key_secret_name'],
+                                  kube_namespace)
         modified += 1
     except kube_client.rest.ApiException as e:
         if e.status != 404:
