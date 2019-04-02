@@ -23,9 +23,9 @@ def create_google_service_account(sa_name, google_project):
         }).execute()
 
 
-def delete_google_service_account(gsa_email):
+def delete_google_service_account(gsa_email, google_project):
     return gcloud_service.projects().serviceAccounts().delete(
-        name=f'projects/-/serviceAccounts/{gsa_email}').execute()
+        name=f'projects/{google_project}/serviceAccounts/{gsa_email}').execute()
 
 
 def create_kube_service_acccount(namespace):
@@ -48,9 +48,9 @@ def delete_kube_service_acccount(ksa_name, namespace):
                                                 namespace=namespace, body={})
 
 
-def store_gsa_key_in_kube(gsa_email, kube_namespace):
+def store_gsa_key_in_kube(gsa_email, google_project, kube_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
-        name='projects/-/serviceAccounts/' + gsa_email, body={}
+        name=f'projects/{google_project}/serviceAccounts/{gsa_email}', body={}
         ).execute()
 
     return v1.create_namespaced_secret(
@@ -61,6 +61,7 @@ def store_gsa_key_in_kube(gsa_email, kube_namespace):
             metadata=kube_client.V1ObjectMeta(
                 generate_name='gsa-key-',
                 annotations={
+                    "type": "user",
                     "gsa_email": gsa_email
                 }
             )
@@ -104,7 +105,8 @@ def create_all(google_project, kube_namespace):
     create_bucket(sa_name, out['gsa_email'])
     out['bucket_name'] = sa_name
 
-    ksa_secret_resp = store_gsa_key_in_kube(out['gsa_email'], kube_namespace)
+    ksa_secret_resp = store_gsa_key_in_kube(out['gsa_email'],
+                                            google_project, kube_namespace)
     out['gsa_key_secret_name'] = ksa_secret_resp.metadata.name
 
     return out
@@ -120,7 +122,7 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
         pass
 
     try:
-        delete_google_service_account(user_obj['gsa_email'])
+        delete_google_service_account(user_obj['gsa_email'], google_project)
         modified += 1
     except HttpError as e:
         if e.resp.status != 404:

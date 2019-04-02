@@ -45,7 +45,7 @@ class Table:
                 "SELECT * FROM user_data WHERE user_id=%s", (user_id,))
             return cursor.fetchone()
 
-    def insert(self, user_id, gsa_email, ksa_name, bucket_name, secret_name):
+    def insert(self, user_id, gsa_email, ksa_name, bucket_name, gsa_key_secret_name):
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 """
@@ -53,7 +53,8 @@ class Table:
                     (user_id, gsa_email, ksa_name, bucket_name,
                     gsa_key_secret_name)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (user_id, gsa_email, ksa_name, bucket_name, secret_name))
+                """, (user_id, gsa_email, ksa_name, bucket_name,
+                      gsa_key_secret_name))
             self.cnx.commit()
 
             assert cursor.rowcount == 1
