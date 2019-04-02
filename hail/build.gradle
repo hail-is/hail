@@ -163,9 +163,8 @@ task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
 
 compileScala {
     dependsOn generateBuildInfo
-
     // , "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature"]
+    scalaCompileOptions.additionalParameters = ["-feature", "-Xno-patmat-analysis"]
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
