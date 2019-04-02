@@ -1713,7 +1713,7 @@ class MatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`unfilter_entries`
+        :meth:`unfilter_entries`, :meth:`compute_entry_filter_stats`
         """
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
@@ -1738,13 +1738,57 @@ class MatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`filter_entries`
+        :meth:`filter_entries`, :meth:`compute_entry_filter_stats`
         """
         entry_ir = hl.cond(
             hl.is_defined(self.entry),
             self.entry,
             hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
+
+    @typecheck_method(row_field=str, col_field=str)
+    def compute_entry_filter_stats(self, row_field='entry_stats_row', col_field='entry_stats_col') -> 'MatrixTable':
+        """Compute statistics about the number and fraction of filtered entries.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        row_field : :obj:`str`
+            Name for computed row field (default: ``entry_stats_row``.
+        col_field : :obj:`str`
+            Name for computed column field (default: ``entry_stats_col``.
+
+        Notes
+        -----
+        Adds a new row field, `row_field`, and a new column field, `col_field`,
+        each of which are structs with the following fields:
+
+         - *n_filtered* (:data:`.int64`) - Number of filtered entries per row
+           or column.
+         - *n_remaining* (:data:`.int64`) - Number of entries not filtered per
+           row or column.
+         - *fraction_filtered` (:data:`.float32`) - Number of filtered entries
+           divided by the total number of filtered and remaining entries.
+
+        See Also
+        --------
+        :meth:`filter_entries`, :meth:unfilter_entries`
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        def result(count):
+            return hl.rbind(count,
+                            hl.agg.count(),
+                            lambda n_tot, n_def: hl.struct(n_filtered=n_tot - n_def,
+                                                           n_remaining=n_def,
+                                                           fraction_filtered=(n_tot - n_def) / n_tot))
+        mt = self
+        mt = mt.annotate_cols(**{col_field: result(mt.count_rows(_localize=False))})
+        mt = mt.annotate_rows(**{row_field: result(mt.count_cols(_localize=False))})
+        return mt
 
     @typecheck_method(named_exprs=expr_any)
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
@@ -2311,7 +2355,8 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(MatrixCollectColsByKey(self._mir))
 
-    def count_rows(self) -> int:
+    @typecheck_method(_localize=bool)
+    def count_rows(self, _localize=True) -> int:
         """Count the number of rows in the matrix.
 
         Examples
@@ -2326,9 +2371,11 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of rows in the matrix.
         """
-
-        return Env.backend().execute(
-            TableCount(MatrixRowsTable(self._mir)))
+        ir = TableCount(MatrixRowsTable(self._mir))
+        if _localize:
+            return Env.backend().execute(ir)
+        else:
+            return construct_expr(ir, hl.tint64)
 
     def _force_count_rows(self):
         return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
@@ -2336,7 +2383,8 @@ class MatrixTable(ExprContainer):
     def _force_count_cols(self):
         return self.cols()._force_count()
 
-    def count_cols(self) -> int:
+    @typecheck_method(_localize=bool)
+    def count_cols(self, _localize=True) -> int:
         """Count the number of columns in the matrix.
 
         Examples
@@ -2351,9 +2399,11 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of columns in the matrix.
         """
-
-        return Env.backend().execute(
-            TableCount(MatrixColsTable(self._mir)))
+        ir = TableCount(MatrixColsTable(self._mir))
+        if _localize:
+            return Env.backend().execute(ir)
+        else:
+            return construct_expr(ir, hl.tint64)
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
