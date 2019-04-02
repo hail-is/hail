@@ -1,0 +1,6 @@
+kubernetes
+Flask_Sockets
+libsass
+authlib
+pymysql
+./hailjwt
