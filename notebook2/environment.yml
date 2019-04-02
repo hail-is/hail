@@ -9,6 +9,5 @@ dependencies:
   - Flask_Sockets
   - libsass
   - authlib
-  - PyJWT==1.*
   - mysql-connector-python
   - ./hailjwt

@@ -21,9 +21,8 @@ RUN apk add \
   'urllib3<1.24'\
   libsass \
   authlib \
-  PyJWT \
   mysql-connector-python \
-  ./hailjwt
+  /notebook/hailjwt
 
 COPY notebook /notebook
 COPY notebook-worker-images /notebook
