@@ -108,6 +108,31 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default
+  name: read-get-user-secret
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["get-users"]
+  verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-read-get-users-secret
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: read-get-user-secret
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
   name: update-letsencrypt-config
 rules:
 - apiGroups: [""]
