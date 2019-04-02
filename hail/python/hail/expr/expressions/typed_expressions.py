@@ -709,27 +709,10 @@ class ArrayNumericExpression(ArrayExpression):
         :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Positionally divide by an array or a scalar using floor division.
@@ -3016,9 +2999,26 @@ class IntervalExpression(Expression):
 
 
 class NDArrayExpression(Expression):
+    """Expression of type :class:`.tndarray`.
+
+    >>> names = hl._ndarray([['Alice', 'Bob'], ['Carol', 'Dan']])
+    """
 
     @property
     def ndim(self):
+        """The number of dimensions of this ndarray.
+
+        Examples
+        --------
+
+        >>> names.ndim
+        2
+
+        Returns
+        -------
+        :obj:`int`
+            Number of dimensions.
+        """
         return self._type.ndim
 
     @typecheck_method(item=oneof(int, tuple))
@@ -3026,7 +3026,7 @@ class NDArrayExpression(Expression):
         if isinstance(item, int):
             item = (item,)
 
-        if len(item) != self.ndim.value:
+        if len(item) != self.ndim:
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
@@ -3048,15 +3048,15 @@ class NDArrayExpression(Expression):
             NDArray where each element has been transformed according to `f`.
         """
 
-        element_type, ndim = self._type.element_type, self._type.ndim
-        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, ndim))
+        element_type = self._type.element_type
+        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, self.ndim))
 
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
 
 class NDArrayNumericExpression(NDArrayExpression):
-    """Expression of type :class:`.tndarray` with a numeric type.
+    """Expression of type :class:`.tndarray` with a numeric element type.
 
     Numeric ndarrays support arithmetic both with scalar values and other arrays.
     Arithmetic between two numeric ndarrays requires that the shapes of each ndarray
@@ -3139,15 +3139,6 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rmul__(self, other):
         return self._bin_op_numeric_reverse("*", other)
-
-    @staticmethod
-    def _div_ret_type_f(t):
-        assert is_numeric(t)
-        if t == tint32 or t == tint64:
-            return tfloat32
-        else:
-            # Float64 or Float32
-            return t
 
     def __truediv__(self, other):
         """Positionally divide by a ndarray or a scalar.

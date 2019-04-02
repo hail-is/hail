@@ -359,9 +359,9 @@ object IRParser {
         punctuation(it, "[")
         val elementType = type_expr(it)
         punctuation(it, ",")
-        val nDims = type_expr(it)
+        val nDims = int32_literal(it)
         punctuation(it, "]")
-        TNDArray(elementType, nDims, req)
+        TNDArray(elementType, TNat(nDims), req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)

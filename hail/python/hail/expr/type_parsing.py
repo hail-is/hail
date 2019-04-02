@@ -17,7 +17,7 @@ type_grammar = Grammar(
     nat = ("tnat" / "nat") _ "<" identifier ">"
     locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
-    ndarray = ("tndarray" / "ndarray") _ "<" type "," type ">"
+    ndarray = ("tndarray" / "ndarray") _ "<" type "," _ (type / int_literal)">"
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -28,6 +28,7 @@ type_grammar = Grammar(
     identifier = _ (simple_identifier / escaped_identifier) _
     simple_identifier = ~"\w+"
     escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
+    int_literal = ~"[0-9]+"
     _ = ~"\s*"
     """)
 
@@ -84,8 +85,8 @@ class TypeConstructor(NodeVisitor):
         return hl.tarray(t)
 
     def visit_ndarray(self, node, visited_children):
-        tndarray, _, angle_bracket, t, comma, ndim, angle_bracket = visited_children
-        return hl.tndarray(t, ndim)
+        tndarray, _, angle_bracket, elem_t, comma, _, [ndim], angle_bracket = visited_children
+        return hl.tndarray(elem_t, ndim)
 
     def visit_set(self, node, visited_children):
         tset, _, angle_bracket, t, angle_bracket = visited_children
@@ -132,6 +133,9 @@ class TypeConstructor(NodeVisitor):
 
     def visit_escaped_identifier(self, node, visited_children):
         return unescape_parsable(node.text[1:-1])
+
+    def visit_int_literal(self, node, visited_children):
+        return int(node.text)
 
 
 type_node_visitor = TypeConstructor()

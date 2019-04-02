@@ -322,13 +322,7 @@ class ApplyBinaryPrimOp(IR):
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-        if self.op == '/':
-            if self.l.typ == tfloat64:
-                self._type = tfloat64
-            else:
-                self._type = tfloat32
-        else:
-            self._type = self.l.typ
+        self._type = self.l.typ
 
 
 class ApplyUnaryPrimOp(IR):

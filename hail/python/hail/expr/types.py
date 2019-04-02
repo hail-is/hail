@@ -520,10 +520,10 @@ class tndarray(HailType):
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type, ndim=hail_type)
+    @typecheck_method(element_type=hail_type, ndim=oneof(hail_type, int))
     def __init__(self, element_type, ndim):
         self._element_type = element_type
-        self._ndim = ndim
+        self._ndim = tnat(ndim) if isinstance(ndim, int) else ndim
         super(tndarray, self).__init__()
 
     @property
@@ -543,10 +543,11 @@ class tndarray(HailType):
 
         Returns
         -------
-        :class:`.HailType`
+        :obj:`int`
             Number of dimensions.
         """
-        return self._ndim
+        assert isinstance(self._ndim, tnat), "tndarray must be realized with a concrete number of dimensions"
+        return self._ndim.n
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -565,13 +566,13 @@ class tndarray(HailType):
 
     def _pretty(self, l, indent, increment):
         l.append('ndarray<')
-        self.element_type._pretty(l, indent, increment)
+        self._element_type._pretty(l, indent, increment)
         l.append(', ')
-        self.element_type._pretty(l, indent, increment)
+        self._ndim._pretty(l, indent, increment)
         l.append('>')
 
     def _parsable_string(self):
-        return f'NDArray[{self.element_type._parsable_string()},{self.ndim._parsable_string()}]'
+        return f'NDArray[{self._element_type._parsable_string()},{self._ndim._parsable_string()}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError
@@ -580,16 +581,16 @@ class tndarray(HailType):
         raise NotImplementedError
 
     def clear(self):
-        self.element_type.clear()
-        self.ndim.clear()
+        self._element_type.clear()
+        self._ndim.clear()
 
     def unify(self, t):
         return isinstance(t, tndarray) and \
-               self.element_type.unify(t.element_type) and \
-               self.ndim.unify(t.ndim)
+               self._element_type.unify(t._element_type) and \
+               self._ndim.unify(t._ndim)
 
     def subst(self):
-        return tndarray(self.element_type.subst(), self.ndim.subst())
+        return tndarray(self._element_type.subst(), self._ndim.subst())
 
 
 class tarray(HailType):
@@ -1305,8 +1306,8 @@ class tinterval(HailType):
 
 
 class tnat(HailType):
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, n):
+        self.n = n
         super(tnat, self).__init__()
 
     def _traverse(self, obj, f):
@@ -1316,24 +1317,22 @@ class tnat(HailType):
         raise NotImplementedError
 
     def __str__(self):
-        return f'nat<{self.value}>'
+        return f'{self.n}'
 
     def _eq(self, other):
-        return self.value == other.value
+        return self.n == other.n
 
     def _pretty(self, l, indent, increment):
-        l.append("nat<")
-        l.append(str(self.value))
-        l.append(">")
+        l.append(str(self.n))
 
     def _parsable_string(self):
-        return f'Nat({self.value})'
+        return f'{self.n}'
 
     def clear(self):
         pass
 
     def unify(self, t):
-        return isinstance(t, tnat) and t.value == self.value
+        return isinstance(t, tnat) and t.n == self.n
 
     def subst(self):
         return self

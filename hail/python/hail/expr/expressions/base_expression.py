@@ -393,7 +393,12 @@ class Expression(object):
         else:
             return coercer.coerce(self)
 
-    def _bin_op_numeric_unify_types(self, name, other):
+    @staticmethod
+    def _div_ret_type_f(t):
+        assert is_numeric(t)
+        return tfloat32 if t == tfloat32 else tfloat64
+
+    def _bin_op_numeric_unify_types(self, name, other, ret_type_f):
         def numeric_proxy(t):
             if t == tbool:
                 return tint32
@@ -411,29 +416,25 @@ class Expression(object):
         t = unify_types(scalar_type(self.dtype), scalar_type(other.dtype))
         if t is None:
             raise NotImplementedError("'{}' {} '{}'".format(self.dtype, name, other.dtype))
+        if ret_type_f is not None:
+            t = ret_type_f(t)
+
         if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
-            t = tarray(t)
+            return tarray(t)
         elif isinstance(self.dtype, tndarray):
-            t = tndarray(t, self.ndim)
+            return tndarray(t, self.ndim)
         elif isinstance(other.dtype, tndarray):
-            t = tndarray(t, other.ndim)
+            return tndarray(t, other.ndim)
+
         return t
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         other = to_expr(other)
-        unified_type = self._bin_op_numeric_unify_types(name, other)
+        unified_type = self._bin_op_numeric_unify_types(name, other, ret_type_f)
         me = self._promote_numeric(unified_type)
         other = other._promote_numeric(unified_type)
-        if ret_type_f:
-            if isinstance(unified_type, tarray):
-                ret_type = tarray(ret_type_f(unified_type.element_type))
-            elif isinstance(unified_type, tndarray):
-                ret_type = tndarray(ret_type_f(unified_type.element_type), unified_type.ndim)
-            else:
-                ret_type = ret_type_f(unified_type)
-        else:
-            ret_type = unified_type
-        return me._bin_op(name, other, ret_type)
+
+        return me._bin_op(name, other, unified_type)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
