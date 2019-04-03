@@ -91,8 +91,17 @@ case class BindingEnv[V](
         scan = scan.map(a => a.delete(newBindings.scan.get.m.keys))
       )
     }
-
   }
+
+  def mapValues[T](f: V => T): BindingEnv[T] = {
+    copy[T](eval = eval.mapValues(f), agg = agg.map(_.mapValues(f)), scan = scan.map(_.mapValues(f)))
+  }
+
+  def mapValuesWithKey[T](f: (Env.K, V) => T): BindingEnv[T] = {
+    copy[T](eval = eval.mapValuesWithKey(f), agg = agg.map(_.mapValuesWithKey(f)), scan = scan.map(_.mapValuesWithKey(f)))
+  }
+
+  def dropBindings[T]: BindingEnv[T] = copy(eval = Env.empty, agg = agg.map(_ => Env.empty), scan = scan.map(_ => Env.empty))
 }
 
 class Env[V] private(val m: Map[Env.K, V]) {
@@ -154,8 +163,9 @@ class Env[V] private(val m: Map[Env.K, V]) {
     (names, e)
   }
 
-  def mapValues[U](f: (V) => U): Env[U] =
-    new Env(m.mapValues(f))
+  def mapValues[U](f: (V) => U): Env[U] = new Env(m.mapValues(f))
+
+  def mapValuesWithKey[U](f: (Env.K, V) => U): Env[U] = new Env(m.map { case (k, v) => (k, f(k, v)) })
 
   override def toString: String = m.map { case (k, v) => s"$k -> $v" }.mkString("(", ",", ")")
 }

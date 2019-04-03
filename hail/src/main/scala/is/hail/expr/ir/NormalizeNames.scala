@@ -17,32 +17,61 @@ class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boole
   def apply(ir: BaseIR): BaseIR = {
     ir match {
       case ir: IR => normalizeIR(ir, BindingEnv.empty)
-      case baseIR => normalizeBaseIR(baseIR)
+      case tir: TableIR => normalizeTable(tir)
+      case mir: MatrixIR => normalizeMatrix(mir)
+      case bmir: BlockMatrixIR => normalizeBlockMatrix(bmir)
     }
   }
 
-  private def normalizeBaseIR(ir0: BaseIR): BaseIR = {
+  private def normalizeTable(tir: TableIR): TableIR = {
     if (stopAtRelational)
-      return ir0
+      tir
+    else {
+      tir.copy(tir
+        .children
+        .iterator
+        .zipWithIndex
+        .map {
+          case (child: IR, i) => normalizeIR(child, NewBindings(tir, i).mapValuesWithKey({ case (k, _) => k }))
+          case (child: TableIR, _) => normalizeTable(child)
+          case (child: MatrixIR, _) => normalizeMatrix(child)
+          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+        }.toFastIndexedSeq)
+    }
+  }
 
-    assert(!ir0.isInstanceOf[IR])
+  private def normalizeMatrix(mir: MatrixIR): MatrixIR = {
+    if (stopAtRelational)
+      mir
+    else {
+      mir.copy(mir
+        .children
+        .iterator
+        .zipWithIndex
+        .map {
+          case (child: IR, i) => normalizeIR(child, NewBindings(mir, i).mapValuesWithKey({ case (k, _) => k }))
+          case (child: TableIR, _) => normalizeTable(child)
+          case (child: MatrixIR, _) => normalizeMatrix(child)
+          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+        }.toFastIndexedSeq)
+    }
+  }
 
-    ir0.copy(ir0.children
-      .iterator
-      .zipWithIndex
-      .map {
-        case (ir: IR, i) =>
-          val b = Bindings(ir0, i).map { case (binding, _) => binding -> binding }
-          val ab = AggBindings(ir0, i).map { case (binding, _) => binding -> binding }
-          val sb = ScanBindings(ir0, i).map { case (binding, _) => binding -> binding }
-
-          normalizeIR(ir, BindingEnv(
-            Env.fromSeq(b),
-            agg = if (ab.nonEmpty) Some(Env.fromSeq(ab)) else None,
-            scan = if (sb.nonEmpty) Some(Env.fromSeq(sb)) else None
-          ))
-        case (child, _) => normalizeBaseIR(child)
-      }.toFastIndexedSeq)
+  private def normalizeBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
+    if (stopAtRelational)
+      bmir
+    else {
+      bmir.copy(bmir
+        .children
+        .iterator
+        .zipWithIndex
+        .map {
+          case (child: IR, i) => normalizeIR(child, NewBindings(bmir, i).mapValuesWithKey({ case (k, _) => k }))
+          case (child: TableIR, _) => normalizeTable(child)
+          case (child: MatrixIR, _) => normalizeMatrix(child)
+          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+        }.toFastIndexedSeq)
+    }
   }
 
   private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
@@ -143,11 +172,20 @@ class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boole
       case Uniroot(argname, function, min, max) =>
         val newArgname = gen()
         Uniroot(newArgname, normalize(function, env.bindEval(argname, newArgname)), normalize(min), normalize(max))
+      case TableAggregate(child, query) =>
+        TableAggregate(normalizeTable(child),
+          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))
+            .mapValuesWithKey( { case (k, _) => k })))
+      case MatrixAggregate(child, query) =>
+        MatrixAggregate(normalizeMatrix(child),
+          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
+            .mapValuesWithKey( { case (k, _) => k })))
       case _ =>
-        // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
-          case c: IR => normalize(c)
-          case other => normalizeBaseIR(other)
+          case child: IR => normalize(child)
+          case child: TableIR => normalizeTable(child)
+          case child: MatrixIR => normalizeMatrix(child)
+          case child: BlockMatrixIR => normalizeBlockMatrix(child)
         })
     }
   }

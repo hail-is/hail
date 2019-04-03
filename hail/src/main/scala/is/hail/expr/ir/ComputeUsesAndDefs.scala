@@ -9,37 +9,39 @@ object ComputeUsesAndDefs {
     val uses = Memo.empty[mutable.Set[RefEquality[Ref]]]
     val defs = Memo.empty[RefEquality[BaseIR]]
 
-    def computeTable(tir: TableIR): Unit = computeChildren(tir)
+    def computeTable(tir: TableIR): Unit = tir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => computeIR(child, NewBindings(tir, i).mapValues(_ => RefEquality(tir)))
+        case (child: TableIR, _) => computeTable(child)
+        case (child: MatrixIR, _) => computeMatrix(child)
+        case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
+      }
 
-    def computeMatrix(mir: MatrixIR): Unit = computeChildren(mir)
+    def computeMatrix(mir: MatrixIR): Unit = mir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => computeIR(child, NewBindings(mir, i).mapValues(_ => RefEquality(mir)))
+        case (child: TableIR, _) => computeTable(child)
+        case (child: MatrixIR, _) => computeMatrix(child)
+        case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
+      }
 
-    def computeBlockMatrix(bmir: BlockMatrixIR): Unit = computeChildren(bmir)
+    def computeBlockMatrix(bmir: BlockMatrixIR): Unit = bmir.children
 
-    def computeChildren(ir0: BaseIR, baseEnv: Option[BindingEnv[RefEquality[BaseIR]]] = None): Unit = {
-      ir0.children
-        .iterator
-        .zipWithIndex
-        .foreach {
-          case (ir1: IR, i) =>
-            val e = ChildEnvWithBindings[RefEquality[BaseIR]](
-              ir0,
-              i,
-              baseEnv.getOrElse(BindingEnv.empty),
-              _ => RefEquality(ir0),
-              { (b, ab, sb) =>
-                if ((b.nonEmpty || ab.nonEmpty || sb.nonEmpty) && !uses.contains(ir0))
-                  uses.bind(ir0, mutable.Set.empty[RefEquality[Ref]])
-              }
-            )
-            computeIR(ir1, e)
-          case (tir: TableIR, _) => computeTable(tir)
-          case (mir: MatrixIR, _) => computeMatrix(mir)
-          case (bmir: BlockMatrixIR, _) => computeBlockMatrix(bmir)
-        }
-    }
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => computeIR(child, NewBindings(bmir, i).mapValues(_ => RefEquality(bmir)))
+        case (child: TableIR, _) => computeTable(child)
+        case (child: MatrixIR, _) => computeMatrix(child)
+        case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
+      }
 
-    def computeIR(ir1: BaseIR, env: BindingEnv[RefEquality[BaseIR]]) {
-      ir1 match {
+    def computeIR(ir: IR, env: BindingEnv[RefEquality[BaseIR]]) {
+      ir match {
         case r@Ref(name, _) =>
           env.eval.lookupOption(name) match {
             case Some(decl) =>
@@ -50,10 +52,26 @@ object ComputeUsesAndDefs {
               if (freeVariablesError)
                 throw new RuntimeException(s"found variable with no definition: $name")
           }
-        case ir: IR => computeChildren(ir, Some(env))
-        case tir: TableIR => computeTable(tir)
-        case mir: MatrixIR => computeMatrix(mir)
-        case bmir: BlockMatrixIR => computeBlockMatrix(bmir)
+        case _: IR =>
+          ir.children
+            .iterator
+            .zipWithIndex
+            .foreach {
+              case (ir1: IR, i) =>
+                val e = ChildEnvWithoutBindings(ir, i, env)
+                val newBindings = NewBindings(ir, i, e)
+
+                if (newBindings.allEmpty)
+                  computeIR(ir1, e)
+                else {
+                  uses.bind(ir, mutable.Set.empty[RefEquality[Ref]])
+                  val re = RefEquality(ir)
+                  computeIR(ir1, e.merge(newBindings.mapValues(_ => re)))
+                }
+              case (tir: TableIR, _) => computeTable(tir)
+              case (mir: MatrixIR, _) => computeMatrix(mir)
+              case (bmir: BlockMatrixIR, _) => computeBlockMatrix(bmir)
+            }
       }
     }
 
