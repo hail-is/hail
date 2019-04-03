@@ -11,7 +11,9 @@ cleanup() {
     trap "" INT TERM
     [[ -z $server_pid ]] || kill -9 $server_pid
     [[ -z $proxy_pid ]] || kill -9 $proxy_pid
+    [[ -z $last_service_account ]] || gcloud config set account $last_service_account
 }
+
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
@@ -21,10 +23,11 @@ if [[ $IN_CLUSTER -eq 0 ]]; then
     port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)
     ./cloud_sql_proxy -instances=$connection_name=tcp:$port &
     proxy_pid=$!
-    export PIPELINE_TEST_SECRET_KEY=`pwd`/pipeline-secrets/pipeline-test-0-1--hail-is.key
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
-    export PIPELINE_TEST_SECRET_KEY=/pipeline-secrets/pipeline-test-0-1--hail-is.key
+    pipeline_test_secret_key=/pipeline-secrets/pipeline-test-0-1--hail-is.key
+    last_service_account=$(gcloud auth list --filter=status:ACTIVE --format="value(account)")
+    gcloud auth activate-service-account pipeline-test-0-1--hail-is@hail-vdc.iam.gserviceaccount.com --key-file $pipeline_test_secret_key 
 fi
 
 cd ../batch/
