@@ -132,7 +132,7 @@ abstract class NDArrayLoopEmitter(
       | ${ emitLoops() }
       |
       | $data = ${container.cxxImpl}::elements_address($builder.offset());
-      | make_ndarray(0, ${resultElemType.byteSize}, $resultShape, $strides, $data);
+      | make_ndarray(0, 0, ${resultElemType.byteSize}, $resultShape, $strides, $data);
       |})
     """.stripMargin
   }
