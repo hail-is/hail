@@ -9,7 +9,6 @@ from bokeh.models import *
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import row, column, gridplot
-from ipywidgets import interact
 from itertools import cycle
 
 from hail.expr import aggregators
@@ -188,8 +187,11 @@ def pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interacti
                 final = f(x_d, round1, smoothing)
                 l.data_source.data = {'x': x_d, 'y': final}
                 bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
             interact(update, smoothing=(.02, .8, .005))
-        return (p, mk_interact)
+
+        return p, mk_interact
     else:
         return p
 
@@ -290,8 +292,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
                 new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
                 q.data_source.data = new_data
                 bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
             interact(update, bins=(0, 5*bins), phase=(0, 1, .01))
-        return (p, mk_interact)
+
+        return p, mk_interact
     else:
         return p
 
