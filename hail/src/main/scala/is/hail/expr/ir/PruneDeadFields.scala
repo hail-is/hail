@@ -1101,15 +1101,15 @@ object PruneDeadFields {
       case TableRead(_, dropRows, tr) => TableRead(dep, dropRows, tr)
       case TableFilter(child, pred) =>
         val child2 = rebuild(child, memo)
-        val pred2 = rebuild(pred, child2.typ, memo)
+        val pred2 = rebuildIR(pred, BindingEnv(child2.typ.rowEnv), memo)
         TableFilter(child2, pred2)
       case TableMapRows(child, newRow) =>
         val child2 = rebuild(child, memo)
-        val newRow2 = rebuild(newRow, child2.typ, memo)
+        val newRow2 = rebuildIR(newRow, BindingEnv(child2.typ.rowEnv, scan=Some(child2.typ.rowEnv)), memo)
         TableMapRows(child2, newRow2)
       case TableMapGlobals(child, newGlobals) =>
         val child2 = rebuild(child, memo)
-        TableMapGlobals(child2, rebuild(newGlobals, child2.typ, memo))
+        TableMapGlobals(child2, rebuildIR(newGlobals, BindingEnv(child2.typ.globalEnv), memo))
       case TableKeyBy(child, keys, isSorted) =>
         var child2 = rebuild(child, memo)
         // fully upcast before shuffle
@@ -1141,11 +1141,11 @@ object PruneDeadFields {
           TableZipUnchecked(rebuild(left, memo), rebuild(right, memo))
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
-        TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
+        TableAggregateByKey(child2, rebuildIR(expr, BindingEnv(child2.typ.globalEnv, agg=Some(child2.typ.rowEnv)), memo))
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
         val child2 = rebuild(child, memo)
-        val expr2 = rebuild(expr, child2.typ, memo)
-        val newKey2 = rebuild(newKey, child2.typ, memo)
+        val expr2 = rebuildIR(expr, BindingEnv(child2.typ.globalEnv, agg=Some(child2.typ.rowEnv)), memo)
+        val newKey2 = rebuildIR(newKey, BindingEnv(child2.typ.rowEnv), memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
       case TableRename(child, rowMap, globalMap) =>
         val child2 = rebuild(child, memo)
@@ -1175,32 +1175,38 @@ object PruneDeadFields {
         MatrixRead(requestedType, dropCols, dropRows, reader)
       case MatrixFilterCols(child, pred) =>
         val child2 = rebuild(child, memo)
-        MatrixFilterCols(child2, rebuild(pred, child2.typ, memo))
+        MatrixFilterCols(child2, rebuildIR(pred, BindingEnv(child2.typ.colEnv), memo))
       case MatrixFilterRows(child, pred) =>
         val child2 = rebuild(child, memo)
-        MatrixFilterRows(child2, rebuild(pred, child2.typ, memo))
+        MatrixFilterRows(child2, rebuildIR(pred, BindingEnv(child2.typ.rowEnv), memo))
       case MatrixFilterEntries(child, pred) =>
         val child2 = rebuild(child, memo)
-        MatrixFilterEntries(child2, rebuild(pred, child2.typ, memo))
+        MatrixFilterEntries(child2, rebuildIR(pred, BindingEnv(child2.typ.entryEnv), memo))
       case MatrixMapEntries(child, newEntries) =>
         val child2 = rebuild(child, memo)
-        MatrixMapEntries(child2, rebuild(newEntries, child2.typ, memo))
+        MatrixMapEntries(child2, rebuildIR(newEntries, BindingEnv(child2.typ.entryEnv), memo))
       case MatrixMapRows(child, newRow) =>
         var child2 = rebuild(child, memo)
-        MatrixMapRows(child2, rebuild(newRow, child2.typ, memo))
+        MatrixMapRows(child2, rebuildIR(newRow,
+          BindingEnv(child2.typ.rowEnv, agg=Some(child2.typ.entryEnv), scan=Some(child2.typ.rowEnv)), memo))
       case MatrixMapCols(child, newCol, newKey) =>
         // FIXME account for key
         val child2 = rebuild(child, memo)
-        MatrixMapCols(child2, rebuild(newCol, child2.typ, memo), newKey)
+        MatrixMapCols(child2, rebuildIR(newCol,
+          BindingEnv(child2.typ.colEnv, agg=Some(child2.typ.entryEnv), scan=Some(child2.typ.colEnv)), memo), newKey)
       case MatrixMapGlobals(child, newGlobals) =>
         val child2 = rebuild(child, memo)
-        MatrixMapGlobals(child2, rebuild(newGlobals, child2.typ, memo))
+        MatrixMapGlobals(child2, rebuildIR(newGlobals, BindingEnv(child2.typ.globalEnv), memo))
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val child2 = rebuild(child, memo)
-        MatrixAggregateRowsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(rowExpr, child2.typ, memo))
+        MatrixAggregateRowsByKey(child2,
+          rebuildIR(entryExpr, BindingEnv(child2.typ.colEnv, agg = Some(child2.typ.entryEnv)), memo),
+          rebuildIR(rowExpr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)), memo))
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val child2 = rebuild(child, memo)
-        MatrixAggregateColsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(colExpr, child2.typ, memo))
+        MatrixAggregateColsByKey(child2,
+          rebuildIR(entryExpr, BindingEnv(child2.typ.rowEnv, agg = Some(child2.typ.entryEnv)), memo),
+          rebuildIR(colExpr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)), memo))
       case MatrixUnionRows(children) =>
         val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
         MatrixUnionRows(children.map { child =>
@@ -1250,10 +1256,6 @@ object PruneDeadFields {
       case bmir: BlockMatrixIR => rebuild(bmir, memo)
     }
   )
-
-  def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
-    rebuildIR(ir, relationalTypeToEnv(in), memo)
-  }
 
   def rebuildIR(ir: IR, env: BindingEnv[Type], memo: Memo[BaseType]): IR = {
     val requestedType = memo.lookup(ir).asInstanceOf[Type]
@@ -1370,11 +1372,11 @@ object PruneDeadFields {
           rebuildIR(max, env, memo))
       case TableAggregate(child, query) =>
         val child2 = rebuild(child, memo)
-        val query2 = rebuild(query, child2.typ, memo)
+        val query2 = rebuildIR(query, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.rowEnv)), memo)
         TableAggregate(child2, query2)
       case MatrixAggregate(child, query) =>
         val child2 = rebuild(child, memo)
-        val query2 = rebuild(query, child2.typ, memo)
+        val query2 = rebuildIR(query, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.entryEnv)), memo)
         MatrixAggregate(child2, query2)
       case TableCollect(child) =>
         val rStruct = requestedType.asInstanceOf[TStruct]
