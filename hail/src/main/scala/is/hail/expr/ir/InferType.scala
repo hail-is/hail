@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.Nat
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -22,7 +23,7 @@ object InferType {
       case In(_, t) => t
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
-      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, TNat(nDim))
+      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, Nat(nDim))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
@@ -99,9 +100,9 @@ object InferType {
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
       case NDArrayMap(nd, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDims, nd.typ.required)
+        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
-        TNDArray(body.typ, coerce[TNDArray](l.typ).nDims, l.typ.required)
+        TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayRef(nd, idxs) =>
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 

@@ -1,5 +1,6 @@
 from parsimonious import Grammar, NodeVisitor
 import hail as hl
+from hail.expr.nat import NatVariable
 from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
@@ -16,7 +17,7 @@ type_grammar = Grammar(
     str = "tstr" / "str"
     locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
-    ndarray = ("tndarray" / "ndarray") _ "<" type "," _ (type / int_literal)">"
+    ndarray = ("tndarray" / "ndarray") _ "<" type "," _ nat ">"
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -27,7 +28,9 @@ type_grammar = Grammar(
     identifier = _ (simple_identifier / escaped_identifier) _
     simple_identifier = ~"\w+"
     escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
-    int_literal = ~"[0-9]+"
+    nat = (nat_literal / nat_variable)
+    nat_literal = ~"[0-9]+"
+    nat_variable = "?nat"
     _ = ~"\s*"
     """)
 
@@ -129,8 +132,11 @@ class TypeConstructor(NodeVisitor):
     def visit_escaped_identifier(self, node, visited_children):
         return unescape_parsable(node.text[1:-1])
 
-    def visit_int_literal(self, node, visited_children):
+    def visit_nat_literal(self, node, visited_children):
         return int(node.text)
+
+    def visit_nat_variable(self, node, visited_children):
+        return NatVariable()
 
 
 type_node_visitor = TypeConstructor()

@@ -250,6 +250,7 @@ abstract class Type extends BaseType with Serializable {
       case t: TInterval => t.copy(required = required)
       case t: TStruct => t.copy(required = required)
       case t: TTuple => t.copy(required = required)
+      case t: TNDArray => t.copy(required = required)
     }
   }
 
@@ -265,7 +266,6 @@ abstract class Type extends BaseType with Serializable {
       case TCall(_) => t == TCallOptional || t == TCallRequired
       case t2: TLocus => t.isInstanceOf[TLocus] && t.asInstanceOf[TLocus].rg == t2.rg
       case t2: TInterval => t.isInstanceOf[TInterval] && t.asInstanceOf[TInterval].pointType.isOfType(t2.pointType)
-      case t2: TNat => t.isInstanceOf[TNat] && t.asInstanceOf[TNat].n == t2.n
       case t2: TStruct =>
         t.isInstanceOf[TStruct] &&
           t.asInstanceOf[TStruct].size == t2.size &&
@@ -280,7 +280,7 @@ abstract class Type extends BaseType with Serializable {
       case t2: TNDArray =>
         t.isInstanceOf[TNDArray] &&
         t.asInstanceOf[TNDArray].elementType.isOfType(t2.elementType) &&
-        t.asInstanceOf[TNDArray].nDims.isOfType(t2.nDims)
+        t.asInstanceOf[TNDArray].nDims == t2.nDims
       case TVoid => t == TVoid
     }
   }

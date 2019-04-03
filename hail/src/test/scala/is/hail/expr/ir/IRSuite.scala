@@ -5,7 +5,7 @@ import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
-import is.hail.expr.ir
+import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, NDArrayFunctions, RegistryFunctions, SeededIRFunction}
@@ -1568,8 +1568,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
-      "nd" -> TNDArray(TFloat64(), TNat(1)),
-      "nd2" -> TNDArray(TArray(TString()), TNat(1)),
+      "nd" -> TNDArray(TFloat64(), Nat(1)),
+      "nd2" -> TNDArray(TArray(TString()), Nat(1)),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),

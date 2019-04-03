@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
+import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
@@ -361,7 +361,7 @@ object IRParser {
         punctuation(it, ",")
         val nDims = int32_literal(it)
         punctuation(it, "]")
-        TNDArray(elementType, TNat(nDims), req)
+        TNDArray(elementType, Nat(nDims), req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -385,11 +385,6 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields, req)
-      case "Nat" =>
-        punctuation(it, "(")
-        val n = int32_literal(it)
-        punctuation(it, ")")
-        TNat(n, req)
     }
     assert(typ.required == req)
     typ

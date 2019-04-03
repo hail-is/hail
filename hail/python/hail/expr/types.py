@@ -5,6 +5,7 @@ from collections import Mapping, Sequence
 
 import hail as hl
 from hail import genetics
+from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
@@ -38,7 +39,6 @@ __all__ = [
     'tcall',
     'tvoid',
     'tvariable',
-    'tnat',
     'hts_entry_schema',
 ]
 
@@ -520,10 +520,10 @@ class tndarray(HailType):
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type, ndim=oneof(hail_type, int))
+    @typecheck_method(element_type=hail_type, ndim=oneof(NatBase, int))
     def __init__(self, element_type, ndim):
         self._element_type = element_type
-        self._ndim = tnat(ndim) if isinstance(ndim, int) else ndim
+        self._ndim = NatLiteral(ndim) if isinstance(ndim, int) else ndim
         super(tndarray, self).__init__()
 
     @property
@@ -546,14 +546,13 @@ class tndarray(HailType):
         :obj:`int`
             Number of dimensions.
         """
-        assert isinstance(self._ndim, tnat), "tndarray must be realized with a concrete number of dimensions"
+        assert isinstance(self._ndim, NatLiteral), "tndarray must be realized with a concrete number of dimensions"
         return self._ndim.n
 
     def _traverse(self, obj, f):
         if f(self, obj):
             for elt in obj:
                 self.element_type._traverse(elt, f)
-                self.ndim._traverse(elt, f)
 
     def _typecheck_one_level(self, annotation):
         raise NotImplementedError
@@ -568,11 +567,11 @@ class tndarray(HailType):
         l.append('ndarray<')
         self._element_type._pretty(l, indent, increment)
         l.append(', ')
-        self._ndim._pretty(l, indent, increment)
+        l.append(str(self.ndim))
         l.append('>')
 
     def _parsable_string(self):
-        return f'NDArray[{self._element_type._parsable_string()},{self._ndim._parsable_string()}]'
+        return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError
@@ -1305,39 +1304,6 @@ class tinterval(HailType):
         self.point_type.clear()
 
 
-class tnat(HailType):
-    def __init__(self, n):
-        self.n = n
-        super(tnat, self).__init__()
-
-    def _traverse(self, obj, f):
-        pass
-
-    def _typecheck_one_level(self, annotation):
-        raise NotImplementedError
-
-    def __str__(self):
-        return f'{self.n}'
-
-    def _eq(self, other):
-        return self.n == other.n
-
-    def _pretty(self, l, indent, increment):
-        l.append(str(self.n))
-
-    def _parsable_string(self):
-        return f'{self.n}'
-
-    def clear(self):
-        pass
-
-    def unify(self, t):
-        return isinstance(t, tnat) and t.n == self.n
-
-    def subst(self):
-        return self
-
-
 class Box(object):
     named_boxes = {}
 
@@ -1498,7 +1464,6 @@ class tvariable(HailType):
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
         'tuple': lambda x: isinstance(x, ttuple),
-        'nat': lambda x: isinstance(x, tnat)
     }
 
     def __init__(self, name, cond):

@@ -465,7 +465,7 @@ class MakeNDArray(IR):
         self.data._compute_type(env, agg_env)
         self.shape._compute_type(env, agg_env)
         self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type, tnat(self.ndim))
+        self._type = tndarray(self.data.typ.element_type, self.ndim)
 
 
 class NDArrayMap(IR):

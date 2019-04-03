@@ -119,7 +119,7 @@ object PType {
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case t: TTuple => PTuple(t.types.map(canonical), t.required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims.asInstanceOf[TNat].n, t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case TVoid => PVoid
     }
   }
@@ -142,7 +142,7 @@ object PType {
       case t: PSet => PSet(canonical(t.elementType), t.required)
       case t: PTuple => PTuple(t.types.map(canonical), t.required)
       case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims.asInstanceOf[TNat].n, t.required)
+      case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
     }
