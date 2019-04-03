@@ -1,5 +1,3 @@
-from .ldscore import ld_score
-from .ld_score_regression import ld_score_regression
 from .expressions import *
 from .filtering_allele_frequency import filtering_allele_frequency
 from .haplotype_freq_em import haplotype_freq_em
@@ -16,10 +14,9 @@ from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
 from .tidyr import gather, separate, spread
 from .codec import encode, decode
+from . import ld_score
 
-__all__ = ['ld_score',
-           'ld_score_regression',
-           'write_expression',
+__all__ = ['write_expression',
            'read_expression',
            'filtering_allele_frequency',
            'hail_metadata',
@@ -44,4 +41,5 @@ __all__ = ['ld_score',
            'separate',
            'spread',
            'encode',
-           'decode']
+           'decode',
+           'ld_score']

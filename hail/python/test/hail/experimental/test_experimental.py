@@ -10,7 +10,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
-    def test_ld_score(self):
+    def test_calculate_ld_scores(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),
                              types={'BP': hl.tint,
@@ -26,13 +26,13 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(binary=ht[mt.locus].binary,
                               continuous=ht[mt.locus].continuous)
 
-        ht_univariate = hl.experimental.ld_score(
+        ht_univariate = hl.experimental.ld_score.calculate_ld_scores(
             entry_expr=mt.GT.n_alt_alleles(),
             locus_expr=mt.locus,
             radius=1.0,
             coord_expr=mt.cm_position)
 
-        ht_annotated = hl.experimental.ld_score(
+        ht_annotated = hl.experimental.ld_score.calculate_ld_scores(
             entry_expr=mt.GT.n_alt_alleles(),
             locus_expr=mt.locus,
             radius=1.0,
@@ -92,8 +92,7 @@ class Tests(unittest.TestCase):
         ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
-    def test_ld_score_regression(self):
-
+    def test_estimate_heritability(self):
         ht_scores = hl.import_table(
             doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
             key='SNP', types={'L2': hl.tfloat, 'BP': hl.tint})
@@ -149,15 +148,16 @@ class Tests(unittest.TestCase):
         mt_tmp = new_temp_file()
         mt.write(mt_tmp, overwrite=True)
         mt = hl.read_matrix_table(mt_tmp)
-
-        ht_results = hl.experimental.ld_score_regression(
-            weight_expr=mt['ld_score'],
-            ld_score_expr=mt['ld_score'],
+        
+        ht_results = hl.experimental.ld_score.estimate_heritability(
             chi_sq_exprs=mt['chi_squared'],
             n_samples_exprs=mt['n'],
+            weight_expr=mt['ld_score'],
+            ld_score_expr=mt['ld_score'],
             n_blocks=20,
-            two_step_threshold=5,
-            n_reference_panel_variants=1173569)
+            two_step_threshold=None,
+            n_reference_panel_variants=1173569
+        )
 
         results = {
             x['phenotype']: {
@@ -174,31 +174,82 @@ class Tests(unittest.TestCase):
             3.4386, places=4)
         self.assertAlmostEqual(
             results['50_irnt']['intercept_estimate'],
-            0.7727, places=4)
+            0.5761, places=4)
         self.assertAlmostEqual(
             results['50_irnt']['intercept_standard_error'],
-            0.2461, places=4)
+            0.4310, places=4)
         self.assertAlmostEqual(
             results['50_irnt']['snp_heritability_estimate'],
-            0.3845, places=4)
+            0.4549, places=4)
         self.assertAlmostEqual(
             results['50_irnt']['snp_heritability_standard_error'],
-            0.1067, places=4)
+            0.1525, places=4)
 
         self.assertAlmostEqual(
             results['20160']['mean_chi_sq'],
             1.5209, places=4)
         self.assertAlmostEqual(
             results['20160']['intercept_estimate'],
-            1.2109, places=4)
+            1.2707, places=4)
         self.assertAlmostEqual(
             results['20160']['intercept_standard_error'],
-            0.2238, places=4)
+            0.2069, places=4)
         self.assertAlmostEqual(
             results['20160']['snp_heritability_estimate'],
-            0.0486, places=4)
+            0.0364, places=4)
         self.assertAlmostEqual(
             results['20160']['snp_heritability_standard_error'],
+            0.0460, places=4)
+        
+        ht_results_twostep = hl.experimental.ld_score.estimate_heritability(
+            chi_sq_exprs=mt['chi_squared'],
+            n_samples_exprs=mt['n'],
+            weight_expr=mt['ld_score'],
+            ld_score_expr=mt['ld_score'],
+            n_blocks=20,
+            two_step_threshold=5,
+            n_reference_panel_variants=1173569)
+
+        results_twostep = {
+            x['phenotype']: {
+                'mean_chi_sq': x['mean_chi_sq'],
+                'intercept_estimate': x['intercept']['estimate'],
+                'intercept_standard_error': x['intercept']['standard_error'],
+                'snp_heritability_estimate': x['snp_heritability']['estimate'],
+                'snp_heritability_standard_error':
+                    x['snp_heritability']['standard_error']}
+            for x in ht_results_twostep.collect()}
+
+        self.assertAlmostEqual(
+            results_twostep['50_irnt']['mean_chi_sq'],
+            3.4386, places=4)
+        self.assertAlmostEqual(
+            results_twostep['50_irnt']['intercept_estimate'],
+            0.7727, places=4)
+        self.assertAlmostEqual(
+            results_twostep['50_irnt']['intercept_standard_error'],
+            0.2461, places=4)
+        self.assertAlmostEqual(
+            results_twostep['50_irnt']['snp_heritability_estimate'],
+            0.3845, places=4)
+        self.assertAlmostEqual(
+            results_twostep['50_irnt']['snp_heritability_standard_error'],
+            0.1067, places=4)
+
+        self.assertAlmostEqual(
+            results_twostep['20160']['mean_chi_sq'],
+            1.5209, places=4)
+        self.assertAlmostEqual(
+            results_twostep['20160']['intercept_estimate'],
+            1.2109, places=4)
+        self.assertAlmostEqual(
+            results_twostep['20160']['intercept_standard_error'],
+            0.2238, places=4)
+        self.assertAlmostEqual(
+            results_twostep['20160']['snp_heritability_estimate'],
+            0.0486, places=4)
+        self.assertAlmostEqual(
+            results_twostep['20160']['snp_heritability_standard_error'],
             0.0416, places=4)
 
         ht = ht_50_irnt.annotate(
@@ -207,13 +258,13 @@ class Tests(unittest.TestCase):
             chi_squared_20160=ht_20160[ht_50_irnt.key]['chi_squared'],
             n_20160=ht_20160[ht_50_irnt.key]['n'])
 
-        ht_results = hl.experimental.ld_score_regression(
-            weight_expr=ht['ld_score'],
-            ld_score_expr=ht['ld_score'],
+        ht_results = hl.experimental.ld_score.estimate_heritability(
             chi_sq_exprs=[ht['chi_squared_50_irnt'],
-                               ht['chi_squared_20160']],
+                          ht['chi_squared_20160']],
             n_samples_exprs=[ht['n_50_irnt'],
                              ht['n_20160']],
+            weight_expr=ht['ld_score'],
+            ld_score_expr=ht['ld_score'],
             n_blocks=20,
             two_step_threshold=5,
             n_reference_panel_variants=1173569)
@@ -229,35 +280,35 @@ class Tests(unittest.TestCase):
             for x in ht_results.collect()}
 
         self.assertAlmostEqual(
-            results[0]['mean_chi_sq'],
+            results['y0']['mean_chi_sq'],
             3.4386, places=4)
         self.assertAlmostEqual(
-            results[0]['intercept_estimate'],
+            results['y0']['intercept_estimate'],
             0.7727, places=4)
         self.assertAlmostEqual(
-            results[0]['intercept_standard_error'],
+            results['y0']['intercept_standard_error'],
             0.2461, places=4)
         self.assertAlmostEqual(
-            results[0]['snp_heritability_estimate'],
+            results['y0']['snp_heritability_estimate'],
             0.3845, places=4)
         self.assertAlmostEqual(
-            results[0]['snp_heritability_standard_error'],
+            results['y0']['snp_heritability_standard_error'],
             0.1067, places=4)
 
         self.assertAlmostEqual(
-            results[1]['mean_chi_sq'],
+            results['y1']['mean_chi_sq'],
             1.5209, places=4)
         self.assertAlmostEqual(
-            results[1]['intercept_estimate'],
+            results['y1']['intercept_estimate'],
             1.2109, places=4)
         self.assertAlmostEqual(
-            results[1]['intercept_standard_error'],
+            results['y1']['intercept_standard_error'],
             0.2238, places=4)
         self.assertAlmostEqual(
-            results[1]['snp_heritability_estimate'],
+            results['y1']['snp_heritability_estimate'],
             0.0486, places=4)
         self.assertAlmostEqual(
-            results[1]['snp_heritability_standard_error'],
+            results['y1']['snp_heritability_standard_error'],
             0.0416, places=4)
 
     def test_sparse(self):
