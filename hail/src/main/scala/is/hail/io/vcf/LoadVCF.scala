@@ -898,6 +898,17 @@ object LoadVCF {
     rvb: RegionValueBuilder,
     dropSamples: Boolean = false
   ): Unit = {
+    // QUAL
+    if (c.hasQual) {
+      val qstr = l.parseString()
+      if (qstr == ".")
+        rvb.addDouble(-10.0)
+      else
+        rvb.addDouble(qstr.toDouble)
+    } else
+      l.skipField()
+    l.nextField()
+
     val vc = c.codec.decode(l.line)
     reader.readVariantInfo(vc, rvb, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
@@ -914,9 +925,9 @@ object LoadVCF {
             i += 1
           }
         } else {
-          // l is pointing at qual
+          // l is pointing at filter
           var i = 0
-          while (i < 3) { // qual, filter, info
+          while (i < 2) { // filter, info
             l.skipField()
             l.nextField()
             i += 1

@@ -41,11 +41,8 @@ class HtsjdkRecordReader(
     hasFilters: Boolean,
     infoType: TStruct,
     infoFlagFieldNames: Set[String]) {
-    // locus, alleles added via VCFLine
-
-    if (hasQual) {
-      rvb.addDouble(vc.getPhredScaledQual)
-    }
+    // locus, alleles, rsid added via VCFLine
+    // qual added via parseLine
 
     // filters
     if (hasFilters) {
