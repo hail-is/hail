@@ -244,7 +244,7 @@ package object utils extends Logging
     if (str.matches("""[_a-zA-Z]\w*"""))
       str
     else
-      s"'${ StringEscapeUtils.escapeString(str, backticked = true) }`"
+      s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
 
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
