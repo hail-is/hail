@@ -5,7 +5,6 @@ import tempfile
 
 from pipeline import Pipeline, BatchBackend
 
-
 gcs_input_dir = 'gs://hail-pipeline-test/data'
 gcs_output_dir = 'gs://hail-pipeline-test/output'
 
@@ -257,6 +256,30 @@ class LocalTests(unittest.TestCase):
             in1.add_extension('.baz')
         assert in1._value.endswith('.txt.bgz.foo')
 
+    def test_gcs_file_localization(self):
+        p = Pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input} > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/hello.txt')
+        p.run(verbose=True)
+
+    def test_file_name_space(self):
+        with tempfile.NamedTemporaryFile('w', prefix="some file name with spaces") as input_file, \
+                tempfile.NamedTemporaryFile('w', prefix="another file name with spaces") as output_file:
+
+            input_file.write('abc')
+            input_file.flush()
+
+            p = Pipeline()
+            input = p.read_input(input_file.name)
+            t = p.new_task()
+            t.command(f'cat {input} > {t.ofile}')
+            p.write_output(t.ofile, output_file.name)
+            p.run()
+
+            self.assert_same_file(input_file.name, output_file.name)
+
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
@@ -356,3 +379,10 @@ class BatchTests(unittest.TestCase):
 
         p.run(delete_scratch_on_exit=False)
 
+    def test_file_name_space(self):
+        p = self.pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello spaces.txt')
+        t = p.new_task()
+        t.command(f'cat {input} > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/hello spaces.txt')
+        p.run()
