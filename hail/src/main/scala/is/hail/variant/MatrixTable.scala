@@ -458,7 +458,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def head(n: Long): MatrixTable = {
     if (n < 0)
-      fatal(s"n must be non-negative! Found `$n'.")
+      fatal(s"n must be non-negative! Found '$n'.")
     copy2(rvd = rvd.head(n, None))
   }
 

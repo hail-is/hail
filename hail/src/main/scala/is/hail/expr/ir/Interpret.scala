@@ -587,7 +587,7 @@ object Interpret {
             val binsValue = interpret(bins, Env.empty[Any], null, null).asInstanceOf[Int]
 
             if (binsValue <= 0)
-              fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+              fatal(s"""method 'hist' expects 'bins' argument to be > 0, but got $bins""")
 
             val binSize = (endValue - startValue) / binsValue
             if (binSize <= 0)

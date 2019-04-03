@@ -665,7 +665,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       StorageLevel.fromString(storageLevel)
     } catch {
       case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
+        fatal(s"unknown StorageLevel '$storageLevel'")
     }
     persist(level)
   }

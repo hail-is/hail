@@ -231,7 +231,7 @@ package object utils extends Logging
 
     fname match {
       case partRegex(i) => i.toInt
-      case _ => throw new PathIOException(s"invalid partition file `$fname'")
+      case _ => throw new PathIOException(s"invalid partition file '$fname'")
     }
   }
 
@@ -244,7 +244,7 @@ package object utils extends Logging
     if (str.matches("""[_a-zA-Z]\w*"""))
       str
     else
-      s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
+      s"'${ StringEscapeUtils.escapeString(str, backticked = true) }`"
   }
 
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
@@ -441,25 +441,6 @@ package object utils extends Logging
 
   val defaultJSONFormats: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
 
-  def splitWarning(leftSplit: Boolean, left: String, rightSplit: Boolean, right: String) {
-    val msg =
-      """Merge behavior may not be as expected, as all alternate alleles are
-        |  part of the variant key.  See `annotatevariants' documentation for
-        |  more information.""".stripMargin
-    (leftSplit, rightSplit) match {
-      case (true, true) =>
-      case (false, false) => warn(
-        s"""annotating an unsplit $left from an unsplit $right
-           |  $msg""".stripMargin)
-      case (true, false) => warn(
-        s"""annotating a biallelic (split) $left from an unsplit $right
-           |  $msg""".stripMargin)
-      case (false, true) => warn(
-        s"""annotating an unsplit $left from a biallelic (split) $right
-           |  $msg""".stripMargin)
-    }
-  }
-
   def box(i: Int): java.lang.Integer = i
 
   def box(l: Long): java.lang.Long = l
@@ -493,7 +474,7 @@ package object utils extends Logging
 
   def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {
     val resourceStream = Thread.currentThread().getContextClassLoader.getResourceAsStream(file)
-    assert(resourceStream != null, s"Error while locating file `$file'")
+    assert(resourceStream != null, s"Error while locating file '$file'")
 
     try
       reader(resourceStream)
