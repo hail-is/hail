@@ -1,17 +1,13 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {
-  def apply(ir: BaseIR): Unit = apply(ir, BindingEnv.empty)
-
-
-  def apply(ir: BaseIR, env: BindingEnv[Type]): Unit = {
+  def apply(ir: BaseIR): Unit = {
     try {
       ir match {
-        case ir: IR => check(ir, env)
+        case ir: IR => check(ir, BindingEnv.empty)
         case tir: TableIR => check(tir)
         case mir: MatrixIR => check(mir)
         case bmir: BlockMatrixIR => check(bmir)
@@ -21,26 +17,44 @@ object TypeCheck {
     }
   }
 
-  private def check(tir: TableIR): Unit = checkChildren(tir)
-
-  private def check(mir: MatrixIR): Unit = checkChildren(mir)
-
-  private def check(bmir: BlockMatrixIR): Unit = checkChildren(bmir)
-
-  private def checkChildren(ir: BaseIR, baseEnv: Option[BindingEnv[Type]] = None): Unit = {
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach {
-        case (child: IR, i) =>
-          val e = ChildEnvWithBindings(ir, i, baseEnv.getOrElse(BindingEnv.empty))
-          check(child, e)
-        case (tir: TableIR, _) => check(tir)
-        case (mir: MatrixIR, _) => check(mir)
-        case (bmir: BlockMatrixIR, _) => check(bmir)
-      }
-
+  def apply(ir: IR, env: BindingEnv[Type]): Unit = {
+    try {
+      check(ir, env)
+    } catch {
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
+    }
   }
+
+  private def check(tir: TableIR): Unit = tir.children
+    .iterator
+    .zipWithIndex
+    .foreach {
+      case (child: IR, i) => check(child, NewBindings(tir, i))
+      case (tir: TableIR, _) => check(tir)
+      case (mir: MatrixIR, _) => check(mir)
+      case (bmir: BlockMatrixIR, _) => check(bmir)
+    }
+
+
+  private def check(mir: MatrixIR): Unit = mir.children
+    .iterator
+    .zipWithIndex
+    .foreach {
+      case (child: IR, i) => check(child, NewBindings(mir, i))
+      case (tir: TableIR, _) => check(tir)
+      case (mir: MatrixIR, _) => check(mir)
+      case (bmir: BlockMatrixIR, _) => check(bmir)
+    }
+
+  private def check(bmir: BlockMatrixIR): Unit = bmir.children
+    .iterator
+    .zipWithIndex
+    .foreach {
+      case (child: IR, i) => check(child, NewBindings(bmir, i))
+      case (tir: TableIR, _) => check(tir)
+      case (mir: MatrixIR, _) => check(mir)
+      case (bmir: BlockMatrixIR, _) => check(bmir)
+    }
 
   private def check(ir: IR, env: BindingEnv[Type]): Unit = {
     ir match {
@@ -256,6 +270,14 @@ object TypeCheck {
         assert(x.typ == TStream(rowType))
     }
 
-    checkChildren(ir, Some(env))
+    ir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
   }
 }
