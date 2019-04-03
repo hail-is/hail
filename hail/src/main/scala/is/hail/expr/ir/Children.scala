@@ -84,7 +84,7 @@ object Children {
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
       Array(l, r, body)
-    case NDArrayBroadcast(nd, _) =>
+    case NDArrayReindex(nd, _) =>
       Array(nd)
     case AggFilter(cond, aggIR, _) =>
       Array(cond, aggIR)

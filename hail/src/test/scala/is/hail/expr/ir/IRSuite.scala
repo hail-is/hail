@@ -998,13 +998,13 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(twentyTwo, 22.0)
   }
 
-  @Test def testNDArrayBroadcast() {
+  @Test def testNDArrayReindex() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val transpose = NDArrayBroadcast(mat, IndexedSeq(1, 0))
-    val identity = NDArrayBroadcast(mat, IndexedSeq(0, 1))
+    val transpose = NDArrayReindex(mat, IndexedSeq(1, 0))
+    val identity = NDArrayReindex(mat, IndexedSeq(0, 1))
 
     val topLeftIndex = MakeArray(FastSeq(0L, 0L), TArray(TInt64()))
     val bottomLeftIndex = MakeArray(FastSeq(1L, 0L), TArray(TInt64()))
@@ -1016,11 +1016,11 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
 
-    val partialTranspose = NDArrayBroadcast(cubeRowMajor, IndexedSeq(0, 2, 1))
+    val partialTranspose = NDArrayReindex(cubeRowMajor, IndexedSeq(0, 2, 1))
     val idx = MakeArray(FastSeq(0L, 1L, 0L), TArray(TInt64()))
-    val mirroredIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
+    val partialTranposeIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
-    assertEvalsTo(NDArrayRef(partialTranspose, mirroredIdx), 3.0)
+    assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
 
   @Test def testLeftJoinRightDistinct() {

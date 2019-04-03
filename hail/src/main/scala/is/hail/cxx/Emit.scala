@@ -967,9 +967,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case ir.NDArrayBroadcast(child, indexExpr) =>
+      case ir.NDArrayReindex(child, indexExpr) =>
         assert(indexExpr.length == child.typ.asInstanceOf[TNDArray].nDims,
-          "Cannot realize broadcast that is not a transpose")
+          "Cannot realize reindexing that is not a transpose")
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
         val shape = fb.variable("shape", "std::vector<long>")

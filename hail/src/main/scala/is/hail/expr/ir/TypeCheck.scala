@@ -135,7 +135,7 @@ object TypeCheck {
         val rTyp = coerce[TNDArray](r.typ)
         assert(lTyp.nDims == rTyp.nDims)
         assert(x.elementTyp == body.typ)
-      case x@NDArrayBroadcast(nd, indexExpr) =>
+      case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(coerce[TNDArray](nd.typ).nDims <= indexExpr.length)
       case x@ArraySort(a, l, r, compare) =>
