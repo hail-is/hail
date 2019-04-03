@@ -116,16 +116,16 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     fatal(s"No lengths given for the following contigs: ${ missingLengths.mkString(", ") }")
 
   if (extraLengths.nonEmpty)
-    fatal(s"Contigs found in `lengths' that are not present in `contigs': ${ extraLengths.mkString(", ") }")
+    fatal(s"Contigs found in 'lengths' that are not present in 'contigs': ${ extraLengths.mkString(", ") }")
 
   if (xContigs.intersect(yContigs).nonEmpty)
-    fatal(s"Found the contigs `${ xContigs.intersect(yContigs).mkString(", ") }' in both X and Y contigs.")
+    fatal(s"Found the contigs '${ xContigs.intersect(yContigs).mkString(", ") }' in both X and Y contigs.")
 
   if (xContigs.intersect(mtContigs).nonEmpty)
-    fatal(s"Found the contigs `${ xContigs.intersect(mtContigs).mkString(", ") }' in both X and MT contigs.")
+    fatal(s"Found the contigs '${ xContigs.intersect(mtContigs).mkString(", ") }' in both X and MT contigs.")
 
   if (yContigs.intersect(mtContigs).nonEmpty)
-    fatal(s"Found the contigs `${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
+    fatal(s"Found the contigs '${ yContigs.intersect(mtContigs).mkString(", ") }' in both Y and MT contigs.")
 
   val contigsIndex: Map[String, Int] = contigs.zipWithIndex.toMap
   val contigsSet: Set[String] = contigs.toSet
@@ -133,7 +133,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   lengths.foreach { case (n, l) =>
     if (l <= 0)
-      fatal(s"Contig length must be positive. Contig `$n' has length equal to $l.")
+      fatal(s"Contig length must be positive. Contig '$n' has length equal to $l.")
   }
 
   val xNotInRef = xContigs.diff(contigsSet)
@@ -141,13 +141,13 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   val mtNotInRef = mtContigs.diff(contigsSet)
 
   if (xNotInRef.nonEmpty)
-    fatal(s"The following X contig names are absent from the reference: `${ xNotInRef.mkString(", ") }'.")
+    fatal(s"The following X contig names are absent from the reference: '${ xNotInRef.mkString(", ") }'.")
 
   if (yNotInRef.nonEmpty)
-    fatal(s"The following Y contig names are absent from the reference: `${ yNotInRef.mkString(", ") }'.")
+    fatal(s"The following Y contig names are absent from the reference: '${ yNotInRef.mkString(", ") }'.")
 
   if (mtNotInRef.nonEmpty)
-    fatal(s"The following mitochondrial contig names are absent from the reference: `${ mtNotInRef.mkString(", ") }'.")
+    fatal(s"The following mitochondrial contig names are absent from the reference: '${ mtNotInRef.mkString(", ") }'.")
 
   val xContigIndices = xContigs.map(contigsIndex)
   val yContigIndices = yContigs.map(contigsIndex)
@@ -175,11 +175,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
-      fatal(s"The contigs for the `start' and `end' of a PAR interval must be the same. Found `$start-$end'.")
+      fatal(s"The contigs for the 'start' and 'end' of a PAR interval must be the same. Found '$start-$end'.")
 
     if ((!xContigs.contains(start.contig) && !yContigs.contains(start.contig)) ||
       (!xContigs.contains(end.contig) && !yContigs.contains(end.contig)))
-      fatal(s"The contig name for PAR interval `$start-$end' was not found in xContigs `${ xContigs.mkString(",") }' or in yContigs `${ yContigs.mkString(",") }'.")
+      fatal(s"The contig name for PAR interval '$start-$end' was not found in xContigs '${ xContigs.mkString(",") }' or in yContigs '${ yContigs.mkString(",") }'.")
 
     Interval(start, end, includesStart = true, includesEnd = false)
   }
@@ -223,7 +223,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def contigLength(contig: String): Int = lengths.get(contig) match {
     case Some(l) => l
-    case None => fatal(s"Invalid contig name: `$contig'.")
+    case None => fatal(s"Invalid contig name: '$contig'.")
   }
 
   def contigLength(contigIdx: Int): Int = {
@@ -248,9 +248,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def checkLocus(contig: String, pos: Int): Unit = {
     if (!isValidLocus(contig, pos)) {
       if (!isValidContig(contig))
-        fatal(s"Invalid locus `$contig:$pos' found. Contig `$contig' is not in the reference genome `$name'.")
+        fatal(s"Invalid locus '$contig:$pos' found. Contig '$contig' is not in the reference genome '$name'.")
       else
-        fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
+        fatal(s"Invalid locus '$contig:$pos' found. Position '$pos' is not within the range [1-${ contigLength(contig) }] for reference genome '$name'.")
     }
   }
 
@@ -262,23 +262,23 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
       if (!isValidContig(start.contig))
-        fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
+        fatal(s"Invalid interval '$i' found. Contig '${ start.contig }' is not in the reference genome '$name'.")
       else
-        fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
+        fatal(s"Invalid interval '$i' found. Start '$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome '$name'.")
     }
 
     if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
       if (!isValidContig(end.contig))
-        fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
+        fatal(s"Invalid interval '$i' found. Contig '${ end.contig }' is not in the reference genome '$name'.")
       else
-        fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
+        fatal(s"Invalid interval '$i' found. End '$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome '$name'.")
     }
 
     if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
       if (start == end && ((includesStart && !includesEnd) || (!includesStart && includesStart)))
-        fatal(s"Invalid interval `$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
+        fatal(s"Invalid interval '$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
       else
-        fatal(s"Invalid interval `$i' found. ")
+        fatal(s"Invalid interval '$i' found. ")
   }
 
   def normalizeLocusInterval(i: Interval): Interval = {
@@ -335,7 +335,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def addSequence(hc: HailContext, fastaFile: String, indexFile: String) {
     if (hasSequence)
-      fatal(s"FASTA sequence has already been loaded for reference genome `$name'.")
+      fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
     val hConf = hc.hadoopConf
     if (!hConf.exists(fastaFile))
@@ -348,7 +348,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
     if (missingContigs.nonEmpty)
-      fatal(s"Contigs missing in FASTA `$fastaFile' that are present in reference genome `$name':\n  " +
+      fatal(s"Contigs missing in FASTA '$fastaFile' that are present in reference genome '$name':\n  " +
         s"@1", missingContigs.truncatable("\n  "))
 
     val invalidLengths = lengths.flatMap { case (c, l) =>
@@ -360,7 +360,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }.map { case (c, e, f) => s"$c\texpected:$e\tfound:$f"}
 
     if (invalidLengths.nonEmpty)
-      fatal(s"Contig sizes in FASTA `$fastaFile' do not match expected sizes for reference genome `$name':\n  " +
+      fatal(s"Contig sizes in FASTA '$fastaFile' do not match expected sizes for reference genome '$name':\n  " +
         s"@1", invalidLengths.truncatable("\n  "))
 
     val fastaPath = hConf.fileStatus(fastaFile).getPath.toString
@@ -575,7 +575,7 @@ object ReferenceGenome {
     references.get(rg.name) match {
       case Some(rg2) =>
         if (rg != rg2) {
-          fatal(s"Cannot add reference genome `${ rg.name }', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
+          fatal(s"Cannot add reference genome '${ rg.name }', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
             s"@1", references.keys.truncatable("\n  "))
         }
       case None =>
@@ -587,7 +587,7 @@ object ReferenceGenome {
   def getReference(name: String): ReferenceGenome = {
     references.get(name) match {
       case Some(rg) => rg
-      case None => fatal(s"Reference genome `$name' does not exist. Choose a reference name from the following list:\n  " +
+      case None => fatal(s"Reference genome '$name' does not exist. Choose a reference name from the following list:\n  " +
         s"@1", references.keys.truncatable("\n  "))
     }
   }
@@ -682,7 +682,7 @@ object ReferenceGenome {
           addReference(rg)
         else {
           if (ReferenceGenome.getReference(name) != rg)
-            fatal(s"`$name' already exists and is not identical to the imported reference from `$rgPath'.")
+            fatal(s"'$name' already exists and is not identical to the imported reference from '$rgPath'.")
         }
       }
     }

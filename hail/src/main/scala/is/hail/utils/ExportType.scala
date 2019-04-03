@@ -10,7 +10,7 @@ object ExportType {
       case null => CONCATENATED
       case "separate_header" => PARALLEL_SEPARATE_HEADER
       case "header_per_shard" => PARALLEL_HEADER_IN_SHARD
-      case _ => fatal(s"Unknown export type: `$typ'")
+      case _ => fatal(s"Unknown export type: '$typ'")
     }
   }
 }

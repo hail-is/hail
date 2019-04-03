@@ -377,7 +377,7 @@ object Nirvana {
 
     val nirvanaLocation = properties.getProperty("hail.nirvana.location")
     if (nirvanaLocation == null)
-      fatal("property `hail.nirvana.location' required")
+      fatal("property hail.nirvana.location' required")
 
     val path = Option(properties.getProperty("hail.nirvana.path"))
 

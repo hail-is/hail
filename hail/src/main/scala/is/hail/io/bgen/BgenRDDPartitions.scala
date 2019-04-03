@@ -335,7 +335,7 @@ object CompileDecoder {
             nAlleles2 := reader.invoke[Int]("readShort"),
             (nAlleles.cne(nAlleles2)).mux(
               Code._fatal(
-                const("""Value for `nAlleles' in genotype probability data storage is
+                const("""Value for 'nAlleles' in genotype probability data storage is
                         |not equal to value in variant identifying data. Expected""".stripMargin)
                   .concat(nAlleles.toS)
                   .concat(" but found ")
@@ -350,9 +350,9 @@ object CompileDecoder {
             maxPloidy := reader.invoke[Int]("read"),
             (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
               Code._fatal(
-                const("Hail only supports diploid genotypes. Found min ploidy `")
+                const("Hail only supports diploid genotypes. Found min ploidy '")
                   .concat(minPloidy.toS)
-                  .concat("' and max ploidy `")
+                  .concat("' and max ploidy '")
                   .concat(maxPloidy.toS)
                   .concat("'.")),
               Code._empty),
@@ -393,9 +393,9 @@ object CompileDecoder {
             nExpectedBytesProbs := settings.nSamples * 2,
             (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
               Code._fatal(
-                const("Number of uncompressed bytes `")
+                const("Number of uncompressed bytes '")
                   .concat(reader.invoke[Int]("length").toS)
-                  .concat("' does not match the expected size `")
+                  .concat("' does not match the expected size '")
                   .concat(nExpectedBytesProbs.toS)
                   .concat("'.")),
               Code._empty),
