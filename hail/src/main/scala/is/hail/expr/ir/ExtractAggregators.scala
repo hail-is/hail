@@ -36,7 +36,7 @@ object ExtractAggregators {
       postAgg,
       rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
-      addLets(ir, ab3.result()),
+      addLets(Begin(ops.map(_.seqOp)), ab3.result()),
       aggs.map(_.rvAgg))
   }
 
