@@ -1,4 +1,5 @@
 FROM gcr.io/hail-vdc/base
+LABEL maintainer="hail-team@broadinstitute.org"
 
 COPY requirements.txt /notebook/
 COPY notebook /notebook/
