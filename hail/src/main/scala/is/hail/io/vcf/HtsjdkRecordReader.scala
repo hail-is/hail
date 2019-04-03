@@ -37,21 +37,11 @@ class HtsjdkRecordReader(
   def readVariantInfo(
     vc: VariantContext,
     rvb: RegionValueBuilder,
-    hasRSID: Boolean,
     hasQual: Boolean,
     hasFilters: Boolean,
     infoType: TStruct,
     infoFlagFieldNames: Set[String]) {
     // locus, alleles added via VCFLine
-
-    // rsid
-    if (hasRSID) {
-      val vcID = vc.getID
-      if (vcID == ".")
-        rvb.setMissing()
-      else
-        rvb.addString(vcID)
-    }
 
     if (hasQual) {
       rvb.addDouble(vc.getPhredScaledQual)

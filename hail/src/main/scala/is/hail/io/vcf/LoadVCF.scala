@@ -212,6 +212,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     rvb: RegionValueBuilder,
     rg: Option[ReferenceGenome],
     contigRecoding: Map[String, String],
+    hasRSID: Boolean,
     skipInvalidLoci: Boolean): Boolean = {
     assert(pos == 0)
 
@@ -233,7 +234,8 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     } else
       rg.foreach(_.checkLocus(recodedContig, start))
 
-    skipField() // ID
+    // ID
+    val rsid = parseString()
     nextField()
 
     // REF
@@ -259,6 +261,13 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       i += 1
     }
     rvb.endArray()
+
+    if (hasRSID) {
+      if (rsid == ".")
+        rvb.setMissing()
+      else
+        rvb.addString(rsid)
+    }
 
     abs.clear()
 
@@ -639,7 +648,6 @@ class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], head
     case None => TStruct()
   }
   val infoSignature = typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
-  val hasRSID = typ.rowType.hasField("rsid")
   val hasQual = typ.rowType.hasField("qual")
   val hasFilters = typ.rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
@@ -802,7 +810,7 @@ object LoadVCF {
       .toArray
   }
 
-  // parses the Variant (key), leaves the rest to f
+  // parses the Variant (key), and ID if necessary, leaves the rest to f
   def parseLines[C](
     makeContext: () => C
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
@@ -813,6 +821,7 @@ object LoadVCF {
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
   ): ContextRDD[RVDContext, RegionValue] = {
+    val hasRSID = t.isInstanceOf[TStruct] && t.asInstanceOf[TStruct].hasField("rsid")
     lines.cmapPartitions { (ctx, it) =>
       new Iterator[RegionValue] {
         val region = ctx.region
@@ -831,7 +840,7 @@ object LoadVCF {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
               rvb.start(t.physicalType)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, skipInvalidLoci)
+              present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, hasRSID, skipInvalidLoci)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -890,7 +899,7 @@ object LoadVCF {
     dropSamples: Boolean = false
   ): Unit = {
     val vc = c.codec.decode(l.line)
-    reader.readVariantInfo(vc, rvb, c.hasRSID, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
+    reader.readVariantInfo(vc, rvb, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
     if (!dropSamples) {
       val nSamples = vc.getNSamples
