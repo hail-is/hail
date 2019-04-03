@@ -24,28 +24,10 @@ object Subst {
             .map { case (child: IR, i) =>
 
               val childEnv = ChildEnvWithoutBindings(e, i, env)
-              val b = Bindings(e, i).map(_._1)
-              val ab = AggBindings(e, i).map(_._1)
-              val sb = ScanBindings(e, i).map(_._1)
-
-              if (UsesAggEnv(e, i)) {
-                subst(child, BindingEnv(childEnv.aggOrEmpty.delete(ab)))
-              } else if (UsesScanEnv(e, i)) {
-                subst(child, BindingEnv(childEnv.scanOrEmpty.delete(sb)))
-              } else {
-                if (b.isEmpty && ab.isEmpty && sb.isEmpty) // optimize the common case
-                  subst(child, childEnv)
-                else {
-                  subst(child,
-                    childEnv.copy(eval = childEnv.eval.delete(b),
-                      agg = childEnv.agg.map(_.delete(ab)),
-                      scan = childEnv.scan.map(_.delete(sb)))
-                  )
-                }
-              }
+              val newBindings = NewBindings(e, i, childEnv)
+              subst(child, childEnv.subtract(newBindings))
             case (child, _) => child
             }.toFastIndexedSeq)
-
     }
   }
 }
