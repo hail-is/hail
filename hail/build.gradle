@@ -48,20 +48,26 @@ String sparkVersion = System.getProperty("spark.version", "2.4.0")
 String breezeVersion = System.getProperty("breeze.version")
 String py4jVersion = System.getProperty("py4j.version")
 
-if (!(sparkVersion ==~ /^2\..*/))
+if (!(sparkVersion ==~ /^2\.[2-4].*/))
     ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.4.0.')
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
-if (sparkVersion == '2.4.0') {
-    if (py4jVersion == null)
-      py4jVersion = '0.10.7'
-    if (breezeVersion == null)
-      breezeVersion = '0.13.2'
-} else {
-  if (breezeVersion == null || py4jVersion == null)
-    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
+if (py4jVersion == null) {
+  if (sparkVersion == '2.2.0')
+    py4jVersion = '0.10.4'
+  else if (sparkVersion == '2.3.0')
+    py4jVersion = '0.10.6'
+  else
+    py4jVersion = '0.10.7'
+}
+
+if (breezeVersion == null) {
+  if (sparkVersion == '2.2.0')
+    breezeVersion = '0.13.1'
+  else
+    breezeVersion = '0.13.2'
 }
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
