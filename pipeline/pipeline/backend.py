@@ -99,8 +99,9 @@ class LocalBackend(Backend):
                 dest = os.path.abspath(dest)
                 directory = os.path.dirname(dest)
                 os.makedirs(directory, exist_ok=True)
-
-            cp = 'gsutil cp' if dest.startswith("gs://") else 'cp'
+                cp = 'cp'
+            else:
+                cp = 'gsutil cp'
 
             if isinstance(r, InputResourceFile):
                 return [f'{cp} {r._input_path} {dest}']

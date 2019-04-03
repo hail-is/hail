@@ -243,9 +243,10 @@ class LocalTests(unittest.TestCase):
         assert in1._value.endswith('.txt.bgz.foo')
 
     def test_gcs_file_localization(self):
+        key_file = os.environ.get('PIPELINE_TEST_SECRET_KEY')
         activate_service_account = 'gcloud auth activate-service-account ' \
                                    'pipeline-test-0-1--hail-is@hail-vdc.iam.gserviceaccount.com ' \
-                                   f'--key-file {os.getcwd()}/pipeline-secrets/pipeline-test-0-1--hail-is.key'
+                                   f'--key-file {key_file}'
         try:
             sp.check_output(activate_service_account, shell=True)
         except sp.CalledProcessError as e:

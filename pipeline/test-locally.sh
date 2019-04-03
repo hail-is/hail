@@ -15,14 +15,16 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
+if [[ $IN_CLUSTER -eq 0 ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
     port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)
     ./cloud_sql_proxy -instances=$connection_name=tcp:$port &
     proxy_pid=$!
+    export PIPELINE_TEST_SECRET_KEY=`pwd`/pipeline-secrets/pipeline-test-0-1--hail-is.key
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
+    export PIPELINE_TEST_SECRET_KEY=/pipeline-secrets/pipeline-test-0-1--hail-is.key
 fi
 
 cd ../batch/

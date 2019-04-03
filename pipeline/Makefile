@@ -27,9 +27,9 @@ build/pylint: $(PIPELINE_PY_FILES) build/conda-env build/batch
 	mkdir -p build && touch $@
 
 test-local: build/conda-env build/batch $(PY_CHECKERS) install-cloud-sql-proxy local-cloud-sql-config
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 IN_CLUSTER=0 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: build/conda-env build/batch $(PY_CHECKERS)
-	POD_NAMESPACE='test' ./test-locally.sh
+	POD_NAMESPACE='test' IN_CLUSTER=1 ./test-locally.sh
