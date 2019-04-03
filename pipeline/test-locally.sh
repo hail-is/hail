@@ -26,7 +26,7 @@ else
 fi
 
 cd ../batch/
-python -c 'import batch.server; batch.server.serve()' &
+python3 -c 'import batch.server; batch.server.serve()' &
 server_pid=$!
 cd ../pipeline/
 

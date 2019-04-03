@@ -55,11 +55,15 @@ class LocalBackend(Backend):
                 if isinstance(r, InputResourceFile):
                     if r not in copied_input_resource_files:
                         copied_input_resource_files.add(r)
-                        absolute_input_path = os.path.realpath(r._input_path)
-                        if task._image is not None:  # pylint: disable-msg=W0640
-                            return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+
+                        if r._input_path.startswith('gs://'):
+                            return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
                         else:
-                            return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
+                            absolute_input_path = os.path.realpath(r._input_path)
+                            if task._image is not None:  # pylint: disable-msg=W0640
+                                return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+                            else:
+                                return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
                     else:
                         return []
                 elif isinstance(r, ResourceGroup):
@@ -91,14 +95,17 @@ class LocalBackend(Backend):
                 script += task._command + ['\n']
 
         def write_pipeline_outputs(r, dest):
-            dest = os.path.abspath(dest)
-            directory = os.path.dirname(dest)
-            os.makedirs(directory, exist_ok=True)
+            if not dest.startswith('gs://'):
+                dest = os.path.abspath(dest)
+                directory = os.path.dirname(dest)
+                os.makedirs(directory, exist_ok=True)
+
+            cp = 'gsutil cp' if dest.startswith("gs://") else 'cp'
 
             if isinstance(r, InputResourceFile):
-                return [f'cp {r._input_path} {dest}']
+                return [f'{cp} {r._input_path} {dest}']
             elif isinstance(r, TaskResourceFile):
-                return [f'cp {r._get_path(tmpdir)} {dest}']
+                return [f'{cp} {r._get_path(tmpdir)} {dest}']
             else:
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]

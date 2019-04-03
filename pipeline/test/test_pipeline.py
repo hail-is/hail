@@ -242,6 +242,23 @@ class LocalTests(unittest.TestCase):
             in1.add_extension('.baz')
         assert in1._value.endswith('.txt.bgz.foo')
 
+    def test_gcs_file_localization(self):
+        activate_service_account = 'gcloud auth activate-service-account ' \
+                                   'pipeline-test-0-1--hail-is@hail-vdc.iam.gserviceaccount.com ' \
+                                   f'--key-file {os.getcwd()}/pipeline-secrets/pipeline-test-0-1--hail-is.key'
+        try:
+            sp.check_output(activate_service_account, shell=True)
+        except sp.CalledProcessError as e:
+            print(e.output)
+            raise e
+
+        p = Pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input} > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/hello.txt')
+        p.run(verbose=True)
+
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
@@ -340,4 +357,3 @@ class BatchTests(unittest.TestCase):
                                                       ofile=merger.ofile))
 
         p.run(delete_scratch_on_exit=False)
-

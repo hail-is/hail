@@ -1,4 +1,4 @@
 *.pyc
 **/__pycache__
 /build
-/batch-secrets
+/pipeline-secrets
