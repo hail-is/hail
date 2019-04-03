@@ -68,7 +68,7 @@ object LoadBgen {
         }.toArray
       }
     } else {
-      warn(s"BGEN file `$file' contains no sample ID block and no sample ID file given.\n" +
+      warn(s"BGEN file '$file' contains no sample ID block and no sample ID file given.\n" +
         s"  Using _0, _1, ..., _N as sample IDs.")
       (0 until bState.nSamples).map(i => s"_$i").toArray
     }

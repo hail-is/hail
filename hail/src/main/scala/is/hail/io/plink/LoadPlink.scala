@@ -73,7 +73,7 @@ object LoadPlink {
           case "0" => null
           case "1" => false
           case "2" => true
-          case _ => fatal(s"Invalid sex: `$isFemale'. Male is `1', female is `2', unknown is `0'")
+          case _ => fatal(s"Invalid sex: '$isFemale'. Male is '1', female is '2', unknown is '0'")
         }
 
         var warnedAbout9 = false
@@ -90,7 +90,7 @@ object LoadPlink {
                 }
                 -9d
               case numericRegex() => pheno.toDouble
-              case _ => fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `${ ffConfig.missingValue }'")
+              case _ => fatal(s"Invalid quantitative phenotype: '$pheno'. Value must be numeric or '${ ffConfig.missingValue }'")
             }
           else
             pheno match {
@@ -100,7 +100,7 @@ object LoadPlink {
               case "0" => null
               case "-9" => null
               case "N/A" => null
-              case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
+              case numericRegex() => fatal(s"Invalid case-control phenotype: '$pheno'. Control is '1', case is '2', missing is '0', '-9', '${ ffConfig.missingValue }', or non-numeric.")
               case _ => null
             }
         idBuilder += kid

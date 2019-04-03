@@ -289,7 +289,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
       else {
         if (r.length != _state.length)
           fatal(
-            s"""cannot aggregate arrays of unequal length with `sum'
+            s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
         else {
           var i = 0
@@ -310,7 +310,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
     else if (agg2._state != null) {
       if (_state.length != agg2state.length)
         fatal(
-          s"""cannot aggregate arrays of unequal length with `sum'
+          s"""cannot aggregate arrays of unequal length with 'sum'
              |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
             stripMargin)
       for (i <- _state.indices)
