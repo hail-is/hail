@@ -5,6 +5,7 @@ from google.cloud import storage
 from googleapiclient.errors import HttpError
 from globals import v1, kube_client, gcloud_service
 from table import Table
+from base64 import b64decode
 
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
@@ -54,6 +55,8 @@ def store_gsa_key_in_kube(gsa_email, google_project, kube_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
         name=f'projects/{google_project}/serviceAccounts/{gsa_email}', body={}
     ).execute()
+
+    key['privateKeyData'] = b64decode(key['privateKeyData']).decode("utf-8")
 
     return v1.create_namespaced_secret(
         namespace=kube_namespace,
