@@ -8,10 +8,7 @@ class NormalizeNames {
     count.toString
   }
 
-  def apply(ir: IR, env: Env[String]): IR = {
-    println(Pretty(ir))
-    apply(ir, BindingEnv(env))
-  }
+  def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
 
   def apply(ir: IR, env: BindingEnv[String]): IR = {
     def normalize(ir: IR, env: BindingEnv[String] = env): IR = apply(ir, env)
