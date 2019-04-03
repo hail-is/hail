@@ -25,7 +25,9 @@ def create_google_service_account(sa_name, google_project):
 
 def delete_google_service_account(gsa_email, google_project):
     return gcloud_service.projects().serviceAccounts().delete(
-        name=f'projects/{google_project}/serviceAccounts/{gsa_email}').execute()
+        name=f'projects/{google_project}'
+        f'/serviceAccounts/{gsa_email}'
+    ).execute()
 
 
 def create_kube_service_acccount(namespace):
@@ -51,7 +53,7 @@ def delete_kube_service_acccount(ksa_name, namespace):
 def store_gsa_key_in_kube(gsa_email, google_project, kube_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
         name=f'projects/{google_project}/serviceAccounts/{gsa_email}', body={}
-        ).execute()
+    ).execute()
 
     return v1.create_namespaced_secret(
         namespace=kube_namespace,
