@@ -44,6 +44,9 @@ def overall_review_state(reviews):
         if (state == 'CHANGES_REQUESTED'):
             total_state = 'changes_requested'
             break
+        elif (state == 'DISMISSED'):
+            total_state = 'pending'
+            break
         elif (state == 'APPROVED'):
             total_state = 'approved'
     return {'state': total_state, 'reviews': latest_state_by_login}

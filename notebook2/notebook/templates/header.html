@@ -10,7 +10,9 @@
   <div id="profile-divider"></div>
 
   {% if g.user %}
-  <b id="user-name">{{ g.user["name"] }}</b>
+  <a href="/user"
+    ><b id="user-name">{{ g.user["name"] }}</b></a
+  >
   <form action="/logout" method="POST">
     <button class="link-button" type="submit">
       Log out
