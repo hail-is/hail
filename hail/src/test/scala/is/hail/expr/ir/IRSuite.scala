@@ -1834,4 +1834,135 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(ir, 61L)
   }
+
+  @Test def testfoo() {
+    val s ="""
+        |    (TableCollect
+        |      (TableHead 11
+        |        (TableOrderBy (Aoccupation)
+        |          (TableKeyByAndAggregate None 50
+        |            (TableKeyByAndAggregate None 50
+        |              (TableMapRows
+        |                (TableKeyBy () False
+        |                  (TableLeftJoinRightDistinct __uid_150
+        |                    (TableKeyBy (__uid_151) False
+        |                      (TableMapRows
+        |                        (TableKeyBy () False
+        |                          (TableLeftJoinRightDistinct __uid_144
+        |                            (TableKeyBy (__uid_145) False
+        |                              (TableMapRows
+        |                                (TableRead None False "{\"name\":\"TableNativeReader\",\"path\":\"/Users/tpoterba/misc/debug/rvd-error-movielens/data/ratings.ht\",\"_spec\":null}")
+        |                                (Let row
+        |                                  (InsertFields
+        |                                    (Ref row)
+        |                                    None
+        |                                    (__uid_145
+        |                                      (GetField movie_id
+        |                                        (Ref row))))
+        |                                  (Let __iruid_3909
+        |                                    (Ref row)
+        |                                    (MakeStruct
+        |                                      (user_id
+        |                                        (GetField user_id
+        |                                          (Ref __iruid_3909)))
+        |                                      (rating
+        |                                        (GetField rating
+        |                                          (Ref __iruid_3909)))
+        |                                      (__uid_145
+        |                                        (GetField __uid_145
+        |                                          (Ref __iruid_3909))))))))
+        |                            (TableRead Table{global:Struct{},key:[id],row:Struct{id:Int32,title:String}} False "{\"name\":\"TableNativeReader\",\"path\":\"/Users/tpoterba/misc/debug/rvd-error-movielens/data/movies.ht\",\"_spec\":null}")))
+        |                        (Let row
+        |                          (Let row
+        |                            (InsertFields
+        |                              (SelectFields (user_id rating)
+        |                                (Ref row))
+        |                              None
+        |                              (title
+        |                                (GetField title
+        |                                  (GetField __uid_144
+        |                                    (Ref row)))))
+        |                            (InsertFields
+        |                              (Ref row)
+        |                              None
+        |                              (__uid_151
+        |                                (GetField user_id
+        |                                  (Ref row)))))
+        |                          (Let __iruid_3910
+        |                            (Ref row)
+        |                            (MakeStruct
+        |                              (rating
+        |                                (GetField rating
+        |                                  (Ref __iruid_3910)))
+        |                              (title
+        |                                (GetField title
+        |                                  (Ref __iruid_3910)))
+        |                              (__uid_151
+        |                                (GetField __uid_151
+        |                                  (Ref __iruid_3910))))))))
+        |                    (TableRead Table{global:Struct{},key:[id],row:Struct{id:Int32,occupation:String}} False "{\"name\":\"TableNativeReader\",\"path\":\"/Users/tpoterba/misc/debug/rvd-error-movielens/data/users.ht\",\"_spec\":null}")))
+        |                (InsertFields
+        |                  (SelectFields (rating title)
+        |                    (Ref row))
+        |                  None
+        |                  (occupation
+        |                    (GetField occupation
+        |                      (GetField __uid_150
+        |                        (Ref row))))))
+        |              (MakeStruct
+        |                (rating
+        |                  (ApplyBinaryPrimOp FloatingPointDivide
+        |                    (ApplyAggOp Sum
+        |                      ()
+        |                      None
+        |                      (                        (ApplyIR toFloat64
+        |                          (GetField rating
+        |                            (Ref row)))))
+        |                    (ApplyIR toFloat64
+        |                      (ApplyAggOp Sum
+        |                        ()
+        |                        None
+        |                        (                          (Apply toInt64
+        |                            (ApplyUnaryPrimOp Bang
+        |                              (IsNA
+        |                                (ApplyIR toFloat64
+        |                                  (GetField rating
+        |                                    (Ref row))))))))))))
+        |              (InsertFields
+        |                (SelectFields ()
+        |                  (Ref row))
+        |                ("x")
+        |                (x
+        |                  (MakeStruct
+        |                    (occupation
+        |                      (GetField occupation
+        |                        (Ref row)))
+        |                    (title
+        |                      (GetField title
+        |                        (Ref row)))))))
+        |            (MakeStruct
+        |              (favorite
+        |                (ApplyAggOp TakeBy
+        |                  (                    (I32 1))
+        |                  None
+        |                  (                    (GetField title
+        |                      (GetField x
+        |                        (Ref row)))
+        |                    (ApplyUnaryPrimOp Negate
+        |                      (GetField rating
+        |                        (Ref row)))))))
+        |            (InsertFields
+        |              (SelectFields ()
+        |                (Ref row))
+        |              ("occupation")
+        |              (occupation
+        |                (GetField occupation
+        |                  (GetField x
+        |                    (Ref row))))))))
+        |      )
+      """.stripMargin
+
+    val ir = IRParser.parse_value_ir(s)
+    println(Interpret(ir))
+  }
 }
