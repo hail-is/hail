@@ -3017,20 +3017,24 @@ class NDArrayExpression(Expression):
         Returns
         -------
         :obj:`int`
-            Number of dimensions.
         """
         return self._type.ndim
 
-    @typecheck_method(item=oneof(int, tuple))
+    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
-        if isinstance(item, int):
+        if not isinstance(item, tuple):
             item = (item,)
 
         if len(item) != self.ndim:
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
-        idxs = to_expr(item, ir.tarray(ir.tint64))
+        # indexes must be iterable
+        if len(item) == 0:
+            idxs = hl.empty_array(hl.tint64)
+        else:
+            idxs = hl.array(list(item))
+
         return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
 
     @typecheck_method(f=func_spec(1, expr_any))
@@ -3058,12 +3062,13 @@ class NDArrayExpression(Expression):
 class NDArrayNumericExpression(NDArrayExpression):
     """Expression of type :class:`.tndarray` with a numeric element type.
 
-    Numeric ndarrays support arithmetic both with scalar values and other arrays.
-    Arithmetic between two numeric ndarrays requires that the shapes of each ndarray
-    be either identical or compatible for broadcasting. Operations are applied
-    positionally (``nd1 * nd2`` will multiply the first element of ``nd1`` by the first
-    element of ``nd2``, the second element of ``nd1`` by the second element of ``nd2``, and so on).
-    Arithmetic with a scalar will apply the operation to each element of the ndarray.
+    Numeric ndarrays support arithmetic both with scalar values and other
+    arrays. Arithmetic between two numeric ndarrays requires that the shapes of
+    each ndarray be either identical or compatible for broadcasting. Operations
+    are applied positionally (``nd1 * nd2`` will multiply the first element of
+    ``nd1`` by the first element of ``nd2``, the second element of ``nd1`` by
+    the second element of ``nd2``, and so on). Arithmetic with a scalar will
+    apply the operation to each element of the ndarray.
     """
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
