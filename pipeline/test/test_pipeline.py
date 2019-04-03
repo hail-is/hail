@@ -248,7 +248,7 @@ class LocalTests(unittest.TestCase):
         t = p.new_task()
         t.command(f'cat {input} > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/hello.txt')
-        p.run(verbose=True)
+        p.run()
 
 
 class BatchTests(unittest.TestCase):
