@@ -64,20 +64,28 @@ object StagedExtractAggregators {
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(fb, aggIR, ab, newBuilder, ab3, result)
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(fb, aggIR, ab, newBuilder, aggLetAB, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(io,
-          If(cond, Begin(seqOp), Begin(FastIndexedSeq())))
+          If(cond, ExtractAggregators.addLets(Begin(seqOp), aggLetAB.result()), Begin(FastIndexedSeq())))
         transformed
       case AggExplode(array, name, aggBody, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(fb, aggBody, ab, newBuilder, ab3, result)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(fb, aggBody, ab, newBuilder, aggLetAB, result)
+
+        // collect lets that depend on `name`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
+        ab3 ++= independent
+
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(
           io,
-          ArrayFor(array, name, Begin(seqOp)))
+          ExtractAggregators.addLets(ArrayFor(array, name, Begin(seqOp)), dependent))
         transformed
       case AggGroupBy(key, aggIR, _) =>
 
@@ -105,7 +113,13 @@ object StagedExtractAggregators {
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()
         val newRef = Ref(genUID(), null)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
         val transformed = this.extract(fb, aggBody, newRVAggBuilder, newBuilder, ab3, newRef)
+
+        // collect lets that depend on `name`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
+        ab3 ++= independent
 
         val nestedAggs = newRVAggBuilder.result()
         val agg = Code.newInstance[ArrayElementsAggregator, Array[RegionValueAggregator]](newArray(fb, nestedAggs.map(_.rvAgg)))
@@ -123,7 +137,7 @@ object StagedExtractAggregators {
         ab += IRAgg(i, agg, rt)
         ab2 += AggOps(
           Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSigCheck)),
-          Let(
+          ExtractAggregators.addLets(Let(
             aUID,
             a,
             Begin(FastIndexedSeq(
@@ -137,7 +151,7 @@ object StagedExtractAggregators {
                   SeqOp(
                     I32(i),
                     FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
-                    aggSig)))))))
+                    aggSig)))))), dependent))
         ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
 
       case x: ArrayAgg => x
