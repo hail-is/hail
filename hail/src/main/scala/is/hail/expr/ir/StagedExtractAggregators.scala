@@ -100,6 +100,47 @@ object StagedExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+
+      case AggArrayPerElement(a, name, aggBody, _) =>
+        val newRVAggBuilder = new ArrayBuilder[IRAgg]()
+        val newBuilder = new ArrayBuilder[AggOps]()
+        val newRef = Ref(genUID(), null)
+        val transformed = this.extract(fb, aggBody, newRVAggBuilder, newBuilder, ab3, newRef)
+
+        val nestedAggs = newRVAggBuilder.result()
+        val agg = Code.newInstance[ArrayElementsAggregator, Array[RegionValueAggregator]](newArray(fb, nestedAggs.map(_.rvAgg)))
+        val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
+        newRef._typ = -rt.elementType
+
+        val aggSigCheck = AggSignature(AggElementsLengthCheck(), Seq(), Some(Seq(TVoid)), Seq(TInt32()))
+        val aggSig = AggSignature(AggElements(), Seq(), None, Seq(TInt32(), TVoid))
+
+        val aUID = genUID()
+        val iUID = genUID()
+
+        val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
+        val i = ab.length
+        ab += IRAgg(i, agg, rt)
+        ab2 += AggOps(
+          Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSigCheck)),
+          Let(
+            aUID,
+            a,
+            Begin(FastIndexedSeq(
+              SeqOp(I32(i), FastIndexedSeq(ArrayLen(Ref(aUID, a.typ))), aggSigCheck),
+              ArrayFor(
+                ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
+                iUID,
+                Let(
+                  name,
+                  ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
+                  SeqOp(
+                    I32(i),
+                    FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
+                    aggSig)))))))
+        ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
+
+      case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }
   }
