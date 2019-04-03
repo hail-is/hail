@@ -49,7 +49,7 @@ String breezeVersion = System.getProperty("breeze.version")
 String py4jVersion = System.getProperty("py4j.version")
 
 if (!(sparkVersion ==~ /^2\..*/))
-    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.2.0.')
+    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.4.0.')
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'

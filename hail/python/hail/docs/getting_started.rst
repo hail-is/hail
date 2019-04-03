@@ -17,8 +17,8 @@ Regardless of installation method, you will need:
   <https://www.anaconda.com/download/>`_
 
 For all methods *other than using pip*, you will additionally need `Spark
-2.2.x
-<https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
+2.4.x
+<https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_.
 
 
 Installation
