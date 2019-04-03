@@ -6,7 +6,7 @@ object Optimize {
   private def optimize(ir0: BaseIR, noisy: Boolean, canGenerateLiterals: Boolean, context: Option[String]): BaseIR = {
     val contextStr = context.map(s => s" ($s)").getOrElse("")
     if (noisy)
-      consoleLog.info(s"optimize$contextStr: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
+      log.info(s"optimize$contextStr: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
 
     var ir = ir0
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
@@ -20,7 +20,7 @@ object Optimize {
         s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)
-      consoleLog.info(s"optimize$contextStr: after: IR size ${ IRSize(ir) }:\n" + Pretty(ir, elideLiterals = true))
+      log.info(s"optimize$contextStr: after: IR size ${ IRSize(ir) }:\n" + Pretty(ir, elideLiterals = true))
 
     ir
   }

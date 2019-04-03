@@ -13,7 +13,11 @@ object ComputeUsesAndDefs {
       .iterator
       .zipWithIndex
       .foreach {
-        case (child: IR, i) => computeIR(child, NewBindings(tir, i).mapValues(_ => RefEquality(tir)))
+        case (child: IR, i) =>
+          val b = NewBindings(tir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(tir))
+          if (!b.allEmpty)
+            uses.bind(tir, mutable.Set.empty[RefEquality[Ref]])
+          computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
         case (child: MatrixIR, _) => computeMatrix(child)
         case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
@@ -23,18 +27,25 @@ object ComputeUsesAndDefs {
       .iterator
       .zipWithIndex
       .foreach {
-        case (child: IR, i) => computeIR(child, NewBindings(mir, i).mapValues(_ => RefEquality(mir)))
+        case (child: IR, i) =>
+          val b = NewBindings(mir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(mir))
+          if (!b.allEmpty)
+            uses.bind(mir, mutable.Set.empty[RefEquality[Ref]])
+          computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
         case (child: MatrixIR, _) => computeMatrix(child)
         case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
       }
 
     def computeBlockMatrix(bmir: BlockMatrixIR): Unit = bmir.children
-
       .iterator
       .zipWithIndex
       .foreach {
-        case (child: IR, i) => computeIR(child, NewBindings(bmir, i).mapValues(_ => RefEquality(bmir)))
+        case (child: IR, i) =>
+          val b = NewBindings(bmir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(bmir))
+          if (!b.allEmpty)
+            uses.bind(bmir, mutable.Set.empty[RefEquality[Ref]])
+          computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
         case (child: MatrixIR, _) => computeMatrix(child)
         case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
