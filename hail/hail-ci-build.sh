@@ -239,7 +239,7 @@ test_gcp() {
          --worker-machine-type n1-standard-1 \
          --worker-boot-disk-size 40 \
          --version 0.2 \
-         --spark 2.2.0 \
+         --spark 2.4.0 \
          --max-idle 10m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket \
          --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \

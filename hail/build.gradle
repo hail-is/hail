@@ -44,7 +44,7 @@ String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
 String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
-String sparkVersion = System.getProperty("spark.version", "2.2.0")
+String sparkVersion = System.getProperty("spark.version", "2.4.0")
 String breezeVersion = System.getProperty("breeze.version")
 String py4jVersion = System.getProperty("py4j.version")
 
@@ -54,11 +54,11 @@ if (!(sparkVersion ==~ /^2\..*/))
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
-if (sparkVersion == '2.2.0') {
+if (sparkVersion == '2.4.0') {
     if (py4jVersion == null)
-      py4jVersion = '0.10.4'
+      py4jVersion = '0.10.7'
     if (breezeVersion == null)
-      breezeVersion = '0.13.1'
+      breezeVersion = '0.13.2'
 } else {
   if (breezeVersion == null || py4jVersion == null)
     ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
@@ -200,13 +200,6 @@ dependencies {
     compile 'org.http4s:http4s-blaze-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-blaze-client_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-blaze-server_' + scalaMajorVersion + ':0.12.3'
-    compile 'org.json4s:json4s-core_' + scalaMajorVersion + ':3.2.11'
-    // compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.2.10'
-    compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.2.11'
-    compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.2.11'
-    //compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
-    //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
-    //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
 
     compile 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
 
