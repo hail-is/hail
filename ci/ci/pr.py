@@ -84,19 +84,6 @@ def try_new_build(source, target):
                         'name': 'batch-test-cloud-sql-config',
                         'readOnly': True
                     }
-                }, {
-                    'volume': {
-                        'name': 'pipeline-test-0-1--hail-is-service-account-key',
-                        'secret': {
-                            'optional': False,
-                            'secretName': 'pipeline-test-0-1--hail-is-service-account-key'
-                        }
-                    },
-                    'volume_mount': {
-                        'mountPath': '/pipeline-secrets',
-                        'name': 'pipeline-test-0-1--hail-is-service-account-key',
-                        'readOnly': True
-                    }
                 }])
             return Building(job, img, target.sha)
         except Exception as e:
