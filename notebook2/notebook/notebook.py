@@ -420,7 +420,6 @@ def delete_worker_pod(pod_name):
         k8s.delete_namespaced_pod(
             pod_name,
             'default',
-            kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
         log.info(f'pod {pod_name} already deleted {e}')
