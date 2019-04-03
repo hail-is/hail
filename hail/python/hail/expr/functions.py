@@ -29,6 +29,25 @@ def _seeded_func(name, ret_type, seed, *args):
     return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
 
 
+@typecheck(a=expr_array(), x=expr_any)
+def _lower_bound(a, x):
+    if a.dtype.element_type != x.dtype:
+        raise TypeError(f"_lower_bound: incompatible types: {a.dtype}, {x.dtype}")
+    indices, aggregations = unify_all(a, x)
+    return construct_expr(LowerBoundOnOrderedCollection(a._ir, x._ir, on_key=False), tint32, indices, aggregations)
+
+
+@typecheck(cdf=expr_struct(), q=expr_oneof(expr_float32, expr_float64))
+def _quantile_from_cdf(cdf, q):
+    n = cdf.ranks[cdf.ranks.length() - 1]
+    pos = int64(q*n) + 1
+    idx = (switch(q)
+            .when(0.0, 0)
+            .when(1.0, cdf.values.length() - 1)
+            .default(_lower_bound(cdf.ranks, pos) - 1))
+    return cdf.values[idx]
+
+
 @typecheck(t=hail_type)
 def null(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
