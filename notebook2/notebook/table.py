@@ -14,11 +14,11 @@ SQL_HOST_DEF = os.environ.get('SQL_HOST')
 
 class Table:
     @staticmethod
-    def getSecret(b64str):
+    def get_secret(b64str):
         return base64.b64decode(b64str).decode('utf-8')
 
     @staticmethod
-    def getSecrets():
+    def get_secrets():
         secrets = {}
 
         res = k8s.read_namespaced_secret('get-users', 'default')
@@ -27,17 +27,17 @@ class Table:
         if SQL_HOST_DEF is not None:
             host = SQL_HOST_DEF
         else:
-            host = Table.getSecret(data['host'])
+            host = Table.get_secret(data['host'])
 
-        secrets['user'] = Table.getSecret(data['user'])
-        secrets['password'] = Table.getSecret(data['password'])
-        secrets['database'] = Table.getSecret(data['db'])
+        secrets['user'] = Table.get_secret(data['user'])
+        secrets['password'] = Table.get_secret(data['password'])
+        secrets['database'] = Table.get_secret(data['db'])
         secrets['host'] = host
 
         return secrets
 
     def __init__(self):
-        secrets = Table.getSecrets()
+        secrets = Table.get_secrets()
 
         self.cnx = mysql.connector.connect(**secrets)
 

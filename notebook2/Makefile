@@ -1,4 +1,4 @@
-.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag
+.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag hailjwt
 
 PROJECT = $(shell gcloud config get-value project)
 IMAGE_SHORT_NAMES = $(shell ls -1 images)
@@ -37,7 +37,7 @@ notebook-worker-images: $(PUSHED)
 	cat $^ > $@ && test $(APISERVER_JUPYTER_IMAGE) && echo $(APISERVER_JUPYTER_IMAGE) >> $@
 
 hailjwt:
-	cp -r ../hailjwt ./
+	cp -rf ../hailjwt ./
 
 build: $(BUILT) notebook-worker-images hailjwt
 ifeq ($(CI_BUILD),true)
@@ -78,3 +78,4 @@ clean-workers:
 
 clean:
 	rm -rf build
+	rm notebook-worker-images
