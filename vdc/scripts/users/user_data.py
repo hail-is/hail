@@ -91,7 +91,7 @@ def create_user_kube_secret(user_data, kube_namespace):
         namespace=kube_namespace,
         body=kube_client.V1Secret(
             api_version='v1',
-            string_data={'jwt': jwt},
+            string_data={'jwt': jwt.decode('utf-8')},
             metadata=kube_client.V1ObjectMeta(
                 generate_name='user-jwt-',
                 annotations={
@@ -112,6 +112,7 @@ def create_bucket(sa_name, gsa_email):
 
     acl = bucket.acl
     acl.user(gsa_email).grant_owner()
+    acl.save()
 
     return bucket
 

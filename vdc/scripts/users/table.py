@@ -33,7 +33,7 @@ class Table:
                 INSERT INTO user_data
                     (user_id, gsa_email, ksa_name, bucket_name,
                     gsa_key_secret_name, user_jwt_secret_name)
-                    VALUES (%s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (user_id, gsa_email, ksa_name, bucket_name,
                       gsa_key_secret_name, user_jwt_secret_name))
             self.cnx.commit()
