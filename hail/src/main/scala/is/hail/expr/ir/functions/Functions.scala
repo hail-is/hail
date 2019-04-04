@@ -97,6 +97,7 @@ object IRFunctionRegistry {
 
   Seq(
     ArrayFunctions,
+    NDArrayFunctions,
     CallFunctions,
     DictFunctions,
     GenotypeFunctions,
