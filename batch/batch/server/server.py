@@ -4,7 +4,6 @@ import time
 import random
 import sched
 import uuid
-import json
 from collections import Counter
 import logging
 import threading
