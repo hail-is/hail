@@ -7,13 +7,13 @@ import uuid
 from collections import Counter
 import logging
 import threading
+import asyncio
 import kubernetes as kube
 import cerberus
 import requests
 import uvloop
 import aiohttp_jinja2
 import jinja2
-import asyncio
 from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
