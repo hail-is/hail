@@ -151,7 +151,6 @@ object InferPType {
       case _: MatrixWrite => PVoid
       case _: MatrixMultiWrite => PVoid
       case _: BlockMatrixWrite => PVoid
-      case _: TableExport => PVoid
       case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
       case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))

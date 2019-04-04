@@ -753,14 +753,8 @@ object Interpret {
         val hc = HailContext.get
         val mvs = children.map(_.execute(hc))
         writer(mvs)
-      case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
-        val hc = HailContext.get
-        val tableValue = child.execute(hc)
-        tableValue.write(path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(child, path, typesFile, header, exportType, delimiter) =>
-        val hc = HailContext.get
-        val tableValue = child.execute(hc)
-        tableValue.export(path, typesFile, header, exportType, delimiter)
+      case TableWrite(child, writer) =>
+        writer(child.execute(HailContext.get))
       case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
         writer(hc, child.execute(hc))

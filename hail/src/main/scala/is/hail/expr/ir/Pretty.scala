@@ -243,20 +243,8 @@ object Pretty {
               (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
                 '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
-            case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
-              prettyStringLiteral(path) + " " +
-                prettyBooleanLiteral(overwrite) + " " +
-                prettyBooleanLiteral(stageLocally) + " " +
-                (if (codecSpecJSONStr == null)
-                  "None"
-                else
-                  prettyStringLiteral(codecSpecJSONStr))
-            case TableExport(_, path, typesFile, header, exportType, delimiter) =>
-              prettyStringLiteral(path) + " " +
-                (if (typesFile == null) "None" else prettyStringLiteral(typesFile)) + " " +
-                prettyBooleanLiteral(header) + " " +
-                exportType.toString + " " +
-                prettyStringLiteral(delimiter)
+            case TableWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"'
             case TableKeyBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)

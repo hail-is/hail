@@ -384,7 +384,7 @@ class TableIRSuite extends SparkSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = tmpDir.createLocalTempFile(extension = "ht")
-    Interpret(TableWrite(table, path))
+    Interpret(TableWrite(table, TableNativeWriter(path)))
     val before = table.execute(hc)
     val after = Table.read(hc, path)
     assert(before.globals.safeValue == after.globals.safeValue)
