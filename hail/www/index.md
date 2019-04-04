@@ -28,7 +28,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 ### User Support
 
-There are many ways to get in touch with the Hail team if you need help using Hail, or to suggest improvements or features.
+There are many ways to get in touch with the Hail team if you need help using Hail or would like to suggest improvements or new features.
 
 - post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests.
 - chat with the Hail team and user community in Hail's [Zulip chatroom](https://hail.zulipchat.com).
