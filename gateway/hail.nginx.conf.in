@@ -70,6 +70,21 @@ server {
 }
 
 server {
+    server_name ci2.@domain@;
+
+    location / {
+        proxy_pass http://ci2/;
+    }
+
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
     server_name upload.@domain@;
 
     location / {
