@@ -1302,14 +1302,12 @@ case class CastTableToMatrix(
     case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
   }
 
-  private val newRowType = child.typ.rowType.rename(m)
-
   val typ: MatrixType = MatrixType(
     child.typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
     colKey,
     colType,
     child.typ.key,
-    newRowType)
+    child.typ.rowType.rename(m))
 
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType.rename(m))
 
@@ -1337,22 +1335,7 @@ case class CastTableToMatrix(
           Die("incorrect entry array length in argument to CastTableToMatrix", child.typ.rowType)))
     val checkedChild = ir.TableMapRows(child, checkedRow)
 
-    val prev = checkedChild.execute(hc)
-
-    val colValues = prev.globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
-    val newGlobals = {
-      val (pre, post) = prev.globals.value.toSeq.splitAt(colsFieldIdx)
-      Row.fromSeq(pre ++ post.tail)
-    }
-
-    val newRVD = prev.rvd.cast(prev.rvd.rowPType.rename(m))
-
-    MatrixValue(
-      typ,
-      BroadcastRow(newGlobals, typ.globalType, hc.sc),
-      BroadcastIndexedSeq(colValues, TArray(typ.colType), hc.sc),
-      newRVD
-    )
+    checkedChild.execute(hc).toMatrixValue(colsFieldName, entriesFieldName, colKey)
   }
 }
 
