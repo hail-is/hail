@@ -254,8 +254,7 @@ object TypeCheck {
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
         assert(x.typ == query.typ)
-      case TableWrite(_, _, _, _, _) =>
-      case TableExport(_, _, _, _, _, _) =>
+      case TableWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

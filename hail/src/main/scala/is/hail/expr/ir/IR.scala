@@ -321,20 +321,7 @@ final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
-final case class TableWrite(
-  child: TableIR,
-  path: String,
-  overwrite: Boolean = true,
-  stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null) extends IR
-
-final case class TableExport(
-  child: TableIR,
-  path: String,
-  typesFile: String = null,
-  header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED,
-  delimiter: String) extends IR
+final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
