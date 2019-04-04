@@ -316,18 +316,18 @@ object LowerMatrixIR {
     case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
       val colKey = child.typ.colKey
 
-      val idx1 = Symbol(genUID())
-      val idx2 = Symbol(genUID())
-      val idx3 = Symbol(genUID())
-      val idx4 = Symbol(genUID())
+      val originalColIdx = Symbol(genUID())
+      val newColIdx1 = Symbol(genUID())
+      val newColIdx2 = Symbol(genUID())
+      val colsAggIdx = Symbol(genUID())
       val keyMap = Symbol(genUID())
-      val elementIdx = Symbol(genUID())
+      val aggElementIdx = Symbol(genUID())
       lower(child)
         .mapGlobals('global.insertFields(keyMap ->
           let(__cols_field = 'global (colsField)) {
             irRange(0, '__cols_field.len)
-              .map(idx1 ~> let(__cols_field_element = '__cols_field (idx1)) {
-                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> idx1)
+              .map(originalColIdx ~> let(__cols_field_element = '__cols_field (originalColIdx)) {
+                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> originalColIdx)
               })
               .groupByKey
               .toArray
@@ -335,22 +335,22 @@ object LowerMatrixIR {
         .mapRows('row.insertFields(entriesField ->
           let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
             irRange(0, '__key_map.len)
-              .map(idx2 ~> '__key_map (idx2)
+              .map(newColIdx1 ~> '__key_map (newColIdx1)
                 .apply('value)
-                .arrayAgg(elementIdx ~>
+                .arrayAgg(aggElementIdx ~>
                   let(va = 'row) {
-                    aggLet(va = 'row, g = '__entries (elementIdx), sa = 'global (colsField)(elementIdx)) {
+                    aggLet(va = 'row, g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
                       entryExpr
                     }}))}))
         .mapGlobals(
           'global.insertFields(colsField ->
             let(__key_map = 'global (keyMap)) {
               irRange(0, '__key_map.len)
-                .map(idx3 ~>
+                .map(newColIdx2 ~>
                   concatStructs(
-                    '__key_map (idx3)('key),
-                    '__key_map (idx3)('value)
-                      .arrayAgg(idx4 ~> aggLet(sa = 'global (colsField)(idx4)) {
+                    '__key_map (newColIdx2)('key),
+                    '__key_map (newColIdx2)('value)
+                      .arrayAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
                         colExpr
                       })
                   )
