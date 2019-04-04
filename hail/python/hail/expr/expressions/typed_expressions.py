@@ -3001,7 +3001,7 @@ class IntervalExpression(Expression):
 class NDArrayExpression(Expression):
     """Expression of type :class:`.tndarray`.
 
-    >>> names = hl._ndarray([['Alice', 'Bob'], ['Carol', 'Dan']])
+    >>> nd = hl._ndarray([[1, 2], [3, 4]])
     """
 
     @property
@@ -3011,7 +3011,7 @@ class NDArrayExpression(Expression):
         Examples
         --------
 
-        >>> names.ndim
+        >>> nd.ndim
         2
 
         Returns
