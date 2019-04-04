@@ -201,12 +201,9 @@ object Copy {
       case MatrixAggregate(_, _) =>
         val IndexedSeq(child: MatrixIR, query: IR) = newChildren
         MatrixAggregate(child, query)
-      case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
+      case TableWrite(_, writer) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(_, path, typesFile, header, exportType, delimiter) =>
-        val IndexedSeq(child: TableIR) = newChildren
-        TableExport(child, path, typesFile, header, exportType, delimiter)
+        TableWrite(child, writer)
       case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)
