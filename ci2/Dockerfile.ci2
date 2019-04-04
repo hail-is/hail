@@ -1,0 +1,7 @@
+FROM base
+
+COPY ci /ci
+
+EXPOSE 5000
+
+CMD ["python3", "/ci/ci.py"]
