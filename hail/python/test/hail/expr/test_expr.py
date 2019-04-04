@@ -334,6 +334,13 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_array_inside_annotate_rows(self):
+        n_rows = 10
+        n_cols = 5
+        mt = hl.utils.range_matrix_table(n_rows, n_cols)
+        mt = mt.annotate_rows(x = hl.agg.array_agg(lambda i: hl.agg.sum(i), hl.range(0, mt.row_idx)))
+        assert mt.aggregate_rows(hl.agg.all(mt.x == hl.range(0, mt.row_idx).map(lambda i: i * n_cols)))
+
     def test_agg_array_empty(self):
         ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
         assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
