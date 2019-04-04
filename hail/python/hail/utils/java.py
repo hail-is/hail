@@ -66,6 +66,7 @@ class Env:
     def backend():
         return Env.hc()._backend
 
+    @staticmethod
     def spark_backend(op):
         b = Env.backend()
         if isinstance(b, hail.backend.SparkBackend):
