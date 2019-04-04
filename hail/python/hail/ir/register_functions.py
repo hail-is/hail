@@ -175,6 +175,7 @@ def register_functions():
     register_function("toFloat64", (dtype("bool"),), dtype("float64"))
     register_function("dbeta", (dtype("float64"),dtype("float64"),dtype("float64"),), dtype("float64"))
     register_function("min_rep", (dtype("?T:locus"),dtype("array<str>"),), dtype("struct{locus: ?T, alleles: array<str>}"))
+    register_function("locus_windows_per_contig", (dtype("array<array<float64>>"),dtype("float64"),), dtype("tuple(array<int32>, array<int32>)"))
     register_function("toBoolean", (dtype("str"),), dtype("bool"))
     register_seeded_function("rand_bool", (dtype("float64"),), dtype("bool"))
     register_function("pchisqtail", (dtype("float64"),dtype("float64"),), dtype("float64"))
