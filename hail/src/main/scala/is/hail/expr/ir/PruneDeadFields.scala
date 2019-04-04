@@ -72,7 +72,7 @@ object PruneDeadFields {
           rebuild(bmir, memo)
         case vir: IR =>
           memoizeValueIR(vir, vir.typ, memo)
-          rebuildIR(vir, BindingEnv.empty[Type], memo)
+          rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), memo)
       }
     } catch {
       case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
