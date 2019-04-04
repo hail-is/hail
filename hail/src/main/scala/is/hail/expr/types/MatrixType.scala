@@ -35,6 +35,29 @@ object MatrixType {
   ): MatrixType = {
     MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
   }
+
+  def fromTableType(
+    typ: TableType,
+    colsFieldName: String,
+    entriesFieldName: String,
+    colKey: IndexedSeq[String]
+  ): MatrixType = {
+
+    val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
+      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+    }
+    val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+
+    val newRowType = typ.rowType.rename(m)
+
+    MatrixType(
+      typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+      colKey,
+      colType,
+      typ.key,
+      newRowType)
+  }
 }
 
 case class MatrixType(
