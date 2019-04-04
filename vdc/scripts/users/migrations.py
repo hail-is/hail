@@ -24,6 +24,7 @@ class MigrateTable(Table):
                         ksa_name VARCHAR(255) NOT NULL,
                         bucket_name VARCHAR(255) NOT NULL,
                         gsa_key_secret_name VARCHAR(255) NOT NULL,
+                        user_jwt_secret_name VARCHAR(255) NOT NULL,
                         PRIMARY KEY (id),
                         UNIQUE INDEX auth0_id (user_id)
                     ) ENGINE=INNODB;

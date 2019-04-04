@@ -6,3 +6,4 @@ shortuuid==0.5.*
 pytest==4.*
 flake8==3.*
 pylint==2.*
+../../../hailjwt

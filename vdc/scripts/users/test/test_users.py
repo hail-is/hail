@@ -56,6 +56,14 @@ class TestCreate(unittest.TestCase):
 
         delete_all(data, google_project, kube_namespace)
 
+    def test_delete_partial_secret_user_kube(self):
+        data = create_all(google_project, kube_namespace)
+        secret_name = data['user_jwt_secret_name']
+
+        v1.delete_namespaced_secret(secret_name, kube_namespace)
+
+        delete_all(data, google_project, kube_namespace)
+
 
 if __name__ == "__main__":
     unittest.main()

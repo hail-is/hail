@@ -3,11 +3,17 @@ import shortuuid
 import google
 from google.cloud import storage
 from googleapiclient.errors import HttpError
-from globals import v1, kube_client, gcloud_service
 from table import Table
 from base64 import b64decode
 
+from globals import v1, kube_client, gcloud_service
+from secrets import get_secret
+from hailjwt import JWTClient
+
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
+
+SECRET_KEY = get_secret('notebook-secrets', 'default', 'secret-key')
+jwtclient = JWTClient(SECRET_KEY)
 
 
 def create_service_id():
@@ -74,8 +80,26 @@ def store_gsa_key_in_kube(gsa_email, google_project, kube_namespace):
     )
 
 
-def delete_gsa_secret_in_kube(secret_name, kube_namespace):
+def delete_kube_secret(secret_name, kube_namespace):
     return v1.delete_namespaced_secret(secret_name, kube_namespace)
+
+
+def create_user_kube_secret(user_data, kube_namespace):
+    jwt = jwtclient.encode(user_data)
+
+    return v1.create_namespaced_secret(
+        namespace=kube_namespace,
+        body=kube_client.V1Secret(
+            api_version='v1',
+            string_data={'jwt': jwt},
+            metadata=kube_client.V1ObjectMeta(
+                generate_name='user-jwt-',
+                annotations={
+                    "type": "user",
+                }
+            )
+        )
+    )
 
 
 def create_bucket(sa_name, gsa_email):
@@ -114,6 +138,9 @@ def create_all(google_project, kube_namespace):
                                             google_project, kube_namespace)
     out['gsa_key_secret_name'] = ksa_secret_resp.metadata.name
 
+    ksa_secret_resp = create_user_kube_secret(out, kube_namespace)
+    out['user_jwt_secret_name'] = ksa_secret_resp.metadata.name
+
     return out
 
 
@@ -141,8 +168,8 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
             raise e
 
     try:
-        delete_gsa_secret_in_kube(user_obj['gsa_key_secret_name'],
-                                  kube_namespace)
+        delete_kube_secret(user_obj['gsa_key_secret_name'], kube_namespace)
+        delete_kube_secret(user_obj['user_jwt_secret_name'], kube_namespace)
         modified += 1
     except kube_client.rest.ApiException as e:
         if e.status != 404:
