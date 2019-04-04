@@ -8,6 +8,9 @@ PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 cleanup() {
     set +e
     trap "" INT TERM
+
+    python3 -c "from batch.server.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$temp_table\")"
+
     [[ -z $server_pid ]] || kill -9 $server_pid
     [[ -z $proxy_pid ]] || kill -9 $proxy_pid
 }
@@ -23,6 +26,8 @@ if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
 fi
+
+temp_table=$(python3 -c "from batch.server.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); print(db.temp_table_name_sync(\"foo\"))")
 
 python3 -c 'import batch.server; batch.server.serve(5000)' &
 server_pid=$!
