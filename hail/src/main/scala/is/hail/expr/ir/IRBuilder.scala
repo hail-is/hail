@@ -47,6 +47,13 @@ object IRBuilder {
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
 
+  def concatStructs(struct1: IRProxy, struct2: IRProxy): IRProxy = (env: E) => {
+    val s2Type = struct2(env).typ.asInstanceOf[TStruct]
+    let(__struct2 = struct2) {
+      struct1.insertFields(s2Type.fieldNames.map(f => Symbol(f) -> '__struct2(Symbol(f))): _*)
+    }(env)
+  }
+
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
     MakeTuple(values.map(_ (env)))
 
@@ -252,15 +259,17 @@ object IRBuilder {
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 
-    def arrayStructToDict(fields: IndexedSeq[String]): IRProxy = {
+    def arrayStructToDict(keyFields: IndexedSeq[String]): IRProxy = {
       val element = Symbol(genUID())
       ir
         .map(element ~>
           makeTuple(
-            element.selectFields(fields: _*),
-            element.dropFieldList(fields)))
+            element.selectFields(keyFields: _*),
+            element.dropFieldList(keyFields)))
         .toDict
     }
+
+    def tupleElement(i: Int): IRProxy = (env: E) => GetTupleElement(ir(env), i)
 
     private[ir] def apply(env: E): IR = ir(env)
   }

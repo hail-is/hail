@@ -169,7 +169,7 @@ object LowerMatrixIR {
         }
 
         val b0 = f(ir)
-        
+
         val b: IRProxy =
           if (ContainsAgg(b0)) {
             irRange(0, 'row (entriesField).len)
@@ -313,6 +313,51 @@ object LowerMatrixIR {
     case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
 
     case mr: MatrixRead => mr.lower()
+
+    case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
+      val colKey = child.typ.colKey
+
+      val originalColIdx = Symbol(genUID())
+      val newColIdx1 = Symbol(genUID())
+      val newColIdx2 = Symbol(genUID())
+      val colsAggIdx = Symbol(genUID())
+      val keyMap = Symbol(genUID())
+      val aggElementIdx = Symbol(genUID())
+      lower(child)
+        .mapGlobals('global.insertFields(keyMap ->
+          let(__cols_field = 'global (colsField)) {
+            irRange(0, '__cols_field.len)
+              .map(originalColIdx ~> let(__cols_field_element = '__cols_field (originalColIdx)) {
+                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> originalColIdx)
+              })
+              .groupByKey
+              .toArray
+          }))
+        .mapRows('row.insertFields(entriesField ->
+          let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
+            irRange(0, '__key_map.len)
+              .map(newColIdx1 ~> '__key_map (newColIdx1)
+                .apply('value)
+                .arrayAgg(aggElementIdx ~>
+                  let(va = 'row) {
+                    aggLet(va = 'row, g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
+                      entryExpr
+                    }}))}))
+        .mapGlobals(
+          'global.insertFields(colsField ->
+            let(__key_map = 'global (keyMap)) {
+              irRange(0, '__key_map.len)
+                .map(newColIdx2 ~>
+                  concatStructs(
+                    '__key_map (newColIdx2)('key),
+                    '__key_map (newColIdx2)('value)
+                      .arrayAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
+                        colExpr
+                      })
+                  )
+                )
+            }
+          ).dropFields(keyMap))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

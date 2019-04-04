@@ -388,8 +388,19 @@ class Expression(object):
         coercer = expressions.coercer_from_dtype(typ)
         if isinstance(typ, tarray) and not isinstance(self.dtype, tarray):
             return coercer.ec.coerce(self)
+        elif isinstance(typ, tndarray) and not isinstance(self.dtype, tndarray):
+            return coercer.ec.coerce(self)
         else:
             return coercer.coerce(self)
+
+    @staticmethod
+    def _div_ret_type_f(t):
+        assert is_numeric(t)
+        if t == tint32 or t == tint64:
+            return tfloat32
+        else:
+            # Float64 or Float32
+            return t
 
     def _bin_op_numeric_unify_types(self, name, other):
         def numeric_proxy(t):
@@ -401,15 +412,22 @@ class Expression(object):
         def scalar_type(t):
             if isinstance(t, tarray):
                 return numeric_proxy(t.element_type)
+            elif isinstance(t, tndarray):
+                return numeric_proxy(t.element_type)
             else:
                 return numeric_proxy(t)
 
         t = unify_types(scalar_type(self.dtype), scalar_type(other.dtype))
         if t is None:
-            raise NotImplementedError("'{}' {} '{}'".format(
-                self.dtype, name, other.dtype))
+            raise NotImplementedError("'{}' {} '{}'".format(self.dtype, name, other.dtype))
+
         if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
-            t = tarray(t)
+            return tarray(t)
+        elif isinstance(self.dtype, tndarray):
+            return tndarray(t, self.ndim)
+        elif isinstance(other.dtype, tndarray):
+            return tndarray(t, other.ndim)
+
         return t
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
@@ -420,6 +438,8 @@ class Expression(object):
         if ret_type_f:
             if isinstance(unified_type, tarray):
                 ret_type = tarray(ret_type_f(unified_type.element_type))
+            elif isinstance(unified_type, tndarray):
+                ret_type = tndarray(ret_type_f(unified_type.element_type), unified_type.ndim)
             else:
                 ret_type = ret_type_f(unified_type)
         else:

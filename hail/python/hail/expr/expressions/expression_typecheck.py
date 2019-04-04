@@ -265,13 +265,15 @@ class NDArrayCoercer(ExprCoercer):
         return f'ndarray<{self.ec.str_t}>'
 
     def _requires_conversion(self, t: HailType) -> bool:
-        return False
+        assert isinstance(t, tndarray)
+        return self.ec._requires_conversion(t.element_type)
 
     def can_coerce(self, t: HailType) -> bool:
         return isinstance(t, tndarray) and self.ec.can_coerce(t.element_type)
 
     def _coerce(self, x: Expression):
-        raise NotImplementedError
+        assert isinstance(x, hl.expr.NDArrayExpression)
+        return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
 class SetCoercer(ExprCoercer):

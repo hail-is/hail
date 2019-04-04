@@ -709,27 +709,10 @@ class ArrayNumericExpression(ArrayExpression):
         :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Positionally divide by an array or a scalar using floor division.
@@ -799,46 +782,6 @@ class ArrayNumericExpression(ArrayExpression):
 
     def __rpow__(self, other):
         return self._bin_op_numeric_reverse('**', other, lambda _: tfloat64)
-
-
-class NDArrayExpression(Expression):
-
-    @typecheck_method(item=oneof(int, tuple))
-    def __getitem__(self, item):
-        ndim = self._type.ndim
-        if isinstance(item, int):
-            item = (item,)
-
-        if len(item) != ndim:
-            raise ValueError(f'Must specify one index per dimension. Expected {ndim} dimensions but got {len(item)}')
-
-        idxs = to_expr(item, ir.tarray(ir.tint64))
-        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
-
-    @typecheck_method(f=func_spec(1, expr_any))
-    def map(self, f):
-        """Transform each element of an NDArray.
-
-        Parameters
-        ----------
-        f : function ( (arg) -> :class:`.Expression`)
-            Function to transform each element of the NDArray.
-
-        Returns
-        -------
-        :class:`.NDArrayExpression`.
-            NDArray where each element has been transformed according to `f`.
-        """
-
-        element_type, ndim = self._type.element_type, self._type.ndim
-        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, ndim))
-
-        assert isinstance(self._type, tndarray)
-        return ndarray_map
-
-
-class NDArrayNumericExpression(NDArrayExpression):
-    pass
 
 
 class SetExpression(CollectionExpression):
@@ -3053,6 +2996,188 @@ class IntervalExpression(Expression):
         :class:`.BooleanExpression`
         """
         return self._method("includesEnd", tbool)
+
+
+class NDArrayExpression(Expression):
+    """Expression of type :class:`.tndarray`.
+
+    >>> nd = hl._ndarray([[1, 2], [3, 4]])
+    """
+
+    @property
+    def ndim(self):
+        """The number of dimensions of this ndarray.
+
+        Examples
+        --------
+
+        >>> nd.ndim
+        2
+
+        Returns
+        -------
+        :obj:`int`
+        """
+        return self._type.ndim
+
+    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
+    def __getitem__(self, item):
+        if not isinstance(item, tuple):
+            item = (item,)
+
+        if len(item) != self.ndim:
+            raise ValueError(f'Must specify one index per dimension. '
+                             f'Expected {self.ndim} dimensions but got {len(item)}')
+
+        # indexes must be iterable
+        if len(item) == 0:
+            idxs = hl.empty_array(hl.tint64)
+        else:
+            idxs = hl.array(list(item))
+
+        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
+
+    @typecheck_method(f=func_spec(1, expr_any))
+    def map(self, f):
+        """Transform each element of an NDArray.
+
+        Parameters
+        ----------
+        f : function ( (arg) -> :class:`.Expression`)
+            Function to transform each element of the NDArray.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+            NDArray where each element has been transformed according to `f`.
+        """
+
+        element_type = self._type.element_type
+        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, self.ndim))
+
+        assert isinstance(self._type, tndarray)
+        return ndarray_map
+
+
+class NDArrayNumericExpression(NDArrayExpression):
+    """Expression of type :class:`.tndarray` with a numeric element type.
+
+    Numeric ndarrays support arithmetic both with scalar values and other
+    arrays. Arithmetic between two numeric ndarrays requires that the shapes of
+    each ndarray be either identical or compatible for broadcasting. Operations
+    are applied positionally (``nd1 * nd2`` will multiply the first element of
+    ``nd1`` by the first element of ``nd2``, the second element of ``nd1`` by
+    the second element of ``nd2``, and so on). Arithmetic with a scalar will
+    apply the operation to each element of the ndarray.
+    """
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        if isinstance(other, list):
+            other = hl._ndarray(other)
+        return super(NDArrayNumericExpression, self)._bin_op_numeric(name, other, ret_type_f)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        if isinstance(other, list):
+            other = hl._ndarray(other)
+        return super(NDArrayNumericExpression, self)._bin_op_numeric_reverse(name, other, ret_type_f)
+
+    def __neg__(self):
+        """Negate elements of the ndarray.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            Array expression of the same type.
+        """
+        return self * -1
+
+    def __add__(self, other):
+        """Positionally add an array or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to add.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional sums.
+        """
+        return self._bin_op_numeric("+", other)
+
+    def __radd__(self, other):
+        return self._bin_op_numeric_reverse("+", other)
+
+    def __sub__(self, other):
+        """Positionally subtract a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to subtract.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional differences.
+        """
+        return self._bin_op_numeric("-", other)
+
+    def __rsub__(self, other):
+        return self._bin_op_numeric_reverse("-", other)
+
+    def __mul__(self, other):
+        """Positionally multiply by a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to multiply by.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional products.
+        """
+        return self._bin_op_numeric("*", other)
+
+    def __rmul__(self, other):
+        return self._bin_op_numeric_reverse("*", other)
+
+    def __truediv__(self, other):
+        """Positionally divide by a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to divide by.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional quotients.
+        """
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
+
+    def __rtruediv__(self, other):
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
+
+    def __floordiv__(self, other):
+        """Positionally divide by a ndarray or a scalar using floor division.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        return self._bin_op_numeric('//', other)
+
+    def __rfloordiv__(self, other):
+        return self._bin_op_numeric_reverse('//', other)
 
 
 scalars = {tbool: BooleanExpression,

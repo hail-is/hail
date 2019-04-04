@@ -162,10 +162,11 @@ def requires_auth(for_page = True):
     return auth
 
 
-def start_pod(jupyter_token, image, name, user_id):
+def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name):
     pod_id = uuid.uuid4().hex
 
     pod_spec = kube.client.V1PodSpec(
+        service_account_name=ksa_name,
         containers=[
             kube.client.V1Container(
                 command=[
@@ -184,7 +185,25 @@ def start_pod(jupyter_token, image, name, user_id):
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
                         path=f'/instance/{pod_id}/login',
-                        port=POD_PORT)))])
+                        port=POD_PORT)),
+                volume_mounts=[
+                    kube.client.V1VolumeMount(
+                        mount_path='/gsa-key-secret-name',
+                        name='gsa-key-secret-name',
+                        read_only=True
+                    )
+                ]
+            )
+        ],
+        volumes=[
+            kube.client.V1Volume(
+                name='gsa-key-secret-name',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=gsa_key_secret_name
+                )
+            )
+        ]
+    )
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook2-worker-',
@@ -353,7 +372,8 @@ def notebook_post():
     name = request.form.get('name', 'a_notebook')
     safe_user_id = user_id_transform(g.user['auth0_id'])
 
-    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
+    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name,
+                    safe_user_id, g.user['ksa_name'], g.user['gsa_key_secret_name'])
     session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
@@ -420,7 +440,6 @@ def delete_worker_pod(pod_name):
         k8s.delete_namespaced_pod(
             pod_name,
             'default',
-            kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
         log.info(f'pod {pod_name} already deleted {e}')
@@ -445,7 +464,6 @@ def admin_login_post():
 
 
 @app.route('/worker-image')
-@requires_auth()
 def worker_image():
     return '\n'.join(WORKER_IMAGES.values()), 200
 

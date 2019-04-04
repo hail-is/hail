@@ -32,7 +32,7 @@ object TestUtils {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
-      s"""expected fatal exception with pattern `$regex'
+      s"""expected fatal exception with pattern '$regex'
          |  Found: ${ thrown.getMessage } """
     if (!p)
       println(msg)

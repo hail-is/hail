@@ -834,7 +834,7 @@ class Tests(unittest.TestCase):
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         self.assertTrue('ascending order' in str(cm.exception))
 
@@ -860,30 +860,18 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
-
-    def test_compute_contig_start_idx(self):
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 1, 2, 2, 4, 4, 5, 5],
-            contig_cum_len=[1, 2, 4, 8])
-        self.assertEqual(res, [0, 1, 2, 4])
-
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 0, 1, 2, 3, 4, 5, 5],
-            contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
-
-        self.assertEqual(res, [0, 0, 2, 2, 4, 6])
 
     def test_write_overwrite(self):
         path = new_temp_file()
