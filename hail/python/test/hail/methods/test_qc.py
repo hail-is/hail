@@ -168,7 +168,6 @@ class Tests(unittest.TestCase):
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
         )
 
-        (hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)).old_to_new.show()
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
@@ -182,6 +181,5 @@ class Tests(unittest.TestCase):
         mt = mt.filter_entries(mt.GQ > 5)
         mt = hl.variant_qc(hl.sample_qc(mt))
 
-        mt.select_cols(mt.sample_qc.call_rate, foo = mt.sample_qc.n_called / n_rows).cols().show()
         assert mt.aggregate_cols(hl.agg.all(hl.approx_equal(mt.sample_qc.call_rate, mt.sample_qc.n_called / n_rows)))
         assert mt.aggregate_rows(hl.agg.all(hl.approx_equal(mt.variant_qc.call_rate, mt.variant_qc.n_called / n_cols)))
