@@ -20,6 +20,7 @@ class TableNativeWriter(TableWriter):
                       stage_locally=bool,
                       codec_spec=nullable(str))
     def __init__(self, path, overwrite, stage_locally, codec_spec):
+        super(TableNativeWriter, self).__init__()
         self.path = path
         self.overwrite = overwrite
         self.stage_locally = stage_locally
@@ -47,8 +48,8 @@ class TableTextWriter(TableWriter):
                       header=bool,
                       export_type=int,
                       delimiter=str)
-    def __init__(self, child, path, types_file, header, export_type, delimiter):
-        super().__init__(child)
+    def __init__(self, path, types_file, header, export_type, delimiter):
+        super(TableTextWriter, self).__init__()
         self.path = path
         self.types_file = types_file
         self.header = header
