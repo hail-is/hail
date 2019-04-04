@@ -46,9 +46,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     :py:data:`.tcall`, then an error is raised. The following fields are always
     computed from `GT`:
 
-    - `call_rate` (``float64``) -- Fraction of calls non-missing.
+    - `call_rate` (``float64``) -- Fraction of calls not missing or filtered.
+       Equivalent to `n_called` divided by :meth:`.count_rows`.
     - `n_called` (``int64``) -- Number of non-missing calls.
     - `n_not_called` (``int64``) -- Number of missing calls.
+    - `n_filtered` (``int64``) -- Number of filtered entries.
     - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
     - `n_het` (``int64``) -- Number of heterozygous calls.
     - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
@@ -101,70 +103,65 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
                              variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
 
-    exprs = {}
+    bound_exprs = {}
+    gq_dp_exprs = {}
 
     def has_field_of_type(name, dtype):
         return name in mt.entry and mt[name].dtype == dtype
 
     if has_field_of_type('DP', hl.tint32):
-        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
 
     if has_field_of_type('GQ', hl.tint32):
-        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT',  hl.tcall):
         raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
 
-    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-    exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
-    exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+    bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    bound_exprs['n_filtered'] = mt.count_rows(_localize=False) - hl.agg.count()
+    bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
+    bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
+    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
     def get_allele_type(allele_idx):
         return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
-    exprs['allele_type_counts'] = hl.agg.explode(
+    bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda elt: hl.agg.counter(elt),
         hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
 
-    mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
-
     zero = hl.int64(0)
 
-    select_exprs = {}
-    if 'dp_stats' in exprs:
-        select_exprs['dp_stats'] = mt[name].dp_stats
-    if 'gq_stats' in exprs:
-        select_exprs['gq_stats'] = mt[name].gq_stats
+    result_struct = hl.rbind(hl.struct(**bound_exprs),
+        lambda x: hl.rbind(
+            hl.struct(**{
+                **gq_dp_exprs,
+                'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
+                'n_called': x.n_called,
+                'n_not_called': x.n_not_called,
+                'n_filtered': x.n_filtered,
+                'n_hom_ref': x.n_hom_ref,
+                'n_het': x.n_het,
+                'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
+                'n_non_ref': x.n_called - x.n_hom_ref,
+                'n_singleton': x.n_singleton,
+                'n_snp': x.allele_type_counts.get(allele_ints["Transition"], zero) + \
+                         x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
+                'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
+                'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
+                'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+            }),
+            lambda s: s.annotate(
+                r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
+                r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
+                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
+            )))
 
-    select_exprs = {
-        **select_exprs,
-        'call_rate': hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
-        'n_called': mt[name].n_called,
-        'n_not_called': mt[name].n_not_called,
-        'n_hom_ref': mt[name].n_hom_ref,
-        'n_het': mt[name].n_het,
-        'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
-        'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
-        'n_singleton': mt[name].n_singleton,
-        'n_snp': mt[name].allele_type_counts.get(allele_ints["Transition"], zero) + \
-                 mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
-        'n_insertion': mt[name].allele_type_counts.get(allele_ints["Insertion"], zero),
-        'n_deletion': mt[name].allele_type_counts.get(allele_ints["Deletion"], zero),
-        'n_transition': mt[name].allele_type_counts.get(allele_ints["Transition"], zero),
-        'n_transversion': mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
-        'n_star': mt[name].allele_type_counts.get(allele_ints["Star"], zero)
-    }
-
-    mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
-
-    mt = mt.annotate_cols(**{name: mt[name].annotate(
-        r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
-        r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),
-        r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
-    )})        
-
+    mt = mt.annotate_cols(**{name: result_struct})
     mt = mt.drop(variant_ac, variant_atypes)
 
     return mt
@@ -209,10 +206,11 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `AN` (``int32``) -- Total number of called alleles.
     - `homozygote_count` (``array<int32>``) -- Number of homozygotes per
       allele. One element per allele, including the reference.
+    - `call_rate` (``float64``) -- Fraction of calls neither missing nor filtered.
+       Equivalent to `n_called` / :meth:`.count_cols`.
     - `n_called` (``int64``) -- Number of samples with a defined `GT`.
     - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
-    - `call_rate` (``float32``) -- Fraction of samples with a defined `GT`.
-      Equivalent to `n_called` / :meth:`.count_cols`.
+    - `n_filtered` (``int64``) -- Number of filtered entries.
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
@@ -244,51 +242,47 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     """
     require_row_key_variant(mt, 'variant_qc')
 
-    exprs = {}
-    struct_exprs = []
+    bound_exprs = {}
+    gq_dp_exprs = {}
 
     def has_field_of_type(name, dtype):
         return name in mt.entry and mt[name].dtype == dtype
 
-    n_samples = mt.count_cols()
-
     if has_field_of_type('DP', hl.tint32):
-        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
 
     if has_field_of_type('GQ', hl.tint32):
-        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT',  hl.tcall):
         raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
-    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-    struct_exprs.append(hl.agg.call_stats(mt.GT, mt.alleles))
 
+    bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    bound_exprs['n_filtered'] = mt.count_cols(_localize=False) - hl.agg.count()
+    bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
-    # the structure of this function makes it easy to add new nested computations
-    def flatten_struct(*struct_exprs):
-        flat = {}
-        for struct in struct_exprs:
-            for k, v in struct.items():
-                flat[k] = v
-        return hl.struct(
-            **flat,
-            **exprs,
-        )
+    result = hl.rbind(hl.struct(**bound_exprs),
+                      lambda e1: hl.rbind(
+                          hl.case().when(hl.len(mt.alleles) == 2,
+                                         hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                                e1.call_stats.AC[1] - 2 *
+                                                                e1.call_stats.homozygote_count[1],
+                                                                e1.call_stats.homozygote_count[1])
+                                         ).or_missing(),
+                          lambda hwe: hl.struct(**{
+                              **gq_dp_exprs,
+                              **e1.call_stats,
+                              'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
+                              'n_called': e1.n_called,
+                              'n_not_called': e1.n_not_called,
+                              'n_filtered': e1.n_filtered,
+                              'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
+                              'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
+                              'het_freq_hwe': hwe.het_freq_hwe,
+                              'p_value_hwe': hwe.p_value})))
 
-    mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
-
-    hwe = hl.hardy_weinberg_test(mt[name].homozygote_count[0],
-                                 mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
-                                 mt[name].homozygote_count[1])
-    hwe = hwe.select(het_freq_hwe=hwe.het_freq_hwe, p_value_hwe=hwe.p_value)
-    mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
-                                                     call_rate=mt[name].n_called / n_samples,
-                                                     n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),
-                                                     n_non_ref=mt[name].n_called - mt[name].homozygote_count[0],
-                                                     **hl.cond(hl.len(mt.alleles) == 2,
-                                                               hwe,
-                                                               hl.null(hwe.dtype)))})
-    return mt
+    return mt.annotate_rows(**{name: result})
 
 
 @typecheck(left=MatrixTable,
