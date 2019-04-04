@@ -1,6 +1,7 @@
 .PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar
 
 PROJECT = $(shell gcloud config get-value project)
+GSA_KEY_FILE = /gsa-key/privateKeyData
 
 build-hail-shadow-jar:
 	cd ../hail && ./gradlew shadowJar
@@ -13,7 +14,11 @@ install-hail-locally:
 	cp -a ../hail/build/libs/hail-all-spark.jar build/hail/jars
 	cp -a ../hail/python/hail build/hail/python
 
-build: install-hail-locally
+jupyter_notebook_config.py:
+	sed -e "s,@project@,$(PROJECT),g" \
+	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
+            < jupyter_notebook_config.py.in > jupyter_notebook_config.py
+build: install-hail-locally jupyter_notebook_config.py
 	docker build -t spark-base -f Dockerfile.spark-base .
 	docker build -t hail-base -f Dockerfile.hail-base .
 	docker build -t spark-master -f Dockerfile.master .
@@ -68,3 +73,6 @@ deploy: push
 
 test: build-hail-shadow-jar
 	./test-apiserver.sh
+
+clean:
+	rm jupyter_notebook_config.py

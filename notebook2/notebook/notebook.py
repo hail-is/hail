@@ -162,8 +162,13 @@ def requires_auth(for_page = True):
     return auth
 
 
-def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name):
+def start_pod(jupyter_token, image, name, user_id, user_data):
     pod_id = uuid.uuid4().hex
+
+    ksa_name = user_data['ksa_name']
+    bucket = user_data['bucket_name']
+    gsa_key_secret_name = user_data['gsa_key_secret_name']
+    jwt_secret_name = user_data['user_jwt_secret_name']
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
@@ -174,6 +179,7 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{pod_id}/',
+                    f'--GoogleStorageContentManager.default_path="{bucket}"',
                     "--ip", "0.0.0.0", "--no-browser"
                 ],
                 name='default',
@@ -188,8 +194,13 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
                         port=POD_PORT)),
                 volume_mounts=[
                     kube.client.V1VolumeMount(
-                        mount_path='/gsa-key-secret-name',
-                        name='gsa-key-secret-name',
+                        mount_path='/gsa-key',
+                        name='gsa-key',
+                        read_only=True
+                    ),
+                    kube.client.V1VolumeMount(
+                        mount_path='/user-jwt',
+                        name='user-jwt',
                         read_only=True
                     )
                 ]
@@ -197,9 +208,15 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
         ],
         volumes=[
             kube.client.V1Volume(
-                name='gsa-key-secret-name',
+                name='gsa-key',
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name=gsa_key_secret_name
+                )
+            ),
+            kube.client.V1Volume(
+                name='user-jwt',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=jwt_secret_name
                 )
             )
         ]
@@ -370,10 +387,9 @@ def notebook_post():
 
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = user_id_transform(g.user['auth0_id'])
+    safe_id = user_id_transform(g.user['auth0_id'])
 
-    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name,
-                    safe_user_id, g.user['ksa_name'], g.user['gsa_key_secret_name'])
+    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_id, g.user)
     session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
