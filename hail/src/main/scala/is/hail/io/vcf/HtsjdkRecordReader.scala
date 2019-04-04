@@ -42,26 +42,7 @@ class HtsjdkRecordReader(
     infoType: TStruct,
     infoFlagFieldNames: Set[String]) {
     // locus, alleles, rsid added via VCFLine
-    // qual added via parseLine
-
-    // filters
-    if (hasFilters) {
-      if (!vc.filtersWereApplied)
-        rvb.setMissing()
-      else {
-        if (vc.isNotFiltered) {
-          rvb.startArray(0)
-          rvb.endArray()
-        } else {
-          rvb.startArray(vc.getFilters.size())
-          val fi = vc.getFilters.iterator()
-          while (fi.hasNext)
-            rvb.addString(fi.next())
-          rvb.endArray()
-        }
-      }
-    }
-
+    // qual, filters added via parseLine
     if (infoType != null) {
       rvb.startStruct()
       infoType.fields.foreach { f =>

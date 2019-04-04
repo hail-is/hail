@@ -50,7 +50,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     c - '0'
   }
 
-  // field contexts: field, array field, format field, call field, format array field
+  // field contexts: field, array field, format field, call field, format array field, filter array field
 
   def endField(p: Int): Boolean = {
     p == line.length || line(p) == '\t'
@@ -93,6 +93,15 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
+  def endFilterArrayField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ';'
+    }
+  }
+
   def endField(): Boolean = endField(pos)
 
   def endArrayField(): Boolean = endArrayField(pos)
@@ -102,6 +111,8 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def endCallField(): Boolean = endCallField(pos)
 
   def endFormatArrayField(): Boolean = endFormatArrayField(pos)
+
+  def endFilterArrayField(): Boolean = endFilterArrayField(pos)
 
   def skipFormatField(): Unit = {
     while (!endFormatField())
@@ -190,6 +201,35 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     while (!endField()) {
       pos += 1 // comma
       abs += parseStringInArray()
+    }
+  }
+
+  // leaves result in abs, returns true for having filters, even PASS, false for no filters
+  def parseFilters(): Boolean = {
+    def parseStringInFilters(): String = {
+      val start = pos
+      while (!endFilterArrayField())
+        pos += 1
+      val end = pos
+      line.substring(start, end)
+    }
+
+    assert(abs.size == 0)
+
+    // . means no filters
+    if (fieldMissing()) {
+      pos += 1 // .
+      false
+    } else {
+      val s = parseStringInFilters()
+      if (!(s == "PASS" && endField())) {
+        abs += s
+        while (!endField()) {
+          pos += 1 // semicolon
+          abs += parseStringInFilters()
+        }
+      }
+      true
     }
   }
 
@@ -909,6 +949,22 @@ object LoadVCF {
       l.skipField()
     l.nextField()
 
+    // filters
+    if (c.hasFilters) {
+      if (l.parseFilters()) {
+        rvb.startArray(l.abs.length)
+        var i = 0
+        while (i < l.abs.length) {
+          rvb.addString(l.abs(i))
+          i += 1
+        }
+        rvb.endArray()
+      } else
+        rvb.setMissing()
+    } else
+      l.skipField()
+    l.nextField()
+
     val vc = c.codec.decode(l.line)
     reader.readVariantInfo(vc, rvb, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
@@ -925,13 +981,9 @@ object LoadVCF {
             i += 1
           }
         } else {
-          // l is pointing at filter
-          var i = 0
-          while (i < 2) { // filter, info
-            l.skipField()
-            l.nextField()
-            i += 1
-          }
+          // l is pointing at info
+          l.skipField()
+          l.nextField()
 
           val format = l.parseString()
           l.nextField()
@@ -939,7 +991,7 @@ object LoadVCF {
           val fp = c.getFormatParser(format)
 
           fp.parse(l, rvb)
-          i = 1
+          var i = 1
           while (i < nSamples) {
             l.nextField()
             fp.parse(l, rvb)
