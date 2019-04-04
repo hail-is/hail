@@ -20,13 +20,15 @@ object FreeVariables {
             .iterator
             .zipWithIndex
             .foreach {
-              case (child: IR, i) => compute(child, ChildEnvWithBindings(ir1, i, env))
+              case (child: IR, i) =>
+                val base = ChildEnvWithoutBindings(ir1, i, env)
+                compute(child, base.merge(NewBindings(ir1, i, base)))
               case _ =>
             }
       }
     }
 
-    compute(ir, BindingEnv.empty[Type])
+    compute(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
 
     freeVars.result()
   }
