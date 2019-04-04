@@ -4839,3 +4839,9 @@ def _values_similar(l, r, tolerance=1e-6, absolute=False):
     assert l.dtype == r.dtype
     return ((is_missing(l) & is_missing(r))
             | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))
+
+
+@typecheck(coords=expr_array(expr_array(expr_float64)), radius=expr_float64)
+def _locus_windows_per_contig(coords, radius):
+    rt = hl.ttuple(hl.tarray(hl.tint32), hl.tarray(hl.tint32))
+    return _func("locus_windows_per_contig", rt, coords, radius)
