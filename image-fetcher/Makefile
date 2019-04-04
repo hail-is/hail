@@ -12,7 +12,6 @@ fetch-image.sh: fetch-image.sh.in
 build: fetch-image.sh
 	docker build . -t image-fetcher
 
-push: 
 push: build
 	docker tag image-fetcher $(FETCH_LATEST)
 	docker push $(FETCH_LATEST)
