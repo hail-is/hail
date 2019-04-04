@@ -37,7 +37,7 @@ class tmatrix(object):
         self.entry_type = entry_type
 
     def __eq__(self, other):
-        return (isinstance(other, ttable)
+        return (isinstance(other, tmatrix)
                 and self.global_type == other.global_type
                 and self.col_type == other.col_type
                 and self.col_key == other.col_key

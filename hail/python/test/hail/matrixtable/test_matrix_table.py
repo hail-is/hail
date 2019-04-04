@@ -1132,6 +1132,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
         self.assertTrue(mt1._same(mt2))
 
+    def test_matrix_type_equality(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt2 = mt.annotate_entries(foo=1)
+        assert mt._type == mt._type
+        assert mt._type != mt2._type
+
     def test_entry_filtering(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
