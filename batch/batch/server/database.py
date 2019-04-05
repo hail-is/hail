@@ -93,7 +93,7 @@ def make_where_statement(items):
     values = []
     for k, v in items.items():
         if isinstance(v, list):
-            if not v:
+            if len(v) == 0:
                 template.append("FALSE")
             else:
                 template.append(f'`{k.replace("`", "``")}` IN %s')
@@ -107,7 +107,7 @@ def make_where_statement(items):
 
 
 @asyncinit
-class Table:  # pylint: disable=R0903
+class Table:
     async def __init__(self, db, name, schema, keys):
         self.name = name
         self._db = db
@@ -126,7 +126,7 @@ class Table:  # pylint: disable=R0903
     async def _update_record(self, where_items, set_items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                if not set_items:
+                if len(set_items) != 0:
                     where_template, where_values = make_where_statement(where_items)
                     set_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in set_items.items()])
                     set_values = set_items.values()
@@ -134,7 +134,7 @@ class Table:  # pylint: disable=R0903
                     await cursor.execute(sql, (*set_values, *where_values))
 
     async def _get_records(self, where_items, select_fields=None):
-        assert select_fields is None or len(select_fields) != 0  # pylint: disable=C1801
+        assert select_fields is None or len(select_fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
