@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from batch.server.database import Database, run_synchronous
+from batch.database import Database, run_synchronous
 
 
 class Test(unittest.TestCase):
@@ -48,6 +48,7 @@ class Test(unittest.TestCase):
 
     def test_update_record(self):
         t = self.temp_table()
+
         try:
             run_synchronous(t.update_record({'id': 3, 'name': '3'},
                                             {'name': 'hello'}))
