@@ -1,11 +1,9 @@
-import sys
 import os
 import time
 import random
 import sched
 import uuid
 from collections import Counter
-import logging
 import threading
 import asyncio
 import kubernetes as kube
@@ -20,7 +18,7 @@ from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, ba
 from .globals import next_id, get_recent_events, add_event
 from .database import Database
 
-from .. import schemas
+from .. import schemas, run_once, log
 
 uvloop.install()
 
@@ -39,30 +37,6 @@ else:
     if not os.path.isdir('logs'):
         raise OSError('logs exists but is not a directory')
 
-
-def make_logger():
-    fmt = logging.Formatter(
-        # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
-
-    file_handler = logging.FileHandler('batch.log')
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(fmt)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(fmt)
-
-    log = logging.getLogger('batch')
-    log.setLevel(logging.INFO)
-
-    logging.basicConfig(handlers=[file_handler, stream_handler], level=logging.INFO)
-
-    return log
-
-
-log = make_logger()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
@@ -792,15 +766,6 @@ def run_forever(target, *args, **kwargs):
         if sleep_duration_ms > 0:
             log.debug(f'run_forever: {target.__name__}: sleep {sleep_duration_ms}ms')
             time.sleep(sleep_duration_ms / 1000.0)
-
-
-def run_once(target, *args, **kwargs):
-    try:
-        log.info(f'run_forever: {target.__name__}')
-        target(*args, **kwargs)
-        log.info(f'run_forever: {target.__name__} returned')
-    except Exception:  # pylint: disable=W0703
-        log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
 def aiohttp_event_loop(port):
