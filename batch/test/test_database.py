@@ -14,7 +14,7 @@ class Test(unittest.TestCase):
         key = ['id']
 
         t1_name = self.db.create_temp_table_sync("t1", schema, key)
-        t2_name = self.db.create_table_sync("t2", schema, key)
+        t2_name = self.db.create_temp_table_sync("t2", schema, key)
         assert t1_name.startswith("t1")
         assert t2_name.startswith("t2")
 
