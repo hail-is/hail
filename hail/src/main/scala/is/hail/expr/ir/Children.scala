@@ -79,7 +79,7 @@ object Children {
     case ArrayAgg(a, name, query) =>
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
-      Array(nd, idxs)
+      nd +: idxs
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>

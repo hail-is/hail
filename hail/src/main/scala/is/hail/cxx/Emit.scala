@@ -991,26 +991,31 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case ir.NDArrayRef(nd, idxsIR) =>
+      case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
-        val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
-        val idxsContainer = idxsIR.pType.asInstanceOf[PStreamable].asPArray
+        val elemType = typeToCXXType(ndIR.pType.asInstanceOf[PNDArray].elementType)
 
-        val ndt = emit(nd)
-        val idxst = emit(idxsIR)
+        val ndt = emit(ndIR)
+        val idxst = idxs.map(emit(_))
 
-        val idxs = fb.variable("idxs", "std::vector<long>",
-          s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
-        present(
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val index = idxst.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
+          s"${ idx.v } * $nd.strides[$dim] + $linearIndex"
+        }
+
+        triplet(
           s"""
-             |({
              | ${ ndt.setup }
              | ${ idxst.setup }
-             |
-             | ${ idxs.define }
-             | load_element<$elemType>(load_indices(${ndt.v}, $idxs));
+           """.stripMargin,
+          idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }"},
+          s"""
+             |({
+             | ${ nd.define }
+             | ${ index.define }
+             | load_element<$elemType>(load_index($nd, $index));
              |})
-             |""".stripMargin)
+           """.stripMargin)
 
       case ir.NDArrayWrite(nd, path) =>
         val tub = fb.translationUnitBuilder()

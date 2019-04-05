@@ -642,7 +642,7 @@ object IRParser {
         NDArrayReindex(nd, indexExpr)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
-        val idxs = ir_value_expr(env)(it)
+        val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
       case "NDArrayWrite" =>
         val nd = ir_value_expr(env)(it)

@@ -3089,13 +3089,7 @@ class NDArrayExpression(Expression):
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
-        # indexes must be iterable
-        if len(item) == 0:
-            idxs = hl.empty_array(hl.tint64)
-        else:
-            idxs = hl.array(list(item))
-
-        return construct_expr(ir.NDArrayRef(self._ir, idxs._ir), self._type.element_type)
+        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):

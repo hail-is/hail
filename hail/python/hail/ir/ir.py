@@ -504,19 +504,19 @@ class NDArrayMap(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(nd=IR, idxs=IR)
+    @typecheck_method(nd=IR, idxs=sequenceof(IR))
     def __init__(self, nd, idxs):
-        super().__init__(nd, idxs)
+        super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
 
-    @typecheck_method(nd=IR, idxs=IR)
-    def copy(self, nd, idxs):
-        return NDArrayRef(nd, idxs)
+    @typecheck_method(nd=IR, idxs=sequenceof(IR))
+    def copy(self, *args):
+        return NDArrayRef(args[0], args[1:])
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.idxs._compute_type(env, agg_env)
+        [idx._compute_type(env, agg_env) for idx in self.idxs]
         self._type = self.nd.typ.element_type
 
 
