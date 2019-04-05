@@ -2493,6 +2493,92 @@ class MatrixTable(ExprContainer):
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
         Env.backend().execute(MatrixWrite(self._mir, writer))
 
+    class _Show:
+        def __init__(self, table, n_rows, n_cols, width, truncate, types):
+            self.table_show = table._show(n_rows, width, truncate, types)
+            self.n_cols = n_cols
+
+        def __str__(self):
+            s = self.table_show.__str__()
+            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
+            return s
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            s = self.table_show._repr_html_()
+            s += '<p>'
+            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
+            s += '</p>\n'
+            return s
+
+    @typecheck_method(n_rows=nullable(int),
+                      n_cols=nullable(int),
+                      include_row_fields=bool,
+                      width=nullable(int),
+                      truncate=nullable(int),
+                      types=bool,
+                      handler=nullable(anyfunc))
+    def show(self,
+             n_rows=None,
+             n_cols=None,
+             include_row_fields=False,
+             width=None,
+             truncate=None,
+             types=True,
+             handler=None):
+        """Print the first few rows of the table to the console.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        n_rows : :obj:`int`
+            Maximum number of rows to show.
+        n_cols : :obj:`int`
+            Maximum number of rows to show.
+        width : :obj:`int`
+            Horizontal width at which to break fields.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
+            Print an extra header line with the type of each field.
+        handler : Callable[[str], Any]
+            Handler function for data string.
+        """
+
+        def estimate_size(struct_expression):
+            return sum(max(len(f), len(str(x.dtype))) + 3
+                       for f, x in struct_expression.flatten().items())
+
+        if n_cols is None:
+            characters_per_field = 10
+            import shutil
+            (characters, _) = shutil.get_terminal_size((80, 10))
+            characters -= 6 # borders
+            key_characters = estimate_size(self.row_key)
+            characters -= key_characters
+            if include_row_fields:
+                characters -= estimate_size(self.row_value)
+            characters = max(characters, 0)
+            n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
+
+        t = self.localize_entries('entries', 'cols')
+        t = t.key_by()
+        t = t.select(
+            **{f: t[f] for f in self.row_key},
+            **{f: t[f] for f in self.row_value if include_row_fields},
+            **{str(i): t.entries[i] for i in range(0, n_cols)})
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
+        handler(MatrixTable._Show(t, n_rows, n_cols, width, truncate, types))
+
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
 
