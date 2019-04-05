@@ -3,7 +3,7 @@
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 CI2_LATEST = gcr.io/$(PROJECT)/ci2:latest
 CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed -e 's,[^:]*:,,')
 

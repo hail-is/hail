@@ -9,8 +9,15 @@ fetch-image.sh: fetch-image.sh.in
 	sed -e "s,@project@,$(PROJECT)," \
 	  < fetch-image.sh.in > fetch-image.sh
 
+ifeq ($(IN_HAIL_CI),1)
+build: fetch-image.sh
+	-docker pull alpine:3.8
+	-docker pull $(FETCH_LATEST)
+	docker build . -t image-fetcher --cache-from image-fetcher,$(FETCH_LATEST),alpine:3.8
+else
 build: fetch-image.sh
 	docker build . -t image-fetcher
+endif
 
 push: build
 	docker tag image-fetcher $(FETCH_LATEST)

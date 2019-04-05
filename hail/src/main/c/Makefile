@@ -53,6 +53,7 @@ TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
 
 ALL_CPP := $(shell find * -iname '*.cpp')
 HEADER_DEPENDENCIES := $(ALL_CPP:%.cpp=build/%.d)
+$(info $(HEADER_DEPENDENCIES))
 -include $(HEADER_DEPENDENCIES)
 
 $(BUILD)/%.d: %.cpp
