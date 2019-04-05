@@ -65,6 +65,24 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
+  def endInfoKey(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == '=' || c == ';'
+    }
+  }
+
+  def endInfoField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ';'
+    }
+  }
+
   def endFormatField(p: Int): Boolean = {
     if (p == line.length)
       true
@@ -84,6 +102,15 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
+  def endInfoArrayField(p: Int): Boolean = {
+    if (p == line.length)
+      true
+    else {
+      val c = line(p)
+      c == '\t' || c == ';' || c == ','
+    }
+  }
+
   def endFormatArrayField(p: Int): Boolean = {
     if (p == line.length)
       true
@@ -93,31 +120,36 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
-  def endFilterArrayField(p: Int): Boolean = {
-    if (p == line.length)
-      true
-    else {
-      val c = line(p)
-      c == '\t' || c == ';'
-    }
-  }
+  def endFilterArrayField(p: Int): Boolean = endInfoField
 
   def endField(): Boolean = endField(pos)
 
   def endArrayField(): Boolean = endArrayField(pos)
 
+  def endInfoField(): Boolean = endInfoField(pos)
+
+  def endInfoKey(): Boolean = endInfoKey(pos)
+
   def endFormatField(): Boolean = endFormatField(pos)
 
   def endCallField(): Boolean = endCallField(pos)
+
+  def endInfoArrayField(): Boolean = endInfoArrayField(pos)
 
   def endFormatArrayField(): Boolean = endFormatArrayField(pos)
 
   def endFilterArrayField(): Boolean = endFilterArrayField(pos)
 
+  def skipInfoField(): Unit = {
+    while (!endInfoField())
+      pos += 1
+  }
+
   def skipFormatField(): Unit = {
     while (!endFormatField())
       pos += 1
   }
+
 
   def fieldMissing(): Boolean = {
     pos < line.length &&
@@ -131,6 +163,13 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       endArrayField(pos + 1)
   }
 
+  def infoFieldMissing(): Boolean = {
+    pos < line.length &&
+      (line(pos) == '.' &&
+       endInfoField(pos + 1) ||
+       endInfoField(pos))
+  }
+
   def formatFieldMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
@@ -141,6 +180,12 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     pos < line.length &&
       line(pos) == '.' &&
       endCallField(pos + 1)
+  }
+
+  def infoArrayFieldMissing(): Boolean = {
+    pos < line.length &&
+      line(pos) == '.' &&
+      endFormatArrayField(pos + 1)
   }
 
   def formatArrayFieldMissing(): Boolean = {
@@ -238,6 +283,13 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       parseError("unexpected end of line")
     assert(line(pos) == '\t')
     pos += 1 // tab
+  }
+
+  def nextInfoField(): Unit = {
+    if (pos == line.length)
+      parseError("unexpected end of line")
+    assert(line(pos) == ';')
+    pos += 1 // semicolon
   }
 
   def nextFormatField(): Unit = {
@@ -594,6 +646,258 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
       abd.clear()
     }
+  }
+
+  def parseInfoKey(): String = {
+    val start = pos
+    while (!endInfoKey()) {
+      if (line(pos) == ' ')
+        parseError("space character in INFO key")
+      pos += 1
+    }
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseInfoInt(): Int = {
+    if (endInfoField())
+      parseError("empty integer")
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
+    var v = 0
+    while (!endInfoField()) {
+      v = v * 10 + numericValue(line(pos))
+      pos += 1
+    }
+    v * mul
+  }
+
+  def parseAddInfoInt(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      rvb.addInt(parseInfoInt())
+    }
+  }
+
+  def parseInfoString(): String = {
+    val start = pos
+    while (!endInfoField())
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseAddInfoString(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      rvb.addString(parseInfoString())
+    }
+  }
+
+  def parseAddInfoFloat(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      rvb.addFloat(parseInfoString().toFloat)
+    }
+  }
+
+  def parseAddInfoDouble(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      rvb.addDouble(parseInfoString().toDouble)
+    }
+  }
+
+  def parseIntInInfoArray(): Int = {
+    if (endInfoArrayField())
+      parseError("empty integer")
+    var mul = 1
+    if (line(pos) == '-') {
+      mul = -1
+      pos += 1
+    }
+    var v = 0
+    while (!endInfoArrayField()) {
+      v = v * 10 + numericValue(line(pos))
+      pos += 1
+    }
+    v * mul
+  }
+
+  def parseStringInInfoArray(): String = {
+    val start = pos
+    while (!endInfoArrayField())
+      pos += 1
+    val end = pos
+    line.substring(start, end)
+  }
+
+  def parseDoubleInInfoArray(): Double = parseStringInInfoArray().toDouble
+
+  def parseIntInfoArrayElement() {
+    if (infoArrayFieldMissing()) {
+      abi.addMissing()
+      pos += 1  // dot
+    } else
+      abi += parseIntInInfoArray()
+  }
+
+  def parseStringInfoArrayElement() {
+    if (infoArrayFieldMissing()) {
+      abs.addMissing()
+      pos += 1  // dot
+    } else
+      abs += parseStringInInfoArray()
+  }
+
+  def parseDoubleInfoArrayElement() {
+    if (infoArrayFieldMissing()) {
+      abd.addMissing()
+      pos += 1
+    } else {
+      abd += parseDoubleInInfoArray()
+    }
+  }
+
+  def parseAddInfoArrayInt(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      assert(abi.length == 0)
+      parseIntInfoArrayElement()
+      while (!endInfoField()) {
+        pos += 1  // comma
+        parseIntInfoArrayElement()
+      }
+
+      rvb.startArray(abi.length)
+      var i = 0
+      while (i < abi.length) {
+        if (abi.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addInt(abi(i))
+        i += 1
+      }
+      rvb.endArray()
+      abi.clear()
+    }
+  }
+
+  def parseAddInfoArrayString(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      assert(abs.length == 0)
+      parseStringInfoArrayElement()
+      while (!endInfoField()) {
+        pos += 1  // comma
+        parseStringInfoArrayElement()
+      }
+
+      rvb.startArray(abs.length)
+      var i = 0
+      while (i < abs.length) {
+        if (abs.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addString(abs(i))
+        i += 1
+      }
+      rvb.endArray()
+      abs.clear()
+    }
+  }
+
+  def parseAddInfoArrayDouble(rvb: RegionValueBuilder) {
+    if (!infoFieldMissing()) {
+      rvb.setPresent()
+      assert(abd.length == 0)
+      parseDoubleInfoArrayElement()
+      while (!endInfoField()) {
+        pos += 1  // comma
+        parseDoubleInfoArrayElement()
+      }
+
+      rvb.startArray(abd.length)
+      var i = 0
+      while (i < abd.length) {
+        if (abd.isMissing(i))
+          rvb.setMissing()
+        else
+          rvb.addDouble(abd(i))
+        i += 1
+      }
+      rvb.endArray()
+      abd.clear()
+    }
+  }
+
+  def parseAddInfoField(rvb: RegionValueBuilder, typ: Type) {
+    val c = line(pos)
+    if (c != ';' && c != '\t') {
+      if (c != '=')
+        parseError(s"invalid INFO key/value expression found '${line(pos)}' instead of '='")
+      pos += 1 // equals
+      typ match {
+        case TInt32(_) => parseAddInfoInt(rvb)
+        case TString(_) => parseAddInfoString(rvb)
+        case TFloat32(_) => parseAddInfoFloat(rvb)
+        case TFloat64(_) => parseAddInfoDouble(rvb)
+        case TArray(TInt32(_), _) => parseAddInfoArrayInt(rvb)
+        case TArray(TFloat64(_), _) => parseAddInfoArrayDouble(rvb)
+        case TArray(TString(_), _) => parseAddInfoArrayString(rvb)
+      }
+    }
+  }
+
+  def parseAddInfo(rvb: RegionValueBuilder, infoType: TStruct, infoFlagFieldNames: Set[String]) {
+    rvb.startStruct()
+    infoType.fields.foreach { f =>
+      if (infoFlagFieldNames.contains(f.name))
+        rvb.addBoolean(false)
+      else
+        rvb.setMissing()
+    }
+
+    // handle first key, which may be '.' for missing info
+    var key = parseInfoKey()
+    if (key == ".") {
+      if (endField()) {
+        rvb.endStruct()
+        return
+      } else
+        parseError(s"invalid INFO key $key")
+    }
+
+    if (infoType.hasField(key)) {
+      rvb.setFieldIndex(infoType.fieldIdx(key))
+      if (infoFlagFieldNames.contains(key))
+        rvb.addBoolean(true)
+      else
+        parseAddInfoField(rvb, infoType.fieldType(key))
+    }
+    skipInfoField()
+
+    while (!endField()) {
+      nextInfoField()
+      key = parseInfoKey()
+      if (key == ".") {
+        parseError(s"invalid INFO key $key")
+      }
+      if (infoType.hasField(key)) {
+        rvb.setFieldIndex(infoType.fieldIdx(key))
+        if (infoFlagFieldNames.contains(key))
+          rvb.addBoolean(true)
+        else
+          parseAddInfoField(rvb, infoType.fieldType(key))
+      }
+      skipInfoField()
+    }
+
+    rvb.setFieldIndex(infoType.size)
+    rvb.endStruct()
   }
 }
 
@@ -959,14 +1263,21 @@ object LoadVCF {
           i += 1
         }
         rvb.endArray()
+        l.abs.clear()
       } else
         rvb.setMissing()
     } else
       l.skipField()
     l.nextField()
 
+    // info
+    if (c.infoSignature != null)
+      l.parseAddInfo(rvb, c.infoSignature, c.infoFlagFieldNames)
+    else
+      l.skipField()
+    l.nextField()
+
     val vc = c.codec.decode(l.line)
-    reader.readVariantInfo(vc, rvb, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
     if (!dropSamples) {
       val nSamples = vc.getNSamples
@@ -981,17 +1292,10 @@ object LoadVCF {
             i += 1
           }
         } else {
-          // l is pointing at info
-          l.skipField()
-          l.nextField()
-
           val format = l.parseString()
-          l.nextField()
-
           val fp = c.getFormatParser(format)
 
-          fp.parse(l, rvb)
-          var i = 1
+          var i = 0
           while (i < nSamples) {
             l.nextField()
             fp.parse(l, rvb)
