@@ -1,6 +1,11 @@
 FROM base
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
+RUN apt-get update && \
+  apt-get -y install \
+    git && \
+  rm -rf /var/lib/apt/lists/*
+
 RUN mkdir /home/hail-ci && \
     groupadd hail-ci && \
     useradd -g hail-ci hail-ci && \
