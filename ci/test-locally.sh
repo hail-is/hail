@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-pip3 install -U ../batch
+python3 -m pip install -U ../batch
 
 export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
