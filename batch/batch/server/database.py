@@ -36,6 +36,7 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
+                                               echo=True,
                                                autocommit=True)
 
     async def has_table(self, name):
@@ -63,7 +64,7 @@ class Database:
 
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                schema = ", ".join([f"`{n}` {t}" for n, t in schema.items()])
+                schema = ", ".join([f'`{n.replace("`", "``")}` {t}' for n, t in schema.items()])
                 key_names = ", ".join([f'`{name.replace("`", "``")}`' for name in keys])
                 keys = f", PRIMARY KEY( {key_names} )" if keys else ''
                 exists = 'IF NOT EXISTS' if can_exist else ''

@@ -104,5 +104,9 @@ class Test(unittest.TestCase):
         try:
             records = run_synchronous(t.get_record({'`less_than_two`': True}))
             assert len(records) == 0
+            run_synchronous(t.new_record({'id': 5, '`less_than_two`': False, 'name': "foo"}))
+            assert run_synchronous(t.has_record({'`less_than_two`': False}))
+            run_synchronous(t.update_record({'id': 5}, {'`less_than_two`': True}))
+            run_synchronous(t.delete_record({'`less_than_two`': True}))
         finally:
             self.db.drop_table_sync(t.name)
