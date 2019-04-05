@@ -17,7 +17,7 @@ class Test(unittest.TestCase):
         t = self.db.create_temporary_table_sync("temp", schema, keys)
 
         for i in range(1, 6):
-            id = run_synchronous(t._new_record({'id': i,
+            id = run_synchronous(t.new_record({'id': i,
                                                 'less_than_two': (i < 2),
                                                 'name': f"{i}"}))
             assert id == 0
@@ -40,7 +40,7 @@ class Test(unittest.TestCase):
     def test_new_record(self):
         t = self.temp_table()
         try:
-            run_synchronous(t._new_record({'id': 10,
+            run_synchronous(t.new_record({'id': 10,
                                            'less_than_two': False,
                                            'name': f"hello"}))
         finally:
@@ -49,10 +49,10 @@ class Test(unittest.TestCase):
     def test_update_record(self):
         t = self.temp_table()
         try:
-            run_synchronous(t._update_record({'id': 3, 'name': '3'},
-                                             {'name': 'hello'}))
+            run_synchronous(t.update_record({'id': 3, 'name': '3'},
+                                            {'name': 'hello'}))
 
-            updated_record = run_synchronous(t._get_records({'id': 3}))
+            updated_record = run_synchronous(t.get_record({'id': 3}))
             assert len(updated_record) == 1
             assert updated_record[0]['name'] == 'hello'
         finally:
@@ -61,7 +61,7 @@ class Test(unittest.TestCase):
     def test_get_records(self):
         t = self.temp_table()
         try:
-            records = run_synchronous(t._get_records({'id': [1, 2]}))
+            records = run_synchronous(t.get_record({'id': [1, 2]}))
             assert len(records) == 2
             assert records == [{'id': 1, 'less_than_two': True, 'name': '1'},
                                {'id': 2, 'less_than_two': False, 'name': '2'}]
@@ -71,7 +71,7 @@ class Test(unittest.TestCase):
     def test_select_records(self):
         t = self.temp_table()
         try:
-            records = run_synchronous(t._get_records({'id': 1}, ['less_than_two']))
+            records = run_synchronous(t.get_record({'id': 1}, ['less_than_two']))
             assert len(records) == 1
             assert records == [{'less_than_two': True}]
         finally:
@@ -80,8 +80,29 @@ class Test(unittest.TestCase):
     def test_delete_records(self):
         t = self.temp_table()
         try:
-            run_synchronous(t._delete_records({'id': 1}))
-            records = run_synchronous(t._get_records({'id': 1}))
+            run_synchronous(t.delete_record({'id': 1}))
+            records = run_synchronous(t.get_record({'id': 1}))
+            assert len(records) == 0
+        finally:
+            self.db.drop_table_sync(t.name)
+
+    def test_has_record(self):
+        t = self.temp_table()
+        try:
+            assert run_synchronous(t.has_record({'id': 4}))
+        finally:
+            self.db.drop_table_sync(t.name)
+
+    def test_backtick_names(self):
+        schema = {'id': 'INT',
+                  '`less_than_two`': 'BOOLEAN',
+                  'name': 'VARCHAR(100)'}
+        keys = ['id']
+
+        t = self.db.create_temporary_table_sync("temp", schema, keys)
+
+        try:
+            records = run_synchronous(t.get_record({'`less_than_two`': True}))
             assert len(records) == 0
         finally:
             self.db.drop_table_sync(t.name)

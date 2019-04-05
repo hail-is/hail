@@ -113,7 +113,7 @@ class Table:  # pylint: disable=R0903
         self._db = db
         await self._db.create_table(name, schema, keys)
 
-    async def _new_record(self, items):
+    async def new_record(self, items):
         names = ", ".join([f'`{name.replace("`", "``")}`' for name in items.keys()])
         values_template = ", ".join(["%s" for _ in items.values()])
         async with self._db.pool.acquire() as conn:
@@ -123,7 +123,7 @@ class Table:  # pylint: disable=R0903
                 id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
         return id
 
-    async def _update_record(self, where_items, set_items):
+    async def update_record(self, where_items, set_items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 if len(set_items) != 0:
@@ -133,7 +133,7 @@ class Table:  # pylint: disable=R0903
                     sql = f"UPDATE `{self.name}` SET {set_template} WHERE {where_template}"
                     await cursor.execute(sql, (*set_values, *where_values))
 
-    async def _get_records(self, where_items, select_fields=None):
+    async def get_record(self, where_items, select_fields=None):
         assert select_fields is None or len(select_fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -144,7 +144,7 @@ class Table:  # pylint: disable=R0903
                 result = await cursor.fetchall()
         return result
 
-    async def _has_record(self, where_items):
+    async def has_record(self, where_items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
@@ -152,7 +152,7 @@ class Table:  # pylint: disable=R0903
                 count = await cursor.execute(sql, tuple(where_values))
         return count >= 1
 
-    async def _delete_records(self, where_items):
+    async def delete_record(self, where_items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
