@@ -107,7 +107,7 @@ def make_where_statement(items):
 
 
 @asyncinit
-class Table:
+class Table:  # pylint: disable=R0903
     async def __init__(self, db, name, schema, keys):
         self.name = name
         self._db = db
