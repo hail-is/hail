@@ -29,13 +29,14 @@ from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
 from .methods import *
-from . import genetics as genetics
-from . import methods as methods
-from . import stats as stats
-from . import linalg as linalg
-from . import plot as plot
-from . import experimental as experimental
-from . import ir as ir
+from . import genetics
+from . import methods
+from . import stats
+from . import linalg
+from . import plot
+from . import experimental
+from . import ir
+from . import backend
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
@@ -79,7 +80,8 @@ __all__ = [
     'linalg',
     'plot',
     'experimental',
-    'ir'
+    'ir',
+    'backend'
 ]
 
 __all__.extend(genetics.__all__)

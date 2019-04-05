@@ -1217,6 +1217,11 @@ class Table(ExprContainer):
 
     class _Show:
         def __init__(self, table, n, width, truncate, types):
+            if n is None or width is None:
+                import shutil
+                (columns, lines) = shutil.get_terminal_size((80, 10))
+                width = width or columns
+                n = n or min(max(10, (lines - 20)), 100)
             self.table = table
             self.n = n
             self.width = width
@@ -1418,11 +1423,6 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
-        if n is None or width is None:
-            import shutil
-            (columns, lines) = shutil.get_terminal_size((80, 10))
-            width = width or columns
-            n = n or min(max(10, (lines - 10)), 100)
         if handler is None:
             try:
                 from IPython.display import display
@@ -2490,14 +2490,9 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a flat schema (no struct fields).
         """
-        def _flatten(prefix, s):
-            if isinstance(s, StructExpression):
-                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
-            else:
-                return [(prefix, s)]
         # unkey but preserve order
         t = self.order_by(*self.key)
-        t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
+        t = t.select(**t.row.flatten())
         return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))

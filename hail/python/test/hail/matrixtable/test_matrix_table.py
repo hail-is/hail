@@ -1172,3 +1172,7 @@ class Tests(unittest.TestCase):
                                                  n_remaining=40,
                                                  fraction_filtered=hl.float32(0.0))})
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_show(self):
+        mt = self.get_vds()
+        mt.show()

@@ -479,6 +479,39 @@ class ArrayExpression(CollectionExpression):
         # FIXME: this should generate short-circuiting IR when that is possible
         return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
 
+    @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
+    def index(self, x):
+        """Returns the first index of `x`, or missing.
+
+        Parameters
+        ----------
+        x : :class:`.Expression` or :obj:`Callable`
+            Value to find, or function from element to Boolean expression.
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+
+        Examples
+        --------
+        >>> hl.eval(names.index('Bob'))
+        1
+
+        >>> hl.eval(names.index('Beth'))
+        None
+
+        >>> hl.eval(names.index(lambda x: x.endswith('e')))
+        0
+
+        >>> hl.eval(names.index(lambda x: x.endswith('h')))
+        None
+        """
+        if callable(x):
+            f = lambda elt, x: x(elt)
+        else:
+            f = lambda elt, x: elt == x
+        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).head(), self)
+
     @typecheck_method(item=expr_any)
     def append(self, item):
         """Append an element to the array and return the result.
@@ -1467,6 +1500,13 @@ class StructExpression(Mapping[str, Expression], Expression):
         to_keep = [f for f in self.dtype.keys() if f not in to_drop]
         return self.select(*to_keep)
 
+    def flatten(self):
+        def _flatten(prefix, s):
+            if isinstance(s, StructExpression):
+                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
+            else:
+                return [(prefix, s)]
+        return self.select(**{k: v for (f, e) in self.items() for (k, v) in _flatten(f, e)})
 
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.

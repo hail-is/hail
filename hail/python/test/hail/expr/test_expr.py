@@ -1981,6 +1981,13 @@ class Tests(unittest.TestCase):
         assert hl.eval(a.head()) == 1
         assert hl.eval(a.filter(lambda x: x > 5).head()) is None
 
+    def test_array_index(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.index(2) == 1)
+        assert hl.eval(a.index(4)) is None
+        assert hl.eval(a.index(lambda x: x % 2 == 0) == 1)
+        assert hl.eval(a.index(lambda x: x > 5)) is None
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
         self.assertTrue(hl.eval(True & hl.literal(True)))
