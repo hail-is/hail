@@ -15,7 +15,7 @@ TOKEN=$(cat github-tokens/user1)
 set -x
 
 cleanup() {
-    set "" INT TERM
+    trap "" INT TERM
     set +e
     kill $(cat ci.pid)
     rm -rf ci.pid
