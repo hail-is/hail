@@ -1,10 +1,9 @@
-from .cluster_config import ClusterConfig
-from .utils import latest_sha, load_config, load_config_file
-from subprocess import call, check_call, check_output
+from __future__ import print_function
+
 import sys
-import json
-from . import __version__
 import re
+from subprocess import check_call
+from .utils import latest_sha, load_config, load_config_file
 
 COMPATIBILITY_VERSION = 1
 init_script = 'gs://hail-common/cloudtools/init_notebook{}.py'.format(COMPATIBILITY_VERSION)
@@ -40,7 +39,7 @@ def init_parser(parser):
     parser.add_argument('--hash', default='latest', type=str,
                         help='Hail build to use for notebook initialization (default: %(default)s).')
     parser.add_argument('--spark', type=str,
-                        help='Spark version used to build Hail (default: 2.2.0 for 0.2 and 2.0.2 for 0.1)')
+                        help='Spark version used to build Hail (default: 2.4.0 for 0.2 and 2.0.2 for 0.1)')
     parser.add_argument('--version', default='0.2', type=str, choices=['0.1', '0.2'],
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
@@ -97,7 +96,7 @@ def init_parser(parser):
 
 def main(args):
     if not args.spark:
-        args.spark = '2.2.0' if args.version == '0.2' else '2.0.2'
+        args.spark = '2.4.0' if args.version == '0.2' else '2.0.2'
 
     if args.hash == 'latest':
         hash = latest_sha(args.version, args.spark)
@@ -106,7 +105,8 @@ def main(args):
         if hash_length < 12:
             raise ValueError('--hash expects a 12 character git commit hash, received {}'.format(args.hash))
         elif hash_length > 12:
-            print('--hash expects a 12 character git commit hash, I will truncate this longer hash to tweleve characters: {}'.format(args.hash))
+            print('--hash expects a 12 character git commit hash, I will truncate this longer hash to tweleve characters: {}'.format(args.hash),
+                  file=sys.stderr)
             hash = args.hash[0:12]
         else:
             hash = args.hash
@@ -201,7 +201,6 @@ def main(args):
         cmd.append('--max-age={}'.format(args.max_age))
 
     # print underlying gcloud command
-    print('gcloud command:')
     print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 
     # spin up cluster
