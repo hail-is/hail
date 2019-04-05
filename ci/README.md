@@ -1,18 +1,6 @@
 Getting Started Developing
 ---
 
-If you've never worked on this before, setup your conda environment:
-
-```
-make setup-conda-env
-```
-
-If you've pulled and the conda env changed:
-
-```
-make update-conda-env
-```
-
 get a [GitHub personal access token](https://github.com/settings/tokens), copy
 it and place it (without trailing newlines) in a file called `oauth-token`:
 
@@ -56,11 +44,6 @@ Now you can start a local version of the hail-ci server:
 HAIL_CI_REMOTE_PORT=3001 make run-local
 ```
 
-And if you want to cleanly restart fresh:
-
-```
-HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
-```
 
 Setting up a New Repo
 ---
@@ -77,27 +60,11 @@ Testing
 
 The tests require two more oauth-tokens, see the <github-tokens/README.md>.
 
-
-With the anaconda environment activated, the following starts a local ci server
-configured appropriately for local testing. There already exist webhooks on the
-`test-ci` repo for `35.232.159.176:3001`.
+Run the tests:
 
 ```
-pip install ./batch
-HAIL_CI_REMOTE_PORT=3001 make restart-all-proxies
-BATCH_SERVER_URL='http://localhost:8888' \
-  SELF_HOSTNAME='http://35.232.159.176:3001' \
-  WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-  python run_ci.py
+make test-locally
 ```
-
-From another terminal with the anaconda environment also activated, the
-following runs the tests:
-
-```
-pytest test/test-ci.py
-```
-
 
 Buildable Repos ---
 

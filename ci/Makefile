@@ -1,26 +1,25 @@
 .PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
-.PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
+.PHONY: build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
 PROJECT = $(shell gcloud config get-value project)
+HAIL_CI_LATEST = gcr.io/$(PROJECT)/hail-ci:latest
+HAIL_CI_IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | sed -e 's,[^:]*:,,')
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
-setup-conda-env:
-	conda env create --name hail-ci -f environment.yml
-
-update-conda-env:
-	conda env update --name hail-ci -f environment.yml
-
 build-hail-ci:
-	cd ../ && docker build . -t hail-ci -f ci/Dockerfile
+	make -C ../docker build
+	-docker pull $(HAIL_CI_LATEST)
+	cd ../ && docker build -t hail-ci --cache-from hail-ci,$(HAIL_CI_LATEST),base,ubuntu:18.04 . -f ci/Dockerfile
 
 push-hail-ci: IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
 push-hail-ci: build-hail-ci
-	docker tag hail-ci ${IMAGE}
-	docker push ${IMAGE}
-	echo ${IMAGE} > hail-ci-image
-	echo built ${IMAGE}
+	docker tag hail-ci $(HAIL_CI_LATEST)
+	docker push $(HAIL_CI_LATEST)
+	docker tag hail-ci $(HAIL_CI_IMAGE)
+	docker push $(HAIL_CI_IMAGE)
+	echo $(HAIL_CI_IMAGE) > hail-ci-image
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
@@ -61,7 +60,7 @@ run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test 
 run-local: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	. ../loadconda && conda activate hail-ci && python run_ci.py
+	python run_ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
 run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
@@ -69,14 +68,14 @@ run-local-for-tests: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	. ../loadconda && conda activate hail-ci && pip install ./batch && python run_ci.py
+	pip install ./batch && python run_ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 test-locally: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	. ../loadconda && ./test-locally.sh
+	./test-locally.sh
 
 run-service:
 	kubectl apply -f k8s/service.yaml

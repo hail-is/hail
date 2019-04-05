@@ -1,9 +1,6 @@
 #!/bin/bash
 set -ex
 
-. ../loadconda
-conda activate hail-ci
-
 pip install -U ../batch
 
 export UUID=${UUID:-$(../generate-uid.sh)}
