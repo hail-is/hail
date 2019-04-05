@@ -2,6 +2,7 @@ import json
 import uuid
 import asyncio
 import aiomysql
+import pymysql
 from asyncinit import asyncinit
 
 
@@ -79,9 +80,9 @@ class Database:
                 name = f'{root_name}-{suffix}'
                 await self.create_table(name, schema, keys, can_exist=False)
                 return name
-            except:
+            except pymysql.err.InternalError:
                 pass
-        raise Exception("Too many attempts to get unique temp table.")
+        raise Exception("Too many attempts to get temp table.")
 
     def create_temp_table_sync(self, root_name, schema, keys):
         return run_synchronous(self.create_temp_table(root_name, schema, keys))
