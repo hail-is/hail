@@ -13,5 +13,6 @@ ENV PATH "/home/jovian/bin:$PATH"
 ENV HAIL_APISERVER_URL "http://apiserver:5000"
 
 COPY jupyter /home/jovian/bin/jupyter
+COPY jupyter_notebook_config.py /home/jovian/
 
 CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser"]
