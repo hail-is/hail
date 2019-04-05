@@ -37,21 +37,6 @@ class Database:
                                                cursorclass=aiomysql.cursors.DictCursor,
                                                autocommit=True)
 
-    async def temp_table_name(self, root):
-        suffix = uuid.uuid4().hex[:8]
-        name = f'{root}-{suffix}'
-        niter = 0
-        while await self.has_table(name):
-            suffix = uuid.uuid4().hex[:8]
-            name = f'{root}-{suffix}'
-            niter += 1
-            if niter > 5:
-                raise Exception("Too many attempts to get unique temp table.")
-        return name
-
-    def temp_table_name_sync(self, root):
-        return run_synchronous(self.temp_table_name(root))
-
     async def has_table(self, name):
         async with self.pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -72,7 +57,7 @@ class Database:
     def drop_table_sync(self, *names):
         return run_synchronous(self.drop_table(*names))
 
-    async def create_table(self, name, schema, keys):
+    async def create_table(self, name, schema, keys, can_exist=True):
         assert all([k in schema for k in keys])
 
         async with self.pool.acquire() as conn:
@@ -80,8 +65,23 @@ class Database:
                 schema = ", ".join([f"`{n}` {t}" for n, t in schema.items()])
                 key_names = ", ".join([f'`{name.replace("`", "``")}`' for name in keys])
                 keys = f", PRIMARY KEY( {key_names} )" if keys else ''
-                sql = f"CREATE TABLE IF NOT EXISTS `{name}` ( {schema} {keys})"
+                exists = 'IF NOT EXISTS' if can_exist else ''
+                sql = f"CREATE TABLE {exists} `{name}` ( {schema} {keys})"
                 await cursor.execute(sql)
 
     def create_table_sync(self, name, schema, keys):
         return run_synchronous(self.create_table(name, schema, keys))
+
+    async def create_temp_table(self, root_name, schema, keys):
+        for i in range(5):
+            try:
+                suffix = uuid.uuid4().hex[:8]
+                name = f'{root_name}-{suffix}'
+                await self.create_table(name, schema, keys, can_exist=False)
+                return name
+            except:
+                pass
+        raise Exception("Too many attempts to get unique temp table.")
+
+    def create_temp_table_sync(self, root_name, schema, keys):
+        return run_synchronous(self.create_temp_table(root_name, schema, keys))

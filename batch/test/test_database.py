@@ -10,19 +10,14 @@ class Test(unittest.TestCase):
                                                              '/batch-secrets/batch-production-cloud-sql-config.json'))
 
     def test_create_drop(self):
-        table_root = "foo"
-        uid1 = self.db.temp_table_name_sync(table_root)
-        uid2 = self.db.temp_table_name_sync(table_root)
-        assert uid1.startswith(table_root)
-        assert uid2.startswith(table_root)
-
         schema = {'id': 'BIGINT'}
         key = ['id']
-        self.db.create_table_sync(uid1, schema, key)
-        self.db.create_table_sync(uid2, schema, key)
-        assert self.db.has_table_sync(uid1)
-        assert self.db.has_table_sync(uid2)
 
-        self.db.drop_table_sync(uid1, uid2)
-        assert not self.db.has_table_sync(uid1)
-        assert not self.db.has_table_sync(uid2)
+        t1_name = self.db.create_temp_table_sync("t1", schema, key)
+        t2_name = self.db.create_table_sync("t2", schema, key)
+        assert t1_name.startswith("t1")
+        assert t2_name.startswith("t2")
+
+        self.db.drop_table_sync(t1_name, t2_name)
+        assert not self.db.has_table_sync(t1_name)
+        assert not self.db.has_table_sync(t2_name)
