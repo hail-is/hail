@@ -104,10 +104,10 @@ def determine_buildability(source, target):
 def get_image_for_target(target):
     import requests
     assert isinstance(target, FQRef), target
-    url = f'https://github.com/{target.repo.qname}/raw/{target.name}/hail-ci-build-image'
+    url = f'https://raw.githubusercontent.com/{target.repo.qname}/{target.name}/hail-ci-build-image'
     r = requests.get(url, timeout=5)
     if r.status_code != 200:
-        raise BadStatus(f'could not get raw hail-ci-build-image for {target.short_str()}',
+        raise BadStatus(f'could not get raw hail-ci-build-image for {target.short_str()} {r.status_code} {r.text}',
                         r.status_code)
     return r.text.strip()
 
