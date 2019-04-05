@@ -26,7 +26,7 @@ object LowerMatrixIR {
   }
 
   private[this] def lower(ir: IR): IR = {
-    val lowered = lowerChildren(ir).asInstanceOf[IR]
+    val lowered = valueRules.applyOrElse(ir, (ir: IR) => lowerChildren(ir).asInstanceOf[IR])
     assert(lowered.typ == ir.typ)
     lowered
   }
@@ -390,5 +390,10 @@ object LowerMatrixIR {
             }
         makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
       }.parallelize(None).keyBy(child.typ.colKey)
+  }
+
+  private[this] def valueRules: PartialFunction[IR, IR] = {
+    case MatrixWrite(child, writer) =>
+      TableWrite(lower(child), WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
   }
 }
