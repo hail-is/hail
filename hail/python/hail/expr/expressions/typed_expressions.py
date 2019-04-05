@@ -494,16 +494,16 @@ class ArrayExpression(CollectionExpression):
 
         Examples
         --------
-        >>> names.index('Bob')
+        >>> hl.eval(names.index('Bob'))
         1
 
-        >>> names.index('Beth')
+        >>> hl.eval(names.index('Beth'))
         None
 
-        >>> names.index(lambda x: x.endswith('e'))
+        >>> hl.eval(names.index(lambda x: x.endswith('e')))
         0
 
-        >>> names.index(lambda x: x.endswith('h'))
+        >>> hl.eval(names.index(lambda x: x.endswith('h')))
         None
         """
         if callable(x):
