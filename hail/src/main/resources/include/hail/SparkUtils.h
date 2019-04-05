@@ -6,6 +6,7 @@
 #include "hail/Decoder.h"
 #include "hail/Encoder.h"
 #include "hail/Region.h"
+#include "hail/Hadoop.h"
 #include "hail/Upcalls.h"
 #include "hail/Utils.h"
 

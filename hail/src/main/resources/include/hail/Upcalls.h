@@ -28,6 +28,8 @@ class UpcallConfig {
   // RVIterator methods
   jmethodID RVIterator_hasNext_;
   jmethodID RVIterator_next_;
+  // Hadoop methods
+  jmethodID RichHadoopConfiguration_unsafeWriter_;
   
   UpcallConfig();
 };
