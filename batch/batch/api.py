@@ -119,3 +119,5 @@ class API():
     def delete_batch(self, url, batch_id):
         return self.delete(url + f'/batches/{batch_id}')
 
+    def refresh_k8s_state(self, url):
+        return self.post(url + '/refresh_k8s_state')
