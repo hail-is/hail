@@ -875,7 +875,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             assert(idxVars.length == nDims)
-            val index = linearizeIndices(idxVars, s"$nd.strides")
+            val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", shape.toString)
             s"""
                |({
                | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
@@ -928,8 +928,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIndex = linearizeIndices(idxVars, s"$l.strides")
-            val rIndex = linearizeIndices(idxVars, s"$r.strides")
+            val lIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$l.strides", shape.toString)
+            val rIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$r.strides", shape.toString)
 
             s"""
                |({
@@ -999,20 +999,20 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val idxst = idxs.map(emit(_))
 
         val nd = fb.variable("nd", "NDArray", ndt.v)
-        val index = idxst.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-          s"${ idx.v } * $nd.strides[$dim] + $linearIndex"
-        }
+
+        val idxVars = idxst.map(i => fb.variable("idx", "int", i.v))
+        val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", s"$nd.shape")
 
         triplet(
           s"""
              | ${ ndt.setup }
              | ${ idxst.setup }
            """.stripMargin,
-          idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }"},
+          idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           s"""
              |({
              | ${ nd.define }
-             | ${ index.define }
+             | ${ idxVars.map(_.define).mkString("\n") }
              | load_element<$elemType>(load_index($nd, $index));
              |})
            """.stripMargin)
