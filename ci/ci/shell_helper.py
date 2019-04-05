@@ -2,4 +2,4 @@ import subprocess as sp
 
 
 def shell(*args):
-    sp.run(args, capture_output=True, check=True)
+    sp.run(args, stderr=sp.PIPE, stdout=sp.PIPE, check=True)
