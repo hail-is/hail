@@ -38,7 +38,7 @@ else
 fi
 
 export BATCH_SERVER_URL=http://127.0.0.1:5001
-python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
 
