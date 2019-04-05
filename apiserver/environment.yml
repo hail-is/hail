@@ -17,4 +17,7 @@ dependencies:
     - decorator==4.3.0
     - aiohttp
     - aiodns
+    - google-api-python-client
+    - google.cloud.storage
+    - jgscm==0.1.*
     - uvloop>=0.12
