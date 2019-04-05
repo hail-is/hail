@@ -7,7 +7,7 @@ install-cloud-sql-proxy:
 		curl -o cloud_sql_proxy https://dl.google.com/cloudsql/cloud_sql_proxy.darwin.amd64 && \
 		chmod +x cloud_sql_proxy
 
-test-cloud-sql-config:
+batch-secrets/batch-test-cloud-sql-config:
 	mkdir -p batch-secrets && kubectl get secret \
 	    batch-test-cloud-sql-config -n batch-pods \
 	    -o "jsonpath={.data.batch-test-cloud-sql-config\.json}" \
@@ -15,7 +15,7 @@ test-cloud-sql-config:
 	  | jq '.host = "127.0.0.1" | .port = $(CLOUD_SQL_PORT)' \
 	    > batch-secrets/batch-test-cloud-sql-config.json
 
-production-cloud-sql-config:
+batch-secrets/batch-production-cloud-sql-config:
 	mkdir -p batch-secrets && kubectl get secret \
 	    batch-production-cloud-sql-config -n default \
 	    -o "jsonpath={.data.batch-production-cloud-sql-config\.json}" \
@@ -23,8 +23,11 @@ production-cloud-sql-config:
 	  | jq '.host = "127.0.0.1" | .port = $(CLOUD_SQL_PORT)' \
 	    > batch-secrets/batch-production-cloud-sql-config.json
 
-run-cloud-sql-proxy: test-cloud-sql-config install-cloud-sql-proxy
+run-cloud-sql-proxy: batch-secrets/batch-test-cloud-sql-config install-cloud-sql-proxy
 	$(eval config := $(shell pwd)/batch-secrets/batch-test-cloud-sql-config.json)
 	$(eval connection_name := $(shell jq -r '.connection_name' $(config)))
 	$(eval port := $(shell jq -r '.port' $(config)))
 	./cloud_sql_proxy -instances=$(connection_name)=tcp:$(port) &
+
+clean:
+	rm -rf batch-secrets
