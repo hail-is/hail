@@ -442,6 +442,7 @@ class PRS(object):
             log.info(f'successful merge of {pr.short_str()}')
             self._set(pr.source.ref, pr.target.ref, pr.merged())
             pr.notify_github(pr.build, status_sha=gh_response['sha'])
+            self.push(FQSHA(pr.target.ref, gh_response['sha']))
         else:
             assert status_code == 409, f'{status_code} {gh_response}'
             log.warning(
@@ -449,4 +450,3 @@ class PRS(object):
                 f'removing PR, github state refresh will recover and retest '
                 f'if necessary')
             self.forget(pr.source.ref, pr.target.ref)
-        # FIXME: eagerly update statuses for all PRs targeting this branch
