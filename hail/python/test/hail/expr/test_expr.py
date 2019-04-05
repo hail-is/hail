@@ -1976,6 +1976,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
+    def test_array_head(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.head()) == 1
+        assert hl.eval(a.filter(lambda x: x > 5).head()) is None
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
         self.assertTrue(hl.eval(True & hl.literal(True)))

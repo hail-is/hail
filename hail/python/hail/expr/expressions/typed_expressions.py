@@ -459,6 +459,26 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("contains", tbool, item)
 
+    def head(self):
+        """Returns the first element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.head())
+        'Alice'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).head())
+        None
+        """
+        # FIXME: this should generate short-circuiting IR when that is possible
+        return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
+
     @typecheck_method(item=expr_any)
     def append(self, item):
         """Append an element to the array and return the result.
