@@ -19,5 +19,5 @@ dependencies:
     - aiodns
     - google-api-python-client
     - google.cloud.storage
-    - jgscm==0.1.*
+    - https://github.com/hail-is/jgscm/archive/master.zip
     - uvloop>=0.12
