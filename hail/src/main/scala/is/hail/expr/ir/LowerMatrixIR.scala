@@ -364,6 +364,31 @@ object LowerMatrixIR {
     case CastMatrixToTable(child, entries, cols) =>
       TableRename(lower(child), Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
+    case MatrixEntriesTable(child) =>
+      val oldColIdx = Symbol(genUID())
+      val lambdaIdx1 = Symbol(genUID())
+      val currentColIdx = Symbol(genUID())
+      lower(child)
+        .mapGlobals('global.insertFields(oldColIdx ->
+          irRange(0, 'global (colsField).len)
+            .map(lambdaIdx1 ~> makeStruct('key -> 'global (colsField)(lambdaIdx1).selectFields(child.typ.colKey: _*), 'value -> lambdaIdx1))
+            .sort(ascending = true, onKey = true)
+            .map(lambdaIdx1 ~> lambdaIdx1('value))))
+        .mapRows('row.insertFields(currentColIdx -> 'global (oldColIdx)
+          .filter(lambdaIdx1 ~> !'row (entriesField)(lambdaIdx1).isNA)))
+        .explode(currentColIdx)
+        .mapRows(let(
+          __current_idx = 'row (currentColIdx),
+          __col_struct = 'global (colsField)('__current_idx),
+          __entry_struct = 'row (entriesField)('__current_idx)) {
+          val newFields = child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct (f)) ++
+            child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct (f))
+          'row
+            .dropFields(entriesField, currentColIdx)
+            .insertFields(newFields: _*)
+        }).mapGlobals('global.dropFields(colsField, oldColIdx))
+        .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
+
     case MatrixRowsTable(child) =>
       lower(child)
         .mapGlobals('global.dropFields(colsField))

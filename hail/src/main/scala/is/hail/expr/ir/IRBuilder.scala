@@ -87,6 +87,8 @@ object IRBuilder {
     def mapRows(newRow: IRProxy): TableIR =
       TableMapRows(tir, newRow(env))
 
+    def explode(sym: Symbol): TableIR = TableExplode(tir, FastIndexedSeq(sym.name))
+
     def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
       TableKeyBy(tir, keys, isSorted)
 

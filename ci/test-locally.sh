@@ -1,10 +1,7 @@
 #!/bin/bash
 set -ex
 
-. ../loadconda
-conda activate hail-ci
-
-pip install -U ../batch
+python3 -m pip install --user -U ../batch
 
 export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
@@ -61,7 +58,7 @@ git push origin master:master
 popd
 
 # start CI system
-python run_ci.py --debug & echo $! > ci.pid
+python3 run_ci.py --debug & echo $! > ci.pid
 
 sleep 10
 
@@ -70,4 +67,4 @@ set +x
 ./setup-endpoints.sh hail-ci-test/${REPO_NAME} ${TOKEN} ${SELF_HOSTNAME}
 set -x
 
-PYTHONPATH=${PWD}:${PYTHONPATH} pytest -vv --failed-first --maxfail=1 test/test-ci.py
+PYTHONPATH=${PWD}:${PYTHONPATH} python3 -m pytest -vv --failed-first --maxfail=1 test/test-ci.py
