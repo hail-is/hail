@@ -398,9 +398,15 @@ object LowerMatrixIR {
     case MatrixAggregate(child, query) =>
       val idx = Symbol(genUID())
       lower(child)
-        .aggregate(irRange(0, 'row (entriesField).len)
-          .aggExplode(idx ~> aggLet(va = 'row, sa = 'global (colsField)(idx), g = 'row (entriesField)(idx)) {
-            query
-          }))
+        .aggregate(
+          aggLet(
+            __entries_field = 'row (entriesField),
+            __cols_field = 'global (colsField)) {
+            irRange(0, '__entries_field.len)
+              .filter(idx ~> !'__entries_field (idx).isNA)
+              .aggExplode(idx ~> aggLet(va = 'row, sa = '__cols_field (idx), g = '__entries_field (idx)) {
+                query
+              })
+          })
   }
 }
