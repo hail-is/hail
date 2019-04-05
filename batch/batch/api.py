@@ -68,7 +68,7 @@ class API():
         if copy_service_account_name:
             doc['copy_service_account_name'] = copy_service_account_name
 
-        return self.post(url + '/jobs/create', json=doc)
+        return self.post(f'{url}/jobs/create', json=doc)
 
     def list_jobs(self, url, complete=None, success=None, attributes=None):
         params = None
@@ -86,19 +86,19 @@ class API():
             for n, v in attributes.items():
                 params[f'a:{n}'] = v
 
-        return self.get(url + '/jobs', params=params)
+        return self.get(f'{url}/jobs', params=params)
 
     def get_job(self, url, job_id):
-        return self.get(url + f'/jobs/{job_id}')
+        return self.get(f'{url}/jobs/{job_id}')
 
     def get_job_log(self, url, job_id):
-        return self.get(url + f'/jobs/{job_id}/log')
+        return self.get(f'{url}/jobs/{job_id}/log')
 
     def delete_job(self, url, job_id):
-        return self.delete(url + f'/jobs/{job_id}/delete')
+        return self.delete(f'{url}/jobs/{job_id}/delete')
 
     def cancel_job(self, url, job_id):
-        return self.post(url + f'/jobs/{job_id}/cancel')
+        return self.post(f'{url}/jobs/{job_id}/cancel')
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}
@@ -108,16 +108,16 @@ class API():
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        return self.post(url + '/batches/create', json=doc)
+        return self.post(f'{url}/batches/create', json=doc)
 
     def get_batch(self, url, batch_id):
-        return self.get(url + f'/batches/{batch_id}')
+        return self.get(f'{url}/batches/{batch_id}')
 
     def close_batch(self, url, batch_id):
-        return self.post(url + f'/batches/{batch_id}/close')
+        return self.post(f'{url}/batches/{batch_id}/close')
 
     def delete_batch(self, url, batch_id):
-        return self.delete(url + f'/batches/{batch_id}')
+        return self.delete(f'{url}/batches/{batch_id}')
 
     def refresh_k8s_state(self, url):
-        return self.post(url + '/refresh_k8s_state')
+        return self.post(f'{url}/refresh_k8s_state')
