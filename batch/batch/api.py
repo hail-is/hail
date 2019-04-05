@@ -120,4 +120,4 @@ class API():
         return self.delete(f'{url}/batches/{batch_id}')
 
     def refresh_k8s_state(self, url):
-        return self.post(f'{url}/refresh_k8s_state')
+        self.post(f'{url}/refresh_k8s_state')
