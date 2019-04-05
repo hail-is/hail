@@ -8,6 +8,7 @@ PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 cleanup() {
     set +e
     trap "" INT TERM
+
     [[ -z $server_pid ]] || kill -9 $server_pid
     [[ -z $proxy_pid ]] || kill -9 $proxy_pid
 }
