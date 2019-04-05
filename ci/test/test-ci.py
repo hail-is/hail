@@ -211,12 +211,12 @@ def poll_pr(source_ref,
             poll_until_false,
             delay_in_seconds=DELAY_IN_SECONDS,
             max_polls=MAX_POLLS):
-    pr = get_pr(source_ref)
+    pr = get_pr(source_ref, delay_in_seconds, max_polls)
     polls = 0
     while poll_until_false(pr):
         assert polls < max_polls
         time.sleep(delay_in_seconds)
-        pr = get_pr(source_ref)
+        pr = get_pr(source_ref, delay_in_seconds, max_polls)
         polls = polls + 1
     return pr
 
