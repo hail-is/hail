@@ -68,7 +68,7 @@ run-local-for-tests: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	python3 -m pip install ../batch && python3 run_ci.py
+	python3 -m pip --user install ../batch && python3 run_ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
