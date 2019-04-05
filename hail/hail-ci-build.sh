@@ -9,7 +9,7 @@ CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head
 
 time source activate hail
 time pip search cloudtools
-time pip install -U cloudtools
+time pip install -U 'cloudtools>=4,<5'
 gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
     --key-file=/secrets/hail-ci-0-1.key
