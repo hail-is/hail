@@ -4,21 +4,21 @@ import time
 import random
 import sched
 import uuid
-import json
 from collections import Counter
 import logging
 import threading
+import asyncio
 import kubernetes as kube
 import cerberus
 import requests
 import uvloop
 import aiohttp_jinja2
 import jinja2
-import pymysql
 from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
+from .database import Database
 
 from .. import schemas
 
@@ -89,19 +89,9 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-config_path = os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                             '/batch-secrets/batch-production-cloud-sql-config.json')
-with open(config_path, 'r') as f:
-    config = json.loads(f.read().strip())
-
-connection = pymysql.connect(host=config['host'],
-                             port=config['port'],
-                             user=config['user'],
-                             password=config['password'],
-                             db=config['db'],
-                             charset='utf8',
-                             cursorclass=pymysql.cursors.DictCursor)
-connection.close()
+loop = asyncio.get_event_loop()
+db = loop.run_until_complete(Database(os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                                                     '/batch-secrets/batch-production-cloud-sql-config.json')))
 
 
 def abort(code, reason=None):
