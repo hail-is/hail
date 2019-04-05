@@ -14,7 +14,6 @@ dependencies:
 - pip=18.0
 - pytest=3.9.2
 - pytest-html=1.19
-- flask=0.12.2
 - pip:
     - parsimonious==0.8.1
     - ipykernel==5.1.0
