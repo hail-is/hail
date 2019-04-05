@@ -1132,6 +1132,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
         self.assertTrue(mt1._same(mt2))
 
+    def test_matrix_type_equality(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt2 = mt.annotate_entries(foo=1)
+        assert mt._type == mt._type
+        assert mt._type != mt2._type
+
     def test_entry_filtering(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
@@ -1145,3 +1151,24 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_entries(hl.agg.count()) == 100
         assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
         assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+    def test_entry_filter_stats(self):
+        mt = hl.utils.range_matrix_table(40, 20)
+        mt = mt.filter_entries((mt.row_idx % 4 == 0) & (mt.col_idx % 4 == 0), keep=False)
+        mt = mt.compute_entry_filter_stats()
+
+        row_expected = hl.dict({True: hl.struct(n_filtered=5,
+                                                n_remaining=15,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=20,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_rows(hl.agg.all(mt.entry_stats_row == row_expected[mt.row_idx % 4 == 0]))
+
+        col_expected = hl.dict({True: hl.struct(n_filtered=10,
+                                                n_remaining=30,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=40,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))

@@ -334,6 +334,13 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_array_inside_annotate_rows(self):
+        n_rows = 10
+        n_cols = 5
+        mt = hl.utils.range_matrix_table(n_rows, n_cols)
+        mt = mt.annotate_rows(x = hl.agg.array_agg(lambda i: hl.agg.sum(i), hl.range(0, mt.row_idx)))
+        assert mt.aggregate_rows(hl.agg.all(mt.x == hl.range(0, mt.row_idx).map(lambda i: i * n_cols)))
+
     def test_agg_array_empty(self):
         ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
         assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
@@ -1969,6 +1976,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
+    def test_array_head(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.head()) == 1
+        assert hl.eval(a.filter(lambda x: x > 5).head()) is None
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
         self.assertTrue(hl.eval(True & hl.literal(True)))
@@ -2588,6 +2600,13 @@ class Tests(unittest.TestCase):
         mt.entries().summarize()
         mt.x1.summarize()
 
+    def test_variant_str(self):
+        assert hl.eval(
+            hl.variant_str(hl.struct(locus=hl.locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
+        assert hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
+        with pytest.raises(ValueError):
+            hl.variant_str()
+
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_ref(self):
@@ -2625,9 +2644,70 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(c[0, 0]), True)
         self.assertEqual(hl.eval(c[1, 2]), True)
 
-    def test_variant_str(self):
-        assert hl.eval(
-            hl.variant_str(hl.struct(locus=hl.locus('1', 10000), alleles=['A', 'T', 'CCC']))) == '1:10000:A:T,CCC'
-        assert hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'CCC'])) == '1:10000:A:T,CCC'
-        with pytest.raises(ValueError):
-            hl.variant_str()
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_ops(self):
+        def expr_eq(expr, expected):
+            self.assertEqual(hl.eval(expr), expected)
+
+        def expr_almost_eq(expr, expected):
+            self.assertAlmostEqual(hl.eval(expr), expected)
+
+        a = 2.0
+        b = 3.0
+        x = [a, b]
+        y = [b, a]
+        cube1 = [[[1, 2],
+                  [3, 4]],
+                 [[5, 6],
+                  [7, 8]]]
+        cube2 = [[[9, 10],
+                  [11, 12]],
+                 [[13, 14],
+                  [15, 16]]]
+
+        na = hl._ndarray(a)
+        nx = hl._ndarray(x)
+        ny = hl._ndarray(y)
+        ncube1 = hl._ndarray(cube1)
+        ncube2 = hl._ndarray(cube2)
+
+        # with lists/numerics
+        expr_eq((na + b)[()], a + b)
+        expr_eq((b + na)[()], a + b)
+        expr_eq((nx + y)[0], a + b)
+        expr_eq((y + nx)[0], a + b)
+        expr_eq((ncube1 + cube2)[0, 0, 0], 10)
+        expr_eq((cube2 + ncube1)[0, 0, 0], 10)
+        expr_eq((ncube1 + cube2)[1, 1, 1], 24)
+        expr_eq((cube2 + ncube1)[1, 1, 1], 24)
+
+        # Addition
+        expr_eq((na + na)[()], a + a)
+        expr_eq((nx + ny)[0], a + b)
+        expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
+        expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+
+        # Subtraction
+        expr_eq((na - na)[()], a - a)
+        expr_eq((nx - nx)[0], a - a)
+        expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
+        expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+
+        # Multiplication
+        expr_eq((na * na)[()], a * a)
+        expr_eq((nx * nx)[0], a * a)
+        expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
+        expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+
+        # Division
+        expr_almost_eq((na / na)[()], a / a)
+        expr_almost_eq((nx / nx)[0], a / a)
+        expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
+        expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+
+        # Floor div
+        expr_eq((na // na)[()], a // a)
+        expr_eq((nx // nx)[0], a // a)
+        expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
+        expr_eq((ncube1 // ncube2)[1, 1, 1], 0)

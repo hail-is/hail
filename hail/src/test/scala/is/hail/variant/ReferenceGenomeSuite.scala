@@ -53,7 +53,7 @@ class ReferenceGenomeSuite extends SparkSuite {
   @Test def testAssertions() {
     TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(ReferenceGenome("test", Array.empty[String], Map.empty[String, Int]))
     TestUtils.interceptFatal("No lengths given for the following contigs:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5)))
-    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100)))
+    TestUtils.interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100)))
     TestUtils.interceptFatal("The following X contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("X")))
     TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), yContigs = Set("Y")))
     TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), mtContigs = Set("MT")))

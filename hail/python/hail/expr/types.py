@@ -5,6 +5,7 @@ from collections import Mapping, Sequence
 
 import hail as hl
 from hail import genetics
+from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
@@ -519,10 +520,10 @@ class tndarray(HailType):
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type, ndim=int)
+    @typecheck_method(element_type=hail_type, ndim=oneof(NatBase, int))
     def __init__(self, element_type, ndim):
         self._element_type = element_type
-        self._ndim = ndim
+        self._ndim = NatLiteral(ndim) if isinstance(ndim, int) else ndim
         super(tndarray, self).__init__()
 
     @property
@@ -542,10 +543,11 @@ class tndarray(HailType):
 
         Returns
         -------
-        `int32`
+        :obj:`int`
             Number of dimensions.
         """
-        return self._ndim
+        assert isinstance(self._ndim, NatLiteral), "tndarray must be realized with a concrete number of dimensions"
+        return self._ndim.n
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -563,19 +565,31 @@ class tndarray(HailType):
 
     def _pretty(self, l, indent, increment):
         l.append('ndarray<')
-        self.element_type._pretty(l, indent, increment)
+        self._element_type._pretty(l, indent, increment)
         l.append(', ')
         l.append(str(self.ndim))
         l.append('>')
 
     def _parsable_string(self):
-        return f'NDArray[{self.element_type._parsable_string()},{self.ndim}]'
+        return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError
 
     def _convert_to_json(self, x):
         raise NotImplementedError
+
+    def clear(self):
+        self._element_type.clear()
+        self._ndim.clear()
+
+    def unify(self, t):
+        return isinstance(t, tndarray) and \
+               self._element_type.unify(t._element_type) and \
+               self._ndim.unify(t._ndim)
+
+    def subst(self):
+        return tndarray(self._element_type.subst(), self._ndim.subst())
 
 
 class tarray(HailType):

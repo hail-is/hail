@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.types.TableType
-import is.hail.expr.types.virtual.TStruct
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.io.{CodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
@@ -156,5 +156,38 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     HailContext.get.sqlContext.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType])
+  }
+
+  def toMatrixValue(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String]): MatrixValue = {
+
+    val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
+      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+    }
+    val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+
+    val newRowType = typ.rowType.rename(m)
+
+    val mType: MatrixType = MatrixType(
+      typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+      colKey,
+      colType,
+      typ.key,
+      newRowType)
+
+    val colValues = globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
+    val newGlobals = {
+      val (pre, post) = globals.value.toSeq.splitAt(colsFieldIdx)
+      Row.fromSeq(pre ++ post.tail)
+    }
+
+    val newRVD = rvd.cast(rvd.rowPType.rename(m))
+
+    MatrixValue(
+      mType,
+      BroadcastRow(newGlobals, mType.globalType, HailContext.get.sc),
+      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.get.sc),
+      newRVD
+    )
   }
 }

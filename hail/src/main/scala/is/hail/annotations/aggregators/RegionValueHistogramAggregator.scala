@@ -13,7 +13,7 @@ object RegionValueHistogramAggregator {
 
 class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) extends RegionValueAggregator {
   if (bins <= 0)
-    fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+    fatal(s"""method 'hist' expects 'bins' argument to be > 0, but got $bins""")
 
   private val binSize = (end - start) / bins
   if (binSize <= 0)

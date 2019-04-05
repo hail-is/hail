@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
+import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
@@ -361,7 +361,7 @@ object IRParser {
         punctuation(it, ",")
         val nDims = int32_literal(it)
         punctuation(it, "]")
-        TNDArray(elementType, nDims, req)
+        TNDArray(elementType, Nat(nDims), req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -823,21 +823,11 @@ object IRParser {
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
-      case "TableExport" =>
-        val path = string_literal(it)
-        val typesFile = opt(it, string_literal).orNull
-        val header = boolean_literal(it)
-        val exportType = int32_literal(it)
-        val delimiter = string_literal(it)
-        val child = table_ir(env.withRefMap(Map.empty))(it)
-        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
-        val path = string_literal(it)
-        val overwrite = boolean_literal(it)
-        val shuffleLocally = boolean_literal(it)
-        val codecSpecJsonStr = opt(it, string_literal)
-        val child = table_ir(env.withRefMap(Map.empty))(it)
-        TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
+        implicit val formats = TableWriter.formats
+        val writerStr = string_literal(it)
+        val child = table_ir(env)(it)
+        TableWrite(child, deserialize[TableWriter](writerStr))
       case "MatrixAggregate" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)

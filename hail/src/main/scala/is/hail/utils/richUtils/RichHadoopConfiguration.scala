@@ -116,7 +116,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
         val fss = glob(arg)
         val files = fss.map(_.getPath.toString)
         if (files.isEmpty)
-          warn(s"`$arg' refers to no files")
+          warn(s"'$arg' refers to no files")
         files
       }.toArray
   }
@@ -125,7 +125,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     filenames.flatMap { filename =>
       val statuses = glob(filename)
       if (statuses.isEmpty)
-        warn(s"`$filename' refers to no files")
+        warn(s"'$filename' refers to no files")
       statuses
     }.toArray
   }

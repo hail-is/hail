@@ -1020,6 +1020,12 @@ class Tests(unittest.TestCase):
 
         assert ht.f0.collect() == [None, None, 'gene5', 'gene4', 'gene3']
 
+    def test_unicode_ordering(self):
+        a = hl.literal(["é", "e"])
+        ht = hl.utils.range_table(1, 1)
+        ht = ht.annotate(fd=hl.sorted(a))
+        assert ht.fd.collect()[0] == ["e", "é"]
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

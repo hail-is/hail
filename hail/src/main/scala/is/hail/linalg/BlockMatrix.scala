@@ -7,7 +7,8 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.expr.ir.TableValue
+import is.hail.expr.Parser
+import is.hail.expr.ir.{CompileAndEvaluate, IR, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
@@ -326,6 +327,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       filteredBM
     else
       filteredBM.zeroRowIntervals(starts, stops)
+  }
+
+  def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
+    val Row(starts, stops) = CompileAndEvaluate[Row](startsAndStops)
+
+    filterRowIntervals(
+      starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
+      stops.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
+      blocksOnly)
   }
 
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
@@ -665,7 +675,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       StorageLevel.fromString(storageLevel)
     } catch {
       case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
+        fatal(s"unknown StorageLevel '$storageLevel'")
     }
     persist(level)
   }

@@ -5,6 +5,7 @@
   dependencies: ["docker"]
 - project: ci
   dependencies: ["batch"]
+- project: ci2
 - project: cloudtools
 - project: etc
 - project: gateway

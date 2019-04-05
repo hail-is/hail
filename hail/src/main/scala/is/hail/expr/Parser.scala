@@ -59,7 +59,7 @@ object Parser extends JavaTokenParsers {
     parseAll[Interval](locusInterval(rg), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(
-        s"""invalid interval expression: `$input': $msg
+        s"""invalid interval expression: '$input': $msg
            |  Acceptable formats:
            |    CHR:POS-CHR:POS e.g. 1:12345-1:17299 or [5:151111-8:191293]
            |            An interval from the starting locus (chromosome, position)
@@ -80,7 +80,7 @@ object Parser extends JavaTokenParsers {
   def parseCall(input: String): Call = {
     parseAll[Call](call, input) match {
       case Success(r, _) => r
-      case NoSuccess(msg, next) => fatal(s"invalid call expression: `$input': $msg")
+      case NoSuccess(msg, next) => fatal(s"invalid call expression: '$input': $msg")
     }
   }
 

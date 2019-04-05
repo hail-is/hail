@@ -44,7 +44,7 @@ object Locus {
     val elts = str.split(":")
     val size = elts.length
     if (size < 2)
-      fatal(s"Invalid string for Locus. Expecting contig:pos -- found `$str'.")
+      fatal(s"Invalid string for Locus. Expecting contig:pos -- found '$str'.")
 
     val contig = elts.take(size - 1).mkString(":")
     Locus(contig, elts(size - 1).toInt, rg)

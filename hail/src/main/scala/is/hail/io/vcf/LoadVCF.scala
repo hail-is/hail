@@ -680,7 +680,7 @@ object LoadVCF {
 
     inputs.foreach { input =>
       if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || !input.endsWith(".vcf.gz")))
-        warn(s"expected input file `$input' to end in .vcf[.bgz, .gz]")
+        warn(s"expected input file '$input' to end in .vcf[.bgz, .gz]")
       if (input.endsWith(".gz"))
         checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
     }
@@ -714,7 +714,7 @@ object LoadVCF {
       case (VCFHeaderLineType.String, false) => TString()
       case (VCFHeaderLineType.Character, false) => TString()
       case (VCFHeaderLineType.Flag, false) => TBoolean()
-      case (_, true) => fatal(s"Can only convert a header line with type `String' to a call type. Found `${ line.getType }'.")
+      case (_, true) => fatal(s"Can only convert a header line with type 'String' to a call type. Found '${ line.getType }'.")
     }
 
     val attrs = Map("Description" -> line.getDescription,
@@ -776,7 +776,7 @@ object LoadVCF {
     val headerLine = lines.last
     if (!(headerLine(0) == '#' && headerLine(1) != '#'))
       fatal(
-        s"""corrupt VCF: expected final header line of format `#CHROM\tPOS\tID...'
+        s"""corrupt VCF: expected final header line of format '#CHROM\tPOS\tID...'
            |  found: @1""".stripMargin, headerLine)
 
     val sampleIds: Array[String] = headerLine.split("\t").drop(9)

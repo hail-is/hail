@@ -131,6 +131,7 @@ object ExtractAggregators {
                     FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
                     aggSig)))))))
         ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
+
       case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }

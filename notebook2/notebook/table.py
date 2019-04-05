@@ -1,5 +1,5 @@
 import base64
-import mysql.connector
+import pymysql
 import kubernetes as kube
 import os
 
@@ -39,22 +39,23 @@ class Table:
     def __init__(self):
         secrets = Table.get_secrets()
 
-        self.cnx = mysql.connector.connect(**secrets)
+        self.cnx = pymysql.connect(**secrets,
+                                   cursorclass=pymysql.cursors.DictCursor)
+
+    def __del__(self):
+        self.cnx.close()
 
     def get(self, user_id):
-        cursor = self.cnx.cursor(dictionary=True)
+        with self.cnx.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, gsa_email, ksa_name, bucket_name,
+                gsa_key_secret_name, user_jwt_secret_name
+                FROM user_data
+                WHERE user_id=%s
+                """, (user_id,))
 
-        cursor.execute(
-            """
-            SELECT id, gsa_email, ksa_name, bucket_name, gsa_key_secret_name,
-            user_jwt_secret_name
-            FROM user_data
-            WHERE user_id=%s
-            """, (user_id,))
+            res = cursor.fetchone()
+            assert res is not None
 
-        res = cursor.fetchone()
-        cursor.close()
-
-        assert res is not None
-
-        return res
+            return res

@@ -2582,9 +2582,11 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Windowed correlation matrix between variants.
         Row and column indices correspond to matrix table variant index.
     """
-    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
+    starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
     ld = hl.row_correlation(entry_expr, block_size)
-    return ld.sparsify_row_intervals(starts, stops)
+    return BlockMatrix._from_java(ld._jbm.filterRowIntervalsIR(
+        Env.backend()._to_java_ir(starts_and_stops._ir),
+        False))
 
 
 @typecheck(n_populations=int,

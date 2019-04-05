@@ -7,6 +7,7 @@ from hail.expr.types import *
 from hail.typecheck import *
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
+from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 
 
@@ -608,7 +609,7 @@ class LowerBoundOnOrderedCollection(IR):
         return self.on_key
 
     def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
+        self.ordered_collection._compute_type(env, agg_env)
         self.elem._compute_type(env, agg_env)
         self._type = tint32
 
@@ -1475,75 +1476,25 @@ class MatrixAggregate(IR):
 
 
 class TableWrite(IR):
-    @typecheck_method(child=TableIR, path=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
-    def __init__(self, child, path, overwrite, stage_locally, _codec_spec):
+    @typecheck_method(child=TableIR, writer=TableWriter)
+    def __init__(self, child, writer):
         super().__init__(child)
         self.child = child
-        self.path = path
-        self.overwrite = overwrite
-        self.stage_locally = stage_locally
-        self._codec_spec = _codec_spec
+        self.writer = writer
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        return TableWrite(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
+        return TableWrite(child, self.writer)
 
     def head_str(self):
-        return '"{}" {} {} {}'.format(escape_str(self.path), self.overwrite, self.stage_locally,
-                                      "\"" + escape_str(
-                                          self._codec_spec) + "\"" if self._codec_spec else "None")
+        return f'"{self.writer.render()}"'
 
     def _eq(self, other):
-        return other.path == self.path and \
-               other.overwrite == self.overwrite and \
-               other.stage_locally == self.stage_locally and \
-               other._codec_spec == self._codec_spec
+        return other.writer == self.writer
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
         self._type = tvoid
-
-
-class TableExport(IR):
-    @typecheck_method(child=TableIR,
-                      path=str,
-                      types_file=nullable(str),
-                      header=bool,
-                      export_type=int,
-                      delimiter=str)
-    def __init__(self, child, path, types_file, header, export_type, delimiter):
-        super().__init__(child)
-        self.child = child
-        self.path = path
-        self.types_file = types_file
-        self.header = header
-        self.export_type = export_type
-        self.delimiter = delimiter
-
-    @typecheck_method(child=TableIR)
-    def copy(self, child):
-        return TableExport(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
-
-    def head_str(self):
-        return '"{}" {} {} {} "{}"'.format(
-            escape_str(self.path),
-            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
-            self.header,
-            self.export_type,
-            escape_str(self.delimiter),
-        )
-
-    def _eq(self, other):
-        return other.path == self.path and \
-               other.types_file == self.types_file and \
-               other.header == self.header and \
-               other.export_type == self.export_type and \
-               other.delimiter == self.delimiter
-
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tvoid
-
 
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)

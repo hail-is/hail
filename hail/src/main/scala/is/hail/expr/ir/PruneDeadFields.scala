@@ -186,7 +186,12 @@ object PruneDeadFields {
           case ta: TStreamable =>
             ta.copyStreamable(unifySeq(ta.elementType, children.map(_.asInstanceOf[TStreamable].elementType)))
           case _ =>
-            assert(children.forall(_.asInstanceOf[Type].isOfType(t)))
+
+            if (!children.forall(_.asInstanceOf[Type].isOfType(t))) {
+              val badChildren = children.filter(c => !c.asInstanceOf[Type].isOfType(t))
+                .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
+              throw new RuntimeException(s"invalid unification:\n  base:  ${t.parsableString()}${badChildren.mkString("\n")}")
+            }
             base
         }
     }

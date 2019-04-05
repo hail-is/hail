@@ -24,6 +24,7 @@ package object cxx {
       case _: TBinary => "char *"
       case _: TArray => "char *"
       case _: TBaseStruct => "char *"
+      case _: TNDArray => "NDArray"
       case TVoid => "void"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }

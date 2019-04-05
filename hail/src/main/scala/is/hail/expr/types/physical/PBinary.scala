@@ -32,10 +32,10 @@ class PBinary(override val required: Boolean) extends PType {
       var i = 0
 
       while (i < lim) {
-        val b1 = r1.loadByte(bOff1 + i)
-        val b2 = r2.loadByte(bOff2 + i)
+        val b1 = java.lang.Byte.toUnsignedInt(r1.loadByte(bOff1 + i))
+        val b2 = java.lang.Byte.toUnsignedInt(r2.loadByte(bOff2 + i))
         if (b1 != b2)
-          return java.lang.Byte.compare(b1, b2)
+          return java.lang.Integer.compare(b1, b2)
 
         i += 1
       }
@@ -62,9 +62,9 @@ class PBinary(override val required: Boolean) extends PType {
           i := 0,
           cmp := 0,
           Code.whileLoop(cmp.ceq(0) && i < lim,
-            cmp := Code.invokeStatic[java.lang.Byte, Byte, Byte, Int]("compare",
-              rx.loadByte(PBinary.bytesOffset(x) + i.toL),
-              ry.loadByte(PBinary.bytesOffset(y) + i.toL)),
+            cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
+              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", rx.loadByte(PBinary.bytesOffset(x) + i.toL)),
+              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", ry.loadByte(PBinary.bytesOffset(y) + i.toL))),
             i += 1),
           cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
       }

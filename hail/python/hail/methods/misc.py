@@ -91,6 +91,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     When multiple nodes have the same degree, this algorithm will order the
     nodes according to ``tie_breaker`` and remove the *largest* node.
+    
+    If `keyed` is ``False``, then a node may appear twice in the resulting
+    table.
 
     Parameters
     ----------
@@ -158,7 +161,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     nodes = nodes.filter(nodes.mis_nodes.contains(nodes.node), keep)
     nodes = nodes.select_globals()
     if keyed:
-        return nodes.key_by('node')
+        return nodes.key_by('node').distinct()
     return nodes
 
 

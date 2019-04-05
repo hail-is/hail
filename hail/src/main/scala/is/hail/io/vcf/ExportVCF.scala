@@ -119,7 +119,7 @@ object ExportVCF {
     }
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type `${ f.typ }'.")
+      case _ => fatal(s"INFO field '${ f.name }': VCF does not support type '${ f.typ }'.")
     }
   }
 
@@ -140,7 +140,7 @@ object ExportVCF {
 
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"FORMAT field '$fieldName': VCF does not support type `$t'.")
+      case _ => fatal(s"FORMAT field '$fieldName': VCF does not support type '$t'.")
     }
   }
 

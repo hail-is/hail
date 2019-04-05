@@ -1004,7 +1004,8 @@ class Table(ExprContainer):
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel), delimiter))
+            TableWrite(self._tir, TableTextWriter(output, types_file, header,
+                                                  Env.hail().utils.ExportType.getExportType(parallel), delimiter)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1169,7 +1170,7 @@ class Table(ExprContainer):
 
         Notes
         -----
-        An alias for :meth:`write` followed by :func:`.read_table`. It is
+        An alias for :meth:`write` followed by :func:`.reatd_table`. It is
         possible to read the file at this path later with :func:`.read_table`.
 
         Examples
@@ -1209,7 +1210,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+        Env.backend().execute(TableWrite(self._tir, TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
     def _show(self, n, width, truncate, types):
         return Table._Show(self, n, width, truncate, types)

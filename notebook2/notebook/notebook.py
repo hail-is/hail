@@ -480,7 +480,6 @@ def admin_login_post():
 
 
 @app.route('/worker-image')
-@requires_auth()
 def worker_image():
     return '\n'.join(WORKER_IMAGES.values()), 200
 

@@ -1,22 +1,27 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
+import is.hail.expr.{NatBase, Nat}
 import is.hail.expr.types.physical.PNDArray
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TNDArray(elementType: Type, nDims: Int, override val required: Boolean = false) extends Type {
+final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
+  lazy val nDims: Int = {
+    assert(nDimsBase.isInstanceOf[Nat], "Missing concrete number of dimensions.")
+    nDimsBase.asInstanceOf[Nat].n
+  }
   lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, nDims, required)
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
     elementType.pyString(sb)
     sb.append(", ")
-    sb.append(nDims.toString)
+    sb.append(nDims)
     sb.append('>')
   }
-  
+
   def _toPretty = s"NDArray[$elementType,$nDims]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
@@ -26,6 +31,20 @@ final case class TNDArray(elementType: Type, nDims: Int, override val required: 
     sb.append(nDims)
     sb.append("]")
   }
+
+  override def unify(concrete: Type): Boolean = {
+    concrete match {
+      case TNDArray(cElementType, cNDims, _) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
+      case _ => false
+    }
+  }
+
+  override def clear(): Unit = {
+    elementType.clear()
+    nDimsBase.clear()
+  }
+
+  override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst(), required)
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 

@@ -587,7 +587,7 @@ object Interpret {
             val binsValue = interpret(bins, Env.empty[Any], null, null).asInstanceOf[Int]
 
             if (binsValue <= 0)
-              fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+              fatal(s"""method 'hist' expects 'bins' argument to be > 0, but got $bins""")
 
             val binSize = (endValue - startValue) / binsValue
             if (binSize <= 0)
@@ -746,21 +746,12 @@ object Interpret {
       case TableCollect(child) =>
         val tv = child.execute(HailContext.get)
         Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
-      case MatrixWrite(child, writer) =>
-        val mv = child.execute(HailContext.get)
-        writer(mv)
       case MatrixMultiWrite(children, writer) =>
         val hc = HailContext.get
         val mvs = children.map(_.execute(hc))
         writer(mvs)
-      case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
-        val hc = HailContext.get
-        val tableValue = child.execute(hc)
-        tableValue.write(path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(child, path, typesFile, header, exportType, delimiter) =>
-        val hc = HailContext.get
-        val tableValue = child.execute(hc)
-        tableValue.export(path, typesFile, header, exportType, delimiter)
+      case TableWrite(child, writer) =>
+        writer(child.execute(HailContext.get))
       case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
         writer(hc, child.execute(hc))
