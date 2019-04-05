@@ -85,7 +85,7 @@ object StagedExtractAggregators {
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(
           io,
-          ExtractAggregators.addLets(ArrayFor(array, name, Begin(seqOp)), dependent))
+          ArrayFor(array, name, ExtractAggregators.addLets(Begin(seqOp), dependent)))
         transformed
       case AggGroupBy(key, aggIR, _) =>
 
@@ -115,7 +115,7 @@ object StagedExtractAggregators {
         val newRef = Ref(genUID(), null)
 
         val aggLetAB = new ArrayBuilder[AggLet]()
-        val transformed = this.extract(fb, aggBody, newRVAggBuilder, newBuilder, ab3, newRef)
+        val transformed = this.extract(fb, aggBody, newRVAggBuilder, newBuilder, aggLetAB, newRef)
 
         // collect lets that depend on `name`, push the rest up
         val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
