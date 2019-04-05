@@ -17,7 +17,8 @@ install-hail-locally:
 jupyter_notebook_config.py:
 	sed -e "s,@project@,$(PROJECT),g" \
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
-            < jupyter_notebook_config.py.in > jupyter_notebook_config.py
+            < jupyter_notebook_config.py.in > $@
+
 build: install-hail-locally jupyter_notebook_config.py
 	docker build -t spark-base -f Dockerfile.spark-base .
 	docker build -t hail-base -f Dockerfile.hail-base .
