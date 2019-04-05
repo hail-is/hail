@@ -1,4 +1,4 @@
-from batch.server.server import run_once
+from batch import run_once
 import requests
 import urllib3
 from urllib3 import HTTPConnectionPool
