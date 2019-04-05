@@ -125,12 +125,20 @@ def test_pull_request_comment_does_not_overwrite_approval():
     assert 'tpoterba' not in review_state['reviews']
 
 
-def get_pr(source_ref):
+def get_pr(source_ref,
+           delay_in_seconds=DELAY_IN_SECONDS,
+           max_polls=MAX_POLLS):
     status = ci_get('/status', status_code=200)
-    assert 'prs' in status
-    assert '_watched_targets' in status
-    all_prs = [PR.from_json(x) for x in status['prs']]
-    prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
+    polls = 0
+    prs = []
+    while len(prs) == 0:
+        assert 'prs' in status
+        assert '_watched_targets' in status
+        all_prs = [PR.from_json(x) for x in status['prs']]
+        prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
+        polls = polls + 1
+        time.sleep(delay_in_seconds)
+        assert polls < MAX_POLLS
     assert len(prs) == 1, [str(x.source.ref) for x in all_prs]
     return prs[0]
 
@@ -270,7 +278,6 @@ def test_pull_request_trigger(tmpdir):
             status_code=201,
             token=oauth_tokens['user1'])
         pr_number = str(data['number'])
-        time.sleep(7)
         pr = poll_until_finished_pr(BRANCH_NAME)
         assertDictHasKVs(
             pr.to_dict(),
