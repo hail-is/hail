@@ -58,8 +58,6 @@ case class MatrixValue(
 
   def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
 
-  def entriesTableValue: TableValue = TableValue(typ.entriesTableType, globals, entriesRVD())
-
   private def writeCols(path: String, codecSpec: CodecSpec) {
     val hc = HailContext.get
     val hadoopConf = hc.hadoopConf
@@ -247,68 +245,6 @@ case class MatrixValue(
       ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
         .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
     )
-  }
-
-  def entriesRVD(): RVD = {
-    val resultStruct = typ.entriesTableType.rowType
-    val fullRowType = typ.rvRowType.physicalType
-    val localEntriesIndex = typ.entriesIdx
-    val localEntriesType = typ.entryArrayType.physicalType
-    val localColType = typ.colType
-    val localEntryType = typ.entryType
-    val localRVDType = typ.canonicalRVDType
-    val localNCols = nCols
-
-    val localSortedColValues = sortedColValues.broadcast
-    val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
-
-    rvd.repartition(rvd.partitioner.strictify).boundary
-      .mapPartitions(typ.entriesTableType.canonicalRVDType.copy(key = typ.rowKey), { (ctx, it) =>
-        val rv2b = ctx.rvb
-        val rv2 = RegionValue(ctx.region)
-
-        val colRegion = ctx.freshRegion
-        val colRVB = new RegionValueBuilder(colRegion)
-        val colsType = TArray(localColType, required = true).physicalType
-        colRVB.start(colsType)
-        colRVB.addAnnotation(colsType.virtualType, localSortedColValues.value)
-        val colsOffset = colRVB.end()
-
-        val rowBuffer = new RegionValueArrayBuffer(fullRowType, ctx.freshRegion)
-
-        val colsNewToOldIdx = localSortedColsToOldIdx.value.asInstanceOf[IndexedSeq[Int]]
-
-        OrderedRVIterator(localRVDType, it, ctx).staircase.flatMap { step =>
-          rowBuffer.clear()
-          rowBuffer ++= step
-          (0 until localNCols).iterator.flatMap { i =>
-            rowBuffer.iterator
-              .filter { row =>
-                localEntriesType.isElementDefined(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i))
-              }.map { row =>
-              rv2b.clear()
-              rv2b.start(resultStruct.physicalType)
-              rv2b.startStruct()
-
-              var j = 0
-              while (j < fullRowType.size) {
-                if (j != localEntriesIndex)
-                  rv2b.addField(fullRowType, row, j)
-                j += 1
-              }
-
-              rv2b.addAllFields(localColType.physicalType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
-              rv2b.addAllFields(
-                localEntryType.physicalType,
-                row.region,
-                localEntriesType.loadElement(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
-              rv2b.endStruct()
-              rv2.setOffset(rv2b.end())
-              rv2
-            }
-          }
-        }
-      }).extendKeyPreservesPartitioning(typ.entriesTableType.key)
   }
 
   def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
