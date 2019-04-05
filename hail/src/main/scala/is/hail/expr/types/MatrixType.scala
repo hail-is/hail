@@ -83,7 +83,7 @@ case class MatrixType(
     TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
-    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
+    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ.setRequired(false)): _*)
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
