@@ -137,7 +137,11 @@ object TypeCheck {
         assert(x.elementTyp == body.typ)
       case x@NDArrayReindex(nd, indexExpr) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(coerce[TNDArray](nd.typ).nDims <= indexExpr.length)
+        val nInputDims = coerce[TNDArray](nd.typ).nDims
+        val nOutputDims = indexExpr.length
+        assert(nInputDims <= nOutputDims)
+        assert(indexExpr.forall(i => i < nOutputDims))
+        assert((0 until nOutputDims).forall(i => indexExpr.contains(i)))
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
