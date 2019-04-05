@@ -25,7 +25,6 @@ push-$(1): build-$(1)
 	docker push gcr.io/$(PROJECT)/$(1):$$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
 endef
 endif
->>>>>>> wip
 
 build-hail-shadow-jar:
 	cd ../hail && ./gradlew shadowJar
