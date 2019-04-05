@@ -215,9 +215,9 @@ def poll_pr(source_ref,
     polls = 0
     while poll_until_false(pr):
         assert polls < max_polls
-        time.sleep(delay_in_seconds)
         pr = get_pr(source_ref, delay_in_seconds, max_polls)
         polls = polls + 1
+        time.sleep(delay_in_seconds)
     return pr
 
 
@@ -229,7 +229,6 @@ def poll_until_pr_exists_and(source_ref,
     polls = 0
     while (len(prs) == 0
            or not poll_until_true(prs[0])) and polls < max_polls:
-        time.sleep(delay_in_seconds)
         status = ci_get('/status', status_code=200)
         assert 'prs' in status
         assert '_watched_targets' in status
@@ -237,6 +236,7 @@ def poll_until_pr_exists_and(source_ref,
         prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
         assert len(prs) <= 1, [str(x.source.ref) for x in all_prs]
         polls = polls + 1
+        time.sleep(delay_in_seconds)
     assert len(prs) == 1
     return prs[0]
 
@@ -474,8 +474,6 @@ def test_push_while_building(tmpdir):
                                f'but never found it {deploy_artifact}')
             else:
                 i = i + 1
-
-        time.sleep(5)  # allow github push notification to be sent
 
         pr[SLOW_BRANCH_NAME] = poll_until_finished_pr(
             SLOW_BRANCH_NAME)
