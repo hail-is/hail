@@ -5,7 +5,7 @@ import is.hail.expr.ir.functions.{MatrixToMatrixFunction, TableToTableFunction}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 
-case class TableFilterPartitions(parts: IndexedSeq[Int], keep: Boolean) extends TableToTableFunction {
+case class TableFilterPartitions(parts: Seq[Int], keep: Boolean) extends TableToTableFunction {
   override def preservesPartitionCounts: Boolean = false
 
   override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = (childType, childRVDType)
@@ -21,20 +21,12 @@ case class TableFilterPartitions(parts: IndexedSeq[Int], keep: Boolean) extends 
   }
 }
 
-case class MatrixFilterPartitions(parts: IndexedSeq[Int], keep: Boolean) extends MatrixToMatrixFunction {
+case class MatrixFilterPartitions(parts: Seq[Int], keep: Boolean) extends MatrixToMatrixFunction {
   override def preservesPartitionCounts: Boolean = false
 
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (MatrixType, RVDType) = (childType, childRVDType)
 
-  override def execute(mv: MatrixValue): MatrixValue = {
-    val newRVD = if (keep)
-      mv.rvd.subsetPartitions(parts.toArray)
-    else {
-      val subtract = parts.toSet
-      mv.rvd.subsetPartitions((0 until mv.rvd.getNumPartitions).filter(i => !subtract.contains(i)).toArray)
-    }
-    mv.copy(rvd = newRVD)
-  }
+  override def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
 
   override def lower(): Option[TableToTableFunction] = Some(TableFilterPartitions(parts, keep))
 }

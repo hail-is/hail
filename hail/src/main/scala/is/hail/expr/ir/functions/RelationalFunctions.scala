@@ -81,10 +81,25 @@ abstract class TableToValueFunction {
   def execute(tv: TableValue): Any
 }
 
+case class WrappedMatrixToValueFunction(
+  function: MatrixToValueFunction,
+  colsFieldName: String,
+  entriesFieldName: String,
+  colKey: IndexedSeq[String]) extends TableToValueFunction {
+
+  def typ(childType: TableType): Type = {
+    function.typ(MatrixType.fromTableType(childType, colsFieldName, entriesFieldName, colKey))
+  }
+
+  def execute(tv: TableValue): Any = function.execute(tv.toMatrixValue(colsFieldName, entriesFieldName, colKey))
+}
+
 abstract class MatrixToValueFunction {
   def typ(childType: MatrixType): Type
 
   def execute(mv: MatrixValue): Any
+
+  def lower(): Option[TableToValueFunction] = None
 }
 
 abstract class BlockMatrixToValueFunction {
