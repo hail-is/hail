@@ -1,0 +1,44 @@
+<html lang="en">
+  <head>
+    <title>CI2</title>
+  </head>
+  <body>
+    <h1>CI2</h1>
+    <h2>PRs</h2>
+    {% for wb in watched_branches %}
+    <p>{{ wb.branch }}</p>
+    {% if wb.sha %}
+    <p>sha: {{ wb.sha }}</p>
+    {% endif %}
+    <table>
+      <thead>
+        <tr>
+          <th align="left">Number</th>
+          <th align="left">Title</th>
+          <th align="left">Review State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pr in wb.prs %}
+        <tr>
+          <td align="left">
+            <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
+              {{ pr.number }}
+            </a>
+          </td>
+          <td align="left">
+            {{ pr.title }}
+          </td>
+          <td align="left">
+            {% if pr.state %}
+            {{ pr.state }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    {% endfor %}
+  </body>
+</html>
