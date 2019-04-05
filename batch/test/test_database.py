@@ -28,14 +28,14 @@ class Test(unittest.TestCase):
         key = ['id']
 
         try:
-            t1_name = self.db.create_temporary_table_sync("t1", schema, key)
-            t2_name = self.db.create_temporary_table_sync("t2", schema, key)
-            assert t1_name.startswith("t1")
-            assert t2_name.startswith("t2")
+            t1 = self.db.create_temporary_table_sync("t1", schema, key)
+            t2 = self.db.create_temporary_table_sync("t2", schema, key)
+            assert t1.name.startswith("t1")
+            assert t2.name.startswith("t2")
         finally:
-            self.db.drop_table_sync(t1_name, t2_name)
-            assert not self.db.has_table_sync(t1_name)
-            assert not self.db.has_table_sync(t2_name)
+            self.db.drop_table_sync(t1.name, t2.name)
+            assert not self.db.has_table_sync(t1.name)
+            assert not self.db.has_table_sync(t2.name)
 
     def test_new_record(self):
         t = self.temp_table()

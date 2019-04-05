@@ -36,7 +36,6 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               echo=True,
                                                autocommit=True)
 
     async def has_table(self, name):
@@ -79,14 +78,13 @@ class Database:
             try:
                 suffix = uuid.uuid4().hex[:8]
                 name = f'{root_name}-{suffix}'
-                await self.create_table(name, schema, keys, can_exist=False)
-                return name
+                return await Table(self, name, schema, keys, can_exist=False)
             except pymysql.err.InternalError:
                 pass
         raise Exception("Too many attempts to get temp table.")
 
     def create_temporary_table_sync(self, root_name, schema, keys):
-        return run_synchronous(self.create_temp_table(root_name, schema, keys))
+        return run_synchronous(self.create_temporary_table(root_name, schema, keys))
 
 
 def make_where_statement(items):
@@ -109,10 +107,10 @@ def make_where_statement(items):
 
 @asyncinit
 class Table:  # pylint: disable=R0903
-    async def __init__(self, db, name, schema, keys):
+    async def __init__(self, db, name, schema, keys, can_exist=False):
         self.name = name
         self._db = db
-        await self._db.create_table(name, schema, keys)
+        await self._db.create_table(name, schema, keys, can_exist)
 
     async def new_record(self, items):
         names = ", ".join([f'`{name.replace("`", "``")}`' for name in items.keys()])
