@@ -4,12 +4,20 @@
   </head>
   <body>
     <h1>CI2</h1>
-    <h2>PRs</h2>
     {% for wb in watched_branches %}
-    <p>{{ wb.branch }}</p>
-    {% if wb.sha %}
-    <p>sha: {{ wb.sha }}</p>
-    {% endif %}
+    <h2>{{ wb.branch }}</h2>
+    <p>sha:
+      {% if wb.sha %}
+      {{ wb.sha }}
+      {% else %}
+      unknown
+      {% endif %}
+    </p>
+    <h3>PRs</h3>
+    {% if wb.prs is none %}
+    <p>Unknown.</p>
+    {% else %}
+    {% if wb.prs|length > 0 %}
     <table>
       <thead>
         <tr>
@@ -38,6 +46,10 @@
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    No PRs.
+    {% endif %}
+    {% endif %}
     
     {% endfor %}
   </body>

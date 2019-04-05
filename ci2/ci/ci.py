@@ -43,7 +43,7 @@ async def index(request):
                         'state': pr.state
                     }
                     for pr in wb.prs.values()
-                ]}
+                ] if wb.prs else None}
             for wb in watched_branches
         ]}
 

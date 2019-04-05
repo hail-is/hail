@@ -156,12 +156,6 @@ class PR(object):
                   FQSHA.from_gh_json(gh_json['head']),
                   FQSHA.from_gh_json(gh_json['base']))
 
-    def refresh_from_gh_json(self, gh_json):
-        assert gh_json['number'] == self.number
-        self.title = gh_json['title']
-        self.source = FQSHA.from_gh_json(gh_json['head'])
-        self.target = FQSHA.from_gh_json(gh_json['base'])
-
     async def refresh(self, gh):
         latest_state_by_login = {}
         async for review in gh.getiter(f'/repos/{self.target.branch.repo.short_str()}/pulls/{self.number}/reviews'):
@@ -184,42 +178,25 @@ class PR(object):
 
         self.state = total_state
 
-    def mark_closed(self):
-        pass
-
 
 class WatchedBranch(object):
     def __init__(self, branch):
         self.branch = branch
-        self.prs = {}
+        self.prs = None
         self.sha = None
-        self.in_refresh = False
 
     async def refresh(self, gh):
-        if self.in_refresh:
-            return
-        self.in_refresh = True
-
         repo_ss = self.branch.repo.short_str()
 
         branch_gh_json = await gh.getitem(f'/repos/{repo_ss}/git/refs/heads/{self.branch.name}')
-        self.sha = branch_gh_json['object']['sha']
+        new_sha = branch_gh_json['object']['sha']
 
-        seen = set()
+        new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
-            pr = self.prs.get(number)
-            if pr:
-                pr.refresh_from_gh_json(gh_json_pr)
-            else:
-                pr = PR.from_gh_json(gh_json_pr)
-                self.prs[number] = pr
+            pr = PR.from_gh_json(gh_json_pr)
             await pr.refresh(gh)
-            seen.add(number)
+            new_prs[number] = pr
 
-        for pr in self.prs.values():
-            if pr.number not in seen:
-                del self.prs[pr.number]
-                pr.mark_closed()
-
-        self.in_refresh = False
+        self.sha = new_sha
+        self.prs = new_prs
