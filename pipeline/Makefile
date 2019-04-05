@@ -26,7 +26,7 @@ build/pylint: $(PIPELINE_PY_FILES) build/conda-env build/batch
 	. ../loadconda && conda activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
 	mkdir -p build && touch $@
 
-test-local: build/conda-env build/batch $(PY_CHECKERS) install-cloud-sql-proxy local-cloud-sql-config
+test-local: build/conda-env build/batch $(PY_CHECKERS) install-cloud-sql-proxy test-cloud-sql-config
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine

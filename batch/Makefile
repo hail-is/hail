@@ -2,8 +2,7 @@
   push push-test \
   run-docker run \
   test test-local deploy test-deploy \
-  check clean \
-  install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
+  check clean
 
 PROJECT = $(shell gcloud config get-value project)
 BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
@@ -68,7 +67,7 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: check
 endif
-test-local: install-cloud-sql-proxy local-cloud-sql-config
+test-local: install-cloud-sql-proxy test-cloud-sql-config
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
