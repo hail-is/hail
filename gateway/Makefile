@@ -32,7 +32,7 @@ deployment.yaml: deployment.yaml.in build
 	  < $< > $@
 
 build: Dockerfile $(NGINX_CONF)
-	-docker pull debian:9.5
+	docker pull debian:9.5
 	-docker pull $(GATEWAY_LATEST)
 	docker build -t gateway --cache-from gateway,$(GATEWAY_LATEST),debian:9.5 .
 

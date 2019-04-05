@@ -11,7 +11,7 @@ fetch-image.sh: fetch-image.sh.in
 
 ifeq ($(IN_HAIL_CI),1)
 build: fetch-image.sh
-	-docker pull alpine:3.8
+	docker pull alpine:3.8
 	-docker pull $(FETCH_LATEST)
 	docker build . -t image-fetcher --cache-from image-fetcher,$(FETCH_LATEST),alpine:3.8
 else
