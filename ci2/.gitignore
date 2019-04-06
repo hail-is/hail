@@ -1,4 +1,5 @@
 /ci.log
 /oauth-token
+/deployment.yaml
 *.pyc
 **/__pycache__

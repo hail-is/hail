@@ -6,23 +6,18 @@
     <h1>CI2</h1>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
-    <p>sha:
-      {% if wb.sha %}
-      {{ wb.sha }}
-      {% else %}
-      unknown
-      {% endif %}
-    </p>
+    {% if wb.sha is not none %}
+    <p>sha: {{ wb.sha }}</p>
+    {% endif %}
+    {% if wb.prs is not none %}
     <h3>PRs</h3>
-    {% if wb.prs is none %}
-    <p>Unknown.</p>
-    {% else %}
     {% if wb.prs|length > 0 %}
     <table>
       <thead>
         <tr>
           <th align="left">Number</th>
           <th align="left">Title</th>
+          <th align="left">Build State</th>
           <th align="left">Review State</th>
         </tr>
       </thead>
@@ -36,6 +31,21 @@
           </td>
           <td align="left">
             {{ pr.title }}
+          </td>
+          <td align="left">
+            {% if pr.job_id is not none %}
+            <a href="/jobs/{{ pr.job_id }}/log">
+              {% if pr.passing is not none %}
+              {% if pr.passing %}
+              successful build
+              {% else %}
+              failed build
+              {% endif %}
+              {% else %}
+              building
+              {% endif %}
+            </a>
+            {% endif %}
           </td>
           <td align="left">
             {% if pr.state %}
