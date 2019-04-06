@@ -3,6 +3,7 @@ import time
 import re
 import unittest
 import batch
+import secrets
 from flask import Flask, Response, request
 import requests
 
@@ -53,6 +54,36 @@ class Test(unittest.TestCase):
         j = self.batch.create_job('alpine', ['true'], attributes=a)
         status = j.status()
         assert(status['attributes'] == a)
+
+    def test_list_jobs(self):
+        tag = secrets.token_urlsafe(64)
+        j1 = self.batch.create_job('alpine', ['sleep', '30'], attributes={'tag': tag, 'name': 'j1'})
+        j2 = self.batch.create_job('alpine', ['echo', 'test'], attributes={'tag': tag, 'name': 'j2'})
+
+        def assert_job_ids(expected, complete=None, success=None, attributes=None):
+            jobs = self.batch.list_jobs(complete=complete, success=success, attributes=attributes)
+            actual = set([job.id for job in jobs])
+            self.assertEqual(actual, expected)
+
+        assert_job_ids({j1.id, j2.id}, attributes={'tag': tag})
+
+        j2.wait()
+
+        assert_job_ids({j1.id}, complete=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, complete=True, attributes={'tag': tag})
+
+        assert_job_ids({j1.id}, success=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, success=True, attributes={'tag': tag})
+
+        j1.cancel()
+
+        assert_job_ids({j1.id}, success=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, success=True, attributes={'tag': tag})
+
+        assert_job_ids(set(), complete=False, attributes={'tag': tag})
+        assert_job_ids({j1.id, j2.id}, complete=True, attributes={'tag': tag})
+
+        assert_job_ids({j2.id}, attributes={'tag': tag, 'name': 'j2'})
 
     def test_scratch_folder(self):
         sb = 'gs://test-bucket/folder'
