@@ -22,7 +22,7 @@ class API():
             headers = {}
         self.headers = headers
 
-    def http(self, verb, url, json=None, timeout=None, cookies=None, headers=None, params=None):
+    def http(self, verb, url, json=None, timeout=None, cookies=None, headers=None, json_response=True, params=None):
         if timeout is None:
             timeout = self.timeout
         if cookies is None:
@@ -34,7 +34,10 @@ class API():
         else:
             response = verb(url, timeout=timeout, cookies=cookies, headers=headers, params=params)
         raise_on_failure(response)
-        return response.json()
+        if json_response:
+            return response.json()
+        else:
+            return response
 
     def post(self, *args, **kwargs):
         return self.http(requests.post, *args, **kwargs)
@@ -120,4 +123,4 @@ class API():
         return self.delete(f'{url}/batches/{batch_id}')
 
     def refresh_k8s_state(self, url):
-        self.post(f'{url}/refresh_k8s_state')
+        self.post(f'{url}/refresh_k8s_state', json_response=False)
