@@ -47,10 +47,10 @@ class Job:
                 i = i + 1
 
     async def cancel(self):
-        await self.client._patch('/jobs/{}/cancel'.format(self.id))
+        await self.client._cancel_job(self.id)
 
     async def delete(self):
-        await self.client._delete('/jobs/{}/delete'.format(self.id))
+        await self.client._delete_job(self.id)
 
         # this object should not be referenced again
         del self.client
@@ -214,6 +214,7 @@ class BatchClient:
             doc['copy_service_account_name'] = copy_service_account_name
 
         j = await self._post('/jobs/create', json=doc)
+
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),

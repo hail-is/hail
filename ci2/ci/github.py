@@ -90,75 +90,36 @@ class FQBranch(object):
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
-class FQSHA(object):
-    def __init__(self, branch, sha):
-        assert isinstance(branch, FQBranch)
-        assert isinstance(sha, str)
-        self.branch = branch
-        self.sha = sha
-
-    def __eq__(self, other):
-        return self.branch == other.brach and self.sha == other.sha
-
-    def __ne__(self, other):
-        return not self == other
-
-    def __hash__(self):
-        return hash((self.branch, self.sha))
-
-    @staticmethod
-    def from_short_str(s):
-        pieces = s.split(":")
-        assert len(pieces) == 3, f'{pieces} {s}'
-        return FQSHA(FQBranch(Repo.from_short_str(pieces[0]),
-                              pieces[1]),
-                     pieces[2])
-
-    def short_str(self, sha_length=SHA_LENGTH):
-        if sha_length:
-            return f'{self.branch.short_str()}:{self.sha[:sha_length]}'
-        else:
-            return f'{self.brach.short_str()}:{self.sha}'
-
-    @staticmethod
-    def from_gh_json(d):
-        assert isinstance(d, dict), f'{type(d)} {d}'
-        assert 'repo' in d, d
-        assert 'ref' in d, d
-        assert 'sha' in d, d
-        return FQSHA(FQBranch(Repo.from_gh_json(d['repo']), d['ref']), d['sha'])
-
-    def __str__(self):
-        return json.dumps(self.to_dict())
-
-    @staticmethod
-    def from_json(d):
-        assert isinstance(d, dict), f'{type(d)} {d}'
-        assert 'brach' in d, d
-        assert 'sha' in d, d
-        return FQSHA(FQBranch.from_json(d['branch']), d['sha'])
-
-    def to_dict(self):
-        return {'brach': self.ref.to_dict(), 'sha': self.sha}
-
-
 class PR(object):
-    def __init__(self, number, title, source, target):
-        self.source = source
-        self.target = target
+    def __init__(self, number, title, source_sha, target_branch):
         self.number = number
         self.title = title
+        self.source_sha = source_sha
+        self.target_branch = target_branch
+
+        # one of pending, changes_requested, approve
         self.state = None
 
+        self.job = None
+        self.passing = None
+
+    def update_from_gh_json(self, gh_json):
+        assert self.number == gh_json['number']
+        self.title = gh_json['title']
+
+        new_source_sha = gh_json['head']['sha']
+        if self.source_sha != new_source_sha:
+            self.source_sha = new_source_sha
+            self.job = None
+            self.passing = None
+
     @staticmethod
-    def from_gh_json(gh_json):
-        return PR(gh_json['number'], gh_json['title'],
-                  FQSHA.from_gh_json(gh_json['head']),
-                  FQSHA.from_gh_json(gh_json['base']))
+    def from_gh_json(gh_json, target_branch):
+        return PR(gh_json['number'], gh_json['title'], gh_json['head']['sha'], target_branch)
 
     async def refresh(self, gh):
         latest_state_by_login = {}
-        async for review in gh.getiter(f'/repos/{self.target.branch.repo.short_str()}/pulls/{self.number}/reviews'):
+        async for review in gh.getiter(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'):
             login = review['user']['login']
             state = review['state']
             # reviews is chronological, so later ones are newer statuses
@@ -178,6 +139,42 @@ class PR(object):
 
         self.state = total_state
 
+    async def heal(self, batch, run, seen_job_ids):
+        if self.job is None:
+            jobs = await batch.list_jobs(
+                complete=False,
+                attributes={
+                    'source_sha': self.source_sha,
+                    'target_sha': self.target_branch.sha
+                })
+            # we might be returning to a commit that was only partially tested
+            jobs = [j for j in jobs if j._status['state'] != 'Cancelled']
+
+            # should be at most one job
+            if len(jobs) > 0:
+                self.job = jobs[0]
+            elif run:
+                self.job = await batch.create_job(
+                    # FIXME build
+                    'alpine', ['echo', 'foo'],
+                    attributes={
+                        'target_branch': self.target_branch.branch.short_str(),
+                        'pr': str(self.number),
+                        'source_sha': self.source_sha,
+                        'target_sha': self.target_branch.sha
+                    })
+
+        if self.job:
+            seen_job_ids.add(self.job.id)
+
+            if self.passing is None:
+                status = await self.job.status()
+                state = status['state']
+                if state == 'Complete':
+                    self.passing = status['exit_code'] == 0
+                else:
+                    assert state == 'Created'
+
 
 class WatchedBranch(object):
     def __init__(self, branch):
@@ -190,13 +187,45 @@ class WatchedBranch(object):
 
         branch_gh_json = await gh.getitem(f'/repos/{repo_ss}/git/refs/heads/{self.branch.name}')
         new_sha = branch_gh_json['object']['sha']
+        if new_sha != self.sha:
+            self.sha = new_sha
+            if self.prs:
+                for pr in self.prs:
+                    pr.job = None
+                    pr.passing = None
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
-            pr = PR.from_gh_json(gh_json_pr)
-            await pr.refresh(gh)
+            if self.prs is not None and number in self.prs:
+                pr = self.prs[number]
+                pr.update_from_gh_json(gh_json_pr)
+            else:
+                pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
-
-        self.sha = new_sha
         self.prs = new_prs
+
+        for pr in self.prs.values():
+            await pr.refresh(gh)
+
+    async def heal(self, batch):
+        # FIXME merge
+        merge_candidate = None
+        for pr in self.prs.values():
+            if pr.state == 'approved' and pr.passing is None:
+                merge_candidate = pr.number
+                break
+
+        running_jobs = await batch.list_jobs(
+            complete=False,
+            attributes={
+                'target_branch': self.branch.short_str()
+            })
+
+        seen_job_ids = set()
+        for number, pr in self.prs.items():
+            await pr.heal(batch, (merge_candidate is None or pr.number == merge_candidate), seen_job_ids)
+
+        for job in running_jobs:
+            if job.id not in seen_job_ids:
+                await job.cancel()

@@ -10,6 +10,7 @@ import jinja2
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp
 import concurrent.futures
+import batch
 
 from log import log
 from github import *
@@ -25,6 +26,13 @@ watched_branches = [
 ]
 
 app = web.Application()
+
+app['client_session'] = aiohttp.ClientSession(
+    raise_for_status=True,
+    timeout=aiohttp.ClientTimeout(total=timeout))
+app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
+app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
+
 routes = web.RouteTableDef()
 
 @routes.get('/')
@@ -40,6 +48,8 @@ async def index(request):
                     {
                         'number': pr.number,
                         'title': pr.title,
+                        'job_id': pr.job.id if pr.job else None,
+                        'passing': pr.passing,
                         'state': pr.state
                     }
                     for pr in wb.prs.values()
@@ -47,24 +57,36 @@ async def index(request):
             for wb in watched_branches
         ]}
 
+@routes.get('/jobs/{job_id}/log')
+@aiohttp_jinja2.template('job_log.html')
+async def get_job_log(request):
+    job_id = int(request.match_info['job_id'])
+
+    batch = request.app['batch_client']
+    job = await batch.get_job(job_id)
+    return {
+        'job_id': job_id,
+        'job_log': await job.log()
+    }
+
 @routes.get('/healthcheck')
 async def healthcheck(request):
     return web.Response(status=200)
 
-async def refresh_loop():
-    async with aiohttp.ClientSession() as session:
-        # FIXME
-        gh = gh_aiohttp.GitHubAPI(session, 'ci2', oauth_token=oauth_token)
-        while True:
-            try:
-                for wb in watched_branches:
-                    log.info(f'refreshing {wb.branch}')
-                    await wb.refresh(gh)
-                await asyncio.sleep(60)
-            except concurrent.futures.CancelledError:
-                raise
-            except Exception as e:
-                log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
+async def refresh_loop(app):
+    gh = app['github_client']
+    batch = app['batch_client']
+    while True:
+        try:
+            for wb in watched_branches:
+                log.info(f'refreshing {wb.branch}')
+                await wb.refresh(gh)
+                await wb.heal(batch)
+            await asyncio.sleep(60)
+        except concurrent.futures.CancelledError:
+            raise
+        except Exception as e:
+            log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
 
 app.add_routes(routes)
 
@@ -72,8 +94,14 @@ aiohttp_jinja2.setup(app,
     loader=jinja2.FileSystemLoader('ci/templates'))
 
 async def on_startup(app):
-    asyncio.ensure_future(refresh_loop())
+    asyncio.ensure_future(refresh_loop(app))
 
 app.on_startup.append(on_startup)
+
+async def on_cleanup(app):
+    session = app['client_session']
+    await session.close()
+
+app.on_cleanup.append(on_cleanup)
 
 web.run_app(app, host='0.0.0.0', port=5000)
