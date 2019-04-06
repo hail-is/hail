@@ -277,6 +277,13 @@ object Simplify {
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+    case TableCount(TableExplode(child, path)) =>
+      TableAggregate(child,
+        ApplyAggOp(
+          FastIndexedSeq(),
+          None,
+          FastIndexedSeq(ArrayLen(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)}).toL),
+          AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
 
     // TableGetGlobals should simplify very aggressively
     case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
@@ -322,6 +329,11 @@ object Simplify {
 
     case TableCollect(TableParallelize(x, _)) => x
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+
+    case TableAggregate(TableMapRows(child, newRow), query) if !ContainsScan(newRow) =>
+      val uid = genUID()
+      TableAggregate(child,
+        AggLet(uid, newRow, Subst(query, BindingEnv(agg = Some(Env("row" -> Ref(uid, newRow.typ))))), isScan = false))
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
