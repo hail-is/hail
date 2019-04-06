@@ -420,5 +420,18 @@ object LowerMatrixIR {
   private[this] def valueRules: PartialFunction[IR, IR] = {
     case MatrixWrite(child, writer) =>
       TableWrite(lower(child), WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
+    case MatrixAggregate(child, query) =>
+      val idx = Symbol(genUID())
+      lower(child)
+        .aggregate(
+          aggLet(
+            __entries_field = 'row (entriesField),
+            __cols_field = 'global (colsField)) {
+            irRange(0, '__entries_field.len)
+              .filter(idx ~> !'__entries_field (idx).isNA)
+              .aggExplode(idx ~> aggLet(va = 'row, sa = '__cols_field (idx), g = '__entries_field (idx)) {
+                query
+              })
+          })
   }
 }

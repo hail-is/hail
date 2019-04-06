@@ -79,3 +79,8 @@ def matrix_table_many_aggs_col_wise():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.annotate_cols(**many_aggs(mt))
     mt.cols()._force_count()
+
+@benchmark
+def matrix_table_aggregate_entries():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.aggregate_entries(hl.agg.stats(mt.GQ))
