@@ -37,16 +37,17 @@ class Table:
         return secrets
 
     def __init__(self):
-        secrets = Table.get_secrets()
+        self.connection_params = Table.get_secrets()
 
-        self.cnx = pymysql.connect(**secrets,
-                                   cursorclass=pymysql.cursors.DictCursor)
+    def acquire_connection(self):
+        return pymysql.connect(**self.connection_params,
+                               cursorclass=pymysql.cursors.DictCursor)
 
     def __del__(self):
         self.cnx.close()
 
     def get(self, user_id):
-        with self.cnx.cursor() as cursor:
+        with self.acquire_connection() as cursor:
             cursor.execute(
                 """
                 SELECT id, gsa_email, ksa_name, bucket_name,
