@@ -225,6 +225,8 @@ test_project() {
 }
 
 test_gcp() {
+    local conf_file="./hail-config-0.2-test.json"
+    python ./create_config_file.py '0.2' $conf_file
     time gsutil cp \
          build/libs/hail-all-spark.jar \
          gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar
@@ -241,7 +243,9 @@ test_gcp() {
          --version 0.2 \
          --spark 2.2.0 \
          --max-idle 10m \
-         --bucket=hail-ci-0-1-dataproc-staging-bucket \
+         --bucket hail-ci-0-1-dataproc-staging-bucket \
+         --config-file $conf_file \
+         --hash $(git rev-parse --short=12 HEAD) \
          --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
          --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
          --vep
