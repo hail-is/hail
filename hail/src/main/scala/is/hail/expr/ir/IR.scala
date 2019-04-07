@@ -214,6 +214,7 @@ final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: I
 }
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+final case class NDArrayWrite(nd: IR, path: String) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

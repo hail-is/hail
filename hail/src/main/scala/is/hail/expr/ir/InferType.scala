@@ -110,6 +110,7 @@ object InferType {
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
           idxs.typ.required && 
           coerce[TStreamable](idxs.typ).elementType.required)
+      case NDArrayWrite(nd, _) => TInt64()
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
       case AggExplode(array, name, aggBody, _) =>

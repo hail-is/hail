@@ -1021,6 +1021,13 @@ class IRSuite extends SparkSuite {
     val partialTranposeIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
     assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
+
+  @Test def testNDArrayWrite() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val path = tmpDir.createLocalTempFile()
+    val write = NDArrayWrite(scalarRowMajor, path)
+    assertEvalsTo(write, 0)
   }
 
   @Test def testLeftJoinRightDistinct() {

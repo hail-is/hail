@@ -109,6 +109,7 @@ object InferPType {
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&
           coerce[PStreamable](idxs.pType).elementType.required)
+      case NDArrayWrite(_, _) => PInt64()
       case AggFilter(_, aggIR, _) =>
         aggIR.pType
       case AggExplode(array, name, aggBody, _) =>

@@ -42,6 +42,15 @@ object PackEncoder {
       """.stripMargin
   }
 
+  def encodeNDArray(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
+    val totalBytes = tub.variable("size", "int", s"n_elements($nd.shape) * $nd.elem_size")
+
+    s"""
+       | ${ totalBytes.define }
+       | $output_buf_ptr->write_bytes($nd.data, $totalBytes);
+     """.stripMargin
+  }
+
   def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, value: Expression): Code = {
     val nMissingBytes = t.nMissingBytes
     val storeFields: Array[Code] = Array.tabulate[Code](t.size) { idx =>
@@ -69,6 +78,7 @@ object PackEncoder {
     case _: PFloat64 => s"$output_buf_ptr->write_double($value);"
     case _: PBinary => encodeBinary(tub, output_buf_ptr, value)
     case t2: PArray => encodeArray(tub, t2, output_buf_ptr, value)
+    case t2: PNDArray => encodeNDArray(tub, t2, output_buf_ptr, value)
     case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, value)
   }
 

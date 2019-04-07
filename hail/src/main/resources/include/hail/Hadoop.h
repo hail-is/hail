@@ -13,17 +13,17 @@ class HadoopConfig {
 
   public:
     HadoopConfig(UpcallEnv up, jobject jhadoop_config);
-    OutputStream unsafe_writer(const char *path);
+    std::shared_ptr<OutputStream> unsafe_writer(const char *path);
 };
 
 HadoopConfig::HadoopConfig(UpcallEnv up, jobject jhadoop_config) :
   up_(up), jhadoop_config_(jhadoop_config) { }
 
-OutputStream HadoopConfig::unsafe_writer(const char *path) {
+std::shared_ptr<OutputStream> HadoopConfig::unsafe_writer(const char *path) {
   jstring jpath = up_.env()->NewStringUTF(path);
   jobject joutput_stream = up_.env()->CallObjectMethod(jhadoop_config_, up_.config()->RichHadoopConfiguration_unsafeWriter_, jpath);
 
-  return { up_, joutput_stream };
+  return std::make_shared<OutputStream>(up_, joutput_stream);
 }
 
 }

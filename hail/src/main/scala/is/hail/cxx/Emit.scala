@@ -1014,6 +1014,23 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
+      case ir.NDArrayWrite(nd, path) =>
+        val tub = fb.translationUnitBuilder()
+        tub.include("hail/NDArray.h")
+        val ndt = emit(nd)
+
+        val nativeEncoderClass = CodecSpec.defaultUncompressed.buildNativeEncoderClass(nd.pType, tub)
+        present(
+          s"""
+             |({
+             | ${ ndt.setup }
+             | $nativeEncoderClass enc { $cxxHadoopConfig.unsafe_writer("$path") };
+             |
+             | enc.encode_row(${ ndt.v });
+             | 0;
+             |})
+           """.stripMargin)
+
       case _: ir.ArrayRange | _: ir.MakeArray =>
         fatal("ArrayRange and MakeArray must be emitted as a stream.")
       case _ =>

@@ -86,6 +86,8 @@ object Children {
       Array(l, r, body)
     case NDArrayReindex(nd, _) =>
       Array(nd)
+    case NDArrayWrite(nd, _) =>
+      Array(nd)
     case AggFilter(cond, aggIR, _) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody, _) =>
