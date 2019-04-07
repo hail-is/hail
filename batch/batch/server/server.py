@@ -530,7 +530,8 @@ async def get_job_list(request):
             if not name.startswith('a:'):
                 abort(400, f'unknown query parameter {name}')
             k = name[2:]
-            jobs = [job for job in jobs if k in job.attributes and job.attributes[k] == value]
+            jobs = [job for job in jobs
+                    if job.attributes and k in job.attributes and job.attributes[k] == value]
 
     return jsonify([job.to_dict() for job in jobs])
 
