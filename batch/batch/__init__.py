@@ -1,7 +1,7 @@
 import logging
 import sys
 
-from . import client, api
+from . import api, client, aioclient
 
 
 def make_logger():
@@ -40,6 +40,7 @@ def run_once(target, *args, **kwargs):
 
 __all__ = [
     'client',
+    'aioclient',
     'api',
     'run_once'
 ]
