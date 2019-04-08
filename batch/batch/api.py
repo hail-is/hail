@@ -36,8 +36,7 @@ class API():
         raise_on_failure(response)
         if json_response:
             return response.json()
-        else:
-            return response
+        return response
 
     def post(self, *args, **kwargs):
         return self.http(requests.post, *args, **kwargs)
