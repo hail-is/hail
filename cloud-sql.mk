@@ -36,6 +36,3 @@ run-cloud-sql-proxy-batch-production: install-cloud-sql-proxy
 	$(eval connection_name := $(shell jq -r '.connection_name' $(config)))
 	$(eval port := $(shell jq -r '.port' $(config)))
 	./cloud_sql_proxy -instances=$(connection_name)=tcp:$(port) &
-
-clean:
-	rm -rf batch-secrets
