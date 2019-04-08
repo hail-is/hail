@@ -582,9 +582,10 @@ class BlockMatrix(object):
                mean_impute=bool,
                center=bool,
                normalize=bool,
+               axis=nullable(enumeration('rows', 'cols')),
                block_size=nullable(int))
     def write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=False,
-                              center=False, normalize=False, block_size=None):
+                              center=False, normalize=False, axis='rows', block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
         Examples
@@ -647,6 +648,8 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
+        axis: :obj:`str`
+            One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
@@ -666,15 +669,27 @@ class BlockMatrix(object):
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
-            mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
-                                __sum=agg.sum(mt['__x']),
-                                __sum_sq=agg.sum(mt['__x'] * mt['__x']))
-            mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                __centered_length=hl.sqrt(mt['__sum_sq'] -
-                                                          (mt['__sum'] ** 2) / mt['__count']),
-                                __length=hl.sqrt(mt['__sum_sq'] +
-                                                 (n_cols - mt['__count']) *
-                                                 ((mt['__sum'] / mt['__count']) ** 2)))
+            compute = {
+                '__count': agg.count_where(hl.is_defined(mt['__x'])),
+                '__sum': agg.sum(mt['__x']),
+                '__sum_sq': agg.sum(mt['__x'] * mt['__x'])
+            }
+            if axis == 'rows':
+                mt = mt.select_rows(**compute)
+            else:
+                mt = mt.select_cols(**compute)
+            compute = {
+                '__mean': mt['__sum'] / mt['__count'],
+                '__centered_length': hl.sqrt(mt['__sum_sq'] -
+                                             (mt['__sum'] ** 2) / mt['__count']),
+                '__length': hl.sqrt(mt['__sum_sq'] +
+                                    (n_cols - mt['__count']) *
+                                    ((mt['__sum'] / mt['__count']) ** 2))
+            }
+            if axis == 'rows':
+                mt = mt.select_rows(**compute)
+            else:
+                mt = mt.select_cols(**compute)
             expr = mt['__x']
             if normalize:
                 if center:
