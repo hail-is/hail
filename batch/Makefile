@@ -54,7 +54,7 @@ run-docker: build
 run:
 	python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
-run-local: run-cloud-sql-proxy
+run-local: run-cloud-sql-proxy-batch-test
 	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json \
             BATCH_USE_KUBE_CONFIG=1 \
             python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
@@ -67,7 +67,8 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: check
 endif
-test-local: install-cloud-sql-proxy batch-secrets/batch-test-cloud-sql-config
+test-local: install-cloud-sql-proxy 
+test-local: batch-secrets/batch-test-cloud-sql-config.json
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 CLOUD_SQL_PROXY=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
