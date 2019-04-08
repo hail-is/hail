@@ -5,6 +5,7 @@ GSA_KEY_FILE = /gsa-key/privateKeyData
 
 ifeq ($(IN_HAIL_CI),1)
 define DOCKER_IMAGE
+$(3) = $$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
 build-$(1): $(2)
 	-docker pull gcr.io/$(PROJECT)/$(1):latest
 	-docker pull $$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^HEAD //')
