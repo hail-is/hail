@@ -11,7 +11,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-if [[ $IN_CLUSTER -eq 0 ]]; then
+if [[ -z $IN_HAIL_CI ]]; then
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
     host=$(jq -r '.host' $CLOUD_SQL_CONFIG_PATH)
     port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)

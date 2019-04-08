@@ -15,7 +15,6 @@ PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; 
 PY_CHECKERS = flake8-stmp pylint-stmp
 
 BATCH_PORT ?= 5000
-IN_CLUSTER ?= 0
 
 include ../cloud-sql.mk
 
@@ -70,14 +69,14 @@ test-local: check
 endif
 test-local: install-cloud-sql-proxy 
 test-local: batch-secrets/batch-test-cloud-sql-config.json
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 IN_CLUSTER=0 ./test-locally.sh
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: check
 	POD_NAMESPACE='test' ./test-locally.sh
 
-ifeq ($(IN_CLUSTER), 0)
+ifndef IN_HAIL_CI
 deploy: clean-db-production-local
 else
 deploy: clean-db-production
@@ -90,7 +89,7 @@ deploy: push
 	kubectl delete persistentvolumeclaim --all --namespace batch-pods
 	kubectl -n default apply -f deployment.yaml
 
-ifeq ($(IN_CLUSTER), 0)
+ifndef IN_HAIL_CI
 deploy: clean-db-test-local
 else
 deploy: clean-db-test
@@ -108,13 +107,13 @@ clean:
 	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
 
 clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
-	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-production-cloud-sql-config.json IN_CLUSTER=0 ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-production-cloud-sql-config.json ./clean-db.sh
 
 clean-db-production:
-	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json IN_CLUSTER=1 ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json ./clean-db.sh
 
 clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
-	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json IN_CLUSTER=0 ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json ./clean-db.sh
 
 clean-db-test:
-	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json IN_CLUSTER=1 ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json ./clean-db.sh

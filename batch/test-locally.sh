@@ -19,7 +19,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-if [[ $IN_CLUSTER -eq 0 ]]; then
+if [[ -z $IN_HAIL_CI ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
     host=$(jq -r '.host' $CLOUD_SQL_CONFIG_PATH)
