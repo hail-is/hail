@@ -30,6 +30,7 @@ python3 -m pip install --user -U ../batch
 if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
+    host=$(jq -r '.host' $CLOUD_SQL_CONFIG_PATH)
     port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)
     ./cloud_sql_proxy -instances=$connection_name=tcp:$port &
     proxy_pid=$!
