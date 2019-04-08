@@ -9,7 +9,7 @@ $(3) = $$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
 build-$(1): $(2)
 	-docker pull gcr.io/$(PROJECT)/$(1):latest
 	-docker pull $$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^HEAD //')
-	docker build -t $(1) -f Dockerfile.$(1) . --cache-from $(1),gcr.io/$(PROJECT)/$(1):latest,$$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^HEAD //')
+	docker build -t $(1) -f Dockerfile.$(1) . --cache-from $(1),gcr.io/$(PROJECT)/$(1):latest,$$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^FROM //')
 
 push-$(1): build-$(1)
 	docker tag $(1) gcr.io/$(PROJECT)/$(1):latest
