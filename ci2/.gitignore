@@ -1,0 +1,4 @@
+/ci.log
+/oauth-token
+*.pyc
+**/__pycache__
