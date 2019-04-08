@@ -99,6 +99,9 @@ class Batch:
             if i < 64:
                 i = i + 1
 
+    async def delete(self):
+        await self.client._delete_batch(self.id)
+
 
 class BatchClient:
     def __init__(self, url=None, timeout=60):
@@ -214,8 +217,7 @@ class BatchClient:
         return await response.json()
 
     async def _delete_job(self, id):
-        response = await self._session.delete(self.url + '/jobs/{}/delete'.format(id))
-        return await response.json()
+        await self._session.delete(self.url + '/jobs/{}/delete'.format(id))
 
     async def _cancel_job(self, id):
         response = await self._session.post(self.url + '/jobs/{}/cancel'.format(id))
@@ -224,6 +226,9 @@ class BatchClient:
     async def _get_batch(self, batch_id):
         response = await self._session.get(self.url + '/batches/{}'.format(batch_id))
         return await response.json()
+
+    async def _delete_batch(self, batch_id):
+        await self._session.get(self.url + '/batches/{}/delete'.format(batch_id))
 
     async def _close_batch(self, batch_id):
         response = await self._session.post(self.url + '/batches/{}/close'.format(batch_id))

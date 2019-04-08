@@ -104,9 +104,8 @@ class API():
         return response.json()
 
     def delete_batch(self, url, batch_id):
-        response = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
+        response = requests.delete(url + '/batches/{}/delete'.format(batch_id), timeout=self.timeout)
         raise_on_failure(response)
-        return response.json()
 
     def refresh_k8s_state(self, url):
         response = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
