@@ -102,6 +102,9 @@ class Batch:
             if i < 64:
                 i = i + 1
 
+    def delete(self):
+        self.client._delete_batch(self.id)
+
 
 class BatchClient:
     def __init__(self, url=None, api=api.DEFAULT_API):
@@ -200,6 +203,9 @@ class BatchClient:
 
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
+
+    def _delete_batch(self, batch_id):
+        self.api.delete_batch(self.url, batch_id)
 
     def _close_batch(self, batch_id):
         return self.api.close_batch(self.url, batch_id)
