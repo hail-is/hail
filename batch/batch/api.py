@@ -1,5 +1,5 @@
 import requests
-from .requests_helper import raise_on_failure
+from .requests_helper import raise_on_failure, filter_params
 
 
 class API():
@@ -44,6 +44,9 @@ class API():
     def get(self, *args, **kwargs):
         return self.http(requests.get, *args, **kwargs)
 
+    def patch(self, *args, **kwargs):
+        return self.http(requests.patch, *args, **kwargs)
+
     def delete(self, *args, **kwargs):
         return self.http(requests.delete, *args, **kwargs)
 
@@ -72,22 +75,12 @@ class API():
 
         return self.post(f'{url}/jobs/create', json=doc)
 
-    def list_jobs(self, url, complete=None, success=None, attributes=None):
-        params = None
-        if complete is not None:
-            if not params:
-                params = {}
-            params['complete'] = '1' if complete else '0'
-        if success is not None:
-            if not params:
-                params = {}
-            params['success'] = '1' if success else '0'
-        if attributes is not None:
-            if not params:
-                params = {}
-            for n, v in attributes.items():
-                params[f'a:{n}'] = v
+    def list_batches(self, url, complete, success, attributes):
+        params = filter_params(complete, success, attributes)
+        return self.get('{url}/batches', params=params)
 
+    def list_jobs(self, url, complete, success, attributes):
+        params = filter_params(complete, success, attributes)
         return self.get(f'{url}/jobs', params=params)
 
     def get_job(self, url, job_id):
@@ -97,10 +90,10 @@ class API():
         return self.get(f'{url}/jobs/{job_id}/log')
 
     def delete_job(self, url, job_id):
-        return self.delete(f'{url}/jobs/{job_id}/delete')
+        return self.delete(f'{url}/jobs/{job_id}/delete', json_response=False)
 
     def cancel_job(self, url, job_id):
-        return self.post(f'{url}/jobs/{job_id}/cancel')
+        return self.patch(f'{url}/jobs/{job_id}/cancel', json_response=False)
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}
@@ -116,10 +109,13 @@ class API():
         return self.get(f'{url}/batches/{batch_id}')
 
     def close_batch(self, url, batch_id):
-        return self.post(f'{url}/batches/{batch_id}/close')
+        self.patch(f'{url}/batches/{batch_id}/close',  json_response=False)
 
     def delete_batch(self, url, batch_id):
-        return self.delete(f'{url}/batches/{batch_id}')
+        self.delete(f'{url}/batches/{batch_id}', json_response=False)
+
+    def cancel_batch(self, url, batch_id):
+        self.patch(f'{url}/batches/{batch_id}/cancel', json_response=False)
 
     def refresh_k8s_state(self, url):
         self.post(f'{url}/refresh_k8s_state', json_response=False)
