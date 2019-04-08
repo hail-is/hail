@@ -2,6 +2,8 @@
 .PHONY: build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
+include ../cloud-sql.mk
+
 PROJECT := $(shell gcloud config get-value project)
 HAIL_CI_LATEST = gcr.io/$(PROJECT)/hail-ci:latest
 HAIL_CI_IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | sed -e 's,[^:]*:,,')
@@ -38,7 +40,7 @@ restart-proxy:
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-test-locally: restart-proxy
+test-locally: restart-proxy install-cloud-sql-proxy local-cloud-sql-config
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	CLOUD_SQL_PROXY=1 \
 	BATCH_USE_KUBE_CONFIG=1 \
