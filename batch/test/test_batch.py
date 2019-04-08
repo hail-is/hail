@@ -85,6 +85,39 @@ class Test(unittest.TestCase):
 
         assert_job_ids({j2.id}, attributes={'tag': tag, 'name': 'j2'})
 
+    def test_list_batches(self):
+        tag = secrets.token_urlsafe(64)
+        b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
+        b1.create_job('alpine', ['sleep', '30'])
+
+        b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
+        b2.create_job('alpine', ['echo', 'test'])
+
+        def assert_batch_ids(expected, complete=None, success=None, attributes=None):
+            batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
+            actual = set([batch.id for batch in batches])
+            self.assertEqual(actual, expected)
+
+        assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
+
+        b2.wait()
+
+        assert_batch_ids({b1.id}, complete=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, complete=True, attributes={'tag': tag})
+
+        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+
+        b1.cancel()
+
+        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+
+        assert_batch_ids(set(), complete=False, attributes={'tag': tag})
+        assert_batch_ids({b1.id, b2.id}, complete=True, attributes={'tag': tag})
+
+        assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
+
     def test_scratch_folder(self):
         sb = 'gs://test-bucket/folder'
         j = self.batch.create_job('alpine', ['true'], scratch_folder=sb)

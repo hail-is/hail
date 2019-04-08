@@ -1,5 +1,5 @@
 import requests
-from .requests_helper import raise_on_failure
+from .requests_helper import raise_on_failure, filter_params
 
 
 class API():
@@ -41,22 +41,14 @@ class API():
         raise_on_failure(response)
         return response.json()
 
-    def list_jobs(self, url, complete=None, success=None, attributes=None):
-        params = None
-        if complete is not None:
-            if not params:
-                params = {}
-            params['complete'] = '1' if complete else '0'
-        if success is not None:
-            if not params:
-                params = {}
-            params['success'] = '1' if success else '0'
-        if attributes is not None:
-            if not params:
-                params = {}
-            for n, v in attributes.items():
-                params[f'a:{n}'] = v
+    def list_batches(self, url, complete, success, attributes):
+        params = filter_params(complete, success, attributes)
+        response = requests.get(url + '/batches', timeout=self.timeout, params=params)
+        raise_on_failure(response)
+        return response.json()
 
+    def list_jobs(self, url, complete, success, attributes):
+        params = filter_params(complete, success, attributes)
         response = requests.get(url + '/jobs', timeout=self.timeout, params=params)
         raise_on_failure(response)
         return response.json()
@@ -77,9 +69,8 @@ class API():
         return response.json()
 
     def cancel_job(self, url, job_id):
-        response = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
+        response = requests.patch(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
         raise_on_failure(response)
-        return response.json()
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}
@@ -99,12 +90,16 @@ class API():
         return response.json()
 
     def close_batch(self, url, batch_id):
-        response = requests.post(url + '/batches/{}/close'.format(batch_id), timeout=self.timeout)
+        response = requests.patch(url + '/batches/{}/close'.format(batch_id), timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
 
     def delete_batch(self, url, batch_id):
         response = requests.delete(url + '/batches/{}/delete'.format(batch_id), timeout=self.timeout)
+        raise_on_failure(response)
+
+    def cancel_batch(self, url, batch_id):
+        response = requests.patch(url + '/batches/{}/cancel'.format(batch_id), timeout=self.timeout)
         raise_on_failure(response)
 
     def refresh_k8s_state(self, url):
@@ -123,7 +118,11 @@ def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_fo
                                   always_run)
 
 
-def list_jobs(url, complete=None, success=None, attributes=None):
+def list_batches(url, complete, success, attributes):
+    return DEFAULT_API.list_batches(url, complete=complete, success=success, attributes=attributes)
+
+
+def list_jobs(url, complete, success, attributes):
     return DEFAULT_API.list_jobs(url, complete=complete, success=success, attributes=attributes)
 
 
@@ -153,6 +152,10 @@ def get_batch(url, batch_id):
 
 def close_batch(url, batch_id):
     return DEFAULT_API.close_batch(url, batch_id)
+
+
+def cancel_batch(url, batch_id):
+    return DEFAULT_API.cancel_batch(url, batch_id)
 
 
 def delete_batch(url, batch_id):
