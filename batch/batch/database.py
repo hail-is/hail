@@ -1,6 +1,7 @@
 import json
 import uuid
 import asyncio
+import pymysql
 import aiomysql
 from asyncinit import asyncinit
 
