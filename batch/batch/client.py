@@ -281,7 +281,7 @@ class BatchClient:
                 '"{self_id}" must appear in the file after its dependency "{id}"')
 
         batch = self.create_batch()
-        for doc in yaml.load(file):
+        for doc in yaml.safe_load(file):
             if not BatchClient.job_yaml_validator.validate(doc):
                 raise BatchClient.job_yaml_validator.errors
             spec = doc['spec']
