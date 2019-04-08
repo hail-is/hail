@@ -41,8 +41,23 @@ class API():
         raise_on_failure(response)
         return response.json()
 
-    def list_jobs(self, url):
-        response = requests.get(url + '/jobs', timeout=self.timeout)
+    def list_jobs(self, url, complete=None, success=None, attributes=None):
+        params = None
+        if complete is not None:
+            if not params:
+                params = {}
+            params['complete'] = '1' if complete else '0'
+        if success is not None:
+            if not params:
+                params = {}
+            params['success'] = '1' if success else '0'
+        if attributes is not None:
+            if not params:
+                params = {}
+            for n, v in attributes.items():
+                params[f'a:{n}'] = v
+
+        response = requests.get(url + '/jobs', timeout=self.timeout, params=params)
         raise_on_failure(response)
         return response.json()
 
@@ -109,8 +124,8 @@ def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_fo
                                   always_run)
 
 
-def list_jobs(url):
-    return DEFAULT_API.list_jobs(url)
+def list_jobs(url, complete=None, success=None, attributes=None):
+    return DEFAULT_API.list_jobs(url, complete=complete, success=success, attributes=attributes)
 
 
 def get_job(url, job_id):

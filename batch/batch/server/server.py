@@ -511,8 +511,29 @@ def both_or_neither(x, y):  # pylint: disable=C0103
 
 
 @routes.get('/jobs')
-async def get_job_list(request):  # pylint: disable=W0613
-    return jsonify([job.to_dict() for _, job in job_id_job.items()])
+async def get_job_list(request):
+    params = request.query
+
+    jobs = job_id_job.values()
+    for name, value in params.items():
+        if name == 'complete':
+            if value not in ('0', '1'):
+                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
+            c = value == '1'
+            jobs = [job for job in jobs if job.is_complete() == c]
+        elif name == 'success':
+            if value not in ('0', '1'):
+                abort(400, f'invalid success value, expected 0 or 1, got {value}')
+            s = value == '1'
+            jobs = [job for job in jobs if (job._state == 'Complete' and job.exit_code == 0) == s]
+        else:
+            if not name.startswith('a:'):
+                abort(400, f'unknown query parameter {name}')
+            k = name[2:]
+            jobs = [job for job in jobs
+                    if job.attributes and k in job.attributes and job.attributes[k] == value]
+
+    return jsonify([job.to_dict() for job in jobs])
 
 
 @routes.get('/jobs/{job_id}')

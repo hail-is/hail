@@ -207,8 +207,8 @@ class BatchClient:
     def _refresh_k8s_state(self):
         self.api.refresh_k8s_state(self.url)
 
-    def list_jobs(self):
-        jobs = self.api.list_jobs(self.url)
+    def list_jobs(self, complete=None, success=None, attributes=None):
+        jobs = self.api.list_jobs(self.url, complete=complete, success=success, attributes=attributes)
         return [Job(self,
                     j['id'],
                     attributes=j.get('attributes'),
