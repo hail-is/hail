@@ -1,0 +1,13 @@
+FROM base
+
+RUN apt-get update && \
+  apt-get -y install \
+    tar \
+    docker.io \
+    mysql-client && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir kubernetes_asyncio
+
+COPY jinja2_render.py .
+COPY wait-for-pod.py .

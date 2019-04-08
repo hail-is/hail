@@ -258,6 +258,7 @@ class Job:
         self._pvc = None
         self._pod_name = None
         self.exit_code = None
+        self.duration = None
         self._state = 'Created'
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
@@ -290,7 +291,7 @@ class Job:
     def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
-            self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
+            self.parent_new_state(parent_job._state, parent)
 
     def set_state(self, new_state):
         if self._state != new_state:
@@ -305,34 +306,24 @@ class Job:
         for child_id in self.child_ids:
             child = job_id_job.get(child_id)
             if child:
-                child.parent_new_state(new_state, self.id, self.exit_code)
+                child.parent_new_state(new_state, self.id)
             else:
                 log.info(f'missing child: {child_id}')
 
-    def parent_new_state(self, new_state, parent_id, maybe_exit_code):
-        def update():
+    def parent_new_state(self, new_state, parent_id):
+        if parent_id not in self.incomplete_parent_ids:
+            return
+        if new_state in ('Cancelled', 'Complete'):
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
-                assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
-                if self._state != 'Cancelled':
+                assert self._state == 'Created', f'bad state: {self._state}'
+                if self.always_run or all(job_id_job[pid].is_successful() for pid in self.parent_ids):
                     log.info(f'all parents complete for {self.id},'
                              f' creating pod')
                     self._create_pod()
                 else:
-                    log.info(f'all parents complete for {self.id},'
-                             f' but it is already cancelled')
-
-        if new_state == 'Complete' and maybe_exit_code == 0:
-            log.info(f'parent {parent_id} successfully complete for {self.id}')
-            update()
-        elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
-            log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
-            if not self.always_run:
-                self.cancel()
-            else:
-                log.info(f'job {self.id} is set to always run despite '
-                         f' parents deleted, cancelled, or failed.')
-                update()
+                    log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
+                    self.cancel()
 
     def cancel(self):
         if self.is_complete():
@@ -365,7 +356,9 @@ class Job:
     def mark_complete(self, pod):
         task_name = self._current_task.name
 
-        self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
+        terminated = pod.status.container_statuses[0].state.terminated
+        self.exit_code = terminated.exit_code
+        self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
@@ -417,6 +410,7 @@ class Job:
         }
         if self._state == 'Complete':
             result['exit_code'] = self.exit_code
+            result['duration'] = self.duration
 
         logs = self._read_logs()
         if logs is not None:
@@ -659,7 +653,7 @@ class Batch:
     def to_dict(self):
         result = {
             'id': self.id,
-            'jobs': [j.to_dict() for j in self.jobs],
+            'jobs': sorted([j.to_dict() for j in self.jobs], key=lambda j: j['id']),
             'is_open': self.is_open
         }
         if self.attributes:
@@ -878,6 +872,7 @@ def scheduling_loop():
     while True:
         try:
             s.run(blocking=False)
+            time.sleep(1)
         except Exception as exc:  # pylint: disable=W0703
             log.error(f'Could not run scheduled jobs due to: {exc}')
 

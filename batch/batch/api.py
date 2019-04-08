@@ -116,6 +116,3 @@ class API():
 
     def cancel_batch(self, url, batch_id):
         self.patch(f'{url}/batches/{batch_id}/cancel', json_response=False)
-
-    def refresh_k8s_state(self, url):
-        self.post(f'{url}/refresh_k8s_state', json_response=False)
