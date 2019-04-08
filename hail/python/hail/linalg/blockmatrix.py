@@ -670,7 +670,6 @@ class BlockMatrix(object):
                 field = Env.get_uid()
                 mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
-            n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
             compute = {
                 '__count': agg.count_where(hl.is_defined(mt['__x'])),
@@ -678,8 +677,10 @@ class BlockMatrix(object):
                 '__sum_sq': agg.sum(mt['__x'] * mt['__x'])
             }
             if axis == 'rows':
+                n_cols = mt.count_cols()
                 mt = mt.select_rows(**compute)
             else:
+                n_cols = mt.count_rows()
                 mt = mt.select_cols(**compute)
             compute = {
                 '__mean': mt['__sum'] / mt['__count'],
