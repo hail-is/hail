@@ -47,10 +47,10 @@ class Job:
                 i = i + 1
 
     async def cancel(self):
-        await self.client._cancel_job(self.id)
+        await self.client._patch('/jobs/{}/cancel'.format(self.id))
 
     async def delete(self):
-        await self.client._delete_job(self.id)
+        await self.client._delete('/jobs/{}/delete'.format(self.id))
 
         # this object should not be referenced again
         del self.client
