@@ -17,5 +17,5 @@ dependencies:
     - decorator==4.3.0
     - aiohttp
     - aiodns
-    - https://github.com/hail-is/jgscm/archive/master.zip
+    - https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
     - uvloop>=0.12
