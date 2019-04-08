@@ -1,0 +1,38 @@
+<html lang="en">
+  <head>
+    <title>CI2: PR {{ number }}</title>
+  </head>
+  <body>
+    <h1>PR {{ number }}</h1>
+    {% if batch is defined %}
+    <h2>Batch {{ batch['id'] }} Jobs</h2>
+    
+    <table>
+      <thead>
+        <tr>
+          <th align="left">id</th>
+          <th align="left">state</th>
+          <th>exit_code</th>
+          <th align="left">log</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for job in batch['jobs'] %}
+        <tr>
+          <td align="left">{{ job['id'] }}</td>
+          <td align="left">{{ job['state'] }}</td>
+          <td>
+	    {% if 'exit_code' in job %}
+	    {{ job['exit_code'] }}
+	    {% endif %}
+	  </td>
+          <td align="left">
+	    <a href="/jobs/{{ job['id'] }}/log">log</a>
+	  </td>
+        </tr>
+	{% endfor %}
+      </tbody>
+      {% endif %}
+    </table>
+  </body>
+</html>

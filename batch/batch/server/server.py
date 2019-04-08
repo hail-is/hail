@@ -868,6 +868,7 @@ def scheduling_loop():
     while True:
         try:
             s.run(blocking=False)
+            time.sleep(1)
         except Exception as exc:  # pylint: disable=W0703
             log.error(f'Could not run scheduled jobs due to: {exc}')
 

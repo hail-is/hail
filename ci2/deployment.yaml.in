@@ -26,6 +26,8 @@ spec:
               value: '["hail-is/hail:master", "hail-is/hail:0.1", "Nealelab/cloudtools:master"]'
             - name: BATCH_SERVER_URL
               value: http://batch.default
+	    - name: GCP_PROJECT
+	      value: @gcp_project@
           ports:
             - containerPort: 5000
           volumeMounts:
