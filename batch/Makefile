@@ -107,13 +107,13 @@ test-deploy: push-test clean-db-test
 clean:
 	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
 
-clean-db-production-local: # FIXME
+clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-production-cloud-sql-config.json IN_CLUSTER=0 ./clean-db.sh
 
 clean-db-production:
 	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json IN_CLUSTER=1 ./clean-db.sh
 
-clean-db-test-local: local-cloud-sql-config
+clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json IN_CLUSTER=0 ./clean-db.sh
 
 clean-db-test:
