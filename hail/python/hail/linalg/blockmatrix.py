@@ -355,8 +355,9 @@ class BlockMatrix(object):
                       mean_impute=bool,
                       center=bool,
                       normalize=bool,
+                      axis=nullable(enumeration('rows', 'cols')),
                       block_size=nullable(int))
-    def from_entry_expr(cls, entry_expr, mean_impute=False, center=False, normalize=False, block_size=None):
+    def from_entry_expr(cls, entry_expr, mean_impute=False, center=False, normalize=False, axis='rows', block_size=None):
         """Creates a block matrix using a matrix table entry expression.
 
         Examples
@@ -401,12 +402,14 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
+        axis: :obj:`str`
+            One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
         path = new_temp_file()
         cls.write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=mean_impute,
-                                  center=center, normalize=normalize, block_size=block_size)
+                                  center=center, normalize=normalize, axis=axis, block_size=block_size)
         return cls.read(path)
 
     @classmethod
