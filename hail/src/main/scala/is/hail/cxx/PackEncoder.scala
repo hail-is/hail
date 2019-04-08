@@ -43,12 +43,21 @@ object PackEncoder {
   }
 
   def encodeNDArray(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
-    val totalBytes = tub.variable("size", "int", s"n_elements($nd.shape) * $nd.elem_size")
+    val dims = Array.tabulate(t.nDims){ i => tub.variable(s"dim${i}_", "int") }
+    val index = dims.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
+      s"$idx * $nd.strides[$dim] + $linearIndex"
+    }
+    val element = Expression(s"load_element<${ typeToCXXType(t.elementType) }>(load_index($nd, $index))")
+    val body = encode(tub, t.elementType, output_buf_ptr, element)
 
-    s"""
-       | ${ totalBytes.define }
-       | $output_buf_ptr->write_bytes($nd.data, $totalBytes);
-     """.stripMargin
+    dims.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
+      s"""
+         |${ dimVar.define }
+         |for ($dimVar = 0; $dimVar < $nd.shape[$dimIdx]; ++$dimVar) {
+         |  $innerLoops
+         |}
+         |""".stripMargin
+      }
   }
 
   def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, value: Expression): Code = {
