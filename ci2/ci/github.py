@@ -1,6 +1,13 @@
-from constants import GITHUB_CLONE_URL, SHA_LENGTH
+import os
+import subprocess as sp
+import shlex
 import json
+import asyncio
+from log import log
+from constants import GITHUB_CLONE_URL, SHA_LENGTH
+from utils import shell
 
+repos_lock = asyncio.Lock()
 
 class Repo(object):
     def __init__(self, owner, name):
@@ -9,7 +16,6 @@ class Repo(object):
         self.owner = owner
         self.name = name
         self.url = f'{GITHUB_CLONE_URL}{owner}/{name}.git'
-        self.qname = self.short_str()
 
     def __eq__(self, other):
         return self.owner == other.owner and self.name == other.name
@@ -91,9 +97,10 @@ class FQBranch(object):
 
 
 class PR(object):
-    def __init__(self, number, title, source_sha, target_branch):
+    def __init__(self, number, title, source_repo, source_sha, target_branch):
         self.number = number
         self.title = title
+        self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
 
@@ -101,21 +108,25 @@ class PR(object):
         self.state = None
 
         self.batch = None
-        self.passing = None
+        self.build_state = None
 
     def update_from_gh_json(self, gh_json):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
 
-        new_source_sha = gh_json['head']['sha']
+        head = gh_json['head']
+        new_source_sha = head['sha']
         if self.source_sha != new_source_sha:
             self.source_sha = new_source_sha
             self.batch = None
-            self.passing = None
+            self.build_state = None
+
+        self.source_repo = Repo.from_gh_json(head['repo'])
 
     @staticmethod
     def from_gh_json(gh_json, target_branch):
-        return PR(gh_json['number'], gh_json['title'], gh_json['head']['sha'], target_branch)
+        head = gh_json['head']
+        return PR(gh_json['number'], gh_json['title'], Repo.from_gh_json(head['repo']), head['sha'], target_branch)
 
     async def refresh(self, gh):
         latest_state_by_login = {}
@@ -139,7 +150,56 @@ class PR(object):
 
         self.state = total_state
 
+    async def start_build(self, batch):
+        # FIXME this needs to be per-PR and async
+        try:
+            async with repos_lock:
+                target_repo = self.target_branch.branch.repo
+                repo_dir = f'repos/{target_repo.short_str()}'
+
+                shell('git', 'config', 'user.email', 'hail-ci-leader@example.com')
+                shell('git', 'config', 'user.name', 'hail-ci-leader')
+
+                if not os.path.isdir(repo_dir):
+                    os.makedirs(repo_dir, exist_ok=True)
+                    shell('git', '-C', repo_dir, 'clone', self.target_branch.branch.repo.url, '.')
+
+                if sp.run([
+                        '/bin/sh', '-c',
+                        f'git -C {shlex.quote(repo_dir)} remote | grep -q {shlex.quote(self.source_repo.short_str())}'
+                ]).returncode != 0:
+                    shell('git', '-C', repo_dir, 'remote', 'add', self.source_repo.short_str(), self.source_repo.url)
+
+                shell('git', '-C', repo_dir, 'reset', '--merge')
+                shell('git', '-C', repo_dir, 'fetch', 'origin')
+                shell('git', '-C', repo_dir, 'fetch', self.source_repo.short_str())
+                shell('git', '-C', repo_dir, 'checkout', self.target_branch.sha)
+                shell('git', '-C', repo_dir, 'merge', self.source_sha, '-m', 'merge PR')
+
+                # FIXME
+                with open(f'{repo_dir}/hail-ci-build-image', 'r') as f:
+                    f.read().strip()
+        except (sp.CalledProcessError, FileNotFoundError) as e:
+            log.exception(f'could not get hail-ci-build-image due to {e}')
+            self.build_state = 'merge_failure'
+            return
+
+        self.job = await batch.create_job(
+            # FIXME build
+            'alpine', ['echo', 'foo'],
+            attributes={
+                'target_branch': self.target_branch.branch.short_str(),
+                'pr': str(self.number),
+                'source_sha': self.source_sha,
+                'target_sha': self.target_branch.sha
+            })
+
     async def heal(self, batch, run, seen_batch_ids):
+        if self.build_state is not None:
+            if self.batch:
+                seen_batch_ids.add(self.batch.id)
+            return
+
         if self.batch is None:
             batches = await batch.list_batches(
                 complete=False,
@@ -160,23 +220,13 @@ class PR(object):
             if len(batches) > 0:
                 self.batch = batches[0]
             elif run:
-                self.batch = await batch.create_batch(
-                    attributes={
-                        'target_branch': self.target_branch.branch.short_str(),
-                        'pr': str(self.number),
-                        'source_sha': self.source_sha,
-                        'target_sha': self.target_branch.sha
-                    })
-
-                # FIXME build
-                await self.batch.create_job('alpine', ['echo', 'foo'])
+                await self.start_build(batch)
 
         if self.batch:
             seen_batch_ids.add(self.batch.id)
-            if self.passing is None:
-                status = await self.batch.status()
-                if all(j['state'] == 'Complete' for j in status['jobs']):
-                    self.passing = all(j['exit_code'] == 0 for j in status['jobs'])
+            status = await self.batch.status()
+            if all(j['state'] == 'Complete' for j in status['jobs']):
+                self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
 
 
 class WatchedBranch(object):
@@ -195,7 +245,7 @@ class WatchedBranch(object):
             if self.prs:
                 for pr in self.prs:
                     pr.batch = None
-                    pr.passing = None
+                    pr.build_state = None
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
@@ -215,7 +265,7 @@ class WatchedBranch(object):
         # FIXME merge
         merge_candidate = None
         for pr in self.prs.values():
-            if pr.state == 'approved' and pr.passing is None:
+            if pr.state == 'approved' and pr.build_state is None:
                 merge_candidate = pr.number
                 break
 

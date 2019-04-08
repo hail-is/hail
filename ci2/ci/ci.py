@@ -49,7 +49,7 @@ async def index(request):
                         'number': pr.number,
                         'title': pr.title,
                         'batch_id': pr.batch.id if pr.batch else None,
-                        'passing': pr.passing,
+                        'build_state': pr.build_state,
                         'state': pr.state
                     }
                     for pr in wb.prs.values()
