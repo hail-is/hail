@@ -47,7 +47,7 @@ class HtsjdkRecordReader(
       rvb.startStruct()
       infoType.fields.foreach { f =>
         val a = vc.getAttribute(f.name)
-        addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
+        addAttribute(rvb, a, f.typ, isFlag = infoFlagFieldNames.contains(f.name))
       }
       rvb.endStruct()
     }
@@ -55,7 +55,7 @@ class HtsjdkRecordReader(
 }
 
 object HtsjdkRecordReader {
-  def addAttribute(rvb: RegionValueBuilder, attr: Any, t: Type, nAlleles: Int, isFlag: Boolean = false) {
+  def addAttribute(rvb: RegionValueBuilder, attr: Any, t: Type, isFlag: Boolean = false) {
     ((attr, t): @unchecked) match {
       case (null, _) =>
         if (isFlag)
