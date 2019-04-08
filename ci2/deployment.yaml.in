@@ -19,8 +19,17 @@ spec:
       containers:
         - name: ci2
           image: @image@
+          env:
+            - name: CI2_OAUTH_TOKEN
+              value: /secrets/oauth-token/oauth-token
+            - name: WATCHED_BRANCHES
+              value: '["hail-is/hail:master", "hail-is/hail:0.1", "Nealelab/cloudtools:master"]'
           ports:
             - containerPort: 5000
+          volumeMounts:
+            - mountPath: /secrets/oauth-token
+              readOnly: true
+              name: hail-ci-0-1-github-oauth-token
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -33,6 +42,10 @@ spec:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 5
+      volumes:
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token
 ---
 apiVersion: v1
 kind: Service
