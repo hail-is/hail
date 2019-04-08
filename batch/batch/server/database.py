@@ -1,15 +1,9 @@
 import os
-import json
 
 from ..database import Database, Table, run_synchronous
 
 
 class BatchDatabase(Database):
-    @staticmethod
-    def create_synchronous(config_file):
-        db = run_synchronous(BatchDatabase(config_file))
-        return db
-
     async def __init__(self, config_file):
         await super().__init__(config_file)
 
@@ -36,7 +30,6 @@ class JobsTable(Table):
                   'user': 'VARCHAR(1000)',
                   'attributes': 'TEXT(65535)',
                   'tasks': 'TEXT(65535)',
-                  'parent_ids': 'TEXT(65535)',
                   'input_log_uri': 'VARCHAR(1000)',
                   'main_log_uri': 'VARCHAR(1000)',
                   'output_log_uri': 'VARCHAR(1000)'}
@@ -45,17 +38,17 @@ class JobsTable(Table):
 
         await super().__init__(db, name, schema, keys)
 
+    async def new_record(self, **items):
+        return await super(JobsTable, self).new_record(items)
+
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
-    async def get_records(self, ids, fields=None):
-        assert isinstance(ids, list)
-        return await super().get_record({'id': id}, fields)
+    async def get_all_records(self):
+        return await super().get_all_records()
 
-    async def get_record(self, id, fields=None):
-        records = await self.get_records({'id': id}, fields)
-        assert len(records) == 1
-        return records[0]
+    async def get_records(self, ids, fields=None):
+        return await super().get_record({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -64,12 +57,26 @@ class JobsTable(Table):
         await super().delete_record({'id': id})
 
     async def get_incomplete_parents(self, id):
-        parent_ids = await self.get_record(id, ['parent_ids'])
-        parent_ids = json.loads(parent_ids['parent_ids'])
-        parent_records = await self.get_records(parent_ids)
-        incomplete_parents = [pr['id'] for pr in parent_records.result()
-                              if pr['state'] == 'Created']
-        return incomplete_parents
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                sql = f"""SELECT `id` FROM `{self.name}` WHERE `id` IN
+                          (SELECT `parent_id` FROM `{self._db.jobs_parents.name}` WHERE `job_id` = %s)
+                          AND `state` = %s""".replace('\n', ' ')
+                await cursor.execute(sql, (id, 'Created'))
+                result = await cursor.fetchall()
+                return [record['id'] for record in result]
+
+    async def get_record_by_pod(self, pod):
+        records = await super(JobsTable, self).get_record({'pod_name': pod})
+        if len(records) == 0:
+            return None
+        elif len(records) == 1:
+            return records[0]
+        else:
+            raise Exception("'jobs' table error. Cannot have same pod in more than one record")
+
+    async def get_records_where(self, condition):
+        return await super(JobsTable, self).get_record(condition)
 
 
 class JobsParentsTable(Table):
@@ -79,6 +86,9 @@ class JobsParentsTable(Table):
         keys = ['job_id', 'parent_id']
 
         await super().__init__(db, name, schema, keys)
+
+    async def new_record(self, **items):
+        return await super(JobsParentsTable, self).new_record(items)
 
     async def get_parents(self, job_id):
         result = await super().get_record({'job_id': job_id}, ['parent_id'])
@@ -101,17 +111,17 @@ class BatchTable(Table):
 
         await super().__init__(db, name, schema, keys)
 
+    async def new_record(self, **items):
+        return await super(BatchTable, self).new_record(items)
+
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
-    async def get_records(self, ids, fields=None):
-        assert isinstance(ids, list)
-        return await super().get_record({'id': id}, fields)
+    async def get_all_records(self):
+        return await super().get_all_records()
 
-    async def get_record(self, id, fields=None):
-        records = await self.get_records({'id': id}, fields)
-        assert len(records) == 1
-        return records[0]
+    async def get_records(self, ids, fields=None):
+        return await super().get_record({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -124,6 +134,10 @@ class BatchJobsTable(Table):
         keys = ['batch_id', 'job_id']
 
         await super().__init__(db, name, schema, keys)
+
+    async def new_record(self, batch_id, job_id):
+        return await super(BatchJobsTable, self).new_record({'batch_id': batch_id,
+                                                             'job_id': job_id})
 
     async def get_jobs(self, batch_id):
         result = await super().get_record({'batch_id': batch_id})
