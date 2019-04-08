@@ -1,5 +1,5 @@
 .PHONY: run restart-proxy
-.PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
+.PHONY: build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
 PROJECT := $(shell gcloud config get-value project)
