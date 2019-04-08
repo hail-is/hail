@@ -33,6 +33,7 @@ if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
     port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)
     ./cloud_sql_proxy -instances=$connection_name=tcp:$port &
     proxy_pid=$!
+    ../until-with-fuel 30 curl -fL $host:$port
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
 fi
