@@ -63,6 +63,7 @@ object UnsafeRow {
 
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
+      case PVoid => region.loadInt(offset)
       case _: PBoolean =>
         region.loadBoolean(offset)
       case _: PInt32 | _: PCall => region.loadInt(offset)

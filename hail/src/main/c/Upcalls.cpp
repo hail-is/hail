@@ -40,9 +40,6 @@ UpcallConfig::UpcallConfig() {
   auto cl4 = env->FindClass("is/hail/cxx/RegionValueIterator");
   RVIterator_hasNext_ = env->GetMethodID(cl4, "hasNext", "()Z");
   RVIterator_next_ = env->GetMethodID(cl4, "next", "()J");
-  // Hadoop methods
-  auto richHadoopConfClass = env->FindClass("is/hail/utils/richUtils/RichHadoopConfiguration");
-  RichHadoopConfiguration_unsafeWriter_ = env->GetMethodID(richHadoopConfClass, "unsafeWriter", "(Ljava/lang/String;)Ljava/io/OutputStream");
 }
 
 namespace {

@@ -1027,6 +1027,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | $nativeEncoderClass enc { $cxxHadoopConfig.unsafe_writer("$path") };
              |
              | enc.encode_row(${ ndt.v });
+             | enc.flush();
+             | enc.close();
              | 0;
              |})
            """.stripMargin)

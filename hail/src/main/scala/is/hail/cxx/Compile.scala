@@ -145,7 +145,7 @@ object Compile {
     { (region: Long) =>
       val st2 = new NativeStatus()
       val javaArgs = new ObjectArray(sparkUtils, new ByteArrayInputStream(literals),
-        new RichHadoopConfiguration(hadoopConf.value)).get()
+        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef]).get()
 
       val res = nativef(st2, javaArgs, region)
       if (st2.fail)
