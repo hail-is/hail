@@ -41,11 +41,11 @@ class JobsTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def update_record(self, id, **items):
-        await super(JobsTable, self).update_record({'id': id}, items)
+        await super().update_record({'id': id}, items)
 
     async def get_records(self, ids, fields=None):
         assert isinstance(ids, list)
-        return await super(JobsTable, self).get_record({'id': id}, fields)
+        return await super().get_record({'id': id}, fields)
 
     async def get_record(self, id, fields=None):
         records = await self.get_records({'id': id}, fields)
@@ -53,10 +53,10 @@ class JobsTable(Table):
         return records[0]
 
     async def has_record(self, id):
-        return await super(JobsTable, self).has_record({'id': id})
+        return await super().has_record({'id': id})
 
     async def delete_record(self, id):
-        await super(JobsTable, self).delete_record({'id': id})
+        await super().delete_record({'id': id})
 
     async def get_incomplete_parents(self, id):
         parent_ids = await self.get_record(id, ['parent_ids'])
@@ -76,11 +76,11 @@ class JobsParentsTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def get_parents(self, job_id):
-        result = await super(JobsParentsTable, self).get_record({'job_id': job_id}, ['parent_id'])
+        result = await super().get_record({'job_id': job_id}, ['parent_id'])
         return [record['parent_id'] for record in result]
 
     async def get_children(self, parent_id):
-        result = await super(JobsParentsTable, self).get_record({'parent_id': parent_id}, ['job_id'])
+        result = await super().get_record({'parent_id': parent_id}, ['job_id'])
         return [record['job_id'] for record in result]
 
 
@@ -97,11 +97,11 @@ class BatchTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def update_record(self, id, **items):
-        await super(BatchTable, self).update_record({'id': id}, items)
+        await super().update_record({'id': id}, items)
 
     async def get_records(self, ids, fields=None):
         assert isinstance(ids, list)
-        return await super(BatchTable, self).get_record({'id': id}, fields)
+        return await super().get_record({'id': id}, fields)
 
     async def get_record(self, id, fields=None):
         records = await self.get_records({'id': id}, fields)
@@ -109,7 +109,7 @@ class BatchTable(Table):
         return records[0]
 
     async def has_record(self, id):
-        return await super(BatchTable, self).has_record({'id': id})
+        return await super().has_record({'id': id})
 
 
 class BatchJobsTable(Table):
@@ -121,13 +121,11 @@ class BatchJobsTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def get_jobs(self, batch_id):
-        result = await super(BatchJobsTable, self).get_record({'batch_id': batch_id})
+        result = await super().get_record({'batch_id': batch_id})
         return [record['job_id'] for record in result]
 
     async def delete_record(self, batch_id, job_id):
-        await super(BatchJobsTable, self).delete_record({'batch_id': batch_id,
-                                                         'job_id': job_id})
+        await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
 
     async def has_record(self, batch_id, job_id):
-        await super(BatchJobsTable, self).has_record({'batch_id': batch_id,
-                                                      'job_id': job_id})
+        return await super().has_record({'batch_id': batch_id, 'job_id': job_id})
