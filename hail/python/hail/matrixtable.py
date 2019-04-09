@@ -2564,6 +2564,7 @@ class MatrixTable(ExprContainer):
                 characters -= estimate_size(self.row_value)
             characters = max(characters, 0)
             n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
+        n_cols = min(self.count_cols(), n_cols)
 
         t = self.localize_entries('entries', 'cols')
         t = t.key_by()
