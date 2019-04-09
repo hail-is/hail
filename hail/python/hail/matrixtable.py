@@ -2671,6 +2671,12 @@ class MatrixTable(ExprContainer):
         To preserve the original row-major entry order as the table row order,
         first unkey the columns using :meth:`key_cols_by` with no arguments.
 
+        Warning
+        -------
+        If the matrix table has no row key, but has a column key, this operation
+        may require a full shuffle to sort by the column key, depending on the
+        pipeline.
+
         Returns
         -------
         :class:`.Table`
