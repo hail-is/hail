@@ -198,7 +198,7 @@ object TypeCheck {
         assert(x.typ == aggBody.typ)
       case x@AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x@AggArrayPerElement(a, name, aggBody, _) =>
+      case x@AggArrayPerElement(a, _, _, aggBody, _) =>
         assert(x.typ == TArray(aggBody.typ))
       case x@InitOp(i, args, aggSig) =>
         assert(Some(args.map(_.typ)) == aggSig.initOpArgs)

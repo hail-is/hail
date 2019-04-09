@@ -221,7 +221,7 @@ final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolea
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))

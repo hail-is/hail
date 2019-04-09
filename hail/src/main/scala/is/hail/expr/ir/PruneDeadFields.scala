@@ -942,7 +942,7 @@ object PruneDeadFields {
             BindingEnv(agg = Some(keyEnv.eval)),
           memoizeValueIR(aggIR, requestedType.asInstanceOf[TDict].valueType, memo)
         )
-      case AggArrayPerElement(a, name, aggBody, isScan) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(aggBody,
           requestedType.asInstanceOf[TStreamable].elementType,
@@ -950,21 +950,21 @@ object PruneDeadFields {
         if (isScan) {
           val valueType = unifySeq(
             aType.elementType,
-            bodyEnv.scanOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
+            bodyEnv.scanOrEmpty.lookupOption(elementName).map(_.result()).getOrElse(Array()))
 
           val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
+            bodyEnv.copy(eval = bodyEnv.eval.delete(indexName), scan = bodyEnv.scan.map(_.delete(elementName))),
             BindingEnv(scan = Some(aEnv.eval))
           )
         } else {
           val valueType = unifySeq(
             aType.elementType,
-            bodyEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
+            bodyEnv.aggOrEmpty.lookupOption(elementName).map(_.result()).getOrElse(Array()))
 
           val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
           unifyEnvs(
-            bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
+            bodyEnv.copy(eval = bodyEnv.eval.delete(indexName), agg = bodyEnv.agg.map(_.delete(elementName))),
             BindingEnv(agg = Some(aEnv.eval))
           )
         }
