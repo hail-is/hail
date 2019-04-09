@@ -1,6 +1,5 @@
 .PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar \
-				build-spark-base build-hail-base build-spark-master build-spark-worker \
-				build-apiserver
+	build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver
 
 PROJECT := $(shell gcloud config get-value project)
 GSA_KEY_FILE = /gsa-key/privateKeyData
