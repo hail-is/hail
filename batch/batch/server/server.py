@@ -15,7 +15,7 @@ from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
-from .database import Database
+from .database import BatchDatabase
 
 from .. import schemas, run_once, log
 
@@ -62,8 +62,8 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-db = Database.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                '/batch-secrets/batch-production-cloud-sql-config.json'))
+db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                                                     '/batch-secrets/batch-production-cloud-sql-config.json'))
 
 
 def abort(code, reason=None):
