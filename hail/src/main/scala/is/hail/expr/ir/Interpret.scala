@@ -757,8 +757,6 @@ object Interpret {
         writer(hc, child.execute(hc))
       case TableToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
-      case MatrixToValueApply(child, function) =>
-        function.execute(child.execute(HailContext.get))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case TableAggregate(child, query) =>

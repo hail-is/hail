@@ -358,6 +358,16 @@ case class MatrixValue(
     val (_, filterF) = MatrixIR.filterCols(typ)
     Interpret(MatrixLiteral(filterF(this, p)))
   }
+
+  def toTableValue(colsFieldName: String, entriesFieldName: String): TableValue = {
+    val tt: TableType = LowerMatrixIR.loweredType(typ, entriesFieldName, colsFieldName)
+    val newGlobals = BroadcastRow(
+      Row.merge(globals.safeValue, Row(colValues.safeValue)),
+      tt.globalType,
+      HailContext.get.sc)
+
+    TableValue(tt, newGlobals, rvd.cast(tt.rowType.physicalType))
+  }
 }
 
 object MatrixValue {

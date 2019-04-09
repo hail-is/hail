@@ -15,4 +15,6 @@ case class NPartitionsMatrixTable() extends MatrixToValueFunction {
   override def typ(childType: MatrixType): Type = TInt32()
 
   override def execute(mv: MatrixValue): Any = mv.rvd.getNumPartitions
+
+  override def lower(): Option[TableToValueFunction] = Some(NPartitionsTable())
 }

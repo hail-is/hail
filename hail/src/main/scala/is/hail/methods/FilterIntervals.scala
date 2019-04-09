@@ -37,13 +37,9 @@ case class MatrixFilterIntervals(
     (childType, childRVDType)
   }
 
-  def execute(mv: MatrixValue): MatrixValue = {
-    val partitioner = RVDPartitioner.union(
-      mv.rvd.typ.kType.virtualType,
-      intervals,
-      mv.rvd.typ.key.length - 1)
-    MatrixValue(mv.typ, mv.globals, mv.colValues, mv.rvd.filterIntervals(partitioner, keep))
-  }
+  override def lower(): Option[TableToTableFunction] = Some(TableFilterIntervals(keyType, intervals, keep))
+
+  def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
 }
 
 class TableFilterIntervalsSerializer extends CustomSerializer[TableFilterIntervals](format => (
