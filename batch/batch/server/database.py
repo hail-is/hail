@@ -71,7 +71,7 @@ class JobsParentsTable(Table):
     async def __init__(self, db, name='jobs-parents'):
         schema = {'job_id': 'BIGINT',
                   'parent_id': 'BIGINT'}
-        keys = []
+        keys = ['job_id', 'parent_id']
 
         await super().__init__(db, name, schema, keys)
 
@@ -116,7 +116,7 @@ class BatchJobsTable(Table):
     async def __init__(self, db, name='batch-jobs'):
         schema = {'batch_id': 'BIGINT',
                   'job_id': 'BIGINT'}
-        keys = []
+        keys = ['batch_id', 'job_id']
 
         await super().__init__(db, name, schema, keys)
 
