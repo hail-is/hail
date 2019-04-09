@@ -63,9 +63,8 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-loop = asyncio.get_event_loop()
-db = loop.run_until_complete(BatchDatabase(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                          '/batch-secrets/batch-production-cloud-sql-config.json')))
+db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                                                     '/batch-secrets/batch-production-cloud-sql-config.json'))
 
 
 def abort(code, reason=None):
