@@ -106,7 +106,7 @@ class MatrixVCFReader(MatrixReader):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
-                  'entryFloatType': self.entry_float_type,
+                  'entryFloatTypeName': self.entry_float_type,
                   'headerFile': self.header_file,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
