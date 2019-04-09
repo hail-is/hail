@@ -4,7 +4,7 @@ metadata:
   name: notebook2
   labels:
     app: notebook2
-    hail.is/sha: "@sha@"
+    hail.is/sha: "{{ pr.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,12 +14,15 @@ spec:
     metadata:
       labels:
         app: notebook2
-        hail.is/sha: "@sha@"
+        hail.is/sha: "{{ pr.sha }}"
     spec:
       serviceAccountName: notebook
       containers:
       - name: notebook2
-        image: @image@
+        image: "{{ notebook2_image.image }}"
+        env:
+        - name: HAIL_NOTEBOOK2_WORKER_IMAGE
+          value: "{{ hail_jupyter_image.image }}"
         ports:
         - containerPort: 5000
         volumeMounts:

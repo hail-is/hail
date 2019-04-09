@@ -1,0 +1,12 @@
+FROM {{ hail_base_image.image }}
+
+RUN python3 -m pip install --no-cache-dir https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
+
+COPY apiserver /apiserver/apiserver
+COPY hailjwt /hailjwt/hailjwt
+RUN python3 -m pip --no-cache-dir /hailjwt \
+  && rm -rf /batch
+
+ENV HAIL_SPARK_PROPERTIES "spark.driver.host=apiserver,spark.driver.bindAddress=0.0.0.0,spark.driver.port=9001,spark.blockManager.port=9002"
+
+CMD ["python3", "/apiserver/apiserver.py"]

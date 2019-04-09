@@ -4,7 +4,7 @@ metadata:
   name: scorecard-deployment
   labels:
     app: scorecard
-    hail.is/sha: "@sha@"
+    hail.is/sha: "{{ pr.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,11 +14,11 @@ spec:
     metadata:
       labels:
         app: scorecard
-        hail.is/sha: "@sha@"
+        hail.is/sha: "{{ pr.sha }}"
     spec:
       containers:
       - name: scorecard
-        image: @image@
+        image: "{{ scorecard_image.image }}"
         ports:
         - containerPort: 5000
         volumeMounts:

@@ -1,3 +1,5 @@
+server_names_hash_bucket_size 128;
+
 map $http_x_forwarded_proto $updated_scheme {
      default $scheme;
      https https;
@@ -198,17 +200,6 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
-
-server {
-    server_name app.@domain@;
-
-    location / {
-        proxy_pass http://web/;
     }
 
     listen 80;

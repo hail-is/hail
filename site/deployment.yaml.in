@@ -4,7 +4,7 @@ metadata:
   name: site-deployment
   labels:
     app: site
-    hail.is/sha: "@sha@"
+    hail.is/sha: "{{ pr.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,11 +14,11 @@ spec:
     metadata:
       labels:
         app: site
-        hail.is/sha: "@sha@"
+        hail.is/sha: "{{ pr.sha }}"
     spec:
       containers:
       - name: site
-        image: "@image@"
+        image: "{{ site_image.image }}"
         ports:
         - containerPort: 80
         livenessProbe:

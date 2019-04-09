@@ -32,3 +32,14 @@ ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 
 COPY requirements.txt .
 RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
+
+# FIXME consolidate
+RUN python3 -m pip install --no-cache-dir -U parsimonious
+ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip"
+RUN apt-get update && \
+  apt-get -y install \
+    zip \
+    xsltproc \
+    pandoc && \
+  rm -rf /var/lib/apt/lists/*
+ENV PYSPARK_PYTHON python3

@@ -1,0 +1,9 @@
+FROM {{ base_image.image }}
+
+COPY gradlew build.gradle settings.gradle deployed-spark-versions.txt ./
+COPY gradle gradle
+RUN ./gradlew downloadDependencies
+
+RUN apt-get update && \
+  apt-get -y install \
+    liblz4-dev

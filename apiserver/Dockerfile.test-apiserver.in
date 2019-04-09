@@ -1,0 +1,13 @@
+FROM {{ hail_base_image.image }}
+
+COPY test.tar.gz .
+RUN tar xzvf test.tar.gz && \
+  rm -f test.tar.gz
+
+COPY resources.tar.gz .
+RUN tar xzvf resources.tar.gz && \
+  rm -f resources.tar.gz
+
+COPY data.tar.gz .
+RUN tar xzvf data.tar.gz && \
+  rm -f data.tar.gz

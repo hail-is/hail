@@ -82,7 +82,7 @@ app = web.Application()
 routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                     '/batch-secrets/batch-production-cloud-sql-config.json'))
+                                                     '/sql-batch-batch-admin-config/sql-config.json'))
 
 
 def abort(code, reason=None):

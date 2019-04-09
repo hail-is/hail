@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: spark-master
-          image: @spark_master_image@
+          image: "{{ spark_master_image.image }}"
           imagePullPolicy: Always
           ports:
           - containerPort: 7077
@@ -50,7 +50,7 @@ spec:
         value: "true"
       containers:
         - name: spark-worker
-          image: @spark_worker_image@
+          image: "{{ spark_worker_image.image }}"
           imagePullPolicy: Always
           ports:
           - containerPort: 8081
@@ -72,8 +72,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: apiserver
-  annotations:
-    hail-jupyter-image: @hail_jupyter_image@
 spec:
   selector:
     matchLabels:
@@ -86,7 +84,7 @@ spec:
     spec:
       containers:
         - name: apiserver
-          image: @apiserver_image@
+          image: "{{ apiserver_image.image }}"
           env:
           - name: HAIL_APISERVER_SPARK_MASTER
             value: spark://spark-master:7077
@@ -105,6 +103,12 @@ spec:
             requests:
               memory: "3.75G"
               cpu: "0.9"
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: hail-vdc-sa-key
           secret:
