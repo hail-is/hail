@@ -648,15 +648,9 @@ class Batch:
         return all(j.is_successful() for j in self.jobs)
 
     def to_dict(self):
-        state_count = Counter([j._state for j in self.jobs])
         result = {
             'id': self.id,
-            'jobs': {
-                'Created': state_count.get('Created', 0),
-                'Complete': state_count.get('Complete', 0),
-                'Cancelled': state_count.get('Cancelled', 0)
-            },
-            'exit_codes': {j.id: j.exit_code for j in self.jobs},
+            'jobs': [j.to_dict() for j in self.jobs],
             'is_open': self.is_open
         }
         if self.attributes:

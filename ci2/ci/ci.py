@@ -29,7 +29,7 @@ app = web.Application()
 
 app['client_session'] = aiohttp.ClientSession(
     raise_for_status=True,
-    timeout=aiohttp.ClientTimeout(total=timeout))
+    timeout=aiohttp.ClientTimeout(total=60))
 app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
 app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
@@ -48,7 +48,7 @@ async def index(request):
                     {
                         'number': pr.number,
                         'title': pr.title,
-                        'job_id': pr.job.id if pr.job else None,
+                        'batch_id': pr.batch.id if pr.batch else None,
                         'passing': pr.passing,
                         'state': pr.state
                     }
@@ -57,16 +57,18 @@ async def index(request):
             for wb in watched_branches
         ]}
 
-@routes.get('/jobs/{job_id}/log')
-@aiohttp_jinja2.template('job_log.html')
-async def get_job_log(request):
-    job_id = int(request.match_info['job_id'])
+@routes.get('/batches/{batch_id}/log')
+@aiohttp_jinja2.template('batch_log.html')
+async def get_batch_log(request):
+    batch_id = int(request.match_info['batch_id'])
 
-    batch = request.app['batch_client']
-    job = await batch.get_job(job_id)
+    batch_client = request.app['batch_client']
+    batch = await batch_client.get_batch(batch_id)
+    status = await batch.status()
+    print('batch_status', status)
     return {
-        'job_id': job_id,
-        'job_log': await job.log()
+        'batch_id': batch_id,
+        'batch_status': status
     }
 
 @routes.get('/healthcheck')
