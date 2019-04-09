@@ -696,13 +696,6 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
-  def parseAddInfoFloat(rvb: RegionValueBuilder) {
-    if (!infoFieldMissing()) {
-      rvb.setPresent()
-      rvb.addFloat(parseInfoString().toFloat)
-    }
-  }
-
   def parseAddInfoDouble(rvb: RegionValueBuilder) {
     if (!infoFieldMissing()) {
       rvb.setPresent()
@@ -842,7 +835,6 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       typ match {
         case TInt32(_) => parseAddInfoInt(rvb)
         case TString(_) => parseAddInfoString(rvb)
-        case TFloat32(_) => parseAddInfoFloat(rvb)
         case TFloat64(_) => parseAddInfoDouble(rvb)
         case TArray(TInt32(_), _) => parseAddInfoArrayInt(rvb)
         case TArray(TFloat64(_), _) => parseAddInfoArrayDouble(rvb)
