@@ -1475,13 +1475,7 @@ case class CastMatrixToTable(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val prev = child.execute(hc)
-    val newGlobals = BroadcastRow(
-      Row.merge(prev.globals.safeValue, Row(prev.colValues.safeValue)),
-      typ.globalType,
-      hc.sc)
-
-    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType.physicalType))
+    child.execute(hc).toTableValue(colsFieldName, entriesFieldName)
   }
 }
 

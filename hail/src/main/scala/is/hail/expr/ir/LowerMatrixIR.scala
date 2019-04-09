@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.functions.{WrappedMatrixToMatrixFunction, WrappedMatrixToTableFunction, WrappedMatrixToValueFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInt32, TInterval}
 import is.hail.utils._
@@ -94,6 +95,14 @@ object LowerMatrixIR {
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
     case CastTableToMatrix(child, entries, cols, colKey) =>
       TableRename(lower(child), Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
+
+    case MatrixToMatrixApply(child, function) =>
+      val loweredChild = lower(child)
+      TableToTableApply(loweredChild, function.lower()
+        .getOrElse(WrappedMatrixToMatrixFunction(function,
+          colsFieldName, colsFieldName,
+          entriesFieldName, entriesFieldName,
+          child.typ.colKey)))
 
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       lower(child).keyBy(keys, isSorted)
@@ -389,6 +398,12 @@ object LowerMatrixIR {
         }).mapGlobals('global.dropFields(colsField, oldColIdx))
         .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = !(child.typ.rowKey.isEmpty && child.typ.colKey.nonEmpty))
 
+    case MatrixToTableApply(child, function) =>
+      val loweredChild = lower(child)
+      TableToTableApply(loweredChild,
+        function.lower()
+          .getOrElse(WrappedMatrixToTableFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)))
+
     case MatrixRowsTable(child) =>
       lower(child)
         .mapGlobals('global.dropFields(colsField))
@@ -418,6 +433,8 @@ object LowerMatrixIR {
   }
 
   private[this] def valueRules: PartialFunction[IR, IR] = {
+    case MatrixToValueApply(child, function) => TableToValueApply(lower(child), function.lower()
+      .getOrElse(WrappedMatrixToValueFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)))
     case MatrixWrite(child, writer) =>
       TableWrite(lower(child), WrappedMatrixWriter(writer, colsFieldName, entriesFieldName, child.typ.colKey))
     case MatrixAggregate(child, query) =>
