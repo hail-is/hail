@@ -89,6 +89,8 @@ object IRBuilder {
 
     def explode(sym: Symbol): TableIR = TableExplode(tir, FastIndexedSeq(sym.name))
 
+    def aggregateByKey(aggIR: IRProxy): TableIR = TableAggregateByKey(tir, aggIR(env))
+
     def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
       TableKeyBy(tir, keys, isSorted)
 
@@ -254,6 +256,17 @@ object IRBuilder {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
+    def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      AggArrayPerElement(
+        array,
+        elementsSym.name,
+        indexSym.name,
+        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        isScan = false)
     }
 
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)

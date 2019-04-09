@@ -297,6 +297,19 @@ object LowerMatrixIR {
               irRange(0, 'global(lengths)(colIdx), 1).map(Symbol(genUID()) ~> 'row(entriesField)(colIdx)))))
         .mapGlobals('global.dropFields(lengths))
 
+    case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
+      lower(child)
+        .aggregateByKey(
+          aggLet(va = 'row) {
+            rowExpr.insertFields(entriesField -> irRange(0, 'global (colsField).len)
+              .aggElements('__element_idx, '__result_idx)(
+                  let(sa = 'global(colsField)('__result_idx)) {
+                    aggLet(sa = 'global (colsField)('__element_idx),
+                      g = 'row (entriesField)('__element_idx)) {
+                      entryExpr
+                    }
+                  }))})
+
     case MatrixCollectColsByKey(child) =>
       lower(child)
         .mapGlobals('global.insertFields('newColIdx ->

@@ -1007,7 +1007,7 @@ class AggregatorsSuite extends SparkSuite {
 
       TableAggregate(
         ht,
-        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt",
+        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt", "_'",
           ApplyAggOp(
             IndexedSeq(),
             None,
