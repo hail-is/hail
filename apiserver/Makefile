@@ -56,14 +56,16 @@ SPARK_WORKER_IMAGE = "gcr.io/$(PROJECT)/spark-worker:$(shell docker images -q --
 APISERVER_IMAGE = "gcr.io/$(PROJECT)/apiserver:$(shell docker images -q --no-trunc apiserver | sed -e 's,[^:]*:,,')"
 HAIL_JUPYTER_IMAGE = "gcr.io/$(PROJECT)/hail-jupyter:$(shell docker images -q --no-trunc hail-jupyter | sed -e 's,[^:]*:,,')"
 
-push: build
+tag: build
 	docker tag spark-master $(SPARK_MASTER_IMAGE)
-	docker push $(SPARK_MASTER_IMAGE)
 	docker tag spark-worker $(SPARK_WORKER_IMAGE)
-	docker push $(SPARK_WORKER_IMAGE)
 	docker tag apiserver $(APISERVER_IMAGE)
-	docker push $(APISERVER_IMAGE)
 	docker tag hail-jupyter $(HAIL_JUPYTER_IMAGE)
+
+push: tag
+	docker push $(SPARK_MASTER_IMAGE)
+	docker push $(SPARK_WORKER_IMAGE)
+	docker push $(APISERVER_IMAGE)
 	docker push $(HAIL_JUPYTER_IMAGE)
 
 deploy: push
