@@ -1330,6 +1330,8 @@ class IRSuite extends SparkSuite {
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
+    val l = Ref("l", TInt32())
+    val r = Ref("r", TInt32())
 
     val call = Ref("call", TCall())
 
@@ -1378,6 +1380,9 @@ class IRSuite extends SparkSuite {
       nd,
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
+      NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
+      NDArrayReindex(nd, IndexedSeq(0, 1)),
+      NDArrayWrite(nd, tmpDir.createTempFile()),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1609,6 +1614,8 @@ class IRSuite extends SparkSuite {
       "nd" -> TNDArray(TFloat64(), Nat(1)),
       "nd2" -> TNDArray(TArray(TString()), Nat(1)),
       "v" -> TInt32(),
+      "l" -> TInt32(),
+      "r" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
       "call" -> TCall(),
