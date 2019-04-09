@@ -567,6 +567,22 @@ class Tests(unittest.TestCase):
         self.assertEqual(et.count(), 100)
         self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
 
+    def test_entries_table_no_keys(self):
+        mt = hl.utils.range_matrix_table(2, 2)
+        mt = mt.annotate_entries(x = (mt.row_idx, mt.col_idx))
+
+        original_order = [
+            hl.utils.Struct(row_idx=0, col_idx=0, x=(0, 0)),
+            hl.utils.Struct(row_idx=0, col_idx=1, x=(0, 1)),
+            hl.utils.Struct(row_idx=1, col_idx=0, x=(1, 0)),
+            hl.utils.Struct(row_idx=1, col_idx=1, x=(1, 1)),
+        ]
+
+        assert mt.entries().collect() == original_order
+        assert mt.key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
+
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
         mt1 = mt1.filter_cols(mt1.col_idx < 3)
