@@ -1,15 +1,21 @@
 #include "hail/Hadoop.h"
+#include "hail/Upcalls.h"
+#include <jni.h>
 
 namespace hail {
 
 HadoopConfig::HadoopConfig(UpcallEnv up, jobject jhadoop_config) :
-  up_(up), jhadoop_config_(jhadoop_config) { }
+  up_(up),
+  jhadoop_config_(up.env()->NewGlobalRef(jhadoop_config)) { }
 
-HadoopConfig::unsafe_writer(const char *path) {
-  auto jpath = up_.env()->NewStringUTF(path);
-  auto joutput_stream = up_.env()->CallObjectMethod(jhadoop_config_, up_.config()->RichHadoopConfiguration_unsafeWriter_, jpath);
+HadoopConfig::~HadoopConfig() { up_.env()->DeleteGlobalRef(jhadoop_config_); }
 
-  return OutputStream(up_, joutput_stream);
+std::shared_ptr<OutputStream> HadoopConfig::unsafe_writer(const char *path) {
+  jstring jpath = up_.env()->NewStringUTF(path);
+  jobject joutput_stream = up_.env()->CallObjectMethod(jhadoop_config_, unsafe_writer_method_id_, jpath);
+  up_.env()->DeleteLocalRef(jpath);
+
+  return std::make_shared<OutputStream>(up_, joutput_stream);
 }
 
-}
+} // namespace hail
