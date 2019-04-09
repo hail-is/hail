@@ -185,7 +185,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def infoArrayFieldMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
-      endFormatArrayField(pos + 1)
+      endInfoArrayField(pos + 1)
   }
 
   def formatArrayFieldMissing(): Boolean = {
@@ -986,7 +986,7 @@ class FormatParser(
   }
 }
 
-class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], headerLines: BufferedLineIterator) {
+class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], val nSamples: Int) {
   val entryType: TStruct = typ.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
     case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
     case None => TStruct()
@@ -995,9 +995,6 @@ class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], head
   val hasQual = typ.rowType.hasField("qual")
   val hasFilters = typ.rowType.hasField("filters")
   val hasEntryFields = entryType.size > 0
-
-  val codec = new htsjdk.variant.vcf.VCFCodec()
-  codec.readHeader(headerLines)
 
   val formatParsers = mutable.Map[String, FormatParser]()
 
@@ -1275,28 +1272,25 @@ object LoadVCF {
       l.parseAddInfo(rvb, c.infoSignature, c.infoFlagFieldNames)
     else
       l.skipField()
-    l.nextField()
-
-    val vc = c.codec.decode(l.line)
 
     if (!dropSamples) {
-      val nSamples = vc.getNSamples
-      rvb.startArray(nSamples) // gs
+      rvb.startArray(c.nSamples) // gs
 
-      if (nSamples > 0) {
+      if (c.nSamples > 0) {
         if (!c.hasEntryFields) {
           var i = 0
-          while (i < nSamples) {
+          while (i < c.nSamples) {
             rvb.startStruct()
             rvb.endStruct()
             i += 1
           }
         } else {
+          l.nextField() // move past INFO
           val format = l.parseString()
           val fp = c.getFormatParser(format)
 
           var i = 0
-          while (i < nSamples) {
+          while (i < c.nSamples) {
             l.nextField()
             fp.parse(l, rvb)
             i += 1
@@ -1501,7 +1495,7 @@ case class MatrixVCFReader(
       coercer.coerce(requestedType.canonicalRVDType, parseLines { () =>
         new ParseLineContext(requestedType,
           localInfoFlagFieldNames,
-          new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
+          localSampleIDs.length)
       } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb, dropSamples) }(
         lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
       ))
@@ -1673,7 +1667,7 @@ class VCFsReader(
     val parsedLines = parseLines { () =>
       new ParseLineContext(LowerMatrixIR.loweredType(localTyp),
         localInfoFlagFieldNames,
-        new BufferedLineIterator(localHeaderLines1Bc.value.iterator.buffered))
+        sampleIDs.length)
     } { (c, l, rvb) =>
       val reader = new HtsjdkRecordReader(localCallFields, localEntryFloatType)
       LoadVCF.parseLine(reader, c, l, rvb)
