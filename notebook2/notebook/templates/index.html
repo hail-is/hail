@@ -1,22 +1,14 @@
-<!DOCTYPE html>
-<html lang="en" {{ 'class=dark' if session['dark'] }}>
-  <head>
-    <title>Hail</title>
-    <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"/>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css">
-    <link rel="stylesheet" type="text/css" href="/static/css/main.css">
-    <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
-  </head>
-  <body id='theme-site'>
-    {% include 'header.html' %}
-    <div id="main">
-      <div class="centered">
-        <h3 class='animated fadeInUp faster'>
-          <a href="https://hail.is/" target="_blank">
-            Hail
-          </a>
-        </h3>
-      </div>
-    </div>
-  </body>
-</html>
+{% extends "layout.html" %}
+{% block title %}Home{% endblock %}
+{% block head %}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css">
+{% endblock %}
+{% block content %}
+  <div class="centered">
+    <h3 class='animated fadeInUp faster'>
+      <a href="https://hail.is/" target="_blank">
+        Hail
+      </a>
+    </h3>
+  </div>
+{% endblock %}
