@@ -130,7 +130,9 @@ object RelationalFunctions {
     classOf[PCA],
     classOf[VEP],
     classOf[GetElement],
-    classOf[WrappedMatrixToTableFunction]
+    classOf[WrappedMatrixToTableFunction],
+    classOf[WrappedMatrixToMatrixFunction],
+    classOf[WrappedMatrixToValueFunction]
   )) +
     new MatrixFilterIntervalsSerializer +
     new TableFilterIntervalsSerializer
