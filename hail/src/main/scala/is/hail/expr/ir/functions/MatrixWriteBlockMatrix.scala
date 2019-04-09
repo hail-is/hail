@@ -8,7 +8,7 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteB
 import is.hail.utils._
 import org.json4s.jackson
 
-class MatrixWriteBlockMatrix(path: String,
+case class MatrixWriteBlockMatrix(path: String,
   overwrite: Boolean,
   entryField: String,
   blockSize: Int) extends MatrixToValueFunction {

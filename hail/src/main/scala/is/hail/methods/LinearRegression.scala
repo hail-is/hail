@@ -14,11 +14,11 @@ import is.hail.utils._
 import net.sourceforge.jdistlib.T
 
 case class LinearRegressionRowsSingle(
-  yFields: Array[String],
+  yFields: IndexedSeq[String],
   xField: String,
-  covFields: Array[String],
+  covFields: IndexedSeq[String],
   rowBlockSize: Int,
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
 
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
@@ -41,7 +41,7 @@ case class LinearRegressionRowsSingle(
   def preservesPartitionCounts: Boolean = true
 
   def execute(mv: MatrixValue): TableValue = {
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields, covFields)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     val n = y.rows // n_complete_samples
     val k = cov.cols // nCovariates
@@ -171,11 +171,11 @@ case class LinearRegressionRowsSingle(
 }
 
 case class LinearRegressionRowsChained(
-  yFields: Array[Array[String]],
+  yFields: IndexedSeq[IndexedSeq[String]],
   xField: String,
-  covFields: Array[String],
+  covFields: IndexedSeq[String],
   rowBlockSize: Int,
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
 
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
@@ -199,7 +199,7 @@ case class LinearRegressionRowsChained(
 
   def execute(mv: MatrixValue): TableValue = {
 
-    val localData = yFields.map(RegressionUtils.getPhenosCovCompleteSamples(mv, _, covFields))
+    val localData = yFields.map(y => RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray))
 
     val k = covFields.length // nCovariates
     val bcData = localData.zipWithIndex.map { case ((y, cov, completeColIdx), i) =>

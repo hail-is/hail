@@ -1,15 +1,13 @@
 package is.hail.expr.ir
 
 import is.hail.SparkSuite
-import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types._
-import is.hail.table.Table
-import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
+import is.hail.table.Table
+import is.hail.utils._
 import is.hail.variant.MatrixTable
-import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
