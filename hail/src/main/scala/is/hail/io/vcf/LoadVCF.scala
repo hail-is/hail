@@ -150,7 +150,6 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       pos += 1
   }
 
-
   def fieldMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
