@@ -296,8 +296,7 @@ object LowerMatrixIR {
               .aggElements('__element_idx, '__result_idx)(
                   let(sa = 'global(colsField)('__result_idx)) {
                     aggLet(sa = 'global (colsField)('__element_idx),
-                      g = 'row (entriesField)('__element_idx),
-                      sa = 'global (colsField)('__element_idx)) {
+                      g = 'row (entriesField)('__element_idx)) {
                       entryExpr
                     }
                   }))})
