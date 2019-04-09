@@ -73,6 +73,7 @@ test-local: batch-secrets/batch-test-cloud-sql-config.json
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
+test-local-in-cluster: /batch-secrets/batch-test-cloud-sql-config.json
 test-local-in-cluster: check
 	POD_NAMESPACE='test' ./test-locally.sh
 
