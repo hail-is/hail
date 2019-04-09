@@ -51,10 +51,10 @@ build-hail-jupyter: build-common
 
 build: build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver build-hail-jupyter
 
-SPARK_MASTER_IMAGE="gcr.io/$(PROJECT)/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')"
-SPARK_WORKER_IMAGE="gcr.io/$(PROJECT)/spark-worker:$(shell docker images -q --no-trunc spark-worker | sed -e 's,[^:]*:,,')"
-APISERVER_IMAGE="gcr.io/$(PROJECT)/apiserver:$(shell docker images -q --no-trunc apiserver | sed -e 's,[^:]*:,,')"
-HAIL_JUPYTER_IMAGE="gcr.io/$(PROJECT)/hail-jupyter:$(shell docker images -q --no-trunc hail-jupyter | sed -e 's,[^:]*:,,')"
+SPARK_MASTER_IMAGE = "gcr.io/$(PROJECT)/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')"
+SPARK_WORKER_IMAGE = "gcr.io/$(PROJECT)/spark-worker:$(shell docker images -q --no-trunc spark-worker | sed -e 's,[^:]*:,,')"
+APISERVER_IMAGE = "gcr.io/$(PROJECT)/apiserver:$(shell docker images -q --no-trunc apiserver | sed -e 's,[^:]*:,,')"
+HAIL_JUPYTER_IMAGE = "gcr.io/$(PROJECT)/hail-jupyter:$(shell docker images -q --no-trunc hail-jupyter | sed -e 's,[^:]*:,,')"
 
 push: build
 	docker tag spark-master $(SPARK_MASTER_IMAGE)
