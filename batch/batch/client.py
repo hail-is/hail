@@ -68,9 +68,10 @@ class Job:
 
 
 class Batch:
-    def __init__(self, client, id):
+    def __init__(self, client, id, attributes):
         self.client = client
         self.id = id
+        self.attributes = attributes
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
@@ -101,6 +102,9 @@ class Batch:
             # max 4.45s
             if i < 64:
                 i = i + 1
+
+    def cancel(self):
+        self.client._cancel_batch(self.id)
 
     def delete(self):
         self.client._delete_batch(self.id)
@@ -204,6 +208,9 @@ class BatchClient:
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
 
+    def _cancel_batch(self, batch_id):
+        self.api.cancel_batch(self.url, batch_id)
+
     def _delete_batch(self, batch_id):
         self.api.delete_batch(self.url, batch_id)
 
@@ -221,6 +228,13 @@ class BatchClient:
                     parent_ids=j.get('parent_ids', []),
                     _status=j)
                 for j in jobs]
+
+    def list_batches(self, complete=None, success=None, attributes=None):
+        batches = self.api.list_batches(self.url, complete=complete, success=success, attributes=attributes)
+        return [Batch(self,
+                      j['id'],
+                      attributes=j.get('attributes'))
+                for j in batches]
 
     def get_job(self, id):
         # make sure job exists
@@ -259,7 +273,7 @@ class BatchClient:
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)
-        return Batch(self, batch['id'])
+        return Batch(self, batch['id'], batch.get('attribute'))
 
     job_yaml_schema = {
         'spec': schemas.pod_spec,
