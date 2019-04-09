@@ -146,7 +146,8 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        val (res, _) = SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        res
       } catch {
         case e: CXXUnsupportedOperation =>
           throw e

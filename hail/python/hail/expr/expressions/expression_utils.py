@@ -129,8 +129,8 @@ def analyze(caller: str,
         raise errors[0]
 
 
-@typecheck(expression=expr_any)
-def eval(expression):
+@typecheck(expression=expr_any, show_times=bool)
+def eval(expression, show_times=False):
     """Evaluate a Hail expression, returning the result.
 
     This method is extremely useful for learning about Hail expressions and
@@ -155,11 +155,15 @@ def eval(expression):
     -------
     Any
     """
-    return eval_typed(expression)[0]
+    res = eval_typed(expression, show_times)
+    if show_times:
+        return res[0], res[1]
+    else:
+        return res[0]
 
 
-@typecheck(expression=expr_any)
-def eval_typed(expression):
+@typecheck(expression=expr_any, show_times=bool)
+def eval_typed(expression, show_times=False):
     """Evaluate a Hail expression, returning the result and the type of the result.
 
     This method is extremely useful for learning about Hail expressions and understanding
@@ -196,7 +200,11 @@ def eval_typed(expression):
         expression_type = expression.dtype
         if ir_type != expression.dtype:
             raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        return (Env.backend().execute(expression._ir), expression.dtype)
+        res, times = Env.backend().execute(expression._ir)
+        if show_times:
+            return res, times, expression.dtype
+        else:
+            return res, expression.dtype
     else:
         return expression.collect()[0], expression.dtype
 

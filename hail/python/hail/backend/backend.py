@@ -88,9 +88,8 @@ class SparkBackend(Backend):
         return ir._jir
 
     def execute(self, ir):
-        return ir.typ._from_json(
-            Env.hail().backend.spark.SparkBackend.executeJSON(
-                self._to_java_ir(ir)))
+        res, timings = Env.hail().backend.spark.SparkBackend.executeJSON(self._to_java_ir(ir))
+        return ir.typ._from_json(res), timings
 
     def value_type(self, ir):
         jir = self._to_java_ir(ir)
