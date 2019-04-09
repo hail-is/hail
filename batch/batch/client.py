@@ -107,13 +107,11 @@ class Batch:
 
 
 class BatchClient:
-    def __init__(self, url=None, _api=None):
+    def __init__(self, url=None, timeout=None, cookies=None, headers=None):
         if not url:
             url = 'http://batch.default'
         self.url = url
-        if _api is None:
-            _api = api.API()
-        self.api = _api
+        self.api = api.API(timeout=timeout, cookies=cookies, headers=headers)
 
     def _create_job(self,  # pylint: disable=R0912
                     image,
