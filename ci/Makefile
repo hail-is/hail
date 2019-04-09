@@ -2,7 +2,7 @@
 .PHONY: build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 HAIL_CI_LATEST = gcr.io/$(PROJECT)/hail-ci:latest
 HAIL_CI_IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | sed -e 's,[^:]*:,,')
 
