@@ -40,7 +40,8 @@ restart-proxy:
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-test-locally: restart-proxy install-cloud-sql-proxy local-cloud-sql-config
+test-locally: restart-proxy install-cloud-sql-proxy
+test-locally: batch-secrets/batch-test-cloud-sql-config.json
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	CLOUD_SQL_PROXY=1 \
 	BATCH_USE_KUBE_CONFIG=1 \
