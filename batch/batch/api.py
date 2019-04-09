@@ -109,7 +109,7 @@ class API():
         return self.get(f'{url}/batches/{batch_id}')
 
     def close_batch(self, url, batch_id):
-        self.patch(f'{url}/batches/{batch_id}/close',  json_response=False)
+        self.patch(f'{url}/batches/{batch_id}/close', json_response=False)
 
     def delete_batch(self, url, batch_id):
         self.delete(f'{url}/batches/{batch_id}', json_response=False)
