@@ -77,7 +77,7 @@ class API():
 
     def list_batches(self, url, complete, success, attributes):
         params = filter_params(complete, success, attributes)
-        return self.get('{url}/batches', params=params)
+        return self.get(f'{url}/batches', params=params)
 
     def list_jobs(self, url, complete, success, attributes):
         params = filter_params(complete, success, attributes)
