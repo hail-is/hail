@@ -97,14 +97,14 @@ def _variance(x_array):
            locus_expr=expr_locus(),
            radius=oneof(int, float),
            coord_expr=nullable(expr_numeric),
-           annotation_exprs=nullable(oneof(expr_numeric,
-                                           sequenceof(expr_numeric))),
+           annotation_exprs=oneof(expr_numeric,
+                                  sequenceof(expr_numeric)),
            block_size=nullable(int))
 def calculate_ld_scores(entry_expr,
                         locus_expr,
                         radius,
                         coord_expr=None,
-                        annotation_exprs=None,
+                        annotation_exprs=hl.literal(1.0),
                         block_size=None) -> Table:
     """Calculate LD scores.
 
@@ -226,69 +226,38 @@ def calculate_ld_scores(entry_expr,
         scores for all annotations provided as arguments to
         ``annotations_expr``."""
 
-    mt = entry_expr._indices.source
+    ds = entry_expr._indices.source
 
     analyze('calculate_ld_scores/locus_expr',
             locus_expr,
-            mt._row_indices)
+            ds._row_indices)
 
-    if coord_expr is not None:
+    if not coord_expr:
+        coord_expr = locus_expr
+    else:
         analyze('calculate_ld_scores/coord_expr',
                 coord_expr,
-                mt._row_indices)
-        
-    if annotation_exprs is not None:
-        annotation_exprs = wrap_to_list(annotation_exprs)
-        for expr in annotation_exprs:
-            analyze(f'calculate_ld_scores/annotation_expr',
-                    expr,
-                    mt._row_indices)
-        annotation_exprs.insert(0, hl.literal(1.0))
-    else:
-        annotation_exprs = [hl.literal(1.0)]
-
-    """
-    mt = ds._select_all(row_exprs={'locus': locus_expr,
-                                   '_coord': coord_expr,
-                                   '_annotations': hl.array([hl.struct(a=a)
-                                                             for a in annotation_exprs])},
-                        row_key=['locus'],
-                        col_exprs={'_col': ds.col_key},
-                        col_key=['_col'],
-                        entry_exprs={'_gt': entry_expr},
-                        global_exprs={'_names': hl.array([hl.struct(n=f'a{i}')
-                                                          for i, _ in enumerate(annotation_exprs)])})
-
-    mt_tmp1 = new_temp_file()
-    mt.write(mt_tmp1)
-    mt = hl.read_matrix_table(mt_tmp1)
-    """
-
-    mt = mt.select_entries(_x=entry_expr)
-    mt = mt.annotate_rows(_stats=hl.agg.stats(mt._x))
-    mt = mt.annotate_entries(_x=(mt._x - mt._stats.mean) / mt._stats.stdev)
+                ds._row_indices)
 
     g_tmp = new_temp_file()
-    BlockMatrix.write_from_entry_expr(
-        entry_expr=mt._x,
+    g = BlockMatrix.write_from_entry_expr(
+        entry_expr=entry_expr,
         path=g_tmp,
-        mean_impute=True,
+        mean_impute=False,
         center=False,
         normalize=False,
         block_size=block_size)
 
-    g = BlockMatrix.read(g_tmp)
-    n = mt.count_cols()
+    n = g.shape[1]
+    m1 = g.sum(axis=1)
+    m2 = (g**2).sum(axis=1)
 
-    r = g @ (g.T / n)
-    r2 = r**2
-    #t = r[0,:].T.to_numpy()
+    g_std_tmp = new_temp_file()
+    ((m2-m1**2 / n) / (n-1)).sqrt().write(g_std_tmp)
 
-    #r = hl.row_correlation(
-    #    entry_expr=entry_expr,
-    #    block_size=block_size)
-
-    r2_adj = ((n-1.0) / (n-2.0)) * r2 - (1.0 / (n-2.0))
+    g_std = BlockMatrix.read(g_std_tmp)
+    r2 = (g_std @ g_std.T / n)**2
+    r2_adj = ((n-1) / (n-2)) * r2-(1 / (n-2))
 
     starts, stops = hl.linalg.utils.locus_windows(
         locus_expr=locus_expr,
@@ -296,38 +265,41 @@ def calculate_ld_scores(entry_expr,
         coord_expr=coord_expr)
 
     r2_adj_sparse = r2_adj.sparsify_row_intervals(starts, stops)
-
     r2_tmp = new_temp_file()
     r2_adj_sparse.write(r2_tmp)
 
-    ht_a = mt.select_rows(_annotations=hl.map(
-        lambda i: hl.struct(_a=hl.array(annotation_exprs)[i]),
-        hl.range(0, len(annotation_exprs)))).rows()
+    annotation_exprs = wrap_to_list(annotation_exprs)
+    ds = annotation_exprs[0]
+    for expr in annotation_exprs:
+        analyze(f'calculate_ld_scores/annotation_expr',
+                expr,
+                ds._row_indices)
 
-    ht_a = ht_a.annotate_globals(_names=hl.map(
-        lambda i: hl.struct(_n=i),
-        hl.range(0, len(annotation_exprs))))
-
-    mt_a = ht_a._unlocalize_entries('_annotations', '_names', ['_n'])
-
-    mt_a = mt_a.add_row_index()
-    mt_a = mt_a.key_rows_by(mt_a.row_idx)
+    ht = ds._select_all(
+        row_exprs={'_idx': hl.scan.count(),
+                   '_annotations': hl.array(
+            hl.struct({'_a': hl.float(a) for _, a in enumerate(annotation_exprs)}))},
+        row_key=['_idx'],
+        global_exprs={'_names': hl.array(
+            hl.struct({'_n': f'{i}' for i, _ in enumerate(annotation_exprs)}))}).rows()
+    
+    mt = ht._unlocalize_entries('_annotations', '_names', ['_n'])
 
     a_tmp = new_temp_file()
     BlockMatrix.write_from_entry_expr(
-        entry_expr=mt_a._a,
+        entry_expr=mt._a,
         path=a_tmp,
+        mean_impute=False,
+        center=False,
+        normalize=False,
         block_size=block_size)
 
-    l2 = BlockMatrix.read(r2_tmp).sum(axis=1)
-    #l2 = BlockMatrix.read(r2_tmp) @ BlockMatrix.read(a_tmp)
+    l2 = BlockMatrix.read(r2_tmp) @ BlockMatrix.read(a_tmp)
 
     ht_l2 = l2.to_table_row_major()
-
     ht_l2 = ht_l2.annotate(
         locus=mt_a.rows()[ht_l2.row_idx].locus,
         ld_scores=ht_l2.entries)
-
     ht_l2 = ht_l2.key_by(ht_l2.locus)
     ht_l2 = ht_l2.drop(ht_l2.row_idx, ht_l2.entries)
 
