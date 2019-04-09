@@ -24,32 +24,32 @@ build-spark-base: build-common
 	-docker pull gcr.io/$(PROJECT)/spark-base:latest
 	docker build -t spark-base -f Dockerfile.spark-base . --cache-from spark-base,gcr.io/$(PROJECT)/spark-base:latest,debian:9.5
 
-build-hail-base: build-common
+build-hail-base: build-common build-spark-base
 	-docker pull gcr.io/$(PROJECT)/spark-base:latest
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	docker build -t hail-base -f Dockerfile.hail-base . --cache-from hail-base,gcr.io/$(PROJECT)/hail-base:latest,spark-base
 
-build-spark-master: build-common
+build-spark-master: build-common build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/spark-master:latest
 	docker build -t spark-master -f Dockerfile.spark-master . --cache-from spark-master,gcr.io/$(PROJECT)/spark-master:latest,hail-base
 
-build-spark-worker: build-common
+build-spark-worker: build-common build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/spark-worker:latest
 	docker build -t spark-worker -f Dockerfile.spark-worker . --cache-from spark-worker,gcr.io/$(PROJECT)/spark-worker:latest,hail-base
 
-build-apiserver: build-common
+build-apiserver: build-common build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/apiserver:latest
 	docker build -t apiserver -f Dockerfile.apiserver . --cache-from apiserver,gcr.io/$(PROJECT)/apiserver:latest,hail-base
 
-build-hail-jupyter: build-common
+build-hail-jupyter: build-common build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/hail-jupyter:latest
 	docker build -t hail-jupyter -f Dockerfile.hail-jupyter . --cache-from hail-jupyter,gcr.io/$(PROJECT)/hail-jupyter:latest,hail-base
 
-build: build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver build-hail-jupyter
+build: build-spark-master build-spark-worker build-apiserver build-hail-jupyter
 
 SPARK_MASTER_IMAGE = "gcr.io/$(PROJECT)/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')"
 SPARK_WORKER_IMAGE = "gcr.io/$(PROJECT)/spark-worker:$(shell docker images -q --no-trunc spark-worker | sed -e 's,[^:]*:,,')"
