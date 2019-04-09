@@ -5,7 +5,6 @@ import sched
 import uuid
 from collections import Counter
 import threading
-import asyncio
 import kubernetes as kube
 import cerberus
 import requests
