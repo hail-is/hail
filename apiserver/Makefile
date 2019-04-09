@@ -1,4 +1,6 @@
-.PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar
+.PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar \
+				build-spark-base build-hail-base build-spark-master build-spark-worker \
+				build-apiserver
 
 PROJECT := $(shell gcloud config get-value project)
 GSA_KEY_FILE = /gsa-key/privateKeyData
@@ -16,35 +18,33 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
-build-common: install-hail-locally jupyter_notebook_config.py
-
 ifeq ($(IN_HAIL_CI),1)
-build-spark-base: build-common
+build-spark-base:
 	docker pull debian:9.5
 	-docker pull gcr.io/$(PROJECT)/spark-base:latest
 	docker build -t spark-base -f Dockerfile.spark-base . --cache-from spark-base,gcr.io/$(PROJECT)/spark-base:latest,debian:9.5
 
-build-hail-base: build-common build-spark-base
+build-hail-base: build-spark-base install-hail-locally
 	-docker pull gcr.io/$(PROJECT)/spark-base:latest
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	docker build -t hail-base -f Dockerfile.hail-base . --cache-from hail-base,gcr.io/$(PROJECT)/hail-base:latest,spark-base
 
-build-spark-master: build-common build-hail-base
+build-spark-master: build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/spark-master:latest
 	docker build -t spark-master -f Dockerfile.spark-master . --cache-from spark-master,gcr.io/$(PROJECT)/spark-master:latest,hail-base
 
-build-spark-worker: build-common build-hail-base
+build-spark-worker: build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/spark-worker:latest
 	docker build -t spark-worker -f Dockerfile.spark-worker . --cache-from spark-worker,gcr.io/$(PROJECT)/spark-worker:latest,hail-base
 
-build-apiserver: build-common build-hail-base
+build-apiserver: build-hail-base
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/apiserver:latest
 	docker build -t apiserver -f Dockerfile.apiserver . --cache-from apiserver,gcr.io/$(PROJECT)/apiserver:latest,hail-base
 
-build-hail-jupyter: build-common build-hail-base
+build-hail-jupyter: build-hail-base jupyter_notebook_config.py
 	-docker pull gcr.io/$(PROJECT)/hail-base:latest
 	-docker pull gcr.io/$(PROJECT)/hail-jupyter:latest
 	docker build -t hail-jupyter -f Dockerfile.hail-jupyter . --cache-from hail-jupyter,gcr.io/$(PROJECT)/hail-jupyter:latest,hail-base
@@ -76,19 +76,13 @@ deploy: push
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
 else
-build: build-common
+build: install-hail-locally jupyter_notebook_config.py
 	docker build -t spark-base -f Dockerfile.spark-base .
 	docker build -t hail-base -f Dockerfile.hail-base .
 	docker build -t spark-master -f Dockerfile.spark-master .
 	docker build -t spark-worker -f Dockerfile.spark-worker .
 	docker build -t apiserver -f Dockerfile.apiserver .
 	docker build -t hail-jupyter -f Dockerfile.hail-jupyter .
-
-err:="\nAh ah ah! You're not CI and you didn't say the magic word\n"
-push:
-	@echo $(err)
-deploy:
-	@echo $(err)
 endif
 
 build-hail-shadow-jar:
