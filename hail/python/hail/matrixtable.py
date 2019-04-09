@@ -2500,7 +2500,7 @@ class MatrixTable(ExprContainer):
 
         def __str__(self):
             s = self.table_show.__str__()
-            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
+            s += f"showing the first { self.n_cols } columns"
             return s
 
         def __repr__(self):
@@ -2509,7 +2509,7 @@ class MatrixTable(ExprContainer):
         def _repr_html_(self):
             s = self.table_show._repr_html_()
             s += '<p>'
-            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
+            s += f"showing the first { self.n_cols } columns"
             s += '</p>\n'
             return s
 
