@@ -387,7 +387,7 @@ object LowerMatrixIR {
             .dropFields(entriesField, currentColIdx)
             .insertFields(newFields: _*)
         }).mapGlobals('global.dropFields(colsField, oldColIdx))
-        .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
+        .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = !(child.typ.rowKey.isEmpty && child.typ.colKey.nonEmpty))
 
     case MatrixRowsTable(child) =>
       lower(child)
