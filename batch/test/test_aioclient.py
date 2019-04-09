@@ -1,15 +1,19 @@
 import os
 import asyncio
+import aiohttp
 import unittest
 import batch
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.client = batch.aioclient.BatchClient(url=os.environ.get('BATCH_URL'))
+        self.session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self.client = batch.aioclient.BatchClient(self.session, url=os.environ.get('BATCH_URL'))
 
     def tearDown(self):
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.client.close())
+        loop.run_until_complete(self.session.close())
 
     def test_job(self):
         async def f():
