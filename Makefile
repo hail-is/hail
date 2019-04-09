@@ -1,7 +1,7 @@
 .PHONY: hail-ci-build-image push-hail-ci-build-image
 .DEFAULT_GOAL := default
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 
 # We need to pull each image we use as a cache and we must insure the FROM image
 # is in our cache-from list. I also include the local `hail-pr-builder` to

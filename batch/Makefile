@@ -5,7 +5,7 @@
   check clean \
   install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
 BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
 
