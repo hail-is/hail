@@ -30,6 +30,9 @@ v0_2 = {
         'version': '0.2',
         'supported_spark': {'2.4.0': '1.4-deb9'}
     },
+    'flags': {
+        'image-version': '{image}',
+    },
 }
 
 v0_1 = {
