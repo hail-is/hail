@@ -100,7 +100,7 @@ class PR(object):
         # one of pending, changes_requested, approve
         self.state = None
 
-        self.job = None
+        self.batch = None
         self.passing = None
 
     def update_from_gh_json(self, gh_json):
@@ -110,7 +110,7 @@ class PR(object):
         new_source_sha = gh_json['head']['sha']
         if self.source_sha != new_source_sha:
             self.source_sha = new_source_sha
-            self.job = None
+            self.batch = None
             self.passing = None
 
     @staticmethod
@@ -139,24 +139,28 @@ class PR(object):
 
         self.state = total_state
 
-    async def heal(self, batch, run, seen_job_ids):
-        if self.job is None:
-            jobs = await batch.list_jobs(
+    async def heal(self, batch, run, seen_batch_ids):
+        if self.batch is None:
+            batches = await batch.list_batches(
                 complete=False,
                 attributes={
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 })
-            # we might be returning to a commit that was only partially tested
-            jobs = [j for j in jobs if j._status['state'] != 'Cancelled']
 
-            # should be at most one job
-            if len(jobs) > 0:
-                self.job = jobs[0]
+            # FIXME
+            def batch_was_cancelled(batch):
+                status = batch.status()
+                return any(j['state'] == 'Cancelled' for j in status['jobs'])
+
+            # we might be returning to a commit that was only partially tested
+            batches = [b for b in batches if not batch_was_cancelled(b)]
+
+            # should be at most one batch
+            if len(batches) > 0:
+                self.batch = batches[0]
             elif run:
-                self.job = await batch.create_job(
-                    # FIXME build
-                    'alpine', ['echo', 'foo'],
+                self.batch = await batch.create_batch(
                     attributes={
                         'target_branch': self.target_branch.branch.short_str(),
                         'pr': str(self.number),
@@ -164,16 +168,15 @@ class PR(object):
                         'target_sha': self.target_branch.sha
                     })
 
-        if self.job:
-            seen_job_ids.add(self.job.id)
+                # FIXME build
+                await self.batch.create_job('alpine', ['echo', 'foo'])
 
+        if self.batch:
+            seen_batch_ids.add(self.batch.id)
             if self.passing is None:
-                status = await self.job.status()
-                state = status['state']
-                if state == 'Complete':
-                    self.passing = status['exit_code'] == 0
-                else:
-                    assert state == 'Created'
+                status = await self.batch.status()
+                if all(j['state'] == 'Complete' for j in status['jobs']):
+                    self.passing = all(j['exit_code'] == 0 for j in status['jobs'])
 
 
 class WatchedBranch(object):
@@ -191,7 +194,7 @@ class WatchedBranch(object):
             self.sha = new_sha
             if self.prs:
                 for pr in self.prs:
-                    pr.job = None
+                    pr.batch = None
                     pr.passing = None
 
         new_prs = {}
@@ -216,16 +219,16 @@ class WatchedBranch(object):
                 merge_candidate = pr.number
                 break
 
-        running_jobs = await batch.list_jobs(
+        running_batches = await batch.list_batches(
             complete=False,
             attributes={
                 'target_branch': self.branch.short_str()
             })
 
-        seen_job_ids = set()
+        seen_batch_ids = set()
         for number, pr in self.prs.items():
-            await pr.heal(batch, (merge_candidate is None or pr.number == merge_candidate), seen_job_ids)
+            await pr.heal(batch, (merge_candidate is None or pr.number == merge_candidate), seen_batch_ids)
 
-        for job in running_jobs:
-            if job.id not in seen_job_ids:
-                await job.cancel()
+        for batch in running_batches:
+            if batch.id not in seen_batch_ids:
+                await batch.cancel()

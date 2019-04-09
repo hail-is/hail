@@ -212,12 +212,14 @@ class Test(unittest.TestCase):
         j3.cancel()
         bstatus = b.wait()
 
-        n_cancelled = bstatus['jobs']['Cancelled']
-        n_complete = bstatus['jobs']['Complete']
+        assert(len(bstatus['jobs']) == 3)
+        state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
+        n_cancelled = state_count['Cancelled']
+        n_complete = state_count['Complete']
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
-        n_failed = sum([ec > 0 for _, ec in bstatus['exit_codes'].items() if ec is not None])
+        n_failed = sum([j['exit_cod'] > 0 for j in bstatus['jobs'] if j['status'] == 'Completed'])
         self.assertTrue(n_failed == 1)
 
     def test_callback(self):

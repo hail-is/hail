@@ -249,6 +249,12 @@ class BatchClient:
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
 
+    async def get_batch(self, id):
+        j = await self._get(f'/batches/{id}')
+        return Batch(self,
+                     j['id'],
+                     attributes=j.get('attributes'))
+
     async def create_job(self,
                          image,
                          command=None,

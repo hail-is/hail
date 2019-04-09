@@ -33,8 +33,8 @@
             {{ pr.title }}
           </td>
           <td align="left">
-            {% if pr.job_id is not none %}
-            <a href="/jobs/{{ pr.job_id }}/log">
+            {% if pr.batch_id is not none %}
+            <a href="/batches/{{ pr.batch_id }}/log">
               {% if pr.passing is not none %}
               {% if pr.passing %}
               successful build
