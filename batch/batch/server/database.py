@@ -69,19 +69,19 @@ class JobsTable(Table):
 
 class JobsParentsTable(Table):
     async def __init__(self, db, name='jobs-parents'):
-        schema = {'id': 'BIGINT',
-                  'parent': 'BIGINT'}
+        schema = {'job_id': 'BIGINT',
+                  'parent_id': 'BIGINT'}
         keys = []
 
         await super().__init__(db, name, schema, keys)
 
-    async def get_parents(self, id):
-        result = await super(JobsParentsTable, self).get_record({'id': id}, ['parent'])
-        return [record['parent'] for record in result]
+    async def get_parents(self, job_id):
+        result = await super(JobsParentsTable, self).get_record({'job_id': job_id}, ['parent_id'])
+        return [record['parent_id'] for record in result]
 
-    async def get_children(self, id):
-        result = await super(JobsParentsTable, self).get_record({'parent': id}, ['id'])
-        return [record['id'] for record in result]
+    async def get_children(self, parent_id):
+        result = await super(JobsParentsTable, self).get_record({'parent_id': parent_id}, ['job_id'])
+        return [record['job_id'] for record in result]
 
 
 class BatchTable(Table):
@@ -114,20 +114,20 @@ class BatchTable(Table):
 
 class BatchJobsTable(Table):
     async def __init__(self, db, name='batch-jobs'):
-        schema = {'id': 'BIGINT',
-                  'job': 'BIGINT'}
+        schema = {'batch_id': 'BIGINT',
+                  'job_id': 'BIGINT'}
         keys = []
 
         await super().__init__(db, name, schema, keys)
 
-    async def get_jobs(self, id):
-        result = await super(BatchJobsTable, self).get_record({'id': id})
-        return [record['job'] for record in result]
+    async def get_jobs(self, batch_id):
+        result = await super(BatchJobsTable, self).get_record({'batch_id': batch_id})
+        return [record['job_id'] for record in result]
 
     async def delete_record(self, batch_id, job_id):
-        await super(BatchJobsTable, self).delete_record({'id': batch_id,
-                                                         'job': job_id})
+        await super(BatchJobsTable, self).delete_record({'batch_id': batch_id,
+                                                         'job_id': job_id})
 
     async def has_record(self, batch_id, job_id):
-        await super(BatchJobsTable, self).has_record({'id': batch_id,
-                                                      'job': job_id})
+        await super(BatchJobsTable, self).has_record({'batch_id': batch_id,
+                                                      'job_id': job_id})
