@@ -2502,7 +2502,7 @@ class MatrixTable(ExprContainer):
         def __str__(self):
             s = self.table_show.__str__()
             if self.displayed_n_cols != self.actual_n_cols:
-                s += f"showing the first { self.displayed_n_cols } columns of { self.actual_n_cols }"
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
             return s
 
         def __repr__(self):
@@ -2512,7 +2512,7 @@ class MatrixTable(ExprContainer):
             s = self.table_show._repr_html_()
             if self.displayed_n_cols != self.actual_n_cols:
                 s += '<p>'
-                s += f"showing the first { self.displayed_n_cols } columns of { self.actual_n_cols }"
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
                 s += '</p>\n'
             return s
 
