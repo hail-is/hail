@@ -30,6 +30,18 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 
+class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
+  override def peek(): String = bit.head
+
+  override def hasNext: Boolean = bit.hasNext
+
+  override def next(): String = bit.next()
+
+  override def remove() {
+    throw new UnsupportedOperationException
+  }
+}
+
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
   filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
 
@@ -1705,17 +1717,5 @@ class VCFsReader(
     files.zipWithIndex.map { case (file, i) =>
       readFile(file, i)
     }
-  }
-}
-
-class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
-  override def peek(): String = bit.head
-
-  override def hasNext: Boolean = bit.hasNext
-
-  override def next(): String = bit.next()
-
-  override def remove() {
-    throw new UnsupportedOperationException
   }
 }
