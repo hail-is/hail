@@ -87,7 +87,7 @@ object ComputeUsesAndDefs {
     }
 
     ir0 match {
-      case ir: IR => computeIR(ir, BindingEnv.empty)
+      case ir: IR => computeIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
       case tir: TableIR => computeTable(tir)
       case mir: MatrixIR => computeMatrix(mir)
       case bmir: BlockMatrixIR => computeBlockMatrix(bmir)

@@ -88,7 +88,7 @@ object ForwardLets {
     }
 
     ir1 match {
-      case ir: IR => rewrite(ir, BindingEnv.empty)
+      case ir: IR => rewrite(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
       case tir: TableIR => rewriteTable(tir)
       case mir: MatrixIR => rewriteMatrix(mir)
       case bmir: BlockMatrixIR => rewriteBlockMatrix(bmir)

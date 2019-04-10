@@ -16,7 +16,7 @@ class NormalizeNames(allowFreeVariables: Boolean = false) {
 
   def apply(ir: BaseIR): BaseIR = {
     ir match {
-      case ir: IR => normalizeIR(ir, BindingEnv.empty)
+      case ir: IR => normalizeIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
       case tir: TableIR => normalizeTable(tir)
       case mir: MatrixIR => normalizeMatrix(mir)
       case bmir: BlockMatrixIR => normalizeBlockMatrix(bmir)
