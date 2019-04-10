@@ -392,7 +392,7 @@ class Job:
     async def cancel(self):
         if self.is_complete():
             return
-        await self.set_state('Cancelled') # must call before deleting resources to prevent race conditions
+        await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
         await self._delete_k8s_resources()
 
     async def delete(self):

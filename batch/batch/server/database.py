@@ -1,6 +1,6 @@
 import os
 
-from ..database import Database, Table, run_synchronous
+from ..database import Database, Table
 
 
 class BatchDatabase(Database):
