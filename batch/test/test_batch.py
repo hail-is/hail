@@ -220,7 +220,7 @@ class Test(unittest.TestCase):
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
-        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] == 'Completed'])
+        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
         self.assertTrue(n_failed == 1)
 
     def test_callback(self):
