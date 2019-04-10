@@ -1,9 +1,10 @@
 import os
 import time
+import traceback
 import random
 import sched
 import uuid
-from collections import Counter
+from collections import Counter, deque
 import threading
 import kubernetes as kube
 import cerberus
@@ -41,11 +42,13 @@ KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECO
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
+PVC_POOL_SIZE = int(os.environ.get('PVC_POOL_SIZE', '5'))
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'POD_NAMESPACE {POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
+log.info(f'PVC_POOL_SIZE {PVC_POOL_SIZE}')
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -121,6 +124,51 @@ class JobTask:  # pylint: disable=R0903
         self.name = name
 
 
+class PVCPool:
+    def __init__(self):
+        self.pool = deque([PVCPool.create_pvc() for _ in range(PVC_POOL_SIZE)])
+        app.on_cleanup.append(self.close)
+
+    async def close(self, app):
+        del app
+        log.info('start closing pvcs')
+        for pvc in self.pool:
+            try:
+                v1.delete_namespaced_persistent_volume_claim(
+                    pvc.metadata.name,
+                    POD_NAMESPACE,
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kube.client.rest.ApiException as err:
+                log.info(f'during cleanup, deleting persistent volume claim '
+                         f'{pvc.metadata.name} triggered {err}')
+                traceback.print_exc()
+        log.info('done closing pvcs')
+
+    @staticmethod
+    def create_pvc():
+        return v1.create_namespaced_persistent_volume_claim(
+            POD_NAMESPACE,
+            kube.client.V1PersistentVolumeClaim(
+                metadata=kube.client.V1ObjectMeta(
+                    generate_name=f'batch-',
+                    labels={'app': 'batch-job',
+                            'hail.is/batch-instance': instance_id}),
+                spec=kube.client.V1PersistentVolumeClaimSpec(
+                    access_modes=['ReadWriteOnce'],
+                    volume_mode='Filesystem',
+                    resources=kube.client.V1ResourceRequirements(
+                        requests={'storage': POD_VOLUME_SIZE}),
+                    storage_class_name=STORAGE_CLASS_NAME)),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+    def get(self):
+        self.pool.append(PVCPool.create_pvc())
+        return self.pool.popleft()
+
+
+pvc_pool = PVCPool()
+
+
 class Job:
     def _next_task(self):
         self._task_idx += 1
@@ -131,20 +179,7 @@ class Job:
         return self._task_idx < len(self._tasks)
 
     def _create_pvc(self):
-        pvc = v1.create_namespaced_persistent_volume_claim(
-            POD_NAMESPACE,
-            kube.client.V1PersistentVolumeClaim(
-                metadata=kube.client.V1ObjectMeta(
-                    generate_name=f'job-{self.id}-',
-                    labels={'app': 'batch-job',
-                            'hail.is/batch-instance': instance_id}),
-                spec=kube.client.V1PersistentVolumeClaimSpec(
-                    access_modes=['ReadWriteOnce'],
-                    volume_mode='Filesystem',
-                    resources=kube.client.V1ResourceRequirements(
-                        requests={'storage': POD_VOLUME_SIZE}),
-                    storage_class_name=STORAGE_CLASS_NAME)),
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        pvc = pvc_pool.get()
         log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
         return pvc
 
@@ -893,6 +928,6 @@ def serve(port=5000):
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
     # flask_thread = threading.Thread(target=flask_event_loop)
     # flask_thread.start()
-    run_forever(aiohttp_event_loop, port)
+    run_once(aiohttp_event_loop, port)
 
     kube_thread.join()

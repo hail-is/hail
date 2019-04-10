@@ -13,8 +13,8 @@ cleanup() {
         python3 -c "from batch.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$table\")"
     done
 
-    [[ -z $server_pid ]] || kill -9 $server_pid
-    [[ -z $proxy_pid ]] || kill -9 $proxy_pid
+    [[ -z $server_pid ]] || kill $server_pid; sleep 2; kill -9 $server_pid
+    [[ -z $proxy_pid ]] || kill $proxy_pid; sleep 2; kill -9 $proxy_pid
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM

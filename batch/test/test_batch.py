@@ -129,13 +129,6 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
 
-    def test_deleted_job_log(self):
-        j = self.batch.create_job('alpine', ['echo', 'test'])
-        id = j.id
-        j.wait()
-        j.delete()
-        self.assertEqual(self.batch._get_job_log(id), {'main': 'test\n'})
-
     def test_delete_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
         id = j.id

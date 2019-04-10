@@ -12,9 +12,9 @@ set -x
 cleanup() {
     trap "" INT TERM
     set +e
-    [[ -z $batch_pid ]] || (kill $batch_pid; kill -9 $batch_pid)
-    [[ -z $ci_pid ]] || (kill $ci_pid; kill -9 $ci_pid)
-    [[ -z $proxy_pid ]] || (kill $proxy_pid; kill -9 $proxy_pid)
+    [[ -z $batch_pid ]] || (kill $batch_pid; sleep 2; kill -9 $batch_pid)
+    [[ -z $ci_pid ]] || (kill $ci_pid; sleep 2; kill -9 $ci_pid)
+    [[ -z $proxy_pid ]] || (kill $proxy_pid; sleep 2; kill -9 $proxy_pid)
     set +x
     curl -XDELETE \
          -i \

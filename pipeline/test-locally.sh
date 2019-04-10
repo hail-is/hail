@@ -9,8 +9,8 @@ PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 cleanup() {
     set +e
     trap "" INT TERM
-    [[ -z $server_pid ]] || kill -9 $server_pid
-    [[ -z $proxy_pid ]] || kill -9 $proxy_pid
+    [[ -z $server_pid ]] || (kill $server_pid; sleep 2; kill -9 $server_pid)
+    [[ -z $proxy_pid ]] || (kill $proxy_pid; sleep 2; kill -9 $proxy_pid)
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
