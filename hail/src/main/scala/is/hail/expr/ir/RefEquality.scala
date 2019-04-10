@@ -31,7 +31,8 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
     this
   }
 
-  def contains(ir: BaseIR): Boolean = m.contains(RefEquality(ir))
+  def contains(ir: BaseIR): Boolean = contains(RefEquality(ir))
+  def contains(ir: RefEquality[BaseIR]): Boolean = m.contains(ir)
 
   def lookup(ir: BaseIR): T = lookup(RefEquality(ir))
   def lookup(ir: RefEquality[BaseIR]): T = m(ir)

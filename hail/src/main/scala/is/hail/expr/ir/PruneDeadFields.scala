@@ -993,7 +993,7 @@ object PruneDeadFields {
           queryEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
         val aEnv = memoizeValueIR(a, aType.copyStreamable(requestedElemType), memo)
         unifyEnvs(
-          BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.agg.get.delete(name)))),
+          BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.aggOrEmpty.delete(name)))),
           aEnv)
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]

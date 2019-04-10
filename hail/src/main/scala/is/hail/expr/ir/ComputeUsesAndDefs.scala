@@ -15,7 +15,7 @@ object ComputeUsesAndDefs {
       .foreach {
         case (child: IR, i) =>
           val b = NewBindings(tir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(tir))
-          if (!b.allEmpty)
+          if (!b.allEmpty && !uses.contains(tir))
             uses.bind(tir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
@@ -29,7 +29,7 @@ object ComputeUsesAndDefs {
       .foreach {
         case (child: IR, i) =>
           val b = NewBindings(mir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(mir))
-          if (!b.allEmpty)
+          if (!b.allEmpty && !uses.contains(mir))
             uses.bind(mir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
@@ -43,7 +43,7 @@ object ComputeUsesAndDefs {
       .foreach {
         case (child: IR, i) =>
           val b = NewBindings(bmir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(bmir))
-          if (!b.allEmpty)
+          if (!b.allEmpty && !uses.contains(bmir))
             uses.bind(bmir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
         case (child: TableIR, _) => computeTable(child)
@@ -75,8 +75,9 @@ object ComputeUsesAndDefs {
                 if (newBindings.allEmpty)
                   computeIR(ir1, e)
                 else {
-                  uses.bind(ir, mutable.Set.empty[RefEquality[Ref]])
                   val re = RefEquality(ir)
+                  if (!uses.contains(re))
+                    uses.bind(re, mutable.Set.empty[RefEquality[Ref]])
                   computeIR(ir1, e.merge(newBindings.mapValues(_ => re)))
                 }
               case (tir: TableIR, _) => computeTable(tir)
