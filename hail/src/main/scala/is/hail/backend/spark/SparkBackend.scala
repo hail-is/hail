@@ -9,34 +9,42 @@ import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
 import org.apache.spark.SparkContext
-import org.json4s.jackson.JsonMethods
+import org.json4s.DefaultFormats
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object SparkBackend {
   def executeJSON(ir: IR): String = {
     val t = ir.typ
-    val res, times = execute(ir)
-    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(res, t))
+    val (value, timings) = execute(ir)
+    val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings))(new DefaultFormats {})
   }
 
-  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Map[String, Long]) = {
-    val timer = new ExecutionTimer()
+  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Map[String, Map[String, Any]]) = {
+    val evalContext = "CXX Compile"
+    val timer = new ExecutionTimer(evalContext)
     var ir = ir0
 
     ir = ir.unwrap
     if (optimize) {
-      val context = "SparkBackend.execute - first pass"
-      ir = timer.time(Optimize(ir, noisy = true, canGenerateLiterals = true, Some(context)), context)
+      val context = "first pass"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
+        context)
     }
 
-    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "SparkBackend.execute - lifting non-compilable")
-    ir = timer.time(LowerMatrixIR(ir), "SparkBackend.execute - lowering MatrixIR")
+    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "lifting non-compilable")
+    ir = timer.time(LowerMatrixIR(ir), "lowering MatrixIR")
 
     if (optimize) {
-      val context = "SparkBackend.execute - after MatrixIR lowering"
-      ir = timer.time(Optimize(ir, noisy = true, canGenerateLiterals = true, Some(context)), context)
+      val context = "after MatrixIR lowering"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
+        context)
     }
 
-    val res = ir.typ match {
+    val value = ir.typ match {
       case TVoid =>
         val f = timer.time(cxx.Compile(ir, optimize), "SparkBackend.execute - CXX compile")
         timer.time(Region.scoped { region => f(region.get()) }, "SparkBackend.execute - Runtime")
@@ -52,10 +60,10 @@ object SparkBackend {
           "SparkBackend.execute - Runtime")
     }
     
-    (res, timer.times)
+    (value, timer.times)
   }
 
-  def execute(ir: IR, optimize: Boolean = true): (Any, Map[String, Long]) = {
+  def execute(ir: IR, optimize: Boolean = true): (Any, Map[String, Map[String, Any]]) = {
     val hc = HailContext.get
     try {
       if (hc.flags.get("cpp") == null)

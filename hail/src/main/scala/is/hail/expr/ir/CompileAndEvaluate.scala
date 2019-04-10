@@ -1,43 +1,45 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.expr.types.virtual.{TStruct, TTuple, TVoid, Type}
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.{ExecutionTimer, FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
-import org.json4s.jackson.JsonMethods
 
 object CompileAndEvaluate {
   def apply[T](ir0: IR,
     env: Env[(Any, Type)] = Env(),
     args: IndexedSeq[(Any, Type)] = FastIndexedSeq(),
     optimize: Boolean = true
-  ): T = {
+  ): (T, Map[String, Map[String, Any]]) = {
+    val evalContext = "CompileAndEvaluate"
+    val timer = new ExecutionTimer(evalContext)
     var ir = ir0
 
     def optimizeIR(canGenerateLiterals: Boolean, context: String) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals, Some(context))
+      ir = timer.time(Optimize(ir, noisy = true, canGenerateLiterals, Some(s"$evalContext: $context")), context)
       TypeCheck(ir, BindingEnv(env.mapValues(_._2)))
     }
 
-    if (optimize) optimizeIR(true, "CompileAndEvaluate: first pass")
+    if (optimize) optimizeIR(true, "first pass")
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(true, "CompileAndEvaluate: after Matrix lowering")
+    if (optimize) optimizeIR(true, "after Matrix lowering")
 
     // void is not really supported by IR utilities
-    if (ir.typ == TVoid)
-      return Interpret(ir, env, args, None, optimize = false)
+    if (ir.typ == TVoid) {
+      val res = timer.time(Interpret(ir, env, args, None, optimize = false), "interpret")
+      return (res, timer.timings)
+    }
 
-    val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ir)
+    val (evalIR, ncValue, ncType, ncVar) = timer.time(InterpretNonCompilable(ir), "interpret non-compilable")
     ir = evalIR
 
     val argsInVar = genUID()
     val argsInType = TTuple(args.map(_._2))
     val argsInValue = Row.fromSeq(args.map(_._1))
 
-    // don't do exra work
+    // don't do extra work
     val rewriteArgsIn: IR => IR = if (args.isEmpty) identity[IR] else {
       def rewriteArgsIn(x: IR): IR = {
         x match {
@@ -72,31 +74,35 @@ object CompileAndEvaluate {
     val argsInPType = PType.canonical(argsInType)
     val envPType = PType.canonical(envType)
 
-    val (resultPType, f) = Compile[Long, Long, Long, Long](
+    val (resultPType, f) = timer.time(Compile[Long, Long, Long, Long](
       ncVar, ncPType,
       argsInVar, argsInPType,
       envVar, envPType,
-      MakeTuple(FastSeq(ir)))
+      MakeTuple(FastSeq(ir))), "compile")
 
-    Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(ncPType)
-      rvb.addAnnotation(ncType, ncValue)
-      val ncOffset = rvb.end()
+    val value = timer.time(
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(ncPType)
+        rvb.addAnnotation(ncType, ncValue)
+        val ncOffset = rvb.end()
 
-      rvb.start(argsInPType)
-      rvb.addAnnotation(argsInType, argsInValue)
-      val argsInOffset = rvb.end()
+        rvb.start(argsInPType)
+        rvb.addAnnotation(argsInType, argsInValue)
+        val argsInOffset = rvb.end()
 
-      rvb.start(envPType)
-      rvb.addAnnotation(envType, envValue)
-      val envOffset = rvb.end()
+        rvb.start(envPType)
+        rvb.addAnnotation(envType, envValue)
+        val envOffset = rvb.end()
 
-      val resultOff = f(0)(region,
-        ncOffset, ncValue == null,
-        argsInOffset, argsInValue == null,
-        envOffset, envValue == null)
-      SafeRow(resultPType.asInstanceOf[PBaseStruct], region, resultOff).getAs[T](0)
-    }
+        val resultOff = f(0)(region,
+          ncOffset, ncValue == null,
+          argsInOffset, argsInValue == null,
+          envOffset, envValue == null)
+        SafeRow(resultPType.asInstanceOf[PBaseStruct], region, resultOff).getAs[T](0)
+      },
+      "runtime")
+
+    (value, timer.timings)
   }
 }

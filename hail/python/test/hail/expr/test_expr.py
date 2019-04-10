@@ -2718,3 +2718,10 @@ class Tests(unittest.TestCase):
         expr_eq((nx // nx)[0], a // a)
         expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
         expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+
+    def test_timing(self):
+        hl.eval(hl.array([1, 2, 3]), timed=True)
+
+    @run_with_cxx_compile()
+    def test_timing_cxx(self):
+        hl.eval(hl.array([1, 2, 3]), timed=True)

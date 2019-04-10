@@ -1,16 +1,21 @@
 package is.hail.utils
 
-class ExecutionTimer() {
-  var timingsNanoSecs: Map[String, Long] = Map.empty
+import scala.collection.mutable
 
-  def time[T](block: => T, name: String): T = {
+class ExecutionTimer(context: String) {
+  val timesNanos: mutable.Map[String, Map[String, Any]] = mutable.Map.empty
+
+  def time[T](block: => T, stage: String): T = {
     val t0 = System.nanoTime()
     val result = block
     val t1 = System.nanoTime()
-    timingsNanoSecs += name -> (t1 - t0)
+
+    val nanos = t1 - t0
+    val timing = Map("nano" -> nanos, "readable" -> formatTime(nanos))
+    timesNanos += s"$context -- $stage" -> timing
 
     result
   }
 
-  def times: Map[String, Long] = timingsNanoSecs
+  def timings: Map[String, Map[String, Any]] = timesNanos.toMap
 }

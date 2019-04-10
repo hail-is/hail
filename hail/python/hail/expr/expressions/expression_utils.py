@@ -129,8 +129,37 @@ def analyze(caller: str,
         raise errors[0]
 
 
-@typecheck(expression=expr_any, show_times=bool)
-def eval(expression, show_times=False):
+@typecheck(expression=expr_any)
+def eval_timed(expression):
+    """Evaluate a Hail expression, returning the result and the times taken for
+    each stage in the evaluation process.
+
+    Parameters
+    ----------
+    expression : :class:`.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
+
+    Returns
+    -------
+    (Any, dict)
+        Result of evaluating `expression` and a dictionary of the timings
+    """
+    from hail.utils.java import Env
+
+    analyze('eval_timed', expression, Indices(expression._indices.source))
+
+    if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        return Env.backend().execute(expression._ir, True)
+    else:
+        return expression.collect()[0], {}
+
+
+@typecheck(expression=expr_any)
+def eval(expression):
     """Evaluate a Hail expression, returning the result.
 
     This method is extremely useful for learning about Hail expressions and
@@ -149,21 +178,18 @@ def eval(expression, show_times=False):
 
     Parameters
     ----------
-    expression
+    expression : :class:`.Expression`
+        Any expression, or a Python value that can be implicitly interpreted as an expression.
 
     Returns
     -------
     Any
     """
-    res = eval_typed(expression, show_times)
-    if show_times:
-        return res[0], res[1]
-    else:
-        return res[0]
+    return eval_timed(expression)[0]
 
 
-@typecheck(expression=expr_any, show_times=bool)
-def eval_typed(expression, show_times=False):
+@typecheck(expression=expr_any)
+def eval_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
 
     This method is extremely useful for learning about Hail expressions and understanding
@@ -191,22 +217,7 @@ def eval_typed(expression, show_times=False):
         Result of evaluating `expression`, and its type.
 
     """
-    from hail.utils.java import Env
-
-    analyze('eval_typed', expression, Indices(expression._indices.source))
-
-    if expression._indices.source is None:
-        ir_type = expression._ir.typ
-        expression_type = expression.dtype
-        if ir_type != expression.dtype:
-            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
-        res, times = Env.backend().execute(expression._ir)
-        if show_times:
-            return res, times, expression.dtype
-        else:
-            return res, expression.dtype
-    else:
-        return expression.collect()[0], expression.dtype
+    return eval(expression), expression.dtype
 
 
 def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
