@@ -60,22 +60,22 @@ HAIL_JUPYTER_IMAGE = $(REPO)/hail-jupyter:$(shell docker images -q --no-trunc ha
 push: build
 	docker tag spark-master $(SPARK_MASTER_IMAGE)
 	docker push $(SPARK_MASTER_IMAGE)
-	docker tag spark-master $(REPO)/spark-master
+	docker tag spark-master $(REPO)/spark-master:latest
 	docker push $(REPO)/spark-master
 
 	docker tag spark-worker $(SPARK_WORKER_IMAGE)
 	docker push $(SPARK_WORKER_IMAGE)
-	docker tag spark-worker $(REPO)/spark-worker
+	docker tag spark-worker $(REPO)/spark-worker:latest
 	docker push $(REPO)/spark-worker
 
 	docker tag apiserver $(APISERVER_IMAGE)
 	docker push $(APISERVER_IMAGE)
-	docker tag apiserver $(REPO)/apiserver
+	docker tag apiserver $(REPO)/apiserver:latest
 	docker push $(REPO)/apiserver
 
 	docker tag hail-jupyter $(HAIL_JUPYTER_IMAGE)
 	docker push $(HAIL_JUPYTER_IMAGE)
-	docker tag hail-jupyter $(REPO)/hail-jupyter
+	docker tag hail-jupyter $(REPO)/hail-jupyter:latest
 	docker push $(REPO)/hail-jupyter
 
 deploy: push
