@@ -33,7 +33,7 @@ object Compile {
     tub.include("<cstring>")
 
     val fb = tub.buildFunction(tub.genSym("f"),
-      (("SparkFunctionContext", "ctx") +: ("HadoopConfig", "hadoop_config") +: args.map { case (_, typ) => typeToCXXType(typ) -> "v" }).toArray,
+      (("SparkFunctionContext", "ctx") +: args.map { case (_, typ) => typeToCXXType(typ) -> "v" }).toArray,
       typeToCXXType(body.pType))
 
     val emitEnv = args.zipWithIndex
@@ -99,14 +99,12 @@ object Compile {
            |    UpcallEnv up;
            |    RegionPtr region = ((ScalaRegion *)jregion)->region_;
            |    jobject sparkUtils = ((ObjectArray *) obj)->at(0);
-           |    jobject jlit_in = ((ObjectArray *) obj)->at(1);
+           |    jobject hadoopConfig = ((ObjectArray *) obj)->at(1);
+           |    jobject jlit_in = ((ObjectArray *) obj)->at(2);
            |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());
            |
-           |    jobject jhadoop_config = ((ObjectArray *) obj)->at(2);
-           |    HadoopConfig hadoop_config(up, jhadoop_config);
-           |
-           |    return (long)$fname(SparkFunctionContext(region, sparkUtils, lit_ptr), hadoop_config $castArgs);
+           |    return (long)$fname(SparkFunctionContext(region, sparkUtils, hadoopConfig, lit_ptr) $castArgs);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -144,8 +142,9 @@ object Compile {
 
     { (region: Long) =>
       val st2 = new NativeStatus()
-      val jObjectArgs = new ObjectArray(sparkUtils, new ByteArrayInputStream(literals),
-        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef]).get()
+      val jObjectArgs = new ObjectArray(sparkUtils,
+        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
+        new ByteArrayInputStream(literals)).get()
 
       val res = nativef(st2, jObjectArgs, region)
       if (st2.fail)

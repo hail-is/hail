@@ -4,9 +4,7 @@
 
 namespace hail {
 
-HadoopConfig::HadoopConfig(UpcallEnv up, jobject jhadoop_config) :
-  up_(up),
-  jhadoop_config_(up.env()->NewGlobalRef(jhadoop_config)) { }
+HadoopConfig::HadoopConfig(jobject jhadoop_config) : jhadoop_config_(up_.env()->NewGlobalRef(jhadoop_config)) { }
 
 HadoopConfig::~HadoopConfig() { up_.env()->DeleteGlobalRef(jhadoop_config_); }
 

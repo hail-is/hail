@@ -130,14 +130,16 @@ class SparkEnv {
 struct SparkFunctionContext {
   RegionPtr region_;
   SparkEnv spark_env_;
+  HadoopConfig hadoop_conf_;
   const char * literals_;
 
-  SparkFunctionContext(RegionPtr region, jobject spark_utils, const char * literals) :
-  region_(region), spark_env_(spark_utils), literals_(literals) { }
+  SparkFunctionContext(RegionPtr region, jobject spark_utils, jobject hadoop_conf, const char * literals) :
+  region_(region), spark_env_(spark_utils), hadoop_conf_(hadoop_conf), literals_(literals) { }
 
-  SparkFunctionContext(RegionPtr region, const char * literals) : SparkFunctionContext(region, nullptr, literals) { }
+  SparkFunctionContext(RegionPtr region, const char * literals) :
+  SparkFunctionContext(region, nullptr, nullptr, literals) { }
 
-  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr, nullptr) { }
+  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr, nullptr, nullptr) { }
 };
 
 }

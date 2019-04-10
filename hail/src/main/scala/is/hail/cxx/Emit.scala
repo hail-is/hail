@@ -25,7 +25,7 @@ object Emit {
   }
 
   def apply(fb: FunctionBuilder, x: ir.IR): (EmitTriplet, Array[(String, (Array[Byte], NativeModule))], ExpectedLiterals) = {
-    val emitter = new Emitter(fb, 2, SparkFunctionContext(fb))
+    val emitter = new Emitter(fb, 1, SparkFunctionContext(fb))
     val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
     val mods = emitter.modules.result()
     val literals = emitter.literals.toArray
@@ -184,8 +184,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   val modules: ArrayBuilder[(String, (Array[Byte], NativeModule))] = new ArrayBuilder()
   val sparkEnv: Code = ctx.sparkEnv
   val literals: mutable.Map[(PType, Any), Variable] = mutable.Map()
-
-  val cxxHadoopConfig: Variable = fb.getArg(1)
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     assert(!x.typ.isInstanceOf[TStream])
@@ -1024,7 +1022,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""
              |({
              | ${ ndt.setup }
-             | $nativeEncoderClass enc { $cxxHadoopConfig.unsafe_writer("$path") };
+             | $nativeEncoderClass enc { ${ ctx.hadoopConfig }.unsafe_writer("$path") };
              |
              | enc.encode_row(${ ndt.v });
              | enc.close();

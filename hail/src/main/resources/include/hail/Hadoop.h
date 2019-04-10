@@ -16,7 +16,7 @@ class HadoopConfig {
         "(Ljava/lang/String;)Ljava/io/OutputStream;");
 
   public:
-    HadoopConfig(UpcallEnv up, jobject jhadoop_config);
+    HadoopConfig(jobject jhadoop_config);
     ~HadoopConfig();
     std::shared_ptr<OutputStream> unsafe_writer(const char *path);
 };
