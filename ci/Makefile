@@ -43,7 +43,6 @@ test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-te
 test-locally: restart-proxy install-cloud-sql-proxy
 test-locally: batch-secrets/batch-test-cloud-sql-config.json
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	CLOUD_SQL_PROXY=1 \
 	BATCH_USE_KUBE_CONFIG=1 \
 	./test-locally.sh
 
