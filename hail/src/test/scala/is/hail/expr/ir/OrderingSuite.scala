@@ -59,7 +59,7 @@ class OrderingSuite extends SparkSuite {
     val args = ts.init
     val rt = ts.last
     val irs = args.zipWithIndex.map { case (t, i) => GetTupleElement(In(i, TTuple(t)), 0) }
-    val ir = MakeTuple(Seq(irFunction(irs)))
+    val ir = MakeTuple.ordered(Seq(irFunction(irs)))
 
     args.size match {
       case 1 =>
@@ -322,7 +322,7 @@ class OrderingSuite extends SparkSuite {
         rvb.addAnnotation(tDict, dict)
         val soff = rvb.end()
 
-        val ptuple = PTuple(FastIndexedSeq(pDict.keyType))
+        val ptuple = PTuple(FastIndexedSeq(pDict.keyType): _*)
         rvb.start(ptuple)
         rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()

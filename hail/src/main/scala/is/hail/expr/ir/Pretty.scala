@@ -169,6 +169,7 @@ object Pretty {
             case ApplyComparisonOp(op, _, _) => prettyClass(op)
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
+            case MakeTuple(fields) => prettyInts(fields.map(_._1).toFastIndexedSeq)
             case MakeArray(_, typ) => typ.parsableString()
             case MakeStream(_, typ) => typ.parsableString()
             case ArrayMap(_, name, _) => prettyIdentifier(name)

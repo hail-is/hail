@@ -2,16 +2,28 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.TTuple
+import is.hail.expr.types.virtual.{TTuple, TupleField}
 import is.hail.utils._
 
-final case class PTuple(_types: IndexedSeq[PType], override val required: Boolean = false) extends PBaseStruct {
-  lazy val virtualType: TTuple = TTuple(types.map(_.virtualType), required)
+case class PTupleField(index: Int, typ: PType)
 
-  val types = _types.toArray
+
+object PTuple {
+  def apply(required: Boolean, args: PType*): PTuple = PTuple(args.iterator.zipWithIndex.map { case (t, i) => PTupleField(i, t)}.toArray, required)
+
+  def apply(args: PType*): PTuple = apply(false, args: _*)
+
+}
+
+final case class PTuple(_types: IndexedSeq[PTupleField], override val required: Boolean = false) extends PBaseStruct {
+  lazy val virtualType: TTuple = TTuple(_types.map(tf => TupleField(tf.index, tf.typ.virtualType)), required)
+
+  val types = _types.map(_.typ).toArray
   val fieldRequired: Array[Boolean] = types.map(_.required)
 
   val fields: IndexedSeq[PField] = types.zipWithIndex.map { case (t, i) => PField(s"$i", t, i) }
+
+  lazy val fieldIndex: Map[Int, Int] = _types.zipWithIndex.map { case (tf, idx) => tf.index -> idx }.toMap
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
@@ -21,7 +33,7 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
   val size: Int = types.length
 
   override def truncate(newSize: Int): PTuple =
-    PTuple(types.take(newSize), required)
+    PTuple(_types.take(newSize), required)
 
   val missingIdx = new Array[Int](size)
   val nMissing: Int = PBaseStruct.getMissingness(types, missingIdx)
@@ -29,8 +41,6 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
   val byteOffsets = new Array[Long](size)
   override val byteSize: Long = PBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
   override val alignment: Long = PBaseStruct.alignment(types)
-
-  def ++(that: PTuple): PTuple = PTuple(types ++ that.types, required = false)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
@@ -48,12 +58,11 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
 
 
   override val fundamentalType: PTuple = {
-    val fundamentalFieldTypes = types.map(t => t.fundamentalType)
-    if ((types, fundamentalFieldTypes).zipped
+    val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))
+    if ((_types, fundamentalFieldTypes).zipped
       .forall { case (t, ft) => t == ft })
       this
-    else {
+    else
       PTuple(fundamentalFieldTypes, required)
-    }
   }
 }

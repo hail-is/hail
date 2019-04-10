@@ -34,7 +34,7 @@ object CompileAndEvaluate {
     ir = evalIR
 
     val argsInVar = genUID()
-    val argsInType = TTuple(args.map(_._2))
+    val argsInType = TTuple(args.map(_._2): _*)
     val argsInValue = Row.fromSeq(args.map(_._1))
 
     // don't do exra work
@@ -76,7 +76,7 @@ object CompileAndEvaluate {
       ncVar, ncPType,
       argsInVar, argsInPType,
       envVar, envPType,
-      MakeTuple(FastSeq(ir)))
+      MakeTuple.ordered(FastSeq(ir)))
 
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)

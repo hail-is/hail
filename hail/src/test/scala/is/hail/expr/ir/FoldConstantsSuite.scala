@@ -20,7 +20,7 @@ class FoldConstantsSuite extends TestNGSuite {
   }
 
   @Test def testLiteralGeneration() {
-    val x = MakeTuple(Seq(I32(1)))
+    val x = MakeTuple.ordered(Seq(I32(1)))
     assert(FoldConstants(x) == Literal(TTuple(TInt32()), Row(1)))
     assert(FoldConstants(x, canGenerateLiterals = false) == x)
   }

@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq}
+import is.hail.utils._
 
 import scala.language.existentials
 
@@ -278,7 +278,11 @@ object GetFieldByIdx {
 
 final case class GetField(o: IR, name: String) extends IR
 
-final case class MakeTuple(types: Seq[IR]) extends IR
+object MakeTuple {
+  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
+}
+
+final case class MakeTuple(types: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR

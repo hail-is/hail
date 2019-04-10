@@ -1021,7 +1021,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields, env, rvas)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env, rvas)(addFields), srvb.offset))
 
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)

@@ -621,16 +621,16 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testMakeTuple() {
-    assertEvalsTo(MakeTuple(FastSeq()), Row())
-    assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
+    assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
+    assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
-    assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
+    assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
 
   @Test def testGetTupleElement() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
+    val t = MakeTuple.ordered(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
 
     assertEvalsTo(GetTupleElement(t, 0), 5)
@@ -685,15 +685,15 @@ class IRSuite extends SparkSuite {
   @Test def testToDict() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
+    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*)))), null)
 
     val a = MakeArray(FastIndexedSeq(
-      MakeTuple(FastIndexedSeq(I32(5), Str("a"))),
-      MakeTuple(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
-      MakeTuple(FastIndexedSeq(NA(TInt32()), Str("b"))),
-      MakeTuple(FastIndexedSeq(I32(3), NA(TString()))),
-      NA(TTuple(FastIndexedSeq(TInt32(), TString()))) // missing value
-    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))
+      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
+      MakeTuple.ordered(FastIndexedSeq(NA(TInt32()), Str("b"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(3), NA(TString()))),
+      NA(TTuple(FastIndexedSeq(TInt32(), TString()): _*)) // missing value
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*)))
 
     assertEvalsTo(ToDict(a), Map(5 -> "a", (null, "b"), 3 -> null))
   }
@@ -1236,7 +1236,7 @@ class IRSuite extends SparkSuite {
     )
 
     assertEvalsTo(Literal(types(0), values(0)), values(0))
-    assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
+    assertEvalsTo(MakeTuple.ordered(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
   }
 
@@ -1272,7 +1272,7 @@ class IRSuite extends SparkSuite {
   @Test def testGroupByKey() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
+    def tuple(k: String, v: Int): IR = MakeTuple.ordered(Seq(Str(k), I32(v)))
 
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
 
@@ -1405,7 +1405,7 @@ class IRSuite extends SparkSuite {
       InsertFields(s, Seq("x" -> i)),
       InsertFields(s, Seq("* x *" -> i)), // Won't parse as a simple identifier
       GetField(s, "x"),
-      MakeTuple(Seq(i, b)),
+      MakeTuple(Seq(2 -> i, 4 -> b)),
       GetTupleElement(t, 1),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),

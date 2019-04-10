@@ -47,7 +47,7 @@ object PType {
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      PTuple(fields.map(_.typ), required)
+      PTuple(required, fields.map(_.typ): _*)
     }
   }
 
@@ -117,7 +117,7 @@ object PType {
       case t: TArray => PArray(canonical(t.elementType), t.required)
       case t: TSet => PSet(canonical(t.elementType), t.required)
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
-      case t: TTuple => PTuple(t.types.map(canonical), t.required)
+      case t: TTuple => PTuple(t.required, t.types.map(canonical): _*)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
       case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case TVoid => PVoid
@@ -140,7 +140,7 @@ object PType {
       case t: PStream => PStream(canonical(t.elementType), t.required)
       case t: PArray => PArray(canonical(t.elementType), t.required)
       case t: PSet => PSet(canonical(t.elementType), t.required)
-      case t: PTuple => PTuple(t.types.map(canonical), t.required)
+      case t: PTuple => PTuple(t.required, t.types.map(canonical): _*)
       case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
       case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)

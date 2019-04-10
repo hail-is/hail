@@ -182,7 +182,10 @@ object PruneDeadFields {
             TStruct(ts.required, subFields: _*)
           case tt: TTuple =>
             val subTuples = children.map(_.asInstanceOf[TTuple])
-            TTuple(tt.required, tt.types.indices.map(i => unifySeq(tt.types(i), subTuples.map(_.types(i)))): _*)
+            TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
+              .filter(_._2.nonEmpty)
+              .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) },
+              tt.required)
           case ta: TStreamable =>
             ta.copyStreamable(unifySeq(ta.elementType, children.map(_.asInstanceOf[TStreamable].elementType)))
           case _ =>
@@ -1028,19 +1031,19 @@ object PruneDeadFields {
         memoizeValueIR(old, TStruct(old.typ.required, fields.flatMap(f => sType.fieldOption(f).map(f -> _.typ)): _*), memo)
       case GetField(o, name) =>
         memoizeValueIR(o, TStruct(o.typ.required, name -> requestedType), memo)
-      case MakeTuple(types) =>
+      case MakeTuple(fields) =>
         val tType = requestedType.asInstanceOf[TTuple]
-        assert(types.length == tType.size)
+
         unifyEnvsSeq(
-          types.zip(tType.types).map { case (tir, t) => memoizeValueIR(tir, t, memo) }
-        )
+          fields.flatMap { case (i, value) =>
+            // ignore unreachable fields, these are eliminated on the upwards pass
+            tType.fieldIndex.get(i)
+              .map { idx =>
+                memoizeValueIR(value, tType.types(idx), memo)
+              }})
       case GetTupleElement(o, idx) =>
-        // FIXME handle tuples better
         val childTupleType = o.typ.asInstanceOf[TTuple]
-        val tupleDep = TTuple(childTupleType.required,
-          childTupleType.types
-            .zipWithIndex
-            .map { case (t, i) => if (i == idx) requestedType else minimal(t) }: _*)
+        val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)), childTupleType.required)
         memoizeValueIR(o, tupleDep, memo)
       case TableCount(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
@@ -1346,6 +1349,16 @@ object PruneDeadFields {
             None
           }
         })
+      case MakeTuple(fields) =>
+        val depTuple = requestedType.asInstanceOf[TTuple]
+        // drop unnecessary field IRs
+        val depFieldIndices = depTuple.fieldIndex.keySet
+        MakeTuple(fields.flatMap { case (i, f) =>
+          if (depFieldIndices(i))
+            Some(i -> rebuild(f, in, memo))
+          else
+            None
+        })
       case InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
@@ -1428,8 +1441,8 @@ object PruneDeadFields {
           val rt = rType.asInstanceOf[TTuple]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
-          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
-            upcast(GetTupleElement(ref, i), typ)
+          val mt = MakeTuple(rt.fields.map { fd =>
+            fd.index -> upcast(GetTupleElement(ref, fd.index), fd.typ)
           })
           Let(uid, ir, mt)
         case td: TDict =>

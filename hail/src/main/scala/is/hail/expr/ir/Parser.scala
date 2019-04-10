@@ -301,6 +301,13 @@ object IRParser {
     (name, desc)
   }
 
+  def tuple_subset_field(it: TokenIterator): (Int, Type) = {
+    val i = int32_literal(it)
+    punctuation(it, ":")
+    val t = type_expr(it)
+    i -> t
+  }
+
   def type_field(it: TokenIterator): (String, Type) = {
     val name = identifier(it)
     punctuation(it, ":")
@@ -378,7 +385,12 @@ object IRParser {
         punctuation(it, "[")
         val types = repsepUntil(it, type_expr, PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
-        TTuple(types, req)
+        TTuple(types.zipWithIndex.map { case (t, idx) => TupleField(idx, t)}, req)
+      case "TupleSubset" =>
+        punctuation(it, "[")
+        val fields = repsepUntil(it, tuple_subset_field, PunctuationToken(","), PunctuationToken("]"))
+        punctuation(it, "]")
+        TTuple(fields.map { case (idx, t) => TupleField(idx, t)}, req)
       case "Struct" =>
         punctuation(it, "{")
         val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
@@ -776,8 +788,9 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         GetField(s, name)
       case "MakeTuple" =>
+        val indices = int32_literals(it)
         val args = ir_value_children(env)(it)
-        MakeTuple(args)
+        MakeTuple(indices.zip(args))
       case "GetTupleElement" =>
         val idx = int32_literal(it)
         val tuple = ir_value_expr(env)(it)

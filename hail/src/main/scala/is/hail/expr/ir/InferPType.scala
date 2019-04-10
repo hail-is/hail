@@ -139,7 +139,7 @@ object InferPType {
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>
         // FIXME requiredness
-        PTuple(values.map(_.pType).toFastIndexedSeq, required = false)
+        PTuple(values.map { case (i, value) => PTupleField(i, value.pType) }.toFastIndexedSeq, required = false)
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
         val fd = t.types(idx)

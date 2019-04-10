@@ -28,7 +28,7 @@ object SparkBackend {
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some("SparkBackend.execute - after MatrixIR lowering"))
 
-    val pipeline = MakeTuple(FastIndexedSeq(LowerTableIR.lower(ir)))
+    val pipeline = MakeTuple.ordered(FastIndexedSeq(LowerTableIR.lower(ir)))
 
     val f = cxx.Compile(pipeline, optimize: Boolean)
 

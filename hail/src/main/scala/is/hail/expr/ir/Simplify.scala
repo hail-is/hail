@@ -259,7 +259,7 @@ object Simplify {
       assert(x2.typ == x.typ)
       x2
 
-    case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
+    case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
 

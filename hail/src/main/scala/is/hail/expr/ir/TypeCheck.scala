@@ -240,7 +240,9 @@ object TypeCheck {
         assert(t.index(name).nonEmpty, s"$name not in $t")
         assert(x.typ == -t.field(name).typ)
       case x@MakeTuple(types) =>
-        assert(x.typ == TTuple(types.map(_.typ): _*))
+        val indices = types.map(_._1)
+        assert(indices.areDistinct())
+        assert(indices.isSorted)
       case x@GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         assert(idx >= 0 && idx < t.size)

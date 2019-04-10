@@ -57,7 +57,7 @@ object Graph {
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple(FastSeq(ir)))
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple.ordered(FastSeq(ir)))
       assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {

@@ -160,8 +160,9 @@ object Copy {
           initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
           args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case MakeTuple(_) =>
-        MakeTuple(newChildren.map(_.asInstanceOf[IR]))
+      case MakeTuple(fields) =>
+        assert(fields.length == newChildren.length)
+        MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)

@@ -60,7 +60,7 @@ object DictFunctions extends RegistryFunctions {
       ArrayMap(
         ToArray(d),
         elt.name,
-        MakeTuple(Seq(GetField(elt, "key"), GetField(elt, "value"))))
+        MakeTuple.ordered(Seq(GetField(elt, "key"), GetField(elt, "value"))))
     }
 
     registerIR("keySet", tdict, TSet(tv("key"))) { d =>

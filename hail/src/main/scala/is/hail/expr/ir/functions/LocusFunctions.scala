@@ -63,7 +63,7 @@ object LocusFunctions extends RegistryFunctions {
       val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
       val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
 
-      val srvb = new StagedRegionValueBuilder(mb, PTuple(FastIndexedSeq(tv("T").t.physicalType, PArray(PString()))))
+      val srvb = new StagedRegionValueBuilder(mb, PTuple(FastIndexedSeq(tv("T").t.physicalType, PArray(PString())): _*))
       Code(
         returnTuple := tuple,
         srvb.start(),
@@ -91,7 +91,7 @@ object LocusFunctions extends RegistryFunctions {
 
         val groupedt = PArray(PArray(PFloat64()))
         val coordt = types.coerce[PArray](groupedt.elementType)
-        val rt = PTuple(FastIndexedSeq(PArray(PInt64()), PArray(PInt64())))
+        val rt = PTuple(FastIndexedSeq(PArray(PInt64()), PArray(PInt64())): _*)
 
         val ncontigs = mb.newLocal[Int]("ncontigs")
         val totalLen = mb.newLocal[Int]("l")

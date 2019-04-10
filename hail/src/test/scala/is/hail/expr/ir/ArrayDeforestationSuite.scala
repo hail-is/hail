@@ -46,7 +46,7 @@ class ArrayDeforestationSuite extends SparkSuite {
   }
 
   def arrayFoldWithStruct(len: IR, v1: Int, v2: Int): IR = {
-    val zero = MakeTuple(FastSeq(
+    val zero = MakeTuple.ordered(FastSeq(
       MakeStruct(FastSeq[(String, IR)]("f1" -> v1, "f2" -> v2)),
       MakeStruct(FastSeq[(String, IR)]("f1" -> v1, "f2" -> v2))))
     val array = arrayWithRegion(len)
@@ -56,7 +56,7 @@ class ArrayDeforestationSuite extends SparkSuite {
       array,
       zero,
       accum.name, value.name,
-      MakeTuple(FastSeq(GetTupleElement(accum, 1), value)))
+      MakeTuple.ordered(FastSeq(GetTupleElement(accum, 1), value)))
   }
 
   @Test def testArrayFold() {

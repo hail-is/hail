@@ -110,6 +110,8 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
+  def isCanonical: Boolean = rvRowType.isCanonical && globalType.isCanonical && colType.isCanonical
+
   def canonicalRVDType: RVDType = RVDType(rvRowType.physicalType, rowKey)
 
   def refMap: Map[String, Type] = Map(

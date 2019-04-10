@@ -70,6 +70,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+    assert(typ.isCanonical)
     val hc = HailContext.get
 
     val codecSpec =

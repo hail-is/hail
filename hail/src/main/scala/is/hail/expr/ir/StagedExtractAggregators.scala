@@ -107,7 +107,7 @@ object StagedExtractAggregators {
           Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSig)),
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
-        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, _) =>
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()

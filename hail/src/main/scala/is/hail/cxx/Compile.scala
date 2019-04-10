@@ -40,7 +40,7 @@ object Compile {
     val (v, mods, emitLiterals) = Emit(fb, ir.Streamify(ir.Subst(body, BindingEnv(emitEnv))))
 
     val (literals, litvars) = emitLiterals.unzip
-    val litType = PTuple(literals.map { case (t, _) => t })
+    val litType = PTuple(literals.map { case (t, _) => t }: _*)
     val f = { spec: CodecSpec =>
 
       val baos = new ByteArrayOutputStream()

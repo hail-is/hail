@@ -424,15 +424,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           pStruct.cxxLoadField(ot.v, fieldIdx))
 
       case ir.GetTupleElement(o, idx) =>
-        val pStruct = o.pType.asInstanceOf[PTuple]
+        val pTuple = o.pType.asInstanceOf[PTuple]
         val ot = emit(o).memoize(fb)
+        val fieldIndex = pTuple.fieldIndex(idx)
         triplet(Code(ot.setup),
-          s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, idx) })",
-          pStruct.cxxLoadField(ot.v, idx))
+          s"${ ot.m } || (${ pTuple.cxxIsFieldMissing(ot.v, fieldIndex) })",
+          pTuple.cxxLoadField(ot.v, fieldIndex))
 
       case ir.MakeTuple(fields) =>
         val sb = resultRegion.structBuilder(fb, pType.asInstanceOf[PBaseStruct])
-        fields.foreach { x =>
+        fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
         sb.triplet()

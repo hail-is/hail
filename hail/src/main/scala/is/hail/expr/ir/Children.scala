@@ -111,8 +111,8 @@ object Children {
       constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
-    case MakeTuple(types) =>
-      types.toFastIndexedSeq
+    case MakeTuple(fields) =>
+      fields.map(_._2).toFastIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
     case In(i, typ) =>

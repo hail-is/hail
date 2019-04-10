@@ -164,6 +164,7 @@ case class MatrixValue(
   }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+    assert(typ.isCanonical)
     val hc = HailContext.get
     val hadoopConf = hc.hadoopConf
 

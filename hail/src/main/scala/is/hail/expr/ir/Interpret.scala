@@ -662,13 +662,13 @@ object Interpret {
           oValue.asInstanceOf[Row].get(fieldIndex)
         }
       case MakeTuple(types) =>
-        Row.fromSeq(types.map(x => interpret(x, env, args, agg)))
+        Row.fromSeq(types.map { case (_, x) => interpret(x, env, args, agg) })
       case GetTupleElement(o, idx) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)
           null
         else
-          oValue.asInstanceOf[Row].get(idx)
+          oValue.asInstanceOf[Row].get(o.typ.asInstanceOf[TTuple].fieldIndex(idx))
       case In(i, _) =>
         val (a, _) = args(i)
         a
@@ -709,7 +709,7 @@ object Interpret {
           }.toFastIndexedSeq
           val wrappedIR = Copy(ir, wrappedArgs).asInstanceOf[IR]
 
-          val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)))
+          val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple.ordered(List(wrappedIR)))
           makeFunction(0)
         })
         Region.scoped { region =>
@@ -725,7 +725,7 @@ object Interpret {
           val offset = rvb.end()
 
           val resultOffset = f(region, offset, false)
-          SafeRow(PTuple(FastIndexedSeq(ir.implementation.returnType.subst().physicalType), required = true), region, resultOffset)
+          SafeRow(PTuple(ir.implementation.returnType.subst().physicalType), region, resultOffset)
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
@@ -765,7 +765,7 @@ object Interpret {
           "global", child.typ.globalType.physicalType,
           "global", child.typ.globalType.physicalType,
           "row", child.typ.rowType.physicalType,
-          MakeTuple(Array(query)), "AGGR",
+          MakeTuple.ordered(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 

@@ -6,7 +6,7 @@ import is.hail.expr.types.virtual.{TArray, TFloat64, TString, TTuple}
 import is.hail.stats.DownsampleCombiner
 
 object RegionValueDownsampleAggregator {
-  val typ = TArray(TTuple(Array(TFloat64(), TFloat64(), TArray(TString()))))
+  val typ = TArray(TTuple(Array(TFloat64(), TFloat64(), TArray(TString())): _*))
 
   val labelType = PArray(PString())
 }

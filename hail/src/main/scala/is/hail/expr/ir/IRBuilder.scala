@@ -55,7 +55,7 @@ object IRBuilder {
   }
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
-    MakeTuple(values.map(_ (env)))
+    MakeTuple.ordered(values.map(_ (env)))
 
   def applyAggOp(
     op: AggOp,

@@ -25,6 +25,8 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     "global" -> globalType,
     "row" -> rowType)
 
+  def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
+
   def keyType: TStruct = canonicalRVDType.kType.virtualType
   def keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
   def valueType: TStruct = canonicalRVDType.valueType.virtualType

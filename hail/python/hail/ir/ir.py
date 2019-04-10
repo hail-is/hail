@@ -1207,6 +1207,9 @@ class MakeTuple(IR):
     def copy(self, *args):
         return MakeTuple(args)
 
+    def head_str(self):
+        return f'({" ".join([str(i) for i in range(len(self.elements))])})'
+
     def _compute_type(self, env, agg_env):
         for x in self.elements:
             x._compute_type(env, agg_env)

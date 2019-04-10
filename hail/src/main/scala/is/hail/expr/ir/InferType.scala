@@ -142,7 +142,7 @@ object InferType {
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>
-        TTuple(values.map(_.typ).toFastIndexedSeq)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq, required = false)
       case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         assert(idx >= 0 && idx < t.size)

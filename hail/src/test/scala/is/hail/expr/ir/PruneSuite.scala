@@ -568,11 +568,11 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMakeTupleMemo() {
-    checkMemo(MakeTuple(Seq(ref)), TTuple(justA), Array(justA))
+    checkMemo(MakeTuple(Seq(0 -> ref)), TTuple(justA), Array(justA))
   }
 
   @Test def testGetTupleElementMemo() {
-    checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
+    checkMemo(GetTupleElement(MakeTuple.ordered(Seq(ref, ref)), 1), justB, Array(TTuple(FastIndexedSeq(TupleField(1, justB)))))
   }
 
   @Test def testAggFilterMemo(): Unit = {
@@ -925,6 +925,14 @@ class PruneSuite extends SparkSuite {
           "b" -> NA(TInt64())
         )
       })
+  }
+
+  @Test def testMakeTupleRebuild() {
+    checkRebuild(MakeTuple(Seq(0 -> I32(1), 1 -> F64(1.0), 2 -> NA(TString()))),
+      TTuple(FastIndexedSeq(TupleField(2, TString()))),
+    (_: BaseIR, r: BaseIR) => {
+      r == MakeTuple(Seq(2 -> NA(TString())))
+    })
   }
 
   @Test def testSelectFieldsRebuild() {
