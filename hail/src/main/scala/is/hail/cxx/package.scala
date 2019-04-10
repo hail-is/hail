@@ -1,8 +1,6 @@
 package is.hail
 
-import is.hail.expr.types
 import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual
 import is.hail.expr.types.virtual._
 
 package object cxx {
@@ -69,7 +67,6 @@ package object cxx {
       case _: TBinary => s"store_address($a, $v)"
       case _: TArray => s"store_address($a, $v)"
       case _: TBaseStruct => s"memcpy($a, $v, ${ pType.byteSize })"
-      case TVoid => s"store_int($a, $v)"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }

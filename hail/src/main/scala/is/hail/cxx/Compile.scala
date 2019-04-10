@@ -7,6 +7,7 @@ import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.ir
 import is.hail.expr.ir.BindingEnv
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.{SerializableHadoopConfiguration, fatal}
@@ -71,13 +72,14 @@ object Compile {
          |${ v.setup }
          |if (${ v.m })
          |  abort();
-         |return ${ v.v };
+         |${ if (body.typ != TVoid) s"return ${ v.v };" else "" }
          |""".stripMargin
 
     (fb.end(), mods, (litType, f))
   }
 
-  def makeEntryPoint(tub: TranslationUnitBuilder, literals: EncodedLiterals, fname: String, argTypes: PType*): Literals = {
+  def makeEntryPoint(tub: TranslationUnitBuilder, literals: EncodedLiterals, fname: String, isVoid: Boolean,
+    argTypes: PType*): Literals = {
     val nArgs = argTypes.size
     val rawArgs = if (nArgs == 0) "" else
       Array.tabulate(nArgs)(i => s"long v$i").mkString(", ", ", ", "")
@@ -92,6 +94,7 @@ object Compile {
     tub += new Definition {
       def name: String = "entrypoint"
 
+      val funcCall = s"$fname(SparkFunctionContext(region, sparkUtils, hadoopConfig, lit_ptr) $castArgs)"
       def define: String =
         s"""
            |long entrypoint(NativeStatus *st, long obj, long jregion $rawArgs) {
@@ -104,7 +107,7 @@ object Compile {
            |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());
            |
-           |    return (long)$fname(SparkFunctionContext(region, sparkUtils, hadoopConfig, lit_ptr) $castArgs);
+           |    ${ if (!isVoid) s"return (long)$funcCall;" else s"$funcCall;\nreturn 0;" }
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -118,7 +121,7 @@ object Compile {
   def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils, Literals) = {
     val tub = new TranslationUnitBuilder
     val (f, mods, literals) = makeNonmissingFunction(tub, body, args: _*)
-    val encLiterals = makeEntryPoint(tub, literals, f.name, args.map(_._2): _*)
+    val encLiterals = makeEntryPoint(tub, literals, f.name, body.typ == TVoid, args.map(_._2): _*)
 
     val tu = tub.end()
     val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")

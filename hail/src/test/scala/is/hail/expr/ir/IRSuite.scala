@@ -1028,7 +1028,7 @@ class IRSuite extends SparkSuite {
 
     val path = tmpDir.createLocalTempFile()
     val write = NDArrayWrite(threeTensorRowMajor, path)
-    assertEvalsTo(write, 0)
+    nativeExecute(write, Env.empty, IndexedSeq.empty, None)
   }
 
   @Test def testLeftJoinRightDistinct() {
