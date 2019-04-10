@@ -110,11 +110,11 @@ clean:
 clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-production: /batch-secrets/batch-production-cloud-sql-config.json
-	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
+clean-db-production:
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json ./clean-db.sh
 
 clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-test: /batch-secrets/batch-test-cloud-sql-config.json
-	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
+clean-db-test:
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json ./clean-db.sh
