@@ -2,6 +2,7 @@ package is.hail.backend.local
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
+import is.hail.utils._
 import is.hail.utils.{ExecutionTimer, Timings}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -11,6 +12,7 @@ object LocalBackend {
     val t = ir.typ
     val (value, timings) = execute(ir)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+    log.info(s"Execution times: ${ timings.value }")
 
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
