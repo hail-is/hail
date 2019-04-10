@@ -68,7 +68,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     p == line.length || line(p) == '\t'
   }
 
-  def endArrayField(p: Int): Boolean = {
+  def endArrayElement(p: Int): Boolean = {
     if (p == line.length)
       true
     else {
@@ -114,7 +114,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
-  def endInfoArrayField(p: Int): Boolean = {
+  def endInfoArrayElement(p: Int): Boolean = {
     if (p == line.length)
       true
     else {
@@ -123,7 +123,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
-  def endFormatArrayField(p: Int): Boolean = {
+  def endFormatArrayElement(p: Int): Boolean = {
     if (p == line.length)
       true
     else {
@@ -132,11 +132,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
   }
 
-  def endFilterArrayField(p: Int): Boolean = endInfoField
+  def endFilterArrayElement(p: Int): Boolean = endInfoField
 
   def endField(): Boolean = endField(pos)
 
-  def endArrayField(): Boolean = endArrayField(pos)
+  def endArrayElement(): Boolean = endArrayElement(pos)
 
   def endInfoField(): Boolean = endInfoField(pos)
 
@@ -146,11 +146,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   def endCallField(): Boolean = endCallField(pos)
 
-  def endInfoArrayField(): Boolean = endInfoArrayField(pos)
+  def endInfoArrayElement(): Boolean = endInfoArrayElement(pos)
 
-  def endFormatArrayField(): Boolean = endFormatArrayField(pos)
+  def endFormatArrayElement(): Boolean = endFormatArrayElement(pos)
 
-  def endFilterArrayField(): Boolean = endFilterArrayField(pos)
+  def endFilterArrayElement(): Boolean = endFilterArrayElement(pos)
 
   def skipInfoField(): Unit = {
     while (!endInfoField())
@@ -171,7 +171,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def arrayFieldMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
-      endArrayField(pos + 1)
+      endArrayElement(pos + 1)
   }
 
   def infoFieldMissing(): Boolean = {
@@ -193,16 +193,16 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       endCallField(pos + 1)
   }
 
-  def infoArrayFieldMissing(): Boolean = {
+  def infoArrayElementMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
-      endInfoArrayField(pos + 1)
+      endInfoArrayElement(pos + 1)
   }
 
-  def formatArrayFieldMissing(): Boolean = {
+  def formatArrayElementMissing(): Boolean = {
     pos < line.length &&
       line(pos) == '.' &&
-      endFormatArrayField(pos + 1)
+      endFormatArrayElement(pos + 1)
   }
 
   def parseString(): String = {
@@ -237,7 +237,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   def parseStringInArray(): String = {
     val start = pos
-    while (!endArrayField())
+    while (!endArrayElement())
       pos += 1
     val end = pos
     line.substring(start, end)
@@ -264,7 +264,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def parseFilters(): Boolean = {
     def parseStringInFilters(): String = {
       val start = pos
-      while (!endFilterArrayField())
+      while (!endFilterArrayElement())
         pos += 1
       val end = pos
       line.substring(start, end)
@@ -507,7 +507,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseIntInFormatArray(): Int = {
-    if (endFormatArrayField())
+    if (endFormatArrayElement())
       parseError("empty integer")
     var mul = 1
     if (line(pos) == '-') {
@@ -516,7 +516,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     }
     var v = numericValue(line(pos))
     pos += 1
-    while (!endFormatArrayField()) {
+    while (!endFormatArrayElement()) {
       v = v * 10 + numericValue(line(pos))
       pos += 1
     }
@@ -525,7 +525,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   def parseStringInFormatArray(): String = {
     val start = pos
-    while (!endFormatArrayField())
+    while (!endFormatArrayElement())
       pos += 1
     val end = pos
     line.substring(start, end)
@@ -537,7 +537,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
-    if (formatArrayFieldMissing()) {
+    if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
         parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       ab.addMissing()
@@ -548,7 +548,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseIntArrayElement() {
-    if (formatArrayFieldMissing()) {
+    if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
         parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abi.addMissing()
@@ -559,7 +559,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseDoubleArrayElement() {
-    if (formatArrayFieldMissing()) {
+    if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
         parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abd.addMissing()
@@ -570,7 +570,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseStringArrayElement() {
-    if (formatArrayFieldMissing()) {
+    if (formatArrayElementMissing()) {
       if (arrayElementsRequired)
         parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abs.addMissing()
@@ -716,7 +716,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseIntInInfoArray(): Int = {
-    if (endInfoArrayField())
+    if (endInfoArrayElement())
       parseError("empty integer")
     var mul = 1
     if (line(pos) == '-') {
@@ -724,7 +724,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       pos += 1
     }
     var v = 0
-    while (!endInfoArrayField()) {
+    while (!endInfoArrayElement()) {
       v = v * 10 + numericValue(line(pos))
       pos += 1
     }
@@ -733,7 +733,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   def parseStringInInfoArray(): String = {
     val start = pos
-    while (!endInfoArrayField())
+    while (!endInfoArrayElement())
       pos += 1
     val end = pos
     line.substring(start, end)
@@ -742,7 +742,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def parseDoubleInInfoArray(): Double = parseStringInInfoArray().toDouble
 
   def parseIntInfoArrayElement() {
-    if (infoArrayFieldMissing()) {
+    if (infoArrayElementMissing()) {
       abi.addMissing()
       pos += 1  // dot
     } else
@@ -750,7 +750,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseStringInfoArrayElement() {
-    if (infoArrayFieldMissing()) {
+    if (infoArrayElementMissing()) {
       abs.addMissing()
       pos += 1  // dot
     } else
@@ -758,7 +758,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseDoubleInfoArrayElement() {
-    if (infoArrayFieldMissing()) {
+    if (infoArrayElementMissing()) {
       abd.addMissing()
       pos += 1
     } else {
