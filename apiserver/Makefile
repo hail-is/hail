@@ -1,34 +1,8 @@
-.PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar
+.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar
 
 PROJECT := $(shell gcloud config get-value project)
-GSA_KEY_FILE = /gsa-key/privateKeyData
-
-ifeq ($(IN_HAIL_CI),1)
-define DOCKER_IMAGE
-$(3) = $$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
-build-$(1): $(2)
-	-docker pull gcr.io/$(PROJECT)/$(1):latest
-	-docker pull $$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^HEAD //')
-	docker build -t $(1) -f Dockerfile.$(1) . --cache-from $(1),gcr.io/$(PROJECT)/$(1):latest,$$(shell grep FROM Dockerfile.$(1) | head -n 1 | sed 's/^FROM //')
-
-push-$(1): build-$(1)
-	docker tag $(1) gcr.io/$(PROJECT)/$(1):latest
-	docker push gcr.io/$(PROJECT)/$(1):latest
-	docker tag $(1) gcr.io/$(PROJECT)/$(1):$$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
-	docker push gcr.io/$(PROJECT)/$(1):$$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
-endef
-else
-define DOCKER_IMAGE
-build-$(1): $(2)
-	docker build -t $(1) -f Dockerfile.$(1) .
-push-$(1): build-$(1)
-	docker tag $(1) gcr.io/$(PROJECT)/$(1):$$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
-	docker push gcr.io/$(PROJECT)/$(1):$$(shell docker images -q --no-trunc $(1) | sed -e 's,[^:]*:,,')
-endef
-endif
-
-build-hail-shadow-jar:
-	cd ../hail && ./gradlew shadowJar
+REPO := gcr.io/$(PROJECT)
+GSA_KEY_FILE := /gsa-key/privateKeyData
 
 install-hail-locally:
 	rm -rf build
@@ -43,16 +17,86 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
-$(eval $(call DOCKER_IMAGE,spark-base,install-hail-locally jupyter_notebook_config.py,SPARK_BASE_IMAGE))
-$(eval $(call DOCKER_IMAGE,hail-base,install-hail-locally jupyter_notebook_config.py,HAIL_BASE_IMAGE))
-$(eval $(call DOCKER_IMAGE,spark-master,install-hail-locally jupyter_notebook_config.py,SPARK_MASTER_IMAGE))
-$(eval $(call DOCKER_IMAGE,spark-worker,install-hail-locally jupyter_notebook_config.py,SPARK_WORKER_IMAGE))
-$(eval $(call DOCKER_IMAGE,apiserver,install-hail-locally jupyter_notebook_config.py,APISERVER_IMAGE))
-$(eval $(call DOCKER_IMAGE,hail-jupyter,install-hail-locally jupyter_notebook_config.py,HAIL_JUPYTER_IMAGE))
+ifeq ($(IN_HAIL_CI),1)
+.PHONY: push deploy build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver
 
-build: build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver build-hail-jupyter
+build-spark-base:
+	docker pull debian:9.5
+	-docker pull $(REPO)/spark-base:latest
+	docker build -t spark-base -f Dockerfile.spark-base . --cache-from spark-base,$(REPO)/spark-base:latest,debian:9.5
 
-push: push-spark-base push-hail-base push-spark-master push-spark-worker push-apiserver push-hail-jupyter
+build-hail-base: build-spark-base install-hail-locally
+	-docker pull $(REPO)/spark-base:latest
+	-docker pull $(REPO)/hail-base:latest
+	docker build -t hail-base -f Dockerfile.hail-base . --cache-from hail-base,$(REPO)/hail-base:latest,spark-base
+
+build-spark-master: build-hail-base
+	-docker pull $(REPO)/hail-base:latest
+	-docker pull $(REPO)/spark-master:latest
+	docker build -t spark-master -f Dockerfile.spark-master . --cache-from spark-master,$(REPO)/spark-master:latest,hail-base
+
+build-spark-worker: build-hail-base
+	-docker pull $(REPO)/hail-base:latest
+	-docker pull $(REPO)/spark-worker:latest
+	docker build -t spark-worker -f Dockerfile.spark-worker . --cache-from spark-worker,$(REPO)/spark-worker:latest,hail-base
+
+build-apiserver: build-hail-base
+	-docker pull $(REPO)/hail-base:latest
+	-docker pull $(REPO)/apiserver:latest
+	docker build -t apiserver -f Dockerfile.apiserver . --cache-from apiserver,$(REPO)/apiserver:latest,hail-base
+
+build-hail-jupyter: build-hail-base jupyter_notebook_config.py
+	-docker pull $(REPO)/hail-base:latest
+	-docker pull $(REPO)/hail-jupyter:latest
+	docker build -t hail-jupyter -f Dockerfile.hail-jupyter . --cache-from hail-jupyter,$(REPO)/hail-jupyter:latest,hail-base
+
+build: build-spark-master build-spark-worker build-apiserver build-hail-jupyter
+
+SPARK_MASTER_IMAGE = $(REPO)/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')
+SPARK_WORKER_IMAGE = $(REPO)/spark-worker:$(shell docker images -q --no-trunc spark-worker | sed -e 's,[^:]*:,,')
+APISERVER_IMAGE = $(REPO)/apiserver:$(shell docker images -q --no-trunc apiserver | sed -e 's,[^:]*:,,')
+HAIL_JUPYTER_IMAGE = $(REPO)/hail-jupyter:$(shell docker images -q --no-trunc hail-jupyter | sed -e 's,[^:]*:,,')
+
+push: build
+	docker tag spark-master $(SPARK_MASTER_IMAGE)
+	docker push $(SPARK_MASTER_IMAGE)
+	docker tag spark-master $(REPO)/spark-master:latest
+	docker push $(REPO)/spark-master
+
+	docker tag spark-worker $(SPARK_WORKER_IMAGE)
+	docker push $(SPARK_WORKER_IMAGE)
+	docker tag spark-worker $(REPO)/spark-worker:latest
+	docker push $(REPO)/spark-worker
+
+	docker tag apiserver $(APISERVER_IMAGE)
+	docker push $(APISERVER_IMAGE)
+	docker tag apiserver $(REPO)/apiserver:latest
+	docker push $(REPO)/apiserver
+
+	docker tag hail-jupyter $(HAIL_JUPYTER_IMAGE)
+	docker push $(HAIL_JUPYTER_IMAGE)
+	docker tag hail-jupyter $(REPO)/hail-jupyter:latest
+	docker push $(REPO)/hail-jupyter
+
+deploy: push
+	sed -e "s,@spark_master_image@,$(SPARK_MASTER_IMAGE),g" \
+	  -e "s,@spark_worker_image@,$(SPARK_WORKER_IMAGE),g" \
+	  -e "s,@apiserver_image@,$(APISERVER_IMAGE),g" \
+	  -e "s,@hail_jupyter_image@,$(HAIL_JUPYTER_IMAGE),g" \
+	  < deployment.yaml.in > deployment.yaml
+	kubectl -n default apply -f deployment.yaml
+else
+build: install-hail-locally jupyter_notebook_config.py
+	docker build -t spark-base -f Dockerfile.spark-base .
+	docker build -t hail-base -f Dockerfile.hail-base .
+	docker build -t spark-master -f Dockerfile.spark-master .
+	docker build -t spark-worker -f Dockerfile.spark-worker .
+	docker build -t apiserver -f Dockerfile.apiserver .
+	docker build -t hail-jupyter -f Dockerfile.hail-jupyter .
+endif
+
+build-hail-shadow-jar:
+	cd ../hail && ./gradlew shadowJar
 
 # to create spark network, run:
 # docker network create spark
@@ -72,14 +116,6 @@ run-hail-jupyter-pod:
 	sed -e "s,@hail_jupyter_image@,$(HAIL_JUPYTER_IMAGE),g" \
 	  < hail-jupyter-pod.yaml.in > hail-jupyter-pod.yaml
 	kubectl create -f hail-jupyter-pod.yaml
-
-deploy: push
-	sed -e "s,@spark_master_image@,$(SPARK_MASTER_IMAGE),g" \
-	  -e "s,@spark_worker_image@,$(SPARK_WORKER_IMAGE),g" \
-	  -e "s,@apiserver_image@,$(APISERVER_IMAGE),g" \
-	  -e "s,@hail_jupyter_image@,$(HAIL_JUPYTER_IMAGE),g" \
-	  < deployment.yaml.in > deployment.yaml
-	kubectl -n default apply -f deployment.yaml
 
 test: build-hail-shadow-jar
 	./test-apiserver.sh
