@@ -2,7 +2,7 @@ package is.hail.backend.local
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.utils.ExecutionTimer
+import is.hail.utils.{ExecutionTimer, Timings}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -12,10 +12,10 @@ object LocalBackend {
     val (value, timings) = execute(ir)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
 
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timings))(new DefaultFormats {})
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
 
-  def execute(ir0: IR): (Any, Map[String, Map[String, Any]]) = {
+  def execute(ir0: IR): (Any, Timings) = {
     val timer = new ExecutionTimer("Just Interpret")
     var ir = ir0
 

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.types.physical.{PBaseStruct, PType}
 import is.hail.expr.types.virtual.{TStruct, TTuple, TVoid, Type}
-import is.hail.utils.{ExecutionTimer, FastIndexedSeq, FastSeq}
+import is.hail.utils.{ExecutionTimer, FastIndexedSeq, FastSeq, Timings}
 import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
@@ -11,7 +11,7 @@ object CompileAndEvaluate {
     env: Env[(Any, Type)] = Env(),
     args: IndexedSeq[(Any, Type)] = FastIndexedSeq(),
     optimize: Boolean = true
-  ): (T, Map[String, Map[String, Any]]) = {
+  ): (T, Timings) = {
     val evalContext = "CompileAndEvaluate"
     val timer = new ExecutionTimer(evalContext)
     var ir = ir0

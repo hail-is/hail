@@ -2,8 +2,12 @@ package is.hail.utils
 
 import scala.collection.mutable
 
+class Timings(val value: mutable.Map[String, Map[String, Any]]) extends AnyVal {
+  def +=(timing: (String, Map[String, Any])) { value += timing }
+}
+
 class ExecutionTimer(context: String) {
-  val timesNanos: mutable.Map[String, Map[String, Any]] = mutable.Map.empty
+  val timings: Timings = new Timings(mutable.Map.empty)
 
   def time[T](block: => T, stage: String): T = {
     val t0 = System.nanoTime()
@@ -12,10 +16,8 @@ class ExecutionTimer(context: String) {
 
     val nanos = t1 - t0
     val timing = Map("nano" -> nanos, "readable" -> formatTime(nanos))
-    timesNanos += s"$context -- $stage" -> timing
+    timings += s"$context -- $stage" -> timing
 
     result
   }
-
-  def timings: Map[String, Map[String, Any]] = timesNanos.toMap
 }

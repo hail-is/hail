@@ -18,10 +18,10 @@ object SparkBackend {
     val (value, timings) = execute(ir)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
 
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timings))(new DefaultFormats {})
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
 
-  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Map[String, Map[String, Any]]) = {
+  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
     val evalContext = "CXX Compile"
     val timer = new ExecutionTimer(evalContext)
     var ir = ir0
@@ -63,7 +63,7 @@ object SparkBackend {
     (value, timer.times)
   }
 
-  def execute(ir: IR, optimize: Boolean = true): (Any, Map[String, Map[String, Any]]) = {
+  def execute(ir: IR, optimize: Boolean = true): (Any, Timings) = {
     val hc = HailContext.get
     try {
       if (hc.flags.get("cpp") == null)
