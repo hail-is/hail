@@ -180,17 +180,13 @@ class Job:
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
-    def _create_pvc(self):
-        pvc = pvc_pool.get()
-        return pvc
-
     def _create_pod(self):
         assert self._pod_name is None
         assert self._current_task is not None
 
         if len(self._tasks) > 1:
             if self._pvc is None:
-                self._pvc = self._create_pvc()
+                self._pvc = pvc_pool.get()
             current_pod_spec = self._current_task.pod_template.spec
             if current_pod_spec.volumes is None:
                 current_pod_spec.volumes = []
