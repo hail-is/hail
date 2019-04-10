@@ -680,7 +680,13 @@ private class Emit(
           Code._empty)
 
       case ArrayAgg(a, name, query) =>
-        val StagedExtractedAggregators(postAggIR, resultType, init, perElt, makeRVAggs) = StagedExtractAggregators(mb.fb, query)
+        val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = StagedExtractAggregators(mb.fb, query)
+        val postAggIR = Optimize(postAggIR_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAgg/StagedExtractAggregators/postAggIR"))
+        val init = Optimize(init_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAgg/StagedExtractAggregators/init"))
+        val perElt = Optimize(perElt_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAgg/StagedExtractAggregators/perElt"))
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
 
