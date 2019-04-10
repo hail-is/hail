@@ -3,7 +3,6 @@ import time
 import random
 import sched
 import uuid
-from collections import Counter
 import threading
 import kubernetes as kube
 import cerberus
