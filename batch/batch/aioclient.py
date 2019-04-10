@@ -92,7 +92,6 @@ class Batch:
         i = 0
         while True:
             status = await self.status()
-            print('status', status)
             if not any(j['state'] == 'Created' for j in status['jobs']):
                 return status
             j = random.randrange(math.floor(1.1 ** i))
