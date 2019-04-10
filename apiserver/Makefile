@@ -1,4 +1,4 @@
-.PHONY: install-hail-locally build push run run-hail rm deploy build-hail-shadow-jar
+.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar
 
 PROJECT := $(shell gcloud config get-value project)
 REPO := gcr.io/$(PROJECT)
@@ -18,7 +18,7 @@ jupyter_notebook_config.py:
             < jupyter_notebook_config.py.in > $@
 
 ifeq ($(IN_HAIL_CI),1)
-.PHONY: build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver
+.PHONY: push deploy build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver
 
 build-spark-base:
 	docker pull debian:9.5
