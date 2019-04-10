@@ -1,4 +1,4 @@
-.PHONY: install-cloud-sql-proxy
+.PHONY: install-cloud-sql-proxy local-cloud-sql-config run-cloud-sql-proxy
 
 CLOUD_SQL_PORT ?= 3306
 

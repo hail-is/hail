@@ -1,8 +1,6 @@
 #!/bin/bash
 set -ex
 
-python3 -m pip install --user -U ../batch
-
 export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
 export WATCHED_TARGETS='[["hail-ci-test/'${REPO_NAME}':master", true]]'
@@ -14,8 +12,9 @@ set -x
 cleanup() {
     trap "" INT TERM
     set +e
-    kill $(cat ci.pid)
-    rm -rf ci.pid
+    [[ -z $batch_pid ]] || (kill $batch_pid; kill -9 $batch_pid)
+    [[ -z $ci_pid ]] || (kill $ci_pid; kill -9 $ci_pid)
+    [[ -z $proxy_pid ]] || (kill $proxy_pid; kill -9 $proxy_pid)
     set +x
     curl -XDELETE \
          -i \
@@ -24,8 +23,26 @@ cleanup() {
     set -x
 }
 trap cleanup EXIT
-
 trap "exit 24" INT TERM
+
+python3 -m pip install --user -U ../batch
+
+if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
+    export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
+    connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
+    host=$(jq -r '.host' $CLOUD_SQL_CONFIG_PATH)
+    port=$(jq -r '.port' $CLOUD_SQL_CONFIG_PATH)
+    ./cloud_sql_proxy -instances=$connection_name=tcp:$port &
+    proxy_pid=$!
+    ../until-with-fuel 30 curl -fL $host:$port
+else
+    export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
+fi
+
+export BATCH_SERVER_URL=http://127.0.0.1:5001
+POD_NAMESPACE='test' python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+
+../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
 
 # create the temp repo
 set +x
@@ -58,7 +75,7 @@ git push origin master:master
 popd
 
 # start CI system
-python3 run_ci.py --debug & echo $! > ci.pid
+python3 run_ci.py --debug & ci_pid=$!
 
 sleep 10
 

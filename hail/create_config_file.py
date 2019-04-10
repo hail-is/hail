@@ -28,12 +28,11 @@ both = {
 v0_2 = {
     'vars': {
         'version': '0.2',
-        'supported_spark': {'2.2.0': '1.2-deb9'}
+        'supported_spark': {'2.4.0': '1.4-debian9'}
     },
     'flags': {
         'image-version': '{image}',
-        'metadata': {'MINICONDA_VERSION': '4.4.10'}
-    }
+    },
 }
 
 v0_1 = {

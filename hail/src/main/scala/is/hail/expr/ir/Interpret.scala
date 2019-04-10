@@ -506,7 +506,7 @@ object Interpret {
           interpret(aggIR, agg=Some(row, aggElementType))
         }
 
-      case x@AggArrayPerElement(a, name, aggBody, isScan) => ???
+      case x@AggArrayPerElement(a, elementName, indexName, aggBody, isScan) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
@@ -756,8 +756,6 @@ object Interpret {
         val hc = HailContext.get
         writer(hc, child.execute(hc))
       case TableToValueApply(child, function) =>
-        function.execute(child.execute(HailContext.get))
-      case MatrixToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))

@@ -10,9 +10,10 @@ Requirements
 You'll need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
+- `Spark 2.4.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_
 
-  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+  - Hail is compatible with Spark 2.2.x, 2.3.x, and 2.4.x, but it *will not*
+    work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
 - `Anaconda for Python 3 <https://www.anaconda.com/download>`_
 
@@ -34,7 +35,11 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
 
-Build a Hail JAR compatible with Spark 2.2.0::
+Build a Hail JAR compatible with Spark 2.4.0::
+
+    ./gradlew -Dspark.version=2.4.0 shadowJar
+
+Should you wish to build a Hail JAR compatible with a different Spark version (2.2.0 here)::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar
 
@@ -81,7 +86,7 @@ Now you can import hail from a python interpreter::
     Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
     Setting default log level to "WARN".
     To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
-    Running on Apache Spark version 2.2.0
+    Running on Apache Spark version 2.4.0
     SparkUI available at http://10.1.6.36:4041
     Welcome to
          __  __     <>__

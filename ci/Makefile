@@ -1,12 +1,12 @@
-.PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
+.PHONY: run restart-proxy
 .PHONY: build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
+
+include ../cloud-sql.mk
 
 PROJECT := $(shell gcloud config get-value project)
 HAIL_CI_LATEST = gcr.io/$(PROJECT)/hail-ci:latest
 HAIL_CI_IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | sed -e 's,[^:]*:,,')
-
-HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
 build-hail-ci:
 	make -C ../docker build
@@ -20,8 +20,6 @@ push-hail-ci: build-hail-ci
 	docker tag hail-ci $(HAIL_CI_IMAGE)
 	docker push $(HAIL_CI_IMAGE)
 	echo $(HAIL_CI_IMAGE) > hail-ci-image
-
-restart-all-proxies: restart-proxy restart-batch-proxy
 
 restart-proxy: ZONE = $(shell gcloud compute instances list --filter=name=dk-test --format="value(ZONE)")
 restart-proxy:
@@ -40,41 +38,12 @@ restart-proxy:
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
-restart-batch-proxy:
-	-kill $(shell cat batch-proxy.pid)
-	-kill -9 $(shell cat batch-proxy.pid)
-	-rm -rf batch-proxy.pid
-	$(eval BATCH_POD := $(shell kubectl get pods \
-                           -l app=batch \
-                           --field-selector=status.phase==Running \
-                           -o name \
-                         | sed 's:pods/::' \
-                         | head -n 1))
-	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
-	sleep 2 && kill -0 $$(cat batch-proxy.pid)
-
-
-
-run-local: HAIL_CI_REMOTE_PORT = 3000
-run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-run-local: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	python3 run_ci.py
-
-run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
-run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-run-local-for-tests: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	python3 -m pip install --user ../batch && python3 run_ci.py
-
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-test-locally: restart-all-proxies
+test-locally: restart-proxy install-cloud-sql-proxy local-cloud-sql-config
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
+	CLOUD_SQL_PROXY=1 \
+	BATCH_USE_KUBE_CONFIG=1 \
 	./test-locally.sh
 
 run-service:

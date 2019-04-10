@@ -1,159 +1,136 @@
+import os
 import json
-import uuid
-import asyncio
-import aiomysql
-import pymysql
-from asyncinit import asyncinit
+
+from ..database import Database, Table, run_synchronous
 
 
-def run_synchronous(coro):
-    loop = asyncio.get_event_loop()
-    return loop.run_until_complete(coro)
-
-
-@asyncinit
-class Database:
+class BatchDatabase(Database):
     @staticmethod
     def create_synchronous(config_file):
-        db = run_synchronous(Database(config_file))
+        db = run_synchronous(BatchDatabase(config_file))
         return db
 
     async def __init__(self, config_file):
-        with open(config_file, 'r') as f:
-            config = json.loads(f.read().strip())
+        await super().__init__(config_file)
 
-        self.host = config['host']
-        self.port = config['port']
-        self.user = config['user']
-        self.db = config['db']
-        self.password = config['password']
-        self.charset = 'utf8'
-
-        self.pool = await aiomysql.create_pool(host=self.host,
-                                               port=self.port,
-                                               db=self.db,
-                                               user=self.user,
-                                               password=self.password,
-                                               charset=self.charset,
-                                               cursorclass=aiomysql.cursors.DictCursor,
-                                               autocommit=True)
-
-    async def has_table(self, name):
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                sql = f"SELECT * FROM INFORMATION_SCHEMA.tables " \
-                    f"WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s"
-                await cursor.execute(sql, (self.db, name))
-                result = cursor.fetchone()
-        return result.result() is not None
-
-    def has_table_sync(self, name):
-        return run_synchronous(self.has_table(name))
-
-    async def drop_table(self, *names):
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("DROP TABLE IF EXISTS {}".format(",".join([f'`{name}`' for name in names])))
-
-    def drop_table_sync(self, *names):
-        return run_synchronous(self.drop_table(*names))
-
-    async def create_table(self, name, schema, keys, can_exist=True):
-        assert all([k in schema for k in keys])
-
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                schema = ", ".join([f'`{n.replace("`", "``")}` {t}' for n, t in schema.items()])
-                key_names = ", ".join([f'`{name.replace("`", "``")}`' for name in keys])
-                keys = f", PRIMARY KEY( {key_names} )" if keys else ''
-                exists = 'IF NOT EXISTS' if can_exist else ''
-                sql = f"CREATE TABLE {exists} `{name}` ( {schema} {keys})"
-                await cursor.execute(sql)
-
-    def create_table_sync(self, name, schema, keys):
-        return run_synchronous(self.create_table(name, schema, keys))
-
-    async def create_temporary_table(self, root_name, schema, keys):
-        for i in range(5):
-            try:
-                suffix = uuid.uuid4().hex[:8]
-                name = f'{root_name}-{suffix}'
-                return await Table(self, name, schema, keys, can_exist=False)
-            except pymysql.err.InternalError:
-                pass
-        raise Exception("Too many attempts to get temp table.")
-
-    def create_temporary_table_sync(self, root_name, schema, keys):
-        return run_synchronous(self.create_temporary_table(root_name, schema, keys))
+        self.jobs = await JobsTable(self, os.environ.get('JOBS_TABLE', 'jobs'))
+        self.jobs_parents = await JobsParentsTable(self, os.environ.get('JOBS_PARENTS_TABLE', 'jobs-parents'))
+        self.batch = await BatchTable(self, os.environ.get('BATCH_TABLE', 'batch'))
+        self.batch_jobs = await BatchJobsTable(self, os.environ.get('BATCH_JOBS_TABLE', 'batch-jobs'))
 
 
-def make_where_statement(items):
-    template = []
-    values = []
-    for k, v in items.items():
-        if isinstance(v, list):
-            if len(v) == 0:
-                template.append("FALSE")
-            else:
-                template.append(f'`{k.replace("`", "``")}` IN %s')
-                values.append(v)
-        else:
-            template.append(f'`{k.replace("`", "``")}` = %s')
-            values.append(v)
+class JobsTable(Table):
+    async def __init__(self, db, name='jobs'):
+        schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
+                  'state': 'VARCHAR(40) NOT NULL',
+                  'exit_code': 'INT',
+                  'batch_id': 'BIGINT',
+                  'scratch_folder': 'VARCHAR(1000)',
+                  'pod_name': 'VARCHAR(1000)',
+                  'pvc': 'TEXT(65535)',
+                  'callback': 'TEXT(65535)',
+                  'task_idx': 'INT NOT NULL',
+                  'always_run': 'BOOLEAN',
+                  'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                  'time_ended': 'TIMESTAMP',
+                  'user': 'VARCHAR(1000)',
+                  'attributes': 'TEXT(65535)',
+                  'tasks': 'TEXT(65535)',
+                  'parent_ids': 'TEXT(65535)',
+                  'input_log_uri': 'VARCHAR(1000)',
+                  'main_log_uri': 'VARCHAR(1000)',
+                  'output_log_uri': 'VARCHAR(1000)'}
 
-    template = " AND ".join(template)
-    return template, values
+        keys = ['id']
+
+        await super().__init__(db, name, schema, keys)
+
+    async def update_record(self, id, **items):
+        await super().update_record({'id': id}, items)
+
+    async def get_records(self, ids, fields=None):
+        assert isinstance(ids, list)
+        return await super().get_record({'id': id}, fields)
+
+    async def get_record(self, id, fields=None):
+        records = await self.get_records({'id': id}, fields)
+        assert len(records) == 1
+        return records[0]
+
+    async def has_record(self, id):
+        return await super().has_record({'id': id})
+
+    async def delete_record(self, id):
+        await super().delete_record({'id': id})
+
+    async def get_incomplete_parents(self, id):
+        parent_ids = await self.get_record(id, ['parent_ids'])
+        parent_ids = json.loads(parent_ids['parent_ids'])
+        parent_records = await self.get_records(parent_ids)
+        incomplete_parents = [pr['id'] for pr in parent_records.result()
+                              if pr['state'] == 'Created']
+        return incomplete_parents
 
 
-@asyncinit
-class Table:  # pylint: disable=R0903
-    async def __init__(self, db, name, schema, keys, can_exist=False):
-        self.name = name
-        self._db = db
-        await self._db.create_table(name, schema, keys, can_exist)
+class JobsParentsTable(Table):
+    async def __init__(self, db, name='jobs-parents'):
+        schema = {'job_id': 'BIGINT',
+                  'parent_id': 'BIGINT'}
+        keys = ['job_id', 'parent_id']
 
-    async def new_record(self, items):
-        names = ", ".join([f'`{name.replace("`", "``")}`' for name in items.keys()])
-        values_template = ", ".join(["%s" for _ in items.values()])
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values_template})"
-                await cursor.execute(sql, tuple(items.values()))
-                id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
-        return id
+        await super().__init__(db, name, schema, keys)
 
-    async def update_record(self, where_items, set_items):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                if len(set_items) != 0:
-                    where_template, where_values = make_where_statement(where_items)
-                    set_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in set_items.items()])
-                    set_values = set_items.values()
-                    sql = f"UPDATE `{self.name}` SET {set_template} WHERE {where_template}"
-                    await cursor.execute(sql, (*set_values, *where_values))
+    async def get_parents(self, job_id):
+        result = await super().get_record({'job_id': job_id}, ['parent_id'])
+        return [record['parent_id'] for record in result]
 
-    async def get_record(self, where_items, select_fields=None):
-        assert select_fields is None or len(select_fields) != 0
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                where_template, where_values = make_where_statement(where_items)
-                select_fields = ",".join(select_fields) if select_fields is not None else "*"
-                sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, where_values)
-                result = await cursor.fetchall()
-        return result
+    async def get_children(self, parent_id):
+        result = await super().get_record({'parent_id': parent_id}, ['job_id'])
+        return [record['job_id'] for record in result]
 
-    async def has_record(self, where_items):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                where_template, where_values = make_where_statement(where_items)
-                sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {where_template}"
-                count = await cursor.execute(sql, tuple(where_values))
-        return count >= 1
 
-    async def delete_record(self, where_items):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                where_template, where_values = make_where_statement(where_items)
-                sql = f"DELETE FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, where_values)
+class BatchTable(Table):
+    async def __init__(self, db, name='batch'):
+        schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
+                  'attributes': 'TEXT(65535)',
+                  'callback': 'TEXT(65535)',
+                  'ttl': 'INT',
+                  'is_open': 'BOOLEAN NOT NULL'
+                  }
+        keys = ['id']
+
+        await super().__init__(db, name, schema, keys)
+
+    async def update_record(self, id, **items):
+        await super().update_record({'id': id}, items)
+
+    async def get_records(self, ids, fields=None):
+        assert isinstance(ids, list)
+        return await super().get_record({'id': id}, fields)
+
+    async def get_record(self, id, fields=None):
+        records = await self.get_records({'id': id}, fields)
+        assert len(records) == 1
+        return records[0]
+
+    async def has_record(self, id):
+        return await super().has_record({'id': id})
+
+
+class BatchJobsTable(Table):
+    async def __init__(self, db, name='batch-jobs'):
+        schema = {'batch_id': 'BIGINT',
+                  'job_id': 'BIGINT'}
+        keys = ['batch_id', 'job_id']
+
+        await super().__init__(db, name, schema, keys)
+
+    async def get_jobs(self, batch_id):
+        result = await super().get_record({'batch_id': batch_id})
+        return [record['job_id'] for record in result]
+
+    async def delete_record(self, batch_id, job_id):
+        await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
+
+    async def has_record(self, batch_id, job_id):
+        return await super().has_record({'batch_id': batch_id, 'job_id': job_id})

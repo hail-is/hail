@@ -3,8 +3,8 @@ import time
 import random
 import yaml
 import cerberus
-import aiohttp
 
+from .requests_helper import filter_params
 from . import schemas
 
 
@@ -32,7 +32,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self.client._get_job(self.id)
+        self._status = await self.client._get('/jobs/{}'.format(self.id))
         return self._status
 
     async def wait(self):
@@ -47,10 +47,10 @@ class Job:
                 i = i + 1
 
     async def cancel(self):
-        await self.client._cancel_job(self.id)
+        await self.client._patch('/jobs/{}/cancel'.format(self.id))
 
     async def delete(self):
-        await self.client._delete_job(self.id)
+        await self.client._delete('/jobs/{}/delete'.format(self.id))
 
         # this object should not be referenced again
         del self.client
@@ -61,13 +61,14 @@ class Job:
         del self._status
 
     async def log(self):
-        return await self.client._get_job_log(self.id)
+        return await self.client._get('/jobs/{}/log'.format(self.id))
 
 
 class Batch:
-    def __init__(self, client, id):
+    def __init__(self, client, id, attributes):
         self.client = client
         self.id = id
+        self.attributes = attributes
 
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
@@ -82,10 +83,10 @@ class Batch:
             input_files, output_files, copy_service_account_name, always_run)
 
     async def close(self):
-        await self.client._close_batch(self.id)
+        await self.client._patch('/batches/{}/close'.format(self.id))
 
     async def status(self):
-        return await self.client._get_batch(self.id)
+        return await self.client._get('/batches/{}'.format(self.id))
 
     async def wait(self):
         i = 0
@@ -100,17 +101,29 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
-        await self.client._delete_batch(self.id)
+        await self.client._delete('/batches/{}/delete'.format(self.id))
 
 
 class BatchClient:
-    def __init__(self, url=None, timeout=60):
+    def __init__(self, session, url=None):
         if not url:
             url = 'http://batch.default'
         self.url = url
-        self._session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=timeout))
+        self._session = session
+
+    async def _get(self, path, params=None):
+        response = await self._session.get(self.url + path, params=params)
+        return await response.json()
+
+    async def _post(self, path, json=None):
+        response = await self._session.post(self.url + path, json=json)
+        return await response.json()
+
+    async def _patch(self, path):
+        await self._session.patch(self.url + path)
+
+    async def _delete(self, path):
+        await self._session.delete(self.url + path)
 
     async def _create_job(self,  # pylint: disable=R0912
                           image,
@@ -200,46 +213,18 @@ class BatchClient:
         if copy_service_account_name:
             doc['copy_service_account_name'] = copy_service_account_name
 
-        response = await self._session.post(self.url + '/jobs/create', json=doc)
-        j = await response.json()
-
+        j = await self._post('/jobs/create', json=doc)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
-    async def _get_job(self, id):
-        response = await self._session.get(self.url + '/jobs/{}'.format(id))
-        return await response.json()
-
-    async def _get_job_log(self, id):
-        response = await self._session.get(self.url + '/jobs/{}/log'.format(id))
-        return await response.json()
-
-    async def _delete_job(self, id):
-        await self._session.delete(self.url + '/jobs/{}/delete'.format(id))
-
-    async def _cancel_job(self, id):
-        response = await self._session.post(self.url + '/jobs/{}/cancel'.format(id))
-        return await response.json()
-
-    async def _get_batch(self, batch_id):
-        response = await self._session.get(self.url + '/batches/{}'.format(batch_id))
-        return await response.json()
-
-    async def _delete_batch(self, batch_id):
-        await self._session.get(self.url + '/batches/{}/delete'.format(batch_id))
-
-    async def _close_batch(self, batch_id):
-        response = await self._session.post(self.url + '/batches/{}/close'.format(batch_id))
-        return await response.json()
-
     async def _refresh_k8s_state(self):
-        await self._session.post(self.url + '/refresh_k8s_state')
+        await self._post('/refresh_k8s_state')
 
-    async def list_jobs(self):
-        response = await self._session.get(self.url + '/jobs')
-        jobs = await response.json()
+    async def list_jobs(self, complete=None, success=None, attributes=None):
+        params = filter_params(complete, success, attributes)
+        jobs = await self._get('/jobs', params=params)
         return [Job(self,
                     j['id'],
                     attributes=j.get('attributes'),
@@ -247,9 +232,16 @@ class BatchClient:
                     _status=j)
                 for j in jobs]
 
+    async def list_batches(self, complete=None, success=None, attributes=None):
+        params = filter_params(complete, success, attributes)
+        batches = await self._get('/batches', params=params)
+        return [Batch(self,
+                      j['id'],
+                      attributes=j.get('attributes'))
+                for j in batches]
+
     async def get_job(self, id):
-        response = await self._session.get(self.url + '/jobs/{}'.format(id))
-        j = await response.json()
+        j = await self._get('/jobs/{}'.format(id))
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
@@ -290,9 +282,8 @@ class BatchClient:
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        response = await self._session.post(self.url + '/batches/create', json=doc)
-        batch = await response.json()
-        return Batch(self, batch['id'])
+        j = await self._post('/batches/create', json=doc)
+        return Batch(self, j['id'], j.get('attributes'))
 
     job_yaml_schema = {
         'spec': schemas.pod_spec,

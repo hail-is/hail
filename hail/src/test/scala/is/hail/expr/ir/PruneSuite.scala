@@ -605,6 +605,7 @@ class PruneSuite extends SparkSuite {
     val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
     checkMemo(AggArrayPerElement(Ref("x", t),
       "foo",
+      "bar",
       ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
         AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
       false),

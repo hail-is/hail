@@ -15,7 +15,7 @@ from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
-from .database import Database
+from .database import BatchDatabase
 
 from .. import schemas, run_once, log
 
@@ -62,8 +62,8 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-db = Database.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                '/batch-secrets/batch-production-cloud-sql-config.json'))
+db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
+                                                     '/batch-secrets/batch-production-cloud-sql-config.json'))
 
 
 def abort(code, reason=None):
@@ -342,7 +342,10 @@ class Job:
         self.set_state('Cancelled')
 
     def is_complete(self):
-        return self._state == 'Complete' or self._state == 'Cancelled'
+        return self._state in ('Complete', 'Cancelled')
+
+    def is_successful(self):
+        return self._state == 'Complete' and self.exit_code == 0
 
     def mark_unscheduled(self):
         if self._pod_name:
@@ -577,7 +580,7 @@ async def delete_job(request):
     return jsonify({})
 
 
-@routes.post('/jobs/{job_id}/cancel')
+@routes.patch('/jobs/{job_id}/cancel')
 async def cancel_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -595,12 +598,16 @@ class Batch:
         self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
-        self.jobs = set([])
+        self.jobs = set()
         self.is_open = True
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
         self.ttl = ttl
         schedule(self.ttl, self.close)
+
+    def cancel(self):
+        for j in self.jobs:
+            j.cancel()
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -634,9 +641,15 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
+    def is_complete(self):
+        return all(j.is_complete() for j in self.jobs)
+
+    def is_successful(self):
+        return all(j.is_successful() for j in self.jobs)
+
     def to_dict(self):
         state_count = Counter([j._state for j in self.jobs])
-        return {
+        result = {
             'id': self.id,
             'jobs': {
                 'Created': state_count.get('Created', 0),
@@ -644,9 +657,37 @@ class Batch:
                 'Cancelled': state_count.get('Cancelled', 0)
             },
             'exit_codes': {j.id: j.exit_code for j in self.jobs},
-            'attributes': self.attributes,
             'is_open': self.is_open
         }
+        if self.attributes:
+            result['attributes'] = self.attributes
+        return result
+
+
+@routes.get('/batches')
+async def get_batches_list(request):
+    params = request.query
+
+    batches = batch_id_batch.values()
+    for name, value in params.items():
+        if name == 'complete':
+            if value not in ('0', '1'):
+                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
+            c = value == '1'
+            batches = [batch for batch in batches if batch.is_complete() == c]
+        elif name == 'success':
+            if value not in ('0', '1'):
+                abort(400, f'invalid success value, expected 0 or 1, got {value}')
+            s = value == '1'
+            batches = [batch for batch in batches if batch.is_successful() == s]
+        else:
+            if not name.startswith('a:'):
+                abort(400, f'unknown query parameter {name}')
+            k = name[2:]
+            batches = [batch for batch in batches
+                       if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
+
+    return jsonify([batch.to_dict() for batch in batches])
 
 
 @routes.post('/batches/create')
@@ -679,6 +720,16 @@ async def get_batch(request):
     return jsonify(batch.to_dict())
 
 
+@routes.patch('/batches/{batch_id}/cancel')
+async def cancel_batch(request):
+    batch_id = int(request.match_info['batch_id'])
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    batch.cancel()
+    return jsonify({})
+
+
 @routes.delete('/batches/{batch_id}/delete')
 async def delete_batch(request):
     batch_id = int(request.match_info['batch_id'])
@@ -689,7 +740,7 @@ async def delete_batch(request):
     return jsonify({})
 
 
-@routes.post('/batches/{batch_id}/close')
+@routes.patch('/batches/{batch_id}/close')
 async def close_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
