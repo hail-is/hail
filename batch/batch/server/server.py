@@ -383,8 +383,6 @@ class Job:
         else:
             self._delete_pvc()
 
-        self.set_state('Complete')
-
         log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
 
         if self.callback:
@@ -397,6 +395,8 @@ class Job:
                         f'Error: {exc}')
 
             threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
+
+        self.set_state('Complete')
 
         if self.batch_id:
             batch_id_batch[self.batch_id].mark_job_complete(self)
