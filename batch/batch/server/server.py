@@ -229,7 +229,6 @@ class Job:
             self._pod_name = None
 
     def _read_logs(self):
-        # FIXME: this will fail if batch restarts and request a previous job not on node
         logs = {jt.name: _read_file(_log_path(self.id, jt.name))
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Created':
@@ -299,6 +298,7 @@ class Job:
         self._pod_name = None
         self.exit_code = None
         self._task_idx = -1
+        self._current_task = None
         self._state = 'Created'
 
         self.id = await db.jobs.new_record(state=self._state,
@@ -581,7 +581,7 @@ def both_or_neither(x, y):  # pylint: disable=C0103
 async def get_job_list(request):
     params = request.query
 
-    jobs = [await Job.from_record(record) for record in await db.jobs.get_all_records()]  # FIXME: race conditions?
+    jobs = [await Job.from_record(record) for record in await db.jobs.get_all_records()]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -659,12 +659,14 @@ class Batch:
             b.ttl = record['ttl']
             b.is_open = record['is_open']
             return b
+        return None
 
     @staticmethod
     async def from_db(id):
         records = await db.batch.get_records(id)
         if len(records) == 1:
             return Batch.from_record(records[0])
+        return None
 
     async def __init__(self, attributes, callback, ttl):
         self.attributes = attributes

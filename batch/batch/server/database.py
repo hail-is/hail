@@ -68,7 +68,7 @@ class JobsTable(Table):
 
     async def get_record_by_pod(self, pod):
         records = await super(JobsTable, self).get_record({'pod_name': pod})
-        if len(records) == 0:
+        if len(records) == 0:  # pylint: disable=R1705
             return None
         elif len(records) == 1:
             return records[0]
