@@ -45,8 +45,8 @@ class Job:
                 return self._status
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
+            # max 5.4s
+            if i < 42:
                 i = i + 1
 
     def cancel(self):
@@ -99,8 +99,8 @@ class Batch:
                 return status
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
+            # max 5.4s
+            if i < 42:
                 i = i + 1
 
     def cancel(self):
