@@ -2494,13 +2494,15 @@ class MatrixTable(ExprContainer):
         Env.backend().execute(MatrixWrite(self._mir, writer))
 
     class _Show:
-        def __init__(self, table, n_rows, n_cols, width, truncate, types):
+        def __init__(self, table, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types):
             self.table_show = table._show(n_rows, width, truncate, types)
-            self.n_cols = n_cols
+            self.actual_n_cols = actual_n_cols
+            self.displayed_n_cols = displayed_n_cols
 
         def __str__(self):
             s = self.table_show.__str__()
-            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
             return s
 
         def __repr__(self):
@@ -2508,9 +2510,10 @@ class MatrixTable(ExprContainer):
 
         def _repr_html_(self):
             s = self.table_show._repr_html_()
-            s += '<p>'
-            s += f"showing first { self.n_cols } { plural('column', self.n_cols) }"
-            s += '</p>\n'
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += '<p>'
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
+                s += '</p>\n'
             return s
 
     @typecheck_method(n_rows=nullable(int),
@@ -2554,7 +2557,6 @@ class MatrixTable(ExprContainer):
                        for f, x in struct_expression.flatten().items())
 
         if n_cols is None:
-            characters_per_field = 10
             import shutil
             (characters, _) = shutil.get_terminal_size((80, 10))
             characters -= 6 # borders
@@ -2564,20 +2566,22 @@ class MatrixTable(ExprContainer):
                 characters -= estimate_size(self.row_value)
             characters = max(characters, 0)
             n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
+        actual_n_cols = self.count_cols()
+        displayed_n_cols = min(actual_n_cols, n_cols)
 
         t = self.localize_entries('entries', 'cols')
         t = t.key_by()
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},
-            **{str(i): t.entries[i] for i in range(0, n_cols)})
+            **{str(i): t.entries[i] for i in range(0, displayed_n_cols)})
         if handler is None:
             try:
                 from IPython.display import display
                 handler = display
             except ImportError:
                 handler = print
-        handler(MatrixTable._Show(t, n_rows, n_cols, width, truncate, types))
+        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.

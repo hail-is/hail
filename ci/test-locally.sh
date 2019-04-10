@@ -12,6 +12,10 @@ set -x
 cleanup() {
     trap "" INT TERM
     set +e
+    for table in ${tables[@]}; do
+        python3 -c "from batch.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$table\")"
+    done    
+    
     [[ -z $batch_pid ]] || (kill $batch_pid; sleep 2; kill -9 $batch_pid)
     [[ -z $ci_pid ]] || (kill $ci_pid; sleep 2; kill -9 $ci_pid)
     [[ -z $proxy_pid ]] || (kill $proxy_pid; sleep 2; kill -9 $proxy_pid)
@@ -27,7 +31,7 @@ trap "exit 24" INT TERM
 
 python3 -m pip install --user -U ../batch
 
-if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
+if [[ -z $IN_HAIL_CI ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
     host=$(jq -r '.host' $CLOUD_SQL_CONFIG_PATH)
@@ -38,6 +42,12 @@ if [[ $CLOUD_SQL_PROXY -eq 1 ]]; then
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
 fi
+
+export JOBS_TABLE=jobs-$(../generate-uid.sh)
+export JOBS_PARENTS_TABLE=jobs-parents-$(../generate-uid.sh)
+export BATCH_TABLE=batch-$(../generate-uid.sh)
+export BATCH_JOBS_TABLE=batch-jobs-$(../generate-uid.sh)
+tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_JOBS_TABLE)
 
 export BATCH_SERVER_URL=http://127.0.0.1:5001
 POD_NAMESPACE='test' python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
