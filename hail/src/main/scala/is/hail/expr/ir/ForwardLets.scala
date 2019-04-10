@@ -6,7 +6,7 @@ import scala.collection.mutable
 
 object ForwardLets {
   def apply(ir0: BaseIR): BaseIR = {
-    val ir1 = new NormalizeNames(stopAtRelational = false, allowFreeVariables = true).apply(ir0)
+    val ir1 = new NormalizeNames(allowFreeVariables = true).apply(ir0)
     val UsesAndDefs(uses, _) = ComputeUsesAndDefs(ir1, freeVariablesError = false)
     val nestingDepth = NestingDepth(ir1)
 

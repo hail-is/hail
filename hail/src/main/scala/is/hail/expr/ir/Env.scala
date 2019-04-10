@@ -23,11 +23,11 @@ case class BindingEnv[V](
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
 
   def promoteAgg: BindingEnv[V] = {
-    BindingEnv(aggOrEmpty)
+    BindingEnv(agg.get)
   }
 
   def promoteScan: BindingEnv[V] = {
-    BindingEnv(scanOrEmpty)
+    BindingEnv(scan.get)
   }
 
   def bindEval(name: String, v: V): BindingEnv[V] =

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 
-class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boolean = false) {
+class NormalizeNames(allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
   def gen(): String = {
@@ -24,54 +24,42 @@ class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boole
   }
 
   private def normalizeTable(tir: TableIR): TableIR = {
-    if (stopAtRelational)
-      tir
-    else {
-      tir.copy(tir
-        .children
-        .iterator
-        .zipWithIndex
-        .map {
-          case (child: IR, i) => normalizeIR(child, NewBindings(tir, i).mapValuesWithKey({ case (k, _) => k }))
-          case (child: TableIR, _) => normalizeTable(child)
-          case (child: MatrixIR, _) => normalizeMatrix(child)
-          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-        }.toFastIndexedSeq)
-    }
+    tir.copy(tir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(tir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
   }
 
   private def normalizeMatrix(mir: MatrixIR): MatrixIR = {
-    if (stopAtRelational)
-      mir
-    else {
-      mir.copy(mir
-        .children
-        .iterator
-        .zipWithIndex
-        .map {
-          case (child: IR, i) => normalizeIR(child, NewBindings(mir, i).mapValuesWithKey({ case (k, _) => k }))
-          case (child: TableIR, _) => normalizeTable(child)
-          case (child: MatrixIR, _) => normalizeMatrix(child)
-          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-        }.toFastIndexedSeq)
-    }
+    mir.copy(mir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(mir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
   }
 
   private def normalizeBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
-    if (stopAtRelational)
-      bmir
-    else {
-      bmir.copy(bmir
-        .children
-        .iterator
-        .zipWithIndex
-        .map {
-          case (child: IR, i) => normalizeIR(child, NewBindings(bmir, i).mapValuesWithKey({ case (k, _) => k }))
-          case (child: TableIR, _) => normalizeTable(child)
-          case (child: MatrixIR, _) => normalizeMatrix(child)
-          case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
-        }.toFastIndexedSeq)
-    }
+    bmir.copy(bmir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(bmir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
   }
 
   private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
@@ -175,11 +163,11 @@ class NormalizeNames(stopAtRelational: Boolean = true, allowFreeVariables: Boole
       case TableAggregate(child, query) =>
         TableAggregate(normalizeTable(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))
-            .mapValuesWithKey( { case (k, _) => k })))
+            .mapValuesWithKey({ case (k, _) => k })))
       case MatrixAggregate(child, query) =>
         MatrixAggregate(normalizeMatrix(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
-            .mapValuesWithKey( { case (k, _) => k })))
+            .mapValuesWithKey({ case (k, _) => k })))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

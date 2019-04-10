@@ -2,19 +2,19 @@ package is.hail.expr.ir
 
 import scala.collection.mutable
 
-case class UsesAndDefs(uses: Memo[mutable.Set[RefEquality[Ref]]], defs: Memo[RefEquality[BaseIR]])
+case class UsesAndDefs(uses: Memo[mutable.Set[RefEquality[Ref]]], defs: Memo[BaseIR])
 
 object ComputeUsesAndDefs {
   def apply(ir0: BaseIR, freeVariablesError: Boolean = true): UsesAndDefs = {
     val uses = Memo.empty[mutable.Set[RefEquality[Ref]]]
-    val defs = Memo.empty[RefEquality[BaseIR]]
+    val defs = Memo.empty[BaseIR]
 
     def computeTable(tir: TableIR): Unit = tir.children
       .iterator
       .zipWithIndex
       .foreach {
         case (child: IR, i) =>
-          val b = NewBindings(tir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(tir))
+          val b = NewBindings(tir, i).mapValues[BaseIR](_ => tir)
           if (!b.allEmpty && !uses.contains(tir))
             uses.bind(tir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
@@ -28,7 +28,7 @@ object ComputeUsesAndDefs {
       .zipWithIndex
       .foreach {
         case (child: IR, i) =>
-          val b = NewBindings(mir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(mir))
+          val b = NewBindings(mir, i).mapValues[BaseIR](_ => mir)
           if (!b.allEmpty && !uses.contains(mir))
             uses.bind(mir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
@@ -42,7 +42,7 @@ object ComputeUsesAndDefs {
       .zipWithIndex
       .foreach {
         case (child: IR, i) =>
-          val b = NewBindings(bmir, i).mapValues[RefEquality[BaseIR]](_ => RefEquality(bmir))
+          val b = NewBindings(bmir, i).mapValues[BaseIR](_ => bmir)
           if (!b.allEmpty && !uses.contains(bmir))
             uses.bind(bmir, mutable.Set.empty[RefEquality[Ref]])
           computeIR(child, b)
@@ -51,7 +51,7 @@ object ComputeUsesAndDefs {
         case (child: BlockMatrixIR, _) => computeBlockMatrix(child)
       }
 
-    def computeIR(ir: IR, env: BindingEnv[RefEquality[BaseIR]]) {
+    def computeIR(ir: IR, env: BindingEnv[BaseIR]) {
       ir match {
         case r@Ref(name, _) =>
           env.eval.lookupOption(name) match {
@@ -75,10 +75,9 @@ object ComputeUsesAndDefs {
                 if (newBindings.allEmpty)
                   computeIR(ir1, e)
                 else {
-                  val re = RefEquality(ir)
-                  if (!uses.contains(re))
-                    uses.bind(re, mutable.Set.empty[RefEquality[Ref]])
-                  computeIR(ir1, e.merge(newBindings.mapValues(_ => re)))
+                  if (!uses.contains(ir))
+                    uses.bind(ir, mutable.Set.empty[RefEquality[Ref]])
+                  computeIR(ir1, e.merge(newBindings.mapValues(_ => ir)))
                 }
               case (tir: TableIR, _) => computeTable(tir)
               case (mir: MatrixIR, _) => computeMatrix(mir)
