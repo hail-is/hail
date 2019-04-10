@@ -155,7 +155,9 @@ def eval_timed(expression):
             raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
         return Env.backend().execute(expression._ir, True)
     else:
-        return expression.collect()[0], {}
+        uid = Env.get_uid()
+        ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
+        return Env.backend().execute(ir, True)
 
 
 @typecheck(expression=expr_any)
