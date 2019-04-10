@@ -13,7 +13,11 @@ pylint-stmp: $(PY_FILES)
 	python3 -m pylint --rcfile ../pylintrc batch --score=n
 	touch $@
 
+ifneq ($(PY_CHECK),false)
 check: flake8-stmp pylint-stmp
+else
+check:
+endif
 
 install-hail-locally:
 	rm -rf build
