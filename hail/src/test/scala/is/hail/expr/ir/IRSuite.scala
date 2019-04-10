@@ -639,16 +639,16 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testMakeTuple() {
-    assertEvalsTo(MakeTuple(FastSeq()), Row())
-    assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
+    assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
+    assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
-    assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
+    assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
 
   @Test def testGetTupleElement() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
+    val t = MakeTuple.ordered(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
 
     assertEvalsTo(GetTupleElement(t, 0), 5)
@@ -703,15 +703,15 @@ class IRSuite extends HailSuite {
   @Test def testToDict() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
+    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*)))), null)
 
     val a = MakeArray(FastIndexedSeq(
-      MakeTuple(FastIndexedSeq(I32(5), Str("a"))),
-      MakeTuple(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
-      MakeTuple(FastIndexedSeq(NA(TInt32()), Str("b"))),
-      MakeTuple(FastIndexedSeq(I32(3), NA(TString()))),
-      NA(TTuple(FastIndexedSeq(TInt32(), TString()))) // missing value
-    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))
+      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
+      MakeTuple.ordered(FastIndexedSeq(NA(TInt32()), Str("b"))),
+      MakeTuple.ordered(FastIndexedSeq(I32(3), NA(TString()))),
+      NA(TTuple(FastIndexedSeq(TInt32(), TString()): _*)) // missing value
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()): _*)))
 
     assertEvalsTo(ToDict(a), Map(5 -> "a", (null, "b"), 3 -> null))
   }
@@ -925,7 +925,7 @@ class IRSuite extends HailSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple(shape.map(I64)), rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple.ordered(shape.map(I64)), rowMajor)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
@@ -976,8 +976,8 @@ class IRSuite extends HailSuite {
 
   @Test def testNDArrayReshape() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
-    val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
-    val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
+    val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(Seq(I64(4))))
+    val mat2 = NDArrayReshape(v, MakeTuple.ordered(Seq(I64(2), I64(2))))
 
     assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(2)), 3.0)
     assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(1, 0)), 3.0)
@@ -997,13 +997,13 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
     assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
-    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), MakeTuple(shape.map(I64)), True())
+    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), MakeTuple.ordered(shape.map(I64)), True())
     val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
     assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
     assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
     val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
-      MakeTuple(shape.map(I64)), False())
+      MakeTuple.ordered(shape.map(I64)), False())
     val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
     val one = makeNDArrayRef(boolsToBinary, FastSeq(0L, 0L))
     val zero = makeNDArrayRef(boolsToBinary, FastSeq(1L, 1L))
@@ -1014,7 +1014,7 @@ class IRSuite extends HailSuite {
   @Test def testNDArrayMap2() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val shape = MakeTuple(FastSeq(2L, 2L).map(I64))
+    val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
     val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())), shape, True())
     val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())), shape, True())
 
@@ -1122,18 +1122,18 @@ class IRSuite extends HailSuite {
   @Test def testNDArraySlice() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple(Seq(MakeTuple(Seq(I64(0), I64(2), I64(1))), I64(1))))
+    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple.ordered(Seq(MakeTuple.ordered(Seq(I64(0), I64(2), I64(1))), I64(1))))
     assertEvalsTo(NDArrayShape(rightCol), Row(2L))
     assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(0)), 2.0)
     assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(1)), 4.0)
 
     val topRow = NDArraySlice(matrixRowMajor,
-      MakeTuple(Seq(I64(0),
-      MakeTuple(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
+      MakeTuple.ordered(Seq(I64(0),
+      MakeTuple.ordered(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
     assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(1)), 2.0)
 
-    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple(FastSeq()))
+    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple.ordered(FastSeq()))
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
   }
 
@@ -1415,7 +1415,7 @@ class IRSuite extends HailSuite {
     )
 
     assertEvalsTo(Literal(types(0), values(0)), values(0))
-    assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
+    assertEvalsTo(MakeTuple.ordered(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
   }
 
@@ -1457,7 +1457,7 @@ class IRSuite extends HailSuite {
   @Test def testGroupByKey() {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
+    def tuple(k: String, v: Int): IR = MakeTuple.ordered(Seq(Str(k), I32(v)))
 
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
 
@@ -1541,7 +1541,7 @@ class IRSuite extends HailSuite {
     val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter(tmpDir.createLocalTempFile(), false)
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
-      MakeTuple(FastSeq(I64(1), I64(2))),
+      MakeTuple.ordered(FastSeq(I64(1), I64(2))),
       True())
 
 
@@ -1561,7 +1561,7 @@ class IRSuite extends HailSuite {
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
       MakeStream(FastSeq(i, NA(TInt32()), I32(-3)), TStream(TInt32())),
       nd,
-      NDArrayReshape(nd, MakeTuple(Seq(I64(4)))),
+      NDArrayReshape(nd, MakeTuple.ordered(Seq(I64(4)))),
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
@@ -1569,8 +1569,8 @@ class IRSuite extends HailSuite {
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       NDArrayMatMul(nd, nd),
-      NDArraySlice(nd, MakeTuple(FastSeq(MakeTuple(FastSeq(F64(0), F64(2), F64(1))),
-                                         MakeTuple(FastSeq(F64(0), F64(2), F64(1)))))),
+      NDArraySlice(nd, MakeTuple.ordered(FastSeq(MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1))),
+                                         MakeTuple.ordered(FastSeq(F64(0), F64(2), F64(1)))))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1615,7 +1615,7 @@ class IRSuite extends HailSuite {
       InsertFields(s, FastIndexedSeq("x" -> i)),
       InsertFields(s, FastIndexedSeq("* x *" -> i)), // Won't parse as a simple identifier
       GetField(s, "x"),
-      MakeTuple(FastIndexedSeq(i, b)),
+      MakeTuple(FastIndexedSeq(2 -> i, 4 -> b)),
       GetTupleElement(t, 1),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),

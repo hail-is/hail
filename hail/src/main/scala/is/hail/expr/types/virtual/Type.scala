@@ -52,7 +52,7 @@ object Type {
 
   def preGenTuple(required: Boolean, genFieldType: Gen[Type]): Gen[TTuple] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      val t = TTuple(fields.map(_.typ))
+      val t = TTuple(fields.map(_.typ): _*)
       if (required)
         (+t).asInstanceOf[TTuple]
       else
@@ -133,6 +133,10 @@ abstract class Type extends BaseType with Serializable {
   def unify(concrete: Type): Boolean = {
     this.isOfType(concrete)
   }
+
+  def _isCanonical: Boolean = true
+
+  final def isCanonical: Boolean = _isCanonical && children.forall(_.isCanonical)
 
   def isBound: Boolean = children.forall(_.isBound)
 
@@ -291,7 +295,7 @@ abstract class Type extends BaseType with Serializable {
       case _ => false
     }
     case TTuple(f1, required) => t match {
-      case TTuple(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).canCastTo(f2(i)))
+      case TTuple(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
       case _ => false
     }
     case TArray(t1, required) => t match {
@@ -317,7 +321,7 @@ abstract class Type extends BaseType with Serializable {
       case t: TStruct =>
         TStruct(t.fields.map(f => Field(f.name, f.typ.deepOptional(), f.index)))
       case t: TTuple =>
-        TTuple(t.types.map(_.deepOptional()))
+        TTuple(t._types.map(fd => fd.copy(typ = fd.typ.deepOptional())))
       case t =>
         t.setRequired(false)
     }

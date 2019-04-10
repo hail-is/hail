@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq, log}
+import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
 
@@ -197,7 +196,7 @@ object ArraySort {
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
         case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
           val elt = coerce[TTuple](atyp.elementType)
-          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
+          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
     } else {
       ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
@@ -338,7 +337,11 @@ object GetFieldByIdx {
 
 final case class GetField(o: IR, name: String) extends IR
 
-final case class MakeTuple(types: Seq[IR]) extends IR
+object MakeTuple {
+  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
+}
+
+final case class MakeTuple(types: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR

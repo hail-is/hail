@@ -86,8 +86,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   def fieldType(name: String): Type = types(fieldIdx(name))
 
-  def toTTuple: TTuple = new TTuple(types, required)
-
   override def fieldOption(path: List[String]): Option[Field] =
     if (path.isEmpty)
       None
