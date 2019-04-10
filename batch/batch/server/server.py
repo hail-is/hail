@@ -146,7 +146,7 @@ class PVCPool:
 
     @staticmethod
     def create_pvc():
-        return v1.create_namespaced_persistent_volume_claim(
+        pvc = v1.create_namespaced_persistent_volume_claim(
             POD_NAMESPACE,
             kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
@@ -160,6 +160,8 @@ class PVCPool:
                         requests={'storage': POD_VOLUME_SIZE}),
                     storage_class_name=STORAGE_CLASS_NAME)),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        log.info(f'created pvc: {pvc.metadata.name}')
+        return pvc
 
     def get(self):
         self.pool.append(PVCPool.create_pvc())
@@ -180,7 +182,6 @@ class Job:
 
     def _create_pvc(self):
         pvc = pvc_pool.get()
-        log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
         return pvc
 
     def _create_pod(self):
