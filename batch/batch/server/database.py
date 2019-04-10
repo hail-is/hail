@@ -1,10 +1,15 @@
 import os
 import json
 
-from ..database import Database, Table
+from ..database import Database, Table, run_synchronous
 
 
 class BatchDatabase(Database):
+    @staticmethod
+    def create_synchronous(config_file):
+        db = run_synchronous(BatchDatabase(config_file))
+        return db
+
     async def __init__(self, config_file):
         await super().__init__(config_file)
 
