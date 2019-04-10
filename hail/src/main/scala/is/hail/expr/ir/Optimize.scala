@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.HailContext
 import is.hail.utils._
 
 object Optimize {
@@ -9,11 +10,18 @@ object Optimize {
       log.info(s"optimize$contextStr: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
 
     var ir = ir0
-    ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
-    ir = Simplify(ir)
-    ir = ForwardLets(ir)
-    ir = PruneDeadFields(ir)
-    ir = Simplify(ir)
+    var last: BaseIR = null
+    var iter = 0
+    val maxIter = HailContext.get.optimizerIterations
+    while (iter < maxIter && ir != last) {
+      last = ir
+      ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
+      ir = Simplify(ir)
+      ir = ForwardLets(ir)
+      ir = PruneDeadFields(ir)
+
+      iter += 1
+    }
 
     if (ir.typ != ir0.typ)
       fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +
