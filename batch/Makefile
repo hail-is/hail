@@ -77,11 +77,6 @@ test-local-in-cluster: /batch-secrets/batch-test-cloud-sql-config.json
 test-local-in-cluster: check
 	POD_NAMESPACE='test' ./test-locally.sh
 
-ifeq ($(IN_HAIL_CI), 1)
-deploy: clean-db-production
-else
-deploy: clean-db-production-local
-endif
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(BATCH_IMAGE)," \
@@ -90,12 +85,7 @@ deploy: push
 	kubectl delete persistentvolumeclaim --all --namespace batch-pods
 	kubectl -n default apply -f deployment.yaml
 
-ifeq ($(IN_HAIL_CI), 1)
-deploy: clean-db-test
-else
-deploy: clean-db-test-local
-endif
-test-deploy: push-test clean-db-test
+test-deploy: push-test
 	ifndef TEST_NAMESPACE
 	$(error TEST_NAMESPACE is not set)
 	endif
@@ -110,11 +100,11 @@ clean:
 clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-production:
-	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json ./clean-db.sh
+clean-db-production: /batch-secrets/batch-production-cloud-sql-config.json
+	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
 clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-test:
-	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json ./clean-db.sh
+clean-db-test: /batch-secrets/batch-test-cloud-sql-config.json
+	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
