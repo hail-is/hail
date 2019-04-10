@@ -1400,11 +1400,12 @@ object PruneDeadFields {
         val key2 = rebuildIR(key, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val aggIR2 = rebuildIR(aggIR, env, memo)
         AggGroupBy(key2, aggIR2, isScan)
-      case AggArrayPerElement(a, name, aggBody, isScan) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
         val a2 = rebuildIR(a, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val a2t = a2.typ.asInstanceOf[TStreamable].elementType
-        val aggBody2 = rebuildIR(aggBody, if (isScan) env.bindScan(name, a2t) else env.bindAgg(name, a2t), memo)
-        AggArrayPerElement(a2, name, aggBody2, isScan)
+        val env_ = env.bindEval(indexName -> TInt32())
+        val aggBody2 = rebuildIR(aggBody, if (isScan) env_.bindScan(elementName, a2t) else env_.bindAgg(elementName, a2t), memo)
+        AggArrayPerElement(a2, elementName, indexName, aggBody2, isScan)
       case ArrayAgg(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
         val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
