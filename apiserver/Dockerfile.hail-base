@@ -8,5 +8,5 @@ COPY build/hail /hail
 RUN cp /hail/jars/hail-all-spark.jar $SPARK_HOME/jars/hail-all-spark.jar
 
 ENV HAIL_HOME /hail
-ENV PYTHONPATH "$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.4-src.zip:$HAIL_HOME/python"
+ENV PYTHONPATH "$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$HAIL_HOME/python"
 ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
