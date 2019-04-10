@@ -8,18 +8,19 @@ import is.hail.asm4s.Code
 import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
-import is.hail.expr.ir.functions.{IRFunctionRegistry, NDArrayFunctions, RegistryFunctions, SeededIRFunction}
+import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
-import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
+import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
+import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
@@ -1863,5 +1864,50 @@ class IRSuite extends SparkSuite {
       )
 
     assertEvalsTo(ir, 61L)
+  }
+
+  @DataProvider(name = "relationalFunctions")
+  def relationalFunctionsData(): Array[Array[Any]] = Array(
+    Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
+    Array(TableFilterIntervals(TInt32(), Array(Interval(1, 1, true, false)), keep = true)),
+    Array(VEP("foo", false, 1)),
+    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "bar", "baz", "qux", FastIndexedSeq("ck"))),
+    Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
+    Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
+    Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
+    Array(LogisticRegression("firth", Array("a", "b"), "c", Array("d", "e"), Array("f", "g"))),
+    Array(PoissonRegression("firth", "a", "c", Array("d", "e"), Array("f", "g"))),
+    Array(Skat("a", "b", "c", "d", Array("e", "f"), false, 1, 0.1, 100)),
+    Array(LocalLDPrune("x", 0.95, 123, 456)),
+    Array(PCA("x", 1, false)),
+    Array(WindowByLocus(1)),
+    Array(MatrixFilterPartitions(Array(1, 2, 3), keep = true)),
+    Array(MatrixFilterIntervals(TInt32(), Array(Interval(1, 1, true, false)), keep = true)),
+    Array(ForceCountTable()),
+    Array(ForceCountMatrixTable()),
+    Array(NPartitionsTable()),
+    Array(NPartitionsMatrixTable()),
+    Array(WrappedMatrixToValueFunction(NPartitionsMatrixTable(), "foo", "bar", FastIndexedSeq("a", "c"))),
+    Array(MatrixWriteBlockMatrix("a", false, "b", 1)),
+    Array(MatrixExportEntriesByCol(1, "asd", false)),
+    Array(GetElement(FastSeq(1, 2)))
+  )
+
+  @Test def relationalFunctionsRun(): Unit = {
+    relationalFunctionsData()
+  }
+
+  @Test(dataProvider = "relationalFunctions")
+  def testRelationalFunctionsSerialize(x: Any): Unit = {
+    implicit val formats = RelationalFunctions.formats
+
+    x match {
+      case x: MatrixToMatrixFunction => assert(RelationalFunctions.lookupMatrixToMatrix(Serialization.write(x)) == x)
+      case x: MatrixToTableFunction => assert(RelationalFunctions.lookupMatrixToTable(Serialization.write(x)) == x)
+      case x: MatrixToValueFunction => assert(RelationalFunctions.lookupMatrixToValue(Serialization.write(x)) == x)
+      case x: TableToTableFunction => assert(RelationalFunctions.lookupTableToTable(Serialization.write(x)) == x)
+      case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
+      case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
+    }
   }
 }

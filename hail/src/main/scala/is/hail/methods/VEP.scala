@@ -101,8 +101,8 @@ object VEP {
 }
 
 case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
-  private val vepSignature = conf.vep_json_schema
+  private lazy val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
+  private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
 
