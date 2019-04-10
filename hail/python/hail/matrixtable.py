@@ -2574,7 +2574,7 @@ class MatrixTable(ExprContainer):
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},
-            **{str(i): t.entries[i] for i in range(0, n_cols)})
+            **{str(i): t.entries[i] for i in range(0, displayed_n_cols)})
         if handler is None:
             try:
                 from IPython.display import display
