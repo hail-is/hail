@@ -17,7 +17,7 @@ object SparkBackend {
     val t = ir.typ
     val (value, timings) = execute(ir)
     val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
-    log.info(s"Execution times: ${ timings.value }")
+    timings.logInfo()
 
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }

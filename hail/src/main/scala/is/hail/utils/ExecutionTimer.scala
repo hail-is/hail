@@ -4,6 +4,12 @@ import scala.collection.mutable
 
 class Timings(val value: mutable.Map[String, Map[String, Any]]) extends AnyVal {
   def +=(timing: (String, Map[String, Any])) { value += timing }
+
+  def logInfo() {
+    value.foreach { case (stage, timing) =>
+      log.info(s"Time taken for $stage: ${ timing("readable") }")
+    }
+  }
 }
 
 class ExecutionTimer(context: String) {
