@@ -856,6 +856,21 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseAddInfo(rvb: RegionValueBuilder, infoType: TStruct, infoFlagFieldNames: Set[String]) {
+    def addField(key: String) = {
+      if (infoType.hasField(key)) {
+        rvb.setFieldIndex(infoType.fieldIdx(key))
+        if (infoFlagFieldNames.contains(key)) {
+          if (line(pos) == '=') {
+            pos += 1
+            val s = parseInfoString()
+            if (s != "0")
+              rvb.addBoolean(true)
+          } else
+            rvb.addBoolean(true)
+        } else
+          parseAddInfoField(rvb, infoType.fieldType(key))
+      }
+    }
     rvb.startStruct()
     infoType.fields.foreach { f =>
       if (infoFlagFieldNames.contains(f.name))
@@ -874,13 +889,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
         parseError(s"invalid INFO key $key")
     }
 
-    if (infoType.hasField(key)) {
-      rvb.setFieldIndex(infoType.fieldIdx(key))
-      if (infoFlagFieldNames.contains(key))
-        rvb.addBoolean(true)
-      else
-        parseAddInfoField(rvb, infoType.fieldType(key))
-    }
+    addField(key)
     skipInfoField()
 
     while (!endField()) {
@@ -889,19 +898,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       if (key == ".") {
         parseError(s"invalid INFO key $key")
       }
-      if (infoType.hasField(key)) {
-        rvb.setFieldIndex(infoType.fieldIdx(key))
-        if (infoFlagFieldNames.contains(key)) {
-          if (line(pos) == '=') {
-            pos += 1
-            val s = parseInfoString()
-            if (s != "0")
-              rvb.addBoolean(true)
-          } else
-            rvb.addBoolean(true)
-        } else
-          parseAddInfoField(rvb, infoType.fieldType(key))
-      }
+      addField(key)
       skipInfoField()
     }
 

@@ -289,6 +289,22 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    def test_vcf_parser_golden_master(self):
+        # the three matrix tables referenced here were generated using the old VCF parser
+        # parser
+        files = [(resource('ex.vcf'), 'GRCh37'),
+                 (resource('sample.vcf'), 'GRCh37'),
+                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
+        for vcf_path, rg in files:
+            vcf = hl.import_vcf(
+                vcf_path,
+                reference_genome=rg,
+                array_elements_required=False,
+                force_bgz=True)
+            mt = hl.read_matrix_table(vcf_path + '.mt')
+            self.assertTrue(mt._same(vcf))
+
+
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
