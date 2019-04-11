@@ -7,7 +7,7 @@ import scala.collection.mutable
 object ForwardLets {
   def apply(ir0: BaseIR): BaseIR = {
     val ir1 = new NormalizeNames(allowFreeVariables = true).apply(ir0)
-    val UsesAndDefs(uses, _) = ComputeUsesAndDefs(ir1, freeVariablesError = false)
+    val UsesAndDefs(uses, _) = ComputeUsesAndDefs(ir1, allowFreeVariables = false)
     val nestingDepth = NestingDepth(ir1)
 
     def rewriteTable(tir: TableIR): BaseIR = tir.copy(tir
@@ -49,10 +49,10 @@ object ForwardLets {
         value.isInstanceOf[Ref] ||
           IsConstant(value) ||
           refs.isEmpty ||
-          refs.size == 1 &&
+          (refs.size == 1 &&
             nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
             !ContainsScan(value) &&
-            !ContainsAgg(value)
+            !ContainsAgg(value))
       }
 
       def mapRewrite(): IR = ir.copy(ir.children
@@ -68,18 +68,18 @@ object ForwardLets {
       ir match {
         case Let(name, value, body) =>
           val refs = uses.lookup(ir)
-          if (shouldForward(value, refs, ir)) {
+          if (shouldForward(value, refs, ir))
             rewrite(body, env.bindEval(name -> rewrite(value, env)))
-          } else
+          else
             mapRewrite()
         case AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
-          if (shouldForward(value, refs, ir)) {
+          if (shouldForward(value, refs, ir))
             if (isScan)
               rewrite(body, env.copy(scan = Some(env.scan.get.bind(name -> rewrite(value, BindingEnv(env.scanOrEmpty))))))
             else
               rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewrite(value, BindingEnv(env.aggOrEmpty))))))
-          } else
+          else
             mapRewrite()
         case x@Ref(name, _) => env.eval.lookupOption(name).getOrElse(x)
         case _ =>

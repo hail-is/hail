@@ -5,7 +5,7 @@ import scala.collection.mutable
 case class UsesAndDefs(uses: Memo[mutable.Set[RefEquality[Ref]]], defs: Memo[BaseIR])
 
 object ComputeUsesAndDefs {
-  def apply(ir0: BaseIR, freeVariablesError: Boolean = true): UsesAndDefs = {
+  def apply(ir0: BaseIR, allowFreeVariables: Boolean = true): UsesAndDefs = {
     val uses = Memo.empty[mutable.Set[RefEquality[Ref]]]
     val defs = Memo.empty[BaseIR]
 
@@ -60,7 +60,7 @@ object ComputeUsesAndDefs {
               uses.lookup(decl) += re
               defs.bind(re, decl)
             case None =>
-              if (freeVariablesError)
+              if (allowFreeVariables)
                 throw new RuntimeException(s"found variable with no definition: $name")
           }
         case _: IR =>

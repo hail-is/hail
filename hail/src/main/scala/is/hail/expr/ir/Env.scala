@@ -39,18 +39,18 @@ case class BindingEnv[V](
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
 
   def bindAgg(name: String, v: V): BindingEnv[V] =
-    copy(agg = Some(aggOrEmpty.bind(name, v)))
+    copy(agg = Some(agg.get.bind(name, v)))
 
   def bindAgg(bindings: (String, V)*): BindingEnv[V] =
-    copy(agg = Some(aggOrEmpty.bindIterable(bindings)))
+    copy(agg = Some(agg.get.bindIterable(bindings)))
 
   def aggOrEmpty: Env[V] = agg.getOrElse(Env.empty)
 
   def bindScan(name: String, v: V): BindingEnv[V] =
-    copy(scan = Some(scanOrEmpty.bind(name, v)))
+    copy(scan = Some(scan.get.bind(name, v)))
 
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
-    copy(scan = Some(scanOrEmpty.bindIterable(bindings)))
+    copy(scan = Some(scan.get.bindIterable(bindings)))
 
   def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
 
