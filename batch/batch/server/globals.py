@@ -1,18 +1,42 @@
+import os
 import datetime
 import collections
+
+import hailjwt as hj
+
+from .google_storage import upload_private_gs_file_from_string, download_gs_file_as_string
+from .google_storage import exists_gs_file
+
+
+if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/batch-gsa-key/privateKeyData'
+
+
+batch_jwt = os.environ.get('BATCH_JWT', '/batch-jwt/jwt')
+with open(batch_jwt, 'r') as f:
+    batch_bucket_name = hj.JWTClient.unsafe_decode(f.read())['bucket_name']
+
 
 pod_name_job = {}
 job_id_job = {}
 batch_id_batch = {}
 
 
-def _log_path(id, task_name):
-    return f'logs/job-{id}-{task_name}.log'
+def _gs_log_path(instance_id, job_id, task_name):
+    return f'{instance_id}/{job_id}/{task_name}/job.log'
 
 
-def _read_file(fname):
-    with open(fname, 'r') as f:
-        return f.read()
+def write_gs_log_file(instance_id, job_id, task_name, log):
+    path = _gs_log_path(instance_id, job_id, task_name)
+    upload_private_gs_file_from_string(batch_bucket_name, path, log)
+    return path
+
+
+def read_gs_log_file(instance_id, job_id, task_name):
+    path = _gs_log_path(instance_id, job_id, task_name)
+    if exists_gs_file(batch_bucket_name, path):
+        return download_gs_file_as_string(batch_bucket_name, path)
+    return None
 
 
 _counter = 0

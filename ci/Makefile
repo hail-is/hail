@@ -3,6 +3,7 @@
 .PHONY: run-service deploy
 
 include ../cloud-sql.mk
+include ../batch/batch-secrets.mk
 
 PROJECT := $(shell gcloud config get-value project)
 HAIL_CI_LATEST = gcr.io/$(PROJECT)/hail-ci:latest
@@ -45,6 +46,8 @@ test-local: HAIL_CI_REMOTE_PORT = 3001
 test-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 test-local: restart-proxy install-cloud-sql-proxy
 test-local: batch-secrets/batch-test-cloud-sql-config.json
+test-local: batch-secrets/batch-test-gsa-key/privateKeyData
+test-local: batch-secrets/batch-test-jwt/jwt
 test-local: ../batch/test/jwt-test-user-token
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 		HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
@@ -55,6 +58,8 @@ test-local: ../batch/test/jwt-test-user-token
 		./test-locally.sh
 
 test-in-cluster: ../batch/test/jwt-test-user-token
+test-in-cluster: /batch-test-gsa-key/privateKeyData
+test-in-cluster: /batch-test-jwt/jwt
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
 		HAIL_POD_NAMESPACE=test \
