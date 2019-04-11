@@ -511,6 +511,12 @@ object Simplify {
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
 
     case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
+
+    case TableZipUnchecked(left, right) if left.typ.rowType.size == 0 =>
+      if (left.typ.globalType.size == 0)
+        right
+      else
+        TableMapGlobals(right, TableGetGlobals(left))
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
