@@ -6,11 +6,11 @@ GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
 flake8-stmp: $(PY_FILES)
-	python3 -m flake8 batch
+	python3 -m flake8 apiserver
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	python3 -m pylint --rcfile ../pylintrc batch --score=n
+	python3 -m pylint --rcfile ../pylintrc apiserver --score=n
 	touch $@
 
 ifneq ($(PY_CHECK),false)
