@@ -23,7 +23,7 @@ flake8-stmp: $(PY_FILES)
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	python3 -m pylint --rcfile batch/pylintrc batch --score=n
+	python3 -m pylint --rcfile ../pylintrc batch --score=n
 	touch $@
 
 check: $(PY_CHECKERS)
