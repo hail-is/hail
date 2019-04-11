@@ -239,7 +239,40 @@ def approx_cdf(expr, k=100):
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
-def approx_quantiles(expr, qs, k=100) -> NumericExpression:
+def approx_quantiles(expr, qs, k=100) -> Expression:
+    """Compute an array of approximate quantiles.
+
+    .. include: _templates/experimental.rst
+
+    Examples
+    --------
+    Estimate the median of the `HT` field.
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +NOTEST
+    64
+
+    Estimate the quartiles of the `HT` field.
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +NOTEST
+    [50, 60, 64, 71, 86]
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    qs : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+        Number or array of numbers between 0 and 1.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff.
+
+    Returns
+    -------
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+        If `qs` is a single number, returns the estimated quantile.
+        If `qs` is an array, returns the array of estimated quantiles.
+    """
     if isinstance(qs.dtype, tarray):
         return rbind(approx_cdf(expr, k), lambda cdf: qs.map(lambda q: _quantile_from_cdf(cdf, float32(q))))
     else:
