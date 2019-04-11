@@ -1,8 +1,23 @@
-.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar
+.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar check
 
 PROJECT := $(shell gcloud config get-value project)
 REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
+PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
+
+flake8-stmp: $(PY_FILES)
+	python3 -m flake8 batch
+	touch $@
+
+pylint-stmp: $(PY_FILES)
+	python3 -m pylint --rcfile ../pylintrc batch --score=n
+	touch $@
+
+ifneq ($(PY_CHECK),false)
+check: flake8-stmp pylint-stmp
+else
+check:
+endif
 
 install-hail-locally:
 	rm -rf build
@@ -117,7 +132,7 @@ run-hail-jupyter-pod:
 	  < hail-jupyter-pod.yaml.in > hail-jupyter-pod.yaml
 	kubectl create -f hail-jupyter-pod.yaml
 
-test: build-hail-shadow-jar
+test: build-hail-shadow-jar check
 	./test-apiserver.sh
 
 clean:
