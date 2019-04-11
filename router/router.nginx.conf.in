@@ -16,8 +16,8 @@ server {
         proxy_pass http://scorecard/;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -32,8 +32,8 @@ server {
         proxy_pass http://hail-ci/;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -43,8 +43,8 @@ server {
         proxy_pass http://ci2/;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -59,8 +59,8 @@ server {
     proxy_set_header X-Forwarded-Host $host;
     proxy_set_header X-Forwarded-Proto https;
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -125,8 +125,8 @@ server {
         proxy_read_timeout 86400;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -195,8 +195,8 @@ server {
         proxy_read_timeout 86400;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }
 
 server {
@@ -206,6 +206,6 @@ server {
         proxy_pass http://web/;
     }
 
-    listen 80 default_server;
-    listen [::]:80 default_server;
+    listen 80;
+    listen [::]:80;
 }

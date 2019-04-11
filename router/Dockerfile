@@ -5,9 +5,11 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN rm -f /etc/nginx/sites-enabled/default
-ADD router.nginx.conf.in .
+ADD router.nginx.conf.in /
 
 RUN ln -sf /dev/stdout /var/log/nginx/access.log
 RUN ln -sf /dev/stderr /var/log/nginx/error.log
 
-CMD ["nginx", "-g", "daemon off;"]
+ADD start-nginx.sh /
+
+CMD ["/start-nginx.sh"]
