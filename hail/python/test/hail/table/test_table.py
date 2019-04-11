@@ -761,6 +761,28 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    def test_union_unify(self):
+        t1 = hl.utils.range_table(2)
+        t2 = t1.annotate(x=hl.int32(1), y='A')
+        t3 = t1.annotate(z=(1, 2, 3), x=hl.float64(1.5))
+        t4 = t1.key_by(idx=t1.idx + 10)
+
+        u = t1.union(t2, t3, t4, unify=True)
+
+        assert u.x.dtype == hl.tfloat64
+        assert list(u.row) == ['idx', 'x', 'y', 'z']
+
+        assert u.collect() == [
+            hl.utils.Struct(idx=0, x=None, y=None, z=None),
+            hl.utils.Struct(idx=0, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=0, x=1.5, y=None, z=(1, 2, 3)),
+            hl.utils.Struct(idx=1, x=None, y=None, z=None),
+            hl.utils.Struct(idx=1, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=1, x=1.5, y=None, z=(1, 2, 3)),
+            hl.utils.Struct(idx=10, x=None, y=None, z=None),
+            hl.utils.Struct(idx=11, x=None, y=None, z=None),
+        ]
+
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
         par = hl.Table.parallelize([hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=11)
