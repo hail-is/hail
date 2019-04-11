@@ -172,9 +172,14 @@ object Compile {
     mod.close()
     st.close()
 
+    val hadoopConf = new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration)
+
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()
-      val res = nativef(st2, new ObjectArray(sparkUtils, new ByteArrayInputStream(literals)).get(), region, v2)
+      val jObjectArgs = new ObjectArray(sparkUtils,
+        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
+        new ByteArrayInputStream(literals)).get()
+      val res = nativef(st2, jObjectArgs, region, v2)
       if (st2.fail)
         fatal(st2.toString())
       res
