@@ -1,7 +1,7 @@
 #include <jni.h>
 #include <cstring>
 #include "hail/Decoder.h"
-#include "lz4.h"
+#include <lz4.h>
 #include "hail/Utils.h"
 
 namespace hail {

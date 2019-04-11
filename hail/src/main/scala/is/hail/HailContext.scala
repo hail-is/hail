@@ -179,8 +179,8 @@ object HailContext {
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
 
-    if (get != null) {
-      val hc = get
+    if (theContext != null) {
+      val hc = theContext
       if (sc == null) {
         warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
           "has already been initialized. Different configuration settings will be ignored.")
