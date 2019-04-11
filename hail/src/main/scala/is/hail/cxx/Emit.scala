@@ -1019,7 +1019,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val patht = emit(path)
         val stdStringPath = fb.variable("path", "std::string", s"load_string(${ patht.v })")
 
-        val nativeEncoderClass = CodecSpec.defaultUncompressed.buildNativeEncoderClass(nd.pType, tub)
+        val nativeEncoderClass = CodecSpec.unblockedUncompressed.buildNativeEncoderClass(nd.pType, tub)
         triplet(
           s"""
              | ${ ndt.setup }

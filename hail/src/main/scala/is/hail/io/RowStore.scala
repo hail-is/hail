@@ -1,6 +1,7 @@
 package is.hail.io
 
 import java.io._
+import java.nio.ByteBuffer
 import java.util
 
 import is.hail.annotations._
@@ -9,14 +10,12 @@ import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.Type
 import is.hail.io.compress.LZ4Utils
 import is.hail.nativecode._
 import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -90,6 +89,18 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
 }
 
+final class StreamBufferSpec extends BufferSpec {
+  override def buildInputBuffer(in: InputStream): InputBuffer = new StreamInputBuffer(in)
+
+  override def buildOutputBuffer(out: OutputStream): OutputBuffer = new StreamOutputBuffer(out)
+
+  override def nativeInputBufferType: String = s"StreamInputBuffer"
+
+  override def nativeOutputBufferType: String = s"StreamOutputBuffer"
+
+  override def equals(other: Any): Boolean = other.isInstanceOf[StreamBufferSpec]
+}
+
 object CodecSpec {
   val default: CodecSpec = new PackCodecSpec(
     new LEB128BufferSpec(
@@ -100,6 +111,8 @@ object CodecSpec {
   val defaultUncompressed = new PackCodecSpec(
     new BlockingBufferSpec(32 * 1024,
       new StreamBlockBufferSpec))
+
+  val unblockedUncompressed = PackCodecSpec(new StreamBufferSpec)
 
   val blockSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
@@ -463,6 +476,28 @@ trait OutputBuffer extends Closeable {
   }
 }
 
+final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
+  override def flush(): Unit = out.flush()
+
+  override def close(): Unit = out.close()
+
+  override def writeByte(b: Byte): Unit = out.write(Array(b))
+
+  override def writeInt(i: Int): Unit = out.write(i)
+
+  def writeLong(l: Long): Unit = out.write(ByteBuffer.allocate(8).putLong(l).array())
+
+  def writeFloat(f: Float): Unit = out.write(ByteBuffer.allocate(4).putFloat(f).array())
+
+  def writeDouble(d: Double): Unit = out.write(ByteBuffer.allocate(8).putDouble(d).array())
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
+    Iterator.tabulate(n) { i => writeDouble(fromOff + i) }
+  }
+}
+
 final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def flush(): Unit = out.flush()
 
@@ -642,6 +677,58 @@ trait InputBuffer extends Closeable {
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
+}
+
+final class StreamInputBuffer(in: InputStream) extends InputBuffer {
+  private val buff = ByteBuffer.allocate(8)
+
+  def close(): Unit = in.close()
+
+  def readByte(): Byte = in.read().toByte
+
+  def readInt(): Int = {
+    buff.clear()
+    in.read(buff.array())
+    buff.getInt()
+  }
+
+  def readLong(): Long = {
+    buff.clear()
+    in.read(buff.array())
+    buff.getLong()
+  }
+
+  def readFloat(): Float = {
+    buff.clear()
+    in.read(buff.array())
+    buff.getFloat()
+  }
+
+  def readDouble(): Double = {
+    buff.clear()
+    in.read(buff.array())
+    buff.getDouble()
+  }
+
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
+    toRegion.storeBytes(toOff, Array.tabulate(n)(_ => readByte()))
+  }
+
+  def skipByte(): Unit = in.skip(1)
+
+  def skipInt(): Unit = in.skip(4)
+
+  def skipLong(): Unit = in.skip(8)
+
+  def skipFloat(): Unit = in.skip(4)
+
+  def skipDouble(): Unit = in.skip(8)
+
+  def skipBytes(n: Int): Unit = in.skip(n)
+
+  def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
+    Iterator.tabulate(n) { i => to(off + i) = readDouble() }
+  }
 }
 
 final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
