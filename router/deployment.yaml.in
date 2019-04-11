@@ -16,10 +16,12 @@ spec:
         app: router
         hail.is/sha: "@sha@"
     spec:
-      serviceAccountName: router
       containers:
       - name: router
         image: @image@
+        env:
+        - name: DOMAIN
+          value: @domain@
         ports:
         - containerPort: 80
 ---

@@ -5,7 +5,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 RUN rm -f /etc/nginx/sites-enabled/default
-ADD router.nginx.conf /etc/nginx/conf.d/router.conf
+ADD router.nginx.conf.in .
 
 RUN ln -sf /dev/stdout /var/log/nginx/access.log
 RUN ln -sf /dev/stderr /var/log/nginx/error.log
