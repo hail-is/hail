@@ -182,7 +182,7 @@ object HailContext {
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    optimizerIterations: Int): HailContext = contextLock.synchronized {
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
 
     if (get != null) {
       val hc = get
@@ -220,7 +220,7 @@ object HailContext {
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
     tmpDir: String = "/tmp",
-    optimizerIterations: Int): HailContext = contextLock.synchronized {
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
