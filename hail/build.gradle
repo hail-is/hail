@@ -334,7 +334,7 @@ task benchmark(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
-task testAll(dependsOn: ['testPython', 'test', 'doctest', 'testCppCodegen'])
+task testAll(dependsOn: ['testPython', 'test', 'doctest', 'testCppCodegen', 'testIsolatedSuites'])
 
 tasks.withType(ShadowJar) {
     manifest {
