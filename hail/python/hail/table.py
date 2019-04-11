@@ -1930,24 +1930,21 @@ class Table(ExprContainer):
         all_tables = [self]
         all_tables.extend(tables)
 
-        if unify and not len(set(t.row_value.dtype for t in all_tables)) == 1:
-            discovered = {}
+        if unify and not len(set(ht.row_value.dtype for ht in all_tables)) == 1:
+            discovered = defaultdict(dict)
             for i, ht in enumerate(all_tables):
-                for field in ht.row_value:
-                    if field in discovered:
-                        discovered[field][i] = ht[field]
-                    else:
-                        discovered[field] = {i: ht[field]}
+                for field_name in ht.row_value:
+                    discovered[field_name][i] = ht[field_name]
             all_fields = [{} for _ in all_tables]
-            for field, ts in discovered.items():
-                *unified, can_unify = hl.expr.expressions.unify_exprs(*ts.values())
+            for field_name, expr_dict in discovered.items():
+                *unified, can_unify = hl.expr.expressions.unify_exprs(*expr_dict.values())
                 if not can_unify:
-                    raise ValueError(f"cannot unify field {field!r}: found fields of types "
-                                     f"{[str(t) for t in {e.dtype for e in ts.values()}]}")
-                unified_map = dict(zip(ts.keys(), unified))
+                    raise ValueError(f"cannot unify field {field_name!r}: found fields of types "
+                                     f"{[str(t) for t in {e.dtype for e in expr_dict.values()}]}")
+                unified_map = dict(zip(expr_dict.keys(), unified))
                 default = hl.null(unified[0].dtype)
                 for i in range(len(all_tables)):
-                    all_fields[i][field] = unified_map.get(i, default)
+                    all_fields[i][field_name] = unified_map.get(i, default)
 
             for i, t in enumerate(all_tables):
                 all_tables[i] = t.select(**all_fields[i])
