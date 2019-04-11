@@ -134,9 +134,17 @@ metadata:
     app: apiserver
 spec:
   ports:
-  - name: http
+  - name: hail
     port: 5000
     protocol: TCP
     targetPort: 5000
+  - name: spark-driver
+    port: 9001
+    protocol: TCP
+    targetPort: 9001
+  - name: spark-block-manager
+    port: 9002
+    protocol: TCP
+    targetPort: 9002
   selector:
     app: apiserver
