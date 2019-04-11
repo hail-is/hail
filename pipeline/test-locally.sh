@@ -39,7 +39,7 @@ export BATCH_JOBS_TABLE=batch-jobs-$(../generate-uid.sh)
 tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_JOBS_TABLE)
 
 cd ../batch/
-python -c 'import batch.server; batch.server.serve()' &
+python3 -c 'import batch.server; batch.server.serve()' &
 server_pid=$!
 cd ../pipeline/
 

@@ -54,6 +54,21 @@ class LocalTests(unittest.TestCase):
             self.assert_same_file(input_file1.name, output_file1.name)
             self.assert_same_file(input_file2.name, output_file2.name)
 
+    def test_write_resource_group(self):
+        with tempfile.NamedTemporaryFile('w') as input_file1, \
+                tempfile.NamedTemporaryFile('w') as input_file2, \
+                tempfile.TemporaryDirectory() as output_dir:
+
+            p = Pipeline()
+            input = p.read_input_group(in1=input_file1.name,
+                                       in2=input_file2.name)
+
+            p.write_output(input, output_dir + '/foo')
+            p.run()
+
+            self.assert_same_file(input_file1.name, output_dir + '/foo.in1')
+            self.assert_same_file(input_file2.name, output_dir + '/foo.in2')
+
     def test_single_task(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
@@ -64,7 +79,7 @@ class LocalTests(unittest.TestCase):
             p.write_output(t.ofile, output_file.name)
             p.run()
 
-            assert self.read(output_file.name) ==  msg
+            assert self.read(output_file.name) == msg
 
     def test_single_task_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
