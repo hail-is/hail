@@ -109,7 +109,8 @@ class LocalBackend(Backend):
                 return [f'{cp} {r._get_path(tmpdir)} {dest}']
             else:
                 assert isinstance(r, ResourceGroup)
-                return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
+                return [x for ext, rf in r._resources.items()
+                        for x in write_pipeline_outputs(rf, dest + '.' + ext)]
 
         outputs = [x for _, r in pipeline._resource_map.items()
                    for dest in r._output_paths
