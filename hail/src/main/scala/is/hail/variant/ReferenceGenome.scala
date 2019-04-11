@@ -564,11 +564,21 @@ object ReferenceGenome {
   var GRCm38: ReferenceGenome = _
   var hailReferences: Set[String] = _
 
-  if (TaskContext.get == null) {
+  def addDefaultReferences() : Unit = {
+    assert(references.isEmpty)
     GRCh37 = fromResource("reference/grch37.json")
     GRCh38 = fromResource("reference/grch38.json")
     GRCm38 = fromResource("reference/grcm38.json")
     hailReferences = references.keySet
+  }
+
+  def reset(): Unit = {
+    references.foreach { case (name, rg) => rg.removeIRFunctions() }
+    references = Map()
+    GRCh37 = null
+    GRCh38 = null
+    GRCm38 = null
+    hailReferences = null
   }
 
   def addReference(rg: ReferenceGenome) {

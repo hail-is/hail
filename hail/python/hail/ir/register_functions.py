@@ -1,32 +1,33 @@
 import hail as hl
 from hail.expr.nat import NatVariable
-from .ir import register_function, register_seeded_function
+from .ir import register_function, register_session_function, register_seeded_function
+
 
 def register_reference_genome_functions(rg):
     from hail.expr.types import dtype
 
     tvariant = dtype(f"struct{{locus:locus<{rg}>,alleles:array<str>}}")
     tinterval = dtype(f"interval<locus<{rg}>>")
-    
-    register_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
-    register_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
-    register_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
-    register_function(f"LocusInterval({rg})", (dtype("str"),), tinterval)
-    register_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
-    register_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
-    register_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
-    register_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
-    register_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+    register_session_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),), tinterval)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
+    register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
+    register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
-    register_function(f"globalPosToLocus({rg})", (dtype("int64"),), dtype(f"locus<{rg}>"))
-    register_function(f"locusToGlobalPos({rg})", (dtype(f"locus<{rg}>"),), dtype("int64"))
+    register_session_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+    register_session_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+
+    register_session_function(f"globalPosToLocus({rg})", (dtype("int64"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"locusToGlobalPos({rg})", (dtype(f"locus<{rg}>"),), dtype("int64"))
 
 def register_liftover_functions(rg, dest_rg):
     from hail.expr.types import dtype
-    
-    register_function(f"liftoverLocus({rg})({dest_rg})", (dtype(f"locus<{rg}>"), dtype('float64'),), dtype(f"struct{{result:locus<{dest_rg}>,is_negative_strand:bool}}"))
-    register_function(f"liftoverLocusInterval({rg})({dest_rg})", (dtype(f"interval<locus<{rg}>>"), dtype('float64'),), dtype(f"struct{{result:interval<locus<{dest_rg}>>,is_negative_strand:bool}}"))
+
+    register_session_function(f"liftoverLocus({rg})({dest_rg})", (dtype(f"locus<{rg}>"), dtype('float64'),), dtype(f"struct{{result:locus<{dest_rg}>,is_negative_strand:bool}}"))
+    register_session_function(f"liftoverLocusInterval({rg})({dest_rg})", (dtype(f"interval<locus<{rg}>>"), dtype('float64'),), dtype(f"struct{{result:interval<locus<{dest_rg}>>,is_negative_strand:bool}}"))
 
 
 def register_functions():
