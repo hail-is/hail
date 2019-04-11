@@ -8,6 +8,7 @@
 - project: ci2
 - project: cloudtools
 - project: etc
+- project: router
 - project: gateway
 - project: hail
 - project: apiserver
