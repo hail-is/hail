@@ -686,6 +686,17 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     v * mul
   }
 
+  // cdv: keep backwards compatibility with the old parser
+  def infoToDouble(s: String): Double = {
+    s match {
+      case "nan" => Double.NaN
+      case "-nan" => Double.NaN
+      case "inf" => Double.PositiveInfinity
+      case "-inf" => Double.NegativeInfinity
+      case _ => s.toDouble
+    }
+  }
+
   def parseAddInfoInt(rvb: RegionValueBuilder) {
     if (!infoFieldMissing()) {
       rvb.setPresent()
@@ -711,7 +722,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   def parseAddInfoDouble(rvb: RegionValueBuilder) {
     if (!infoFieldMissing()) {
       rvb.setPresent()
-      rvb.addDouble(parseInfoString().toDouble)
+      rvb.addDouble(infoToDouble(parseInfoString()))
     }
   }
 
@@ -739,7 +750,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     line.substring(start, end)
   }
 
-  def parseDoubleInInfoArray(): Double = parseStringInInfoArray().toDouble
+  def parseDoubleInInfoArray(): Double = infoToDouble(parseStringInInfoArray())
 
   def parseIntInfoArrayElement() {
     if (infoArrayElementMissing()) {
