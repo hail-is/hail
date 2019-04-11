@@ -290,8 +290,6 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), vcf2.n_partitions())
 
     def test_vcf_parser_golden_master(self):
-        # the three matrix tables referenced here were generated using the old VCF parser
-        # parser
         files = [(resource('ex.vcf'), 'GRCh37'),
                  (resource('sample.vcf'), 'GRCh37'),
                  (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
