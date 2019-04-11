@@ -10,7 +10,7 @@ flake8-stmp: $(PY_FILES)
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	python3 -m pylint --rcfile ../pylintrc apiserver --score=n
+	PYTHONPATH=../hail/python:$$PYTHONPATH python3 -m pylint --rcfile ../pylintrc apiserver --score=n
 	touch $@
 
 ifneq ($(PY_CHECK),false)

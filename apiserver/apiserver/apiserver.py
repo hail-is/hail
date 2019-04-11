@@ -1,9 +1,9 @@
-from aiohttp import web
 import asyncio
 import concurrent
 import json
 import os
 import uvloop
+from aiohttp import web
 
 import hail as hl
 
@@ -272,7 +272,7 @@ async def reference_remove_liftover(request):
 
 
 def blocking_parse_vcf_metadata(data):
-    return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(data['path']))
+    return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(data['path']))  # pylint: disable=no-member
 
 
 @routes.post('/parse-vcf-metadata')
