@@ -28,7 +28,7 @@ object CompileAndEvaluate {
 
     // void is not really supported by IR utilities
     if (ir.typ == TVoid) {
-      val res = timer.time(Interpret(ir, env, args, None, optimize = false), "interpret")
+      val res = timer.time(Interpret[T](ir, env, args, None, optimize = false), "interpret")
       return (res, timer.timings)
     }
 
