@@ -18,7 +18,7 @@ class HadoopConfig {
   public:
     HadoopConfig(jobject jhadoop_config);
     ~HadoopConfig();
-    std::shared_ptr<OutputStream> unsafe_writer(const char *path);
+    std::shared_ptr<OutputStream> unsafe_writer(std::string path);
 };
 
 }

@@ -1027,7 +1027,7 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val path = tmpDir.createLocalTempFile()
-    val write = NDArrayWrite(threeTensorRowMajor, path)
+    val write = NDArrayWrite(threeTensorRowMajor, Str(path))
     nativeExecute(write, Env.empty, IndexedSeq.empty, None)
   }
 
@@ -1382,7 +1382,7 @@ class IRSuite extends SparkSuite {
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, IndexedSeq(0, 1)),
-      NDArrayWrite(nd, tmpDir.createTempFile()),
+      NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
