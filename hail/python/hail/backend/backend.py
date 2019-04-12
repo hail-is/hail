@@ -80,14 +80,14 @@ class Backend(abc.ABC):
     def parse_vcf_metadata(self, path):
         pass
 
+    @property
     @abc.abstractmethod
-    def get_fs(self):
+    def fs(self):
         pass
 
 
 class SparkBackend(Backend):
-    def __init__(self):
-        self.fs = HadoopFS()
+    fs = HadoopFS()
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
@@ -176,9 +176,6 @@ class SparkBackend(Backend):
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
-    def get_fs(self):
-        return self.fs
-
 
 class LocalBackend(Backend):
     def __init__(self):
@@ -198,9 +195,10 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
+    fs = HadoopFS()
+
     def __init__(self, url):
         self.url = url
-        self.fs = HadoopFS()
 
     def _render(self, ir):
         r = Renderer()
@@ -322,6 +320,3 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
-
-    def get_fs(self):
-        return self.fs
