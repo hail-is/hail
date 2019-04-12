@@ -125,6 +125,7 @@ object TypeCheck {
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
+        assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
         assert(idxs.forall(_.typ.isOfType(TInt64())))
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
