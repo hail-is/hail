@@ -265,8 +265,8 @@ class LocalTests(unittest.TestCase):
         p.run(verbose=True)
 
     def test_file_name_space(self):
-        with tempfile.NamedTemporaryFile('w', prefix="some file name with spaces") as input_file, \
-                tempfile.NamedTemporaryFile('w', prefix="another file name with spaces") as output_file:
+        with tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file, \
+                tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
 
             input_file.write('abc')
             input_file.flush()
@@ -381,8 +381,8 @@ class BatchTests(unittest.TestCase):
 
     def test_file_name_space(self):
         p = self.pipeline()
-        input = p.read_input(f'{gcs_input_dir}/hello spaces.txt')
+        input = p.read_input(f'{gcs_input_dir}/hello (foo) spaces.txt')
         t = p.new_task()
         t.command(f'cat {input} > {t.ofile}')
-        p.write_output(t.ofile, f'{gcs_output_dir}/hello spaces.txt')
+        p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
         p.run()

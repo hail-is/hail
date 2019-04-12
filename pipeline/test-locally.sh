@@ -3,7 +3,6 @@
 set -ex
 
 . activate hail-pipeline
-pip3 install -U ../batch
 
 PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 
