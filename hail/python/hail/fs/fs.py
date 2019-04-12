@@ -12,31 +12,31 @@ import gcsfs
 
 class FS(abc.ABC):
     @abc.abstractmethod
-    def hadoop_open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
         pass
 
     @abc.abstractmethod
-    def hadoop_copy(self, src: str, dest: str):
+    def copy(self, src: str, dest: str):
         pass
 
     @abc.abstractmethod
-    def hadoop_exists(self, path: str) -> bool:
+    def exists(self, path: str) -> bool:
         pass
 
     @abc.abstractmethod
-    def hadoop_is_file(self, path: str) -> bool:
+    def is_file(self, path: str) -> bool:
         pass
 
     @abc.abstractmethod
-    def hadoop_is_dir(self, path: str) -> bool:
+    def is_dir(self, path: str) -> bool:
         pass
 
     @abc.abstractmethod
-    def hadoop_stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> Dict:
         pass
 
     @abc.abstractmethod
-    def hadoop_ls(self, path: str) -> List[Dict]:
+    def ls(self, path: str) -> List[Dict]:
         pass
 
     @abc.abstractmethod
@@ -45,16 +45,7 @@ class FS(abc.ABC):
 
 
 class HadoopFS(FS):
-    instance = None
-
-    @staticmethod
-    def get_instance():
-        if HadoopFS.instance is None:
-            HadoopFS.instance = HadoopFS()
-
-        return HadoopFS.instance
-
-    def hadoop_open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 8192):
         if 'r' in mode:
             handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
         elif 'w' in mode:
@@ -67,33 +58,33 @@ class HadoopFS(FS):
         else:
             return io.TextIOWrapper(handle, encoding='iso-8859-1')
 
-    def hadoop_copy(self, src: str, dest: str):
+    def copy(self, src: str, dest: str):
         Env.jutils().copyFile(src, dest, Env.hc()._jhc)
 
-    def hadoop_exists(self, path: str) -> bool:
+    def exists(self, path: str) -> bool:
         return Env.jutils().exists(path, Env.hc()._jhc)
 
-    def hadoop_is_file(self, path: str) -> bool:
+    def is_file(self, path: str) -> bool:
         return Env.jutils().isFile(path, Env.hc()._jhc)
 
-    def hadoop_is_dir(self, path: str) -> bool:
+    def is_dir(self, path: str) -> bool:
         return Env.jutils().isDir(path, Env.hc()._jhc)
 
-    def hadoop_stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> Dict:
         return json.loads(Env.jutils().stat(path, Env.hc()._jhc))
 
-    def hadoop_ls(self, path: str) -> List[Dict]:
+    def ls(self, path: str) -> List[Dict]:
         r = Env.jutils().ls(path, Env.hc()._jhc)
         return json.loads(r)
 
     def copy_log(self, path: str) -> None:
         log = Env.hc()._log
         try:
-            if self.hadoop_is_dir(path):
+            if self.is_dir(path):
                 _, tail = os.path.split(log)
                 path = os.path.join(path, tail)
             info(f"copying log to {repr(path)}...")
-            self.hadoop_copy(local_path_uri(Env.hc()._log), path)
+            self.copy(local_path_uri(Env.hc()._log), path)
         except Exception as e:
             sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
 

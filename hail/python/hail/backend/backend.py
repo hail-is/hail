@@ -8,7 +8,7 @@ from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
-from hail.fs import HadoopFS
+from hail.fs import HadoopFS, GoogleCloudStorageFS
 
 import requests
 
@@ -80,12 +80,15 @@ class Backend(abc.ABC):
     def parse_vcf_metadata(self, path):
         pass
 
+    @property
     @abc.abstractmethod
     def fs(self):
         pass
 
 
 class SparkBackend(Backend):
+    fs = HadoopFS()
+
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = Renderer(stop_at_jir=True)
@@ -173,9 +176,6 @@ class SparkBackend(Backend):
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
-    def fs(self):
-        return HadoopFS.get_instance()
-
 
 class LocalBackend(Backend):
     def __init__(self):
@@ -195,6 +195,8 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
+    fs = GoogleCloudStorageFS()
+
     def __init__(self, url):
         self.url = url
 
@@ -318,6 +320,3 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
-
-    def fs(self):
-        return GoogleCloudStorageFS.get_instance()
