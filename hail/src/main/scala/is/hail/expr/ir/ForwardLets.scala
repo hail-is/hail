@@ -68,17 +68,19 @@ object ForwardLets {
       ir match {
         case Let(name, value, body) =>
           val refs = uses.lookup(ir)
-          if (shouldForward(value, refs, ir))
-            rewrite(body, env.bindEval(name -> rewrite(value, env)))
+          val rewriteValue = rewrite(value, env)
+          if (shouldForward(rewriteValue, refs, ir))
+            rewrite(body, env.bindEval(name -> value))
           else
             mapRewrite()
         case AggLet(name, value, body, isScan) =>
           val refs = uses.lookup(ir)
-          if (shouldForward(value, refs, ir))
+          val rewriteValue = rewrite(value, if (isScan) env.promoteScan else env.promoteAgg)
+          if (shouldForward(rewriteValue, refs, ir))
             if (isScan)
-              rewrite(body, env.copy(scan = Some(env.scan.get.bind(name -> rewrite(value, BindingEnv(env.scanOrEmpty))))))
+              rewrite(body, env.copy(scan = Some(env.scan.get.bind(name -> rewriteValue))))
             else
-              rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewrite(value, BindingEnv(env.aggOrEmpty))))))
+              rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue))))
           else
             mapRewrite()
         case x@Ref(name, _) => env.eval.lookupOption(name).getOrElse(x)
