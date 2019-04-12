@@ -1,14 +1,14 @@
+import asyncio
+import concurrent
+import json
+import os
+import uvloop
+from aiohttp import web
+
 import hail as hl
 
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
-
-import os
-import json
-import concurrent
-import uvloop
-import asyncio
-from aiohttp import web
 
 uvloop.install()
 
@@ -33,6 +33,7 @@ async def run(f, *args):
 
 @routes.get('/healthcheck')
 async def healthcheck(request):
+    del request
     return status_response(200)
 
 
@@ -187,7 +188,10 @@ async def create_reference_from_fasta(request):
 
 
 def blocking_get_reference(data):
-    return json.loads(Env.hail().variant.ReferenceGenome.getReference(data['name']).toJSONString())
+    return json.loads(
+        Env.hail().variant.ReferenceGenome.getReference(
+            data['name']
+        ).toJSONString())
 
 
 @routes.get('/references/get')
@@ -214,13 +218,12 @@ async def reference_add_sequence(request):
         await run(blocking_reference_add_sequence, data)
         return status_response(204)
     except FatalError as e:
-        return web.json_response({
-            'message': e.args[0]
-        }, status=400)
+        return web.json_response({'message': e.args[0]}, status=400)
 
 
 def blocking_reference_remove_sequence(data):
-     scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(data['name'])
+    scala_object(
+        Env.hail().variant, 'ReferenceGenome').removeSequence(data['name'])
 
 
 @routes.delete('/references/sequence/delete')
@@ -236,7 +239,10 @@ async def reference_remove_sequence(request):
 
 
 def blocking_reference_add_liftover(data):
-    Env.hail().variant.ReferenceGenome.referenceAddLiftover(data['name'], data['chain_file'], data['dest_reference_genome'])
+    Env.hail().variant.ReferenceGenome.referenceAddLiftover(
+        data['name'],
+        data['chain_file'],
+        data['dest_reference_genome'])
 
 
 @routes.post('/references/liftover/add')
@@ -246,13 +252,13 @@ async def reference_add_liftover(request):
         await run(blocking_reference_add_liftover, data)
         return status_response(204)
     except FatalError as e:
-        return web.json_response({
-            'message': e.args[0]
-        }, status=400)
+        return web.json_response({'message': e.args[0]}, status=400)
 
 
 def blocking_reference_remove_liftover(data):
-    Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(data['name'], data['dest_reference_genome'])
+    Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(
+        data['name'],
+        data['dest_reference_genome'])
 
 
 @routes.delete('/references/liftover/remove')
@@ -262,25 +268,21 @@ async def reference_remove_liftover(request):
         await run(blocking_reference_remove_liftover, data)
         return status_response(204)
     except FatalError as e:
-        return web.json_response({
-            'message': e.args[0]
-        }, status=400)
+        return web.json_response({'message': e.args[0]}, status=400)
 
 
 def blocking_parse_vcf_metadata(data):
-    return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(data['path']))
+    return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(data['path']))  # pylint: disable=no-member
 
 
 @routes.post('/parse-vcf-metadata')
-async def parse_vcf_metadata():
+async def parse_vcf_metadata(request):
     try:
         data = await request.json()
         result = await run(blocking_parse_vcf_metadata, data)
         return web.json_response(result)
     except FatalError as e:
-        return web.json_response({
-            'message': e.args[0]
-        }, status=400)
+        return web.json_response({'message': e.args[0]}, status=400)
 
 
 app.add_routes(routes)
