@@ -28,7 +28,7 @@ class UpcallConfig {
   // RVIterator methods
   jmethodID RVIterator_hasNext_;
   jmethodID RVIterator_next_;
-  
+
   UpcallConfig();
 };
 

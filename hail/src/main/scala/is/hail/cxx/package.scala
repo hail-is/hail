@@ -1,8 +1,6 @@
 package is.hail
 
-import is.hail.expr.types
 import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual
 import is.hail.expr.types.virtual._
 
 package object cxx {

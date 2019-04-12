@@ -1,7 +1,7 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
-import is.hail.expr.ir.BindingEnv
+import is.hail.expr.ir.{BindingEnv, Str}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -1011,6 +1011,29 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | load_element<$elemType>(load_indices(${ndt.v}, $idxs));
              |})
              |""".stripMargin)
+
+      case ir.NDArrayWrite(nd, path) =>
+        val tub = fb.translationUnitBuilder()
+        tub.include("hail/NDArray.h")
+        val ndt = emit(nd)
+        val patht = emit(path)
+        val stdStringPath = fb.variable("path", "std::string", s"load_string(${ patht.v })")
+
+        val nativeEncoderClass = CodecSpec.defaultUncompressed.buildNativeEncoderClass(nd.pType, tub)
+        triplet(
+          s"""
+             | ${ ndt.setup }
+             | ${ patht.setup }
+             | if (${ patht.m }) {
+             |   ${ fb.nativeError("Missing path for NDArray Write") }
+             | }
+             | ${ stdStringPath.define }
+             |
+             | $nativeEncoderClass enc { ${ ctx.hadoopConfig }.unsafe_writer($stdStringPath) };
+             |
+             | enc.encode_row(${ ndt.v });
+             | enc.close();
+           """.stripMargin, "false", "")
 
       case _: ir.ArrayRange | _: ir.MakeArray =>
         fatal("ArrayRange and MakeArray must be emitted as a stream.")
