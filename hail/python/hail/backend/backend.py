@@ -320,4 +320,4 @@ class ServiceBackend(Backend):
         return resp.json()
 
     def fs(self):
-        return HadoopFS.get_instance()
+        return GoogleCloudStorageFS.get_instance()

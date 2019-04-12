@@ -1,5 +1,6 @@
-from .fs import HadoopFS
+from .fs import HadoopFS, GoogleCloudStorageFS
 
 __all__ = [
-    'HadoopFS'
+    'HadoopFS',
+    'GoogleCloudStorageFS'
 ]

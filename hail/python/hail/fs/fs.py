@@ -6,6 +6,8 @@ import json
 from typing import Dict, List
 import sys
 import os
+from google.oauth2 import service_account
+import gcsfs
 
 
 class FS(abc.ABC):
@@ -131,3 +133,73 @@ class HadoopWriter(io.RawIOBase):
     def write(self, b):
         self._jfile.write(bytearray(b))
         return len(b)
+
+
+class GoogleCloudStorageFS(FS):
+    @staticmethod
+    def get_instance():
+        return GoogleCloudStorageFS()
+
+    def __init__(self):
+        credentials = service_account.Credentials.from_service_account_file(
+            filename='/gsa-key/privateKeyData',
+            scopes=['https://www.googleapis.com/auth/cloud-platform'])
+
+        self.client = gcsfs.core.GCSFileSystem(credentials)
+
+    def hadoop_open(self, path: str, mode: str = 'r',  buffer_size: int = 8192):
+        return self.client.open(path)
+
+    def hadoop_copy(self, src: str, dest: str):
+        if src.startswith('gs://'):
+            return self.client.copy(src, dest)
+        else:
+            return self.client.put(src, dest)
+
+    def hadoop_exists(self, path: str) -> bool:
+        return self.client.exists(path)
+
+    def hadoop_is_file(self, path: str) -> bool:
+        stats = self.client.info(path)
+
+        return stats['storageClass'] != 'DIRECTORY'
+
+    def hadoop_is_dir(self, path: str) -> bool:
+        stats = self.client.info(path)
+
+        return stats['storageClass'] == 'DIRECTORY'
+
+    def hadoop_stat(self, path: str) -> Dict:
+        stats = self.client.info(path)
+
+        return {
+            'is_dir': stats['storageClass'] == 'DIRECTORY',
+            'size_bytes': stats['size'],
+            'path': stats['path'],
+            'owner': stats['bucket'],
+            'modification_time': stats['updated']
+
+        }
+
+    def hadoop_ls(self, path: str) -> List[Dict]:
+        files = self.client.ls(path)
+
+        out = []
+        for file in files:
+            stats = self.client.info(file)
+
+            out.append({"size_bytes": stats['size'],
+                        "is_dir": stats['storageClass'] == 'DIRECTORY'})
+
+        return out
+
+    def copy_log(self, path: str) -> None:
+        log = Env.hc()._log
+        try:
+            if self.hadoop_is_dir(path):
+                _, tail = os.path.split(log)
+                path = os.path.join(path, tail)
+            info(f"copying log to {repr(path)}...")
+            self.hadoop_copy(local_path_uri(Env.hc()._log), path)
+        except Exception as e:
+            sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
