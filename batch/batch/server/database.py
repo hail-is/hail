@@ -38,9 +38,6 @@ class JobsTable(Table):
 
         await super().__init__(db, name, schema, keys)
 
-    async def new_record(self, **items):
-        return await super(JobsTable, self).new_record(items)
-
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
@@ -59,24 +56,29 @@ class JobsTable(Table):
     async def get_incomplete_parents(self, id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                sql = f"""SELECT `id` FROM `{self.name}` WHERE `id` IN
-                          (SELECT `parent_id` FROM `{self._db.jobs_parents.name}` WHERE `job_id` = %s)
-                          AND `state` = %s""".replace('\n', ' ')
-                await cursor.execute(sql, (id, 'Created'))
+                jobs_parents_name = self._db.jobs_parents.name
+                sql = f"""SELECT id FROM `{self.name}`
+                          INNER JOIN `{jobs_parents_name}`
+                          ON `{self.name}`.id = `{jobs_parents_name}`.parent_id
+                          WHERE `{self.name}`.state = %s AND `{jobs_parents_name}`.job_id = %s"""
+
+                await cursor.execute(sql.replace('\n', ' '), ('Created', id))
                 result = await cursor.fetchall()
                 return [record['id'] for record in result]
 
     async def get_record_by_pod(self, pod):
-        records = await super(JobsTable, self).get_record({'pod_name': pod})
+        records = await self.get_records_where({'pod_name': pod})
         if len(records) == 0:  # pylint: disable=R1705
             return None
         elif len(records) == 1:
             return records[0]
         else:
-            raise Exception("'jobs' table error. Cannot have same pod in more than one record")
+            jobs_w_pod = [record['id'] for record in records]
+            raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
+                            f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
 
     async def get_records_where(self, condition):
-        return await super(JobsTable, self).get_record(condition)
+        return await super().get_record(condition)
 
 
 class JobsParentsTable(Table):
@@ -86,9 +88,6 @@ class JobsParentsTable(Table):
         keys = ['job_id', 'parent_id']
 
         await super().__init__(db, name, schema, keys)
-
-    async def new_record(self, **items):
-        return await super(JobsParentsTable, self).new_record(items)
 
     async def get_parents(self, job_id):
         result = await super().get_record({'job_id': job_id}, ['parent_id'])
@@ -111,9 +110,6 @@ class BatchTable(Table):
 
         await super().__init__(db, name, schema, keys)
 
-    async def new_record(self, **items):
-        return await super(BatchTable, self).new_record(items)
-
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
@@ -134,10 +130,6 @@ class BatchJobsTable(Table):
         keys = ['batch_id', 'job_id']
 
         await super().__init__(db, name, schema, keys)
-
-    async def new_record(self, batch_id, job_id):
-        return await super(BatchJobsTable, self).new_record({'batch_id': batch_id,
-                                                             'job_id': job_id})
 
     async def get_jobs(self, batch_id):
         result = await super().get_record({'batch_id': batch_id})

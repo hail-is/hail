@@ -117,7 +117,7 @@ class Table:  # pylint: disable=R0903
         self._db = db
         await self._db.create_table(name, schema, keys, can_exist)
 
-    async def new_record(self, items):
+    async def new_record(self, **items):
         names = ", ".join([f'`{name.replace("`", "``")}`' for name in items.keys()])
         values_template = ", ".join(["%s" for _ in items.values()])
         async with self._db.pool.acquire() as conn:

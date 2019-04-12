@@ -141,8 +141,7 @@ class Test(unittest.TestCase):
             if e.response.status_code == 404:
                 pass
             else:
-                raise
-
+                self.assertTrue(False, f"batch should not have deleted log {e}")
 
     def test_delete_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
