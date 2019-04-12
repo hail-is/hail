@@ -59,7 +59,7 @@ class LocalBackend(Backend):
                         if r._input_path.startswith('gs://'):
                             return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
                         else:
-                            absolute_input_path = os.path.realpath(r._input_path)
+                            absolute_input_path = escape_string(os.path.realpath(r._input_path))
                             if task._image is not None:  # pylint: disable-msg=W0640
                                 return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
                             else:
@@ -104,9 +104,9 @@ class LocalBackend(Backend):
                 cp = 'gsutil cp'
 
             if isinstance(r, InputResourceFile):
-                return [f'{cp} {r._input_path} {dest}']
+                return [f'{cp} {escape_string(r._input_path)} {escape_string(dest)}']
             elif isinstance(r, TaskResourceFile):
-                return [f'{cp} {r._get_path(tmpdir)} {dest}']
+                return [f'{cp} {r._get_path(tmpdir)} {escape_string(dest)}']
             else:
                 assert isinstance(r, ResourceGroup)
                 return [x for ext, rf in r._resources.items()
@@ -197,7 +197,7 @@ class BatchBackend(Backend):
             def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {r._get_path(local_tmpdir)}']
+                        return [f'gsutil cp {escape_string(r._input_path)} {r._get_path(local_tmpdir)}']
                     else:
                         assert isinstance(r, TaskResourceFile)
                         return [f'gsutil cp {r._get_path(remote_tmpdir)} {r._get_path(local_tmpdir)}']
@@ -262,11 +262,11 @@ class BatchBackend(Backend):
         def write_pipeline_outputs(r, dest):
             if isinstance(r, InputResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._input_path} {dest}'
+                              f'gsutil cp {escape_string(r._input_path)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             elif isinstance(r, TaskResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._get_path(remote_tmpdir)} {dest}'
+                              f'gsutil cp {r._get_path(remote_tmpdir)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             else:
                 assert isinstance(r, ResourceGroup)
