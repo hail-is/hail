@@ -127,70 +127,62 @@ class HadoopWriter(io.RawIOBase):
 
 
 class GoogleCloudStorageFS(FS):
-    @staticmethod
-    def get_instance():
-        return GoogleCloudStorageFS()
-
     def __init__(self):
         credentials = service_account.Credentials.from_service_account_file(
             filename='/gsa-key/privateKeyData',
             scopes=['https://www.googleapis.com/auth/cloud-platform'])
 
-        self.client = gcsfs.core.GCSFileSystem(credentials)
+        self.client = gcsfs.core.GCSFileSystem(credentials, secure_serialize=True)
 
-    def hadoop_open(self, path: str, mode: str = 'r',  buffer_size: int = 8192):
-        return self.client.open(path)
+    def open(self, path: str, mode: str = 'r'):
+        return self.client.open(path, mode)
 
-    def hadoop_copy(self, src: str, dest: str):
+    def copy(self, src: str, dest: str):
         if src.startswith('gs://'):
             return self.client.copy(src, dest)
         else:
             return self.client.put(src, dest)
 
-    def hadoop_exists(self, path: str) -> bool:
+    def exists(self, path: str) -> bool:
         return self.client.exists(path)
 
-    def hadoop_is_file(self, path: str) -> bool:
+    def is_file(self, path: str) -> bool:
         stats = self.client.info(path)
 
-        return stats['storageClass'] != 'DIRECTORY'
+        return not self._stat_is_dir(stats)
 
-    def hadoop_is_dir(self, path: str) -> bool:
+    def is_dir(self, path: str) -> bool:
         stats = self.client.info(path)
 
-        return stats['storageClass'] == 'DIRECTORY'
+        return self._stat_is_dir(stats)
 
-    def hadoop_stat(self, path: str) -> Dict:
+    def stat(self, path: str) -> Dict:
         stats = self.client.info(path)
 
         return {
-            'is_dir': stats['storageClass'] == 'DIRECTORY',
+            'is_dir': self._stat_is_dir(stats),
             'size_bytes': stats['size'],
+            'size': stats['size'],
             'path': stats['path'],
             'owner': stats['bucket'],
-            'modification_time': stats['updated']
-
+            'modification_time': stats.get('updated')
         }
 
-    def hadoop_ls(self, path: str) -> List[Dict]:
+    def _stat_is_dir(self, stats: Dict):
+        return stats['storageClass'] == 'DIRECTORY' or stats['name'].endswith('/')
+
+    def ls(self, path: str) -> List[Dict]:
         files = self.client.ls(path)
 
-        out = []
-        for file in files:
-            stats = self.client.info(file)
-
-            out.append({"size_bytes": stats['size'],
-                        "is_dir": stats['storageClass'] == 'DIRECTORY'})
-
-        return out
+        return [self.stat(file) for file in files]
 
     def copy_log(self, path: str) -> None:
         log = Env.hc()._log
         try:
-            if self.hadoop_is_dir(path):
+            if self.is_dir(path):
                 _, tail = os.path.split(log)
                 path = os.path.join(path, tail)
             info(f"copying log to {repr(path)}...")
-            self.hadoop_copy(local_path_uri(Env.hc()._log), path)
+            self.copy(local_path_uri(Env.hc()._log), path)
         except Exception as e:
             sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
