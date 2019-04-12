@@ -5,8 +5,28 @@ import aiodns
 import aiohttp
 from aiohttp import web
 from kubernetes_asyncio import client, config
+import logging
 
 uvloop.install()
+
+def make_logger():
+    fmt = logging.Formatter(
+        # NB: no space after levename because WARNING is so long
+        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+        '%(message)s')
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(fmt)
+
+    log = logging.getLogger('router-resolver')
+    log.setLevel(logging.INFO)
+
+    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
+
+    return log
+
+log = make_logger()
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -36,7 +56,7 @@ async def on_startup(app):
         await config.load_kube_config()
     else:
         config.load_incluster_config()
-        app['k8s_client'] = client.CoreV1Api()
+    app['k8s_client'] = client.CoreV1Api()
 
 app.on_startup.append(on_startup)
 
