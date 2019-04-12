@@ -84,7 +84,15 @@ class JobTask:  # pylint: disable=R0903
         if files is not None:
             assert copy_service_account_name is not None
             authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
-            copies = ' & '.join([f'gsutil cp {src} {dst}' for (src, dst) in files])
+
+            def copy_command(src, dst):
+                if not dst.startswith('gs://'):
+                    mkdirs = f'mkdir -p {os.path.dirname(dst)};'
+                else:
+                    mkdirs = ""
+                return f'{mkdirs} gsutil -m cp -R {src} {dst}'
+
+            copies = ' & '.join([copy_command(src, dst) for (src, dst) in files])
             wait = 'wait'
             sh_expression = f'{authenticate} && ({copies} ; {wait})'
             container = kube.client.V1Container(
