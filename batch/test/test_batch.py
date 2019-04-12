@@ -233,13 +233,19 @@ class Test(unittest.TestCase):
         server = ServerThread(app)
         try:
             server.start()
-
             j = self.batch.create_job(
                 'alpine',
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
             j.wait()
+
+            i = 0
+            while len(d) != 0:
+                time.sleep(0.100 * (3/2) ** i)
+                i += 1
+                if i > 14:
+                    break
 
             status = d['status']
             self.assertEqual(status['state'], 'Complete')
