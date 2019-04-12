@@ -23,7 +23,7 @@ LIBSIMDPP := libsimdpp-2.1
 CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
-# this list
+# this list. Remember to rerun make prebuilt.
 OBJECTS := \
   davies \
   ibs \
@@ -39,6 +39,7 @@ OBJECTS := \
   PartitionIterators \
   Region \
   Upcalls \
+  Hadoop \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 

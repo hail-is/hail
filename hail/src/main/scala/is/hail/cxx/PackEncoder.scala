@@ -42,6 +42,24 @@ object PackEncoder {
       """.stripMargin
   }
 
+  def encodeNDArray(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
+    val dims = Array.tabulate(t.nDims){ i => tub.variable(s"dim${i}_", "int") }
+    val index = dims.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
+      s"$idx * $nd.strides[$dim] + $linearIndex"
+    }
+    val element = Expression(s"load_element<${ typeToCXXType(t.elementType) }>(load_index($nd, $index))")
+    val body = encode(tub, t.elementType, output_buf_ptr, element)
+
+    dims.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
+      s"""
+         |${ dimVar.define }
+         |for ($dimVar = 0; $dimVar < $nd.shape[$dimIdx]; ++$dimVar) {
+         |  $innerLoops
+         |}
+         |""".stripMargin
+      }
+  }
+
   def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, value: Expression): Code = {
     val nMissingBytes = t.nMissingBytes
     val storeFields: Array[Code] = Array.tabulate[Code](t.size) { idx =>
@@ -69,6 +87,7 @@ object PackEncoder {
     case _: PFloat64 => s"$output_buf_ptr->write_double($value);"
     case _: PBinary => encodeBinary(tub, output_buf_ptr, value)
     case t2: PArray => encodeArray(tub, t2, output_buf_ptr, value)
+    case t2: PNDArray => encodeNDArray(tub, t2, output_buf_ptr, value)
     case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, value)
   }
 
