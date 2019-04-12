@@ -255,7 +255,7 @@ def test_callback(client):
         i = 0
         while len(output) != 4:
             time.sleep(0.100 * (3/2) ** i)
-            i = i + 1
+            i += 1
             if i > 14:
                 break
         assert len(output) == 4
