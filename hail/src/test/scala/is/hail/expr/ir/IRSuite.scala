@@ -7,7 +7,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.{Nat, ir}
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
+import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
@@ -913,9 +913,7 @@ class IRSuite extends SparkSuite {
       rowMajor)
   }
 
-  def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
-    NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
-  }
+  def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
 
   val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
   val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
@@ -1006,8 +1004,8 @@ class IRSuite extends SparkSuite {
     val transpose = NDArrayReindex(mat, IndexedSeq(1, 0))
     val identity = NDArrayReindex(mat, IndexedSeq(0, 1))
 
-    val topLeftIndex = MakeArray(FastSeq(0L, 0L), TArray(TInt64()))
-    val bottomLeftIndex = MakeArray(FastSeq(1L, 0L), TArray(TInt64()))
+    val topLeftIndex = FastSeq(0L, 0L).map(I64)
+    val bottomLeftIndex = FastSeq(1L, 0L).map(I64)
 
     assertEvalsTo(NDArrayRef(mat, topLeftIndex), 1.0)
     assertEvalsTo(NDArrayRef(identity, topLeftIndex), 1.0)
@@ -1017,8 +1015,8 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
 
     val partialTranspose = NDArrayReindex(cubeRowMajor, IndexedSeq(0, 2, 1))
-    val idx = MakeArray(FastSeq(0L, 1L, 0L), TArray(TInt64()))
-    val partialTranposeIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
+    val idx = FastSeq(0L, 1L, 0L).map(I64)
+    val partialTranposeIdx = FastSeq(0L, 0L, 1L).map(I64)
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
     assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }

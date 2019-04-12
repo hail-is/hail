@@ -1006,7 +1006,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         triplet(
           s"""
              | ${ ndt.setup }
-             | ${ idxst.setup }
+             | ${ idxst.map(_.setup).mkString("\n") }
            """.stripMargin,
           idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           s"""
