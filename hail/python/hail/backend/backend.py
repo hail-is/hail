@@ -8,10 +8,12 @@ from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
+from hail.fs.fs import HadoopFS
 
 import requests
 
 import pyspark
+
 
 class Backend(abc.ABC):
     @abc.abstractmethod
@@ -78,6 +80,10 @@ class Backend(abc.ABC):
     def parse_vcf_metadata(self, path):
         pass
 
+    @abc.abstractmethod
+    def fs(self):
+        pass
+
 
 class SparkBackend(Backend):
     def _to_java_ir(self, ir):
@@ -115,7 +121,7 @@ class SparkBackend(Backend):
 
     def unpersist_matrix_table(self, mt):
         return MatrixTable._from_java(self._to_java_ir(mt._mir).pyUnpersist())
-    
+
     def blockmatrix_type(self, bmir):
         jir = self._to_java_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
@@ -150,19 +156,25 @@ class SparkBackend(Backend):
         return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
-        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(name, fasta_file, index_file)
+        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(
+            name, fasta_file, index_file)
 
     def remove_sequence(self, name):
         scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceAddLiftover(name, chain_file, dest_reference_genome)
+        scala_object(Env.hail().variant, 'ReferenceGenome').referenceAddLiftover(
+            name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(name, dest_reference_genome)
+        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(
+            name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
+
+    def fs(self):
+        return HadoopFS.get_instance()
 
 
 class LocalBackend(Backend):
@@ -181,6 +193,7 @@ class LocalBackend(Backend):
             Env.hail().expr.ir.LocalBackend.executeJSON(
                 self._to_java_ir(ir)))
 
+
 class ServiceBackend(Backend):
     def __init__(self, url):
         self.url = url
@@ -197,7 +210,7 @@ class ServiceBackend(Backend):
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
-        
+
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
         result = resp_json['value']
@@ -210,7 +223,7 @@ class ServiceBackend(Backend):
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
-        
+
         return resp.json()
 
     def value_type(self, ir):
@@ -267,7 +280,8 @@ class ServiceBackend(Backend):
         return resp.json()
 
     def add_sequence(self, name, fasta_file, index_file):
-        resp = requests.post(f'{self.url}/references/sequence/set', json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file})
+        resp = requests.post(f'{self.url}/references/sequence/set',
+                             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file})
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -304,3 +318,6 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+    def fs(self):
+        return HadoopFS.get_instance()
