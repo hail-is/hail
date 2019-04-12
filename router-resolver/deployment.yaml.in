@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: router-resolver
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: view-services
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: router-resolver-view-service
+subjects:
+- kind: ServiceAccount
+  name: router-resolver
+  # why isn't this picked up by the default namespace (e.g. kubectl -n)
+  namespace: default
+roleRef:
+  kind: ClusterRole
+  name: view-services
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: router-resolver
+  labels:
+    app: router-resolver
+    hail.is/sha: "@sha@"
+spec:
+  selector:
+    matchLabels:
+      app: router-resolver
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: router-resolver
+        hail.is/sha: "@sha@"
+    spec:
+      serviceAccountName: router-resolver
+      containers:
+      - name: router-resolver
+        image: @image@
+        ports:
+        - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: router-resolver
+  labels:
+    app: router-resolver
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: router-resolver
