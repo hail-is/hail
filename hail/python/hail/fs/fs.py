@@ -1,6 +1,4 @@
-
 import abc
-from hail.typecheck import typecheck, enumeration
 from hail.utils.java import Env, info
 from hail.utils import local_path_uri
 import io
