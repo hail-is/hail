@@ -98,7 +98,7 @@ class PR(object):
         self.target_branch = target_branch
 
         # one of pending, changes_requested, approve
-        self.state = None
+        self.review_state = None
 
         self.batch = None
         self.passing = None
@@ -117,27 +117,26 @@ class PR(object):
     def from_gh_json(gh_json, target_branch):
         return PR(gh_json['number'], gh_json['title'], gh_json['head']['sha'], target_branch)
 
-    async def refresh(self, gh):
+    async def refresh_review_state(self, gh):
         latest_state_by_login = {}
         async for review in gh.getiter(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'):
             login = review['user']['login']
             state = review['state']
             # reviews is chronological, so later ones are newer statuses
-            if state == 'APPROVED' or state == 'CHANGES_REQUESTED':
+            if state != 'COMMENTED':
                 latest_state_by_login[login] = state
 
-        total_state = 'pending'
+        review_state = 'pending'
         for login, state in latest_state_by_login.items():
             if (state == 'CHANGES_REQUESTED'):
-                total_state = 'changes_requested'
-                break
-            elif (state == 'DISMISSED'):
-                total_state = 'pending'
+                review_state = 'changes_requested'
                 break
             elif (state == 'APPROVED'):
-                total_state = 'approved'
+                review_state = 'approved'
+            else:
+                assert state == 'DISMISSED' or state == 'COMMENTED', state
 
-        self.state = total_state
+        self.review_state = review_state
 
     async def heal(self, batch, run, seen_batch_ids):
         if self.batch is None:
@@ -209,13 +208,13 @@ class WatchedBranch(object):
         self.prs = new_prs
 
         for pr in self.prs.values():
-            await pr.refresh(gh)
+            await pr.refresh_review_state(gh)
 
     async def heal(self, batch):
         # FIXME merge
         merge_candidate = None
         for pr in self.prs.values():
-            if pr.state == 'approved' and pr.passing is None:
+            if pr.review_state == 'approved' and pr.passing is None:
                 merge_candidate = pr.number
                 break
 

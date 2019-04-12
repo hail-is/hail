@@ -50,7 +50,7 @@ async def index(request):
                         'title': pr.title,
                         'batch_id': pr.batch.id if pr.batch else None,
                         'passing': pr.passing,
-                        'state': pr.state
+                        'review_state': pr.review_state
                     }
                     for pr in wb.prs.values()
                 ] if wb.prs else None}
@@ -65,7 +65,6 @@ async def get_batch_log(request):
     batch_client = request.app['batch_client']
     batch = await batch_client.get_batch(batch_id)
     status = await batch.status()
-    print('batch_status', status)
     return {
         'batch_id': batch_id,
         'batch_status': status
