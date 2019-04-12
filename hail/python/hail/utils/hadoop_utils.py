@@ -76,7 +76,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    return Env.backend().fs().hadoop_open(path, mode, buffer_size)
+    return Env.fs().open(path, mode, buffer_size)
 
 
 @typecheck(src=str,
@@ -111,7 +111,7 @@ def hadoop_copy(src, dest):
     dest: :obj:`str`
         Destination file URI.
     """
-    return Env.backend().fs().hadoop_copy(src, dest)
+    return Env.fs().copy(src, dest)
 
 
 def hadoop_exists(path: str) -> bool:
@@ -125,7 +125,7 @@ def hadoop_exists(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.backend().fs().hadoop_exists(path)
+    return Env.fs().exists(path)
 
 
 def hadoop_is_file(path: str) -> bool:
@@ -139,7 +139,7 @@ def hadoop_is_file(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.backend().fs().hadoop_is_file(path)
+    return Env.fs().is_file(path)
 
 
 def hadoop_is_dir(path: str) -> bool:
@@ -153,7 +153,7 @@ def hadoop_is_dir(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.backend().fs().hadoop_is_dir(path)
+    return Env.fs().is_dir(path)
 
 
 def hadoop_stat(path: str) -> Dict:
@@ -180,7 +180,7 @@ def hadoop_stat(path: str) -> Dict:
     -------
     :obj:`Dict`
     """
-    return Env.backend().fs().hadoop_stat(path)
+    return Env.fs().stat(path)
 
 
 def hadoop_ls(path: str) -> List[Dict]:
@@ -211,7 +211,7 @@ def hadoop_ls(path: str) -> List[Dict]:
     -------
     :obj:`List[Dict]`
     """
-    return Env.backend().fs().hadoop_ls(path)
+    return Env.fs().ls(path)
 
 
 def copy_log(path: str) -> None:
@@ -242,4 +242,4 @@ def copy_log(path: str) -> None:
     ----------
     path: :obj:`str`
     """
-    Env.backend().fs().copy_log(path)
+    Env.fs().copy_log(path)
