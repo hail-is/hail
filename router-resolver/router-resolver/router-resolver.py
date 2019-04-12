@@ -17,6 +17,7 @@ async def auth(request):
     k8s_client = app['k8s_client']
     host = request.headers['Host']
     if not host.endswith('.internal.hail.is'):
+        # would prefer 404, but that's not handled by nginx request_auth
         return web.Response(status=403)
     labels = host.split('.')
     namespace = labels[-4]
