@@ -18,7 +18,7 @@ export PYTHONPATH=$(ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python
 export JAR=../hail/build/libs/hail-all-spark.jar
 export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$JAR --conf spark.executor.extraClassPath=$JAR pyspark-shell"
 
-python apiserver/apiserver.py &
+python3 apiserver/apiserver.py &
 server_pid=$!
 
 ../until-with-fuel 30 curl -fL http://localhost:5000/healthcheck
