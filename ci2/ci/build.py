@@ -232,9 +232,17 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, pr, name, deps, namespace_name, public):
+    def __init__(self, pr, name, deps, namespace_name, admin_sa, public):
         super().__init__(name, deps)
         self.namespace_name = namespace_name
+        if admin_sa:
+            self.admin_sa = {
+                'name': admin_sa['name'],
+                # FIXME check
+                'namespace': expand_value_from(admin_sa['namespace'], self.input_config(pr))
+            }
+        else:
+            self.admin_sa = None
         self.public = public
         self.job = None
         self._name = f'test-{pr.number}-{namespace_name}-{self.token}'
@@ -246,6 +254,7 @@ class CreateNamespaceStep(Step):
     def from_json(pr, name, deps, json):
         return CreateNamespaceStep(pr, name, deps,
                                    json['namespaceName'],
+                                   json.get('adminServiceAccount'),
                                    json.get('public', False))
 
     def config(self):
@@ -260,6 +269,35 @@ metadata:
   name: {self._name}
   labels:
     for: test
+'''
+
+        if self.admin_sa:
+            admin_sa_name = self.admin_sa['name']
+            admin_sa_namespace = self.admin_sa['namespace']
+            config = config + f'''\
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {self.namespace_name}-admin
+  namespace: {self._name}
+rules:
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {admin_sa_name}-{self.namespace_name}-admin-binding
+  namespace: {self._name}
+subjects:
+- kind: ServiceAccount
+  name: {admin_sa_name}
+  namespace: {admin_sa_namespace}
+roleRef:
+  kind: Role
+  name: {self.namespace_name}-admin
+  apiGroup: ""
 '''
 
         if self.public:
@@ -340,10 +378,10 @@ class CreateDatabaseStep(Step):
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         self.admin_username = generate_token()
         self.admin_password = secrets.token_urlsafe(16)
-        self.admin_secret = f'{self._name}-admin-config'
+        self.admin_secret = f'sql-{self._name}-{self.admin_username}-config'
         self.user_username = generate_token()
         self.user_password = secrets.token_urlsafe(16)
-        self.user_secret = f'{self._name}-user-config'
+        self.user_secret = f'sql-{self._name}-{self.user_username}-config'
 
     def parent_ids(self):
         return [self.job.id]
