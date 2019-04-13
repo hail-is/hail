@@ -296,7 +296,7 @@ class BatchBackend(Backend):
                                               volumes=volumes,
                                               attributes={'label': 'remove_tmpdir'})
 
-        failed_jobs = [(int(jid), ec) for jid, ec in status['exit_codes'].items() if ec is not None and ec > 0]
+        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
