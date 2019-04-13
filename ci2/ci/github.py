@@ -311,7 +311,7 @@ class WatchedBranch:
             # FIXME merge
             merge_candidate = None
             for pr in self.prs.values():
-                if pr.state == 'approved' and pr.build_state is None:
+                if pr.review_state == 'approved' and pr.build_state is None:
                     merge_candidate = pr
                     break
 

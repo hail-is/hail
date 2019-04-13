@@ -1,4 +1,5 @@
 import json
+import string
 import secrets
 from shlex import quote as shq
 import yaml
@@ -6,6 +7,13 @@ import jinja2
 from .log import log
 from .utils import flatten
 from .environment import GCP_PROJECT, DOMAIN, IP
+
+
+def generate_token(size=12):
+    assert size > 0
+    alpha = string.ascii_lowercase
+    alnum = string.ascii_lowercase + string.digits
+    return secrets.choice(alpha) + ''.join([secrets.choice(alnum) for _ in range(size - 1)])
 
 
 def expand_value_from(value, config):
@@ -39,7 +47,7 @@ class Step:
     def __init__(self, name, deps):
         self.name = name
         self.deps = deps
-        self.token = secrets.token_hex(16)
+        self.token = generate_token()
 
     def input_config(self, pr):
         config = {}
@@ -329,10 +337,11 @@ class CreateDatabaseStep(Step):
         self.namespace = expand_value_from(namespace, self.input_config(pr))
         self.job = None
         self._name = f'test-{pr.number}-{database_name}-{self.token}'
-        self.admin_username = f'admin-{self._name}'
+        # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
+        self.admin_username = generate_token()
         self.admin_password = secrets.token_urlsafe(16)
         self.admin_secret = f'{self._name}-admin-config'
-        self.user_username = f'user-{self._name}'
+        self.user_username = generate_token()
         self.user_password = secrets.token_urlsafe(16)
         self.user_secret = f'{self._name}-user-config'
 
@@ -341,9 +350,9 @@ class CreateDatabaseStep(Step):
 
     @staticmethod
     def from_json(pr, name, deps, json):
-        return CreateNamespaceStep(pr, name, deps,
-                                   json['databaseName'],
-                                   json['namespace'])
+        return CreateDatabaseStep(pr, name, deps,
+                                  json['databaseName'],
+                                  json['namespace'])
 
     def config(self):
         return {
@@ -368,7 +377,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username
 '''
 
         admin_secret = f'''\
-{
+{{
   "host": "10.80.0.3",
   "port": 3306,
   "user": "{self.admin_username}",
@@ -376,11 +385,11 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username
   "instance": "db-gh0um",
   "connection_name": "hail-vdc:us-central1:db-gh0um",
   "db": "{self._name}"
-}
+}}
 '''
 
         user_secret = f'''\
-{
+{{
   "host": "10.80.0.3",
   "port": 3306,
   "user": "{self.user_username}",
@@ -388,13 +397,15 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username
   "instance": "db-gh0um",
   "connection_name": "hail-vdc:us-central1:db-gh0um",
   "db": "{self._name}"
-}
+}}
 '''
 
         script = f'''
+set -ex
+
 echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
-kubectl -n {self.namespace} create secret {self.admin_secret} generic --from-literal=sql-config.json="$ADMIN_SECRET"
-kubectl -n {self.namespace} create secret {self.user_secret} generic --from-literal=sql-config.json="$USER_SECRET"
+kubectl -n {self.namespace} create secret generic {self.admin_secret} --from-literal=sql-config.json="$ADMIN_SECRET"
+kubectl -n {self.namespace} create secret generic {self.user_secret} --from-literal=sql-config.json="$USER_SECRET"
 '''
 
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',

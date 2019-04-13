@@ -29,8 +29,9 @@ CI2_LATEST = gcr.io/$(PROJECT)/ci2:latest
 CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed -e 's,[^:]*:,,')
 
 build-ci-utils:
+	make -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
-	docker build -t ci-utils -f Dockerfile.ci-utils --cache-from ci-utils,$(CI_UTILS_LATEST),ubuntu:18.04 .
+	docker build -t ci-utils -f Dockerfile.ci-utils --cache-from ci-utils,$(CI_UTILS_LATEST),base,ubuntu:18.04 .
 
 push-ci-utils: build-ci-utils
 	docker tag ci-utils $(CI_UTILS_LATEST)
@@ -57,6 +58,7 @@ deploy: push
 	kubectl -n default apply -f deployment.yaml
 else
 build-ci-utils:
+	make -C ../docker build
 	docker build -t ci-utils -f Dockerfile.ci-utils .
 
 build:
