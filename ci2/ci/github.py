@@ -104,9 +104,6 @@ class FQBranch:
     def to_dict(self):
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
-    def update_from_gh_json(self, gh_json):
-        assert self.number == gh_json['number']
-        self.title = gh_json['title']
 
 class PR:
     def __init__(self, number, title, source_repo, source_sha, target_branch):
@@ -167,54 +164,15 @@ class PR:
 
         review_state = 'pending'
         for login, state in latest_state_by_login.items():
-            if (state == 'CHANGES_REQUESTED'):
+            if state == 'CHANGES_REQUESTED':
                 review_state = 'changes_requested'
                 break
-            elif (state == 'APPROVED'):
+            if state == 'APPROVED':
                 review_state = 'approved'
             else:
-                assert state == 'DISMISSED' or state == 'COMMENTED', state
+                assert state in ('DISMISSED', 'COMMENTED'), state
 
         self.review_state = review_state
-
-    async def heal(self, batch, run, seen_batch_ids):
-        if self.batch is None:
-            batches = await batch.list_batches(
-                complete=False,
-                attributes={
-                    'source_sha': self.source_sha,
-                    'target_sha': self.target_branch.sha
-                })
-
-            # FIXME
-            def batch_was_cancelled(batch):
-                status = batch.status()
-                return any(j['state'] == 'Cancelled' for j in status['jobs'])
-
-            # we might be returning to a commit that was only partially tested
-            batches = [b for b in batches if not batch_was_cancelled(b)]
-
-            # should be at most one batch
-            if len(batches) > 0:
-                self.batch = batches[0]
-            elif run:
-                self.batch = await batch.create_batch(
-                    attributes={
-                        'target_branch': self.target_branch.branch.short_str(),
-                        'pr': str(self.number),
-                        'source_sha': self.source_sha,
-                        'target_sha': self.target_branch.sha
-                    })
-
-                # FIXME build
-                await self.batch.create_job('alpine', ['echo', 'foo'])
-
-        if self.batch:
-            seen_batch_ids.add(self.batch.id)
-            if self.passing is None:
-                status = await self.batch.status()
-                if all(j['state'] == 'Complete' for j in status['jobs']):
-                    self.passing = all(j['exit_code'] == 0 for j in status['jobs'])
 
     async def start_build(self, batch_client):
         # FIXME this needs to be per-PR and async

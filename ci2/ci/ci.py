@@ -149,6 +149,7 @@ async def callback(request):
     await gh_router.dispatch(event)
     return web.Response(status=200)
 
+
 async def refresh_loop(app):
     while True:
         try:
@@ -170,6 +171,7 @@ async def on_startup(app):
     asyncio.ensure_future(refresh_loop(app))
 
 app.on_startup.append(on_startup)
+
 
 async def on_cleanup(app):
     session = app['client_session']
