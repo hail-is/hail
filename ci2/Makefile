@@ -30,7 +30,7 @@ build:
 endif
 
 run-local:
-	python3 ci/ci.py
+	PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}../batch python3 ci/ci.py
 
 run-docker:
 	docker run -p 5000:5000 ci2
