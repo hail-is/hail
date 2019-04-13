@@ -1,8 +1,7 @@
-FROM spark-base
+FROM base
 
-COPY environment.yml /
-RUN conda env create -f /environment.yml && \
-    rm -f /environment.yml
+COPY requirements.txt .
+RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
 
 COPY build/hail /hail
 RUN cp /hail/jars/hail-all-spark.jar $SPARK_HOME/jars/hail-all-spark.jar
