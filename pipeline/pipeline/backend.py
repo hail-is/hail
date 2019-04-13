@@ -296,7 +296,7 @@ class BatchBackend(Backend):
                                               volumes=volumes,
                                               attributes={'label': 'remove_tmpdir'})
 
-        failed_jobs = [(int(jid), ec) for jid, ec in status['exit_codes'].items() if ec is not None and ec > 0]
+        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
@@ -309,7 +309,8 @@ class BatchBackend(Backend):
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
+        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
+        if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
         print("Pipeline completed successfully!")

@@ -24,6 +24,8 @@ spec:
               value: /secrets/oauth-token/oauth-token
             - name: WATCHED_BRANCHES
               value: '["hail-is/hail:master", "hail-is/hail:0.1", "Nealelab/cloudtools:master"]'
+            - name: BATCH_SERVER_URL
+              value: http://batch.default
           ports:
             - containerPort: 5000
           volumeMounts:
