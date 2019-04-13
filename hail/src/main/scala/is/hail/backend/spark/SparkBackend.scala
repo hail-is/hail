@@ -61,7 +61,7 @@ object SparkBackend {
           "SparkBackend.execute - Runtime")
     }
     
-    (value, timer.times)
+    (value, timer.timings)
   }
 
   def execute(ir: IR, optimize: Boolean = true): (Any, Timings) = {
