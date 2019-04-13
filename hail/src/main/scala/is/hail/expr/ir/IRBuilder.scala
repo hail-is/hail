@@ -111,7 +111,8 @@ object IRBuilder {
       val uid = genUID()
       val keyFields = tir.typ.key
       val valueFields = tir.typ.valueType.fieldNames
-      collect()
+      keyBy(FastIndexedSeq())
+        .collect()
         .apply('rows)
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
         .toDict
