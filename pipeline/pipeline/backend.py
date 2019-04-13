@@ -309,7 +309,7 @@ class BatchBackend(Backend):
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        n_complete = sum([j['state'] == 'Complete' for j in j in status['jobs']])
+        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
         if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
