@@ -275,6 +275,7 @@ metadata:
             admin_sa_name = self.admin_sa['name']
             admin_sa_namespace = self.admin_sa['namespace']
             config = config + f'''\
+---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
