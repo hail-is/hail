@@ -1,5 +1,4 @@
 import abc
-import collections
 import os
 import subprocess as sp
 import uuid
