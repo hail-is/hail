@@ -1,4 +1,5 @@
 import abc
+import collections
 import os
 import subprocess as sp
 import uuid
@@ -309,7 +310,8 @@ class BatchBackend(Backend):
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
+        n_complete = sum([j['state'] == 'Complete' for j in j in status['jobs']])
+        if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
         print("Pipeline completed successfully!")
