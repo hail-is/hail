@@ -196,6 +196,7 @@ docker push {shq(self.image)}
         # FIXME image version
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
                                           command=['bash', '-c', script],
+                                          attributes={'name': self.name},
                                           volumes=volumes,
                                           parent_ids=self.deps_parent_ids())
 
@@ -228,6 +229,7 @@ class RunImageStep(Step):
         self.job = await batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
+            attributes={'name': self.name},
             parent_ids=self.deps_parent_ids())
 
 
@@ -323,17 +325,19 @@ spec:
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
                                           command=['bash', '-c', 'echo "$CONFIG" | kubectl apply -f -'],
                                           env={'CONFIG': config},
+                                          attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
 
 class DeployStep(Step):
-    def __init__(self, pr, name, deps, namespace, config_file):
+    def __init__(self, pr, name, deps, namespace, config_file, wait):
         super().__init__(name, deps)
         # FIXME check available namespaces
         self.namespace = expand_value_from(namespace, self.input_config(pr))
         self.config_file = config_file
+        self.wait = wait
         self.job = None
 
     def parent_ids(self):
@@ -344,7 +348,8 @@ class DeployStep(Step):
         return DeployStep(pr, name, deps,
                           json['namespace'],
                           # FIXME config_file
-                          json['config'])
+                          json['config'],
+                          json.get('wait'))
 
     def config(self):  # pylint: disable=no-self-use
         return {}
@@ -359,9 +364,34 @@ class DeployStep(Step):
                 template = jinja2.Template(rendered_config, undefined=jinja2.StrictUndefined)
                 rendered_config = template.render(**self.input_config(pr))
 
+        script = f'''
+set -ex
+
+echo "$CONFIG" | kubectl apply -n {self.namespace} -f -
+'''
+
+        if self.wait:
+            for w in self.wait:
+                if w['kind'] == 'Deployment':
+                    assert w['for'] == 'available'
+                    # FIXME what if the cluster isn't big enough?
+                    script = script + f'''
+kubectl -n {self.namespace} wait --timeout=60 deployment --for=condition=available {w['name']}
+'''
+                else:
+                    assert w['kind'] == 'Pod'
+                    if w['for'] == 'ready':
+                        script = script + f'''
+kubectl -n {self.namespace} wait --timeout=60 pod --for=condition=ready {w['name']}
+'''
+                    else:
+                        script = script + f'''
+python3 wait-for-pod.py {self.namespace} {w['name']}
+'''
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
-                                          command=['bash', '-c', f'echo "$CONFIG" | kubectl apply -n {self.namespace} -f -'],
+                                          command=['bash', '-c', script],
                                           env={'CONFIG': rendered_config},
+                                          attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
@@ -454,6 +484,7 @@ kubectl -n {self.namespace} create secret generic {self.user_secret} --from-lite
                                               'ADMIN_SECRET': admin_secret,
                                               'USER_SECRET': user_secret
                                           },
+                                          attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())

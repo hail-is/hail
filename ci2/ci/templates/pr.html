@@ -11,6 +11,7 @@
       <thead>
         <tr>
           <th align="left">id</th>
+          <th align="left">name</th>
           <th align="left">state</th>
           <th>exit_code</th>
           <th align="left">log</th>
@@ -20,6 +21,7 @@
 	{% for job in batch['jobs'] %}
         <tr>
           <td align="left">{{ job['id'] }}</td>
+          <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td>
 	    {% if 'exit_code' in job %}
