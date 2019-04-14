@@ -376,13 +376,13 @@ echo "$CONFIG" | kubectl apply -n {self.namespace} -f -
                     assert w['for'] == 'available'
                     # FIXME what if the cluster isn't big enough?
                     script = script + f'''
-kubectl -n {self.namespace} wait --timeout=60 deployment --for=condition=available {w['name']}
+kubectl -n {self.namespace} wait --timeout=300 deployment --for=condition=available {w['name']}
 '''
                 else:
                     assert w['kind'] == 'Pod'
                     if w['for'] == 'ready':
                         script = script + f'''
-kubectl -n {self.namespace} wait --timeout=60 pod --for=condition=ready {w['name']}
+kubectl -n {self.namespace} wait --timeout=300 pod --for=condition=ready {w['name']}
 '''
                     else:
                         script = script + f'''

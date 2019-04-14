@@ -15,7 +15,7 @@ uvloop.install()
 
 
 async def timeout():
-    await asyncio.sleep(60)
+    await asyncio.sleep(300)
     print('error: timed out', file=sys.stderr)
     sys.exit(1)
 
