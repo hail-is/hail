@@ -681,26 +681,23 @@ private class Emit(
 
       case ArrayAgg(a, name, query) =>
         val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) = StagedExtractAggregators(mb.fb, query)
-        val tarray = coerce[TStreamable](a.typ)
-
-        val uid = genUID()
-        val s = BindingEnv[IR](Env(name -> Ref(uid, tarray.elementType)))
         val postAggIR = Optimize(postAggIR_, noisy = true, canGenerateLiterals = false,
           context = Some("ArrayAgg/StagedExtractAggregators/postAggIR"))
         val init = Optimize(init_, noisy = true, canGenerateLiterals = false,
           context = Some("ArrayAgg/StagedExtractAggregators/init"))
-        val perElt = Optimize(Subst(perElt_, s), noisy = true, canGenerateLiterals = false,
+        val perElt = Optimize(perElt_, noisy = true, canGenerateLiterals = false,
           context = Some("ArrayAgg/StagedExtractAggregators/perElt"))
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
 
         val codeInit = emit(init, rvas = Some(rvas))
 
+        val tarray = coerce[TStreamable](a.typ)
         val eti = typeToTypeInfo(tarray.elementType)
         val xmv = mb.newField[Boolean]()
-        val xvv = coerce[Any](mb.newField(uid)(eti))
+        val xvv = coerce[Any](mb.newField(name)(eti))
         val perEltEnv = env.bind(
-          uid -> (eti, xmv.load(), xvv.load()))
+          name -> (eti, xmv.load(), xvv.load()))
         val codePerElt = emit(perElt, env = perEltEnv, rvas = Some(rvas))
 
         val aBase = emitArrayIterator(a)
