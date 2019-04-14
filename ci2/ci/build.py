@@ -261,11 +261,10 @@ class CreateNamespaceStep(Step):
                                    json.get('secrets'))
 
     def config(self):
-        return {
-            'name': self._name,
-            # FIXME deploy
-            'domain': '{self._name}.internal.{DOMAIN}'
-        }
+        conf = {'name': self._name}
+        if self.public:
+            conf['domain'] = f'{self._name}.internal.{DOMAIN}'
+        return conf
 
     async def build(self, batch, pr):  # pylint: disable=unused-argument
         # FIXME label
