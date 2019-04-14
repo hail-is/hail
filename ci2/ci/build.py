@@ -372,21 +372,24 @@ echo "$CONFIG" | kubectl apply -n {self.namespace} -f -
 
         if self.wait:
             for w in self.wait:
+                name = w['name']
                 if w['kind'] == 'Deployment':
                     assert w['for'] == 'available'
                     # FIXME what if the cluster isn't big enough?
                     script = script + f'''
-kubectl -n {self.namespace} wait --timeout=300 deployment --for=condition=available {w['name']}
+kubectl -n {self.namespace} wait --timeout=300 deployment --for=condition=available {name}
 '''
                 else:
                     assert w['kind'] == 'Pod'
                     if w['for'] == 'ready':
                         script = script + f'''
-kubectl -n {self.namespace} wait --timeout=300 pod --for=condition=ready {w['name']}
+kubectl -n {self.namespace} wait --timeout=300 pod --for=condition=ready {name}
 '''
                     else:
                         script = script + f'''
-python3 wait-for-pod.py {self.namespace} {w['name']}
+cat wait-for-pod.py
+python3 wait-for-pod.py {self.namespace} {name}
+kubectl -n {self.namespace} logs {name}
 '''
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
                                           command=['bash', '-c', script],
