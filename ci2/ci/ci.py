@@ -16,7 +16,6 @@ from .github import Repo, FQBranch, WatchedBranch
 
 with open(os.environ.get('CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
-print(oauth_token)
 
 uvloop.install()
 

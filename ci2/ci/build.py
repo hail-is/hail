@@ -387,7 +387,6 @@ kubectl -n {self.namespace} wait --timeout=300 pod --for=condition=ready {name}
 '''
                     else:
                         script = script + f'''
-cat wait-for-pod.py
 python3 wait-for-pod.py {self.namespace} {name}
 kubectl -n {self.namespace} logs {name}
 '''

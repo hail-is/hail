@@ -305,7 +305,6 @@ class WatchedBranch:
         self.healing = True
         self.changed = True
         while self.changed:
-            print('start heal loop')
             self.changed = False
 
             # FIXME merge
