@@ -53,7 +53,6 @@ class Step:
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
-            'domain': DOMAIN,
             'ip': IP
         }
         config['pr'] = pr.config()
@@ -234,7 +233,7 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, pr, name, deps, namespace_name, admin_sa, public):
+    def __init__(self, pr, name, deps, namespace_name, admin_sa, public, secrets):
         super().__init__(name, deps)
         self.namespace_name = namespace_name
         if admin_sa:
@@ -246,6 +245,7 @@ class CreateNamespaceStep(Step):
         else:
             self.admin_sa = None
         self.public = public
+        self.secrets = secrets
         self.job = None
         self._name = f'test-{pr.number}-{namespace_name}-{self.token}'
 
@@ -257,10 +257,15 @@ class CreateNamespaceStep(Step):
         return CreateNamespaceStep(pr, name, deps,
                                    json['namespaceName'],
                                    json.get('adminServiceAccount'),
-                                   json.get('public', False))
+                                   json.get('public', False),
+                                   json.get('secrets'))
 
     def config(self):
-        return {'name': self._name}
+        return {
+            'name': self._name,
+            # FIXME deploy
+            'domain': '{self._name}.internal.{DOMAIN}'
+        }
 
     async def build(self, batch, pr):  # pylint: disable=unused-argument
         # FIXME label
@@ -322,8 +327,20 @@ spec:
     app: router
 '''
 
+        script = f'''
+set -ex
+
+echo "$CONFIG" | kubectl apply -f -
+'''
+
+        if self.secrets:
+            for s in self.secrets:
+                script = script + f'''
+kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {self._name} apply -f -
+'''
+
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
-                                          command=['bash', '-c', 'echo "$CONFIG" | kubectl apply -f -'],
+                                          command=['bash', '-c', script],
                                           env={'CONFIG': config},
                                           attributes={'name': self.name},
                                           # FIXME configuration
