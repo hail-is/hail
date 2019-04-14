@@ -470,11 +470,26 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username
 '''
 
         script = f'''
-set -ex
+set -e
 
+echo create database, admin and user...
 echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
-kubectl -n {self.namespace} create secret generic {self.admin_secret} --from-literal=sql-config.json="$ADMIN_SECRET"
-kubectl -n {self.namespace} create secret generic {self.user_secret} --from-literal=sql-config.json="$USER_SECRET"
+
+echo create admin secret...
+echo "$ADMIN_SECRET" > sql-config.json
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret)} --from-file=sql-config.json
+
+echo create user secret...
+echo "$USER_SECRET" > sql-config.json
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret)} --from-file=sql-config.json
+
+echo database = {shq(self._name)}
+echo admin_username = {shq(self.admin_username)}
+echo admin_secret = {shq(self.admin_secret)}
+echo user_username = {shq(self.user_username)}
+echo user_secret = {shq(self.user_secret)}
+
+echo done.
 '''
 
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
