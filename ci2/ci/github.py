@@ -1,4 +1,5 @@
 import os
+import secrets
 import subprocess as sp
 from shlex import quote as shq
 import json
@@ -213,6 +214,7 @@ class PR:
 
         self.batch = await batch_client.create_batch(
             attributes={
+                'token': secrets.token_hex(16),
                 'target_branch': self.target_branch.branch.short_str(),
                 'pr': str(self.number),
                 'source_sha': self.source_sha,

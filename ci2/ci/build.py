@@ -6,6 +6,7 @@ import yaml
 import jinja2
 from .log import log
 from .utils import flatten
+from .constants import BUCKET
 from .environment import GCP_PROJECT, DOMAIN, IP
 
 
@@ -201,10 +202,11 @@ docker push {shq(self.image)}
 
 
 class RunImageStep(Step):
-    def __init__(self, pr, name, deps, image, script):
+    def __init__(self, pr, name, deps, image, script, outputs):
         super().__init__(name, deps)
         self.image = expand_value_from(image, self.input_config(pr))
         self.script = script
+        self.outputs = outputs
         self.job = None
 
     def parent_ids(self):
@@ -214,7 +216,8 @@ class RunImageStep(Step):
     def from_json(pr, name, deps, json):
         return RunImageStep(pr, name, deps,
                             json['image'],
-                            json['script'])
+                            json['script'],
+                            json['outputs'])
 
     def config(self):  # pylint: disable=no-self-use
         return {}
@@ -225,10 +228,21 @@ class RunImageStep(Step):
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
+        output_files = []
+        if self.outputs:
+            for o in self.outputs:
+                output_files.append((f'/io{o["from"]}', f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+
+        sa = None
+        if self.outputs:
+            sa = 'ci2'
+
         self.job = await batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             attributes={'name': self.name},
+            output_files=output_files,
+            copy_service_account_name=sa,
             parent_ids=self.deps_parent_ids())
 
 

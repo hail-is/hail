@@ -12,6 +12,7 @@ from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh
 import batch
 
 from .log import log
+from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch
 
 with open(os.environ.get('CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -88,6 +89,8 @@ async def get_pr(request):
     config['number'] = pr.number
     if pr.batch:
         config['batch'] = await pr.batch.status()
+        config['artifacts'] = f'{BUCKET}/build/{status["attributes"]}'
+
     return config
 
 
