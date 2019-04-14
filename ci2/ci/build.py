@@ -233,14 +233,14 @@ class RunImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io{i["to"]}'))
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         if self.outputs:
             output_files = []
             for o in self.outputs:
-                output_files.append((f'/io{o["from"]}', f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+                output_files.append((o["from"], f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
         else:
             output_files = None
 
