@@ -89,7 +89,7 @@ async def get_pr(request):
     config['number'] = pr.number
     if pr.batch:
         config['batch'] = await pr.batch.status()
-        config['artifacts'] = f'{BUCKET}/build/{status["attributes"]}'
+        config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
 
     return config
 
