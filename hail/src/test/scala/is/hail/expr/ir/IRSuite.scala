@@ -1119,6 +1119,29 @@ class IRSuite extends SparkSuite {
       6L)
   }
 
+  @Test def testArrayAggContexts() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val ir = Let(
+      "x",
+      In(0, TInt64()) * In(0, TInt64()),
+      ArrayAgg(
+        ArrayRange(I32(0), I32(10), I32(1)),
+        "elt",
+        AggLet("y",
+          Cast(Ref("x", TInt64()) * Ref("x", TInt64()) * Cast(Ref("elt", TInt32()), TInt64()), TInt32()),
+          Cast(Ref("x", TInt64()), TInt32()) +
+            ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+              Ref("elt", TInt32()) + Cast(Ref("x", TInt64()), TInt32()) + Ref("y", TInt32()) + Ref("y", TInt32())),
+              AggSignature(Max(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))),
+          isScan = false
+        )
+      )
+    )
+
+    assertEvalsTo(ir, FastIndexedSeq(1L -> TInt64()), 9 * 3 + 1)
+  }
+
   @Test def testInsertFields() {
     implicit val execStrats = ExecStrategy.javaOnly
 
