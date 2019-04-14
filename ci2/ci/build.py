@@ -228,19 +228,29 @@ class RunImageStep(Step):
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
-        output_files = []
+        if self.inputs:
+            input_files = []
+            for i in self.inputs:
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io{i["to"]}'))
+        else:
+            input_files = None
+
         if self.outputs:
+            output_files = []
             for o in self.outputs:
                 output_files.append((f'/io{o["from"]}', f'{BUCKET}/build/{batch.attributes["token"]}{o["to"]}'))
+        else:
+            output_files = None
 
         sa = None
-        if self.outputs:
+        if (self.outputs is not None) or (self.inputs is not None):
             sa = 'ci2'
 
         self.job = await batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             attributes={'name': self.name},
+            input_files=input_files,
             output_files=output_files,
             copy_service_account_name=sa,
             parent_ids=self.deps_parent_ids())
