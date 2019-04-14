@@ -202,10 +202,11 @@ docker push {shq(self.image)}
 
 
 class RunImageStep(Step):
-    def __init__(self, pr, name, deps, image, script, outputs):
+    def __init__(self, pr, name, deps, image, script, inputs, outputs):
         super().__init__(name, deps)
         self.image = expand_value_from(image, self.input_config(pr))
         self.script = script
+        self.inputs = inputs
         self.outputs = outputs
         self.job = None
 
@@ -217,7 +218,8 @@ class RunImageStep(Step):
         return RunImageStep(pr, name, deps,
                             json['image'],
                             json['script'],
-                            json['outputs'])
+                            json.get('inputs'),
+                            json.get('outputs'))
 
     def config(self):  # pylint: disable=no-self-use
         return {}
