@@ -510,7 +510,6 @@ class NDArrayRef(IR):
         self.nd = nd
         self.idxs = idxs
 
-    @typecheck_method(nd=IR, idxs=sequenceof(IR))
     def copy(self, *args):
         return NDArrayRef(args[0], args[1:])
 
