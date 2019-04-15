@@ -92,7 +92,7 @@ class Batch:
         i = 0
         while True:
             status = await self.status()
-            if status['jobs']['Created'] == 0:
+            if not any(j['state'] == 'Created' for j in status['jobs']):
                 return status
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
@@ -214,6 +214,7 @@ class BatchClient:
             doc['copy_service_account_name'] = copy_service_account_name
 
         j = await self._post('/jobs/create', json=doc)
+
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
@@ -247,6 +248,12 @@ class BatchClient:
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
+
+    async def get_batch(self, id):
+        j = await self._get(f'/batches/{id}')
+        return Batch(self,
+                     j['id'],
+                     attributes=j.get('attributes'))
 
     async def create_job(self,
                          image,

@@ -42,6 +42,10 @@ inline bool load_bit(char const* byte_offset, unsigned int bit_offset) {
   return byte_offset[bit_offset >> 3] & (1 << (bit_offset & 0x7));
 }
 
+inline std::string load_string(char const* off) {
+  size_t len = static_cast<size_t>(load_length(off));
+  return { off + 4, len };
+}
 
 inline void store_byte(char * off, char b) { *off = b; }
 inline void store_bool(char * off, bool b) { *off = b; }

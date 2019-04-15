@@ -526,13 +526,11 @@ class HailContext private(val sc: SparkContext,
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    LoadVCF.parseHeaderMetadata(this, reader, file)
+    LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
   }
 
   def pyParseVCFMetadataJSON(file: String): String = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    val metadata = LoadVCF.parseHeaderMetadata(this, reader, file)
+    val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }

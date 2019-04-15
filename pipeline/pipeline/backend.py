@@ -59,7 +59,7 @@ class LocalBackend(Backend):
                         if r._input_path.startswith('gs://'):
                             return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
                         else:
-                            absolute_input_path = os.path.realpath(r._input_path)
+                            absolute_input_path = escape_string(os.path.realpath(r._input_path))
                             if task._image is not None:  # pylint: disable-msg=W0640
                                 return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
                             else:
@@ -104,9 +104,9 @@ class LocalBackend(Backend):
                 cp = 'gsutil cp'
 
             if isinstance(r, InputResourceFile):
-                return [f'{cp} {r._input_path} {dest}']
+                return [f'{cp} {escape_string(r._input_path)} {escape_string(dest)}']
             elif isinstance(r, TaskResourceFile):
-                return [f'{cp} {r._get_path(tmpdir)} {dest}']
+                return [f'{cp} {r._get_path(tmpdir)} {escape_string(dest)}']
             else:
                 assert isinstance(r, ResourceGroup)
                 return [x for ext, rf in r._resources.items()
@@ -197,7 +197,7 @@ class BatchBackend(Backend):
             def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {r._get_path(local_tmpdir)}']
+                        return [f'gsutil cp {escape_string(r._input_path)} {r._get_path(local_tmpdir)}']
                     else:
                         assert isinstance(r, TaskResourceFile)
                         return [f'gsutil cp {r._get_path(remote_tmpdir)} {r._get_path(local_tmpdir)}']
@@ -262,11 +262,11 @@ class BatchBackend(Backend):
         def write_pipeline_outputs(r, dest):
             if isinstance(r, InputResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._input_path} {dest}'
+                              f'gsutil cp {escape_string(r._input_path)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             elif isinstance(r, TaskResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._get_path(remote_tmpdir)} {dest}'
+                              f'gsutil cp {r._get_path(remote_tmpdir)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             else:
                 assert isinstance(r, ResourceGroup)
@@ -296,7 +296,7 @@ class BatchBackend(Backend):
                                               volumes=volumes,
                                               attributes={'label': 'remove_tmpdir'})
 
-        failed_jobs = [(int(jid), ec) for jid, ec in status['exit_codes'].items() if ec is not None and ec > 0]
+        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
@@ -309,7 +309,8 @@ class BatchBackend(Backend):
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
+        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
+        if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
         print("Pipeline completed successfully!")
