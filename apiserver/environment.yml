@@ -19,3 +19,4 @@ dependencies:
     - aiodns
     - https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
     - uvloop>=0.12
+    - gcfs==0.2.1
