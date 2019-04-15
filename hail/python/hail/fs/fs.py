@@ -6,7 +6,6 @@ import json
 from typing import Dict, List
 import sys
 import os
-from google.oauth2 import service_account
 import gcsfs
 
 
@@ -124,11 +123,10 @@ class HadoopWriter(io.RawIOBase):
 
 class GoogleCloudStorageFS(FS):
     def __init__(self):
-        credentials = service_account.Credentials.from_service_account_file(
-            filename='/gsa-key/privateKeyData',
-            scopes=['https://www.googleapis.com/auth/cloud-platform'])
+        if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/gsa-key/privateKeyData'
 
-        self.client = gcsfs.core.GCSFileSystem(credentials, secure_serialize=True)
+        self.client = gcsfs.core.GCSFileSystem(secure_serialize=True)
 
     def open(self, path: str, mode: str = 'r'):
         return self.client.open(path, mode)
