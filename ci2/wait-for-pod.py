@@ -6,8 +6,9 @@ import concurrent.futures
 import uvloop
 from kubernetes_asyncio import client, config
 
-namespace = sys.argv[1]
-name = sys.argv[2]
+timeout_seconds = int(sys.argv[1])
+namespace = sys.argv[2]
+name = sys.argv[3]
 
 print(f'info: wait for {namespace}:{name}', file=sys.stderr)
 
@@ -16,7 +17,7 @@ uvloop.install()
 
 async def timeout():
     print('info: in timeout', file=sys.stderr)
-    await asyncio.sleep(300)
+    await asyncio.sleep(timeout_seconds)
     print('error: timed out', file=sys.stderr)
     sys.exit(1)
 
