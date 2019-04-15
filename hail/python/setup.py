@@ -36,5 +36,6 @@ setup(
         'ipykernel<5',
         'decorator<5',
         'requests>=2.21.0,<2.21.1',
+        'gcsfs==0.2.1',
     ]
 )
