@@ -62,20 +62,6 @@ async def index(request):  # pylint: disable=unused-argument
         ]}
 
 
-@routes.get('/batches/{batch_id}/log')
-@aiohttp_jinja2.template('batch_log.html')
-async def get_batch_log(request):
-    batch_id = int(request.match_info['batch_id'])
-
-    batch_client = request.app['batch_client']
-    batch = await batch_client.get_batch(batch_id)
-    status = await batch.status()
-    return {
-        'batch_id': batch_id,
-        'batch_status': status
-    }
-
-
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
 @aiohttp_jinja2.template('pr.html')
 async def get_pr(request):
@@ -173,6 +159,7 @@ async def refresh_loop(app):
             log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
+app.add_static('static', 'ci/static')
 app.add_routes(routes)
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
