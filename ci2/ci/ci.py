@@ -159,7 +159,7 @@ async def refresh_loop(app):
             log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
-app.add_static('static', 'ci/static')
+routes.static('/static', 'ci/static')
 app.add_routes(routes)
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
