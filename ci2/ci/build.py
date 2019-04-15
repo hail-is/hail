@@ -1,3 +1,4 @@
+import os.path
 import json
 import string
 import secrets
@@ -89,11 +90,12 @@ class Step:
 
 
 class BuildImageStep(Step):
-    def __init__(self, name, deps, dockerfile, context_path, publish_as):
+    def __init__(self, name, deps, dockerfile, context_path, publish_as, inputs):
         super().__init__(name, deps)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
+        self.inputs = inputs
         self.image = f'gcr.io/{GCP_PROJECT}/ci-intermediate:{self.token}'
         self.job = None
 
@@ -105,17 +107,25 @@ class BuildImageStep(Step):
         return BuildImageStep(name, deps,
                               json['dockerFile'],
                               json.get('contextPath'),
-                              json.get('publishAs'))
+                              json.get('publishAs'),
+                              json.get('inputs'))
 
     def config(self):
         return {'image': self.image}
 
     async def build(self, batch, pr):
+        if self.inputs:
+            input_files = []
+            for i in self.inputs:
+                input_files.append((f'{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}'))
+        else:
+            input_files = None
+
         config = self.input_config(pr)
 
         if self.context_path:
             context = f'repo/{self.context_path}'
-            init_context = 'true'
+            init_context = ''
         else:
             context = 'context'
             init_context = 'mkdir context'
@@ -126,15 +136,23 @@ class BuildImageStep(Step):
             render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
         else:
             dockerfile = f'repo/{self.dockerfile}'
-            render_dockerfile = 'true'
+            render_dockerfile = ''
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
             pull_published_latest = f'docker pull {shq(published_latest)} || true'
             cache_from_published_latest = f'--cache-from {shq(published_latest)}'
         else:
-            pull_published_latest = 'true'
+            pull_published_latest = ''
             cache_from_published_latest = ''
+
+        copy_inputs = ''
+        if self.inputs:
+            for i in self.inputs:
+                # to is relative to docker context
+                copy_inputs = copy_inputs + f'''
+cp -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
+'''
 
         script = f'''
 set -ex
@@ -154,6 +172,8 @@ git -C repo checkout {shq(pr.target_branch.sha)}
 git -C repo merge {shq(pr.source_sha)} -m 'merge PR'
 
 {render_dockerfile}
+{copy_inputs}
+
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(dockerfile)})
 docker pull $FROM_IMAGE
 
@@ -165,6 +185,8 @@ docker build -t {shq(self.image)} \
   {context}
 docker push {shq(self.image)}
 '''
+
+        log.info(f'step {self.name}, script:\n{script}')
 
         volumes = [{
             'volume': {
@@ -193,11 +215,17 @@ docker push {shq(self.image)}
             }
         }]
 
+        sa = None
+        if self.inputs is not None:
+            sa = 'ci2'
+
         # FIXME image version
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
                                           command=['bash', '-c', script],
                                           attributes={'name': self.name},
                                           volumes=volumes,
+                                          input_files=input_files,
+                                          copy_service_account_name=sa,
                                           parent_ids=self.deps_parent_ids())
 
 
