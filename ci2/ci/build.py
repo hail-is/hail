@@ -403,11 +403,12 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {s
 
 
 class DeployStep(Step):
-    def __init__(self, pr, name, deps, namespace, config_file, wait):
+    def __init__(self, pr, name, deps, namespace, config_file, link, wait):
         super().__init__(name, deps)
         # FIXME check available namespaces
         self.namespace = expand_value_from(namespace, self.input_config(pr))
         self.config_file = config_file
+        self.link = link
         self.wait = wait
         self.job = None
 
@@ -420,6 +421,7 @@ class DeployStep(Step):
                           json['namespace'],
                           # FIXME config_file
                           json['config'],
+                          json.get('link'),
                           json.get('wait'))
 
     def config(self):  # pylint: disable=no-self-use
@@ -461,10 +463,15 @@ kubectl -n {self.namespace} wait --timeout=300 pod --for=condition=ready {name}
 python3 wait-for-pod.py {self.namespace} {name}
 kubectl -n {self.namespace} logs {name}
 '''
+
+        attrs = {'name': self.name}
+        if self.link is not None:
+            attrs['link'] = ','.join(self.link)
+            attrs['domain'] = f'{self.namespace}.internal.{DOMAIN}'
         self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
                                           command=['bash', '-c', script],
                                           env={'CONFIG': rendered_config},
-                                          attributes={'name': self.name},
+                                          attributes=attrs,
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())

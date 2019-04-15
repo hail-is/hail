@@ -3,10 +3,12 @@ import json
 import os
 import asyncio
 import concurrent.futures
+import datetime
 import aiohttp
 from aiohttp import web
 import uvloop
 import jinja2
+import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 import batch
@@ -88,7 +90,14 @@ async def get_pr(request):
     config = {}
     config['number'] = pr.number
     if pr.batch:
-        config['batch'] = await pr.batch.status()
+        status = await pr.batch.status()
+        for j in status['jobs']:
+            if 'duration' in j:
+                j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+            attrs = j['attributes']
+            if 'link' in attrs:
+                attrs['link'] = attrs['link'].split(',')
+        config['batch'] = status
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
 
     return config

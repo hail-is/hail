@@ -248,6 +248,7 @@ class Job:
         self._pvc = None
         self._pod_name = None
         self.exit_code = None
+        self.duration = None
         self._state = 'Created'
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
@@ -355,7 +356,9 @@ class Job:
     def mark_complete(self, pod):
         task_name = self._current_task.name
 
-        self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
+        terminated = pod.status.container_statuses[0].state.terminated
+        self.exit_code = terminated.exit_code
+        self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
@@ -407,6 +410,7 @@ class Job:
         }
         if self._state == 'Complete':
             result['exit_code'] = self.exit_code
+            result['duration'] = self.duration
 
         logs = self._read_logs()
         if logs is not None:
@@ -649,7 +653,7 @@ class Batch:
     def to_dict(self):
         result = {
             'id': self.id,
-            'jobs': [j.to_dict() for j in self.jobs],
+            'jobs': sorted([j.to_dict() for j in self.jobs], key=lambda j: j['id']),
             'is_open': self.is_open
         }
         if self.attributes:

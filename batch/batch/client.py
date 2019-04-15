@@ -217,9 +217,6 @@ class BatchClient:
     def _close_batch(self, batch_id):
         return self.api.close_batch(self.url, batch_id)
 
-    def _refresh_k8s_state(self):
-        self.api.refresh_k8s_state(self.url)
-
     def list_jobs(self, complete=None, success=None, attributes=None):
         jobs = self.api.list_jobs(self.url, complete=complete, success=success, attributes=attributes)
         return [Job(self,
