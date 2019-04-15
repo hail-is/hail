@@ -151,6 +151,7 @@ class BuildImageStep(Step):
             for i in self.inputs:
                 # to is relative to docker context
                 copy_inputs = copy_inputs + f'''
+mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
 cp -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 '''
 
