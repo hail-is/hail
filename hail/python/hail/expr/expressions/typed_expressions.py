@@ -3112,6 +3112,7 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
+<<<<<<< HEAD
     @typecheck_method(uri=str)
     def save(self, uri):
         """Write out the NDArray to the given path as in .npy format. If the URI does not
@@ -3136,6 +3137,28 @@ class NDArrayExpression(Expression):
 
         Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
 
+    def _broadcast_to_same_ndim(self, other, init):
+        if isinstance(other, NDArrayExpression):
+            if self.ndim < other.ndim:
+                return self._broadcast(other.ndim, init), other
+            elif self.ndim > other.ndim:
+                return self, other._broadcast(self.ndim, init)
+        else:
+            return self, other
+
+    def _broadcast(self, n_dims, init):
+        assert self.ndim < n_dims
+
+        # Right-align existing dimensions and start appending new ones
+        # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
+        # Based off numpy broadcasting with the assumption that everything
+        # can be thought to have an infinite number of 1-length dimensions
+        # prepended
+        dims = list(range(n_dims))
+        dims = dims[self.ndim::-1] + dims[:self.ndim]
+
+        return init(NDArrayReindex(self._ir, dims), tndarray(self._type.element_type, n_dims))
+
 
 class NDArrayNumericExpression(NDArrayExpression):
     """Expression of type :class:`.tndarray` with a numeric element type.
@@ -3152,12 +3175,16 @@ class NDArrayNumericExpression(NDArrayExpression):
     def _bin_op_numeric(self, name, other, ret_type_f=None):
         if isinstance(other, list):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric(name, other, ret_type_f)
+
+        broad_self, broad_other = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
+        return super(NDArrayNumericExpression, broad_self)._bin_op_numeric(name, broad_other, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric_reverse(name, other, ret_type_f)
+
+        broad_self, broad_other = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
+        return super(NDArrayNumericExpression, broad_self)._bin_op_numeric_reverse(name, broad_other, ret_type_f)
 
     def __neg__(self):
         """Negate elements of the ndarray.
