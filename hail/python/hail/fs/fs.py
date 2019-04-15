@@ -39,9 +39,16 @@ class FS(abc.ABC):
     def ls(self, path: str) -> List[Dict]:
         pass
 
-    @abc.abstractmethod
     def copy_log(self, path: str) -> None:
-        pass
+        log = Env.hc()._log
+        try:
+            if self.is_dir(path):
+                _, tail = os.path.split(log)
+                path = os.path.join(path, tail)
+            info(f"copying log to {repr(path)}...")
+            self.copy(local_path_uri(Env.hc()._log), path)
+        except Exception as e:
+            sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
 
 
 class HadoopFS(FS):
@@ -76,17 +83,6 @@ class HadoopFS(FS):
     def ls(self, path: str) -> List[Dict]:
         r = Env.jutils().ls(path, Env.hc()._jhc)
         return json.loads(r)
-
-    def copy_log(self, path: str) -> None:
-        log = Env.hc()._log
-        try:
-            if self.is_dir(path):
-                _, tail = os.path.split(log)
-                path = os.path.join(path, tail)
-            info(f"copying log to {repr(path)}...")
-            self.copy(local_path_uri(Env.hc()._log), path)
-        except Exception as e:
-            sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
 
 
 class HadoopReader(io.RawIOBase):
@@ -175,14 +171,3 @@ class GoogleCloudStorageFS(FS):
         files = self.client.ls(path)
 
         return [self.stat(file) for file in files]
-
-    def copy_log(self, path: str) -> None:
-        log = Env.hc()._log
-        try:
-            if self.is_dir(path):
-                _, tail = os.path.split(log)
-                path = os.path.join(path, tail)
-            info(f"copying log to {repr(path)}...")
-            self.copy(local_path_uri(Env.hc()._log), path)
-        except Exception as e:
-            sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
