@@ -184,6 +184,7 @@ class LocalBackend(Backend):
         timings = result['timings']
         return (value, timings) if timed else value
 
+
 class ServiceBackend(Backend):
     def __init__(self, url):
         self.url = url
@@ -203,7 +204,7 @@ class ServiceBackend(Backend):
         
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
-        result = resp_json['result']
+        result = json.loads(resp_json['result'])
         value = typ._from_json(result['value'])
         timings = result['timings']
 
