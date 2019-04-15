@@ -261,6 +261,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(result.entries()._same(expected))
 
+    def test_aggregate_cols_by_init_op(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        cs = mt.group_cols_by(mt.s).aggregate(cs = hl.agg.call_stats(mt.GT, mt.alleles))
+        cs._force_count_rows() # should run without error
+
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
