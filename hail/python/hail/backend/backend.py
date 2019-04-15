@@ -15,7 +15,7 @@ import pyspark
 
 class Backend(abc.ABC):
     @abc.abstractmethod
-    def execute(self, ir):
+    def execute(self, ir, timed=False):
         return
 
     @abc.abstractmethod
@@ -87,10 +87,12 @@ class SparkBackend(Backend):
             ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
-    def execute(self, ir):
-        return ir.typ._from_json(
-            Env.hail().backend.spark.SparkBackend.executeJSON(
-                self._to_java_ir(ir)))
+    def execute(self, ir, timed=False):
+        result = json.loads(Env.hail().backend.spark.SparkBackend.executeJSON(self._to_java_ir(ir)))
+        value = ir.typ._from_json(result['value'])
+        timings = result['timings']
+
+        return (value, timings) if timed else value
 
     def value_type(self, ir):
         jir = self._to_java_ir(ir)
@@ -176,10 +178,12 @@ class LocalBackend(Backend):
             ir._jir = ir.parse(r(ir), ir_map=r.jirs)
         return ir._jir
 
-    def execute(self, ir):
-        return ir.typ._from_json(
-            Env.hail().expr.ir.LocalBackend.executeJSON(
-                self._to_java_ir(ir)))
+    def execute(self, ir, timed=False):
+        result = json.loads(Env.hail().expr.ir.LocalBackend.executeJSON(self._to_java_ir(ir)))
+        value = ir.typ._from_json(result['value'])
+        timings = result['timings']
+        return (value, timings) if timed else value
+
 
 class ServiceBackend(Backend):
     def __init__(self, url):
@@ -190,7 +194,7 @@ class ServiceBackend(Backend):
         assert len(r.jirs) == 0
         return r(ir)
 
-    def execute(self, ir):
+    def execute(self, ir, timed=False):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/execute', json=code)
         if resp.status_code == 400:
@@ -200,8 +204,11 @@ class ServiceBackend(Backend):
         
         resp_json = resp.json()
         typ = dtype(resp_json['type'])
-        result = resp_json['value']
-        return typ._from_json(result)
+        result = json.loads(resp_json['result'])
+        value = typ._from_json(result['value'])
+        timings = result['timings']
+
+        return (value, timings) if timed else value
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
