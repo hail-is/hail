@@ -129,8 +129,8 @@ class GoogleCloudStorageFS(FS):
 
         self.client = gcsfs.core.GCSFileSystem(secure_serialize=True)
 
-    def open(self, path: str, mode: str = 'r'):
-        return self.client.open(path, mode)
+    def open(self, path: str, mode: str = 'r', buffer_size: int = 2**18):
+        return self.client.open(path, mode, buffer_size)
 
     def copy(self, src: str, dest: str):
         if src.startswith('gs://'):
@@ -142,14 +142,16 @@ class GoogleCloudStorageFS(FS):
         return self.client.exists(path)
 
     def is_file(self, path: str) -> bool:
-        stats = self.client.info(path)
-
-        return not self._stat_is_dir(stats)
+        try:
+            return not self._stat_is_dir(self.client.info(path))
+        except FileNotFoundError:
+            return False
 
     def is_dir(self, path: str) -> bool:
-        stats = self.client.info(path)
-
-        return self._stat_is_dir(stats)
+        try:
+            return self._stat_is_dir(self.client.info(path))
+        except FileNotFoundError:
+            return False
 
     def stat(self, path: str) -> Dict:
         return self._process_obj(self.client.info(path))
