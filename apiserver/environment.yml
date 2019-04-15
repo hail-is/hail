@@ -20,3 +20,4 @@ dependencies:
     - https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
     - uvloop>=0.12
     - gcsfs==0.2.1
+    - hurry.filesize==0.9
