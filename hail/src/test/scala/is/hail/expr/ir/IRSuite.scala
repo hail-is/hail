@@ -1139,7 +1139,7 @@ class IRSuite extends SparkSuite {
       )
     )
 
-    assertEvalsTo(ir, FastIndexedSeq(1L -> TInt64()), 9 * 3 + 1)
+    assertEvalsTo(ir, FastIndexedSeq(1L -> TInt64()), 9 * 3 + 1 + 1)
   }
 
   @Test def testInsertFields() {

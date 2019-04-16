@@ -2,12 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 
-class NormalizeNames(allowFreeVariables: Boolean = false) {
+class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
   def gen(): String = {
     count += 1
-    count.toString
+    normFunction(count)
   }
 
   def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
