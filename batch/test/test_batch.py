@@ -1,16 +1,12 @@
 import collections
-import batch
-import json
 import os
-import pkg_resources
-import re
-import secrets
 import time
+import re
 import unittest
+import batch
+import secrets
 from flask import Flask, Response, request
 import requests
-
-import hailjwt as hj
 
 from .serverthread import ServerThread
 
@@ -210,6 +206,9 @@ class Test(unittest.TestCase):
         self.assertTrue(
             set([j.id for j in jobs]).issuperset([j1.id, j2.id, j3.id]))
 
+        # test refresh_k8s_state
+        self.batch._refresh_k8s_state()
+
         j2.wait()
         j3.cancel()
         bstatus = b.wait()
@@ -244,7 +243,13 @@ class Test(unittest.TestCase):
                 callback=server.url_for('/test'))
             j.wait()
 
-            batch.poll_until(lambda: 'status' in d)
+            i = 0
+            while len(d) != 0:
+                time.sleep(0.100 * (3/2) ** i)
+                i += 1
+                if i > 14:
+                    break
+
             status = d['status']
             self.assertEqual(status['state'], 'Complete')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
@@ -263,37 +268,3 @@ class Test(unittest.TestCase):
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
-
-    def test_authorized_users_only(self):
-        endpoints = [
-            (requests.post, '/jobs/create'),
-            (requests.get, '/jobs'),
-            (requests.get, '/jobs/0'),
-            (requests.get, '/jobs/0/log'),
-            (requests.delete, '/jobs/0/delete'),
-            (requests.patch, '/jobs/0/cancel'),
-            (requests.post, '/batches/create'),
-            (requests.get, '/batches/0'),
-            (requests.delete, '/batches/0/delete'),
-            (requests.patch, '/batches/0/close'),
-            (requests.get, '/recent')]
-        for f, url in endpoints:
-            r = f(os.environ.get('BATCH_URL')+url)
-            assert r.status_code == 401, r
-
-    def test_bad_jwt_key(self):
-        fname = pkg_resources.resource_filename(
-            __name__,
-            'jwt-test-user.json')
-        with open(fname) as f:
-            userdata = json.loads(f.read())
-        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata).decode('ascii')
-        bc = batch.client.BatchClient(url=os.environ.get('BATCH_URL'), token=token)
-        try:
-            j = bc.create_job('alpine', ['false'])
-            assert False, j
-        except requests.HTTPError as e:
-            if e.response.status_code == 401:
-                pass
-            else:
-                assert False, e

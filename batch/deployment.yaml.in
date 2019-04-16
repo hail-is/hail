@@ -22,25 +22,15 @@ spec:
         image: @image@
         ports:
         - containerPort: 5000
-        env:
-        - name: HAIL_JWT_SECRET_KEY_FILE
-          value: /jwt-secret/secret-key
         volumeMounts:
         - name: batch-production-cloud-sql-config
           mountPath: /batch-secrets
-          readOnly: true
-        - name: jwt-secret
-          mountPath: /jwt-secret
           readOnly: true
       volumes:
       - name: batch-production-cloud-sql-config
         secret:
           optional: false
           secretName: batch-production-cloud-sql-config
-      - name: jwt-secret
-        secret:
-          optional: false
-          secretName: notebook-secrets
 ---
 apiVersion: v1
 kind: Service
