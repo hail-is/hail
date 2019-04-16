@@ -80,7 +80,11 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.hadoop_exists(r_not_exists))
 
     def test_hadoop_is_file(self):
-        self.assertTrue(hl.hadoop_is_file(f'{BUCKET}/test_out.copy.txt.gz'))
+        a_file = f'{BUCKET}/test_hadoop_is_file.txt'
+        with hadoop_open(a_file, 'w') as f:
+            f.write("HELLO WORLD")
+
+        self.assertTrue(hl.hadoop_is_file(a_file))
         self.assertFalse(hl.hadoop_is_file(f'{BUCKET}/'))
         self.assertFalse(hl.hadoop_is_file(f'{BUCKET}/invalid-path'))
 
