@@ -10,6 +10,10 @@ class JWTClient:
         return secrets.token_bytes(64)
 
     @staticmethod
+    def unsafe_decode(token):
+        return jwt.decode(token, verify=False)
+
+    @staticmethod
     def _verify_key_preqrequisites(secret_key):
         if isinstance(secret_key, str):
             key_bytes = secret_key.encode('utf-8')
