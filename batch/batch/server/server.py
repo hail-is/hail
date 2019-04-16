@@ -185,6 +185,8 @@ class Job:
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
+        self.set_state('Ready')
+
         add_event({'message': f'created pod for job {self.id}, task {self._current_task.name}',
                    'command': f'{pod.spec.containers[0].command}'})
 
@@ -224,7 +226,7 @@ class Job:
     def _read_logs(self):
         logs = {jt.name: _read_file(_log_path(self.id, jt.name))
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
-        if self._state == 'Created':
+        if self._state == 'Ready':
             if self._pod_name:
                 try:
                     log = v1.read_namespaced_pod_log(
@@ -237,7 +239,7 @@ class Job:
             return logs
         if self._state == 'Complete':
             return logs
-        assert self._state == 'Cancelled'
+        assert self._state == 'Cancelled' or self._state == 'Created'
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,

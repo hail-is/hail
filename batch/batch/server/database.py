@@ -68,7 +68,7 @@ class JobsTable(Table):
         parent_ids = json.loads(parent_ids['parent_ids'])
         parent_records = await self.get_records(parent_ids)
         incomplete_parents = [pr['id'] for pr in parent_records.result()
-                              if pr['state'] == 'Created']
+                              if pr['state'] == 'Created' or pr['state'] == 'Ready']
         return incomplete_parents
 
 
