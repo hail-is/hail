@@ -919,6 +919,7 @@ class IRSuite extends SparkSuite {
   val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
   val vectorRowMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), True())
   val vectorColMajor = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2), False())
+  val matrixRowMajor = makeNDArray(FastSeq(1.0, 2.0, 3.0, 4.0), FastSeq(2, 2), True())
   val threeTensorRowMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), True())
   val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
   val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
@@ -1007,10 +1008,10 @@ class IRSuite extends SparkSuite {
     val topLeftIndex = FastSeq(0L, 0L).map(I64)
     val bottomLeftIndex = FastSeq(1L, 0L).map(I64)
 
-    assertEvalsTo(NDArrayRef(mat, topLeftIndex), 1.0)
+    assertEvalsTo(NDArrayRef(matrixRowMajor, topLeftIndex), 1.0)
     assertEvalsTo(NDArrayRef(identity, topLeftIndex), 1.0)
     assertEvalsTo(NDArrayRef(transpose, topLeftIndex), 1.0)
-    assertEvalsTo(NDArrayRef(mat, bottomLeftIndex), 3.0)
+    assertEvalsTo(NDArrayRef(matrixRowMajor, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
 
@@ -1019,6 +1020,19 @@ class IRSuite extends SparkSuite {
     val partialTranposeIdx = FastSeq(0L, 0L, 1L).map(I64)
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
     assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
+  }
+
+  @Test def testNDArrayBroadcasting() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val scalarWithMatrix = NDArrayMap2(
+      NDArrayReindex(scalarRowMajor, IndexedSeq(1, 0)),
+      matrixRowMajor,
+      "s", "e",
+      ApplyBinaryPrimOp(Add(), Ref("s", TFloat64()), Ref("e", TFloat64())))
+
+    val topLeft = makeNDArrayRef(scalarWithMatrix, FastIndexedSeq(0, 0))
+    assertEvalsTo(topLeft, 4.0)
   }
 
   @Test def testNDArrayWrite() {

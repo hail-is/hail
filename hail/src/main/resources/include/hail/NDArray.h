@@ -88,4 +88,27 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
   return strides;
 }
 
+std::vector<long> broadcast_shapes(std::vector<long> left, std::vector<long> right) {
+  std::vector<long> result(std::max(left.size(), right.size()));
+
+  if (left.size() < right.size()) {
+    for (int i = 0; i < right.size() - left.size(); ++i) {
+      left.insert(left.begin(), 1);
+    }
+  } else if (right.size() < left.size()) {
+    for (int i = 0; i < left.size() - right.size(); ++i) {
+      right.insert(left.begin(), 1);
+    }
+  }
+
+  for (int i = 0; i < left.size(); ++i) {
+    if (!(left[i] == right[i] || left[i] == 1 || right[i] == 1)) {
+      throw new FatalError("Incompatible shapes for broadcasting");
+    }
+    result[i] = std::max(left[i], right[i]);
+  }
+
+  return result;
+}
+
 #endif
