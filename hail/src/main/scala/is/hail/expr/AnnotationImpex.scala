@@ -53,6 +53,10 @@ object SparkAnnotationImpex {
         StructType(tbs.fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
+    case TTuple(types, required) =>
+      StructType(types.zipWithIndex.map {
+        case (typ: Type, i: Int) => StructField("_" + i.toString, exportType(typ), required)
+      })
   }
 }
 
