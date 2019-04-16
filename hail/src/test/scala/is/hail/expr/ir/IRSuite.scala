@@ -1039,11 +1039,19 @@ class IRSuite extends SparkSuite {
       matrixRowMajor,
       "v", "m",
       ApplyBinaryPrimOp(Add(), Ref("v", TFloat64()), Ref("m", TFloat64())))
-    val two = makeNDArrayRef(vectorWithMatrix, Seq(0, 0))
-    val one = makeNDArrayRef(vectorWithMatrix, Seq(0, 1))
 
-    assertEvalsTo(two, 2.0)
-    assertEvalsTo(one, 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(0, 0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(0, 1)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(1, 0)), 4.0)
+
+    val colVector = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2, 1), True())
+    val colVectorWithMatrix = NDArrayMap2(colVector, matrixRowMajor, "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64()), Ref("m", TFloat64())))
+
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 1)), 3.0)
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(1, 0)), 2.0)
+
   }
 
   @Test def testNDArrayWrite() {

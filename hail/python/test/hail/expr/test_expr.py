@@ -2694,18 +2694,24 @@ class Tests(unittest.TestCase):
         # Addition
         expr_eq((na + na)[()], a + a)
         expr_eq((nx + ny)[0], a + b)
+        expr_eq((nx + na)[1], a + b)
+        expr_eq((na + nx)[1], b + a)
         expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
         expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
 
         # Subtraction
         expr_eq((na - na)[()], a - a)
         expr_eq((nx - nx)[0], a - a)
+        expr_eq((nx - na)[1], a - b)
+        expr_eq((na - nx)[1], b - a)
         expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
         expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
 
         # Multiplication
         expr_eq((na * na)[()], a * a)
         expr_eq((nx * nx)[0], a * a)
+        expr_eq((nx * na)[1], a * b)
+        expr_eq((na * nx)[1], b * a)
         expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
         expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
 

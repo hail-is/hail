@@ -136,9 +136,10 @@ abstract class NDArrayLoopEmitter(
 
   def outputElement(idxVars: Seq[Variable]): Code
 
-  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+  def linearizeIndices(idxs: Seq[Variable], shape: Code, strides: Code): Code = {
     idxs.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-        s"$idx * $strides[$dim] + $linearIndex"
+      // length-1 dimensions not factored into the index for broadcasting
+      s"($shape[$dim] == 1 ? $linearIndex : $idx * $strides[$dim] + $linearIndex)"
     }
   }
 

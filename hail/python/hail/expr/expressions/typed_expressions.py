@@ -3112,7 +3112,6 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
-<<<<<<< HEAD
     @typecheck_method(uri=str)
     def save(self, uri):
         """Write out the NDArray to the given path as in .npy format. If the URI does not
@@ -3149,7 +3148,7 @@ class NDArrayExpression(Expression):
     def _broadcast(self, n_dims, init):
         assert self.ndim < n_dims
 
-        # Right-align existing dimensions and start appending new ones
+        # Right-align existing dimensions and start prepending new ones
         # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
         # Based off numpy broadcasting with the assumption that everything
         # can be thought to have an infinite number of 1-length dimensions
@@ -3176,15 +3175,24 @@ class NDArrayNumericExpression(NDArrayExpression):
         if isinstance(other, list):
             other = hl._ndarray(other)
 
-        broad_self, broad_other = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
-        return super(NDArrayNumericExpression, broad_self)._bin_op_numeric(name, broad_other, ret_type_f)
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list):
             other = hl._ndarray(other)
 
-        broad_self, broad_other = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
-        return super(NDArrayNumericExpression, broad_self)._bin_op_numeric_reverse(name, broad_other, ret_type_f)
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
+
+    def _broadcast_to_same_ndim(self, other):
+        if isinstance(other, NDArrayNumericExpression):
+            if self.ndim < other.ndim:
+                return self._broadcast(other.ndim, NDArrayNumericExpression), other
+            elif other.ndim < self.ndim:
+                return self, other._broadcast(self.ndim, NDArrayNumericExpression)
+
+        return self, other
 
     def __neg__(self):
         """Negate elements of the ndarray.

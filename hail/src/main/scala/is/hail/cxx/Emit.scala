@@ -867,11 +867,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
         val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
-        val setup =
-          s"""
-             | ${ childEmitter.setup }
-             | ${ elemRef.define }
-           """.stripMargin
+        val setup = Code(childEmitter.setup, elemRef.define)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
@@ -909,17 +905,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val lEmitter = emitDeforestedNDArray(resultRegion, lChild, env)
         val rEmitter = emitDeforestedNDArray(resultRegion, rChild, env)
 
+        val nDims = Math.max(lEmitter.nDims, rEmitter.nDims)
         val shape = fb.variable("shape", "std::vector<long>",
           s"broadcast_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
-        val setup =
-          s"""
-             | ${ lEmitter.setup }
-             | ${ rEmitter.setup }
-             | ${ lRef.define }
-             | ${ rRef.define }
-             | ${ shape.define }
-           """.stripMargin
-        val nDims = Math.max(lEmitter.nDims, rEmitter.nDims)
+        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define)
+
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             val lIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$l.strides", shape.toString)
@@ -1259,6 +1249,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             nd.outputElement(concreteDims)
           }
         }
+//      case ir.Let(name, value, body) =>
 
       case _ =>
         val ndt = emit(resultRegion, x, env)
@@ -1275,7 +1266,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val xType = x.pType.asInstanceOf[PNDArray]
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val index = linearizeIndices(idxVars, s"$nd.strides")
+            val index = linearizeIndices(idxVars, s"$nd.shape", s"$nd.strides")
             load_element(nd, index, xType.elementType)
           }
         }
