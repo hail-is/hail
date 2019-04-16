@@ -44,6 +44,19 @@ class BuildConfiguration:
         for step in self.steps:
             await step.build(batch, pr)
 
+        ids = set()
+        for step in self.steps:
+            ids.update(step.parent_ids())
+        ids = list(ids)
+
+        sink = await batch.create_job('ubuntu:18.04',
+                                      command=['/bin/true'],
+                                      attributes={'name': 'sink'},
+                                      parent_ids=ids)
+
+        for step in self.steps:
+            await step.cleanup(batch, sink)
+
 
 class Step:
     def __init__(self, name, deps):
@@ -229,6 +242,36 @@ docker push {shq(self.image)}
                                           copy_service_account_name=sa,
                                           parent_ids=self.deps_parent_ids())
 
+    async def cleanup(self, batch, sink):
+        volumes = [{
+            'volume': {
+                'name': 'gcr-push-service-account-key',
+                'secret': {
+                    'optional': False,
+                    'secretName': 'gcr-push-service-account-key'
+                }
+            },
+            'volume_mount': {
+                'mountPath': '/secrets/gcr-push-service-account-key',
+                'name': 'gcr-push-service-account-key',
+                'readOnly': True
+            }
+        }]
+
+        script = f'''
+gcloud -q auth activate-service-account \
+  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+
+gcloud -q container images delete {shq(self.image)}
+'''
+
+        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+                                          command=['bash', '-c', script],
+                                          attributes={'name': f'cleanup_{self.name}'},
+                                          volumes=volumes,
+                                          parent_ids=[sink.id],
+                                          always_run=True)
+
 
 class RunImageStep(Step):
     def __init__(self, pr, name, deps, image, script, inputs, outputs):
@@ -285,6 +328,9 @@ class RunImageStep(Step):
             output_files=output_files,
             copy_service_account_name=sa,
             parent_ids=self.deps_parent_ids())
+
+    async def cleanup(self, batch, sink):
+        pass
 
 
 class CreateNamespaceStep(Step):
@@ -401,6 +447,18 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {s
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
+    async def cleanup(self, batch, sink):
+        script = f'''
+kubectl delete namespace {self._name}
+'''
+
+        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+                                          command=['bash', '-c', script],
+                                          attributes={'name': f'cleanup_{self.name}'},
+                                          service_account_name='ci2-agent',
+                                          parent_ids=[sink.id],
+                                          always_run=True)
+
 
 class DeployStep(Step):
     def __init__(self, pr, name, deps, namespace, config_file, link, wait):
@@ -480,6 +538,10 @@ set -e
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
+
+    async def cleanup(self, batch, sink):
+        # namespace cleanup will handle deployments
+        pass
 
 
 class CreateDatabaseStep(Step):
@@ -588,3 +650,23 @@ echo done.
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
+
+    async def cleanup(self, batch, sink):
+        sql_script = f'''
+DROP DATABASE `{self._name}`;
+DROP USER '{self.admin_username}';
+DROP USER '{self.user_username}';
+'''
+
+        script = f'''
+echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
+'''
+
+        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+                                          command=['bash', '-c', script],
+                                          env={'SQL_SCRIPT': sql_script},
+                                          attributes={'name': f'cleanup_{self.name}'},
+                                          # FIXME configuration
+                                          service_account_name='ci2-agent',
+                                          parent_ids=[sink.id],
+                                          always_run=True)

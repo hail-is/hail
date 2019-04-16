@@ -176,6 +176,8 @@ class PR:
         self.review_state = review_state
 
     async def start_build(self, batch_client):
+        assert not self.batch
+
         # FIXME this needs to be per-PR and async
         try:
             async with repos_lock:
@@ -212,16 +214,22 @@ class PR:
             self.build_state = 'merge_failure'
             return
 
-        self.batch = await batch_client.create_batch(
-            attributes={
-                'token': secrets.token_hex(16),
-                'target_branch': self.target_branch.branch.short_str(),
-                'pr': str(self.number),
-                'source_sha': self.source_sha,
-                'target_sha': self.target_branch.sha
-            })
-        await config.build(self.batch, self)
-        await self.batch.close()
+        batch = None
+        try:
+            batch = await batch_client.create_batch(
+                attributes={
+                    'token': secrets.token_hex(16),
+                    'target_branch': self.target_branch.branch.short_str(),
+                    'pr': str(self.number),
+                    'source_sha': self.source_sha,
+                    'target_sha': self.target_branch.sha
+                })
+            await config.build(batch, self)
+            await batch.close()
+            self.batch = batch
+        finally:
+            if batch and not self.batch:
+                batch.cancel()
 
     async def heal(self, batch, run, seen_batch_ids):
         if self.build_state is not None:

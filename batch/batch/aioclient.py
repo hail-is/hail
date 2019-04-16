@@ -85,6 +85,9 @@ class Batch:
     async def close(self):
         await self.client._patch('/batches/{}/close'.format(self.id))
 
+    async def cancel(self):
+        await self.client._patch('/batches/{}/cancel'.format(self.id))
+
     async def status(self):
         return await self.client._get('/batches/{}'.format(self.id))
 

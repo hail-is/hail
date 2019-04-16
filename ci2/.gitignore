@@ -5,6 +5,7 @@
 /proxy.err
 /proxy.log
 /proxy.pid
+/batch
 *.pyc
 **/__pycache__
 flycheck_*.py

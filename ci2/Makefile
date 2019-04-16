@@ -17,6 +17,11 @@ pylint-stmp: $(PY_FILES)
 
 check: flake8-stmp pylint-stmp
 
+install-batch-locally:
+	rm -rf batch
+	mkdir batch
+	cp -a ../batch/setup.py ../batch/MANIFEST.in ../batch/batch batch
+
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy
 
@@ -39,7 +44,7 @@ push-ci-utils: build-ci-utils
 	docker tag ci-utils $(CI_UTILS_IMAGE)
 	docker push $(CI_UTILS_IMAGE)
 
-build:
+build: install-batch-locally
 	make -C ../docker build
 	-docker	pull $(CI2_LATEST)
 	docker build -t ci2 -f Dockerfile.ci2 --cache-from ci2,$(CI2_LATEST),base,ubuntu:18.04 .
@@ -61,7 +66,7 @@ build-ci-utils:
 	make -C ../docker build
 	docker build -t ci-utils -f Dockerfile.ci-utils .
 
-build:
+build: install-batch-locally
 	make -C ../docker build
 	docker build . -t ci2 -f Dockerfile.ci2
 endif
