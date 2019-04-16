@@ -154,7 +154,7 @@ class Test(unittest.TestCase):
     def test_cancel_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
         status = j.status()
-        self.assertTrue(status['state'], 'Created')
+        self.assertTrue(status['state'], 'Ready')
 
         j.cancel()
 
