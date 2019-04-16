@@ -63,7 +63,7 @@ The tests require two more oauth-tokens, see the <github-tokens/README.md>.
 Run the tests:
 
 ```
-make test-local
+make test-locally
 ```
 
 Buildable Repos ---

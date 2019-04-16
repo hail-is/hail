@@ -38,27 +38,13 @@ restart-proxy:
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
-../batch/test/jwt-test-user-token:
-	make -C ../batch test/jwt-test-user-token
-
-test-local: HAIL_CI_REMOTE_PORT = 3001
-test-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
-test-local: restart-proxy install-cloud-sql-proxy
-test-local: batch-secrets/batch-test-cloud-sql-config.json
-test-local: ../batch/test/jwt-test-user-token
+test-locally: HAIL_CI_REMOTE_PORT = 3001
+test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
+test-locally: restart-proxy install-cloud-sql-proxy
+test-locally: batch-secrets/batch-test-cloud-sql-config.json
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
-		HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
-		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
-		BATCH_USE_KUBE_CONFIG=1 \
-		CLOUD_SQL_PROXY=1 \
-		./test-locally.sh
-
-test-in-cluster: ../batch/test/jwt-test-user-token
-	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
-		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
-		./test-in-cluster.sh
+	BATCH_USE_KUBE_CONFIG=1 \
+	./test-locally.sh
 
 run-service:
 	kubectl apply -f k8s/service.yaml

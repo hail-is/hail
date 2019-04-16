@@ -1,4 +1,4 @@
 #!/bin/bash
 set -ex
 
-make test-in-cluster
+./test-in-cluster.sh
