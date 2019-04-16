@@ -25,6 +25,9 @@ class JWTClient:
         JWTClient._verify_key_preqrequisites(secret_key)
         self.secret_key = secret_key
 
+    def unsafe_decode(self, token):
+        return jwt.decode(token, verify=False)
+        
     def decode(self, token):
         return jwt.decode(
             token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])

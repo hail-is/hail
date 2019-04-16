@@ -52,3 +52,9 @@ def test_modified_cyphertext_is_error():
 
 def test_get_domain():
     assert hj.get_domain('notebook.hail.is') == 'hail.is'
+
+
+def test_unsafe_decode():
+    c = hj.JWTClient(hj.JWTClient.generate_key())
+    json = {'hello': 'world'}
+    assert c.unsafe_decode(c.encode(json)) == json
