@@ -762,6 +762,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    def test_from_entry_expr_filtered(self):
+        mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
+        bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error
+        assert np.isnan(bm.entries().entry.collect()[0])
+
     def test_array_windows(self):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
