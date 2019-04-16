@@ -21,7 +21,7 @@ endif
 
 install-hail-locally:
 	rm -rf build
-	(cd ../hail && GRADLE_OPTS=-Xmx2048m ./gradlew shadowJar --gradle-user-home /gradle-cache)
+	(cd ../hail && ./gradlew shadowJar)
 	mkdir -p build/hail/jars
 	mkdir -p build/hail/python
 	cp -a ../hail/build/libs/hail-all-spark.jar build/hail/jars
@@ -33,14 +33,10 @@ jupyter_notebook_config.py:
             < jupyter_notebook_config.py.in > $@
 
 ifeq ($(IN_HAIL_CI),1)
-.PHONY: push deploy build-spark-base build-hail-base build-spark-master build-spark-worker build-apiserver
+.PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
 
-build-spark-base:
-	docker pull debian:9.5
-	-docker pull $(REPO)/spark-base:latest
-	docker build -t spark-base -f Dockerfile.spark-base . --cache-from spark-base,$(REPO)/spark-base:latest,debian:9.5
-
-build-hail-base: build-spark-base install-hail-locally
+build-hail-base: install-hail-locally
+	make -C ../docker build
 	-docker pull $(REPO)/spark-base:latest
 	-docker pull $(REPO)/hail-base:latest
 	docker build -t hail-base -f Dockerfile.hail-base . --cache-from hail-base,$(REPO)/hail-base:latest,spark-base
@@ -102,7 +98,7 @@ deploy: push
 	kubectl -n default apply -f deployment.yaml
 else
 build: install-hail-locally jupyter_notebook_config.py
-	docker build -t spark-base -f Dockerfile.spark-base .
+	make -C ../docker build
 	docker build -t hail-base -f Dockerfile.hail-base .
 	docker build -t spark-master -f Dockerfile.spark-master .
 	docker build -t spark-worker -f Dockerfile.spark-worker .
