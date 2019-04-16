@@ -130,15 +130,12 @@ abstract class NDArrayLoopEmitter(
   resultRegion: EmitRegion,
   val nDims: Int,
   val shape: Variable,
-  val setup: Code = "") {
+  val setup: Code) {
 
   fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
 
   def outputElement(idxVars: Seq[Variable]): Code
 
-  // The problem might be with promoting dim-length 1 dimensions to longer
-  // Length and then not changing the linearizing indices method
-  // OR maybe not but this is still definitely a bug
   def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
     idxs.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
         s"$idx * $strides[$dim] + $linearIndex"
@@ -161,7 +158,6 @@ abstract class NDArrayLoopEmitter(
       |({
       | ${ setup }
       | ${ data.define }
-      | ${ shape.define }
       | ${ strides.define }
       |
       | ${ builder.defineWith(s"{ (int) n_elements($shape), $resultRegion }") }
