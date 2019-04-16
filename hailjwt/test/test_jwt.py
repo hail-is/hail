@@ -57,4 +57,4 @@ def test_get_domain():
 def test_unsafe_decode():
     c = hj.JWTClient(hj.JWTClient.generate_key())
     json = {'hello': 'world'}
-    assert c.unsafe_decode(c.encode(json)) == json
+    assert hj.JWTClient.unsafe_decode(c.encode(json)) == json
