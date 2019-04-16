@@ -138,8 +138,6 @@ class HailContext(object):
                 '   / __  / _ `/ / /\n'
                 '  /_/ /_/\\_,_/_/_/   version {}\n'.format(version))
 
-            sys.stderr.write(type(self._backend).__name__)
-
             if version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'
                                  '  during the beta period. We recommend pulling\n'
