@@ -330,7 +330,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
-    val Row(starts, stops) = CompileAndEvaluate[Row](startsAndStops)
+    val (Row(starts, stops), _) = CompileAndEvaluate[Row](startsAndStops)
 
     filterRowIntervals(
       starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
