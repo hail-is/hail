@@ -356,15 +356,14 @@ object LowerMatrixIR {
               .toArray
           }))
         .mapRows('row.insertFields(entriesField ->
-          let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
+          let(__entries = 'row (entriesField), __key_map = 'global (keyMap), va = 'row) {
             irRange(0, '__key_map.len)
               .map(newColIdx1 ~> '__key_map (newColIdx1)
                 .apply('value)
                 .arrayAgg(aggElementIdx ~>
-                  let(va = 'row) {
-                    aggLet(va = 'row, g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
-                      entryExpr
-                    }}))}))
+                  aggLet(va = 'row, g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
+                    entryExpr
+                  }))}))
         .mapGlobals(
           'global.insertFields(colsField ->
             let(__key_map = 'global (keyMap)) {
