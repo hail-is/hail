@@ -80,4 +80,11 @@ class SimplifySuite extends SparkSuite {
       FastIndexedSeq(Set("a") -> TSet(TString())),
       true)
   }
+
+  @Test def testTableCountExplodeSetRewrite() {
+    var ir: TableIR = TableRange(1, 1)
+    ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), Set(1)))))
+    ir = TableExplode(ir, FastIndexedSeq("foo"))
+    assertEvalsTo(TableCount(ir), 1L)
+  }
 }
