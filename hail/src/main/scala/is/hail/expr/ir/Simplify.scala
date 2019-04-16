@@ -530,6 +530,11 @@ object Simplify {
       assert(child.typ == x.typ)
       child
 
+    case x@MatrixMapEntries(MatrixMapEntries(child, newEntries1), newEntries2) =>
+      val uid = genUID()
+      val ne2 = Subst(newEntries2, BindingEnv(Env("g" -> Ref(uid, newEntries1.typ))))
+      MatrixMapEntries(child, Let(uid, newEntries1, ne2))
+
     case MatrixMapGlobals(child, Ref("global", _)) => child
 
     // flatten unions
