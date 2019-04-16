@@ -145,3 +145,4 @@ test: build-hail-shadow-jar check jwt-test-user-token
 clean:
 	rm jupyter_notebook_config.py
 	rm -rf hailjwt
+	rm -rf jwt-test-user-token

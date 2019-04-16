@@ -35,7 +35,7 @@ def authenticated_users_only(fun):
                 return fun(request, *args, **kwargs)
             except jwt.exceptions.DecodeError:
                 pass
-        raise web.HTTPForbidden()
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
     wrapped.__name__ = fun.__name__
     return wrapped
 
