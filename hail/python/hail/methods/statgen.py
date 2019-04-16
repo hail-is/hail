@@ -1797,7 +1797,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
     mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
 
@@ -2263,7 +2263,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     check_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
@@ -2336,7 +2336,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     check_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __ACsq=agg.sum(mt.__gt * mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))

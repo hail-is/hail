@@ -331,7 +331,7 @@ case class MatrixValue(
             } else
               fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
           } else
-            fatal(s"Cannot create RowMatrix: missing entry at row $i and col $j")
+            fatal(s"Cannot create RowMatrix: filtered entry at row $i and col $j")
           j += 1
         }
         val row = (i, data)
