@@ -184,6 +184,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
                 ],
                 name='default',
                 image=image,
+                env={'HAIL_TOKEN_FILE': '/user-jwt/jwt'},
                 ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
