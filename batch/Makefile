@@ -21,8 +21,13 @@ include ../cloud-sql.mk
 test/jwt-test-user-token: test/jwt-test-user.json test/jwt-test-secret-key install-hailjwt create_key.py
 	python create_key.py test/jwt-test-secret-key < $< > $@
 
-install-hailjwt:
-	cd ../hailjwt && python3 setup.py install --user
+hailjwt: ../hailjwt/setup.py $(find ../hailjwt/hailjwt -iname \*.py)
+	-mkdir hailjwt
+	cp ../hailjwt/setup.py hailjwt/
+	rsync -a --prune-empty-dirs --include '*/' --include '*.py' --exclude '*' ../hailjwt/hailjwt/ hailjwt/
+
+install-hailjwt: hailjwt
+	cd hailjwt && python3 setup.py install --user
 
 install: install-hailjwt
 	pip install -U ./
@@ -45,7 +50,7 @@ build:
 	cp -R ../hailjwt/hailjwt/ hailjwt/hailjwt/
 	docker build -t batch --cache-from batch,$(BATCH_LATEST),base,ubuntu:18.04 .
 
-build-test:
+build-test: hailjwt
 	docker build -t batch-test -f Dockerfile.test .
 
 push: build

@@ -5,12 +5,11 @@ import os
 import uvloop
 from aiohttp import web
 
-import hail as hl
-import hailjwt as hj
 import jwt
-
+import hail as hl
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
+import hailjwt as hj
 
 uvloop.install()
 
