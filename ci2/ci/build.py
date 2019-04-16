@@ -461,8 +461,12 @@ kubectl -n {self.namespace} wait --timeout=600s pod --for=condition=ready {name}
                     else:
                         assert w['for'] == 'completed', w['for']
                         script = script + f'''
+set +e
 python3 wait-for-pod.py 600 {self.namespace} {name}
+EC=$?
 kubectl -n {self.namespace} logs {name}
+(exit $EC)
+set -e
 '''
 
         attrs = {'name': self.name}
