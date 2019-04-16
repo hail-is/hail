@@ -139,9 +139,10 @@ abstract class AbstractRVDSpec {
   def codecSpec: CodecSpec
 
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
-    val rvdType = RVDType(requestedType, key)
+    val requestedKey = key.takeWhile(requestedType.hasField)
+    val rvdType = RVDType(requestedType, requestedKey)
 
-    RVD(rvdType, partitioner, hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
+    RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
