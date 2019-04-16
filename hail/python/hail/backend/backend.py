@@ -87,7 +87,12 @@ class Backend(abc.ABC):
 
 
 class SparkBackend(Backend):
-    fs = HadoopFS()
+    def __init__(self):
+        self._fs = HadoopFS()
+
+    @property
+    def fs(self):
+        return self._fs
 
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
@@ -195,10 +200,13 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
-    fs = GoogleCloudStorageFS()
-
     def __init__(self, url):
         self.url = url
+        self._fs = GoogleCloudStorageFS()
+
+    @property
+    def fs(self):
+        return self._fs
 
     def _render(self, ir):
         r = Renderer()
