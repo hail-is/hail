@@ -1,4 +1,3 @@
-from collections import Counter
 import asyncio
 import concurrent
 import functools
