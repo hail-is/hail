@@ -282,7 +282,7 @@ object Simplify {
         ApplyAggOp(
           FastIndexedSeq(),
           None,
-          FastIndexedSeq(ArrayLen(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)}).toL),
+          FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
 
     // TableGetGlobals should simplify very aggressively
