@@ -37,6 +37,9 @@ hailjwt: ../hailjwt/setup.py $(find ../hailjwt/hailjwt -iname \*.py)
 	cp ../hailjwt/setup.py hailjwt/
 	rsync -a --prune-empty-dirs --include '*/' --include '*.py' --exclude '*' ../hailjwt/hailjwt/ hailjwt/
 
+install-hailjwt: hailjwt
+	cd hailjwt && python setup.py install --user
+
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
 
@@ -133,7 +136,10 @@ run-hail-jupyter-pod:
 	  < hail-jupyter-pod.yaml.in > hail-jupyter-pod.yaml
 	kubectl create -f hail-jupyter-pod.yaml
 
-test: build-hail-shadow-jar check
+jwt-test-user-token: jwt-test-user.json jwt-test-secret-key install-hailjwt create_key.py
+	python create_key.py jwt-test-secret-key < $< > $@
+
+test: build-hail-shadow-jar check jwt-test-user-token
 	./test-apiserver.sh
 
 clean:
