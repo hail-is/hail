@@ -477,6 +477,8 @@ trait OutputBuffer extends Closeable {
 }
 
 final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
+  private val buff = ByteBuffer.allocate(8)
+
   override def flush(): Unit = out.flush()
 
   override def close(): Unit = out.close()
@@ -485,11 +487,20 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   override def writeInt(i: Int): Unit = out.write(i)
 
-  def writeLong(l: Long): Unit = out.write(ByteBuffer.allocate(8).putLong(l).array())
+  def writeLong(l: Long) {
+    buff.clear()
+    out.write(buff.putLong(l).array())
+  }
 
-  def writeFloat(f: Float): Unit = out.write(ByteBuffer.allocate(4).putFloat(f).array())
+  def writeFloat(f: Float) {
+    buff.clear()
+    out.write(buff.putFloat(f).array())
+  }
 
-  def writeDouble(d: Double): Unit = out.write(ByteBuffer.allocate(8).putDouble(d).array())
+  def writeDouble(d: Double) {
+    buff.clear()
+    out.write(buff.putDouble(d).array())
+  }
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
 
