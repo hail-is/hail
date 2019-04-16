@@ -49,7 +49,7 @@ test-local: ../batch/test/jwt-test-user-token
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 		HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
+		HAIL_POD_NAMESPACE=test \
 		BATCH_USE_KUBE_CONFIG=1 \
 		CLOUD_SQL_PROXY=1 \
 		./test-locally.sh
@@ -57,7 +57,7 @@ test-local: ../batch/test/jwt-test-user-token
 test-in-cluster: ../batch/test/jwt-test-user-token
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
+		HAIL_POD_NAMESPACE=test \
 		./test-in-cluster.sh
 
 run-service:

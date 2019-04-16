@@ -1,4 +1,3 @@
-from collections import Counter
 import asyncio
 import concurrent
 import functools
@@ -68,12 +67,12 @@ else:
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
-POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
+HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
-log.info(f'POD_NAMESPACE {POD_NAMESPACE}')
+log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 
 STORAGE_CLASS_NAME = 'batch'
@@ -158,7 +157,7 @@ class Job:
 
     def _create_pvc(self):
         pvc = v1.create_namespaced_persistent_volume_claim(
-            POD_NAMESPACE,
+            HAIL_POD_NAMESPACE,
             kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
                     generate_name=f'job-{self.id}-',
@@ -174,6 +173,7 @@ class Job:
         log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
         return pvc
 
+    # may be called twice with the same _current_task
     def _create_pod(self):
         assert self._pod_name is None
         assert self._current_task is not None
@@ -181,7 +181,7 @@ class Job:
         volumes = [
             kube.client.V1Volume(
                 secret=kube.client.V1SecretVolumeSource(
-                    secret_name=self.userdata['secret_name']),
+                    secret_name=self.userdata['gsa_key_secret_name']),
                 name='gsa-key')]
         volume_mounts = [
             kube.client.V1VolumeMount(
@@ -202,14 +202,18 @@ class Job:
         current_pod_spec = self._current_task.pod_template.spec
         if current_pod_spec.volumes is None:
             current_pod_spec.volumes = []
+        else:
+            current_pod_spec.volumes = current_pod_spec.volumes[:]
         current_pod_spec.volumes.extend(volumes)
         for container in current_pod_spec.containers:
             if container.volume_mounts is None:
                 container.volume_mounts = []
+            else:
+                container.volume_mounts = container.volume_mounts[:]
             container.volume_mounts.extend(volume_mounts)
 
         pod = v1.create_namespaced_pod(
-            POD_NAMESPACE,
+            HAIL_POD_NAMESPACE,
             self._current_task.pod_template,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         self._pod_name = pod.metadata.name
@@ -229,7 +233,7 @@ class Job:
             try:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
-                    POD_NAMESPACE,
+                    HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -244,7 +248,7 @@ class Job:
             try:
                 v1.delete_namespaced_pod(
                     self._pod_name,
-                    POD_NAMESPACE,
+                    HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
@@ -261,7 +265,7 @@ class Job:
                 try:
                     log = v1.read_namespaced_pod_log(
                         self._pod_name,
-                        POD_NAMESPACE,
+                        HAIL_POD_NAMESPACE,
                         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
                     logs[self._current_task.name] = log
                 except kube.client.rest.ApiException:
@@ -420,7 +424,7 @@ class Job:
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
-            POD_NAMESPACE,
+            HAIL_POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
         add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
@@ -483,7 +487,7 @@ class Job:
         return result
 
 
-with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret/secret-key') as f:
+with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
     jwtclient = hj.JWTClient(f.read())
 
 
@@ -498,7 +502,7 @@ def authenticated_users_only(fun):
                 return fun(request, *args, **kwargs)
             except jwt.exceptions.DecodeError as de:
                 log.info(f'could not decode token: {de}')
-        raise web.HTTPForbidden()
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
     wrapped.__name__ = fun.__name__
     return wrapped
 
@@ -844,8 +848,8 @@ async def recent(request):  # pylint: disable=W0613
     return {'recent': list(reversed(recent_events))}
 
 
-def blocking_to_async(f, *args, **kwargs):
-    return asyncio.get_event_loop().run_in_executor(
+async def blocking_to_async(f, *args, **kwargs):
+    return await asyncio.get_event_loop().run_in_executor(
         app['blocking_pool'], lambda: f(*args, **kwargs))
 
 
@@ -870,21 +874,18 @@ def pod_changed(pod):
 async def kube_event_loop():
     stream = kube.watch.Watch().stream(
         v1.list_namespaced_pod,
-        POD_NAMESPACE,
+        HAIL_POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     async for event in DeblockedIterator(stream):
-        pod = event['object']
-        asyncio.get_event_loop().call_soon_threadsafe(
-            pod_changed, pod)
+        pod_changed(event['object'])
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
     pods = await blocking_to_async(
-        app['blocking_pool'],
         v1.list_namespaced_pod,
-        POD_NAMESPACE,
+        HAIL_POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
@@ -910,7 +911,7 @@ async def polling_event_loop():
         try:
             await refresh_k8s_state()
         except Exception as exc:  # pylint: disable=W0703
-            log.error(f'Could not poll due to exception: {exc}')
+            log.exception(f'Could not poll due to exception: {exc}')
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
@@ -924,7 +925,6 @@ def serve(port=5000):
         if_anyone_dies_we_all_die)
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
-
         app['blocking_pool'] = pool
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())

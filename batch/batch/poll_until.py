@@ -9,9 +9,8 @@ def poll_until(p, max_polls=None):
         x = p()
         if x:
             return x
-        j = random.randrange(math.floor(1.1 ** i))
+        # max 4.5s
+        j = random.randrange(math.floor(1.1 ** min(i, 40)))
         time.sleep(0.100 * j)
-        # max 4.45s
-        if i < 64:
-            i = i + 1
+        i = i + 1
     raise ValueError(f'poll_until: exceeded max polls: {i} {max_polls}')

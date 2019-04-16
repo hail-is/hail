@@ -109,8 +109,6 @@ class Batch:
 
 
 class BatchClient:
-    HAIL_NOTEBOOK_JWT_TOKEN_LOCATION = '/user-jwt/jwt'
-
     def __init__(self, session, url=None, token_file=None, token=None, headers=None):
         if not url:
             url = 'http://batch.default'
@@ -121,11 +119,9 @@ class BatchClient:
                           os.environ.get('HAIL_TOKEN_FILE') or
                           os.path.expanduser('~/.hail/token'))
             if not os.path.exists(token_file):
-                if not os.path.exists(BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION):
-                    raise ValueError(
-                        f'cannot create a client without a token. no file was '
-                        f'found at {token_file} nor {BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION}')
-                token_file = BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION
+                raise ValueError(
+                    f'Cannot create a client without a token. No file was '
+                    f'found at {token_file}')
             with open(token_file) as f:
                 token = f.read()
         self.cookies = {'user': token}

@@ -334,19 +334,18 @@ def test_input_dependency(client, test_user):
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
-def test_input_dependency_directory(client):
+def test_input_dependency_directory(client, test_user):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', 'gs://hail-ci-0-1-batch-volume-test-bucket/')],
-                            copy_service_account_name='batch-volume-tester')
+                            output_files=[('/io/test/', f'gs://{test_user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/test/', '/io/')],
-                            copy_service_account_name='batch-volume-tester',
+                            input_files=[(f'gs://{test_user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log()['main'] == 'head1\nhead2\n'
+
 
 def test_always_run_delete(client):
     batch = client.create_batch()

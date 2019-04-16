@@ -1,7 +1,7 @@
 .PHONY: test-local test-local-in-cluster check clean
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../batch
-PYTHON := $(PYTHONPATH) python3
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../batch:../hailjwt
+PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
@@ -17,12 +17,15 @@ pylint-stmp: $(PY_FILES)
 
 check: flake8-stmp pylint-stmp
 
+../batch/test/jwt-test-user-token:
+	make -C ../batch test/jwt-test-user-token
+
 test-local: install-cloud-sql-proxy
 test-local: batch-secrets/batch-test-cloud-sql-config.json
 test-local: ../batch/test/jwt-test-user-token check
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
+		HAIL_POD_NAMESPACE=test \
 		BATCH_USE_KUBE_CONFIG=1 \
 		CLOUD_SQL_PROXY=1 \
 		PYTHONPATH=$(PYTHONPATH) \
@@ -33,7 +36,7 @@ test-local: ../batch/test/jwt-test-user-token check
 test-local-in-cluster: ../batch/test/jwt-test-user-token check
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
-		POD_NAMESPACE=test \
+		HAIL_POD_NAMESPACE=test \
 		PYTHONPATH=$(PYTHONPATH) \
 		./test-locally.sh
 

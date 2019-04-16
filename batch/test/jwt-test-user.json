@@ -1,7 +1,4 @@
-{"id": -1,
- "email": "batch-tests@hail.is",
- "secret_name": "gcp-sa-key-batch-tests",
- "gsa_email": "batch-tests@hail-vdc.iam.gserviceaccount.com",
+{"gsa_email": "batch-tests@hail-vdc.iam.gserviceaccount.com",
  "ksa_name": "batch-tests",
- "name": "batch-tests",
+ "gsa_key_secret_name": "gcp-sa-key-batch-tests",
  "bucket_name": "hail-user-bucket-batch-tests"}

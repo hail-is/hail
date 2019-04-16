@@ -4,6 +4,9 @@ set -ex
 export UUID=$(../generate-uid.sh)
 export SERVICE_NAME=test-ci-$UUID
 
+kubectl config current-context
+kubectl config view
+kubectl get pods
 kubectl expose pod $POD_NAME --name $SERVICE_NAME \
         --type ClusterIP \
         --port 80 \

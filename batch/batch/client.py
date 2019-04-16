@@ -3,7 +3,8 @@ import yaml
 
 import cerberus
 
-from . import api, schemas, poll_until
+from . import api, schemas
+from .poll_until import poll_until
 
 
 class Job:
@@ -99,8 +100,6 @@ class Batch:
 
 
 class BatchClient:
-    HAIL_NOTEBOOK_JWT_TOKEN_LOCATION = '/user-jwt/jwt'
-
     def __init__(self, url=None, timeout=None, token_file=None, token=None, headers=None):
         if token_file is not None and token is not None:
             raise ValueError('set only one of token_file and token')
@@ -112,11 +111,9 @@ class BatchClient:
                           os.environ.get('HAIL_TOKEN_FILE') or
                           os.path.expanduser('~/.hail/token'))
             if not os.path.exists(token_file):
-                if not os.path.exists(BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION):
-                    raise ValueError(
-                        f'cannot create a client without a token. no file was '
-                        f'found at {token_file} nor {BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION}')
-                token_file = BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION
+                raise ValueError(
+                    f'cannot create a client without a token. no file was '
+                    f'found at {token_file}')
             with open(token_file) as f:
                 token = f.read()
         self.api = api.API(timeout=timeout,
