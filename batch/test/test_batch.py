@@ -279,7 +279,7 @@ class Test(unittest.TestCase):
             (requests.get, '/recent')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
-            assert r.status_code == 403, r
+            assert r.status_code == 401, r
 
     def test_bad_jwt_key(self):
         fname = pkg_resources.resource_filename(
@@ -293,7 +293,7 @@ class Test(unittest.TestCase):
             j = bc.create_job('alpine', ['false'])
             assert False, j
         except requests.HTTPError as e:
-            if e.response.status_code == 403:
+            if e.response.status_code == 401:
                 pass
             else:
                 assert False, e
