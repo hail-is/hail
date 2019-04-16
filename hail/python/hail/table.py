@@ -1926,7 +1926,10 @@ class Table(ExprContainer):
             if not (unify or ht.row.dtype == self.row.dtype):
                 raise ValueError(f"'union': table {i} has a different row type.\n"
                                  f"  Expected:  {self.row.dtype}\n"
-                                 f"  Table {i}: {ht.row.dtype}")
+                                 f"  Table {i}: {ht.row.dtype}\n"
+                                 f"  If the tables have the same fields in different orders, or some\n"
+                                 f"    common and some unique fields, then the 'unify' parameter may be\n"
+                                 f"    able to coerce the tables to a common type.")
         all_tables = [self]
         all_tables.extend(tables)
 
