@@ -46,17 +46,13 @@ object SparkAnnotationImpex {
     case _: TBinary => BinaryType
     case TArray(elementType, _) =>
       ArrayType(exportType(elementType), containsNull = !elementType.required)
-    case tbs: TStruct =>
+    case tbs: TBaseStruct =>
       if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else
         StructType(tbs.fields
           .map(f =>
             StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
-    case TTuple(types, required) =>
-      StructType(types.zipWithIndex.map {
-        case (typ: Type, i: Int) => StructField("_" + i.toString, exportType(typ), required)
-      })
   }
 }
 
