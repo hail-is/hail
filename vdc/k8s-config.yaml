@@ -189,18 +189,6 @@ metadata:
   name: test-svc
   namespace: batch-pods
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: deploy-svc
-  namespace: test
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: test-svc
-  namespace: test
----
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
