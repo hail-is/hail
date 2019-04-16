@@ -1,0 +1,34 @@
+<html lang="en">
+  <head>
+    <title>Job {{ job_id }} Log</title>
+  </head>
+  <body>
+    <h1>Job {{ job_id }} Log</h1>
+    {% if 'input' in job_log'%}
+    <h3>Input</h3>
+    {% if job_log['input'] %}
+    <pre>{{ job_log['input'] }}</pre>
+    {% else %}
+    No output.
+    {% endif %}
+    {% endif %}
+    
+    {% if 'main' in job_log %}
+    <h3>Main</h3>
+    {% if job_log['main'] %}
+    <pre>{{ job_log['main'] }}</pre>
+    {% else %}
+    No output.
+    {% endif %}
+    {% endif %}
+    
+    {% if 'output' in job_log %}
+    <h3>Output</h3>
+    {% if job_log['output'] %}
+    <pre>{{ job_log['output'] }}</pre>
+    {% else %}
+    No output.
+    {% endif %}
+    {% endif %}
+  </body>
+</html>

@@ -90,7 +90,7 @@ run-local: restart-proxy
 	PROJECT=$(PROJECT) \
 	  DOMAIN=$(DOMAIN) \
 	  IP=$(IP) \
-	  PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}../batch python3 -m ci
+	  PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}../batch python3 -c 'import ci; ci.run()'
 
 run-docker:
 	docker run -p 5000:5000 ci2

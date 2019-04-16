@@ -1,6 +1,10 @@
 /ci.log
 /oauth-token
 /deployment.yaml
+/repos
+/proxy.err
+/proxy.log
+/proxy.pid
 *.pyc
 **/__pycache__
 flycheck_*.py
