@@ -1028,11 +1028,22 @@ class IRSuite extends SparkSuite {
     val scalarWithMatrix = NDArrayMap2(
       NDArrayReindex(scalarRowMajor, IndexedSeq(1, 0)),
       matrixRowMajor,
-      "s", "e",
-      ApplyBinaryPrimOp(Add(), Ref("s", TFloat64()), Ref("e", TFloat64())))
+      "s", "m",
+      ApplyBinaryPrimOp(Add(), Ref("s", TFloat64()), Ref("m", TFloat64())))
 
     val topLeft = makeNDArrayRef(scalarWithMatrix, FastIndexedSeq(0, 0))
     assertEvalsTo(topLeft, 4.0)
+
+    val vectorWithMatrix = NDArrayMap2(
+      NDArrayReindex(vectorRowMajor, IndexedSeq(1, 0)),
+      matrixRowMajor,
+      "v", "m",
+      ApplyBinaryPrimOp(Add(), Ref("v", TFloat64()), Ref("m", TFloat64())))
+    val two = makeNDArrayRef(vectorWithMatrix, Seq(0, 0))
+    val one = makeNDArrayRef(vectorWithMatrix, Seq(0, 1))
+
+    assertEvalsTo(two, 2.0)
+    assertEvalsTo(one, 1.0)
   }
 
   @Test def testNDArrayWrite() {

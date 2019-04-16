@@ -91,14 +91,11 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
 std::vector<long> broadcast_shapes(std::vector<long> left, std::vector<long> right) {
   std::vector<long> result(std::max(left.size(), right.size()));
 
-  if (left.size() < right.size()) {
-    for (int i = 0; i < right.size() - left.size(); ++i) {
-      left.insert(left.begin(), 1);
-    }
-  } else if (right.size() < left.size()) {
-    for (int i = 0; i < left.size() - right.size(); ++i) {
-      right.insert(left.begin(), 1);
-    }
+  int len_diff = left.size() - right.size();
+  if (len_diff < 0) {
+    left.insert(left.begin(), -len_diff, 1);
+  } else if (len_diff > 0) {
+    right.insert(right.begin(), len_diff, 1);
   }
 
   for (int i = 0; i < left.size(); ++i) {
