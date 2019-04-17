@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.types.BlockMatrixType
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
-import is.hail.utils.fatal
+import is.hail.utils.{FastIndexedSeq, fatal}
 import breeze.linalg.DenseMatrix
 import is.hail.expr.types.virtual.Type
 
@@ -26,10 +26,10 @@ object BlockMatrixIR {
 
   def matrixShapeToTensorShape(nRows: Long,  nCols: Long): (IndexedSeq[Long], Boolean) = {
     (nRows, nCols) match {
-      case (1, 1) => (IndexedSeq(), false)
-      case (_, 1) => (IndexedSeq(nRows), false)
-      case (1, _) => (IndexedSeq(nCols), true)
-      case _ => (IndexedSeq(nRows, nCols), false)
+      case (1, 1) => (FastIndexedSeq(), false)
+      case (_, 1) => (FastIndexedSeq(nRows), false)
+      case (1, _) => (FastIndexedSeq(nCols), true)
+      case _ => (FastIndexedSeq(nRows, nCols), false)
     }
   }
 
@@ -385,7 +385,7 @@ case class BlockMatrixAgg(
 
   override def typ: BlockMatrixType = {
     val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toIndexedSeq
-    val isRowVector = outIndexExpr == IndexedSeq(1)
+    val isRowVector = outIndexExpr == FastIndexedSeq(1)
 
     BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize)
   }
@@ -473,7 +473,7 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     Interpret[Any](child) match {
       case scalar: Double =>
-        assert(shape == IndexedSeq(1, 1))
+        assert(shape == FastIndexedSeq(1, 1))
         BlockMatrix.fill(hc, nRows = 1, nCols = 1, scalar, blockSize)
       case data: IndexedSeq[Double] =>
         BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)

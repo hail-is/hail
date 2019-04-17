@@ -26,12 +26,12 @@ class ConcordanceSuite extends SparkSuite {
     comb.merge(0, 4)
     comb.merge(2, 0)
 
-    assert(comb.toAnnotation == IndexedSeq(
-      IndexedSeq(0L, 0L, 0L, 0L, 1L),
-      IndexedSeq(0L, 0L, 0L, 4L, 0L),
-      IndexedSeq(1L, 0L, 0L, 0L, 0L),
-      IndexedSeq(0L, 0L, 0L, 0L, 0L),
-      IndexedSeq(0L, 0L, 0L, 0L, 0L)
+    assert(comb.toAnnotation == FastIndexedSeq(
+      FastIndexedSeq(0L, 0L, 0L, 0L, 1L),
+      FastIndexedSeq(0L, 0L, 0L, 4L, 0L),
+      FastIndexedSeq(1L, 0L, 0L, 0L, 0L),
+      FastIndexedSeq(0L, 0L, 0L, 0L, 0L),
+      FastIndexedSeq(0L, 0L, 0L, 0L, 0L)
     ))
 
     val comb2 = new ConcordanceCombiner
@@ -54,12 +54,12 @@ class ConcordanceSuite extends SparkSuite {
     comb2.merge(4, 1)
     comb2.merge(4, 1)
 
-    assert(comb2.toAnnotation == IndexedSeq(
-      IndexedSeq(0L, 0L, 1L, 2L, 0L),
-      IndexedSeq(2L, 0L, 0L, 2L, 0L),
-      IndexedSeq(0L, 0L, 0L, 0L, 0L),
-      IndexedSeq(0L, 2L, 0L, 2L, 0L),
-      IndexedSeq(3L, 3L, 0L, 0L, 0L)
+    assert(comb2.toAnnotation == FastIndexedSeq(
+      FastIndexedSeq(0L, 0L, 1L, 2L, 0L),
+      FastIndexedSeq(2L, 0L, 0L, 2L, 0L),
+      FastIndexedSeq(0L, 0L, 0L, 0L, 0L),
+      FastIndexedSeq(0L, 2L, 0L, 2L, 0L),
+      FastIndexedSeq(3L, 3L, 0L, 0L, 0L)
     ))
 
     assert(comb2.nDiscordant == 0)

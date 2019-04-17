@@ -52,8 +52,8 @@ class AnnotationsSuite extends SparkSuite {
     // type Array - info.AC (allele count)
     val acQuery = vas.query("info", "AC")
     assert(vas.fieldOption("info", "AC").exists(f => f.typ == TArray(TInt32()) || f.typ == TArray(+TInt32())))
-    assert(acQuery(variantAnnotationMap(firstVariant)) == IndexedSeq(89))
-    assert(acQuery(variantAnnotationMap(anotherVariant)) == IndexedSeq(13))
+    assert(acQuery(variantAnnotationMap(firstVariant)) == FastIndexedSeq(89))
+    assert(acQuery(variantAnnotationMap(anotherVariant)) == FastIndexedSeq(13))
 
     // type Boolean/flag - info.DB (dbSNP membership)
     val dbQuery = vas.query("info", "DB")
