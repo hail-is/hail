@@ -130,7 +130,7 @@ class LocalBackend(Backend):
                 raise e
             finally:
                 if delete_scratch_on_exit:
-                    sp.run(f'rm -r {tmpdir}', shell=True)
+                    sp.run(f'rm -rf {tmpdir}', shell=True)
 
     def _get_scratch_dir(self):
         def _get_random_name():
