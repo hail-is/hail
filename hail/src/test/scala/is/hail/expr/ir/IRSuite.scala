@@ -1389,6 +1389,7 @@ class IRSuite extends SparkSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
+    val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
     val nd = MakeNDArray(2,
       MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
       MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
@@ -1470,7 +1471,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
-      BlockMatrixWrite(blockMatrix, BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)),
+      BlockMatrixWrite(blockMatrix, blockMatrixWriter),
+      BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
       ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32()))
     )
