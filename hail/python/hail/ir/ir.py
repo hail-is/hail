@@ -1579,7 +1579,8 @@ class BlockMatrixMultiWrite(IR):
         return self.writer == other.writer
 
     def _compute_type(self, env, agg_env):
-        self.child._compute_type()
+        for x in self.block_matrices:
+            x._compute_type()
         self._type = tvoid
 
 
