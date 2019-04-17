@@ -1249,7 +1249,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             nd.outputElement(concreteDims)
           }
         }
-//      case ir.Let(name, value, body) =>
 
       case _ =>
         val ndt = emit(resultRegion, x, env)
