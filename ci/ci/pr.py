@@ -11,7 +11,7 @@ from .build_state import \
     build_state_from_json
 from .ci_logging import log
 from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH, \
-    GCS_BUCKET_PREFIX
+    GCS_BUCKET_PREFIX, BATCH_TEST_GSA_SECRET_NAME, BATCH_TEST_JWT_SECRET_NAME
 from .environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
 from .git_state import FQSHA, FQRef, Repo
 from .github import latest_sha_for_ref
@@ -84,7 +84,32 @@ def try_new_build(source, target):
                         'name': 'batch-test-cloud-sql-config',
                         'readOnly': True
                     }
-                }])
+                }, {
+                    'volume': {
+                        'name': BATCH_TEST_GSA_SECRET_NAME,
+                        'secret': {
+                            'optional': False,
+                            'secretName': BATCH_TEST_GSA_SECRET_NAME
+                        }
+                    },
+                    'volume_mount': {
+                        'mountPath': '/batch-test-gsa-key',
+                        'name': BATCH_TEST_GSA_SECRET_NAME,
+                        'readOnly': True
+                    }
+                }, {
+                    'volume': {
+                        'name': BATCH_TEST_JWT_SECRET_NAME,
+                        'secret': {
+                            'optional': False,
+                            'secretName': BATCH_TEST_JWT_SECRET_NAME
+                        }
+                    },
+                    'volume_mount': {
+                        'mountPath': '/batch-test-jwt',
+                        'name': BATCH_TEST_JWT_SECRET_NAME,
+                        'readOnly': True
+                    }}])
             return Building(job, img, target.sha)
         except Exception as e:
             log.exception(f'could not start batch job due to {e}')
