@@ -35,10 +35,9 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
-hailjwt: ../hailjwt/setup.py $(find ../hailjwt/hailjwt -iname \*.py)
-	-mkdir hailjwt
-	cp ../hailjwt/setup.py hailjwt/
-	rsync -a --prune-empty-dirs --include '*/' --include '*.py' --exclude '*' ../hailjwt/hailjwt/ hailjwt/
+hailjwt: ../hailjwt/setup.py $(shell find ../hailjwt/hailjwt -iname \*.py)
+	cd ../ && rsync -Rr $(?:../hailjwt/%=hailjwt/./%) apiserver/hailjwt
+	touch hailjwt
 
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
