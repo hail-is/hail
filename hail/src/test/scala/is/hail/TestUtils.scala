@@ -407,7 +407,7 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.foreach { strat =>
+    ExecStrategy.values.intersect(execStrats).foreach { strat =>
       try {
         val res = strat match {
           case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
@@ -418,9 +418,10 @@ object TestUtils {
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
+        assert(t.valuesSimilar(res, expected), s"($res, $expected, strategy=$strat)")
       } catch {
         case e: Exception =>
+          error(s"error from strategy $strat")
           if (execStrats.contains(strat)) throw e
       }
     }

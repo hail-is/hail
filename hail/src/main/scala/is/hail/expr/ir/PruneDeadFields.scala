@@ -188,7 +188,7 @@ object PruneDeadFields {
             if (!children.forall(_.asInstanceOf[Type].isOfType(t))) {
               val badChildren = children.filter(c => !c.asInstanceOf[Type].isOfType(t))
                 .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
-              throw new RuntimeException(s"invalid unification:\n  base:  ${t.parsableString()}${badChildren.mkString("\n")}")
+              throw new RuntimeException(s"invalid unification:\n  base:  ${t.parsableString()}${badChildren.mkString("")}")
             }
             base
         }
@@ -993,7 +993,7 @@ object PruneDeadFields {
           queryEnv.aggOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()))
         val aEnv = memoizeValueIR(a, aType.copyStreamable(requestedElemType), memo)
         unifyEnvs(
-          BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.agg.get.delete(name)))),
+          BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.aggOrEmpty.delete(name)))),
           aEnv)
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]

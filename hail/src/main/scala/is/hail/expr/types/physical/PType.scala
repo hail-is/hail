@@ -24,10 +24,6 @@ object PType {
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
-  val optionalComplex: Gen[PType] = genComplexType(false)
-
-  val requiredComplex: Gen[PType] = genComplexType(true)
-
   def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
