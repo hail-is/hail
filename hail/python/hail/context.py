@@ -181,13 +181,14 @@ class HailContext(object):
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
-           optimizer_iterations=nullable(int),
+           _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379, optimizer_iterations=None,
+         global_seed=6348563392232659379,
+         _optimizer_iterations=None,
          _backend=None):
     """Initialize Hail and Spark.
 
@@ -256,13 +257,11 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         If ``True``, calling this function is a no-op if Hail has already been initialized.
     global_seed : :obj:`int`, optional
         Global random seed.
-    optimizer_iterations : :obj:`int`, optional
-        Maximum number of optimization iterations. May be ignored.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
                 default_reference, idempotent, global_seed,
-                optimizer_iterations,_backend)
+                _optimizer_iterations,_backend)
 
 def stop():
     """Stop the currently running Hail session."""
