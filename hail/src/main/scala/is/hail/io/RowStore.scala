@@ -182,7 +182,7 @@ object ShowBuf {
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
-    if (HailContext.get.flags.get("cpp") != null && requestedType == t) {
+    if (HailContext.isInitialized && HailContext.get.flags.get("cpp") != null && requestedType == t) {
       val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
@@ -192,7 +192,7 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   }
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
-    if (HailContext.get != null && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
+    if (HailContext.isInitialized && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
       val d: NativeDecoderModule = cxx.PackDecoder.buildModule(t, requestedType, child)
       (in: InputStream) => new NativePackDecoder(in, d)
     } else {
