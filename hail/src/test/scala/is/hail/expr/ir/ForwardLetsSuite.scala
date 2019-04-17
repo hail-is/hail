@@ -22,7 +22,7 @@ class ForwardLetsSuite extends TestNGSuite {
       MakeStruct(FastSeq("a" -> ApplyBinaryPrimOp(Add(), x, I32(1)), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
       MakeTuple(FastSeq(ApplyBinaryPrimOp(Add(), x, I32(1)), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1))
-    ).map(ir => Array[IR](Let("x", In(0, TInt32()), ir)))
+    ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
   @DataProvider(name = "forwardingOps")
@@ -35,7 +35,7 @@ class ForwardLetsSuite extends TestNGSuite {
       If(True(), x, I32(0)),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
       ApplyUnaryPrimOp(Negate(), x)
-    ).map(ir => Array[IR](Let("x", In(0, TInt32()), ir)))
+    ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
 
   @Test def assertDataProvidersWork() {
