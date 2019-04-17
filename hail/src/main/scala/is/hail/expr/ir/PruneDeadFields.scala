@@ -188,7 +188,7 @@ object PruneDeadFields {
             if (!children.forall(_.asInstanceOf[Type].isOfType(t))) {
               val badChildren = children.filter(c => !c.asInstanceOf[Type].isOfType(t))
                 .map(c => "\n  child: " + c.asInstanceOf[Type].parsableString())
-              throw new RuntimeException(s"invalid unification:\n  base:  ${t.parsableString()}${badChildren.mkString("\n")}")
+              throw new RuntimeException(s"invalid unification:\n  base:  ${t.parsableString()}${badChildren.mkString("")}")
             }
             base
         }

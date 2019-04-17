@@ -1124,22 +1124,29 @@ class IRSuite extends SparkSuite {
 
     val ir = Let(
       "x",
-      In(0, TInt64()) * In(0, TInt64()),
+      In(0, TInt32()) * In(0, TInt32()), // multiply to prevent forwarding
       ArrayAgg(
         ArrayRange(I32(0), I32(10), I32(1)),
         "elt",
         AggLet("y",
-          Cast(Ref("x", TInt64()) * Ref("x", TInt64()) * Cast(Ref("elt", TInt32()), TInt64()), TInt32()),
-          Cast(Ref("x", TInt64()), TInt32()) +
+          Cast(Ref("x", TInt32()) * Ref("x", TInt32()) * Ref("elt", TInt32()), TInt64()), // different type to trigger validation errors
+          invoke("append",
             ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
-              Ref("elt", TInt32()) + Cast(Ref("x", TInt64()), TInt32()) + Ref("y", TInt32()) + Ref("y", TInt32())),
-              AggSignature(Max(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))),
+              MakeArray(FastSeq(
+                Ref("x", TInt32()),
+                Ref("elt", TInt32()),
+                Cast(Ref("y", TInt64()), TInt32()),
+                Cast(Ref("y", TInt64()), TInt32())), // reference y twice to prevent forwarding
+                TArray(TInt32()))),
+              AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TArray(TInt32())))),
+            MakeArray(FastSeq(Ref("x", TInt32())), TArray(TInt32()))),
           isScan = false
         )
       )
     )
 
-    assertEvalsTo(ir, FastIndexedSeq(1L -> TInt64()), 9 * 3 + 1 + 1)
+    assertEvalsTo(ir, FastIndexedSeq(1 -> TInt32()),
+      (0 until 10).map(i => FastIndexedSeq(1, i, i, i)) ++ FastIndexedSeq(FastIndexedSeq(1)))
   }
 
   @Test def testInsertFields() {
