@@ -1,5 +1,6 @@
 import asyncio
 import concurrent
+import functools as ft
 import json
 import os
 import uvloop
@@ -25,6 +26,7 @@ with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret/secret-key'
 
 
 def authenticated_users_only(fun):
+    @ft.wraps(fun)
     def wrapped(request, *args, **kwargs):
         encoded_token = request.cookies.get('user')
         if encoded_token is not None:
@@ -36,7 +38,6 @@ def authenticated_users_only(fun):
             except jwt.exceptions.DecodeError:
                 pass
         raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-    wrapped.__name__ = fun.__name__
     return wrapped
 
 
