@@ -25,7 +25,7 @@ test-in-cluster: check
 	python3 -m pytest
 
 user: install-cloud-sql-proxy instance.cloudsql
-	./run-locally.sh "$(name)" $(op)
+	./run-locally.sh "$(name)" $(kns) $(op)
 
 user-in-cluster:
 	python3 ./user_data.py $(name) $(op)

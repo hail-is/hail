@@ -1,7 +1,7 @@
 #!/bin/bash
-if [ $# -ne 2 ]
+if [ $# -ne 3 ]
   then
-    echo "Usage ./run-locally.sh <username> <create|delete>"
+    echo "Usage ./run-locally.sh <username> <kube_namespace> <create|delete>"
     exit
 fi
 
@@ -16,4 +16,4 @@ trap cleanup EXIT
     ./cloud_sql_proxy -instances="$instance"=tcp:3306 &
     proxy_pid=$!
 
-    BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python ./user_data.py $1 $2
+    BATCH_USE_KUBE_CONFIG=1 SQL_HOST=127.0.0.1 python ./user_data.py $1 $2 $3

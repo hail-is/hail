@@ -212,19 +212,22 @@ if __name__ == "__main__":
     import json
 
     if len(sys.argv) == 1:
-        sys.exit(f"\nUsage: {sys.argv[0]} user_id <create|delete>\n")
+        sys.exit(
+            f"\nUsage: {sys.argv[0]} user_id <kube_namespace> <create|delete>")
 
     user_id = sys.argv[1]
-    create = sys.argv[2] if len(sys.argv) == 3 else "create"
+    kube_namespace = sys.argv[2]
+    op = sys.argv[3]
 
-    if create == 'create':
-        print(json.dumps((create_all_idempotent(user_id))))
-    elif create == 'delete':
-        error = delete_all_idempotent(user_id)
+    if op == 'create':
+        print(json.dumps((create_all_idempotent(user_id, 'hail-vdc',
+                                                kube_namespace))))
+    elif op == 'delete':
+        error = delete_all_idempotent(user_id, 'hail-vdc', kube_namespace)
 
         if error == 404:
             print(f"\nNothing to change for {user_id}\n")
         else:
             print(f"\nSuccessfully deleted {user_id}\n")
     else:
-        print(f"Unknown operation {create}")
+        print(f"Unknown operation {op}")
