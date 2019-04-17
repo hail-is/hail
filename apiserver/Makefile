@@ -36,7 +36,7 @@ jupyter_notebook_config.py:
             < jupyter_notebook_config.py.in > $@
 
 hailjwt: ../hailjwt/setup.py $(shell find ../hailjwt/hailjwt -iname \*.py)
-	cd ../ && rsync -Rr $(?:../hailjwt/%=hailjwt/./%) apiserver/hailjwt
+	cd ../ && rsync --relative $(?:../hailjwt/%=hailjwt/./%) apiserver/hailjwt
 	touch hailjwt
 
 ifeq ($(IN_HAIL_CI),1)
