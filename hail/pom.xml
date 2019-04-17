@@ -17,17 +17,25 @@
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.11</artifactId>
-      <version>2.2.0</version>
+      <version>2.4.1</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.11</artifactId>
-      <version>2.2.0</version>
+      <version>2.4.1</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-mllib_2.11</artifactId>
-      <version>2.2.0</version>
+      <version>2.4.1</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+      <version>4.3.6</version>
     </dependency>
     <dependency>
       <groupId>org.ow2.asm</groupId>
@@ -37,6 +45,11 @@
     <dependency>
       <groupId>org.ow2.asm</groupId>
       <artifactId>asm-util</artifactId>
+      <version>5.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.ow2.asm</groupId>
+      <artifactId>asm-tree</artifactId>
       <version>5.1</version>
     </dependency>
     <dependency>
@@ -76,64 +89,163 @@
       <version>2.2.4</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>com.google.inject</groupId>
+      <artifactId>guice</artifactId>
+      <version>4.0</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
   <build>
     <pluginManagement>
       <plugins>
-	<plugin>
-	  <groupId>net.alchim31.maven</groupId>
-	  <artifactId>scala-maven-plugin</artifactId>
-	  <version>4.0.1</version>
-	</plugin>
-	<plugin>
-	  <groupId>org.apache.maven.plugins</groupId>
-	  <artifactId>maven-compiler-plugin</artifactId>
-	  <version>2.0.2</version>
-	</plugin>
+        <plugin>
+          <groupId>net.alchim31.maven</groupId>
+          <artifactId>scala-maven-plugin</artifactId>
+          <version>4.0.1</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>2.0.2</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-assembly-plugin</artifactId>
+          <configuration>
+            <descriptorRefs>
+              <descriptorRef>jar-with-dependencies</descriptorRef>
+            </descriptorRefs>
+          </configuration>
+          <executions>
+            <execution>
+              <id>make-assembly</id>
+              <phase>package</phase>
+              <goals>
+                <goal>single</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.0.0-M3</version>
+          <configuration>
+            <testSourceDirectory>src/test/scala</testSourceDirectory>
+            <systemPropertyVariables>
+              <file.encoding>utf-8</file.encoding>
+            </systemPropertyVariables>
+            <jvmArgs>
+              <jvmArg>-Xss4M</jvmArg>
+            </jvmArgs>
+          </configuration>
+          <executions>
+            <execution>
+              <id>default-test</id> <!-- If this is not default-test, then runs Test* tests twice -->
+              <goals>
+                <goal>test</goal>
+              </goals>
+              <configuration>
+                <suiteXmlFiles>
+                  <suiteXmlFile>testng.xml</suiteXmlFile>
+                </suiteXmlFiles>
+              </configuration>
+            </execution>
+            <execution>
+              <id>cpp-codegen-test</id>
+              <goals>
+                <goal>test</goal>
+              </goals>
+              <configuration>
+                <environmentVariables>
+                  <HAIL_ENABLE_CPP_CODEGEN>1</HAIL_ENABLE_CPP_CODEGEN>
+                </environmentVariables>
+                <suiteXmlFiles>
+                  <suiteXmlFile>testng-cpp-codegen.xml</suiteXmlFile>
+                </suiteXmlFiles>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
     <resources>
       <resource>
         <directory>src/main/resources</directory>
       </resource>
+      <resource>
+        <directory>prebuilt/lib</directory>
+      </resource>
     </resources>
     <plugins>
+      <plugin>
+        <artifactId>exec-maven-plugin</artifactId>
+        <groupId>org.codehaus.mojo</groupId>
+        <version>1.6.0</version>
+        <executions>
+          <execution>
+            <id>nativeLib</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <workingDirectory>src/main/c</workingDirectory>
+              <executable>make</executable>
+            </configuration>
+          </execution>
+          <execution>
+            <id>nativeLibClean</id>
+            <phase>clean</phase>
+            <goals>
+              <goal>exec</goal>
+            </goals>
+            <configuration>
+              <workingDirectory>src/main/c</workingDirectory>
+              <executable>make</executable>
+              <arguments>
+                <argument>clean</argument>
+              </arguments>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
         <version>4.0.1</version>
         <executions>
-	  <execution>
-	    <id>scala-compile-first</id>
-	    <phase>process-resources</phase>
-	    <goals>
-	      <goal>add-source</goal>
-	      <goal>compile</goal>
-	    </goals>
-	  </execution>
-	  <execution>
-	    <id>scala-test-compile</id>
-	    <phase>process-test-resources</phase>
-	    <goals>
-	      <goal>testCompile</goal>
-	    </goals>
-	  </execution>
-	</executions>
+          <execution>
+            <id>scala-compile-first</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>add-source</goal>
+              <goal>compile</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>scala-test-compile</id>
+            <phase>process-test-resources</phase>
+            <goals>
+              <goal>testCompile</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
           <scalaVersion>2.11.8</scalaVersion>
         </configuration>
       </plugin>
       <plugin>
-	<groupId>org.apache.maven.plugins</groupId>
-	<artifactId>maven-compiler-plugin</artifactId>
-	<executions>
-	  <execution>
-	    <phase>compile</phase>
-	    <goals>
-	      <goal>compile</goal>
-	    </goals>
-	  </execution>
-	</executions>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>compile</phase>
+            <goals>
+              <goal>compile</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
           <args>
             <arg>-feature</arg>
@@ -149,4 +261,13 @@
       </plugin>
     </plugins>
   </build>
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-report-plugin</artifactId>
+        <version>3.0.0-M3</version>
+      </plugin>
+    </plugins>
+  </reporting>
 </project>
