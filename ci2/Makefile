@@ -4,15 +4,17 @@ PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch python3
+
 PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-# E501 line too long
 flake8-stmp: $(PY_FILES)
-	python3 -m flake8 --ignore=E501 ci
+	python3 -m flake8 ci
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}../batch python3 -m pylint --rcfile ../pylintrc ci --score=n
+	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
 	touch $@
 
 check: flake8-stmp pylint-stmp
@@ -36,7 +38,7 @@ CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed 
 build-ci-utils:
 	make -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
-	docker build -t ci-utils -f Dockerfile.ci-utils --cache-from ci-utils,$(CI_UTILS_LATEST),base,ubuntu:18.04 .
+	docker build -t ci-utils -f Dockerfile.ci-utils --cache-from ci-utils,$(CI_UTILS_LATEST),base .
 
 push-ci-utils: build-ci-utils
 	docker tag ci-utils $(CI_UTILS_LATEST)
@@ -95,7 +97,7 @@ run-local: restart-proxy
 	PROJECT=$(PROJECT) \
 	  DOMAIN=$(DOMAIN) \
 	  IP=$(IP) \
-	  PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}../batch python3 -c 'import ci; ci.run()'
+	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
 	docker run -p 5000:5000 ci2

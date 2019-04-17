@@ -46,7 +46,7 @@ class BuildConfiguration:
 
         ids = set()
         for step in self.steps:
-            ids.update(step.parent_ids())
+            ids.update(step.self_ids())
         ids = list(ids)
 
         sink = await batch.create_job('ubuntu:18.04',
@@ -79,7 +79,7 @@ class Step:
     def deps_parent_ids(self):
         if not self.deps:
             return None
-        return flatten([d.parent_ids() for d in self.deps])
+        return flatten([d.self_ids() for d in self.deps])
 
     @staticmethod
     def from_json(pr, json, name_step):
@@ -112,7 +112,7 @@ class BuildImageStep(Step):
         self.image = f'gcr.io/{GCP_PROJECT}/ci-intermediate:{self.token}'
         self.job = None
 
-    def parent_ids(self):
+    def self_ids(self):
         return [self.job.id]
 
     @staticmethod
@@ -145,7 +145,6 @@ class BuildImageStep(Step):
 
         if self.dockerfile.endswith('.in'):
             dockerfile = 'Dockerfile'
-            print('config', config)
             render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
         else:
             dockerfile = f'repo/{self.dockerfile}'
@@ -165,7 +164,7 @@ class BuildImageStep(Step):
                 # to is relative to docker context
                 copy_inputs = copy_inputs + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
+mv -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 '''
 
         script = f'''
@@ -282,7 +281,7 @@ class RunImageStep(Step):
         self.outputs = outputs
         self.job = None
 
-    def parent_ids(self):
+    def self_ids(self):
         return [self.job.id]
 
     @staticmethod
@@ -350,7 +349,7 @@ class CreateNamespaceStep(Step):
         self.job = None
         self._name = f'test-{pr.number}-{namespace_name}-{self.token}'
 
-    def parent_ids(self):
+    def self_ids(self):
         return [self.job.id]
 
     @staticmethod
@@ -470,7 +469,7 @@ class DeployStep(Step):
         self.wait = wait
         self.job = None
 
-    def parent_ids(self):
+    def self_ids(self):
         return [self.job.id]
 
     @staticmethod
@@ -561,7 +560,7 @@ class CreateDatabaseStep(Step):
         self.user_password = secrets.token_urlsafe(16)
         self.user_secret = f'sql-{self._name}-{self.user_username}-config'
 
-    def parent_ids(self):
+    def self_ids(self):
         return [self.job.id]
 
     @staticmethod
