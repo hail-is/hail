@@ -1562,6 +1562,27 @@ class BlockMatrixWrite(IR):
         self._type = tvoid
 
 
+class BlockMatrixMultiWrite(IR):
+    @typecheck_method(block_matrices=sequenceof(BlockMatrixIR), writer=BlockMatrixWriter)
+    def __init__(self, child, writer):
+        super().__init__(child)
+        self.block_matrices = block_matrices
+        self.writer = writer
+
+    def copy(self, *block_matrices):
+        return BlockMatrixWrite(block_matrices, self.writer)
+
+    def head_str(self):
+        return f'"{self.writer.render()}"'
+
+    def _eq(self, other):
+        return self.writer == other.writer
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
+
+
 class TableToValueApply(IR):
     def __init__(self, child, config):
         super().__init__(child)
