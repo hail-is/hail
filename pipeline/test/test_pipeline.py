@@ -152,7 +152,7 @@ class LocalTests(unittest.TestCase):
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat {t.foo.bed}")
         assert(t.foo.bed in t._mentioned)
-        assert(t.foo.bim not in t._mentioned)
+        assert(t.foo.bim in t._mentioned)
 
     def test_resource_group_get_all_mentioned_dependent_tasks(self):
         p = Pipeline()
@@ -169,15 +169,12 @@ class LocalTests(unittest.TestCase):
         t1.command(f"cat {t1.foo.bed}")
         t2 = p.new_task()
         t2.command(f"cat {t1.foo.bed}")
-        assert(t1.foo.bed in t1._outputs)
-        assert(t1.foo.bed in t2._inputs)
-        assert(t1.foo.bed in t1._mentioned)
-        assert(t1.foo.bed not in t2._mentioned)
 
-        assert(t1.foo.bim in t1._outputs)
-        assert(t1.foo.bim in t2._inputs)
-        assert(t1.foo.bim not in t1._mentioned)
-        assert(t1.foo.bim not in t2._mentioned)
+        for r in [t1.foo.bed, t1.foo.bim]:
+            assert(r in t1._outputs)
+            assert(r in t2._inputs)
+            assert(r in t1._mentioned)
+            assert(r not in t2._mentioned)
 
     def test_multiple_isolated_tasks(self):
         p = Pipeline()
@@ -271,6 +268,16 @@ class LocalTests(unittest.TestCase):
             p.run()
 
             self.assert_same_file(input_file.name, output_file.name)
+
+    def test_resource_group_mentioned(self):
+        p = Pipeline()
+        t = p.new_task()
+        t.declare_resource_group(foo={'bed': '{root}.bed'})
+        t.command(f'echo "hello" > {t.foo}')
+
+        t2 = p.new_task()
+        t2.command(f'echo "hello" >> {t.foo.bed}')
+        p.run()
 
 
 class BatchTests(unittest.TestCase):

@@ -5,8 +5,14 @@ from .resource import ResourceFile, ResourceGroup
 
 def _add_resource_to_set(resource_set, resource):
     resource_set.add(resource)
+
+    rg = None
     if isinstance(resource, ResourceFile) and resource._has_resource_group():
         rg = resource._get_resource_group()
+    elif isinstance(resource, ResourceGroup):
+        rg = resource
+
+    if rg is not None:
         for _, resource_file in rg._resources.items():
             resource_set.add(resource_file)
 
@@ -132,7 +138,7 @@ class Task:
                 raise ValueError(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._pipeline._new_resource_group(self, d)
             self._resources[name] = rg
-            self._mentioned.add(rg)
+            _add_resource_to_set(self._mentioned, rg)
         return self
 
     def depends_on(self, *tasks):
