@@ -1,24 +1,85 @@
 package is.hail.expr.ir
 
-class NormalizeNames {
+import is.hail.utils._
+
+class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
   def gen(): String = {
     count += 1
-    count.toString
+    normFunction(count)
   }
 
   def apply(ir: IR, env: Env[String]): IR = apply(ir, BindingEnv(env))
 
-  def apply(ir: IR, env: BindingEnv[String]): IR = {
-    def normalize(ir: IR, env: BindingEnv[String] = env): IR = apply(ir, env)
+  def apply(ir: IR, env: BindingEnv[String]): IR = normalizeIR(ir, env)
+
+  def apply(ir: BaseIR): BaseIR = {
+    ir match {
+      case ir: IR => normalizeIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)))
+      case tir: TableIR => normalizeTable(tir)
+      case mir: MatrixIR => normalizeMatrix(mir)
+      case bmir: BlockMatrixIR => normalizeBlockMatrix(bmir)
+    }
+  }
+
+  private def normalizeTable(tir: TableIR): TableIR = {
+    tir.copy(tir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(tir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
+  }
+
+  private def normalizeMatrix(mir: MatrixIR): MatrixIR = {
+    mir.copy(mir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(mir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
+  }
+
+  private def normalizeBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
+    bmir.copy(bmir
+      .children
+      .iterator
+      .zipWithIndex
+      .map {
+        case (child: IR, i) => normalizeIR(child, NewBindings(bmir, i).mapValuesWithKey({ case (k, _) => k }))
+        case (child: TableIR, _) => normalizeTable(child)
+        case (child: MatrixIR, _) => normalizeMatrix(child)
+        case (child: BlockMatrixIR, _) => normalizeBlockMatrix(child)
+      }.toFastIndexedSeq)
+  }
+
+  private def normalizeIR(ir: IR, env: BindingEnv[String]): IR = {
+
+    def normalize(ir: IR, env: BindingEnv[String] = env): IR = normalizeIR(ir, env)
 
     ir match {
       case Let(name, value, body) =>
         val newName = gen()
         Let(newName, normalize(value), normalize(body, env.copy(eval = env.eval.bind(name, newName))))
       case Ref(name, typ) =>
-        Ref(env.eval.lookup(name), typ)
+        val newName = env.eval.lookupOption(name) match {
+          case Some(n) => n
+          case None =>
+            if (!allowFreeVariables)
+              throw new RuntimeException(s"found free variable in normalize: $name")
+            else
+              name
+        }
+        Ref(newName, typ)
       case AggLet(name, value, body, isScan) =>
         val newName = gen()
         val (valueEnv, bodyEnv) = if (isScan)
@@ -51,7 +112,8 @@ class NormalizeNames {
         val newValueName = gen()
         ArrayFor(normalize(a), newValueName, normalize(body, env.bindEval(valueName, newValueName)))
       case ArrayAgg(a, name, body) =>
-        assert(env.agg.isEmpty)
+        // FIXME: Uncomment when bindings are threaded through test suites
+        // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
       case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
@@ -99,10 +161,20 @@ class NormalizeNames {
       case Uniroot(argname, function, min, max) =>
         val newArgname = gen()
         Uniroot(newArgname, normalize(function, env.bindEval(argname, newArgname)), normalize(min), normalize(max))
+      case TableAggregate(child, query) =>
+        TableAggregate(normalizeTable(child),
+          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.rowEnv))
+            .mapValuesWithKey({ case (k, _) => k })))
+      case MatrixAggregate(child, query) =>
+        MatrixAggregate(normalizeMatrix(child),
+          normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
+            .mapValuesWithKey({ case (k, _) => k })))
       case _ =>
-        // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
-          case c: IR => normalize(c)
+          case child: IR => normalize(child)
+          case child: TableIR => normalizeTable(child)
+          case child: MatrixIR => normalizeMatrix(child)
+          case child: BlockMatrixIR => normalizeBlockMatrix(child)
         })
     }
   }

@@ -143,10 +143,6 @@ object Simplify {
 
     case IsNA(x) if isDefinitelyDefined(x) => False()
 
-    case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
-
-    case Let(n, _, b) if !Mentions(b, n) => b
-
     case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
 
     case x@If(False(), _, altr) if x.typ == altr.typ => altr
@@ -282,7 +278,7 @@ object Simplify {
         ApplyAggOp(
           FastIndexedSeq(),
           None,
-          FastIndexedSeq(ArrayLen(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)}).toL),
+          FastIndexedSeq(ArrayLen(ToArray(path.foldLeft[IR](Ref("row", child.typ.rowType)) { case (comb, s) => GetField(comb, s)})).toL),
           AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))))
 
     // TableGetGlobals should simplify very aggressively
@@ -529,6 +525,11 @@ object Simplify {
     case x@MatrixMapEntries(child, Ref("g", _)) =>
       assert(child.typ == x.typ)
       child
+
+    case x@MatrixMapEntries(MatrixMapEntries(child, newEntries1), newEntries2) =>
+      val uid = genUID()
+      val ne2 = Subst(newEntries2, BindingEnv(Env("g" -> Ref(uid, newEntries1.typ))))
+      MatrixMapEntries(child, Let(uid, newEntries1, ne2))
 
     case MatrixMapGlobals(child, Ref("global", _)) => child
 

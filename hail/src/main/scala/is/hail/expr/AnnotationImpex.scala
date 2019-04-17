@@ -46,7 +46,7 @@ object SparkAnnotationImpex {
     case _: TBinary => BinaryType
     case TArray(elementType, _) =>
       ArrayType(exportType(elementType), containsNull = !elementType.required)
-    case tbs: TStruct =>
+    case tbs: TBaseStruct =>
       if (tbs.fields.isEmpty)
         BooleanType //placeholder
       else

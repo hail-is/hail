@@ -92,7 +92,7 @@ class Batch:
         i = 0
         while True:
             status = await self.status()
-            if not any(j['state'] == 'Created' for j in status['jobs']):
+            if not any(j['state'] == 'Created' or j['state'] == 'Ready' for j in status['jobs']):
                 return status
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)

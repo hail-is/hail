@@ -670,7 +670,7 @@ class BlockMatrix(object):
                 field = Env.get_uid()
                 mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
-            mt = mt.select_entries(__x=entry_expr)
+            mt = mt.select_entries(__x=entry_expr).unfilter_entries()
             compute = {
                 '__count': agg.count_where(hl.is_defined(mt['__x'])),
                 '__sum': agg.sum(mt['__x']),

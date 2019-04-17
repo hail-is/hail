@@ -1048,6 +1048,11 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(fd=hl.sorted(a))
         assert ht.fd.collect()[0] == ["e", "é"]
 
+    def test_physical_key_truncation(self):
+        path = new_temp_file(suffix='ht')
+        hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
+        hl.read_table(path).select()._force_count()
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

@@ -44,6 +44,10 @@ object HailContext {
 
   private var theContext: HailContext = _
 
+  def isInitialized: Boolean = contextLock.synchronized {
+    theContext != null
+  }
+
   def get: HailContext = contextLock.synchronized {
     assert(TaskContext.get() == null, "HailContext not available on worker")
     assert(theContext != null, "HailContext not initialized")

@@ -70,8 +70,8 @@ object Interpret {
 
     var ir = ir0.unwrap
 
-    def optimizeIR(canGenerateLiterals: Boolean) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some("Interpret"))
+    def optimizeIR(canGenerateLiterals: Boolean, context: String) {
+      ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some(context))
       TypeCheck(ir, BindingEnv(typeEnv, agg = agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -79,10 +79,10 @@ object Interpret {
       }))
     }
 
-    if (optimize) optimizeIR(true)
+    if (optimize) optimizeIR(true, "Interpret, first pass")
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(false)
+    if (optimize) optimizeIR(false, "Interpret, after lowering MatrixIR")
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 

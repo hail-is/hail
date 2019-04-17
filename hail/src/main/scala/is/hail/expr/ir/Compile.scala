@@ -22,7 +22,7 @@ object Compile {
     body: IR,
     nSpecialArgs: Int
   ): (PType, Int => F) = {
-    val normalizeNames = new NormalizeNames
+    val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
     val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)

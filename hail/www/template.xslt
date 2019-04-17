@@ -38,13 +38,9 @@
             <body>
                 <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
                 <div id="body">
-                    <xsl:call-template name="jobs-banner"/>
                     <xsl:apply-templates select="body"/>
                 </div>
             </body>
         </html>
     </xsl:template>
-
-    <xsl:template name="jobs-banner"/>
-
 </xsl:stylesheet>

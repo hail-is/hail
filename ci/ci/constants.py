@@ -19,3 +19,6 @@ else:
     GCS_BUCKET = 'hail-ci-' + VERSION
     GCS_BUCKET_PREFIX = ''
 SHA_LENGTH = 12
+
+BATCH_TEST_GSA_SECRET_NAME = os.environ.get('BATCH_TEST_GSA_SECRET_NAME', 'gsa-key-2x975')
+BATCH_TEST_JWT_SECRET_NAME = os.environ.get('BATCH_TEST_JWT_SECRET_NAME', 'user-jwt-vkqfw')

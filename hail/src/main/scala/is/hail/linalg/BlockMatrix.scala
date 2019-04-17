@@ -1655,7 +1655,7 @@ class WriteBlocksRDD(path: String,
                 }
               } else {
                 val rowIdx = blockRow * blockSize + i
-                fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
+                fatal(s"Cannot create BlockMatrix: filtered entry at row $rowIdx and col $colIdx")
               }
               colIdx += 1
               j += 1

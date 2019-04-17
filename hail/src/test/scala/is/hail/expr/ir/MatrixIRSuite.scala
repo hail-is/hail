@@ -29,7 +29,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx, idx) => row_idx == idx })
+    assert(rows.forall { case Row(row_idx, idx) => row_idx == idx }, rows.toSeq)
   }
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
