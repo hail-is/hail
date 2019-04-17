@@ -2,7 +2,7 @@ FROM hail-base
 
 COPY apiserver /apiserver
 COPY hailjwt /hailjwt
-RUN (cd /hailjwt && python3 setup.py .)
+RUN (cd /hailjwt && python3 setup.py install --user)
 
 ENV HAIL_SPARK_PROPERTIES "spark.driver.host=apiserver,spark.driver.bindAddress=0.0.0.0,spark.driver.port=9001,spark.blockManager.port=9002"
 
