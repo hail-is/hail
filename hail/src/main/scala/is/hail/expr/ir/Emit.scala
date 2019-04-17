@@ -1056,25 +1056,21 @@ private class Emit(
                 "<exception message missing>",
                 coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v)))))))
       case ir@ApplyIR(fn, args) =>
-        if (ir.explicitNode.size < 10)
-          emit(ir.explicitNode)
-        else {
-          val mfield = mb.newField[Boolean]
-          val vfield = mb.newField()(typeToTypeInfo(ir.typ))
+        val mfield = mb.newField[Boolean]
+        val vfield = mb.newField()(typeToTypeInfo(ir.typ))
 
-          val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
-            Code(
-              v.setup,
-              mfield := v.m,
-              mfield.mux(
-                vfield.storeAny(defaultValue(t)),
-                vfield.storeAny(v.v)))
-          }
-
-          EmitTriplet(
-            wrapToMethod(FastSeq(ir.explicitNode), env, rvas)(addFields),
-            mfield, vfield)
+        val addFields = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
+          Code(
+            v.setup,
+            mfield := v.m,
+            mfield.mux(
+              vfield.storeAny(defaultValue(t)),
+              vfield.storeAny(v.v)))
         }
+
+        EmitTriplet(
+          wrapToMethod(FastSeq(ir.explicitNode), env, rvas)(addFields),
+          mfield, vfield)
 
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
