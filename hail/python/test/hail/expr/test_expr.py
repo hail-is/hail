@@ -2666,6 +2666,7 @@ class Tests(unittest.TestCase):
         b = 3.0
         x = [a, b]
         y = [b, a]
+        row_vec = [[1, 2]]
         cube1 = [[[1, 2],
                   [3, 4]],
                  [[5, 6],
@@ -2678,6 +2679,7 @@ class Tests(unittest.TestCase):
         na = hl._ndarray(a)
         nx = hl._ndarray(x)
         ny = hl._ndarray(y)
+        nrow_vec = hl._ndarray(row_vec)
         ncube1 = hl._ndarray(cube1)
         ncube2 = hl._ndarray(cube2)
 
@@ -2694,18 +2696,28 @@ class Tests(unittest.TestCase):
         # Addition
         expr_eq((na + na)[()], a + a)
         expr_eq((nx + ny)[0], a + b)
-        expr_eq((nx + na)[1], a + b)
-        expr_eq((na + nx)[1], b + a)
         expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
         expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+        # Broadcasting
+        expr_eq((ncube1 + na)[0, 1, 0], 5.0)
+        expr_eq((na + ncube1)[0, 1, 0], 5.0)
+        expr_eq((ncube1 + ny)[0, 1, 0], 6.0)
+        expr_eq((ny + ncube1)[0, 1, 0], 6.0)
+        expr_eq((nrow_vec + ncube1)[0, 1, 0], 4.0)
+        expr_eq((ncube1 + nrow_vec)[0, 1, 0], 4.0)
 
         # Subtraction
         expr_eq((na - na)[()], a - a)
         expr_eq((nx - nx)[0], a - a)
-        expr_eq((nx - na)[1], a - b)
-        expr_eq((na - nx)[1], b - a)
         expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
         expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+        # Broadcasting
+        expr_eq((ncube1 - na)[0, 1, 0], 1.0)
+        expr_eq((na - ncube1)[0, 1, 0], -1.0)
+        expr_eq((ncube1 - ny)[0, 1, 0], 0.0)
+        expr_eq((ny - ncube1)[0, 1, 0], 0.0)
+        expr_eq((nrow_vec - ncube1)[0, 1, 0], 2.0)
+        expr_eq((ncube1 - nrow_vec)[0, 1, 0], -2.0)
 
         # Multiplication
         expr_eq((na * na)[()], a * a)
@@ -2714,18 +2726,33 @@ class Tests(unittest.TestCase):
         expr_eq((na * nx)[1], b * a)
         expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
         expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+        # Broadcasting
+        expr_eq((ncube1 * na)[0, 1, 0], 6.0)
+        expr_eq((na * ncube1)[0, 1, 0], 6.0)
+        expr_eq((ncube1 * ny)[0, 1, 0], 9.0)
+        expr_eq((ny * ncube1)[0, 1, 0], 9.0)
+        expr_eq((nrow_vec * ncube1)[0, 1, 0], 3.0)
+        expr_eq((ncube1 * nrow_vec)[0, 1, 0], 3.0)
 
         # Division
         expr_almost_eq((na / na)[()], a / a)
         expr_almost_eq((nx / nx)[0], a / a)
+        expr_almost_eq((nx / na)[1], a / b)
+        expr_almost_eq((na / nx)[1], b / a)
         expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
         expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+        expr_almost_eq((nrow_vec / ncube1)[0, 1, 0], 1 / 3)
+        expr_almost_eq((ncube1 / nrow_vec)[0, 1, 0], 3.0)
 
         # Floor div
         expr_eq((na // na)[()], a // a)
         expr_eq((nx // nx)[0], a // a)
+        expr_eq((nx // na)[1], a // b)
+        expr_eq((na // nx)[1], b // a)
         expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
         expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+        expr_eq((nrow_vec // ncube1)[0, 1, 0], 0.0)
+        expr_eq((ncube1 // nrow_vec)[0, 1, 0], 3.0)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
