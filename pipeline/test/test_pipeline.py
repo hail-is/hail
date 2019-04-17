@@ -272,6 +272,16 @@ class LocalTests(unittest.TestCase):
 
             self.assert_same_file(input_file.name, output_file.name)
 
+    def test_resource_group_mentioned(self):
+        p = Pipeline()
+        t = p.new_task()
+        t.declare_resource_group(foo={'bed': '{root}.bed'})
+        t.command(f'echo "hello" > {t.foo}')
+
+        t2 = p.new_task()
+        t2.command(f'echo "hello" >> {t.foo.bed}')
+        p.run()
+
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
