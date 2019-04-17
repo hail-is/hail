@@ -5,12 +5,15 @@ REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hailjwt
+PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+
 flake8-stmp: $(PY_FILES)
-	python3 -m flake8 apiserver
+	$(PYTHON) -m flake8 apiserver
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	PYTHONPATH=../hail/python:$$PYTHONPATH python3 -m pylint --rcfile ../pylintrc apiserver --score=n
+	$(PYTHON) -m pylint --rcfile ../pylintrc apiserver --score=n
 	touch $@
 
 ifneq ($(PY_CHECK),false)
@@ -36,9 +39,6 @@ hailjwt: ../hailjwt/setup.py $(find ../hailjwt/hailjwt -iname \*.py)
 	-mkdir hailjwt
 	cp ../hailjwt/setup.py hailjwt/
 	rsync -a --prune-empty-dirs --include '*/' --include '*.py' --exclude '*' ../hailjwt/hailjwt/ hailjwt/
-
-install-hailjwt: hailjwt
-	cd hailjwt && python setup.py install --user
 
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
@@ -136,8 +136,8 @@ run-hail-jupyter-pod:
 	  < hail-jupyter-pod.yaml.in > hail-jupyter-pod.yaml
 	kubectl create -f hail-jupyter-pod.yaml
 
-jwt-test-user-token: jwt-test-user.json jwt-test-secret-key install-hailjwt create_key.py
-	python create_key.py jwt-test-secret-key < $< > $@
+jwt-test-user-token: jwt-test-user.json jwt-test-secret-key create_key.py
+	$(PYTHON) create_key.py jwt-test-secret-key < $< > $@
 
 test: build-hail-shadow-jar check jwt-test-user-token
 	./test-apiserver.sh
