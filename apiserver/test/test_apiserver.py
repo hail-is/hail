@@ -1,6 +1,7 @@
 import hail as hl
+from hail.backend import ServiceBackend
 
 
 def test_count_range():
-    assert hl.backend_type() == 'ServiceBackend'
+    assert isinstance(hl.backend(), ServiceBackend)
     assert hl.utils.range_table(1000)._force_count() == 1000

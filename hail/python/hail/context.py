@@ -269,8 +269,8 @@ def spark_context():
     """
     return Env.hc().sc
 
-def backend_type():
-    return type(Env.hc()._backend).__name__
+def backend():
+    return Env.hc()._backend
 
 def default_reference():
     """Returns the default reference genome ``'GRCh37'``.
