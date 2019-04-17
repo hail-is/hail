@@ -181,7 +181,8 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
 
     if (get != null) {
       val hc = get
@@ -205,7 +206,7 @@ object HailContext {
       hc
     } else {
       apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
-        tmpDir)
+        tmpDir, optimizerIterations)
     }
   }
 
@@ -218,7 +219,8 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -267,7 +269,7 @@ object HailContext {
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -380,7 +382,8 @@ class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
   val logFile: String,
   val tmpDir: String,
-  val branchingFactor: Int) {
+  val branchingFactor: Int,
+  val optimizerIterations: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
   val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
   val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
