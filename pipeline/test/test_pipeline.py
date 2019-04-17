@@ -169,15 +169,12 @@ class LocalTests(unittest.TestCase):
         t1.command(f"cat {t1.foo.bed}")
         t2 = p.new_task()
         t2.command(f"cat {t1.foo.bed}")
-        assert(t1.foo.bed in t1._outputs)
-        assert(t1.foo.bed in t2._inputs)
-        assert(t1.foo.bed in t1._mentioned)
-        assert(t1.foo.bed not in t2._mentioned)
 
-        assert(t1.foo.bim in t1._outputs)
-        assert(t1.foo.bim in t2._inputs)
-        assert(t1.foo.bim not in t1._mentioned)
-        assert(t1.foo.bim not in t2._mentioned)
+        for r in [t1.foo.bed, t1.foo.bim]:
+            assert(r in t1._outputs)
+            assert(r in t2._inputs)
+            assert(r in t1._mentioned)
+            assert(r not in t2._mentioned)
 
     def test_multiple_isolated_tasks(self):
         p = Pipeline()
