@@ -23,3 +23,5 @@ pytest
 requests
 uvloop>=0.12
 werkzeug
+gcsfs==0.2.1
+hurry.filesize==0.9
