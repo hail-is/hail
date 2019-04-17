@@ -95,7 +95,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val rg = ReferenceGenome.GRCh37
-    rg.copy(name = "GRCh37_2").write(hc, tmpFile)
+    rg.copy(name = "GRCh37_2").write(hc.hadoopConf, tmpFile)
     val gr2 = ReferenceGenome.fromFile(hc, tmpFile)
 
     assert((rg.contigs sameElements gr2.contigs) &&

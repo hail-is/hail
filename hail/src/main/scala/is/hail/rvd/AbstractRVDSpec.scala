@@ -11,6 +11,7 @@ import is.hail.expr.types.virtual.{TStruct, TStructSerializer}
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
+import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
@@ -56,18 +57,23 @@ object AbstractRVDSpec {
     }
   }
 
-  def writeLocal(
-    hc: HailContext,
+  def writeSingle(
+    hConf: org.apache.hadoop.conf.Configuration,
     path: String,
     rowType: PStruct,
     codecSpec: CodecSpec,
     rows: IndexedSeq[Annotation]
   ): Array[Long] = {
-    val hConf = hc.hadoopConf
-    hConf.mkDir(path + "/parts")
+    val partsPath = path + "/parts"
+    hConf.mkDir(partsPath)
+
+    val filePath = if (TaskContext.get == null)
+      "part-0"
+    else
+      partFile(0, 0, TaskContext.get)
 
     val part0Count =
-      hConf.writeFile(path + "/parts/part-0") { os =>
+      hConf.writeFile(partsPath + "/" + filePath) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
@@ -84,7 +90,7 @@ object AbstractRVDSpec {
       rowType,
       FastIndexedSeq(),
       codecSpec,
-      Array("part-0"),
+      Array(filePath),
       RVDPartitioner.unkeyed(1))
     spec.write(hConf, path)
 
