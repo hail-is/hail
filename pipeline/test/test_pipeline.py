@@ -152,7 +152,7 @@ class LocalTests(unittest.TestCase):
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat {t.foo.bed}")
         assert(t.foo.bed in t._mentioned)
-        assert(t.foo.bim not in t._mentioned)
+        assert(t.foo.bim in t._mentioned)
 
     def test_resource_group_get_all_mentioned_dependent_tasks(self):
         p = Pipeline()
