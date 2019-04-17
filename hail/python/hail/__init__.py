@@ -85,7 +85,7 @@ __all__ = [
     'ir',
     'backend',
     'fs',
-    'backend_type'
+    'backend'
 ]
 
 __all__.extend(genetics.__all__)
