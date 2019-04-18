@@ -2837,16 +2837,19 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: v.transpose((1,)))
         self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
 
-    def test_project(self):
+    def test_collection_getitem(self):
         collection_types = [hl.array, hl.set]
         for typ in collection_types:
             x = typ([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
-            assert x.a == ['foo', 'bar']
+            assert hl.eval(x.a) == ['foo', 'bar']
 
             a = typ([hl.struct(b=[hl.struct(inner=1),
                                   hl.struct(inner=2)]),
                      hl.struct(b=[hl.struct(inner=3)])])
-            assert a.b == [[hl.struct(inner=1), hl.struct(inner=2)],
-                           [hl.struct(inner=3)]]
-            assert hl.flatten(a.b).inner == [1, 2, 3]
-            assert a.b.inner = [[1, 2], [3]]
+            assert hl.eval(a.b) == [[hl.struct(inner=1), hl.struct(inner=2)],
+                                    [hl.struct(inner=3)]]
+            assert hl.eval(hl.flatten(a.b).inner) == [1, 2, 3]
+            assert hl.eval(a.b.inner) == [[1, 2], [3]]
+            assert hl.eval(a["b"].inner) == [[1, 2], [3]]
+            assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
+            assert hl.eval(a.b["inner"]) == [[1, 2], [3]]

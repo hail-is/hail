@@ -31,37 +31,41 @@ class CollectionExpression(Expression):
             collection = self.filter(hl.is_defined)
         return collection._method(name, ret_type, *args)
 
-    def _project(self, key):
-        etype = self.dtype.element_type
-        assert isinstance(etype, hl.tstruct)
-        return hl.struct(
-            **{k: self.map(lambda x: x[k]) for k in etype}).__getitem__(key)
+    def __getattr__(self, item):
+        return CollectionExpression.__getitem__(self, item)
 
-    @typecheck_method(item=oneof(str, int))
+    @typecheck_method(item=oneof(str))
     def __getitem__(self, item):
         """Get a field from each struct in this collection.
 
         Examples
         --------
 
+        Note, in the examples below ``hl.eval`` is used to convert a hail
+        expression to a python value so that it prints nicely. It is not
+        necssary to use ``hl.eval`` inside ``annotate_rows`` or similar
+        methods.
+
         >>> x = [hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)]
-        >>> x.a
+        >>> hl.eval(x.a)
         ['foo', 'bar']
 
         >>> a = [hl.struct(b=[hl.struct(inner=1),
         ...                   hl.struct(inner=2)]),
         ...      hl.struct(b=[hl.struct(inner=3)])]
-        >>> a.b
+        >>> hl.eval(a.b)
         [[hl.struct(inner=1), hl.struct(inner=2)], [hl.struct(inner=3)]]
-        >>> hl.flatten(a.b).inner
-        [1, 2, 3]
-        >>> a.b.inner
+        >>> hl.eval(a.b.inner)
         [[1, 2], [3]]
+        >>> hl.eval(hl.flatten(a.b).inner)
+        [1, 2, 3]
+        >>> hl.eval(hl.flatten(a.b.inner))
+        [1, 2, 3]
 
         Parameters
         ----------
-        item : :obj:`str` or :obj:`int`
-            Field name or field index.
+        item : :obj:`str`
+            Field name
 
         Returns
         -------
@@ -70,10 +74,12 @@ class CollectionExpression(Expression):
             this collection
         """
 
-        if isinstance(self.dtype.element_type, hl.tstruct):
-            return self._project(item)
+        etype = self.dtype.element_type
+        if isinstance(etype, hl.tstruct):
+            return hl.struct(
+                **{k: self.map(lambda x: x[k]) for k in etype}).__getitem__(item)
         raise TypeError(
-            f'Cannot call __getitem__ on a {type(self).__name__} of {self.dtype.element_type}')
+            f'Cannot {fun.__name__} on a {type(self).__name__} of {self.dtype.element_type}')
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def any(self, f):
