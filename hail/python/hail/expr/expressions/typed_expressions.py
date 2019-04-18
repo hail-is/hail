@@ -31,6 +31,50 @@ class CollectionExpression(Expression):
             collection = self.filter(hl.is_defined)
         return collection._method(name, ret_type, *args)
 
+    def _project(self, key):
+        etype = self.dtype.element_type
+        assert isinstance(etype, hl.tstruct)
+        return hl.struct(
+            **{k: self.map(lambda x: x[k]) for k in etype}).__getitem__(key)
+
+    @typecheck_method(item=oneof(str, int))
+    def __getitem__(self, item):
+        """Get a field from each struct in this collection.
+
+        Examples
+        --------
+
+        >>> x = [hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)]
+        >>> x.a
+        ['foo', 'bar']
+
+        >>> a = [hl.struct(b=[hl.struct(inner=1),
+        ...                   hl.struct(inner=2)]),
+        ...      hl.struct(b=[hl.struct(inner=3)])]
+        >>> a.b
+        [[hl.struct(inner=1), hl.struct(inner=2)], [hl.struct(inner=3)]]
+        >>> hl.flatten(a.b).inner
+        [1, 2, 3]
+        >>> a.b.inner
+        [[1, 2], [3]]
+
+        Parameters
+        ----------
+        item : :obj:`str` or :obj:`int`
+            Field name or field index.
+
+        Returns
+        -------
+        :class:`.CollectionExpression`
+            A collection formed by getting the given field for each struct in
+            this collection
+        """
+
+        if isinstance(self.dtype.element_type, hl.tstruct):
+            return self._project(item)
+        raise TypeError(
+            f'Cannot call __getitem__ on a {type(self).__name__} of {self.dtype.element_type}')
+
     @typecheck_method(f=func_spec(1, expr_bool))
     def any(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.
@@ -423,12 +467,13 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
-        else:
-            item = to_expr(item)
-            if not item.dtype == tint32:
-                raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
-                                "found expression of type '{}'".format(item._type))
-            return self._method("indexArray", self.dtype.element_type, item)
+        if isinstance(item, str):
+            return self.super().__getitem__(item)
+        item = to_expr(item)
+        if not item.dtype == tint32:
+            raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
+                            "found expression of type '{}'".format(item._type))
+        return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
