@@ -26,11 +26,11 @@ def job_ordering(job1, job2):
         if y == 'Cancelled':
             return job1.id - job2.id
         else:
-            assert y in ('Created', 'Complete'), y
+            assert y in ('Created', 'Ready', 'Complete'), y
             return -1
     else:
-        assert x == 'Created', x
-        if y == 'Created':
+        assert x in ('Created', 'Ready'), x
+        if y == 'Created' or y == 'Ready':
             return job1.id - job2.id
         elif y == 'Complete':
             return -1
