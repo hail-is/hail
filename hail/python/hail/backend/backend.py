@@ -8,7 +8,6 @@ from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
-from hail.fs import HadoopFS, GoogleCloudStorageFS
 
 import requests
 
@@ -88,6 +87,7 @@ class Backend(abc.ABC):
 
 class SparkBackend(Backend):
     def __init__(self):
+        from hail.fs import HadoopFS
         self._fs = HadoopFS()
 
     @property
@@ -204,6 +204,8 @@ class LocalBackend(Backend):
 
 class ServiceBackend(Backend):
     def __init__(self, url):
+        from hail.fs import GoogleCloudStorageFS
+
         self.url = url
         self._fs = GoogleCloudStorageFS()
 
