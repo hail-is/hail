@@ -10,10 +10,19 @@ echo PYTHONPATH
 echo $PYTHONPATH
 echo PYSPARK_SUBMIT_ARGS
 echo $PYSPARK_SUBMIT_ARGS
+echo CXX
+echo $CXX
 which pyspark
 which pyspark2
 which python
 which pip
+
+which gcc
+gcc --version
+which clang
+clang --version
+
+uname -a
 
 if python -V 2>&1 | grep -q '3.[6789]'
 then
@@ -32,6 +41,7 @@ fi
 $PYTHON -m pip show hail
 $PYTHON -m pip show pyspark
 $PYTHON -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+$PYTHON -c 'import numpy as np; np.__config__.show()'
 
 logfile=$(ls -rt hail-*.log | tail -n 1)
 cat $logfile \
