@@ -82,10 +82,10 @@ class CollectionExpression(Expression):
             if isinstance(etype, (hl.tarray, hl.tset)):
                 return self.map(lambda x: x.__getitem__(item))
         except TypeError as err:
-            if "Cannot use 'collection.foo' or" not in str(err):
+            if "elements must be structs or collections that eventaully contain structs." not in str(err):
                 raise
         raise TypeError(
-            f"Cannot use 'collection.foo' or 'collection['foo']' on "
+            f"Cannot use 'collection.{item}' or 'collection['{item}']' on "
             f"{type(self).__name__} of type {self.dtype}, the "
             f"elements must be structs or collections that eventaully "
             f"contain structs.")
