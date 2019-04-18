@@ -17,7 +17,7 @@ import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
-import is.hail.variant.MatrixTable
+import is.hail.variant.{Call, Call2, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -1146,6 +1146,33 @@ class IRSuite extends SparkSuite {
       (0 until 10).map(i => FastIndexedSeq(1, i, i, i)) ++ FastIndexedSeq(FastIndexedSeq(1)))
   }
 
+  @Test def testArrayAggScan() {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
+
+    val eltType = TStruct("x" -> TCall(), "y" -> TInt32())
+
+    val ir = ArrayAggScan(In(0, TArray(eltType)),
+      "foo",
+      GetField(Ref("foo", eltType), "y") +
+        GetField(ApplyScanOp(
+          FastIndexedSeq(),
+          Some(FastIndexedSeq(I32(2))),
+          FastIndexedSeq(GetField(Ref("foo", eltType), "x")),
+          AggSignature(CallStats(), FastIndexedSeq(), Some(FastIndexedSeq(TInt32())), FastIndexedSeq(TCall()))
+        ), "AN"))
+
+    assertEvalsTo(ir,
+      args = FastIndexedSeq(
+        FastIndexedSeq(
+          Row(null, 1),
+          Row(Call2(0, 0), 2),
+          Row(Call2(0, 1), 3),
+          Row(Call2(1, 1), 4),
+          null,
+          Row(null, 5)) -> TArray(eltType)),
+      expected = FastIndexedSeq(1 + 0, 2 + 0, 3 + 2, 4 + 4, null, 5 + 6))
+  }
+
   @Test def testInsertFields() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1430,6 +1457,7 @@ class IRSuite extends SparkSuite {
       ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
       ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
+      ArrayAggScan(a, "x", ApplyScanOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0), false),
       AggExplode(NA(TArray(TInt32())), "x", I32(0), false),
       AggGroupBy(True(), I32(0), false),

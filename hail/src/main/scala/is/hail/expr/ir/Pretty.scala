@@ -179,6 +179,7 @@ object Pretty {
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
+            case ArrayAggScan(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
