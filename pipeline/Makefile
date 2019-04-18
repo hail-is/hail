@@ -1,37 +1,30 @@
-.PHONY: test-local test-local-in-cluster clean build
+.PHONY: test-local test-local-in-cluster clean
 
-IGNORED_FILE_PATTERN := \( -name '*~' -o -name '*.log' \)
-BATCH_PY_FILES = $(shell find ../batch -iname \*.py -not $(IGNORED_FILE_PATTERN) -print)
-PIPELINE_PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
-PY_CHECKERS = build/flake8 build/pylint
+PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}../batch python3
+
+PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
 include ../cloud-sql.mk
 
-clean:
-	-rm -r build
+flake8-stmp: $(PY_FILES)
+	$(PYTHON) -m flake8 pipeline
+	touch $@
 
-build/conda-env: environment.yml
-	conda env update -f environment.yml || conda env create -f environment.yml
-	mkdir -p build && touch $@
+pylint-stmp: $(PY_FILES)
+	$(PYTHON) -m pylint --rcfile pipeline/pylintrc pipeline --score=n
+	touch $@
 
-build/batch: $(BATCH_PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-pipeline && pip install -U ../batch/
-	mkdir -p build && touch $@
-
-build/flake8: $(PIPELINE_PY_FILES) build/conda-env build/batch
-	. ../loadconda && conda activate hail-pipeline && python -m flake8 pipeline
-	mkdir -p build && touch $@
-
-build/pylint: $(PIPELINE_PY_FILES) build/conda-env build/batch
-	. ../loadconda && conda activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
-	mkdir -p build && touch $@
+check: flake8-stmp pylint-stmp
 
 test-local: install-cloud-sql-proxy
 test-local: batch-secrets/batch-test-cloud-sql-config.json
-test-local: build/conda-env build/batch $(PY_CHECKERS)
+test-local: build/conda-env build/batch check
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: build/conda-env build/batch $(PY_CHECKERS)
+test-local-in-cluster: check
 	POD_NAMESPACE='test' ./test-locally.sh
+
+clean:
+	rm -f flake8-stmp pylint-stmp
