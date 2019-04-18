@@ -368,7 +368,7 @@ class PRS(object):
             del self.deploy_jobs[target.ref]
             job.delete()
         else:
-            assert state == 'Created', f'{state} {job.id} {job.attributes}'
+            assert state in ('Created', 'Ready'), f'{state} {job.id} {job.attributes}'
             existing_job = self.deploy_jobs[target.ref]
             if existing_job is None:
                 self.deploy_jobs[target.ref] = job
