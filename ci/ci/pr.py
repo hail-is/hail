@@ -467,7 +467,7 @@ class PR(object):
                 f'a job for me was cancelled {short_str_build_job(job)} {self.short_str()}')
             return self._new_build(try_new_build(self.source, self.target))
         else:
-            assert state == 'Created', f'{state} {job.id} {job.attributes} {self.short_str()}'
+            assert state in ('Created', 'Ready'), f'{state} {job.id} {job.attributes} {self.short_str()}'
             assert 'target' in job.attributes, job.attributes
             assert 'image' in job.attributes, job.attributes
             target = FQSHA.from_json(json.loads(job.attributes['target']))
