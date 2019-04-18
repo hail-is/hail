@@ -2839,7 +2839,7 @@ class Tests(unittest.TestCase):
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, set)]
-        for (htyp, ptyp) in collection_hl.arrayes:
+        for (htyp, ptyp) in collection_types:
             x = htyp([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
             assert hl.eval(x.a) == ['foo', 'bar']
 
