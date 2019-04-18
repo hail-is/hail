@@ -281,7 +281,7 @@ class Job:
     def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
-            self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
+            self.parent_new_state(parent_job._state, parent)
 
     def set_state(self, new_state):
         if self._state != new_state:
@@ -296,34 +296,21 @@ class Job:
         for child_id in self.child_ids:
             child = job_id_job.get(child_id)
             if child:
-                child.parent_new_state(new_state, self.id, self.exit_code)
+                child.parent_new_state(new_state, self.id)
             else:
                 log.info(f'missing child: {child_id}')
 
-    def parent_new_state(self, new_state, parent_id, maybe_exit_code):
-        def update():
-            self.incomplete_parent_ids.discard(parent_id)
-            if not self.incomplete_parent_ids:
-                assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
-                if self._state != 'Cancelled':
-                    log.info(f'all parents complete for {self.id},'
-                             f' creating pod')
-                    self._create_pod()
-                else:
-                    log.info(f'all parents complete for {self.id},'
-                             f' but it is already cancelled')
-
-        if new_state == 'Complete' and maybe_exit_code == 0:
-            log.info(f'parent {parent_id} successfully complete for {self.id}')
-            update()
-        elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
-            log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
-            if not self.always_run:
-                self.cancel()
+    def parent_new_state(self, new_state, parent_id):
+        self.incomplete_parent_ids.discard(parent_id)
+        if not self.incomplete_parent_ids:
+            assert self._state == 'Created', f'bad state: {self._state}'
+            if self.run_always or all(job_id_job[pid].is_successful() for pid in self.parent_ids):
+                log.info(f'all parents complete for {self.id},'
+                         f' creating pod')
+                self._create_pod()
             else:
-                log.info(f'job {self.id} is set to always run despite '
-                         f' parents deleted, cancelled, or failed.')
-                update()
+                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
+                self.cancel()
 
     def cancel(self):
         if self.is_complete():
