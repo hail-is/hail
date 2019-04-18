@@ -277,36 +277,35 @@ object BlockMatrix {
         val m = it.next()
         val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv"
 
-        hadoopConfBc.value.value.writeTextFile(path) { os =>
-          val sb = new StringBuilder()
-
+        using(
+          new PrintWriter(
+            new BufferedWriter(
+              new OutputStreamWriter(
+                hadoopConfBc.value.value.unsafeWriter(path))))) { f =>
           header.foreach { h =>
-            sb.append(h)
-            sb.append('\n')
+            f.println(h)
           }
 
           var i = 0
           while (i < m.rows) {
             if (addIndex) {
-              sb.append(i)
-              sb.append(delimiter)
+              f.print(i)
+              f.print(delimiter)
             }
 
             var j = 0
             while (j < m.cols) {
-              sb.append(m(i, j))
+              f.print(m(i, j))
               if (j < m.cols - 1)
-                sb.append(delimiter)
+                f.print(delimiter)
               j += 1
             }
-            sb.append('\n')
+            f.print('\n')
             i += 1
           }
-
-          os.write(sb.result())
-
-          Iterator.single(1)
         }
+
+        Iterator.single(1)
       }
       .collect()
 
