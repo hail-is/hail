@@ -113,11 +113,11 @@ class PR:
         self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
-        self.sha = None
 
         # one of pending, changes_requested, approve
         self.review_state = None
 
+        self.sha = None
         self.batch = None
         self.build_state = None
 
@@ -184,8 +184,8 @@ class PR:
                 target_repo = self.target_branch.branch.repo
                 repo_dir = f'repos/{target_repo.short_str()}'
 
-                shell('git', 'config', 'user.email', 'hail-ci-leader@example.com')
-                shell('git', 'config', 'user.name', 'hail-ci-leader')
+                shell('git', '-C', repo_dir, 'config', 'user.email', 'hail-ci-leader@example.com')
+                shell('git', '-C', repo_dir, 'config', 'user.name', 'hail-ci-leader')
 
                 if not os.path.isdir(repo_dir):
                     os.makedirs(repo_dir, exist_ok=True)

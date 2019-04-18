@@ -57,9 +57,10 @@ push: build
 	docker tag ci2 $(CI2_IMAGE)
 	docker push $(CI2_IMAGE)
 
-deploy: push
+deploy: push push-ci-utils
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(CI2_IMAGE)," \
+	  -e "s,@ci_utils_image@,$(CI2_UTILS_IMAGE)," \
 	  -e "s,@gcp_project@,$(PROJECT)," \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
@@ -92,11 +93,13 @@ restart-proxy:
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
+# Paradox: can't push locally, but ci2 needs ci-utils.  Just use the latest.
 run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-proxy
 	PROJECT=$(PROJECT) \
 	  DOMAIN=$(DOMAIN) \
 	  IP=$(IP) \
+	  CI_UTILS_IMAGE=gcr.io/$(PROJECT)/ci-utils:latest \
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:

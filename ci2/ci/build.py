@@ -8,7 +8,7 @@ import jinja2
 from .log import log
 from .utils import flatten
 from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP
+from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
 
 
 def generate_token(size=12):
@@ -19,15 +19,30 @@ def generate_token(size=12):
 
 
 def expand_value_from(value, config):
-    if not isinstance(value, dict):
+    if isinstance(value, str):
         return value
 
+    assert isinstance(value, dict)
     path = value['valueFrom']
     path = path.split('.')
     v = config
     for field in path:
         v = v[field]
     return v
+
+
+def get_namespace(value, config):
+    assert isinstance(value, dict)
+
+    path = value['valueFrom'].split('.')
+
+    assert len(path) == 2
+    assert path[1] == 'name'
+
+    v = config[path[0]]
+    assert v['kind'] == 'createNamespace'
+
+    return v['name']
 
 
 class BuildConfiguration:
@@ -170,10 +185,6 @@ mv -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
         script = f'''
 set -ex
 
-gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-gcloud -q auth configure-docker
-
 git clone {shq(pr.target_branch.branch.repo.url)} repo
 
 git -C repo config user.email hail-ci-leader@example.com
@@ -185,13 +196,17 @@ git -C repo checkout {shq(pr.target_branch.sha)}
 git -C repo merge {shq(pr.source_sha)} -m 'merge PR'
 
 {render_dockerfile}
+{init_context}
 {copy_inputs}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(dockerfile)})
-docker pull $FROM_IMAGE
 
+gcloud -q auth activate-service-account \
+  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+gcloud -q auth configure-docker
+
+docker pull $FROM_IMAGE
 {pull_published_latest}
-{init_context}
 docker build -t {shq(self.image)} \
   -f {dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
@@ -232,8 +247,7 @@ docker push {shq(self.image)}
         if self.inputs is not None:
             sa = 'ci2'
 
-        # FIXME image version
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
                                           attributes={'name': self.name},
                                           volumes=volumes,
@@ -264,7 +278,7 @@ gcloud -q auth activate-service-account \
 gcloud -q container images delete {shq(self.image)}
 '''
 
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
                                           volumes=volumes,
@@ -333,17 +347,16 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, pr, name, deps, namespace_name, admin_sa, public, secrets):
+    def __init__(self, pr, name, deps, namespace_name, admin_service_account, public, secrets):
         super().__init__(name, deps)
         self.namespace_name = namespace_name
-        if admin_sa:
-            self.admin_sa = {
-                'name': admin_sa['name'],
-                # FIXME check
-                'namespace': expand_value_from(admin_sa['namespace'], self.input_config(pr))
+        if admin_service_account:
+            self.admin_service_account = {
+                'name': admin_service_account['name'],
+                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(pr))
             }
         else:
-            self.admin_sa = None
+            self.admin_service_account = None
         self.public = public
         self.secrets = secrets
         self.job = None
@@ -361,7 +374,10 @@ class CreateNamespaceStep(Step):
                                    json.get('secrets'))
 
     def config(self):
-        conf = {'name': self._name}
+        conf = {
+            'kind': 'createNamespace',
+            'name': self._name
+        }
         if self.public:
             conf['domain'] = f'{self._name}.internal.{DOMAIN}'
         return conf
@@ -373,13 +389,11 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {self._name}
-  labels:
-    for: test
 '''
 
-        if self.admin_sa:
-            admin_sa_name = self.admin_sa['name']
-            admin_sa_namespace = self.admin_sa['namespace']
+        if self.admin_service_account:
+            admin_service_account_name = self.admin_service_account['name']
+            admin_service_account_namespace = self.admin_service_account['namespace']
             config = config + f'''\
 ---
 kind: Role
@@ -395,12 +409,12 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: {admin_sa_name}-{self.namespace_name}-admin-binding
+  name: {admin_service_account_name}-{self.namespace_name}-admin-binding
   namespace: {self._name}
 subjects:
 - kind: ServiceAccount
-  name: {admin_sa_name}
-  namespace: {admin_sa_namespace}
+  name: {admin_service_account_name}
+  namespace: {admin_service_account_namespace}
 roleRef:
   kind: Role
   name: {self.namespace_name}-admin
@@ -426,10 +440,12 @@ spec:
     app: router
 '''
 
-        script = f'''
+            script = f'''
 set -ex
 
-echo "$CONFIG" | kubectl apply -f -
+cat | kubectl apply -f - <<EOF
+{config}
+EOF
 '''
 
         if self.secrets:
@@ -438,9 +454,8 @@ echo "$CONFIG" | kubectl apply -f -
 kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {self._name} apply -f -
 '''
 
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
-                                          env={'CONFIG': config},
                                           attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
@@ -451,7 +466,7 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {s
 kubectl delete namespace {self._name}
 '''
 
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
                                           service_account_name='ci2-agent',
@@ -463,7 +478,7 @@ class DeployStep(Step):
     def __init__(self, pr, name, deps, namespace, config_file, link, wait):
         super().__init__(name, deps)
         # FIXME check available namespaces
-        self.namespace = expand_value_from(namespace, self.input_config(pr))
+        self.namespace = get_namespace(namespace, self.input_config(pr))
         self.config_file = config_file
         self.link = link
         self.wait = wait
@@ -497,7 +512,9 @@ class DeployStep(Step):
         script = f'''
 set -ex
 
-echo "$CONFIG" | kubectl apply -n {self.namespace} -f -
+cat | kubectl apply -n {self.namespace} -f - <<EOF
+{rendered_config}
+EOF
 '''
 
         if self.wait:
@@ -522,17 +539,17 @@ set +e
 python3 wait-for-pod.py 600 {self.namespace} {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
-(exit $EC)
 set -e
+(exit $EC)
 '''
 
         attrs = {'name': self.name}
         if self.link is not None:
             attrs['link'] = ','.join(self.link)
             attrs['domain'] = f'{self.namespace}.internal.{DOMAIN}'
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
-                                          env={'CONFIG': rendered_config},
                                           attributes=attrs,
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
@@ -548,17 +565,14 @@ class CreateDatabaseStep(Step):
         super().__init__(name, deps)
         # FIXME validate
         self.database_name = database_name
-        # FIXME check namespace
-        self.namespace = expand_value_from(namespace, self.input_config(pr))
+        self.namespace = get_namespace(namespace, self.input_config(pr))
         self.job = None
         self._name = f'test-{pr.number}-{database_name}-{self.token}'
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         self.admin_username = generate_token()
-        self.admin_password = secrets.token_urlsafe(16)
-        self.admin_secret = f'sql-{self._name}-{self.admin_username}-config'
+        self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_username = generate_token()
-        self.user_password = secrets.token_urlsafe(16)
-        self.user_secret = f'sql-{self._name}-{self.user_username}-config'
+        self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
     def self_ids(self):
         return [self.job.id]
@@ -573,97 +587,86 @@ class CreateDatabaseStep(Step):
         return {
             'name': self._name,
             'admin_username': self.admin_username,
-            'admin_secret': self.admin_secret,
+            'admin_secret_name': self.admin_secret_name,
             'user_username': self.user_username,
-            'user_secret': self.user_secret
+            'user_secret_name': self.user_secret_name
         }
 
     async def build(self, batch, pr):  # pylint: disable=unused-argument
-        # FIXME are passwords in pod configuration?
-        # FIXME create credentials programatically and clean up ourselves?
-        sql_script = f'''
-CREATE DATABASE `{self._name}`;
-
-CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '{self.admin_password}';
-GRANT ALL ON `{self._name}`.* TO '{self.admin_username}'@'%';
-
-CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '{self.user_password}';
-GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username}'@'%';
-'''
-
-        admin_secret = f'''\
-{{
-  "host": "10.80.0.3",
-  "port": 3306,
-  "user": "{self.admin_username}",
-  "password": "{self.admin_password}",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
-  "db": "{self._name}"
-}}
-'''
-
-        user_secret = f'''\
-{{
-  "host": "10.80.0.3",
-  "port": 3306,
-  "user": "{self.user_username}",
-  "password": "{self.user_password}",
-  "instance": "db-gh0um",
-  "connection_name": "hail-vdc:us-central1:db-gh0um",
-  "db": "{self._name}"
-}}
-'''
-
         script = f'''
 set -e
+
+ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
+USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
+
+cat | mysql --host=10.80.0.3 -u root <<EOF
+CREATE DATABASE `{self._name}`;
+
+CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
+GRANT ALL ON `{self._name}`.* TO '{self.admin_username}'@'%';
+
+CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '$USER_PASSWORD';
+GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username}'@'%';
+EOF
 
 echo create database, admin and user...
 echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
 
 echo create admin secret...
-echo "$ADMIN_SECRET" > sql-config.json
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret)} --from-file=sql-config.json
+cat > sql-config.json <<EOF
+{{
+  "host": "10.80.0.3",
+  "port": 3306,
+  "user": "{self.admin_username}",
+  "password": "$ADMIN_PASSWORD",
+  "instance": "db-gh0um",
+  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "db": "{self._name}"
+}}
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json
 
 echo create user secret...
-echo "$USER_SECRET" > sql-config.json
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret)} --from-file=sql-config.json
+cat > sql-config.json <<EOF
+{{
+  "host": "10.80.0.3",
+  "port": 3306,
+  "user": "{self.user_username}",
+  "password": "$USER_PASSWORD",
+  "instance": "db-gh0um",
+  "connection_name": "hail-vdc:us-central1:db-gh0um",
+  "db": "{self._name}"
+}}
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json
 
 echo database = {shq(self._name)}
 echo admin_username = {shq(self.admin_username)}
-echo admin_secret = {shq(self.admin_secret)}
+echo admin_secret_name = {shq(self.admin_secret_name)}
 echo user_username = {shq(self.user_username)}
-echo user_secret = {shq(self.user_secret)}
+echo user_secret_name = {shq(self.user_secret_name)}
 
 echo done.
 '''
 
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
-                                          env={
-                                              'SQL_SCRIPT': sql_script,
-                                              'ADMIN_SECRET': admin_secret,
-                                              'USER_SECRET': user_secret
-                                          },
                                           attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, sink):
-        sql_script = f'''
+        script = f'''
+cat | mysql --host=10.80.0.3 -u root <<EOF
 DROP DATABASE `{self._name}`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
+EOF
 '''
 
-        script = f'''
-echo "$SQL_SCRIPT" | mysql --host=10.80.0.3 -u root
-'''
-
-        self.job = await batch.create_job(f'gcr.io/{GCP_PROJECT}/ci-utils',
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
-                                          env={'SQL_SCRIPT': sql_script},
                                           attributes={'name': f'cleanup_{self.name}'},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',

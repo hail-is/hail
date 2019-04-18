@@ -28,6 +28,8 @@ spec:
               value: http://batch.default
 	    - name: GCP_PROJECT
 	      value: @gcp_project@
+            - name: CI_UTILS_IMAGE
+              value: @ci_utils_image@
           ports:
             - containerPort: 5000
           volumeMounts:
