@@ -7,6 +7,7 @@ ROOT=$(cd .. && pwd)
 
 CLUSTER_NAME=ci-test-$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
 
+time conda env update -f python/hail/environment.yml
 time source activate hail
 time pip search cloudtools
 time pip install -U 'cloudtools>=4,<5'
