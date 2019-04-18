@@ -205,7 +205,6 @@ class LocalBackend(Backend):
 class ServiceBackend(Backend):
     def __init__(self, url):
         from hail.fs import GoogleCloudStorageFS
-
         self.url = url
         self._fs = GoogleCloudStorageFS()
 
