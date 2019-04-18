@@ -27,12 +27,13 @@ class HailContext(object):
                       default_reference=str,
                       idempotent=bool,
                       global_seed=nullable(int),
+                      optimizer_iterations=nullable(int),
                       _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log=None, quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False,
-                 global_seed=6348563392232659379, _backend=None):
+                 global_seed=6348563392232659379, optimizer_iterations=None, _backend=None):
 
         if Env._hc:
             if idempotent:
@@ -75,6 +76,7 @@ class HailContext(object):
         self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
+        optimizer_iterations = get_env_or_default(optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
         version = read_version_info()
         hail.__version__ = version
@@ -90,11 +92,11 @@ class HailContext(object):
         if idempotent:
             self._jhc = self._hail.HailContext.getOrCreate(
                 jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir)
+                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
         else:
             self._jhc = self._hail.HailContext.apply(
                 jsc, app_name, joption(master), local, log, True, append,
-                min_block_size, branching_factor, tmp_dir)
+                min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
@@ -179,12 +181,15 @@ class HailContext(object):
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
+           _optimizer_iterations=nullable(int),
            _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=0, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379, _backend=None):
+         global_seed=6348563392232659379,
+         _optimizer_iterations=None,
+         _backend=None):
     """Initialize Hail and Spark.
 
     Examples
@@ -226,7 +231,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Spark context. By default, a Spark context will be created.
     app_name : :obj:`str`
         Spark application name.
-    master : :obj:`str`
+    master : :obj:`str`, optional
         Spark master.
     local : :obj:`str`
        Local-mode master, used if `master` is not defined here or in the
@@ -250,10 +255,13 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         or ``'GRCm38'``.
     idempotent : :obj:`bool`
         If ``True``, calling this function is a no-op if Hail has already been initialized.
+    global_seed : :obj:`int`, optional
+        Global random seed.
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference, idempotent, global_seed, _backend)
+                default_reference, idempotent, global_seed,
+                _optimizer_iterations,_backend)
 
 def stop():
     """Stop the currently running Hail session."""
