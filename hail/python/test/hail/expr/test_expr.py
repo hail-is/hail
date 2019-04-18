@@ -2844,10 +2844,10 @@ class Tests(unittest.TestCase):
             assert hl.eval(x.a) == ['foo', 'bar']
 
             a = htyp([hl.struct(b=htyp([hl.struct(inner=1),
-                                      hl.struct(inner=2)])),
+                                        hl.struct(inner=2)])),
                       hl.struct(b=htyp([hl.struct(inner=3)]))])
-            assert hl.eval(a.b) == ptyp([ptyp([hl.struct(inner=1), hl.struct(inner=2)]),
-                                         ptyp([hl.struct(inner=3)])])
+            assert hl.eval(a.b) == ptyp([ptyp([hl.Struct(inner=1), hl.Struct(inner=2)]),
+                                         ptyp([hl.Struct(inner=3)])])
             assert hl.eval(hl.flatten(a.b).inner) == ptyp([1, 2, 3])
             assert hl.eval(a.b.inner) == ptyp([ptyp([1, 2]), ptyp([3])])
             assert hl.eval(a["b"].inner) == ptyp([ptyp([1, 2]), ptyp([3])])
