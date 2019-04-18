@@ -275,7 +275,7 @@ object BlockMatrix {
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
-        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv"
 
         hadoopConfBc.value.value.writeTextFile(path) { os =>
           val sb = new StringBuilder()

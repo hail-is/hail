@@ -328,5 +328,5 @@ class Tests(unittest.TestCase):
         hl.experimental.export_block_matrices(bms, f'{prefix}/files')
         for i in range(len(bms)):
             a = arrs[i]
-            a2 = np.loadtxt(f'{prefix}/files/{i}')
+            a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
             self.assertTrue(np.array_equal(a, a2))
