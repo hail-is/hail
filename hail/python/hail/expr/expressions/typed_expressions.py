@@ -3145,18 +3145,19 @@ class NDArrayExpression(Expression):
         else:
             return self, other
 
-    def _broadcast(self, n_dims, init):
-        assert self.ndim < n_dims
+    def _broadcast(self, n_output_dims, init):
+        assert self.ndim < n_output_dims
 
         # Right-align existing dimensions and start prepending new ones
         # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
         # Based off numpy broadcasting with the assumption that everything
         # can be thought to have an infinite number of 1-length dimensions
         # prepended
-        dims = list(range(n_dims))
-        dims = dims[self.ndim::-1] + dims[:self.ndim]
+        old_dims = range(self.ndim)
+        new_dims = range(self.ndim, n_output_dims)
+        idx_mapping = list(reversed(new_dims)) + list(old_dims)
 
-        return init(NDArrayReindex(self._ir, dims), tndarray(self._type.element_type, n_dims))
+        return init(NDArrayReindex(self._ir, idx_mapping), tndarray(self._type.element_type, n_output_dims))
 
 
 class NDArrayNumericExpression(NDArrayExpression):
@@ -3189,7 +3190,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         if isinstance(other, NDArrayNumericExpression):
             if self.ndim < other.ndim:
                 return self._broadcast(other.ndim, NDArrayNumericExpression), other
-            elif other.ndim < self.ndim:
+            elif self.ndim > other.ndim:
                 return self, other._broadcast(self.ndim, NDArrayNumericExpression)
 
         return self, other

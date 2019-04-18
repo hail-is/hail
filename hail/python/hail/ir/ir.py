@@ -532,7 +532,7 @@ class NDArrayReindex(IR):
         return NDArrayReindex(nd, self.idx_expr)
 
     def head_str(self):
-        return f'({", ".join([str(i) for i in self.idx_expr])})'
+        return f'({" ".join([str(i) for i in self.idx_expr])})'
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)

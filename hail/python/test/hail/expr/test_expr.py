@@ -2716,8 +2716,8 @@ class Tests(unittest.TestCase):
         expr_eq((na - ncube1)[0, 1, 0], -1.0)
         expr_eq((ncube1 - ny)[0, 1, 0], 0.0)
         expr_eq((ny - ncube1)[0, 1, 0], 0.0)
-        expr_eq((nrow_vec - ncube1)[0, 1, 0], 2.0)
-        expr_eq((ncube1 - nrow_vec)[0, 1, 0], -2.0)
+        expr_eq((ncube1 - nrow_vec)[0, 1, 0], 2.0)
+        expr_eq((nrow_vec - ncube1)[0, 1, 0], -2.0)
 
         # Multiplication
         expr_eq((na * na)[()], a * a)
@@ -2731,28 +2731,38 @@ class Tests(unittest.TestCase):
         expr_eq((na * ncube1)[0, 1, 0], 6.0)
         expr_eq((ncube1 * ny)[0, 1, 0], 9.0)
         expr_eq((ny * ncube1)[0, 1, 0], 9.0)
-        expr_eq((nrow_vec * ncube1)[0, 1, 0], 3.0)
         expr_eq((ncube1 * nrow_vec)[0, 1, 0], 3.0)
+        expr_eq((nrow_vec * ncube1)[0, 1, 0], 3.0)
 
         # Division
         expr_almost_eq((na / na)[()], a / a)
         expr_almost_eq((nx / nx)[0], a / a)
-        expr_almost_eq((nx / na)[1], a / b)
-        expr_almost_eq((na / nx)[1], b / a)
+        expr_almost_eq((nx / na)[1], b / a)
+        expr_almost_eq((na / nx)[1], a / b)
         expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
         expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+        # Broadcasting
+        expr_almost_eq((ncube1 / na)[0, 1, 0], 3 / 2)
+        expr_almost_eq((na / ncube1)[0, 1, 0], 2 / 3)
+        expr_almost_eq((ncube1 / ny)[0, 1, 0], 3 / 3)
+        expr_almost_eq((ny / ncube1)[0, 1, 0], 3 / 3)
+        expr_almost_eq((ncube1 / nrow_vec)[0, 1, 0], 3 / 1)
         expr_almost_eq((nrow_vec / ncube1)[0, 1, 0], 1 / 3)
-        expr_almost_eq((ncube1 / nrow_vec)[0, 1, 0], 3.0)
 
         # Floor div
         expr_eq((na // na)[()], a // a)
         expr_eq((nx // nx)[0], a // a)
-        expr_eq((nx // na)[1], a // b)
-        expr_eq((na // nx)[1], b // a)
+        expr_eq((nx // na)[1], b // a)
+        expr_eq((na // nx)[1], a // b)
         expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
         expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
-        expr_eq((nrow_vec // ncube1)[0, 1, 0], 0.0)
-        expr_eq((ncube1 // nrow_vec)[0, 1, 0], 3.0)
+        # Broadcasting
+        expr_eq((ncube1 // na)[0, 1, 0], 3 // 2)
+        expr_eq((na // ncube1)[0, 1, 0], 2 // 3)
+        expr_eq((ncube1 // ny)[0, 1, 0], 3 // 3)
+        expr_eq((ny // ncube1)[0, 1, 0], 3 // 3)
+        expr_eq((ncube1 // nrow_vec)[0, 1, 0], 3 // 1)
+        expr_eq((nrow_vec // ncube1)[0, 1, 0], 1 // 3)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

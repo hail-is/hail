@@ -88,15 +88,8 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
   return strides;
 }
 
-std::vector<long> broadcast_shapes(std::vector<long> left, std::vector<long> right) {
-  std::vector<long> result(std::max(left.size(), right.size()));
-
-  int len_diff = left.size() - right.size();
-  if (len_diff < 0) {
-    left.insert(left.begin(), -len_diff, 1);
-  } else if (len_diff > 0) {
-    right.insert(right.begin(), len_diff, 1);
-  }
+std::vector<long> unify_shapes(std::vector<long> left, std::vector<long> right) {
+  std::vector<long> result(left.size());
 
   for (int i = 0; i < left.size(); ++i) {
     if (!(left[i] == right[i] || left[i] == 1 || right[i] == 1)) {

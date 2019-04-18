@@ -1051,7 +1051,6 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 0)), 2.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 1)), 3.0)
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(1, 0)), 2.0)
-
   }
 
   @Test def testNDArrayWrite() {
