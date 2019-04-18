@@ -13,14 +13,16 @@ accordingly.
 - (hail#5828) Remove dependency on htsjdk for VCF INFO parsing, enabling
   faster import of some VCFs.
 - (hail#5860) Improve performance of some column annotation pipelines.
-- (hail#5858) Add `unify` option to `Table.union` which adds special behavior
-  when duplicate rows are present.
+- (hail#5858) Add `unify` option to `Table.union` which allows unification of
+  tables with different fields or field orderings.
+- (hail#5799) `mt.entries()` is four times faster.
 - (hail#5756) Hail now uses Spark 2.4.x by default.
 - (hail#5677) `MatrixTable` now also supports `show`.
+- (hail#5793)(hail#5701) Add `array.index(x)` which find the first index of
+  `array` whose value is equal to `x`.
 - (hail#5790) Add `array.head()` which returns the first element of the array,
   or missing if the array is empty.
-- (hail#5690) Add `_localize` flag to `locus_windows` to prevent serialization
-  in `ld_matrix`.
+- (hail#5690) Improve performance of `ld_matrix`.
 - (hail#5743) `mt.compute_entry_filter_stats` computes statistics about the number
   of filtered entries in a matrix table.
 - (hail#5758) failure to parse an interval will now produce a much more detailed
@@ -36,11 +38,9 @@ accordingly.
   handle filtered entries.
 - (hail#5884)(hail#4874) Fix longstanding crash when reading Hail data files
   under certain conditions.
-- (hail#5855) Fix `hl.mendel_errors` incorrectly reporting children counts in
+- (hail#5855)(hail#5786) Fix `hl.mendel_errors` incorrectly reporting children counts in
   the presence of entry filtering.
 - (hail#5830)(hail#5835) Fix Nirvana support
-- (hail#5853)(hail#5831) Fix `mt.entries()` error when the matrix table has no
-  row key.
 - (hail#5773) Fix `hl.sample_qc` to use correct number of total rows when
   calculating call rate.
 - (hail#5763)(hail#5764) Fix `hl.agg.array_agg` to work inside
@@ -55,9 +55,9 @@ accordingly.
 
 ### Experimental
 
-- (hail#5732) `hl.agg.approx_quantiles` computes an approximation of the
-  quantiles of an aggregable.
-- (hail#5693)(hail#5396) `Table.multi_way_zip_join` now correctly handles keys
+- (hail#5732) The `hl.agg.approx_quantiles` aggregate computes an approximation
+  of the quantiles of an expression.
+- (hail#5693)(hail#5396) `Table._multi_way_zip_join` now correctly handles keys
   that have been truncated.
 
 -----
