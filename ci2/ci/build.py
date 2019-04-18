@@ -158,12 +158,8 @@ class BuildImageStep(Step):
             context = 'context'
             init_context = 'mkdir context'
 
-        if self.dockerfile.endswith('.in'):
-            dockerfile = 'Dockerfile'
-            render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
-        else:
-            dockerfile = f'repo/{self.dockerfile}'
-            render_dockerfile = ''
+        dockerfile = 'Dockerfile'
+        render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
@@ -504,10 +500,8 @@ class DeployStep(Step):
         repo_dir = f'repos/{target_repo.short_str()}'
 
         with open(f'{repo_dir}/{self.config_file}', 'r') as f:
-            rendered_config = f.read()
-            if self.config_file.endswith('.in'):
-                template = jinja2.Template(rendered_config, undefined=jinja2.StrictUndefined)
-                rendered_config = template.render(**self.input_config(pr))
+            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined)
+            rendered_config = template.render(**self.input_config(pr))
 
         script = f'''
 set -ex
