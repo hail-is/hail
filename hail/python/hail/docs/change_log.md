@@ -1,5 +1,67 @@
 # Change Log
 
+## 0.2.13
+
+Released 2019-04-18
+
+Hail is now using Spark 2.4.x by default. If you build hail from source, you
+will need to acquire this version of Spark and update your build invocations
+accordingly.
+
+### New features
+
+- (hail#5828) Remove dependency on htsjdk for VCF INFO parsing, enabling
+  faster import of some VCFs.
+- (hail#5860) Improve performance of some column annotation pipelines.
+- (hail#5858) Add `unify` option to `Table.union` which adds special behavior
+  when duplicate rows are present.
+- (hail#5756) Hail now uses Spark 2.4.x by default.
+- (hail#5677) `MatrixTable` now also supports `show`.
+- (hail#5790) Add `array.head()` which returns the first element of the array,
+  or missing if the array is empty.
+- (hail#5690) Add `_localize` flag to `locus_windows` to prevent serialization
+  in `ld_matrix`.
+- (hail#5743) `mt.compute_entry_filter_stats` computes statistics about the number
+  of filtered entries in a matrix table.
+- (hail#5758) failure to parse an interval will now produce a much more detailed
+  error message.
+- (hail#5723) `hl.import_matrix_table` can now import a matrix table with no
+  columns.
+- (hail#5724) `hl.rand_norm2d` samples from a two dimensional random normal.
+
+### Bug fixes
+
+- (hail#5885) Fix `Table.to_spark` in the presence of fields of tuples.
+- (hail#5882)(hail#5886) Fix `BlockMatrix` conversion methods to correctly
+  handle filtered entries.
+- (hail#5884)(hail#4874) Fix longstanding crash when reading Hail data files
+  under certain conditions.
+- (hail#5855) Fix `hl.mendel_errors` incorrectly reporting children counts in
+  the presence of entry filtering.
+- (hail#5830)(hail#5835) Fix Nirvana support
+- (hail#5853)(hail#5831) Fix `mt.entries()` error when the matrix table has no
+  row key.
+- (hail#5773) Fix `hl.sample_qc` to use correct number of total rows when
+  calculating call rate.
+- (hail#5763)(hail#5764) Fix `hl.agg.array_agg` to work inside
+  `mt.annotate_rows` and similar functions.
+- (hail#5770) Hail now uses the correct unicode string encoding which resolves a
+  number of issues when a Table or MatrixTable has a key field containing
+  unicode characters.
+- (hail#5692) When `keyed` is `True`, `hl.maximal_independent_set` now does not
+  produce duplicates.
+- (hail#5725) Docs now consistently refer to `hl.agg` not `agg`.
+- (hail#5730)(hail#5782) Taught `import_bgen` to optimize its `variants` argument.
+
+### Experimental
+
+- (hail#5732) `hl.agg.approx_quantiles` computes an approximation of the
+  quantiles of an aggregable.
+- (hail#5693)(hail#5396) `Table.multi_way_zip_join` now correctly handles keys
+  that have been truncated.
+
+-----
+
 ## 0.2.12
 
 Released 2019-03-28
