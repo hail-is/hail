@@ -12,7 +12,6 @@ SHA=$(git rev-parse --short=12 HEAD)
 gcloud auth activate-service-account \
   --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
 
-conda env update -f python/hail/environment.yml
 source activate hail
 
 # build jar, zip, and distribution
