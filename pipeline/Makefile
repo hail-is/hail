@@ -1,4 +1,4 @@
-.PHONY: test-local test-local-in-cluster clean
+.PHONY: test-local test-local-in-cluster check clean
 
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}../batch python3
 
@@ -16,9 +16,7 @@ pylint-stmp: $(PY_FILES)
 
 check: flake8-stmp pylint-stmp
 
-test-local: install-cloud-sql-proxy
-test-local: batch-secrets/batch-test-cloud-sql-config.json
-test-local: build/conda-env build/batch check
+test-local: install-cloud-sql-proxy batch-secrets/batch-test-cloud-sql-config.json check
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
