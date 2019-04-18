@@ -43,21 +43,27 @@ $PYTHON -m pip show pyspark
 $PYTHON -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
 $PYTHON -c 'import numpy as np; np.__config__.show()'
 
-logfile=$(ls -rt hail-*.log | tail -n 1)
-cat $logfile \
- | curl -s \
-     -F "expiry_days=10" \
-     -F "content=<-" \
-     -F "title=$logfile" \
-     http://dpaste.com/api/v2/
-
-corefile=$(ls -rt *hs_err_pid* | tail -n 1)
-if [ -z corefile ]
+if [ ! -z "$1" ]
 then
-    cat corefile \
-        | curl -s \
-               -F "expiry_days=10" \
-               -F "content=<-" \
-               -F "title=$corefile" \
-               http://dpaste.com/api/v2/
+    logfile=$(ls -rt hail-*.log | tail -n 1)
+    if [ ! -z "$logfile" ]
+    then
+        cat $logfile \
+            | curl -s \
+                   -F "expiry_days=10" \
+                   -F "content=<-" \
+                   -F "title=$logfile" \
+                   http://dpaste.com/api/v2/
+    fi
+
+    corefile=$(ls -rt *hs_err_pid* | tail -n 1)
+    if [ ! -z "$corefile" ]
+    then
+        cat $corefile \
+            | curl -s \
+                   -F "expiry_days=10" \
+                   -F "content=<-" \
+                   -F "title=$corefile" \
+                   http://dpaste.com/api/v2/
+    fi
 fi
