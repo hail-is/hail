@@ -179,7 +179,7 @@ class BuildImageStep(Step):
                 # to is relative to docker context
                 copy_inputs = copy_inputs + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-mv -a {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
+mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 '''
 
         script = f'''
@@ -600,13 +600,13 @@ ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
 cat | mysql --host=10.80.0.3 -u root <<EOF
-CREATE DATABASE `{self._name}`;
+CREATE DATABASE \\`{self._name}\\`;
 
 CREATE USER '{self.admin_username}'@'%' IDENTIFIED BY '$ADMIN_PASSWORD';
-GRANT ALL ON `{self._name}`.* TO '{self.admin_username}'@'%';
+GRANT ALL ON \\`{self._name}\\`.* TO '{self.admin_username}'@'%';
 
 CREATE USER '{self.user_username}'@'%' IDENTIFIED BY '$USER_PASSWORD';
-GRANT SELECT, INSERT, UPDATE, DELETE ON `{self._name}`.* TO '{self.user_username}'@'%';
+GRANT SELECT, INSERT, UPDATE, DELETE ON \\`{self._name}\\`.* TO '{self.user_username}'@'%';
 EOF
 
 echo create database, admin and user...
@@ -659,7 +659,7 @@ echo done.
     async def cleanup(self, batch, sink):
         script = f'''
 cat | mysql --host=10.80.0.3 -u root <<EOF
-DROP DATABASE `{self._name}`;
+DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
 EOF
