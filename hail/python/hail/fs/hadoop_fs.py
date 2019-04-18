@@ -1,9 +1,9 @@
-from .fs import FS
-
-from hail.utils.java import Env
 import io
 import json
 from typing import Dict, List
+
+from .fs import FS
+from hail.utils.java import Env
 
 
 class HadoopFS(FS):

@@ -1,9 +1,10 @@
 import abc
-from hail.utils.java import Env, info
-from hail.utils import local_path_uri
-from typing import Dict, List
 import sys
 import os
+from typing import Dict, List
+
+from hail.utils.java import Env, info
+from hail.utils import local_path_uri
 
 
 class FS(abc.ABC):

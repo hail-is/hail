@@ -1,8 +1,9 @@
-from .fs import FS
+import os
 from typing import Dict, List
 import gcsfs
 from hurry.filesize import size
-import os
+
+from .fs import FS
 
 
 class GoogleCloudStorageFS(FS):
