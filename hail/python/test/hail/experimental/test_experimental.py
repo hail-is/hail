@@ -306,8 +306,6 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        # prefix = new_local_temp_dir()
-        prefix = '/tmp/spaz'
         hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
         for i in range(len(bms)):
             a = data[i]
@@ -327,8 +325,6 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        # prefix = new_local_temp_dir()
-        prefix = '/tmp/spaz'
         hl.experimental.export_block_matrices(bms, f'{prefix}/files')
         for i in range(len(bms)):
             a = arrs[i]
