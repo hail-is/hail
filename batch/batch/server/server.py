@@ -301,10 +301,11 @@ class Job:
                 log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id):
-        self.incomplete_parent_ids.discard(parent_id)
+        if new_state in ('Cancelled', 'Complete'):
+            self.incomplete_parent_ids.discard(parent_id)
         if not self.incomplete_parent_ids:
             assert self._state == 'Created', f'bad state: {self._state}'
-            if self.run_always or all(job_id_job[pid].is_successful() for pid in self.parent_ids):
+            if self.always_run or all(job_id_job[pid].is_successful() for pid in self.parent_ids):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 self._create_pod()
