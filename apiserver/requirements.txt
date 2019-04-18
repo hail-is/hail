@@ -6,4 +6,3 @@ bokeh==0.12.13
 jupyter==1.0.0
 tornado<6
 parsimonious==0.8.0
-ipykernel==4.9.0
