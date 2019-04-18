@@ -8,7 +8,8 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter]))
+      List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
+        classOf[BlockMatrixNativeMultiWriter]))
     override val typeHintFieldName: String = "name"
   }
 }
@@ -42,4 +43,18 @@ case class BlockMatrixRectanglesWriter(
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
     bm.exportRectangles(hc, path, rectangles, delimiter, binary)
   }
+}
+
+abstract class BlockMatrixMultiWriter {
+  def apply(bm: IndexedSeq[BlockMatrix]): Unit
+}
+
+case class BlockMatrixNativeMultiWriter(
+  prefix: String,
+  overwrite: Boolean,
+  forceRowMajor: Boolean,
+  stageLocally: Boolean) extends BlockMatrixWriter {
+
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.writeBlockMatrices(bms, prefix, overwrite, forceRowMajor, stageLocally)
 }
