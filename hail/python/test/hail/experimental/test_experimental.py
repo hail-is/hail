@@ -1,7 +1,8 @@
+import numpy as np
 import hail as hl
 import unittest
 from ..helpers import *
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, new_local_temp_dir
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -291,3 +292,45 @@ class Tests(unittest.TestCase):
         mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
 
         assert(mtj.count() == (15, 15))
+
+    def test_block_matrices_tofiles(self):
+        data = [
+            np.random.rand(11*12),
+            np.random.rand(5*17)
+        ]
+        arrs = [
+            data[0].reshape((11, 12)),
+            data[1].reshape((5, 17))
+        ]
+        bms = [
+            hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
+            hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
+        ]
+        # prefix = new_local_temp_dir()
+        prefix = '/tmp/spaz'
+        hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
+        for i in range(len(bms)):
+            a = data[i]
+            a2 = np.fromfile(f'{prefix}/files/{i}')
+            self.assertTrue(np.array_equal(a, a2))
+
+    def test_export_block_matrices(self):
+        data = [
+            np.random.rand(11*12),
+            np.random.rand(5*17)
+        ]
+        arrs = [
+            data[0].reshape((11, 12)),
+            data[1].reshape((5, 17))
+        ]
+        bms = [
+            hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
+            hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
+        ]
+        # prefix = new_local_temp_dir()
+        prefix = '/tmp/spaz'
+        hl.experimental.export_block_matrices(bms, f'{prefix}/files')
+        for i in range(len(bms)):
+            a = arrs[i]
+            a2 = np.loadtxt(f'{prefix}/files/{i}')
+            self.assertTrue(np.array_equal(a, a2))

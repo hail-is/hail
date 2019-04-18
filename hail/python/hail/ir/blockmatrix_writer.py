@@ -81,7 +81,7 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
                self.binary == other.binary
 
 
-class BlockMatrixWriter(object):
+class BlockMatrixMultiWriter(object):
     @abc.abstractmethod
     def render(self):
         pass
@@ -91,25 +91,46 @@ class BlockMatrixWriter(object):
         pass
 
 
-class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-    def __init__(self, prefix, overwrite, force_row_major, stage_locally):
+class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
+    @typecheck_method(prefix=str, overwrite=bool)
+    def __init__(self, prefix, overwrite):
         self.prefix = prefix
         self.overwrite = overwrite
-        self.force_row_major = force_row_major
-        self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'BlockMatrixNativeMultiWriter',
+        writer = {'name': 'BlockMatrixBinaryMultiWriter',
                   'prefix': self.prefix,
-                  'overwrite': self.overwrite,
-                  'forceRowMajor': self.force_row_major,
-                  'stageLocally': self.stage_locally}
+                  'overwrite': self.overwrite}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeMultiWriter) and \
                self.prefix == other.prefix and \
+               self.overwrite == other.overwrite
+
+
+class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
+    @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool)
+    def __init__(self, prefix, overwrite, delimiter, header, add_index):
+        self.prefix = prefix
+        self.overwrite = overwrite
+        self.delimiter = delimiter
+        self.header = header
+        self.add_index = add_index
+
+    def render(self):
+        writer = {'name': 'BlockMatrixTextMultiWriter',
+                  'prefix': self.prefix,
+                  'overwrite': self.overwrite,
+                  'delimiter': self.delimiter,
+                  'header': self.header,
+                  'addIndex': self.add_index}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixTextMultiWriter) and \
+               self.prefix == other.prefix and \
                self.overwrite == other.overwrite and \
-               self.force_row_major == other.force_row_major and \
-               self.stage_locally == other.stage_locally
+               self.delimiter == other.overwrite and \
+               self.header == other.header and \
+               self.add_index == other.add_index

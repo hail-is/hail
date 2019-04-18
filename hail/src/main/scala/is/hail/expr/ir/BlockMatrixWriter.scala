@@ -9,7 +9,7 @@ object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
-        classOf[BlockMatrixNativeMultiWriter]))
+        classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter]))
     override val typeHintFieldName: String = "name"
   }
 }
@@ -30,7 +30,7 @@ case class BlockMatrixNativeWriter(
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
-    RichDenseMatrixDouble.exportToDoubles(hc, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(hc.hadoopConf, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
 }
 
@@ -46,15 +46,24 @@ case class BlockMatrixRectanglesWriter(
 }
 
 abstract class BlockMatrixMultiWriter {
-  def apply(bm: IndexedSeq[BlockMatrix]): Unit
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit
 }
 
-case class BlockMatrixNativeMultiWriter(
+case class BlockMatrixBinaryMultiWriter(
   prefix: String,
-  overwrite: Boolean,
-  forceRowMajor: Boolean,
-  stageLocally: Boolean) extends BlockMatrixWriter {
+  overwrite: Boolean) extends BlockMatrixMultiWriter {
 
   def apply(bms: IndexedSeq[BlockMatrix]): Unit =
-    BlockMatrix.writeBlockMatrices(bms, prefix, overwrite, forceRowMajor, stageLocally)
+    BlockMatrix.binaryWriteBlockMatrices(bms, prefix, overwrite)
+}
+
+case class BlockMatrixTextMultiWriter(
+  prefix: String,
+  overwrite: Boolean,
+  delimiter: String,
+  header: Option[String],
+  addIndex: Boolean) extends BlockMatrixMultiWriter {
+
+  def apply(bms: IndexedSeq[BlockMatrix]): Unit =
+    BlockMatrix.exportBlockMatrices(bms, prefix, overwrite, delimiter, header, addIndex)
 }

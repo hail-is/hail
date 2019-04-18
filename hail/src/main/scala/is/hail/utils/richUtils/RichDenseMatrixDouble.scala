@@ -3,6 +3,7 @@ package is.hail.utils.richUtils
 import java.io.{InputStream, OutputStream}
 
 import breeze.linalg.{DenseMatrix => BDM}
+import org.apache.hadoop
 import is.hail.HailContext
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.io._
@@ -48,11 +49,11 @@ object RichDenseMatrixDouble {
     RichDenseMatrixDouble(nRows, nCols, data, rowMajor)
   }
 
-  def exportToDoubles(hc: HailContext, path: String, m: BDM[Double], forceRowMajor: Boolean): Boolean = {
+  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, m: BDM[Double], forceRowMajor: Boolean): Boolean = {
     val (data, rowMajor) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
     
-    RichArray.exportToDoubles(hc, path, data)
+    RichArray.exportToDoubles(hadoopConf, path, data)
 
     rowMajor
   }

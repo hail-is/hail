@@ -29,6 +29,57 @@ import org.json4s._
 
 import scala.collection.immutable.NumericRange
 
+case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPartitions: Array[Partition], blockSize: Int, nRows: Int, nCols: Int) extends Partition {
+  def nBlocks: Int = blockPartitions.length
+}
+
+class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](HailContext.sc, Nil) {
+  private val nBlocks = bms.map(_.blocks.getNumPartitions)
+  private val firstPartition = nBlocks.scan(0)(_ + _).init
+
+  protected def getPartitions: Array[Partition] = {
+    bms.iterator.zipWithIndex.map { case (bm, i) =>
+      CollectMatricesRDDPartition(i, firstPartition(i), bm.blocks.partitions, bm.blockSize, bm.nRows.toInt, bm.nCols.toInt)
+    }
+      .toArray
+  }
+
+  override def getDependencies: Seq[Dependency[_]] =
+    bms.zipWithIndex.map { case (bm, i) =>
+      val n = nBlocks(i)
+      new NarrowDependency(bm.blocks) {
+        def getParents(j: Int): Seq[Int] =
+          if (j == i)
+            0 until n
+          else
+            FastIndexedSeq.empty
+      }
+    }
+
+  def compute(split: Partition, context: TaskContext): Iterator[BDM[Double]] = {
+    val p = split.asInstanceOf[CollectMatricesRDDPartition]
+    val m = BDM.zeros[Double](p.nRows, p.nCols)
+    val prev = parent[((Int, Int), BDM[Double])](p.index)
+    var k = 0
+    while (k < p.nBlocks) {
+      val it = prev.iterator(p.blockPartitions(k), context)
+      assert(it.hasNext)
+      val ((i, j), b) = it.next()
+
+      m((i * p.blockSize) until (i * p.blockSize + b.rows), (j * p.blockSize) until (j * p.blockSize + b.cols)) := b
+
+      k += 1
+    }
+
+    Iterator.single(m)
+  }
+
+  override def clearDependencies() {
+    super.clearDependencies()
+    bms = null
+  }
+}
+
 object BlockMatrix {
   type M = BlockMatrix
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
@@ -173,17 +224,93 @@ object BlockMatrix {
     }
   }
 
-  def collectBlocks(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = {
-    val bmNBlocks = bms.map(_.blocks.getNumPartitions)
-    ???
+  def collectMatrices(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = new CollectMatricesRDD(bms)
+
+  def binaryWriteBlockMatrices(bms: IndexedSeq[BlockMatrix], prefix: String, overwrite: Boolean): Unit = {
+    val hadoopConf = HailContext.hadoopConf
+
+    if (overwrite)
+      hadoopConf.delete(prefix, recursive = true)
+    else if (hadoopConf.exists(prefix))
+      fatal(s"file already exists: $prefix")
+
+    hadoopConf.mkDir(prefix)
+
+    val d = digitsNeeded(bms.length)
+    val hadoopConfBc = HailContext.hadoopConfBc
+    val partitionCounts = collectMatrices(bms)
+      .mapPartitionsWithIndex { case (i, it) =>
+        assert(it.hasNext)
+        val m = it.next()
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
+
+        RichDenseMatrixDouble.exportToDoubles(hadoopConfBc.value.value, path, m, forceRowMajor = true)
+
+        Iterator.single(1)
+      }
+      .collect()
+
+    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
   }
 
-  def writeBlockMatrices(bms: IndexedSeq[BlockMatrix],
+  def exportBlockMatrices(
+    bms: IndexedSeq[BlockMatrix],
     prefix: String,
     overwrite: Boolean,
-    forceRowMajor: Boolean,
-    stageLocally: Boolean): Unit = {
-    ???
+    delimiter: String,
+    header: Option[String],
+    addIndex: Boolean): Unit = {
+    val hadoopConf = HailContext.hadoopConf
+
+    if (overwrite)
+      hadoopConf.delete(prefix, recursive = true)
+    else if (hadoopConf.exists(prefix))
+      fatal(s"file already exists: $prefix")
+
+    hadoopConf.mkDir(prefix)
+
+    val d = digitsNeeded(bms.length)
+    val hadoopConfBc = HailContext.hadoopConfBc
+    val partitionCounts = collectMatrices(bms)
+      .mapPartitionsWithIndex { case (i, it) =>
+        assert(it.hasNext)
+        val m = it.next()
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
+
+        hadoopConfBc.value.value.writeTextFile(path) { os =>
+          val sb = new StringBuilder()
+
+          header.foreach { h =>
+            sb.append(h)
+            sb.append('\n')
+          }
+
+          var i = 0
+          while (i < m.rows) {
+            if (addIndex) {
+              sb.append(i)
+              sb.append(delimiter)
+            }
+
+            var j = 0
+            while (j < m.cols) {
+              sb.append(m(i, j))
+              if (j < m.cols - 1)
+                sb.append(delimiter)
+              j += 1
+            }
+            sb.append('\n')
+            i += 1
+          }
+
+          os.write(sb.result())
+
+          Iterator.single(1)
+        }
+      }
+      .collect()
+
+    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
   }
 }
 

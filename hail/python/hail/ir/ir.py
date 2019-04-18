@@ -1,7 +1,7 @@
 import copy
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
 from hail.typecheck import *
@@ -1563,9 +1563,9 @@ class BlockMatrixWrite(IR):
 
 
 class BlockMatrixMultiWrite(IR):
-    @typecheck_method(block_matrices=sequenceof(BlockMatrixIR), writer=BlockMatrixWriter)
-    def __init__(self, child, writer):
-        super().__init__(child)
+    @typecheck_method(block_matrices=sequenceof(BlockMatrixIR), writer=BlockMatrixMultiWriter)
+    def __init__(self, block_matrices, writer):
+        super().__init__(*block_matrices)
         self.block_matrices = block_matrices
         self.writer = writer
 
