@@ -78,8 +78,17 @@ class CollectionExpression(Expression):
         if isinstance(etype, hl.tstruct):
             return hl.struct(
                 **{k: self.map(lambda x: x[k]) for k in etype}).__getitem__(item)
+        try:
+            if isinstance(etype, (hl.tarray, hl.tset)):
+                return self.map(lambda x: x.__getitem__(item))
+        except TypeError as err:
+            if "Cannot use 'collection.foo' or" not in str(err):
+                raise
         raise TypeError(
-            f'Cannot {fun.__name__} on a {type(self).__name__} of {self.dtype.element_type}')
+            f"Cannot use 'collection.foo' or 'collection['foo']' on "
+            f"{type(self).__name__} of type {self.dtype}, the "
+            f"elements must be structs or collections that eventaully "
+            f"contain structs.")
 
     @typecheck_method(f=func_spec(1, expr_bool))
     def any(self, f):
@@ -474,7 +483,7 @@ class ArrayExpression(CollectionExpression):
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
         if isinstance(item, str):
-            return self.super().__getitem__(item)
+            return CollectionExpression.__getitem__(self, item)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
