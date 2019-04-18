@@ -229,7 +229,7 @@ class PR:
             self.batch = batch
         finally:
             if batch and not self.batch:
-                batch.cancel()
+                await batch.cancel()
 
     async def heal(self, batch, run, seen_batch_ids):
         if self.build_state is not None:

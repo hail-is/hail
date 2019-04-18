@@ -440,7 +440,7 @@ spec:
     app: router
 '''
 
-            script = f'''
+        script = f'''
 set -ex
 
 cat | kubectl apply -f - <<EOF
