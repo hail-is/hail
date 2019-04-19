@@ -32,6 +32,7 @@ from .genetics import *
 from .methods import *
 from . import genetics
 from . import methods
+from . import expr
 from . import stats
 from . import linalg
 from . import plot

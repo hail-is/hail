@@ -953,7 +953,7 @@ class AggArrayPerElement(IR):
 def _register(registry, name, f):
     registry[name].append(f)
 
-_aggregator_registry = {}
+_aggregator_registry = defaultdict(list)
 
 
 def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
