@@ -317,8 +317,7 @@ class Job:
             if not self.incomplete_parent_ids:
                 assert self._state == 'Created', f'bad state: {self._state}'
                 if (self.always_run or
-                    (all(job_id_job[pid].is_successful() for pid in self.parent_ids) and
-                     not self._cancelled)):
+                        (all(job_id_job[pid].is_successful() for pid in self.parent_ids) and not self._cancelled)):
                     log.info(f'all parents complete for {self.id},'
                              f' creating pod')
                     self.set_state('Ready')
