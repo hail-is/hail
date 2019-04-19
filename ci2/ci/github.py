@@ -1,6 +1,7 @@
 import secrets
 from shlex import quote as shq
 import json
+import asyncio
 from .log import log
 from .constants import GITHUB_CLONE_URL
 from .utils import CalledProcessError, check_shell, check_shell_output
@@ -178,11 +179,10 @@ class PR:
         assert not self.batch
 
         try:
-            async with repos_lock:
-                log.info(f'merging for {self.number}')
-                repo_dir = f'repos/{self.target_branch.branch.repo.short_str()}'
+            log.info(f'merging for {self.number}')
+            repo_dir = f'repos/{self.target_branch.branch.repo.short_str()}'
 
-                merge_script = f'''
+            merge_script = f'''
 set -ex
 if [ ! -d "{shq(repo_dir)}" ]; then
   mkdir -p {shq(repo_dir)}
@@ -201,14 +201,14 @@ git -C {shq(repo_dir)} fetch {shq(self.source_repo.short_str())}
 git -C {shq(repo_dir)} checkout {shq(self.target_branch.sha)}
 git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
 '''
-                await check_shell(merge_script)
+            await check_shell(merge_script)
 
-                sha_out, _ = await check_shell_output(
-                    f'git -C {shq(repo_dir)} rev-parse HEAD')
-                self.sha = sha_out.decode('utf-8').strip()
+            sha_out, _ = await check_shell_output(
+                f'git -C {shq(repo_dir)} rev-parse HEAD')
+            self.sha = sha_out.decode('utf-8').strip()
 
-                with open(f'{repo_dir}/build.yaml', 'r') as f:
-                    config = BuildConfiguration(self, f.read())
+            with open(f'{repo_dir}/build.yaml', 'r') as f:
+                config = BuildConfiguration(self, f.read())
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             self.build_state = 'merge_failure'
@@ -259,7 +259,8 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
             if len(batches) > 0:
                 self.batch = batches[0]
             elif run:
-                await self.start_build(batch_client)
+                async with repos_lock:
+                    await self.start_build(batch_client)
 
         if self.batch:
             seen_batch_ids.add(self.batch.id)
