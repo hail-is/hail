@@ -97,6 +97,34 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
   def emit(f: (Code, Code) => Code): Code
 }
 
+object NDArrayLoopEmitter {
+  def linearizeIndices(fb: FunctionBuilder, idxs: Seq[Variable], strides: Code, shape: Code): Code = {
+    val result = fb.variable("result", "int", "0")
+    val nDims = idxs.length
+    val buildIndex = idxs.zipWithIndex.map { case (idx, dim) =>
+        s"""
+           | if ($idx < 0 || $idx >= $shape[$dim]) {
+           |   throw new FatalError("Invalid index");
+           | }
+           |
+           | $result += $idx * $strides[$dim];
+         """.stripMargin
+    }.mkString("\n")
+
+    s"""
+       |({
+       | if ($strides.size() != $nDims) {
+       |   throw new FatalError("Number of indices must match number of dimensions.");
+       | }
+       |
+       | ${ result.define }
+       | $buildIndex
+       | $result;
+       |})
+     """.stripMargin
+  }
+}
+
 abstract class NDArrayLoopEmitter(
   fb: FunctionBuilder,
   resultRegion: EmitRegion,
@@ -112,12 +140,6 @@ abstract class NDArrayLoopEmitter(
   private[this] val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $resultShape)")
 
   def outputElement(idxVars: Seq[Variable]): Code
-
-  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
-    idxs.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-        s"$idx * $strides[$dim] + $linearIndex"
-    }
-  }
 
   def emit(): Code = {
     val data = fb.variable("data", "const char *")
@@ -140,7 +162,7 @@ abstract class NDArrayLoopEmitter(
 
   private def emitLoops(): Code = {
     val idxVars = outputIndices.map{ i => fb.variable(s"dim${i}_", "int") }
-    val outIndex = linearizeIndices(idxVars, strides.toString)
+    val outIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, strides.toString, resultShape.toString)
     val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
 
     idxVars.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>

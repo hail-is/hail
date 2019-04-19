@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy.ExecStrategy
 import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
@@ -914,9 +913,7 @@ class IRSuite extends SparkSuite {
       rowMajor)
   }
 
-  def makeNDArrayRef(nd: IR, indxs: Seq[Long]): NDArrayRef = {
-    NDArrayRef(nd, MakeArray(indxs.map(I64), TArray(TInt64())))
-  }
+  def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
 
   val scalarRowMajor = makeNDArray(FastSeq(3.0), FastSeq(), True())
   val scalarColMajor = makeNDArray(FastSeq(3.0), FastSeq(), False())
@@ -962,20 +959,20 @@ class IRSuite extends SparkSuite {
 
     val positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
     val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
-    assertEvalsTo(NDArrayRef(positives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
-    assertEvalsTo(NDArrayRef(negatives, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
+    assertEvalsTo(NDArrayRef(positives, FastSeq(1L, 0L).map(I64)), 5.0)
+    assertEvalsTo(NDArrayRef(negatives, FastSeq(1L, 0L).map(I64)), -5.0)
 
     val trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
     val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
-    assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
-    assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
+    assertEvalsTo(NDArrayRef(trues, FastSeq(1L, 0L).map(I64)), true)
+    assertEvalsTo(NDArrayRef(falses, FastSeq(1L, 0L).map(I64)), false)
 
     val bools = MakeNDArray(nDim,
       MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
       shape, False())
     val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
-    val one = NDArrayRef(boolsToBinary, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    val zero = NDArrayRef(boolsToBinary, MakeArray(FastSeq(1L, 1L), TArray(TInt64())))
+    val one = NDArrayRef(boolsToBinary, FastSeq(0L, 0L).map(I64))
+    val zero = NDArrayRef(boolsToBinary, FastSeq(1L, 1L).map(I64))
     assertEvalsTo(one, 1L)
     assertEvalsTo(zero, 0L)
   }
@@ -993,8 +990,8 @@ class IRSuite extends SparkSuite {
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
       ApplyBinaryPrimOp(Add(), Ref("n", TFloat64()), If(Ref("b", TBoolean()), F64(10), F64(20))))
-    val ten = NDArrayRef(actual, MakeArray(FastSeq(0L, 0L), TArray(TInt64())))
-    val twentyTwo = NDArrayRef(actual, MakeArray(FastSeq(1L, 0L), TArray(TInt64())))
+    val ten = NDArrayRef(actual, FastSeq(0L, 0L).map(I64))
+    val twentyTwo = NDArrayRef(actual, FastSeq(1L, 0L).map(I64))
     assertEvalsTo(ten, 10.0)
     assertEvalsTo(twentyTwo, 22.0)
   }
@@ -1007,8 +1004,8 @@ class IRSuite extends SparkSuite {
     val transpose = NDArrayReindex(mat, IndexedSeq(1, 0))
     val identity = NDArrayReindex(mat, IndexedSeq(0, 1))
 
-    val topLeftIndex = MakeArray(FastSeq(0L, 0L), TArray(TInt64()))
-    val bottomLeftIndex = MakeArray(FastSeq(1L, 0L), TArray(TInt64()))
+    val topLeftIndex = FastSeq(0L, 0L).map(I64)
+    val bottomLeftIndex = FastSeq(1L, 0L).map(I64)
 
     assertEvalsTo(NDArrayRef(mat, topLeftIndex), 1.0)
     assertEvalsTo(NDArrayRef(identity, topLeftIndex), 1.0)
@@ -1018,8 +1015,8 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
 
     val partialTranspose = NDArrayReindex(cubeRowMajor, IndexedSeq(0, 2, 1))
-    val idx = MakeArray(FastSeq(0L, 1L, 0L), TArray(TInt64()))
-    val partialTranposeIdx = MakeArray(FastSeq(0L, 0L, 1L), TArray(TInt64()))
+    val idx = FastSeq(0L, 1L, 0L).map(I64)
+    val partialTranposeIdx = FastSeq(0L, 0L, 1L).map(I64)
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
     assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
@@ -1409,7 +1406,7 @@ class IRSuite extends SparkSuite {
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
       MakeStream(FastSeq(i, NA(TInt32()), I32(-3)), TStream(TInt32())),
       nd,
-      NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
+      NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, IndexedSeq(0, 1)),
