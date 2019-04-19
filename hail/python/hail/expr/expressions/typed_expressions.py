@@ -46,13 +46,13 @@ class CollectionExpression(Expression):
         necssary to use ``hl.eval`` inside ``annotate_rows`` or similar
         methods.
 
-        >>> x = [hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)]
+        >>> x = hl.array([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
         >>> hl.eval(x.a)
         ['foo', 'bar']
 
-        >>> a = [hl.struct(b=[hl.struct(inner=1),
-        ...                   hl.struct(inner=2)]),
-        ...      hl.struct(b=[hl.struct(inner=3)])]
+        >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
+        ...                            hl.struct(inner=2)]),
+        ...               hl.struct(b=[hl.struct(inner=3)])]
         >>> hl.eval(a.b)
         [[hl.struct(inner=1), hl.struct(inner=2)], [hl.struct(inner=3)]]
         >>> hl.eval(a.b.inner)
