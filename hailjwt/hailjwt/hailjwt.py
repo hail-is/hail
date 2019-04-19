@@ -34,8 +34,7 @@ class JWTClient:
             token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])
 
     def encode(self, payload):
-        return jwt.encode(
-            payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
+        return jwt.encode(payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
 
 
 def get_domain(host):
