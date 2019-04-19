@@ -52,7 +52,7 @@ class CollectionExpression(Expression):
 
         >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
         ...                            hl.struct(inner=2)]),
-        ...               hl.struct(b=[hl.struct(inner=3)])]
+        ...               hl.struct(b=[hl.struct(inner=3)])])
         >>> hl.eval(a.b)
         [[hl.struct(inner=1), hl.struct(inner=2)], [hl.struct(inner=3)]]
         >>> hl.eval(a.b.inner)
