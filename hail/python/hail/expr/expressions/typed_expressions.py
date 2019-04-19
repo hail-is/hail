@@ -54,7 +54,7 @@ class CollectionExpression(Expression):
         ...                            hl.struct(inner=2)]),
         ...               hl.struct(b=[hl.struct(inner=3)])])
         >>> hl.eval(a.b)
-        [[hl.struct(inner=1), hl.struct(inner=2)], [hl.struct(inner=3)]]
+        [[Struct(inner=1), Struct(inner=2)], [Struct(inner=3)]]
         >>> hl.eval(a.b.inner)
         [[1, 2], [3]]
         >>> hl.eval(hl.flatten(a.b).inner)
