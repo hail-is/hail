@@ -109,7 +109,7 @@ async def pull_request_callback(event):
     target_branch = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
         if (number in wb.prs) or (wb.branch == target_branch):
-            await wb.update(event.app)
+            await wb.notify_github_changed(event.app)
 
 
 @gh_router.register('push')
@@ -121,7 +121,7 @@ async def push_callback(event):
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch or any(pr.branch == branch for pr in wb.prs.values()):
-                await wb.update(event.app)
+                await wb.notify_github_changed(event.app)
 
 
 @gh_router.register('pull_request_review')
@@ -130,7 +130,7 @@ async def pull_request_review_callback(event):
     number = gh_pr['number']
     for wb in watched_branches:
         if number in wb.prs:
-            await wb.update(event.app)
+            await wb.notify_github_changed(event.app)
 
 
 @routes.post('/callback')

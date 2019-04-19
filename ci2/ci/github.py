@@ -268,22 +268,39 @@ class WatchedBranch:
         self.prs = None
         self.sha = None
         self.updating = False
-        self.changed = False
+        self.github_changed = True
+        self.batch_changed = True
+
+    async def notify_github_changed(self, app):
+        self.github_changed = True
+        await self._update(app)
+
+    async def notify_batch_changed(self, app):
+        self.batch_changed = True
+        await self._update(app)
 
     async def update(self, app):
+        # update everything
+        self.github_changed = True
+        self.batch_changed = True
+        await self._update(app)
+
+    async def _update(self, app):
         if self.updating:
-            self.changed = True
             return
-
         self.updating = True
-        self.changed = True
-        while self.changed:
-            self.changed = False
 
-            gh = app['github_client']
-            await self.refresh(gh)
-            batch_client = app['batch_client']
-            await self.heal(batch_client)
+        gh = app['github_client']
+        batch_client = app['batch_client']
+
+        while self.github_changed or self.batch_changed:
+            if self.github_changed:
+                self.github_changed = False
+                await self.refresh(gh)
+
+            if self.batch_changed:
+                self.batch_changed = False
+                await self.heal(batch_client)
 
         self.updating = False
 
@@ -309,14 +326,7 @@ class WatchedBranch:
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
-
-        old_prs = self.prs
         self.prs = new_prs
-
-        if old_prs:
-            for old_pr in old_prs.values():
-                if old_pr.number not in new_prs:
-                    await old_pr.cleanup()
 
         for pr in new_prs.values():
             await pr.refresh_review_state(gh)
@@ -344,4 +354,4 @@ class WatchedBranch:
                 await batch.cancel()
 
         if merge_candidate and merge_candidate.build_state is not None:
-            self.changed = True
+            self.batch_changed = True
