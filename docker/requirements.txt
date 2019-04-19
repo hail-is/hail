@@ -19,7 +19,7 @@ libsass
 pip
 pylint
 pymysql
-pytest-html>=1.22,<1.23
+pytest-html>=1.20,<1.21
 pytest-xdist>=1.28,<1.29
 pytest>=4.4,<4.5
 requests
