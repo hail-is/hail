@@ -47,7 +47,7 @@ spec:
       - name: sql-batch-batch-admin-config
         secret:
           optional: false
-          secretName: {{ batch_database.admin_secret }}
+          secretName: {{ batch_database.admin_secret_name }}
       - name: jwt-secret
         secret:
           optional: false
