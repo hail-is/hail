@@ -3,7 +3,7 @@ from shlex import quote as shq
 import json
 from .log import log
 from .constants import GITHUB_CLONE_URL
-from .utils import generate_token, CalledProcessError, check_shell, check_shell_output
+from .utils import CalledProcessError, check_shell, check_shell_output
 from .build import BuildConfiguration
 
 
@@ -115,6 +115,7 @@ class PR:
         self.sha = None
         self.batch = None
         self.build_state = None
+        self.target_branch.batch_changed = True
 
     def update_from_gh_json(self, gh_json):
         assert self.number == gh_json['number']
@@ -127,6 +128,7 @@ class PR:
             self.sha = None
             self.batch = None
             self.build_state = None
+            self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
 
@@ -207,6 +209,7 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             self.build_state = 'merge_failure'
+            self.target_branch.batch_state = True
             return
 
         batch = None
@@ -227,14 +230,14 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
             if batch and not self.batch:
                 await batch.cancel()
 
-    async def heal(self, batch, run, seen_batch_ids):
+    async def heal(self, batch_client, run, seen_batch_ids):
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
             return
 
         if self.batch is None:
-            batches = await batch.list_batches(
+            batches = await batch_client.list_batches(
                 complete=False,
                 attributes={
                     'source_sha': self.source_sha,
@@ -253,7 +256,7 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
             if len(batches) > 0:
                 self.batch = batches[0]
             elif run:
-                await self.start_build(batch)
+                await self.start_build(batch_client)
 
         if self.batch:
             seen_batch_ids.add(self.batch.id)
@@ -316,13 +319,14 @@ class WatchedBranch:
                     pr.sha = None
                     pr.batch = None
                     pr.build_state = None
+            self.batch_changed = True
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]
-                pr.update_from_gh_json(gh_json_pr)
+                pr.update_from_gh_json(self, gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
@@ -338,6 +342,8 @@ class WatchedBranch:
             if pr.review_state == 'approved' and pr.build_state is None:
                 merge_candidate = pr
                 break
+        if merge_candidate:
+            log.info(f'merge candidate {merge_candidate.number}')
 
         running_batches = await batch_client.list_batches(
             complete=False,
@@ -352,6 +358,3 @@ class WatchedBranch:
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 await batch.cancel()
-
-        if merge_candidate and merge_candidate.build_state is not None:
-            self.batch_changed = True
