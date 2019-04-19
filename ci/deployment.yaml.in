@@ -47,3 +47,6 @@ spec:
         - name: hail-ci-jwt
           secret:
             secretName: user-jwt-c25f2
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token
