@@ -106,9 +106,7 @@ object InferPType {
       case NDArrayReindex(nd, indexExpr) =>
         PNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length)
       case NDArrayRef(nd, idxs) =>
-        coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
-          idxs.pType.required &&
-          coerce[PStreamable](idxs.pType).elementType.required)
+        coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && idxs.forall(_.typ.required))
       case NDArrayWrite(_, _) => PVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.pType
