@@ -98,6 +98,9 @@ spec:
           volumeMounts:
           - mountPath: /hail-vdc-sa-key
             name: hail-vdc-sa-key
+          - name: jwt-secret
+            mountPath: /jwt-secret
+            readOnly: true
           resources:
             requests:
               memory: "3.75G"
@@ -106,6 +109,9 @@ spec:
         - name: hail-vdc-sa-key
           secret:
             secretName: hail-vdc-sa-key
+        - name: jwt-secret
+          secret:
+            secretName: notebook-secrets
 ---
 apiVersion: v1
 kind: Service

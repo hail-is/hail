@@ -1,4 +1,5 @@
 import abc
+import os
 
 from hail.utils.java import *
 from hail.expr.types import dtype
@@ -203,10 +204,24 @@ class LocalBackend(Backend):
 
 
 class ServiceBackend(Backend):
-    def __init__(self, url):
+    def __init__(self, url, token=None, token_file=None):
         from hail.fs import GoogleCloudStorageFS
+
+        if token_file is not None and token is not None:
+            raise ValueError('set only one of token_file and token')
         self.url = url
         self._fs = GoogleCloudStorageFS()
+        if token is None:
+            token_file = (token_file or
+                          os.environ.get('HAIL_TOKEN_FILE') or
+                          os.path.expanduser('~/.hail/token'))
+            if not os.path.exists(token_file):
+                raise ValueError(
+                    f'cannot create a client without a token. no file was '
+                    f'found at {token_file}')
+            with open(token_file) as f:
+                token = f.read()
+        self.cookies = {'user': token}
 
     @property
     def fs(self):
@@ -219,7 +234,7 @@ class ServiceBackend(Backend):
 
     def execute(self, ir, timed=False):
         code = self._render(ir)
-        resp = requests.post(f'{self.url}/execute', json=code)
+        resp = requests.post(f'{self.url}/execute', json=code, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -235,7 +250,7 @@ class ServiceBackend(Backend):
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
-        resp = requests.post(f'{self.url}/type/{kind}', json=code)
+        resp = requests.post(f'{self.url}/type/{kind}', json=code, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -260,7 +275,7 @@ class ServiceBackend(Backend):
         return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
-        resp = requests.post(f'{self.url}/references/create', json=config)
+        resp = requests.post(f'{self.url}/references/create', json=config, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -275,21 +290,25 @@ class ServiceBackend(Backend):
             'y_contigs': y_contigs,
             'mt_contigs': mt_contigs,
             'par': par
-        })
+        }, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
 
     def remove_reference(self, name):
-        resp = requests.delete(f'{self.url}/references/delete', json={'name': name})
+        resp = requests.delete(f'{self.url}/references/delete',
+                               json={'name': name},
+                               cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
 
     def get_reference(self, name):
-        resp = requests.get(f'{self.url}/references/get', json={'name': name})
+        resp = requests.get(f'{self.url}/references/get',
+                            json={'name': name},
+                            cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -298,14 +317,17 @@ class ServiceBackend(Backend):
 
     def add_sequence(self, name, fasta_file, index_file):
         resp = requests.post(f'{self.url}/references/sequence/set',
-                             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file})
+                             json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
+                             cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
 
     def remove_sequence(self, name):
-        resp = requests.delete(f'{self.url}/references/sequence/delete', json={'name': name})
+        resp = requests.delete(f'{self.url}/references/sequence/delete',
+                               json={'name': name},
+                               cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -313,7 +335,9 @@ class ServiceBackend(Backend):
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         resp = requests.post(f'{self.url}/references/liftover/add',
-                             json={'name': name, 'chain_file': chain_file, 'dest_reference_genome': dest_reference_genome})
+                             json={'name': name, 'chain_file': chain_file,
+                                   'dest_reference_genome': dest_reference_genome},
+                             cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -321,7 +345,8 @@ class ServiceBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):
         resp = requests.delete(f'{self.url}/references/liftover/remove',
-                               json={'name': name, 'dest_reference_genome': dest_reference_genome})
+                               json={'name': name, 'dest_reference_genome': dest_reference_genome},
+                               cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -329,7 +354,8 @@ class ServiceBackend(Backend):
 
     def parse_vcf_metadata(self, path):
         resp = requests.post(f'{self.url}/parse-vcf-metadata',
-                             json={'path': path})
+                             json={'path': path},
+                             cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
