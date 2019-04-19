@@ -29,23 +29,37 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 
 ### Citing Hail
 
-If you use Hail for published work, please cite the software:
+If you use Hail for published work, please cite the software. You can get a
+citation for the version of hail you installed by executing:
 
-```
-Hail Team. Hail. https://github.com/hail-is/hail
-```
+```python
+import hail as hl
 
-If you feel the need to cite a specific version of Hail, you could cite a
-specific PyPI version of Hail, for example 0.2.13:
-
-```
-Hail Team. Hail 0.2.13-8589f6f574ec. https://github.com/hail-is/hail/releases/tag/0.2.13
+print(hl.cite_hail())
 ```
 
-or a specific commit SHA, for example 117c365c320f:
+Which will look like:
 
 ```
-Hail Team. Hail 117c365c320f. https://github.com/hail-is/hail/commit/117c365c320fd4ae1f1ea06c3fcbd668cf318fc2
+Hail Team. Hail 0.2.13-81ab564db2b4. https://github.com/hail-is/hail/releases/tag/0.2.13.
+```
+
+Or if you need a bibtex entry:
+
+```python
+import hail as hl
+
+print(hl.cite_hail_bibtex())
+```
+
+Which will look like:
+
+```
+@misc{Hail,
+  author = {Hail Team},
+  title = {Hail},
+  howpublished = {\url{https://github.com/hail-is/hail/releases/tag/0.2.13}}
+}
 ```
 
 If you simply cannot stomach the idea of citing a GitHub repository (even though

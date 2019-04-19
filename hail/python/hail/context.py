@@ -263,6 +263,31 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
                 default_reference, idempotent, global_seed,
                 _optimizer_iterations,_backend)
 
+
+def _hail_cite_url():
+    version = read_version_info()
+    [tag, sha_prefix] = version.split("-")
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        # pip installed
+        return f"https://github.com/hail-is/hail/releases/tag/{tag}"
+    return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
+
+
+def cite_hail():
+    """Generate Hail citation text."""
+    return f"Hail Team. Hail {read_version_info()}. {_hail_cite_url()}."
+
+
+def cite_hail_bibtex():
+    """Generate Hail citation in BibTeX form."""
+    return f"""
+@misc{{Hail,
+  author = {{Hail Team}},
+  title = {{Hail}},
+  howpublished = {{\\url{{{_hail_cite_url()}}}}}
+}}"""
+
+
 def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
