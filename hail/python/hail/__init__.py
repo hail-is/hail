@@ -83,7 +83,8 @@ __all__ = [
     'experimental',
     'ir',
     'backend',
-    'current_backend'
+    'current_backend',
+    'debug_info'
 ]
 
 __all__.extend(genetics.__all__)
