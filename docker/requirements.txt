@@ -19,7 +19,10 @@ libsass
 pip
 pylint
 pymysql
-pytest
+pytest-html>=1.22,<1.23
+pytest-xdist>=1.28,<1.29
+pytest>=4.4,<4.5
 requests
+twine>=1.13,<1.14
 uvloop>=0.12
 werkzeug
