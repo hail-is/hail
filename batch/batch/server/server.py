@@ -324,7 +324,7 @@ class Job:
                     self._create_pod()
                 else:
                     log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
-                    self.cancel()
+                    self.set_state('Cancelled')
 
     def cancel(self):
         # Cancelled, Complete
