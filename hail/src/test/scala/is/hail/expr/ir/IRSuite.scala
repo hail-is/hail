@@ -1024,7 +1024,7 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayWrite() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val path = tmpDir.createLocalTempFile()
+    val path = "/Users/dgoldste/hail/hail/zzz"
     val write = NDArrayWrite(threeTensorRowMajor, Str(path))
     nativeExecute(write, Env.empty, IndexedSeq.empty, None)
   }

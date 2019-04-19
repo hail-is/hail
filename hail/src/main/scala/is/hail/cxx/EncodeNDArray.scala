@@ -1,30 +1,58 @@
 package is.hail.cxx
 
-import is.hail.expr.types.physical.PNDArray
+import is.hail.expr.types.physical._
+
+object NumpyType {
+  // Adheres to numpy Array datatype protocol:
+  // https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
+  // 1. < or > for Little/Big Endian or | for not relevant
+  // 2. char for the dtype
+  // 3. int for number of bytes
+  def apply(t: PType): String = {
+    t match {
+      case _:PInt32 => "<i32"
+      case _:PInt64 => "<i64"
+      case _: PFloat32 => "<f32"
+      case _: PFloat64 => "<f64"
+      case _: PBoolean => "|b1"
+      case _ => throw new UnsupportedOperationException(s"Type not supported in npy conversion: $t")
+    }
+  }
+}
 
 object EncodeNDArray {
 
   // Encode for the .npy format. Spec found here:
   // https://www.numpy.org/devdocs/reference/generated/numpy.lib.format.html
   def npy(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
-    val numpyMagicStr = "93NUMPY"
-    val npyFormatMajorVersion = "02"
+    val numpyMagicStr = "\"\\x93NUMPY\""
+    val npyFormatMajorVersion = "'\\x01'"
+    val npyFormatMinorVersion = "'\\x00'"
+
+    val dtype = "\"" + NumpyType(t.elementType) + "\""
+    val header = tub.variable("header", "std::string", s"npy_header($nd, $dtype)")
+    val headerLenUnpadded = tub.variable("header_len_unpadded", "short", s"$header.length() + 1") // WHHYYYYYYY
+    val headerPaddingLen = tub.variable("header_padding_len", "short", s"64 - (6 + 2 + 2 + $headerLenUnpadded) % 64")
+    val totalHeaderLen = tub.variable("header_len", "short", s"$headerLenUnpadded + $headerPaddingLen")
 
     s"""
+       | ${ header.define }
+       | ${ headerLenUnpadded.define }
+       | ${ headerPaddingLen.define }
+       | ${ totalHeaderLen.define }
+       |
        | $output_buf_ptr->write_bytes($numpyMagicStr, 6);
        | $output_buf_ptr->write_byte($npyFormatMajorVersion);
-       | ${ encodeHeader(tub, t, output_buf_ptr, nd) }
+       | $output_buf_ptr->write_byte($npyFormatMinorVersion);
+       | $output_buf_ptr->write_bytes(reinterpret_cast<const char *>(&$totalHeaderLen), 2);
+       | $output_buf_ptr->write_bytes($header.c_str(), $header.length());
+       | for (int i = 0; i < $headerPaddingLen; ++i) {
+       |   $output_buf_ptr->write_byte(' ');
+       | }
+       | $output_buf_ptr->write_byte('\\n');
+       |
        | ${ encodeData(tub, t, output_buf_ptr, nd) }
      """.stripMargin
-  }
-
-  private def encodeHeader(
-    tub: TranslationUnitBuilder,
-    t: PNDArray,
-    output_buf_ptr: Expression,
-    nd: Expression): Code = {
-
-    val header = 
   }
 
   private def encodeData(
