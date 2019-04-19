@@ -88,12 +88,12 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
   return strides;
 }
 
-std::vector<long> unify_shapes(std::vector<long> left, std::vector<long> right) {
+std::vector<long> unify_shapes(std::vector<long> &left, std::vector<long> &right) {
   std::vector<long> result(left.size());
 
   for (int i = 0; i < left.size(); ++i) {
     if (!(left[i] == right[i] || left[i] == 1 || right[i] == 1)) {
-      throw new FatalError("Incompatible shapes for broadcasting");
+      throw new FatalError("Incompatible shapes for element-wise map");
     }
     result[i] = std::max(left[i], right[i]);
   }
