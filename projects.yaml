@@ -12,7 +12,7 @@
 - project: gateway
 - project: hail
 - project: apiserver
-  dependencies: ["hail"]
+  dependencies: ["hail", "hailjwt"]
 - project: image-fetcher
 - project: letsencrypt
 - project: notebook

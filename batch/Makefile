@@ -67,7 +67,7 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: check
 endif
-test-local: install-cloud-sql-proxy 
+test-local: install-cloud-sql-proxy
 test-local: batch-secrets/batch-test-cloud-sql-config.json
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
