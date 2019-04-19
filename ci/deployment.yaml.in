@@ -27,7 +27,7 @@ spec:
             - name: WATCHED_TARGETS
               value: '[["hail-is/hail:master", true], ["hail-is/hail:0.1", true], ["hail-is/hail:bgen-changes", false], ["Nealelab/cloudtools:master", true]]'
             - name: HAIL_TOKEN_FILE
-              value: '/hail-ci/jwt'
+              value: '/hail-ci/jwt/jwt'
           ports:
             - containerPort: 5000
           volumeMounts:
