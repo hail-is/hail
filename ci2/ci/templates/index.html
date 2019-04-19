@@ -1,6 +1,7 @@
 <html lang="en">
   <head>
     <title>CI2</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
     <h1>CI2</h1>
@@ -33,18 +34,22 @@
             {{ pr.title }}
           </td>
           <td align="left">
+            {% if pr.build_state == 'merge_failure' %}
+            failed merge
+            {% else %}
             {% if pr.batch_id is not none %}
-            <a href="/batches/{{ pr.batch_id }}/log">
-              {% if pr.passing is not none %}
-              {% if pr.passing %}
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
+              {% if pr.build_state is not none %}
+              {% if pr.build_state == 'success' %}
               successful build
-              {% else %}
+              {% elif pr.build_state == 'failure' %}
               failed build
               {% endif %}
               {% else %}
               building
               {% endif %}
             </a>
+            {% endif %}
             {% endif %}
           </td>
           <td align="left">
