@@ -11,11 +11,7 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        url = os.environ.get('HAIL_TEST_SERVICE_BACKEND_URL')
-        if url:
-            hl.init(master='local[2]', min_block_size=0, quiet=True, _backend=hl.backend.ServiceBackend(url))
-        else:
-            hl.init(master='local[2]', min_block_size=0, quiet=True)
+        hl.init(master='local[2]', min_block_size=0, quiet=True)
         _initialized = True
 
 

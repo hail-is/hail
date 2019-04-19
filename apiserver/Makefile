@@ -1,16 +1,19 @@
-.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar check
+.PHONY: install-hail-locally build run run-hail rm build-hail-shadow-jar check hailjwt
 
 PROJECT := $(shell gcloud config get-value project)
 REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
+PYTHONPATH := ../hail/python:../hailjwt:$(shell ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:$${PYTHONPATH:+:$$PYTHONPATH}
+PYTHON := PYTHONPATH=$(PYTHONPATH) python3
+
 flake8-stmp: $(PY_FILES)
-	python3 -m flake8 apiserver
+	$(PYTHON) -m flake8 apiserver
 	touch $@
 
 pylint-stmp: $(PY_FILES)
-	PYTHONPATH=../hail/python:$$PYTHONPATH python3 -m pylint --rcfile ../pylintrc apiserver --score=n
+	$(PYTHON) -m pylint --rcfile ../pylintrc apiserver --score=n
 	touch $@
 
 ifneq ($(PY_CHECK),false)
@@ -32,6 +35,9 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
+hailjwt:
+	rsync --delete --recursive ../hailjwt hailjwt
+
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
 
@@ -51,7 +57,7 @@ build-spark-worker: build-hail-base
 	-docker pull $(REPO)/spark-worker:latest
 	docker build -t spark-worker -f Dockerfile.spark-worker . --cache-from spark-worker,$(REPO)/spark-worker:latest,hail-base
 
-build-apiserver: build-hail-base
+build-apiserver: build-hail-base hailjwt
 	-docker pull $(REPO)/hail-base:latest
 	-docker pull $(REPO)/apiserver:latest
 	docker build -t apiserver -f Dockerfile.apiserver . --cache-from apiserver,$(REPO)/apiserver:latest,hail-base
@@ -97,7 +103,7 @@ deploy: push
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
 else
-build: install-hail-locally jupyter_notebook_config.py
+build: install-hail-locally jupyter_notebook_config.py hailjwt
 	make -C ../docker build
 	docker build -t hail-base -f Dockerfile.hail-base .
 	docker build -t spark-master -f Dockerfile.spark-master .
@@ -128,8 +134,13 @@ run-hail-jupyter-pod:
 	  < hail-jupyter-pod.yaml.in > hail-jupyter-pod.yaml
 	kubectl create -f hail-jupyter-pod.yaml
 
-test: build-hail-shadow-jar check
-	./test-apiserver.sh
+jwt-test-user-token: jwt-test-user.json jwt-test-secret-key create_key.py
+	$(PYTHON) create_key.py jwt-test-secret-key < $< > $@
+
+test: build-hail-shadow-jar check jwt-test-user-token
+	PYTHONPATH=$(PYTHONPATH) ./test-apiserver.sh
 
 clean:
 	rm jupyter_notebook_config.py
+	rm -rf hailjwt
+	rm -rf jwt-test-user-token
