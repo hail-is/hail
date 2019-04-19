@@ -112,18 +112,18 @@ object CodecSpec {
     new BlockingBufferSpec(32 * 1024,
       new StreamBlockBufferSpec))
 
-  val unblockedUncompressed = PackCodecSpec(new StreamBufferSpec)
+  val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
-  val blockSpecs: Array[BufferSpec] = Array(
+  val baseBufferSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
     new BlockingBufferSpec(32 * 1024,
       new LZ4BlockBufferSpec(32 * 1024,
-        new StreamBlockBufferSpec)))
+        new StreamBlockBufferSpec)),
+    new StreamBufferSpec)
 
-  val bufferSpecs: Array[BufferSpec] = blockSpecs.flatMap { blockSpec =>
-    Array(blockSpec,
-      new LEB128BufferSpec(blockSpec))
+  val bufferSpecs: Array[BufferSpec] = baseBufferSpecs.flatMap { blockSpec =>
+    Array(blockSpec, new LEB128BufferSpec(blockSpec))
   }
 
   val codecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
@@ -477,7 +477,7 @@ trait OutputBuffer extends Closeable {
 }
 
 final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
-  private val buff = ByteBuffer.allocate(8)
+  private val buf = new Array[Byte](8)
 
   override def flush(): Unit = out.flush()
 
@@ -485,27 +485,34 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   override def writeByte(b: Byte): Unit = out.write(Array(b))
 
-  override def writeInt(i: Int): Unit = out.write(i)
+  override def writeInt(i: Int) {
+    Memory.storeInt(buf, 0, i)
+    out.write(buf, 0, 4)
+  }
 
   def writeLong(l: Long) {
-    buff.clear()
-    out.write(buff.putLong(l).array())
+    Memory.storeLong(buf, 0, l)
+    out.write(buf)
   }
 
   def writeFloat(f: Float) {
-    buff.clear()
-    out.write(buff.putFloat(f).array())
+    Memory.storeFloat(buf, 0, f)
+    out.write(buf, 0, 4)
   }
 
   def writeDouble(d: Double) {
-    buff.clear()
-    out.write(buff.putDouble(d).array())
+    Memory.storeDouble(buf, 0, d)
+    out.write(buf)
   }
 
   def writeBytes(region: Region, off: Long, n: Int): Unit = out.write(region.loadBytes(off, n))
 
   def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
-    Iterator.tabulate(n) { i => writeDouble(fromOff + i) }
+    var i = 0
+    while (i < n) {
+      writeDouble(from(fromOff + i))
+      i += 1
+    }
   }
 }
 
@@ -691,34 +698,33 @@ trait InputBuffer extends Closeable {
 }
 
 final class StreamInputBuffer(in: InputStream) extends InputBuffer {
-  private val buff = ByteBuffer.allocate(8)
+  private val buff = new Array[Byte](8)
 
   def close(): Unit = in.close()
 
-  def readByte(): Byte = in.read().toByte
+  def readByte(): Byte = {
+    in.read(buff, 0, 1)
+    Memory.loadByte(buff, 0)
+  }
 
   def readInt(): Int = {
-    buff.clear()
-    in.read(buff.array())
-    buff.getInt()
+    in.read(buff, 0, 4)
+    Memory.loadInt(buff, 0)
   }
 
   def readLong(): Long = {
-    buff.clear()
-    in.read(buff.array())
-    buff.getLong()
+    in.read(buff)
+    Memory.loadLong(buff, 0)
   }
 
   def readFloat(): Float = {
-    buff.clear()
-    in.read(buff.array())
-    buff.getFloat()
+    in.read(buff, 0, 4)
+    Memory.loadFloat(buff, 0)
   }
 
   def readDouble(): Double = {
-    buff.clear()
-    in.read(buff.array())
-    buff.getDouble()
+    in.read(buff)
+    Memory.loadDouble(buff, 0)
   }
 
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = {
