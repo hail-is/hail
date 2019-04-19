@@ -330,7 +330,7 @@ class WatchedBranch:
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]
-                pr.update_from_gh_json(self, gh_json_pr)
+                pr.update_from_gh_json(gh_json_pr)
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
