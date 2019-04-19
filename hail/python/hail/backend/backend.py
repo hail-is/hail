@@ -88,7 +88,7 @@ class Backend(abc.ABC):
 
 class SparkBackend(Backend):
     def __init__(self):
-        from hail.fs import HadoopFS
+        from hail.fs.hadoop_fs import HadoopFS
         self._fs = HadoopFS()
 
     @property
@@ -205,7 +205,7 @@ class LocalBackend(Backend):
 
 class ServiceBackend(Backend):
     def __init__(self, url, token=None, token_file=None):
-        from hail.fs import GoogleCloudStorageFS
+        from hail.fs.google_fs import GoogleCloudStorageFS
 
         if token_file is not None and token is not None:
             raise ValueError('set only one of token_file and token')
