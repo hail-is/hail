@@ -312,8 +312,7 @@ class Job:
 
     def parent_new_state(self, new_state, parent_id):
         if new_state in ('Cancelled', 'Complete'):
-            assert parent_id in self.incomplete_parent_ids
-            self.incomplete_parent_ids.discard(parent_id)
+            self.incomplete_parent_ids.remove(parent_id)
             if not self.incomplete_parent_ids:
                 assert self._state == 'Created', f'bad state: {self._state}'
                 if (self.always_run or
@@ -344,8 +343,20 @@ class Job:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
 
+        for pid in self.parent_ids:
+            parent = job_id_job[pid]
+            parent.child_ids.remove(self.id)
+        self.parent_ids = []
+        for cid in self.child_ids:
+            child = job_id_job[cid]
+            child.parent_ids.remove(cid)
+            child.refresh_parents_and_maybe_create()
+        self.child_ids = set()
+
         self._delete_k8s_resources()
-        self.set_state('Cancelled')
+        self._state = 'Cancelled'
+
+        log.info(f'job {self.id} deleted')
 
     def is_complete(self):
         return self._state in ('Complete', 'Cancelled')
