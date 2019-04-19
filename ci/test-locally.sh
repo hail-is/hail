@@ -15,8 +15,8 @@ cleanup() {
 
     for table in ${tables[@]}; do
         python3 -c "from batch.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$table\")"
-    done    
-    
+    done
+
     [[ -z $batch_pid ]] || (kill $batch_pid; kill -9 $batch_pid)
     [[ -z $ci_pid ]] || (kill $ci_pid; kill -9 $ci_pid)
     [[ -z $proxy_pid ]] || (kill $proxy_pid; kill -9 $proxy_pid)
