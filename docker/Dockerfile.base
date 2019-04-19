@@ -16,7 +16,7 @@ RUN apt-get update && \
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     mv /root/google-cloud-sdk / && \
-    /google-cloud-sdk/bin/gcloud components install beta kubectl
+    /google-cloud-sdk/bin/gcloud -q components install beta kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
 
 RUN wget -nv -O spark-2.4.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz && \
