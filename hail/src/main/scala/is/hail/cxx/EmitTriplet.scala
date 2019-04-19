@@ -100,14 +100,8 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 object NDArrayLoopEmitter {
   def linearizeIndices(fb: FunctionBuilder, idxs: Seq[Variable], strides: Code, shape: Code): Code = {
     val result = fb.variable("result", "int", "0")
-    val nDims = idxs.length
     val buildIndex = idxs.zipWithIndex.map { case (idx, dim) =>
         s"""
-           | // Allow only length-1 dimensions to be broadcasted
-           | if ($idx < 0 || ($idx >= $shape[$dim] && $shape[$dim] > 1)) {
-           |   throw new FatalError("Invalid index");
-           | }
-           |
            | // length-1 dimensions not factored into the index for broadcasting
            | if ($shape[$dim] > 1) {
            |   $result += $idx * $strides[$dim];
@@ -117,10 +111,6 @@ object NDArrayLoopEmitter {
 
     s"""
        |({
-       | if ($strides.size() != $nDims) {
-       |   throw new FatalError("Number of indices must match number of dimensions.");
-       | }
-       |
        | ${ result.define }
        | $buildIndex
        | $result;
