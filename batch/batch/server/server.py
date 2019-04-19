@@ -178,40 +178,6 @@ class Job:
         assert self._pod_name is None
         assert self._current_task is not None
 
-        volumes = [
-            kube.client.V1Volume(
-                secret=kube.client.V1SecretVolumeSource(
-                    secret_name=self.userdata['gsa_key_secret_name']),
-                name='gsa-key')]
-        volume_mounts = [
-            kube.client.V1VolumeMount(
-                mount_path='/gsa-key',
-                name='gsa-key')]
-
-        if len(self._tasks) > 1:
-            if self._pvc is None:
-                self._pvc = self._create_pvc()
-            volumes.append(kube.client.V1Volume(
-                persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
-                    claim_name=self._pvc.metadata.name),
-                name=self._pvc.metadata.name))
-            volume_mounts.append(kube.client.V1VolumeMount(
-                mount_path='/io',
-                name=self._pvc.metadata.name))
-
-        current_pod_spec = self._current_task.pod_template.spec
-        if current_pod_spec.volumes is None:
-            current_pod_spec.volumes = []
-        else:
-            current_pod_spec.volumes = current_pod_spec.volumes[:]
-        current_pod_spec.volumes.extend(volumes)
-        for container in current_pod_spec.containers:
-            if container.volume_mounts is None:
-                container.volume_mounts = []
-            else:
-                container.volume_mounts = container.volume_mounts[:]
-            container.volume_mounts.extend(volume_mounts)
-
         pod = v1.create_namespaced_pod(
             HAIL_POD_NAMESPACE,
             self._current_task.pod_template,
@@ -301,6 +267,38 @@ class Job:
                        JobTask.copy_task(self.id, 'output', output_files)]
 
         self._tasks = [t for t in self._tasks if t is not None]
+
+        for task in self._tasks:
+            volumes = [
+                kube.client.V1Volume(
+                    secret=kube.client.V1SecretVolumeSource(
+                        secret_name=self.userdata['gsa_key_secret_name']),
+                    name='gsa-key')]
+            volume_mounts = [
+                kube.client.V1VolumeMount(
+                    mount_path='/gsa-key',
+                    name='gsa-key')]
+
+            if len(self._tasks) > 1:
+                if self._pvc is None:
+                    self._pvc = self._create_pvc()
+                volumes.append(kube.client.V1Volume(
+                    persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=self._pvc.metadata.name),
+                    name=self._pvc.metadata.name))
+                volume_mounts.append(kube.client.V1VolumeMount(
+                    mount_path='/io',
+                    name=self._pvc.metadata.name))
+
+            current_pod_spec = self._current_task.pod_template.spec
+            if current_pod_spec.volumes is None:
+                current_pod_spec.volumes = []
+            current_pod_spec.volumes.extend(volumes)
+            for container in current_pod_spec.containers:
+                if container.volume_mounts is None:
+                    container.volume_mounts = []
+                container.volume_mounts.extend(volume_mounts)
+
         self._task_idx = -1
         self._next_task()
         assert self._current_task is not None
