@@ -413,3 +413,14 @@ def _set_flags(**flags):
 
 def _get_flags(*flags):
     return {flag: Env.hc()._jhc.flags().get(flag) for flag in flags}
+
+
+def debug_info():
+    hail_jar_path = None
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+    return {
+        'spark_conf': spark_context()._conf.getAll(),
+        'hail_jar_path': hail_jar_path,
+        'version': hail.__version__
+    }
