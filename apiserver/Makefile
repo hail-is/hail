@@ -5,7 +5,7 @@ REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hailjwt
+PYTHONPATH := ../hail/python:../hailjwt:$(shell ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:$${PYTHONPATH:+:$$PYTHONPATH}
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 flake8-stmp: $(PY_FILES)
@@ -138,7 +138,7 @@ jwt-test-user-token: jwt-test-user.json jwt-test-secret-key create_key.py
 	$(PYTHON) create_key.py jwt-test-secret-key < $< > $@
 
 test: build-hail-shadow-jar check jwt-test-user-token
-	./test-apiserver.sh
+	PYTHONPATH=$(PYTHONPATH) ./test-apiserver.sh
 
 clean:
 	rm jupyter_notebook_config.py

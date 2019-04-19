@@ -15,7 +15,6 @@ rm -rf src
 mkdir -p src/test
 cp -a ../hail/src/test/resources src/test
 
-export PYTHONPATH=$(ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:../hail/python
 export JAR=../hail/build/libs/hail-all-spark.jar
 export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$JAR --conf spark.executor.extraClassPath=$JAR pyspark-shell"
 
