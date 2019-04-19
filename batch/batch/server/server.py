@@ -349,7 +349,7 @@ class Job:
         self.parent_ids = []
         for cid in self.child_ids:
             child = job_id_job[cid]
-            child.parent_ids.remove(cid)
+            child.parent_ids.remove(self.id)
             child.refresh_parents_and_maybe_create()
         self.child_ids = set()
 
