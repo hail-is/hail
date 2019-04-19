@@ -1,4 +1,4 @@
-FROM base
+FROM {{ base_image.image }}
 
 RUN python3 -m pip install --no-cache-dir https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
 
