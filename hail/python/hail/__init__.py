@@ -87,7 +87,9 @@ __all__ = [
     'backend',
     'fs',
     'current_backend',
-    'debug_info'
+    'debug_info',
+    'cite_hail',
+    'cite_hail_bibtex'
 ]
 
 __all__.extend(genetics.__all__)
