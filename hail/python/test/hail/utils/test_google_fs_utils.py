@@ -4,7 +4,7 @@ import hail as hl
 from hail.utils import *
 from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
-from hail.fs import HadoopFS
+from hail.fs.hadoop_fs import HadoopFS
 from ..helpers import *
 import os
 
