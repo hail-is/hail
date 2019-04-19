@@ -1,15 +1,10 @@
-import os
 import secrets
-import subprocess as sp
 from shlex import quote as shq
 import json
-import asyncio
 from .log import log
 from .constants import GITHUB_CLONE_URL
-from .utils import shell
+from .utils import generate_token, CalledProcessError, check_shell, check_shell_output
 from .build import BuildConfiguration
-
-repos_lock = asyncio.Lock()
 
 
 class Repo:
@@ -108,6 +103,7 @@ class FQBranch:
 
 class PR:
     def __init__(self, number, title, source_repo, source_sha, target_branch):
+        self.token = generate_token()
         self.number = number
         self.title = title
         self.source_repo = source_repo
@@ -180,42 +176,38 @@ class PR:
 
         # FIXME this needs to be per-PR and async
         try:
-            async with repos_lock:
-                target_repo = self.target_branch.branch.repo
-                repo_dir = f'repos/{target_repo.short_str()}'
+            log.info(f'cloning repo for {self.number}')
+            repo_dir = f'repos/{self.token}'
 
-                shell('git', '-C', repo_dir, 'config', 'user.email', 'hail-ci-leader@example.com')
-                shell('git', '-C', repo_dir, 'config', 'user.name', 'hail-ci-leader')
+            merge_script = f'''
+mkdir -p {shq(repo_dir)}
+git -C {shq(repo_dir)} clone repos/{shq(self.target_branch.token)} .
 
-                if not os.path.isdir(repo_dir):
-                    os.makedirs(repo_dir, exist_ok=True)
-                    shell('git', '-C', repo_dir, 'clone', self.target_branch.branch.repo.url, '.')
+git -C {shq(repo_dir)} config user.email hail-ci@example.com
+git -C {shq(repo_dir)} config user.name hail-ci
 
-                if sp.run([
-                        '/bin/sh', '-c',
-                        f'git -C {shq(repo_dir)} remote | grep -q {shq(self.source_repo.short_str())}'
-                ]).returncode != 0:
-                    shell('git', '-C', repo_dir, 'remote', 'add', self.source_repo.short_str(), self.source_repo.url)
+git -C {shq(repo_dir)} remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)}
 
-                shell('git', '-C', repo_dir, 'reset', '--merge')
-                shell('git', '-C', repo_dir, 'fetch', 'origin')
-                shell('git', '-C', repo_dir, 'fetch', self.source_repo.short_str())
-                shell('git', '-C', repo_dir, 'checkout', self.target_branch.sha)
-                shell('git', '-C', repo_dir, 'merge', self.source_sha, '-m', 'merge PR')
+git -C {shq(repo_dir)} fetch {shq(self.source_repo.short_str())}
+git -C {shq(repo_dir)} checkout {shq(self.target_branch.sha)}
+git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
+'''
+            await check_shell(merge_script)
 
-                self.sha = (sp.check_output(['git', 'rev-parse', 'HEAD'])
-                            .decode('utf-8')
-                            .strip())
+            sha_out, _ = await check_shell_output(
+                f'git -C {shq(repo_dir)} rev-parse HEAD')
+            self.sha = sha_out.decode('utf-8').strip()
 
-                with open(f'{repo_dir}/build.yaml', 'r') as f:
-                    config = BuildConfiguration(self, f.read())
-        except (sp.CalledProcessError, FileNotFoundError) as e:
-            log.exception(f'could not get hail-ci-build-image due to {e}')
+            with open(f'{repo_dir}/build.yaml', 'r') as f:
+                config = BuildConfiguration(self, f.read())
+        except (CalledProcessError, FileNotFoundError) as e:
+            log.exception(f'could not open build.yaml due to {e}')
             self.build_state = 'merge_failure'
             return
 
         batch = None
         try:
+            log.info(f'creating batch for {self.number}')
             batch = await batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
@@ -265,20 +257,35 @@ class PR:
             if all(j['state'] == 'Complete' for j in status['jobs']):
                 self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
 
+    async def cleanup(self):
+        await check_shell(f'rm -rf repos/{self.token}')
+
 
 class WatchedBranch:
     def __init__(self, branch):
+        self.token = generate_token()
         self.branch = branch
         self.prs = None
         self.sha = None
-        self.healing = False
+        self.updating = False
         self.changed = False
 
     async def update(self, app):
-        gh = app['github_client']
-        await self.refresh(gh)
-        batch_client = app['batch_client']
-        await self.heal(batch_client)
+        if self.updating:
+            self.changed = True
+            return
+
+        self.updating = True
+        self.changed = True
+        while self.changed:
+            self.changed = False
+
+            gh = app['github_client']
+            await self.refresh(gh)
+            batch_client = app['batch_client']
+            await self.heal(batch_client)
+
+        self.updating = False
 
     async def refresh(self, gh):
         repo_ss = self.branch.repo.short_str()
@@ -302,42 +309,54 @@ class WatchedBranch:
             else:
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
+
+        old_prs = self.prs
         self.prs = new_prs
 
-        for pr in self.prs.values():
+        if old_prs:
+            for old_pr in old_prs.values():
+                if old_pr.number not in new_prs:
+                    await old_pr.cleanup()
+
+        for pr in new_prs.values():
             await pr.refresh_review_state(gh)
 
     async def heal(self, batch_client):
-        if self.healing:
+        repo_dir = f'repos/{self.token}'
+
+        clone_script = '''
+mkdir -p {shq(repo_dir)}
+git -C {shq(repo_dir)} clone {shq(self.branch.repo.url)} .
+
+git -C {shq(repo_dir)} config user.email hail-ci@example.com
+git -C {shq(repo_dir)} config user.name hail-ci
+
+git -C {shq(repo_dir)} remote add {shq(self.branch.repo.short_str())} {shq(self.branch.repo.url)}
+
+git -C {shq(repo_dir)} fetch {shq(self.branch.repo.short_str())}
+'''
+        check_shell(clone_script)
+
+        # FIXME merge
+        merge_candidate = None
+        for pr in self.prs.values():
+            if pr.review_state == 'approved' and pr.build_state is None:
+                merge_candidate = pr
+                break
+
+        running_batches = await batch_client.list_batches(
+            complete=False,
+            attributes={
+                'target_branch': self.branch.short_str()
+            })
+
+        seen_batch_ids = set()
+        for pr in self.prs.values():
+            await pr.heal(batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
+
+        for batch in running_batches:
+            if batch.id not in seen_batch_ids:
+                await batch.cancel()
+
+        if merge_candidate and merge_candidate.build_state is not None:
             self.changed = True
-            return
-
-        self.healing = True
-        self.changed = True
-        while self.changed:
-            self.changed = False
-
-            # FIXME merge
-            merge_candidate = None
-            for pr in self.prs.values():
-                if pr.review_state == 'approved' and pr.build_state is None:
-                    merge_candidate = pr
-                    break
-
-            running_batches = await batch_client.list_batches(
-                complete=False,
-                attributes={
-                    'target_branch': self.branch.short_str()
-                })
-
-            seen_batch_ids = set()
-            for pr in self.prs.values():
-                await pr.heal(batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
-
-            for batch in running_batches:
-                if batch.id not in seen_batch_ids:
-                    await batch.cancel()
-
-            if merge_candidate and merge_candidate.build_state is not None:
-                self.changed = True
-        self.healing = False

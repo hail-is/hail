@@ -29,12 +29,6 @@ watched_branches = [
 
 app = web.Application()
 
-app['client_session'] = aiohttp.ClientSession(
-    raise_for_status=True,
-    timeout=aiohttp.ClientTimeout(total=60))
-app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
-app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
-
 routes = web.RouteTableDef()
 
 
@@ -166,6 +160,12 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
 
 async def on_startup(app):
+    app['client_session'] = aiohttp.ClientSession(
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
+    app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
+
     asyncio.ensure_future(refresh_loop(app))
 
 app.on_startup.append(on_startup)
