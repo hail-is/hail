@@ -290,7 +290,7 @@ class Job:
                     mount_path='/io',
                     name=self._pvc.metadata.name))
 
-            current_pod_spec = self._current_task.pod_template.spec
+            current_pod_spec = task.pod_template.spec
             if current_pod_spec.volumes is None:
                 current_pod_spec.volumes = []
             current_pod_spec.volumes.extend(volumes)
