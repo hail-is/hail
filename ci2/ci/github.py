@@ -209,7 +209,7 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             self.build_state = 'merge_failure'
-            self.target_branch.batch_state = True
+            self.target_branch.batch_changed = True
             return
 
         batch = None
