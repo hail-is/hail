@@ -4,6 +4,7 @@ set -ex
 export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
 export WATCHED_TARGETS='[["hail-ci-test/'${REPO_NAME}':master", true]]'
+export PYTHONPATH=../hailjwt:../batch:${PYTHONPATH:+:$PYTHONPATH}
 
 set +x
 TOKEN=$(cat github-tokens/user1)
@@ -29,8 +30,6 @@ cleanup() {
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
-
-python3 -m pip install --user -U ../batch
 
 if [[ -z $IN_HAIL_CI ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
