@@ -2237,29 +2237,35 @@ _allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "S
 _allele_enum = {i: v for i, v in enumerate(_allele_types)}
 _allele_ints = {v: k for k, v in _allele_enum.items()}
 
+_registered_num_allele_type = None
 
 @typecheck(ref=expr_str, alt=expr_str)
 def _num_allele_type(ref, alt) -> Int32Expression:
-    return hl.bind(lambda r, a:
-                   hl.cond(r.matches(_base_regex),
-                           hl.case()
-                           .when(a.matches(_base_regex), hl.case()
-                                 .when(r.length() == a.length(),
-                                       hl.cond(r.length() == 1,
-                                               hl.cond(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                                               hl.cond(hamming(r, a) == 1,
-                                                       _allele_ints['SNP'],
-                                                       _allele_ints['MNP'])))
-                                 .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
-                                       _allele_ints["Insertion"])
-                                 .when((r[0] == a[0]) & r.endswith(a[1:]),
-                                       _allele_ints["Deletion"])
-                                 .default(_allele_ints['Complex']))
-                           .when(a == '*', _allele_ints['Star'])
-                           .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-                           .default(_allele_ints['Unknown']),
-                           _allele_ints['Unknown']),
-                   ref, alt)
+    global _registered_num_allele_type
+    if _registered_num_allele_type is None:
+        _registered_num_allele_type = hl.experimental.define_function(
+            lambda r, a:
+            hl.cond(r.matches(_base_regex),
+                    hl.case()
+                    .when(a.matches(_base_regex), hl.case()
+                          .when(r.length() == a.length(),
+                                hl.cond(r.length() == 1,
+                                        hl.cond(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
+                                        hl.cond(hamming(r, a) == 1,
+                                                _allele_ints['SNP'],
+                                                _allele_ints['MNP'])))
+                          .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]),
+                                _allele_ints["Insertion"])
+                          .when((r[0] == a[0]) & r.endswith(a[1:]),
+                                _allele_ints["Deletion"])
+                          .default(_allele_ints['Complex']))
+                    .when(a == '*', _allele_ints['Star'])
+                    .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
+                    .default(_allele_ints['Unknown']),
+                    _allele_ints['Unknown']),
+            tstr, tstr
+        )
+    return _registered_num_allele_type(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -2364,13 +2370,22 @@ def is_transversion(ref, alt) -> BooleanExpression:
     return is_snp(ref, alt) & (~(_is_snp_transition(ref, alt)))
 
 
+_registered_is_snp_transition = None
+
+
 @typecheck(ref=expr_str, alt=expr_str)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
-    indices = hl.range(0, ref.length())
-    return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
-                                                   ((ref[i] == 'G') & (alt[i] == 'A')) |
-                                                   ((ref[i] == 'C') & (alt[i] == 'T')) |
-                                                   ((ref[i] == 'T') & (alt[i] == 'C')))), indices)
+    global _registered_is_snp_transition
+    if _registered_is_snp_transition is None:
+        _registered_is_snp_transition = hl.experimental.define_function(
+            lambda ref, alt: hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
+                                                                     ((ref[i] == 'G') & (alt[i] == 'A')) |
+                                                                     ((ref[i] == 'C') & (alt[i] == 'T')) |
+                                                                     ((ref[i] == 'T') & (alt[i] == 'C')))),
+                                    hl.range(0, ref.length())),
+            tstr, tstr)
+    return _registered_is_snp_transition(ref, alt)
+
 
 @typecheck(ref=expr_str, alt=expr_str)
 def is_insertion(ref, alt) -> BooleanExpression:

@@ -259,6 +259,12 @@ object IRBuilder {
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def arrayAggScan(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayAggScan(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
     def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType

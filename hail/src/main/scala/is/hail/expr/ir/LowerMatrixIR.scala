@@ -168,7 +168,7 @@ object LowerMatrixIR {
         val scans = new ArrayBuilder[(String, IR)]
 
         def f(ir: IR): IR = ir match {
-          case x@(_: ApplyScanOp | _: AggFilter | _: AggExplode | _: AggGroupBy) if ContainsScan(x) =>
+          case x if IsScanResult(x) =>
             assert(!ContainsAgg(x))
             val s = genUID()
             scans += (s -> x)
@@ -204,6 +204,78 @@ object LowerMatrixIR {
           subst(liftScans(newRow), BindingEnv(e, scan=Some(e)))
             .insertFields(entriesField -> 'row (entriesField)))
     }
+
+    case MatrixMapCols(child, newCol, _) =>
+
+      val loweredChild = lower(child)
+
+      val aggBuilder = new ArrayBuilder[(String, IR)]
+      val scanBuilder = new ArrayBuilder[(String, IR)]
+      def lift(ir: IR): IR = ir match {
+        case x if IsScanResult(x)=>
+          assert(!ContainsAgg(x))
+          val s = genUID()
+          scanBuilder += (s -> x)
+          Ref(s, x.typ)
+        case x if IsAggResult(x) =>
+          assert(!ContainsScan(x))
+          val s = genUID()
+          aggBuilder += (s -> x)
+          Ref(s, x.typ)
+        case _ =>
+          MapIR(lift)(ir)
+      }
+
+      var b0 = lift(newCol)
+      val aggs = aggBuilder.result()
+      val scans = scanBuilder.result()
+
+      val idx = Ref(genUID(), TInt32())
+      val idxSym = Symbol(idx.name)
+
+      val aggTransformer: IRProxy => IRProxy = if (aggs.nonEmpty) {
+        val aggStruct = MakeStruct(aggs)
+        val aggResultArray = loweredChild.aggregate(
+          aggLet(va = 'row) {
+            irRange(0, 'global (colsField).len)
+              .aggElements('__element_idx, '__result_idx)(
+                let(sa = 'global (colsField)('__result_idx)) {
+                  aggLet(sa = 'global (colsField)('__element_idx),
+                    g = 'row (entriesField)('__element_idx)) {
+                    aggStruct
+                  }
+                })
+          })
+
+        val aggResultRef = Ref(genUID(), aggResultArray.typ)
+        val aggResultElementRef = Ref(genUID(), aggResultArray.typ.asInstanceOf[TArray].elementType)
+
+        b0 = aggs.foldLeft[IR](b0) { case (acc, (name, _)) => Let(name, GetField(aggResultElementRef, name), acc) }
+        b0 = Let(aggResultElementRef.name, ArrayRef(aggResultRef, idx), b0)
+
+        x: IRProxy => let.applyDynamicNamed("apply")((aggResultRef.name, aggResultArray)).apply(x)
+      } else identity
+
+      val scanTransformer: IRProxy => IRProxy = if (scans.nonEmpty) {
+        val scanStruct = MakeStruct(scans)
+        val scanResultArray = ArrayAggScan(
+          GetField(Ref("global", loweredChild.typ.globalType), colsFieldName),
+          "sa",
+          scanStruct)
+
+        val scanResultRef = Ref(genUID(), scanResultArray.typ)
+        val scanResultElementRef = Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
+
+        b0 = scans.foldLeft[IR](b0) { case (acc, (name, _)) => Let(name, GetField(scanResultElementRef, name), acc) }
+        b0 = Let(scanResultElementRef.name, ArrayRef(scanResultRef, idx), b0)
+
+        x: IRProxy => let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(x)
+
+      } else identity
+
+      loweredChild.mapGlobals('global.insertFields(colsField -> scanTransformer(aggTransformer(
+        irRange(0, 'global(colsField).len).map(idxSym ~> let(__cols_array = 'global(colsField), sa = '__cols_array(idxSym)) { b0 })
+      ))))
 
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->

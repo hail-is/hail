@@ -302,6 +302,21 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
     // foldRight because arg1 should be at the top so it is evaluated first
     refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
   }
+
+  lazy val unwrappedSize: Int = {
+    var s = 0
+
+    def recur(x: IR): Unit = {
+      s += 1
+      x.children.foreach {
+        case x: ApplyIR => s += x.unwrappedSize
+        case child: IR => recur(child)
+        case _ =>
+      }
+    }
+    recur(explicitNode)
+    s
+  }
 }
 
 sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {

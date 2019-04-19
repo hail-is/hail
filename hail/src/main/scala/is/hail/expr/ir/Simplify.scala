@@ -172,7 +172,7 @@ object Simplify {
 
     case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", x, element)
 
-    case x: ApplyIR if x.explicitNode.size < 10 => x.explicitNode
+    case x: ApplyIR if x.unwrappedSize < 10 => x.explicitNode
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
