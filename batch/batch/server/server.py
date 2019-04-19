@@ -185,8 +185,6 @@ class Job:
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
-        self.set_state('Ready')
-
         add_event({'message': f'created pod for job {self.id}, task {self._current_task.name}',
                    'command': f'{pod.spec.containers[0].command}'})
 
@@ -260,6 +258,7 @@ class Job:
         self.exit_code = None
         self.duration = None
         self._state = 'Created'
+        self._cancelled = False
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
                        JobTask(self.id, 'main', pod_spec),
@@ -283,6 +282,7 @@ class Job:
         add_event({'message': f'created job {self.id}'})
 
         if not self.parent_ids:
+            self.set_state('Ready')
             self._create_pod()
         else:
             self.refresh_parents_and_maybe_create()
@@ -311,25 +311,32 @@ class Job:
                 log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id):
-        if parent_id not in self.incomplete_parent_ids:
-            return
         if new_state in ('Cancelled', 'Complete'):
+            assert parent_id in self.incomplete_parent_ids
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
                 assert self._state == 'Created', f'bad state: {self._state}'
-                if self.always_run or all(job_id_job[pid].is_successful() for pid in self.parent_ids):
+                if (self.always_run or
+                    (all(job_id_job[pid].is_successful() for pid in self.parent_ids) and
+                     not self._cancelled)):
                     log.info(f'all parents complete for {self.id},'
                              f' creating pod')
+                    self.set_state('Ready')
                     self._create_pod()
                 else:
                     log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
                     self.cancel()
 
     def cancel(self):
+        # Cancelled, Complete
         if self.is_complete():
             return
-        self._delete_k8s_resources()
-        self.set_state('Cancelled')
+        if self._state == 'Created':
+            self._cancelled = True
+        else:
+            assert self._state == 'Ready', self._state
+            self._delete_k8s_resources()
+            self.set_state('Cancelled')
 
     def delete(self):
         # remove from structures
