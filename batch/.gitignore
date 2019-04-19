@@ -11,3 +11,5 @@ flycheck_*.py
 *.pyc
 **/__pycache__
 *-stmp
+/hailjwt
+/test/jwt-test-user-token

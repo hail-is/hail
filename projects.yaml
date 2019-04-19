@@ -2,7 +2,7 @@
 - project: auth-gateway
 - project: hailjwt
 - project: batch
-  dependencies: ["docker"]
+  dependencies: ["docker", "hailjwt"]
 - project: ci
   dependencies: ["batch"]
 - project: ci2

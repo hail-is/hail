@@ -13,7 +13,11 @@ RUN apk add --no-cache \
 
 COPY setup.py /batch/
 COPY batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch
+RUN pip3 install --no-cache-dir pytest /batch
+
+COPY hailjwt/ /hailjwt/
+RUN cd /hailjwt && python3 setup.py install
+
 COPY test /test
 
-CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]
+CMD ["python3", "-m", "pytest", "-v", "--maxfail=1", "test"]

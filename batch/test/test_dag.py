@@ -2,6 +2,7 @@ import os
 import time
 import pkg_resources
 import pytest
+import json
 import re
 import requests
 from flask import Response
@@ -10,13 +11,24 @@ from batch.client import BatchClient
 
 from .serverthread import ServerThread
 
+
 @pytest.fixture
 def client():
     return BatchClient(url=os.environ.get('BATCH_URL'))
 
 
+@pytest.fixture
+def test_user():
+    fname = pkg_resources.resource_filename(
+        __name__,
+        'jwt-test-user.json')
+    with open(fname) as f:
+        return json.loads(f.read())
+
+
 def batch_status_job_counter(batch_status, job_state):
     return len([j for j in batch_status['jobs'] if j['state'] == job_state])
+
 
 def batch_status_exit_codes(batch_status):
     return [j['exit_code'] for j in batch_status['jobs']]
@@ -308,85 +320,32 @@ def test_no_parents_allowed_without_batches(client):
     assert False
 
 
-def test_output_files_no_service_account_is_error(client):
-    batch = client.create_batch()
-    try:
-        batch.create_job('alpine:3.8',
-                         command=['/bin/sh', '-c', 'echo head > /out'],
-                         output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')])
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid request: if either input_files or '
-                         'ouput_files is set, then the service account must '
-                         'be specified; otherwise the service account must '
-                         'not be specified.*',
-                         err.response.text)
-        return
-    assert False
-
-
-def test_input_files_no_service_account_is_error(client):
-    batch = client.create_batch()
-    try:
-        batch.create_job('alpine:3.8',
-                         command=['/bin/sh', '-c', 'echo head > /out'],
-                         input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')])
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid request: if either input_files or '
-                         'ouput_files is set, then the service account must '
-                         'be specified; otherwise the service account must '
-                         'not be specified.*',
-                         err.response.text)
-        return
-    assert False
-
-
-def test_service_account_no_files_is_error(client):
-    batch = client.create_batch()
-    try:
-        batch.create_job('alpine:3.8',
-                         command=['/bin/sh', '-c', 'echo head > /out'],
-                         copy_service_account_name='batch-volume-tester')
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid request: if either input_files or '
-                         'ouput_files is set, then the service account must '
-                         'be specified; otherwise the service account must '
-                         'not be specified.*',
-                         err.response.text)
-        return
-    assert False
-
-
-def test_input_dependency(client):
+def test_input_dependency(client, test_user):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
-                            copy_service_account_name='batch-volume-tester')
+                            output_files=[('/io/data*', f'gs://{test_user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/data\\*', '/io/')],
-                            copy_service_account_name='batch-volume-tester',
+                            input_files=[(f'gs://{test_user["bucket_name"]}/data\\*', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
+    assert head.status()['exit_code'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
-def test_input_dependency_directory(client):
+def test_input_dependency_directory(client, test_user):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', 'gs://hail-ci-0-1-batch-volume-test-bucket/')],
-                            copy_service_account_name='batch-volume-tester')
+                            output_files=[('/io/test/', f'gs://{test_user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/test/', '/io/')],
-                            copy_service_account_name='batch-volume-tester',
+                            input_files=[(f'gs://{test_user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log()['main'] == 'head1\nhead2\n'
+
 
 def test_always_run_delete(client):
     batch = client.create_batch()
