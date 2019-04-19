@@ -1,6 +1,7 @@
 .PHONY: test-local test-local-in-cluster check clean
 
-PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}../batch python3
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../batch:../hailjwt
+PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
@@ -16,13 +17,28 @@ pylint-stmp: $(PY_FILES)
 
 check: flake8-stmp pylint-stmp
 
-test-local: install-cloud-sql-proxy batch-secrets/batch-test-cloud-sql-config.json check
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+../batch/test/jwt-test-user-token:
+	make -C ../batch test/jwt-test-user-token
+
+test-local: install-cloud-sql-proxy
+test-local: batch-secrets/batch-test-cloud-sql-config.json
+test-local: ../batch/test/jwt-test-user-token check
+	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
+		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
+		HAIL_POD_NAMESPACE=test \
+		BATCH_USE_KUBE_CONFIG=1 \
+		CLOUD_SQL_PROXY=1 \
+		PYTHONPATH=$(PYTHONPATH) \
+		./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: check
-	POD_NAMESPACE='test' ./test-locally.sh
+test-local-in-cluster: ../batch/test/jwt-test-user-token check
+	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
+		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
+		HAIL_POD_NAMESPACE=test \
+		PYTHONPATH=$(PYTHONPATH) \
+		./test-locally.sh
 
 clean:
 	rm -f flake8-stmp pylint-stmp

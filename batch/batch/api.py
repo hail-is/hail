@@ -51,8 +51,7 @@ class API():
         return self.http(requests.delete, *args, **kwargs)
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   scratch_folder, input_files, output_files, copy_service_account_name,
-                   always_run):
+                   scratch_folder, input_files, output_files, always_run):
         doc = {
             'spec': spec,
             'parent_ids': parent_ids,
@@ -70,8 +69,6 @@ class API():
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
-        if copy_service_account_name:
-            doc['copy_service_account_name'] = copy_service_account_name
 
         return self.post(f'{url}/jobs/create', json=doc)
 

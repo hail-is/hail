@@ -1,5 +1,8 @@
 FROM base
 
+COPY hailjwt/ /hailjwt/
+RUN cd /hailjwt && python3 setup.py install
+
 COPY setup.py /batch/
 COPY MANIFEST.in /batch/
 COPY batch /batch/batch/
