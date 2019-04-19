@@ -42,7 +42,7 @@ specific PyPI version of Hail, for example 0.2.13:
 Seed, Cotton. Hail 0.2.13-8589f6f574ec. https://github.com/hail-is/hail/releases/tag/0.2.13
 ```
 
-or simply a specific commit SHA:
+or a specific commit SHA, for example 117c365c320f:
 
 ```
 Seed, Cotton. Hail 117c365c320f. https://github.com/hail-is/hail/commit/117c365c320fd4ae1f1ea06c3fcbd668cf318fc2
