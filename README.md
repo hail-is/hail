@@ -48,8 +48,8 @@ or a specific commit SHA, for example 117c365c320f:
 Seed, Cotton. Hail 117c365c320f. https://github.com/hail-is/hail/commit/117c365c320fd4ae1f1ea06c3fcbd668cf318fc2
 ```
 
-If you absolutely, simply cannot stomach the idea of citing a GitHub repository
-(even though more than 2,800 people have [cited the Keras GitHub
+If you simply cannot stomach the idea of citing a GitHub repository (even though
+more than 2,800 people have [cited the Keras GitHub
 repository](https://scholar.google.com/scholar?cluster=17868569268188187229&hl=en&as_sdt=40000005&sciodt=0,22)),
 then please cite this DOI which always points to the latest published version of
 Hail:
