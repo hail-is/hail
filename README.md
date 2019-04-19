@@ -32,20 +32,20 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 If you use Hail for published work, please cite the software:
 
 ```
-Seed, Cotton. Hail. https://github.com/hail-is/hail
+Hail Team. Hail. https://github.com/hail-is/hail
 ```
 
 If you feel the need to cite a specific version of Hail, you could cite a
 specific PyPI version of Hail, for example 0.2.13:
 
 ```
-Seed, Cotton. Hail 0.2.13-8589f6f574ec. https://github.com/hail-is/hail/releases/tag/0.2.13
+Hail Team. Hail 0.2.13-8589f6f574ec. https://github.com/hail-is/hail/releases/tag/0.2.13
 ```
 
 or a specific commit SHA, for example 117c365c320f:
 
 ```
-Seed, Cotton. Hail 117c365c320f. https://github.com/hail-is/hail/commit/117c365c320fd4ae1f1ea06c3fcbd668cf318fc2
+Hail Team. Hail 117c365c320f. https://github.com/hail-is/hail/commit/117c365c320fd4ae1f1ea06c3fcbd668cf318fc2
 ```
 
 If you simply cannot stomach the idea of citing a GitHub repository (even though
@@ -55,7 +55,7 @@ then please cite this DOI which always points to the latest published version of
 Hail:
 
 ```
-Seed, Cotton. Hail. http://doi.org/10.5281/zenodo.2646680
+Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ```
 
 ##### Acknowledgements
