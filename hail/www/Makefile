@@ -1,6 +1,6 @@
 .PHONY: all
 
-GENERATED_HTML = 404.html index.html jobs.html
+GENERATED_HTML = 404.html index.html
 
 all: $(GENERATED_HTML)
 
