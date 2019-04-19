@@ -175,7 +175,7 @@ class PR:
 
         try:
             log.info(f'merging for {self.number}')
-            repo_dir = f'repos/{self.target_branch.branch.short_str()}'
+            repo_dir = f'repos/{self.target_branch.branch.repo.short_str()}'
 
             merge_script = f'''
 set -ex
