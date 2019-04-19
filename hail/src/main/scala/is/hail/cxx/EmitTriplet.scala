@@ -103,11 +103,15 @@ object NDArrayLoopEmitter {
     val nDims = idxs.length
     val buildIndex = idxs.zipWithIndex.map { case (idx, dim) =>
         s"""
-           | if ($idx < 0 || $idx >= $shape[$dim]) {
+           | // Allow only length-1 dimensions to be broadcasted
+           | if ($idx < 0 || ($idx >= $shape[$dim] && $shape[$dim] > 1)) {
            |   throw new FatalError("Invalid index");
            | }
            |
-           | $result += $idx * $strides[$dim];
+           | // length-1 dimensions not factored into the index for broadcasting
+           | if ($shape[$dim] > 1) {
+           |   $result += $idx * $strides[$dim];
+           | }
          """.stripMargin
     }.mkString("\n")
 
@@ -123,6 +127,10 @@ object NDArrayLoopEmitter {
        |})
      """.stripMargin
   }
+
+  def loadElement(nd: Variable, index: Code, elemType: PType): Code = {
+    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index));"
+  }
 }
 
 abstract class NDArrayLoopEmitter(
@@ -135,17 +143,6 @@ abstract class NDArrayLoopEmitter(
   fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
 
   def outputElement(idxVars: Seq[Variable]): Code
-
-  def linearizeIndices(idxs: Seq[Variable], shape: Code, strides: Code): Code = {
-    idxs.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-      // length-1 dimensions not factored into the index for broadcasting
-      s"($shape[$dim] == 1 ? $linearIndex : $idx * $strides[$dim] + $linearIndex)"
-    }
-  }
-
-  def load_element(nd: Variable, index: Code, elemType: PType): Code = {
-    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index));"
-  }
 
   def emit(elemType: PType): Code = {
     val container = PArray(elemType)
@@ -164,7 +161,7 @@ abstract class NDArrayLoopEmitter(
       | ${ builder.defineWith(s"{ (int) n_elements($shape), $resultRegion }") }
       | $builder.clear_missing_bits();
       |
-      | ${ emitLoops(builder, shape, strides) }
+      | ${ emitLoops(builder, strides) }
       |
       | $data = ${container.cxxImpl}::elements_address($builder.offset());
       | make_ndarray(0, 0, ${elemType.byteSize}, $shape, $strides, $data);
@@ -172,7 +169,7 @@ abstract class NDArrayLoopEmitter(
     """.stripMargin
   }
 
-  private def emitLoops(builder: Variable, shape: Variable, strides: Variable): Code = {
+  private def emitLoops(builder: Variable, strides: Variable): Code = {
     val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
     val outIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, strides.toString, shape.toString)
 

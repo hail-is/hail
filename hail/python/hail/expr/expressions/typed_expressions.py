@@ -3176,24 +3176,15 @@ class NDArrayNumericExpression(NDArrayExpression):
         if isinstance(other, list):
             other = hl._ndarray(other)
 
-        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
         if isinstance(other, list):
             other = hl._ndarray(other)
 
-        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other, NDArrayNumericExpression)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
-
-    def _broadcast_to_same_ndim(self, other):
-        if isinstance(other, NDArrayNumericExpression):
-            if self.ndim < other.ndim:
-                return self._broadcast(other.ndim, NDArrayNumericExpression), other
-            elif self.ndim > other.ndim:
-                return self, other._broadcast(self.ndim, NDArrayNumericExpression)
-
-        return self, other
 
     def __neg__(self):
         """Negate elements of the ndarray.

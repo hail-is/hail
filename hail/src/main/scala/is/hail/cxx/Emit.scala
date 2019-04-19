@@ -871,8 +871,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            assert(idxVars.length == nDims)
-            val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", shape.toString)
             s"""
                |({
                | $elemRef = ${ childEmitter.outputElement(idxVars) }
@@ -910,8 +908,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, x.pType.asInstanceOf[PNDArray].nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$l.strides", shape.toString)
-            val rIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$r.strides", shape.toString)
             s"""
                |({
                | $lRef = ${ lEmitter.outputElement(idxVars) }
@@ -962,7 +958,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
-        val elemType = typeToCXXType(ndIR.pType.asInstanceOf[PNDArray].elementType)
 
         val ndt = emit(ndIR)
         val idxst = idxs.map(emit(_))
@@ -982,7 +977,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ nd.define }
              | ${ idxVars.map(_.define).mkString("\n") }
-             | load_element<$elemType>(load_index($nd, $index));
+             | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) }
              |})
            """.stripMargin)
 
@@ -1255,8 +1250,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val xType = x.pType.asInstanceOf[PNDArray]
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val index = linearizeIndices(idxVars, s"$nd.shape", s"$nd.strides")
-            load_element(nd, index, xType.elementType)
+            val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", s"$nd.shape")
+            NDArrayLoopEmitter.loadElement(nd, index, xType.elementType)
           }
         }
     }

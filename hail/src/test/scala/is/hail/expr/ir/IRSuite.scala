@@ -1015,9 +1015,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
     assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
 
-    val partialTranspose = NDArrayReindex(cubeRowMajor, IndexedSeq(0, 2, 1))
-    val idx = FastSeq(0L, 1L, 0L).map(I64)
-    val partialTranposeIdx = FastSeq(0L, 0L, 1L).map(I64)
+    val partialTranspose = NDArrayReindex(cubeRowMajor, FastIndexedSeq(0, 2, 1))
+    val idx = FastIndexedSeq(0L, 1L, 0L).map(I64)
+    val partialTranposeIdx = FastIndexedSeq(0L, 0L, 1L).map(I64)
     assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
     assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
@@ -1026,7 +1026,7 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val scalarWithMatrix = NDArrayMap2(
-      NDArrayReindex(scalarRowMajor, IndexedSeq(1, 0)),
+      NDArrayReindex(scalarRowMajor, FastIndexedSeq(1, 0)),
       matrixRowMajor,
       "s", "m",
       ApplyBinaryPrimOp(Add(), Ref("s", TFloat64()), Ref("m", TFloat64())))
@@ -1035,22 +1035,22 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(topLeft, 4.0)
 
     val vectorWithMatrix = NDArrayMap2(
-      NDArrayReindex(vectorRowMajor, IndexedSeq(1, 0)),
+      NDArrayReindex(vectorRowMajor, FastIndexedSeq(1, 0)),
       matrixRowMajor,
       "v", "m",
       ApplyBinaryPrimOp(Add(), Ref("v", TFloat64()), Ref("m", TFloat64())))
 
-    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(0, 0)), 2.0)
-    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(0, 1)), 1.0)
-    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, Seq(1, 0)), 4.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, FastIndexedSeq(0, 0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, FastIndexedSeq(0, 1)), 1.0)
+    assertEvalsTo(makeNDArrayRef(vectorWithMatrix, FastIndexedSeq(1, 0)), 4.0)
 
-    val colVector = makeNDArray(FastSeq(1.0, -1.0), FastSeq(2, 1), True())
+    val colVector = makeNDArray(FastIndexedSeq(1.0, -1.0), FastIndexedSeq(2, 1), True())
     val colVectorWithMatrix = NDArrayMap2(colVector, matrixRowMajor, "v", "m",
       ApplyBinaryPrimOp(Add(), Ref("v", TFloat64()), Ref("m", TFloat64())))
 
-    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 0)), 2.0)
-    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(0, 1)), 3.0)
-    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, Seq(1, 0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(0, 0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(0, 1)), 3.0)
+    assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(1, 0)), 2.0)
   }
 
   @Test def testNDArrayWrite() {
@@ -1058,7 +1058,7 @@ class IRSuite extends SparkSuite {
 
     val path = tmpDir.createLocalTempFile()
     val write = NDArrayWrite(threeTensorRowMajor, Str(path))
-    nativeExecute(write, Env.empty, IndexedSeq.empty, None)
+    nativeExecute(write, Env.empty, FastIndexedSeq.empty, None)
   }
 
   @Test def testLeftJoinRightDistinct() {
