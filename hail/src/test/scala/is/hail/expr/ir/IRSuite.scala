@@ -1079,6 +1079,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(1, 0)), 2.0)
   }
 
+<<<<<<< HEAD
   @Test def testNDArrayAgg() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
@@ -1095,6 +1096,27 @@ class IRSuite extends SparkSuite {
 
     val twentySeven = makeNDArrayRef(NDArrayAgg(cubeRowMajor, IndexedSeq(2)), IndexedSeq(0, 0))
     assertEvalsTo(twentySeven, 3.0)
+  }
+
+  @Test def testNDArrayMatMul() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    //
+    //    val twoByThreeByFive = threeTensorRowMajor
+    //    val twoByFiveByThree = NDArrayReindex(threeTensorRowMajor, IndexedSeq(0, 2, 1))
+    //    val twoByThree = NDArrayMatMul(threeTensorRowMajor, threeTensorTranspose)
+    //    //TODO finish assert
+    //
+    //    val zeroTensor = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
+    //    val zero = NDArrayRef(zeroTensor, MakeArray(IndexedSeq(), TArray(TInt64())))
+    //    assertEvalsTo(zero, 0.0)
+
+    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
+      MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
+
+    val result = NDArrayMatMul(mat, mat)
+    val seven = NDArrayRef(result, IndexedSeq(I64(0), I64(0)))
+
+    assertEvalsTo(seven, 7.0)
   }
 
   @Test def testNDArrayWrite() {
@@ -1519,6 +1541,7 @@ class IRSuite extends SparkSuite {
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
+      NDArrayMatMul(nd, nd),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),

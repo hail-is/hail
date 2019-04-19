@@ -613,6 +613,28 @@ class NDArrayAgg(IR):
         self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
 
 
+class NDArrayMatMul(IR):
+    @typecheck_method(l=IR, r=IR)
+    def __init__(self, l, r):
+        super().__init__(l, r)
+        self.l = l
+        self.r = r
+
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        return NDArrayRef(l, r)
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+
+        l_ndim = self.l.typ.ndim
+        r_ndim = self.r.typ.ndim
+        assert l_ndim > 0 and r_ndim > 0
+
+        self._type = tndarray(self.l.typ.element_type, l_ndim + r_ndim - 2)
+
+
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)
     def __init__(self, nd, path):

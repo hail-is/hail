@@ -174,6 +174,12 @@ object TypeCheck {
       case x@NDArrayWrite(nd, path) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(path.typ.isInstanceOf[TString])
+      case x@NDArrayMatMul(l, r) =>
+        assert(l.typ.isInstanceOf[TNDArray])
+        assert(r.typ.isInstanceOf[TNDArray])
+        assert(l.typ.asInstanceOf[TNDArray].nDims > 0)
+        assert(r.typ.asInstanceOf[TNDArray].nDims > 0)
+        assert(l.typ.asInstanceOf[TNDArray].nDims == r.typ.asInstanceOf[TNDArray].nDims) //Remove when broadcast
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))

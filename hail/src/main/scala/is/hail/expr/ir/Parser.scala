@@ -661,6 +661,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
+      case "NDArrayMatMul" =>
+        val l = ir_value_expr(env)(it)
+        val r = ir_value_expr(env)(it)
+        NDArrayMatMul(l, r)
       case "NDArrayWrite" =>
         val nd = ir_value_expr(env)(it)
         val path = ir_value_expr(env)(it)

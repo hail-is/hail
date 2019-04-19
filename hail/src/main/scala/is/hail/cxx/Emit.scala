@@ -989,6 +989,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
+<<<<<<< HEAD
       case ir.NDArrayAgg(child, axes) =>
         val childTyp = child.pType.asInstanceOf[PNDArray]
         val resTyp = x.pType.asInstanceOf[PNDArray]
@@ -1038,12 +1039,70 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |  ${ acc.define }
                |  ${ aggLoops }
                |  $acc;
-               |})
              """.stripMargin
           }
         }
 
         present(emitter.emit(resTyp.elementType))
+
+      case x@ir.NDArrayMatMul(lIR, rIR) =>
+        val lt = emit(lIR)
+        val rt = emit(rIR)
+
+        val nDims = x.pType.asInstanceOf[PNDArray].nDims
+        val elemType = x.pType.asInstanceOf[PNDArray].elementType
+        val cxxElemType = typeToCXXType(elemType)
+
+        val l = fb.variable("l", "NDArray", lt.v)
+        val r = fb.variable("r", "NDArray", rt.v)
+
+        // NOTE: Follows semantics of numpy.matmul, explained here:
+        // https://docs.scipy.org/doc/numpy/reference/generated/numpy.matmul.html
+
+        val shape = fb.variable("shape", "std::vector<long>", s"matmul_shape($l.shape, $r.shape)")
+
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, elemType, shape, 0 until nDims) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+
+            //TODO Move into NDArrayLoopEmitter
+            def loadElem(nd: Variable, idxVars: Seq[Variable], elemType: Type): Code = {
+              val idx = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", s"$nd.shape")
+              s"load_element<$cxxElemType>(load_index($nd, $idx))"
+            }
+
+            val element = fb.variable("element", cxxElemType, "0")
+            val k = fb.variable("k", "int")
+
+            val stackDims :+ n :+ m = idxVars
+            val lIdxVars = stackDims :+ n :+ k
+            val rIdxVars = stackDims :+ k :+ m
+            s"""
+               |({
+               |  ${ element.define }
+               |  ${ k.define }
+               |  for ($k = 0; $k < $l.shape[${ nDims - 1}]; ++$k) {
+               |    $element += ${ loadElem(l, lIdxVars, cxxElemType) } * ${ loadElem(r, rIdxVars, cxxElemType) };
+               |  }
+               |
+               |  $element;
+               |})
+             """.stripMargin
+          }
+        }
+
+        //TODO error checking to see that the matrices are compatible for matmul
+        present(
+          s"""
+             |({
+             |  ${ lt.setup }
+             |  ${ rt.setup }
+             |  ${ l.define }
+             |  ${ r.define }
+             |  ${ shape.define }
+             |
+             |  ${ emitter.emit() };
+             |})
+           """.stripMargin)
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")

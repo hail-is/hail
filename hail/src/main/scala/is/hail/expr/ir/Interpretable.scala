@@ -11,6 +11,7 @@ object Interpretable {
            _: NDArrayMap2 |
            _: NDArrayReindex |
            _: NDArrayAgg |
+           _: NDArrayMatMul |
            _: NDArrayWrite => false
       case _ => true
     }
