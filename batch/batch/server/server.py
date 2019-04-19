@@ -311,19 +311,21 @@ class Job:
                 log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id):
-        if new_state in ('Cancelled', 'Complete'):
+        if new_state in ('Cancelled', 'Complete') and parent_id in self.incomplete_parent_ids:
             self.incomplete_parent_ids.remove(parent_id)
-            if not self.incomplete_parent_ids:
-                assert self._state == 'Created', f'bad state: {self._state}'
-                if (self.always_run or
-                        (all(job_id_job[pid].is_successful() for pid in self.parent_ids) and not self._cancelled)):
-                    log.info(f'all parents complete for {self.id},'
-                             f' creating pod')
-                    self.set_state('Ready')
-                    self._create_pod()
-                else:
-                    log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
-                    self.set_state('Cancelled')
+            self.create_if_ready()
+
+    def create_if_ready(self):
+        if self._state == 'Created' and not self.incomplete_parent_ids:
+            if (self.always_run or
+                    (all(job_id_job[pid].is_successful() for pid in self.parent_ids) and not self._cancelled)):
+                log.info(f'all parents complete for {self.id},'
+                         f' creating pod')
+                self.set_state('Ready')
+                self._create_pod()
+            else:
+                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
+                self.set_state('Cancelled')
 
     def cancel(self):
         # Cancelled, Complete
@@ -350,7 +352,8 @@ class Job:
         for cid in self.child_ids:
             child = job_id_job[cid]
             child.parent_ids.remove(self.id)
-            child.refresh_parents_and_maybe_create()
+            child.incomplete_parent_ids.discard(self.id)
+            child.create_if_ready()
         self.child_ids = set()
 
         self._delete_k8s_resources()
