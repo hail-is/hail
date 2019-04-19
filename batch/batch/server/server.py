@@ -352,6 +352,7 @@ class Job:
         for cid in self.child_ids:
             child = job_id_job[cid]
             child.parent_ids.remove(self.id)
+            child.cancel()
             child.incomplete_parent_ids.discard(self.id)
             child.create_if_ready()
         self.child_ids = set()
