@@ -103,7 +103,6 @@ class FQBranch:
 
 class PR:
     def __init__(self, number, title, source_repo, source_sha, target_branch):
-        self.token = generate_token()
         self.number = number
         self.title = title
         self.source_repo = source_repo
@@ -174,19 +173,24 @@ class PR:
     async def start_build(self, batch_client):
         assert not self.batch
 
-        # FIXME this needs to be per-PR and async
         try:
-            log.info(f'cloning repo for {self.number}')
-            repo_dir = f'repos/{self.token}'
+            log.info(f'merging for {self.number}')
+            repo_dir = f'repos/{self.target_branch.branch.short_str()}'
 
             merge_script = f'''
-mkdir -p {shq(repo_dir)}
-git -C {shq(repo_dir)} clone repos/{shq(self.target_branch.token)} .
+set -ex
+if [ ! -d "{shq(repo_dir)}" ]; then
+  mkdir -p {shq(repo_dir)}
+  git clone {shq(self.target_branch.branch.repo.url)} {shq(repo_dir)}
 
-git -C {shq(repo_dir)} config user.email hail-ci@example.com
-git -C {shq(repo_dir)} config user.name hail-ci
+  git -C {shq(repo_dir)} config user.email hail-ci@example.com
+  git -C {shq(repo_dir)} config user.name hail-ci
+else
+  git -C {shq(repo_dir)} reset --merge
+  git -C {shq(repo_dir)} fetch origin
+fi
 
-git -C {shq(repo_dir)} remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)}
+git -C {shq(repo_dir)} remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
 git -C {shq(repo_dir)} fetch {shq(self.source_repo.short_str())}
 git -C {shq(repo_dir)} checkout {shq(self.target_branch.sha)}
@@ -257,13 +261,9 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
             if all(j['state'] == 'Complete' for j in status['jobs']):
                 self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
 
-    async def cleanup(self):
-        await check_shell(f'rm -rf repos/{self.token}')
-
 
 class WatchedBranch:
     def __init__(self, branch):
-        self.token = generate_token()
         self.branch = branch
         self.prs = None
         self.sha = None
@@ -322,21 +322,6 @@ class WatchedBranch:
             await pr.refresh_review_state(gh)
 
     async def heal(self, batch_client):
-        repo_dir = f'repos/{self.token}'
-
-        clone_script = '''
-mkdir -p {shq(repo_dir)}
-git -C {shq(repo_dir)} clone {shq(self.branch.repo.url)} .
-
-git -C {shq(repo_dir)} config user.email hail-ci@example.com
-git -C {shq(repo_dir)} config user.name hail-ci
-
-git -C {shq(repo_dir)} remote add {shq(self.branch.repo.short_str())} {shq(self.branch.repo.url)}
-
-git -C {shq(repo_dir)} fetch {shq(self.branch.repo.short_str())}
-'''
-        check_shell(clone_script)
-
         # FIXME merge
         merge_candidate = None
         for pr in self.prs.values():
