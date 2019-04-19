@@ -68,14 +68,14 @@ steps:
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile.in
-   contextPath: batch
+   contextPath: .
    publishAs: batch
    dependsOn:
      - base_image
  - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test.in
-   contextPath: batch
+   contextPath: .
    publishAs: test-batch
    dependsOn:
      - base_image
