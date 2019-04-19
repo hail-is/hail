@@ -339,6 +339,10 @@ class Job:
             self.set_state('Cancelled')
 
     def delete(self):
+        for cid in self.child_ids:
+            child = job_id_job[cid]
+            child.cancel()
+
         # remove from structures
         del job_id_job[self.id]
         if self.batch_id:
@@ -349,13 +353,14 @@ class Job:
             parent = job_id_job[pid]
             parent.child_ids.remove(self.id)
         self.parent_ids = []
-        for cid in self.child_ids:
-            child = job_id_job[cid]
+        children = [job_id_job[cid] for cid in self.child_ids]
+        for child in children:
             child.parent_ids.remove(self.id)
-            child.cancel()
             child.incomplete_parent_ids.discard(self.id)
-            child.create_if_ready()
         self.child_ids = set()
+
+        for child in children:
+            child.create_if_ready()
 
         self._delete_k8s_resources()
         self._state = 'Cancelled'
