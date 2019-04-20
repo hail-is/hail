@@ -3485,6 +3485,42 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
+    def __matmul__(self, other):
+        """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,
+        the vector dot product is performed, returning a `NumericExpression`. If `a` and `b` are both 2-dimensional
+        matrices, this performs normal matrix multiplication. If `a` and `b` have more than 2 dimensions, they are
+        treated as multi-dimensional stacks of 2-dimensional matrices. Matrix multiplication is applied element-wise
+        across the higher dimensions. E.g. if `a` has shape `(3, 4, 5)` and `b` has shape `(3, 5, 6)`, `a` is treated
+        as a stack of three matrices of shape `(4, 5)` and `b` as a stack of three matrices of shape `(5, 6)`. `a @ b`
+        would then have shape `(3, 4, 6)`.
+
+        Notes
+        -----
+        The last dimension of `a` and the second to last dimension of `b` must have the same length. The dimensions
+        prior to the last two of `a` and `b` must match or be compatible for broadcasting.
+
+        Parameters
+        ----------
+        other : :class:`numpy.ndarray` :class:`.NDArrayNumericExpression`
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._ndarray(other)
+
+        if self.ndim == 1:
+            result_ndim = other.ndim - 1
+        elif other.ndim == 1:
+            result_ndim = self.ndim - 1
+        else:
+            assert self.ndim == other.ndim
+            result_ndim = self.ndim
+
+        nd_typ = tndarray(self._type.element_type, result_ndim)
+        return construct_expr(NDArrayMatMul(self._ir, other), nd_typ, self._indices, self._aggregations)
+
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):
         """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will

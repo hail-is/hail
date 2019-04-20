@@ -2890,6 +2890,14 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: v.transpose((1,)))
         self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
 
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_matmul(self):
+        a = [[1, 2], [3, 4]]
+        b = hl._ndarray(a)
+        c = hl._ndarray(a)
+        d = b @ c
+
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
         for (htyp, pytyp) in collection_types:
