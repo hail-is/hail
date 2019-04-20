@@ -10,11 +10,11 @@ object NumpyType {
   // 3. int for number of bytes
   def apply(t: PType): String = {
     t match {
-      case _:PInt32 => "<i32"
-      case _:PInt64 => "<i64"
-      case _: PFloat32 => "<f32"
-      case _: PFloat64 => "<f64"
-      case _: PBoolean => "|b1"
+      case _: PInt32 => "int32"
+      case _: PInt64 => "int64"
+      case _: PFloat32 => "float32"
+      case _: PFloat64 => "float64"
+      case _: PBoolean => "bool"
       case _ => throw new UnsupportedOperationException(s"Type not supported in npy conversion: $t")
     }
   }

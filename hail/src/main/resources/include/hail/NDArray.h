@@ -69,10 +69,7 @@ std::string npy_header(NDArray &nd, const char * numpy_dtype) {
   s << "'fortran_order': False" << ", ";
   s << "'shape': " << "(";
   for (int i = 0; i < nd.shape.size(); ++i) {
-    s << nd.shape[i];
-    if (i < nd.shape.size() - 1) {
-      s << ", ";
-    }
+    s << nd.shape[i] << ", ";
   }
   s << ")" << "}";
 

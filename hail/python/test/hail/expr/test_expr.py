@@ -3,6 +3,8 @@ import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
+import numpy as np
+import tempfile
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -2718,3 +2720,18 @@ class Tests(unittest.TestCase):
         expr_eq((nx // nx)[0], a // a)
         expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
         expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_save(self):
+        arrs = [
+            np.array([[[1, 2, 3], [4, 5, 6]],
+                      [[7, 8, 9], [10, 11, 12]]]),
+            np.array(3.0),
+            np.array([True, False, True, True])
+        ]
+
+        for arr in arrs:
+            with tempfile.NamedTemporaryFile(suffix='.npy') as f:
+                hl._ndarray(arr).save(f.name)
+                self.assertTrue(np.array_equal(arr, np.load(f.name)))
