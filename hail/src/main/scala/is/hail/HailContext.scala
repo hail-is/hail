@@ -5,6 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -15,7 +16,7 @@ import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.{log, _}
-import is.hail.variant.MatrixTable
+import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -184,8 +185,8 @@ object HailContext {
     tmpDir: String = "/tmp",
     optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
 
-    if (get != null) {
-      val hc = get
+    if (theContext != null) {
+      val hc = theContext
       if (sc == null) {
         warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
           "has already been initialized. Different configuration settings will be ignored.")
@@ -287,10 +288,15 @@ object HailContext {
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
+    // needs to be after `theContext` is set, since this creates broadcasts
+    ReferenceGenome.addDefaultReferences()
+
     hc
   }
 
   def clear() {
+    ReferenceGenome.reset()
+    IRFunctionRegistry.clearUserFunctions()
     theContext = null
   }
 

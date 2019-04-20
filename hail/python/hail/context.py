@@ -121,8 +121,8 @@ class HailContext(object):
 
         if jar_version != version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                   f"  JAR:    {jar_version}\n"
-                   f"  Python: {version}")
+                               f"  JAR:    {jar_version}\n"
+                               f"  Python: {version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -164,6 +164,8 @@ class HailContext(object):
         uninstall_exception_handler()
         Env._dummy_table = None
         Env._seed_generator = None
+        hail.ir.clear_session_functions()
+        ReferenceGenome._references = {}
 
     def upload_log(self):
         self._jhc.uploadLog()
@@ -292,6 +294,7 @@ def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
         Env.hc().stop()
+        Env._hc = None
 
 def spark_context():
     """Returns the active Spark context.
