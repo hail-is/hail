@@ -744,7 +744,11 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   def skipBytes(n: Int): Unit = in.skip(n)
 
   def readDoubles(to: Array[Double], off: Int, n: Int): Unit = {
-    Iterator.tabulate(n) { i => to(off + i) = readDouble() }
+    var i = 0
+    while (i < n) {
+      to(off + i) = readDouble()
+      i += 1
+    }
   }
 }
 
