@@ -58,6 +58,9 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token
         - name: ci2-jwt
           secret:
             secretName: user-jwt-fzp4f
