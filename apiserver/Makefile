@@ -5,7 +5,7 @@ REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := ../hail/python:../hailjwt:$(shell ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:$${PYTHONPATH:+:$$PYTHONPATH}
+PYTHONPATH := $${PYTHONPATH:+:$$PYTHONPATH}../hail/python:../hailjwt:$(shell ls $$SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 flake8-stmp: $(PY_FILES)
