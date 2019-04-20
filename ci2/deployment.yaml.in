@@ -34,12 +34,17 @@ spec:
               value: @ip@
             - name: DOMAIN
               value: @domain@
+            - name: HAIL_TOKEN_FILE
+              value: '/ci2-jwt/jwt'
           ports:
             - containerPort: 5000
           volumeMounts:
             - mountPath: /secrets/oauth-token
               readOnly: true
               name: hail-ci-0-1-github-oauth-token
+            - mountPath: /ci2-jwt
+              readOnly: true
+              name: ci2-jwt
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -53,9 +58,9 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 5
       volumes:
-        - name: hail-ci-0-1-github-oauth-token
+        - name: ci2-jwt
           secret:
-            secretName: hail-ci-0-1-github-oauth-token
+            secretName: user-jwt-fzp4f
 ---
 apiVersion: v1
 kind: Service
