@@ -30,6 +30,10 @@ spec:
               value: @gcp_project@
             - name: CI_UTILS_IMAGE
               value: @ci_utils_image@
+            - name: IP
+              value: @ip@
+            - name: DOMAIN
+              value: @domain@
           ports:
             - containerPort: 5000
           volumeMounts:
