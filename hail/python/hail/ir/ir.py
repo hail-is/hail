@@ -10,6 +10,7 @@ from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 
+from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -949,13 +950,9 @@ class AggArrayPerElement(IR):
 
 
 def _register(registry, name, f):
-    if name in registry:
-        registry[name].append(f)
-    else:
-        registry[name] = [f]
+    registry[name].append(f)
 
-
-_aggregator_registry = {}
+_aggregator_registry = defaultdict(list)
 
 
 def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
@@ -1282,9 +1279,29 @@ class Die(IR):
         self._type = self._typ
 
 
-_function_registry = {}
-_seeded_function_registry = {}
+_function_registry = defaultdict(list)
+_seeded_function_registry = defaultdict(list)
+_session_functions = set()
 
+def clear_session_functions():
+    global _session_functions
+    for name, param_types, ret_type in _session_functions:
+        remove_function(name, param_types, ret_type)
+
+    _session_functions = set()
+
+def remove_function(name, param_types, ret_type):
+    f = (param_types, ret_type)
+    bindings = _function_registry[name]
+    bindings = [b for b in bindings if b != f]
+    if not bindings:
+        del _function_registry[name]
+    else:
+        _function_registry[name] = bindings
+
+def register_session_function(name, param_types, ret_type):
+    _session_functions.add((name, param_types, ret_type))
+    register_function(name, param_types, ret_type)
 
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
@@ -1295,15 +1312,13 @@ def register_seeded_function(name, param_types, ret_type):
 
 
 def _lookup_function_return_type(registry, fkind, name, arg_types):
-    if name in registry:
-        fns = registry[name]
-        for f in fns:
-            (param_types, ret_type) = f
-            for p in param_types:
-                p.clear()
-            ret_type.clear()
-            if all(p.unify(a) for p, a in zip(param_types, arg_types)):
-                return ret_type.subst()
+    for f in registry[name]:
+        (param_types, ret_type) = f
+        for p in param_types:
+            p.clear()
+        ret_type.clear()
+        if all(p.unify(a) for p, a in zip(param_types, arg_types)):
+            return ret_type.subst()
     raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
 
 
