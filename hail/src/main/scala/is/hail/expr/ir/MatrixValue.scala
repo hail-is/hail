@@ -13,6 +13,7 @@ import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.commons.lang3.StringUtils
+import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
@@ -58,90 +59,86 @@ case class MatrixValue(
 
   def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
 
-  private def writeCols(path: String, codecSpec: CodecSpec) {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
-
-    val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
+  private def writeCols(hadoopConf: hadoop.conf.Configuration, path: String, codecSpec: CodecSpec) {
+    val partitionCounts = AbstractRVDSpec.writeSingle(hadoopConf, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
 
     val colsSpec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "../references",
       typ.colsTableType,
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    colsSpec.write(hc, path)
+    colsSpec.write(hadoopConf, path)
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  private def writeGlobals(path: String, codecSpec: CodecSpec) {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
+  private def writeGlobals(hadoopConf: hadoop.conf.Configuration, path: String, codecSpec: CodecSpec) {
+    val partitionCounts = AbstractRVDSpec.writeSingle(hadoopConf, path + "/rows", typ.globalType.physicalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.globalType.physicalType, codecSpec, Array(globals.value))
-
-    AbstractRVDSpec.writeLocal(hc, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(hadoopConf, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "../references",
       TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    globalsSpec.write(hc, path)
+    globalsSpec.write(hadoopConf, path)
 
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 
-  private def finalizeWrite(path: String, codecSpec: CodecSpec, partitionCounts: Array[Long]) = {
-    val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
-
+  private def finalizeWrite(
+    hadoopConf: hadoop.conf.Configuration,
+    path: String,
+    codecSpec: CodecSpec,
+    partitionCounts: Array[Long]
+  ) = {
     val globalsPath = path + "/globals"
     hadoopConf.mkDir(globalsPath)
-    writeGlobals(globalsPath, codecSpec)
+    writeGlobals(hadoopConf, globalsPath, codecSpec)
 
     val rowsSpec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "../references",
       typ.rowsTableType,
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    rowsSpec.write(hc, path + "/rows")
+    rowsSpec.write(hadoopConf, path + "/rows")
 
     hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
 
     val entriesSpec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "../references",
       TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    entriesSpec.write(hc, path + "/entries")
+    entriesSpec.write(hadoopConf, path + "/entries")
 
     hadoopConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
 
     hadoopConf.mkDir(path + "/cols")
-    writeCols(path + "/cols", codecSpec)
+    writeCols(hadoopConf, path + "/cols", codecSpec)
 
     val refPath = path + "/references"
-    hc.hadoopConf.mkDir(refPath)
+    hadoopConf.mkDir(refPath)
     Array(typ.colType, typ.rowType, typ.entryType, typ.globalType).foreach { t =>
-      ReferenceGenome.exportReferences(hc, refPath, t)
+      ReferenceGenome.exportReferences(hadoopConf, refPath, t)
     }
 
     val spec = MatrixTableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "references",
       typ,
       Map("globals" -> RVDComponentSpec("globals/rows"),
@@ -149,7 +146,7 @@ case class MatrixValue(
         "rows" -> RVDComponentSpec("rows/rows"),
         "entries" -> RVDComponentSpec("entries/rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
+    spec.write(hadoopConf, path)
 
     writeNativeFileReadMe(path)
 
@@ -184,7 +181,7 @@ case class MatrixValue(
 
     val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
 
-    finalizeWrite(path, codecSpec, partitionCounts)
+    finalizeWrite(hadoopConf, path, codecSpec, partitionCounts)
   }
 
   lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
@@ -395,7 +392,7 @@ object MatrixValue {
 
     val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, codecSpec, stageLocally)
     for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
-      mv.finalizeWrite(path, codecSpec, partCounts)
+      mv.finalizeWrite(hadoopConf, path, codecSpec, partCounts)
     }
   }
 }

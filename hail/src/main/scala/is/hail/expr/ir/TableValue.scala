@@ -71,6 +71,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
+    val hadoopConf = hc.hadoopConf
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -81,36 +82,36 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         CodecSpec.default
 
     if (overwrite)
-      hc.hadoopConf.delete(path, recursive = true)
-    else if (hc.hadoopConf.exists(path))
+      hadoopConf.delete(path, recursive = true)
+    else if (hadoopConf.exists(path))
       fatal(s"file already exists: $path")
 
-    hc.hadoopConf.mkDir(path)
+    hadoopConf.mkDir(path)
 
     val globalsPath = path + "/globals"
-    hc.hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
+    hadoopConf.mkDir(globalsPath)
+    AbstractRVDSpec.writeSingle(hadoopConf, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
-    hc.hadoopConf.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(hc, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(hc, referencesPath, typ.globalType)
+    hadoopConf.mkDir(referencesPath)
+    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.rowType)
+    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.globalType)
 
     val spec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "references",
       typ,
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
+    spec.write(hadoopConf, path)
 
     writeNativeFileReadMe(path)
 
-    hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
