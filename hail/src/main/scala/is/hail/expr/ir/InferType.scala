@@ -106,10 +106,8 @@ object InferType {
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
       case NDArrayRef(nd, idxs) =>
-        assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
-        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
-          idxs.typ.required && 
-          coerce[TStreamable](idxs.typ).elementType.required)
+        assert(idxs.forall(_.typ.isOfType(TInt64())))
+        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
@@ -158,6 +156,7 @@ object InferType {
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixWrite => TVoid
+      case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)

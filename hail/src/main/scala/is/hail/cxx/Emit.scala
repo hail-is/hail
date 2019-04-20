@@ -875,7 +875,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             assert(idxVars.length == nDims)
-            val index = linearizeIndices(idxVars, s"$nd.strides")
+            val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", shape.toString)
             s"""
                |({
                | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
@@ -928,8 +928,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIndex = linearizeIndices(idxVars, s"$l.strides")
-            val rIndex = linearizeIndices(idxVars, s"$r.strides")
+            val lIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$l.strides", shape.toString)
+            val rIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$r.strides", shape.toString)
 
             s"""
                |({
@@ -991,26 +991,31 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case ir.NDArrayRef(nd, idxsIR) =>
+      case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
-        val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
-        val idxsContainer = idxsIR.pType.asInstanceOf[PStreamable].asPArray
+        val elemType = typeToCXXType(ndIR.pType.asInstanceOf[PNDArray].elementType)
 
-        val ndt = emit(nd)
-        val idxst = emit(idxsIR)
+        val ndt = emit(ndIR)
+        val idxst = idxs.map(emit(_))
 
-        val idxs = fb.variable("idxs", "std::vector<long>",
-          s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
-        present(
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+
+        val idxVars = idxst.map(i => fb.variable("idx", "int", i.v))
+        val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", s"$nd.shape")
+
+        triplet(
+          s"""
+             | ${ ndt.setup }
+             | ${ idxst.map(_.setup).mkString("\n") }
+           """.stripMargin,
+          idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           s"""
              |({
-             | ${ ndt.setup }
-             | ${ idxst.setup }
-             |
-             | ${ idxs.define }
-             | load_element<$elemType>(load_indices(${ndt.v}, $idxs));
+             | ${ nd.define }
+             | ${ idxVars.map(_.define).mkString("\n") }
+             | load_element<$elemType>(load_index($nd, $index));
              |})
-             |""".stripMargin)
+           """.stripMargin)
 
       case ir.NDArrayWrite(nd, path) =>
         val tub = fb.translationUnitBuilder()

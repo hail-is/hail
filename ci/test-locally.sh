@@ -4,6 +4,7 @@ set -ex
 export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
 export WATCHED_TARGETS='[["hail-ci-test/'${REPO_NAME}':master", true]]'
+export PYTHONPATH=../hailjwt:../batch:${PYTHONPATH:+:$PYTHONPATH}
 
 set +x
 TOKEN=$(cat github-tokens/user1)
@@ -15,8 +16,8 @@ cleanup() {
 
     for table in ${tables[@]}; do
         python3 -c "from batch.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$table\")"
-    done    
-    
+    done
+
     [[ -z $batch_pid ]] || (kill $batch_pid; kill -9 $batch_pid)
     [[ -z $ci_pid ]] || (kill $ci_pid; kill -9 $ci_pid)
     [[ -z $proxy_pid ]] || (kill $proxy_pid; kill -9 $proxy_pid)
@@ -29,8 +30,6 @@ cleanup() {
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
-
-python3 -m pip install --user -U ../batch
 
 if [[ -z $IN_HAIL_CI ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
@@ -51,9 +50,9 @@ export BATCH_JOBS_TABLE=batch-jobs-$(../generate-uid.sh)
 tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_JOBS_TABLE)
 
 export BATCH_SERVER_URL=http://127.0.0.1:5001
-POD_NAMESPACE='test' python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 
-../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
+../until-with-fuel 30 curl -fL 127.0.0.1:5001/alive
 
 # create the temp repo
 set +x
@@ -64,9 +63,7 @@ curl -XPOST \
      -d "{ \"name\" : \"${REPO_NAME}\" }"
 set -x
 
-# wait for create to propagate
-# FIXME poll?
-sleep 5
+../until-with-fuel 30 curl -fL https://github.com/hail-ci-test/${REPO_NAME}
 
 # upload files to temp repo
 # https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x

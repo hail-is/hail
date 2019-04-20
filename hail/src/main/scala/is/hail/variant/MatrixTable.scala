@@ -80,8 +80,8 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def write(hc: HailContext, path: String) {
-    hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+  def write(hadoopConf: org.apache.hadoop.conf.Configuration, path: String) {
+    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }

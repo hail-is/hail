@@ -60,7 +60,7 @@ object Copy {
         val IndexedSeq(data: IR, shape: IR, rowMajor: IR) = newChildren
         MakeNDArray(nDim, data, shape, rowMajor)
       case NDArrayRef(_, _) =>
-        val IndexedSeq(nd: IR, idxs: IR) = newChildren
+        val (nd: IR) +: (idxs: IndexedSeq[IR]) = newChildren
         NDArrayRef(nd, idxs)
       case NDArrayMap(_, name, _) =>
         val IndexedSeq(nd: IR, body: IR) = newChildren
@@ -222,6 +222,8 @@ object Copy {
       case BlockMatrixWrite(_, writer) =>
         val IndexedSeq(newChild: BlockMatrixIR) = newChildren
         BlockMatrixWrite(newChild, writer)
+      case BlockMatrixMultiWrite(_, writer) =>
+        BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)

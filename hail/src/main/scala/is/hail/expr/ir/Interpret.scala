@@ -755,6 +755,9 @@ object Interpret {
       case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
         writer(hc, child.execute(hc))
+      case BlockMatrixMultiWrite(blockMatrices, writer) =>
+        val hc = HailContext.get
+        writer(blockMatrices.map(_.execute(hc)))
       case TableToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case BlockMatrixToValueApply(child, function) =>

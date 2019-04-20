@@ -15,6 +15,12 @@ import scala.collection.mutable
 import scala.reflect._
 
 object IRFunctionRegistry {
+  private val userAddedFunctions: mutable.Set[(String, Seq[Type])] = mutable.HashSet.empty
+
+  def clearUserFunctions() {
+    userAddedFunctions.foreach { case (name, argTypes) => removeIRFunction(name, argTypes) }
+    userAddedFunctions.clear()
+  }
 
   val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)] =
     new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)]
@@ -30,10 +36,12 @@ object IRFunctionRegistry {
 
   def pyRegisterIR(mname: String,
     argNames: java.util.ArrayList[String],
-    argTypes: java.util.ArrayList[String], retType: String,
+    argTypeStrs: java.util.ArrayList[String], retType: String,
     body: IR): Unit = {
+    val argTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
+    userAddedFunctions += ((mname, argTypes))
     addIR(mname,
-      argTypes.asScala.toArray.map(IRParser.parseType), IRParser.parseType(retType), { args =>
+      argTypes, IRParser.parseType(retType), { args =>
         Subst(body,
           BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
       })

@@ -125,10 +125,9 @@ object TypeCheck {
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
-        assert(idxs.typ.isOfType(TArray(TInt64())))
-      case x@NDArrayMap(nd, _, body) =>
-        assert(nd.typ.isInstanceOf[TNDArray])
+        assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
+        assert(idxs.forall(_.typ.isOfType(TInt64())))
+      case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
         val lTyp = coerce[TNDArray](l.typ)
@@ -273,6 +272,7 @@ object TypeCheck {
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
       case BlockMatrixWrite(_, _) =>
+      case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
       case x@ReadPartition(path, _, _, rowType) =>

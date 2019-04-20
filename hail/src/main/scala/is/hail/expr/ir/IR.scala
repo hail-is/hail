@@ -201,7 +201,7 @@ final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String
 
 final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
 
-final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
@@ -341,6 +341,8 @@ final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunc
 final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
 
 final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
+
+final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
 final case class ReadPartition(path: IR, spec: CodecSpec, encodedType: TStruct, rowType: TStruct) extends IR

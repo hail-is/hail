@@ -1,5 +1,5 @@
 from hail.utils.java import Env
-from hail.ir import Apply, Ref, Renderer, register_function
+from hail.ir import Apply, Ref, Renderer, register_session_function
 from hail.expr.types import HailType
 from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
 from hail.typecheck import typecheck
@@ -28,7 +28,7 @@ def define_function(f, *param_types):
     Env.hail().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
         mname, param_names, [pt._parsable_string() for pt in param_types], ret_type._parsable_string(),
         jbody)
-    register_function(mname, param_types, ret_type)
+    register_session_function(mname, param_types, ret_type)
 
     @typecheck(args=expr_any)
     def f(*args):

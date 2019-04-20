@@ -56,7 +56,7 @@ class ValueIRTests(unittest.TestCase):
                            ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
                            ir.TrueIR()),
-            ir.NDArrayRef(nd, ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64))),
+            ir.NDArrayRef(nd, [ir.I64(1), ir.I64(2)]),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),

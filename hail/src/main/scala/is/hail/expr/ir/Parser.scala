@@ -642,7 +642,7 @@ object IRParser {
         NDArrayReindex(nd, indexExpr)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
-        val idxs = ir_value_expr(env)(it)
+        val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
       case "NDArrayWrite" =>
         val nd = ir_value_expr(env)(it)
@@ -865,6 +865,12 @@ object IRParser {
         val writer = deserialize[BlockMatrixWriter](writerStr)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixWrite(child, writer)
+      case "BlockMatrixMultiWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixWriter.formats
+        val writer = deserialize[BlockMatrixMultiWriter](writerStr)
+        val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
+        BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)

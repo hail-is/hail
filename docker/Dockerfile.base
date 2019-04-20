@@ -8,6 +8,7 @@ RUN apt-get update && \
     htop \
     unzip bzip2 \
     wget curl \
+    rsync \
     emacs25-nox \
     openjdk-8-jdk-headless \
     python3 python3-pip && \

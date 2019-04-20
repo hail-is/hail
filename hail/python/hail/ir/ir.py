@@ -1,7 +1,7 @@
 import copy
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
 from hail.typecheck import *
@@ -10,6 +10,7 @@ from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 
+from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -504,19 +505,18 @@ class NDArrayMap(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(nd=IR, idxs=IR)
+    @typecheck_method(nd=IR, idxs=sequenceof(IR))
     def __init__(self, nd, idxs):
-        super().__init__(nd, idxs)
+        super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
 
-    @typecheck_method(nd=IR, idxs=IR)
-    def copy(self, nd, idxs):
-        return NDArrayRef(nd, idxs)
+    def copy(self, *args):
+        return NDArrayRef(args[0], args[1:])
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.idxs._compute_type(env, agg_env)
+        [idx._compute_type(env, agg_env) for idx in self.idxs]
         self._type = self.nd.typ.element_type
 
 
@@ -950,13 +950,9 @@ class AggArrayPerElement(IR):
 
 
 def _register(registry, name, f):
-    if name in registry:
-        registry[name].append(f)
-    else:
-        registry[name] = [f]
+    registry[name].append(f)
 
-
-_aggregator_registry = {}
+_aggregator_registry = defaultdict(list)
 
 
 def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
@@ -1283,9 +1279,29 @@ class Die(IR):
         self._type = self._typ
 
 
-_function_registry = {}
-_seeded_function_registry = {}
+_function_registry = defaultdict(list)
+_seeded_function_registry = defaultdict(list)
+_session_functions = set()
 
+def clear_session_functions():
+    global _session_functions
+    for name, param_types, ret_type in _session_functions:
+        remove_function(name, param_types, ret_type)
+
+    _session_functions = set()
+
+def remove_function(name, param_types, ret_type):
+    f = (param_types, ret_type)
+    bindings = _function_registry[name]
+    bindings = [b for b in bindings if b != f]
+    if not bindings:
+        del _function_registry[name]
+    else:
+        _function_registry[name] = bindings
+
+def register_session_function(name, param_types, ret_type):
+    _session_functions.add((name, param_types, ret_type))
+    register_function(name, param_types, ret_type)
 
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
@@ -1296,15 +1312,13 @@ def register_seeded_function(name, param_types, ret_type):
 
 
 def _lookup_function_return_type(registry, fkind, name, arg_types):
-    if name in registry:
-        fns = registry[name]
-        for f in fns:
-            (param_types, ret_type) = f
-            for p in param_types:
-                p.clear()
-            ret_type.clear()
-            if all(p.unify(a) for p, a in zip(param_types, arg_types)):
-                return ret_type.subst()
+    for f in registry[name]:
+        (param_types, ret_type) = f
+        for p in param_types:
+            p.clear()
+        ret_type.clear()
+        if all(p.unify(a) for p, a in zip(param_types, arg_types)):
+            return ret_type.subst()
     raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
 
 
@@ -1559,6 +1573,28 @@ class BlockMatrixWrite(IR):
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
+        self._type = tvoid
+
+
+class BlockMatrixMultiWrite(IR):
+    @typecheck_method(block_matrices=sequenceof(BlockMatrixIR), writer=BlockMatrixMultiWriter)
+    def __init__(self, block_matrices, writer):
+        super().__init__(*block_matrices)
+        self.block_matrices = block_matrices
+        self.writer = writer
+
+    def copy(self, *block_matrices):
+        return BlockMatrixWrite(block_matrices, self.writer)
+
+    def head_str(self):
+        return f'"{self.writer.render()}"'
+
+    def _eq(self, other):
+        return self.writer == other.writer
+
+    def _compute_type(self, env, agg_env):
+        for x in self.block_matrices:
+            x._compute_type()
         self._type = tvoid
 
 

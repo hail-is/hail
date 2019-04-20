@@ -79,7 +79,7 @@ object Children {
     case ArrayAgg(a, name, query) =>
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
-      Array(nd, idxs)
+      nd +: idxs
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
@@ -146,6 +146,7 @@ object Children {
     // from BlockMatrixIR
     case BlockMatrixToValueApply(child, _) => IndexedSeq(child)
     case BlockMatrixWrite(child, _) => IndexedSeq(child)
+    case BlockMatrixMultiWrite(blockMatrices, _) => blockMatrices
     case CollectDistributedArray(ctxs, globals, _, _, body) => IndexedSeq(ctxs, globals, body)
     case ReadPartition(path, _, _, _) => IndexedSeq(path)
   }

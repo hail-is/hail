@@ -13,7 +13,6 @@ struct NDArray {
 };
 
 NDArray make_ndarray(int flags, int offset, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
-char const *load_indices(NDArray &nd, std::vector<long> indices);
 char const *load_index(NDArray &nd, int index);
 int n_elements(std::vector<long> &shape);
 std::vector<long> make_strides(int row_major, std::vector<long> &shape);
@@ -30,22 +29,6 @@ NDArray make_ndarray(int flags, int offset, size_t elem_size, std::vector<long> 
   nd.strides = strides;
 
   return nd;
-}
-
-char const *load_indices(NDArray nd, std::vector<long> indices) {
-  if (indices.size() != nd.shape.size()) {
-    throw new FatalError("Number of indices must match number of dimensions.");
-  }
-
-  int index = 0;
-  for (int i = 0; i < indices.size(); ++i) {
-    if (indices[i] < 0 || indices[i] >= nd.shape[i]) {
-      throw new FatalError(("Invalid index: " + std::to_string(indices[i])).c_str());
-    }
-    index += nd.strides[i] * indices[i];
-  }
-
-  return load_index(nd, index);
 }
 
 char const *load_index(NDArray &nd, int index) {

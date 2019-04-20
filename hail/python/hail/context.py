@@ -121,8 +121,8 @@ class HailContext(object):
 
         if jar_version != version:
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
-                   f"  JAR:    {jar_version}\n"
-                   f"  Python: {version}")
+                               f"  JAR:    {jar_version}\n"
+                               f"  Python: {version}")
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -164,6 +164,8 @@ class HailContext(object):
         uninstall_exception_handler()
         Env._dummy_table = None
         Env._seed_generator = None
+        hail.ir.clear_session_functions()
+        ReferenceGenome._references = {}
 
     def upload_log(self):
         self._jhc.uploadLog()
@@ -263,10 +265,36 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
                 default_reference, idempotent, global_seed,
                 _optimizer_iterations,_backend)
 
+
+def _hail_cite_url():
+    version = read_version_info()
+    [tag, sha_prefix] = version.split("-")
+    if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        # pip installed
+        return f"https://github.com/hail-is/hail/releases/tag/{tag}"
+    return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
+
+
+def cite_hail():
+    """Generate Hail citation text."""
+    return f"Hail Team. Hail {read_version_info()}. {_hail_cite_url()}."
+
+
+def cite_hail_bibtex():
+    """Generate Hail citation in BibTeX form."""
+    return f"""
+@misc{{Hail,
+  author = {{Hail Team}},
+  title = {{Hail}},
+  howpublished = {{\\url{{{_hail_cite_url()}}}}}
+}}"""
+
+
 def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
         Env.hc().stop()
+        Env._hc = None
 
 def spark_context():
     """Returns the active Spark context.

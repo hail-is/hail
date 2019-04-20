@@ -60,8 +60,10 @@ push: build
 deploy: push push-ci-utils
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(CI2_IMAGE)," \
-	  -e "s,@ci_utils_image@,$(CI2_UTILS_IMAGE)," \
+	  -e "s,@ci_utils_image@,$(CI_UTILS_IMAGE)," \
 	  -e "s,@gcp_project@,$(PROJECT)," \
+	  -e "s,@ip@,$(IP)," \
+	  -e "s,@domain@,$(DOMAIN)," \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
 else
