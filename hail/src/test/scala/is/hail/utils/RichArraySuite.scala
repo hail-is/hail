@@ -10,7 +10,7 @@ class RichArraySuite extends SparkSuite {
     val a = Array.fill[Double](100)(util.Random.nextDouble())
     val a2 = new Array[Double](100)
     
-    RichArray.exportToDoubles(hc, file, a, bufSize = 32)
+    RichArray.exportToDoubles(hadoopConf, file, a, bufSize = 32)
     RichArray.importFromDoubles(hc, file, a2, bufSize = 16)
     assert(a === a2)
         
