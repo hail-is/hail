@@ -35,8 +35,11 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
+# FIXME rsync not in pr-builder
+# rsync --delete --recursive ../hailjwt hailjwt
 hailjwt:
-	rsync --delete --recursive ../hailjwt hailjwt
+	rm -rf hailjwt
+	cp -a ../hailjwt hailjwt
 
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
