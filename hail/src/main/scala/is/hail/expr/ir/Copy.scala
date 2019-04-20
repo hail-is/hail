@@ -222,6 +222,8 @@ object Copy {
       case BlockMatrixWrite(_, writer) =>
         val IndexedSeq(newChild: BlockMatrixIR) = newChildren
         BlockMatrixWrite(newChild, writer)
+      case BlockMatrixMultiWrite(_, writer) =>
+        BlockMatrixMultiWrite(newChildren.map(_.asInstanceOf[BlockMatrixIR]), writer)
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)

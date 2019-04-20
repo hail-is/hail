@@ -213,6 +213,8 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
             case BlockMatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
+            case BlockMatrixMultiWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
             case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
               prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
