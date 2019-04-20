@@ -491,8 +491,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   override def toString: String = name
 
-  def write(hc: HailContext, file: String): Unit =
-    hc.hadoopConf.writeTextFile(file) { out =>
+  def write(hadoopConf: org.apache.hadoop.conf.Configuration, file: String): Unit =
+    hadoopConf.writeTextFile(file) { out =>
       val jrg = JSONExtractReferenceGenome(name,
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
@@ -666,7 +666,7 @@ object ReferenceGenome {
   def referenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
     references(name).addLiftover(HailContext.get, chainFile, destRGName)
   }
-  
+
   def referenceRemoveLiftover(name: String, destRGName: String): Unit = {
     references(name).removeLiftover(destRGName)
   }
@@ -688,10 +688,10 @@ object ReferenceGenome {
     }
   }
 
-  private def writeReference(hc: HailContext, path: String, rg: RGBase) {
+  private def writeReference(hadoopConf: org.apache.hadoop.conf.Configuration, path: String, rg: RGBase) {
     val rgPath = path + "/" + rg.name + ".json.gz"
-    if (!hailReferences.contains(rg.name) && !hc.hadoopConf.exists(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(hc, rgPath)
+    if (!hailReferences.contains(rg.name) && !hadoopConf.exists(rgPath))
+      rg.asInstanceOf[ReferenceGenome].write(hadoopConf, rgPath)
   }
 
   def getReferences(t: Type): Set[ReferenceGenome] = {
@@ -699,14 +699,14 @@ object ReferenceGenome {
     MapTypes.foreach {
       case tl: TLocus =>
         rgs += tl.rg.asInstanceOf[ReferenceGenome]
-      case _ => 
+      case _ =>
     }(t)
     rgs
   }
 
-  def exportReferences(hc: HailContext, path: String, t: Type) {
+  def exportReferences(hadoopConf: org.apache.hadoop.conf.Configuration, path: String, t: Type) {
     val rgs = getReferences(t)
-    rgs.foreach(writeReference(hc, path, _))
+    rgs.foreach(writeReference(hadoopConf, path, _))
   }
 
   def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
