@@ -348,7 +348,7 @@ steps:
    name: test_apiserver
    namespace:
      valueFrom: default_ns.name
-   config: apiserver/test-apiserver-pod.yaml.in
+   config: apiserver/test-apiserver-pod.yaml
    wait:
     - kind: Pod
       name: test-apiserver
@@ -361,7 +361,7 @@ steps:
    name: deploy_notebook2
    namespace:
      valueFrom: default_ns.name
-   config: notebook2/deployment.yaml.in
+   config: notebook2/deployment.yaml
    dependsOn:
     - default_ns
     - notebook2_image
