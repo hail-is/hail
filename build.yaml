@@ -91,14 +91,8 @@ steps:
    script: |
      set -ex
      cd /io
-     git clone {{ pr.target_repo_url }} repo
-     cd repo
-     git config user.email hail-ci-leader@example.com
-     git config user.name hail-ci-leader
-     git remote add {{ pr.source_repo }} {{ pr.source_repo_url }}
-     git fetch -q {{ pr.source_repo }}
-     git checkout {{ pr.target_sha }}
-     git merge {{ pr.source_sha }} -m 'merge PR'
+     {{ code.checkout_script }}
+     cd {{ code.repo_dir }}
      cd hail
      ./gradlew shadowJar
      (cd python && zip -r hail.zip hail)
