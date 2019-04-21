@@ -523,7 +523,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testArrayFlatMapMemo() {
-    checkMemo(ArrayFlatMap(arr, "foo", MakeArray(IndexedSeq(Ref("foo", ref.typ)), TArray(ref.typ))),
+    checkMemo(ArrayFlatMap(arr, "foo", MakeArray(FastIndexedSeq(Ref("foo", ref.typ)), TArray(ref.typ))),
       TArray(justA),
       Array(TArray(justA), null))
   }

@@ -945,10 +945,10 @@ class AggregatorsSuite extends SparkSuite {
   @Test def downsample() {
     runAggregator(Downsample(),
       TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
-      FastIndexedSeq(Row(1500.0, 1500.0, IndexedSeq("1500")), Row(5500.0, 5500.0, IndexedSeq("5500")), Row(5600.0, 5600.0, IndexedSeq("5600")),
-        Row(9200.0, 9200.0, IndexedSeq("9200")), Row(9400.0, 9400.0, IndexedSeq("9400")), Row(0.0, 10000.0, IndexedSeq("0, 10000"))),
-      FastIndexedSeq(Row(1500.0, 1500.0, IndexedSeq("1500")), Row(5600.0, 5600.0, IndexedSeq("5600")), Row(9400.0, 9400.0, IndexedSeq("9400")),
-        Row(0.0, 10000.0, IndexedSeq("0, 10000"))),
+      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5500.0, 5500.0, FastIndexedSeq("5500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")),
+        Row(9200.0, 9200.0, FastIndexedSeq("9200")), Row(9400.0, 9400.0, FastIndexedSeq("9400")), Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
+      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")), Row(9400.0, 9400.0, FastIndexedSeq("9400")),
+        Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
       FastIndexedSeq(10),
       None,
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
@@ -1009,9 +1009,9 @@ class AggregatorsSuite extends SparkSuite {
         ht,
         AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt", "_'",
           ApplyAggOp(
-            IndexedSeq(),
+            FastIndexedSeq(),
             None,
-            IndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
+            FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
             AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
           false
         )

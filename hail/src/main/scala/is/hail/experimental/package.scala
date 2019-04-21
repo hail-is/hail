@@ -43,7 +43,7 @@ package object experimental {
     val nSamples = sum(_gtCounts)
 
     //Needs some non-ref samples to compute
-    if(_gtCounts(0) >= nSamples){ return IndexedSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
+    if(_gtCounts(0) >= nSamples){ return FastIndexedSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
 
     val nHaplotypes = 2.0*nSamples.toDouble
 
