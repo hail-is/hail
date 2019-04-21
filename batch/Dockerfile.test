@@ -10,6 +10,6 @@ COPY batch/batch/ /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 
-COPY test/ /test/
+COPY batch/test/ /test/
 
 CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]
