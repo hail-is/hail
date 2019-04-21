@@ -4,7 +4,7 @@ import is.hail.ExecStrategy
 import is.hail.SparkSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.{Locus, RGBase, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -61,7 +61,7 @@ class LocusFunctionsSuite extends SparkSuite {
 
   @Test def minRep() {
     val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString()))
-    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), IndexedSeq("A", "T")))
+    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
     assertEvalsTo(invoke("min_rep", locusIR, NA(TArray(TString()))), null)
   }
   

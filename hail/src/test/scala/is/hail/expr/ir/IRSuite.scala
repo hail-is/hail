@@ -1001,8 +1001,8 @@ class IRSuite extends SparkSuite {
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val transpose = NDArrayReindex(mat, IndexedSeq(1, 0))
-    val identity = NDArrayReindex(mat, IndexedSeq(0, 1))
+    val transpose = NDArrayReindex(mat, FastIndexedSeq(1, 0))
+    val identity = NDArrayReindex(mat, FastIndexedSeq(0, 1))
 
     val topLeftIndex = FastSeq(0L, 0L).map(I64)
     val bottomLeftIndex = FastSeq(1L, 0L).map(I64)
@@ -1332,15 +1332,15 @@ class IRSuite extends SparkSuite {
   def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
-    assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
-    assertEvalsTo(ApplyComparisonOp(GT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
-    assertEvalsTo(ApplyComparisonOp(LTEQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
-    assertEvalsTo(ApplyComparisonOp(GTEQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
-    assertEvalsTo(ApplyComparisonOp(NEQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
-    assertEvalsTo(ApplyComparisonOp(EQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
-    assertEvalsTo(ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
-    assertEvalsTo(ApplyComparisonOp(Compare(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), 0)
+    assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), true)
+    assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), false)
+    assertEvalsTo(ApplyComparisonOp(GT(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), false)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), true)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), true)
+    assertEvalsTo(ApplyComparisonOp(NEQ(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), false)
+    assertEvalsTo(ApplyComparisonOp(EQWithNA(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), true)
+    assertEvalsTo(ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), false)
+    assertEvalsTo(ApplyComparisonOp(Compare(t1, t2), In(0, t1), In(1, t2)), FastIndexedSeq(a -> t1, a -> t2), 0)
   }
 
   @DataProvider(name = "valueIRs")
@@ -1411,7 +1411,7 @@ class IRSuite extends SparkSuite {
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
-      NDArrayReindex(nd, IndexedSeq(0, 1)),
+      NDArrayReindex(nd, FastIndexedSeq(0, 1)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       ArrayRef(a, i),
       ArrayLen(a),
@@ -1442,13 +1442,13 @@ class IRSuite extends SparkSuite {
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
-      Begin(IndexedSeq(Void())),
-      MakeStruct(Seq("x" -> i)),
-      SelectFields(s, Seq("x", "z")),
-      InsertFields(s, Seq("x" -> i)),
-      InsertFields(s, Seq("* x *" -> i)), // Won't parse as a simple identifier
+      Begin(FastIndexedSeq(Void())),
+      MakeStruct(FastIndexedSeq("x" -> i)),
+      SelectFields(s, FastIndexedSeq("x", "z")),
+      InsertFields(s, FastIndexedSeq("x" -> i)),
+      InsertFields(s, FastIndexedSeq("* x *" -> i)), // Won't parse as a simple identifier
       GetField(s, "x"),
-      MakeTuple(Seq(i, b)),
+      MakeTuple(FastIndexedSeq(i, b)),
       GetTupleElement(t, 1),
       In(2, TFloat64()),
       Die("mumblefoo", TFloat64()),
@@ -1501,7 +1501,7 @@ class IRSuite extends SparkSuite {
         TableJoin(read,
           TableRange(100, 10), "inner", 1),
         TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
-        TableMultiWayZipJoin(IndexedSeq(read, read), " * data * ", "globals"),
+        TableMultiWayZipJoin(FastIndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, RepartitionStrategy.COALESCE),
@@ -1627,7 +1627,7 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
     val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
-    val transpose = BlockMatrixBroadcast(read, IndexedSeq(1, 0), IndexedSeq(2, 2), 2)
+    val transpose = BlockMatrixBroadcast(read, FastIndexedSeq(1, 0), FastIndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
 
     val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot)
@@ -1723,7 +1723,7 @@ class IRSuite extends SparkSuite {
 
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
-      val args = IndexedSeq((i, TBoolean()))
+      val args = FastIndexedSeq((i, TBoolean()))
 
       IRSuite.globalCounter = 0
       Interpret[Any](x, env, args, None, optimize = false)
@@ -1883,8 +1883,8 @@ class IRSuite extends SparkSuite {
   @Test def testTableGetGlobalsSimplifyRules() {
     implicit val execStrats = ExecStrategy.interpretOnly
 
-    val t1 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
-    val t2 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
+    val t1 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
+    val t2 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
     val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
     val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, sc), RVD.empty(sc, t2.canonicalRVDType)))
 

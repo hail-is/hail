@@ -253,7 +253,7 @@ class OrderingSuite extends SparkSuite {
     }
     val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1) =>
       assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
-        IndexedSeq(dict -> tdict,
+        FastIndexedSeq(dict -> tdict,
           testKey1 -> -tdict.keyType),
         dict.getOrElse(testKey1, null))
 
@@ -261,7 +261,7 @@ class OrderingSuite extends SparkSuite {
         val testKey2 = dict.keys.toSeq.head
         val expected2 = dict(testKey2)
         assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
-          IndexedSeq(dict -> tdict,
+          FastIndexedSeq(dict -> tdict,
             testKey2 -> -tdict.keyType),
           expected2)
       }
@@ -397,7 +397,7 @@ class OrderingSuite extends SparkSuite {
     a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
     val t = TArray(TFloat64())
 
-    val args = IndexedSeq(a -> t, a2 -> t)
+    val args = FastIndexedSeq(a -> t, a2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
@@ -417,7 +417,7 @@ class OrderingSuite extends SparkSuite {
 
     val s = if (a != null) a.toSet else null
     val s2 = if (a2 != null) a2.toSet else null
-    val args = IndexedSeq(s -> t, s2 -> t)
+    val args = FastIndexedSeq(s -> t, s2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
@@ -434,7 +434,7 @@ class OrderingSuite extends SparkSuite {
   def rowDoubleOrderingData(): Array[Array[Any]] = {
     val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
     val as = Array(null: IndexedSeq[Any]) ++
-      (for (x <- xs) yield IndexedSeq[Any](x))
+      (for (x <- xs) yield FastIndexedSeq[Any](x))
     val ss = Array[Any](null, "a", "aa")
 
     val rs = for (x <- xs; s <- ss)
@@ -449,7 +449,7 @@ class OrderingSuite extends SparkSuite {
     r: Row, r2: Row) {
     val t = TStruct("x" -> TFloat64(), "s" -> TString())
 
-    val args = IndexedSeq(r -> t, r2 -> t)
+    val args = FastIndexedSeq(r -> t, r2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
