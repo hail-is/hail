@@ -11,6 +11,7 @@ RUN apt-get update && \
     rsync \
     emacs25-nox \
     openjdk-8-jdk-headless \
+    jq \
     python3 python3-pip && \
   rm -rf /var/lib/apt/lists/*
 
