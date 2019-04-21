@@ -4,7 +4,7 @@ metadata:
   name: notebook2
   labels:
     app: notebook2
-    hail.is/sha: "{{ pr.sha }}"
+    hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: notebook2
-        hail.is/sha: "{{ pr.sha }}"
+        hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: notebook
       containers:

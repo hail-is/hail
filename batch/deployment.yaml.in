@@ -4,7 +4,7 @@ metadata:
   name: batch
   labels:
     app: batch
-    hail.is/sha: "{{ pr.sha }}"
+    hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: batch
-        hail.is/sha: "{{ pr.sha }}"
+        hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: batch
       containers:

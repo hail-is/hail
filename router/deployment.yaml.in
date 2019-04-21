@@ -105,7 +105,7 @@ metadata:
   name: router-deployment
   labels:
     app: router
-    hail.is/sha: "{{ pr.sha }}"
+    hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
@@ -115,7 +115,7 @@ spec:
     metadata:
       labels:
         app: router
-        hail.is/sha: "{{ pr.sha }}"
+        hail.is/sha: "{{ code.sha }}"
     spec:
       containers:
       - name: router
