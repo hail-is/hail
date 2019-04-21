@@ -7,8 +7,6 @@ steps:
     - scorecard-github-access-token
     - hail-vdc-sa-key
     - notebook-secrets
-    - user-jwt-vkqfw
-    - gsa-key-2x975
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -24,6 +22,9 @@ steps:
      namespace:
        valueFrom: default_ns.name
    public: false
+   secrets:
+    - user-jwt-vkqfw
+    - gsa-key-2x975
    dependsOn:
     - default_ns
     - deploy_batch_sa
