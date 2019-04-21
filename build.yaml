@@ -32,21 +32,21 @@ steps:
    publishAs: base
  - kind: buildImage
    name: hail_build_image
-   dockerFile: hail/Dockerfile.hail-build.in
+   dockerFile: hail/Dockerfile.hail-build
    contextPath: hail
    publishAs: hail-build
    dependsOn:
      - base_image
  - kind: buildImage
    name: hail_run_image
-   dockerFile: hail/Dockerfile.hail-run.in
+   dockerFile: hail/Dockerfile.hail-run
    contextPath: hail
    publishAs: hail-run
    dependsOn:
      - base_image
  - kind: buildImage
    name: scorecard_image
-   dockerFile: scorecard/Dockerfile.in
+   dockerFile: scorecard/Dockerfile
    contextPath: scorecard
    publishAs: scorecard
    dependsOn:
@@ -67,21 +67,21 @@ steps:
      - base_image
  - kind: buildImage
    name: batch_image
-   dockerFile: batch/Dockerfile.in
+   dockerFile: batch/Dockerfile
    contextPath: .
    publishAs: batch
    dependsOn:
      - base_image
  - kind: buildImage
    name: test_batch_image
-   dockerFile: batch/Dockerfile.test.in
+   dockerFile: batch/Dockerfile.test
    contextPath: .
    publishAs: test-batch
    dependsOn:
      - base_image
  - kind: buildImage
    name: image_fetcher_image
-   dockerFile: image-fetcher/Dockerfile.in
+   dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
    publishAs: image-fetcher
  - kind: runImage
@@ -123,7 +123,7 @@ steps:
     - hail_build_image
  - kind: buildImage
    name: hail_base_image
-   dockerFile: apiserver/Dockerfile.hail-base.in
+   dockerFile: apiserver/Dockerfile.hail-base
    contextPath: .
    publishAs: hail-base
    dependsOn:
@@ -136,35 +136,35 @@ steps:
       to: /hail.zip
  - kind: buildImage
    name: apiserver_image
-   dockerFile: apiserver/Dockerfile.apiserver.in
+   dockerFile: apiserver/Dockerfile.apiserver
    contextPath: apiserver
    publishAs: apiserver
    dependsOn:
     - hail_base_image
  - kind: buildImage
    name: hail_jupyter_image
-   dockerFile: apiserver/Dockerfile.hail-jupyter.in
+   dockerFile: apiserver/Dockerfile.hail-jupyter
    contextPath: apiserver
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
  - kind: buildImage
    name: spark_master_image
-   dockerFile: apiserver/Dockerfile.spark-master.in
+   dockerFile: apiserver/Dockerfile.spark-master
    contextPath: apiserver
    publishAs: spark-master
    dependsOn:
     - hail_base_image
  - kind: buildImage
    name: spark_worker_image
-   dockerFile: apiserver/Dockerfile.spark-worker.in
+   dockerFile: apiserver/Dockerfile.spark-worker
    contextPath: apiserver
    publishAs: spark-worker
    dependsOn:
     - hail_base_image
  - kind: buildImage
    name: test_apiserver_image
-   dockerFile: apiserver/Dockerfile.test-apiserver.in
+   dockerFile: apiserver/Dockerfile.test-apiserver
    contextPath: apiserver
    publishAs: test-apiserver
    inputs:
@@ -179,7 +179,7 @@ steps:
     - build_hail
  - kind: buildImage
    name: notebook2_image
-   dockerFile: notebook2/Dockerfile.in
+   dockerFile: notebook2/Dockerfile
    contextPath: .
    publishAs: notebook2
    dependsOn:
@@ -264,7 +264,7 @@ steps:
    name: deploy_router
    namespace:
      valueFrom: default_ns.name
-   config: router/deployment.yaml.in
+   config: router/deployment.yaml
    link:
     - www
     - scorecard
@@ -278,7 +278,7 @@ steps:
    name: deploy_site
    namespace:
      valueFrom: default_ns.name
-   config: site/deployment.yaml.in
+   config: site/deployment.yaml
    dependsOn:
     - default_ns
     - site_image
@@ -287,7 +287,7 @@ steps:
    name: deploy_scorecard
    namespace:
      valueFrom: default_ns.name
-   config: scorecard/deployment.yaml.in
+   config: scorecard/deployment.yaml
    dependsOn:
     - default_ns
     - scorecard_image
@@ -303,7 +303,7 @@ steps:
    name: deploy_batch
    namespace:
      valueFrom: default_ns.name
-   config: batch/deployment.yaml.in
+   config: batch/deployment.yaml
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -313,7 +313,7 @@ steps:
    name: deploy_image_fetcher
    namespace:
      valueFrom: default_ns.name
-   config: image-fetcher/deployment.yaml.in
+   config: image-fetcher/deployment.yaml
    dependsOn:
     - default_ns
     - image_fetcher_image
@@ -321,7 +321,7 @@ steps:
    name: test_batch
    namespace:
      valueFrom: default_ns.name
-   config: batch/test-batch-pod.yaml.in
+   config: batch/test-batch-pod.yaml
    wait:
     - kind: Pod
       name: test-batch
@@ -333,7 +333,7 @@ steps:
    name: deploy_apiserver
    namespace:
      valueFrom: default_ns.name
-   config: apiserver/deployment.yaml.in
+   config: apiserver/deployment.yaml
    wait:
     - kind: Deployment
       name: spark-master
