@@ -30,35 +30,41 @@ spec:
         ports:
          - containerPort: 5000
         volumeMounts:
-        - name: sql-batch-batch-admin-config
-          mountPath: /sql-batch-batch-admin-config
-          readOnly: true
-        - name: jwt-secret
-          mountPath: /jwt-secret
-          readOnly: true
-        - name: @gsa_secret@
-          mountPath: /batch-gsa-key
-          readOnly: true
-        - name: @jwt_secret@
-          mountPath: /batch-jwt
-          readOnly: true
+         - name: sql-batch-batch-admin-config
+           mountPath: /sql-batch-batch-admin-config
+           readOnly: true
+         - name: jwt-secret
+           mountPath: /jwt-secret
+           readOnly: true
+         - name: gsa
+           mountPath: /batch-gsa-key
+           readOnly: true
+         - name: jwt
+           mountPath: /batch-jwt
+           readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
       volumes:
-      - name: sql-batch-batch-admin-config
-        secret:
-          optional: false
-          secretName: {{ batch_database.admin_secret_name }}
-      - name: jwt-secret
-        secret:
-          optional: false
-          secretName: notebook-secrets
-      - name: @gsa_secret@
-        secret:
-          optional: false
-          secretName: @gsa_secret@
-      - name: @jwt_secret@
-        secret:
-          optional: false
-          secretName: @jwt_secret@
+       - name: sql-batch-batch-admin-config
+         secret:
+           optional: false
+           secretName: {{ batch_database.admin_secret_name }}
+       - name: jwt-secret
+         secret:
+           optional: false
+           secretName: notebook-secrets
+       - name: gsa-key
+         secret:
+           optional: false
+           secretName: gsa-key-n6hf9
+       - name: jwt
+         secret:
+           optional: false
+           secretName: user-jwt-fh7kp
 ---
 apiVersion: v1
 kind: Service

@@ -9,6 +9,9 @@ steps:
     - notebook-secrets
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
+    # hail|ci2
+    - user-jwt-fzp4f
+    - gsa-key-hnmrj
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -25,6 +28,7 @@ steps:
        valueFrom: default_ns.name
    public: false
    secrets:
+    # hail|test-batch
     - user-jwt-vkqfw
     - gsa-key-2x975
    dependsOn:
