@@ -556,15 +556,15 @@ class Tests(unittest.TestCase):
                                  .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
                                  .default(hl.is_missing(rows.interval_matches))))
 
-    # def test_interval_product_join(self):
-    #     left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
-    #     intervals = hl.utils.range_table(25)
-    #     intervals = intervals.key_by(interval=hl.interval(
-    #         1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
-    #         (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
-    #     left = left.annotate_rows(interval_matches=intervals.index(left.row_key, product=True))
-    #     rows = left.rows()
-    #     self.assertTrue(rows.all(rows.interval_matches.length() == hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10)))
+    def test_interval_product_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, product=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(rows.interval_matches.length() == hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10)))
 
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])

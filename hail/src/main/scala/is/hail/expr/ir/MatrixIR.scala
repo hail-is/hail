@@ -896,12 +896,22 @@ case class MatrixAnnotateRowsTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
+  val annotationType =
+    if (product)
+      TArray(table.typ.valueType)
+    else
+      table.typ.valueType
 
+  val typ: MatrixType =
+    child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> annotationType))
+
+  val annotationRVDType =
+    if (product)
+      PArray(table.rvdType.rowType.dropFields(table.typ.key.toSet))
+    else
+      table.rvdType.rowType.dropFields(table.typ.key.toSet)
   override lazy val rvdType: RVDType = child.rvdType.copy(
-    rowType = child.rvdType.rowType.appendKey(
-      root,
-      table.rvdType.rowType.dropFields(table.typ.key.toSet)))
+    rowType = child.rvdType.rowType.appendKey(root, annotationRVDType))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
