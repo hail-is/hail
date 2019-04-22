@@ -162,7 +162,7 @@ steps:
  - kind: buildImage
    name: test_apiserver_image
    dockerFile: apiserver/Dockerfile.test-apiserver
-   contextPath: apiserver
+   contextPath: .
    publishAs: test-apiserver
    inputs:
     - from: /test.tar.gz
@@ -317,14 +317,14 @@ steps:
  - kind: deploy
    name: test_batch
    namespace:
-     valueFrom: default_ns.name
+     valueFrom: batch_pods_ns.name
    config: batch/test-batch-pod.yaml
    wait:
     - kind: Pod
       name: test-batch
       for: completed
    dependsOn:
-    - default_ns
+    - batch_pods_ns
     - deploy_batch
     - test_batch_image
  - kind: deploy
@@ -351,14 +351,14 @@ steps:
  - kind: deploy
    name: test_apiserver
    namespace:
-     valueFrom: default_ns.name
+     valueFrom: batch_pods_ns.name
    config: apiserver/test-apiserver-pod.yaml
    wait:
     - kind: Pod
       name: test-apiserver
       for: completed
    dependsOn:
-    - default_ns
+    - batch_pods_ns
     - test_apiserver_image
     - deploy_apiserver
  - kind: deploy

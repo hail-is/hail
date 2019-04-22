@@ -5,6 +5,7 @@ COPY hailjwt/hailjwt /hailjwt/hailjwt/
 RUN pip3 install --no-cache-dir /hailjwt && \
   rm -rf /hailjwt
 
+# FIXME buildImage has the context, we can just COPY these
 COPY test.tar.gz .
 RUN tar xzvf test.tar.gz && \
   rm -f test.tar.gz
