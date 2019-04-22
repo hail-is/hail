@@ -20,7 +20,7 @@ trap "exit 24" INT TERM
 
 if [[ -z $IN_HAIL_CI ]]; then
     export CLOUD_SQL_CONFIG_PATH=`pwd`/batch-secrets/batch-test-cloud-sql-config.json
-    export GOOGLE_APPLICATION_CREDENTIALS=`pwd`/batch-secrets/batch-test-gsa-key/privateKeyData
+    export BATCH_GSA_KEY=`pwd`/batch-secrets/batch-test-gsa-key/privateKeyData
     export BATCH_JWT=`pwd`/batch-secrets/batch-test-jwt/jwt
 
     connection_name=$(jq -r '.connection_name' $CLOUD_SQL_CONFIG_PATH)
@@ -31,7 +31,7 @@ if [[ -z $IN_HAIL_CI ]]; then
     ../until-with-fuel 30 curl -fL $host:$port
 else
     export CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json
-    export GOOGLE_APPLICATION_CREDENTIALS=/batch-test-gsa-key/privateKeyData
+    export BATCH_GSA_KEY=/batch-test-gsa-key/privateKeyData
     export BATCH_JWT=/batch-test-jwt/jwt
 fi
 
