@@ -569,8 +569,9 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool)
-def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
+           skip_invalid_intervals=bool,
+           min_partitions=nullable(int))
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False, min_partitions=None) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -642,6 +643,8 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    min_partitions : :obj:`int` or :obj:`None`
+        Minimum number of partitions.
 
     Returns
     -------
@@ -656,7 +659,8 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
                                                    'f2': tint32, 'f3': tstr,
                                                    'f4': tstr},
                      comment=["""^browser.*""", """^track.*""",
-                              r"""^\w+=("[\w\d ]+"|\d+).*"""])
+                              r"""^\w+=("[\w\d ]+"|\d+).*"""],
+                     min_partitions=min_partitions)
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
