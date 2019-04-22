@@ -23,7 +23,7 @@ object AbstractRVDSpec {
       classOf[CodecSpec], classOf[PackCodecSpec], classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
       classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec],
-      classOf[UnpartitionedRVDSpec]))
+      classOf[StreamBufferSpec], classOf[UnpartitionedRVDSpec]))
     override val typeHintFieldName = "name"
   } +
     new TStructSerializer +
