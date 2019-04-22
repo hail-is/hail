@@ -11,7 +11,7 @@ spec:
       valueFrom:
         fieldRef:
           fieldPath: status.podIP
-      name: HAIL_TOKEN_FILE
+    - name: HAIL_TOKEN_FILE
       value: '/jwt/jwt'
     volumeMounts:
       - mountPath: /jwt

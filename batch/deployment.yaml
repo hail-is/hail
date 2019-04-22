@@ -23,13 +23,12 @@ spec:
         env:
           - name: POD_NAMESPACE
             value: "{{ batch_pods_ns.name }}"
+         - name: HAIL_JWT_SECRET_KEY_FILE
+           value: /jwt-secret/secret-key
+         - name: HAIL_INSTANCE_ID
+           value: cd50b95a89914efb897965a5e982a29d
         ports:
-        - containerPort: 5000
-        env:
-        - name: HAIL_JWT_SECRET_KEY_FILE
-          value: /jwt-secret/secret-key
-        - name: HAIL_INSTANCE_ID
-          value: cd50b95a89914efb897965a5e982a29d
+         - containerPort: 5000
         volumeMounts:
         - name: sql-batch-batch-admin-config
           mountPath: /sql-batch-batch-admin-config
