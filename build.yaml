@@ -114,9 +114,10 @@ steps:
    script: |
      set -ex
      cd /io
+     mkdir repo
+     cd repo
      {{ code.checkout_script }}
-     mv {{ code.repo_dir }} ./repo
-     cd repo/hail
+     cd hail
      ./gradlew shadowJar
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
