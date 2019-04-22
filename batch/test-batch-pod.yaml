@@ -13,6 +13,8 @@ spec:
            fieldPath: status.podIP
      - name: HAIL_TOKEN_FILE
        value: '/jwt/jwt'
+     - name: BATCH_URL
+       value: http://batch
     volumeMounts:
       - mountPath: /jwt
         readOnly: true
