@@ -76,11 +76,10 @@ class CollectionExpression(Expression):
 
         etype = self.dtype.element_type
         if isinstance(etype, hl.tstruct):
-            return hl.struct(
-                **{k: self.map(lambda x: x[k]) for k in etype}).__getitem__(item)
+            return self.map(lambda x: x[item])
         try:
             if isinstance(etype, (hl.tarray, hl.tset)):
-                return self.map(lambda x: x.__getitem__(item))
+                return self.map(lambda x: x[item])
         except TypeError as err:
             if "elements must be structs or collections that eventaully contain structs." not in str(err):
                 raise
