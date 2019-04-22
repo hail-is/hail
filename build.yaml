@@ -94,11 +94,15 @@ steps:
    dockerFile: ci2/Dockerfile
    contextPath: .
    publishAs: ci2
+   dependsOn:
+     - base_image
  - kind: buildImage
    name: ci_utils_image
    dockerFile: ci2/Dockerfile.ci-utils
    contextPath: ci2
    publishAs: ci-utils
+   dependsOn:
+     - base_image
  - kind: runImage
    name: build_hail
    image:
