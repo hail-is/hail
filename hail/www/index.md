@@ -20,7 +20,7 @@ To get started using Hail:
 
 - install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/0.2/getting_started.html)
 - follow the [Tutorials](https://hail.is/docs/0.2/tutorials-landing.html) for examples of how to use Hail
-- read the [Hail Overview](https://hail.is/docs/0.2/overview.html) for a broad introduction to Hail
+- read the [Hail Overview](https://hail.is/docs/0.2/overview/index.html) for a broad introduction to Hail
 - check out the [Python API](https://hail.is/docs/0.2/api.html) for detailed information on the programming interface
 - read over some of the [How-To materials](https://hail.is/docs/0.2/guides.html) for inspiration.
 
