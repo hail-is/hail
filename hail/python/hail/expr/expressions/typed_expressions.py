@@ -645,15 +645,15 @@ class ArrayStructExpression(ArrayExpression):
 
     See Also
     --------
-    :class:`.ArrayExpression:`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    :class:`.ArrayExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
     """
 
     def __getattr__(self, item):
         return ArrayStructExpression.__getitem__(self, item)
 
-    @typecheck_method(item=oneof(str))
     def __getitem__(self, item):
-        """Get a field from each struct in this array.
+        """If a string, get a field from each struct in this array. If an integer, get
+        the item at that index.
 
         Examples
         --------
@@ -684,9 +684,15 @@ class ArrayStructExpression(ArrayExpression):
         :class:`.ArrayExpression`
             An array formed by getting the given field for each struct in
             this array
+
+        See Also
+        --------
+        :meth:`.ArrayExpression.__getitem__`
         """
 
-        return self.map(lambda x: x[item])
+        if isinstance(item, str):
+            return self.map(lambda x: x[item])
+        return super().__getitem__(item)
 
 
 class ArrayNumericExpression(ArrayExpression):
@@ -1124,7 +1130,7 @@ class SetStructExpression(SetExpression):
 
     See Also
     --------
-    :class:`.SetExpression:`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    :class:`.SetExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
     """
 
     def __getattr__(self, item):
