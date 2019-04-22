@@ -6,7 +6,7 @@ RUN pip3 install --no-cache-dir /hailjwt && \
   rm -rf /hailjwt
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
-COPY batch/ /batch/batch/
+COPY batch/batch /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 
