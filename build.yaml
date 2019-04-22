@@ -389,7 +389,7 @@ steps:
        -d "{ \"name\" : \"ci-test-{{ global.token }}\" }"
    secrets:
     - name: hail-ci-0-1-service-account-key
-      mount: /secret/ci-secrets
+      mountPath: /secret/ci-secrets
    dependsOn:
     - base_image
  - kind: runImage
@@ -406,7 +406,7 @@ steps:
        -H "Authorization: token ${TOKEN}"
    secrets:
     - name: hail-ci-0-1-service-account-key
-      mount: /secret/ci-secrets
+      mountPath: /secret/ci-secrets
    alwaysRun: true
    dependsOn:
     - base_image
