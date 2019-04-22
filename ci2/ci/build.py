@@ -1,21 +1,12 @@
 import os.path
 import json
-import string
-import secrets
 from shlex import quote as shq
 import yaml
 import jinja2
 from .log import log
-from .utils import flatten
+from .utils import flatten, generate_token
 from .constants import BUCKET
 from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
-
-
-def generate_token(size=12):
-    assert size > 0
-    alpha = string.ascii_lowercase
-    alnum = string.ascii_lowercase + string.digits
-    return secrets.choice(alpha) + ''.join([secrets.choice(alnum) for _ in range(size - 1)])
 
 
 def expand_value_from(value, config):
