@@ -29,14 +29,14 @@ def _gs_log_path(instance_id, job_id, task_name):
 
 async def write_gs_log_file(thread_pool, instance_id, job_id, task_name, log):
     path = _gs_log_path(instance_id, job_id, task_name)
-    await upload_private_gs_file_from_string(thread_pool, batch_bucket_name, path, log)
+    await blocking_to_async(thread_pool, upload_private_gs_file_from_string, batch_bucket_name, path, log)
     return path
 
 
 async def read_gs_log_file(thread_pool, instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
     if exists_gs_file(batch_bucket_name, path):
-        return await download_gs_file_as_string(thread_pool, batch_bucket_name, path)
+        return await blocking_to_async(thread_pool, download_gs_file_as_string, batch_bucket_name, path)
     return None
 
 
