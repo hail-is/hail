@@ -19,7 +19,7 @@ import hailjwt as hj
 
 from .globals import max_id, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event, blocking_to_async
-from .globals import write_gs_log_file, read_gs_log_file
+from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
 from .database import BatchDatabase
 
 from .. import schemas
@@ -367,7 +367,7 @@ class Job:
             self._delete_k8s_resources()
             self.set_state('Cancelled')
 
-    def delete(self):
+    async def delete(self):
         for cid in self.child_ids:
             child = job_id_job[cid]
             child.cancel()
@@ -393,6 +393,10 @@ class Job:
 
         self._delete_k8s_resources()
         self._state = 'Cancelled'
+
+        for idx, jt in enumerate(self._tasks):
+            if idx < self._task_idx:
+                await delete_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
 
         log.info(f'job {self.id} deleted')
 
@@ -644,7 +648,7 @@ async def delete_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    job.delete()
+    await job.delete()
     return jsonify({})
 
 
