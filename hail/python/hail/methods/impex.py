@@ -569,11 +569,8 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool,
-           min_partitions=nullable(int),
-           find_replace=nullable(sized_tupleof(str, str)))
-def import_bed(path, reference_genome='default', skip_invalid_intervals=False, min_partitions=None,
-               find_replace=None) -> Table:
+           skip_invalid_intervals=bool)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -645,12 +642,8 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, m
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
-    min_partitions : :obj:`int` or :obj:`None`
-        Minimum number of partitions.
-    find_replace : (:obj:`str`, :obj:`str`)
-        Line substitution regex. Functions like ``re.sub``, but obeys the exact
-        semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+    **kwargs :
+        All optional arguments to import_table are valid arguments to import_bed.
 
     Returns
     -------
@@ -666,7 +659,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, m
                                                    'f4': tstr},
                      comment=["""^browser.*""", """^track.*""",
                               r"""^\w+=("[\w\d ]+"|\d+).*"""],
-                     min_partitions=min_partitions, find_replace=find_replace)
+                     **kwargs)
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
