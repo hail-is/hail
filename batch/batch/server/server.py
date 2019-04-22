@@ -461,7 +461,8 @@ class Job:
     async def delete(self):
         child_ids = await db.jobs_parents.get_children(self.id)
         children = [await Job.from_db(cid) for cid in child_ids]
-        [await child.cancel() for child in children]
+        for child in children:
+            await child.cancel()
 
         await db.jobs.delete_record(self.id)
 
@@ -471,7 +472,8 @@ class Job:
         await db.jobs_parents.delete_records_where({'job_id': self.id})
         await db.jobs_parents.delete_records_where({'parent_id': self.id})
 
-        [await child.create_if_ready() for child in children]
+        for child in children:
+            await child.create_if_ready()
 
         await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
         await self._delete_k8s_resources()
