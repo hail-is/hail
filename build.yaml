@@ -7,6 +7,7 @@ steps:
     - scorecard-github-access-token
     - hail-vdc-sa-key
     - notebook-secrets
+    - gcr-pull-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -373,3 +374,40 @@ steps:
     - notebook2_image
     - hail_jupyter_image
     - deploy_router
+ - kind: runImage
+   name: create_ci_test_repo
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     TOKEN=$(cat /secret/ci-secrets/user1)
+     echo creating ci-test-{{ create_ci_test_repo.token }}...
+     curl -XPOST \
+       -i \
+       https://api.github.com/orgs/hail-ci-test/repos \
+       -H "Authorization: token ${TOKEN}" \
+       -d "{ \"name\" : \"ci-test-{{ global.token }}\" }"
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mount: /secret/ci-secrets
+   dependsOn:
+    - base_image
+ - kind: runImage
+   name: cleanup_ci_test_repo
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     TOKEN=$(cat /secret/ci-secrets/user1)
+     echo deleting ci-test-{{ create_ci_test_repo.token }}...
+     curl -XDELETE \
+       -i \
+       https://api.github.com/repos/hail-ci-test/ci-test-{{ create_ci_test_repo.token }} \
+       -H "Authorization: token ${TOKEN}"
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mount: /secret/ci-secrets
+   alwaysRun: true
+   dependsOn:
+    - base_image
+    - create_ci_test_repo
