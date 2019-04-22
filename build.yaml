@@ -381,7 +381,7 @@ steps:
    script: |
      set -e
      TOKEN=$(cat /secret/ci-secrets/user1)
-     echo creating ci-test-{{ create_ci_test_repo.token }}...
+     echo creating ci-test-{{ token }}...
      curl -XPOST \
        -i \
        https://api.github.com/orgs/hail-ci-test/repos \
