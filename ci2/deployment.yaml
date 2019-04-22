@@ -26,8 +26,8 @@ spec:
               value: '[["hail-is/hail:master",false]]'
             - name: BATCH_SERVER_URL
               value: http://batch.default
-	    - name: GCP_PROJECT
-	      value: "{{ global.project }}"
+            - name: GCP_PROJECT
+              value: "{{ global.project }}"
             - name: CI_UTILS_IMAGE
               value: "{{ ci_utils_image.image }}"
             - name: IP
