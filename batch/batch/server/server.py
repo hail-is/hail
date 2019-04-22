@@ -218,7 +218,7 @@ class Job:
             self._pod_name = None
 
     async def _read_logs(self):
-        logs = {jt.name: await blocking_to_async(read_gs_log_file, instance_id, self.id, jt.name)
+        logs = {jt.name: read_gs_log_file(instance_id, self.id, jt.name)
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Ready':
             if self._pod_name:
@@ -422,11 +422,7 @@ class Job:
 
         add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
 
-        await blocking_to_async(write_gs_log_file,
-                                instance_id,
-                                self.id,
-                                task_name,
-                                pod_log)
+        await write_gs_log_file(instance_id, self.id, task_name, pod_log)
 
         if self._pod_name:
             del pod_name_job[self._pod_name]
@@ -633,7 +629,7 @@ async def get_job_log(request):  # pylint: disable=R1710
     else:
         logs = {}
         for task_name in ['input', 'main', 'output']:
-            log = await blocking_to_async(read_gs_log_file, instance_id, job_id, task_name)
+            log = await read_gs_log_file(instance_id, job_id, task_name)
             if log is not None:
                 logs[task_name] = log
         if logs:

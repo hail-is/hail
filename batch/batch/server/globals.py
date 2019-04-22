@@ -26,16 +26,16 @@ def _gs_log_path(instance_id, job_id, task_name):
     return f'{instance_id}/{job_id}/{task_name}/job.log'
 
 
-def write_gs_log_file(instance_id, job_id, task_name, log):
+async def write_gs_log_file(instance_id, job_id, task_name, log):
     path = _gs_log_path(instance_id, job_id, task_name)
-    upload_private_gs_file_from_string(batch_bucket_name, path, log)
+    await upload_private_gs_file_from_string(batch_bucket_name, path, log)
     return path
 
 
-def read_gs_log_file(instance_id, job_id, task_name):
+async def read_gs_log_file(instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
     if exists_gs_file(batch_bucket_name, path):
-        return download_gs_file_as_string(batch_bucket_name, path)
+        return await download_gs_file_as_string(batch_bucket_name, path)
     return None
 
 
