@@ -97,9 +97,6 @@ test-local: batch-secrets/batch-test-jwt/jwt
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster: /batch-secrets/batch-test-cloud-sql-config.json
-test-local-in-cluster: /batch-test-gsa-key/privateKeyData
-test-local-in-cluster: /batch-test-jwt/jwt
 test-local-in-cluster: check test/jwt-test-user-token
 	HAIL_JWT_SECRET_KEY_FILE=test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=test/jwt-test-user-token \
@@ -136,11 +133,11 @@ clean:
 clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-production: /batch-secrets/batch-production-cloud-sql-config.json
+clean-db-production:
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
 clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
-clean-db-test: /batch-secrets/batch-test-cloud-sql-config.json
+clean-db-test:
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh

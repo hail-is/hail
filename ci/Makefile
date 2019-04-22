@@ -58,8 +58,6 @@ test-local: ../batch/test/jwt-test-user-token
 		./test-locally.sh
 
 test-in-cluster: ../batch/test/jwt-test-user-token
-test-in-cluster: /batch-test-gsa-key/privateKeyData
-test-in-cluster: /batch-test-jwt/jwt
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
 		HAIL_POD_NAMESPACE=test \

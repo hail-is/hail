@@ -6,7 +6,7 @@ PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
 include ../cloud-sql.mk
-include ../batch-secrets.mk
+include ../batch/batch-secrets.mk
 
 flake8-stmp: $(PY_FILES)
 	$(PYTHON) -m flake8 pipeline
@@ -37,8 +37,6 @@ test-local: ../batch/test/jwt-test-user-token check
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: ../batch/test/jwt-test-user-token check
-test-local-in-cluster: /batch-test-gsa-key/privateKeyData
-test-local-in-cluster: /batch-test-jwt/jwt
 	HAIL_JWT_SECRET_KEY_FILE=../batch/test/jwt-test-secret-key \
 		HAIL_TOKEN_FILE=../batch/test/jwt-test-user-token \
 		HAIL_POD_NAMESPACE=test \
