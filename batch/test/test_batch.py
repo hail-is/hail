@@ -139,7 +139,14 @@ class Test(unittest.TestCase):
         id = j.id
         j.wait()
         j.delete()
-        self.assertEqual(self.batch._get_job_log(id), {'main': 'test\n'})
+
+        try:
+            self.batch._get_job_log(id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                self.assertTrue(False, f"batch should not have deleted log {e}")
 
     def test_delete_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
