@@ -29,12 +29,6 @@ watched_branches = [
 
 app = web.Application()
 
-app['client_session'] = aiohttp.ClientSession(
-    raise_for_status=True,
-    timeout=aiohttp.ClientTimeout(total=60))
-app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
-app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
-
 routes = web.RouteTableDef()
 
 
@@ -115,7 +109,7 @@ async def pull_request_callback(event):
     target_branch = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
         if (number in wb.prs) or (wb.branch == target_branch):
-            await wb.update(event.app)
+            await wb.notify_github_changed(event.app)
 
 
 @gh_router.register('push')
@@ -127,7 +121,7 @@ async def push_callback(event):
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch or any(pr.branch == branch for pr in wb.prs.values()):
-                await wb.update(event.app)
+                await wb.notify_github_changed(event.app)
 
 
 @gh_router.register('pull_request_review')
@@ -136,7 +130,7 @@ async def pull_request_review_callback(event):
     number = gh_pr['number']
     for wb in watched_branches:
         if number in wb.prs:
-            await wb.update(event.app)
+            await wb.notify_github_changed(event.app)
 
 
 @routes.post('/callback')
@@ -166,6 +160,12 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
 
 async def on_startup(app):
+    app['client_session'] = aiohttp.ClientSession(
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
+    app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
+
     asyncio.ensure_future(refresh_loop(app))
 
 app.on_startup.append(on_startup)
