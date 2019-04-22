@@ -95,8 +95,8 @@ steps:
      set -ex
      cd /io
      {{ code.checkout_script }}
-     cd {{ code.repo_dir }}
-     cd hail
+     mv {{ code.repo_dir }} ./repo
+     cd repo/hail
      ./gradlew shadowJar
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
