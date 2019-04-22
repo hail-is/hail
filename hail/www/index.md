@@ -27,7 +27,7 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 ### Citing Hail
 
 If you use Hail for published work, please cite the software. You can get a
-citation for the version of hail you installed by executing:
+citation for the version of Hail you installed by executing:
 
 ```python
 import hail as hl
