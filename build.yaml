@@ -8,6 +8,7 @@ steps:
     - hail-vdc-sa-key
     - notebook-secrets
     - gcr-pull-key
+    - hail-ci-0-1-github-oauth-token
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -88,6 +89,16 @@ steps:
    dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
    publishAs: image-fetcher
+ - kind: buildImage
+   name: ci_image
+   dockerFile: ci2/Dockerfile
+   contextPath: .
+   publishAs: ci2
+ - kind: buildImage
+   name: ci_utils_image
+   dockerFile: ci2/Dockerfile.ci-utils
+   contextPath: ci2
+   publishAs: ci-utils
  - kind: runImage
    name: build_hail
    image:
@@ -290,6 +301,19 @@ steps:
     - default_ns
     - scorecard_image
     - deploy_router
+ - kind: deploy
+   name: deploy_ci
+   namespace:
+     valueFrom: default_ns.name
+   config: ci2/deployment.yaml
+   wait:
+    - kind: Deployment
+      name: ci2
+      for: available
+   dependsOn:
+    - default_ns
+    - ci_image
+    - ci_utils_image
  - kind: createDatabase
    name: batch_database
    databaseName: batch

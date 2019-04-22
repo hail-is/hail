@@ -4,7 +4,7 @@ metadata:
   name: ci2
   labels:
     app: ci2
-    hail.is/sha: "@sha@"
+    hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
@@ -14,11 +14,11 @@ spec:
     metadata:
       labels:
         app: ci2
-        hail.is/sha: "@sha@"
+        hail.is/sha: "{{ code.sha }}"
     spec:
       containers:
         - name: ci2
-          image: @image@
+          image: "{{ ci_image.image }}"
           env:
             - name: CI2_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
@@ -26,14 +26,14 @@ spec:
               value: '[["hail-is/hail:master",false]]'
             - name: BATCH_SERVER_URL
               value: http://batch.default
-            - name: GCP_PROJECT
-              value: @gcp_project@
+	    - name: GCP_PROJECT
+	      value: "{{ global.project }}"
             - name: CI_UTILS_IMAGE
-              value: @ci_utils_image@
+              value: "{{ ci_utils_image.image }}"
             - name: IP
-              value: @ip@
+              value: "{{ global.ip }}"
             - name: DOMAIN
-              value: @domain@
+              value: "{{ global.domain }}"
             - name: HAIL_TOKEN_FILE
               value: '/ci2-jwt/jwt'
           ports:
