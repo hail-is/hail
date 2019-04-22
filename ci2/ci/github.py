@@ -267,6 +267,7 @@ git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
             status = await self.batch.status()
             if all(j['state'] == 'Complete' for j in status['jobs']):
                 self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
+                self.batch_changed = True
 
 
 class WatchedBranch:
