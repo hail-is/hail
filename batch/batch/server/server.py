@@ -18,7 +18,7 @@ import uvloop
 import hailjwt as hj
 
 from .globals import max_id, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event
+from .globals import next_id, get_recent_events, add_event, blocking_to_async
 from .globals import write_gs_log_file, read_gs_log_file
 from .database import BatchDatabase
 
@@ -218,7 +218,7 @@ class Job:
             self._pod_name = None
 
     async def _read_logs(self):
-        logs = {jt.name: read_gs_log_file(instance_id, self.id, jt.name)
+        logs = {jt.name: read_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Ready':
             if self._pod_name:
@@ -422,7 +422,7 @@ class Job:
 
         add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
 
-        await write_gs_log_file(instance_id, self.id, task_name, pod_log)
+        await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, pod_log)
 
         if self._pod_name:
             del pod_name_job[self._pod_name]
@@ -629,7 +629,7 @@ async def get_job_log(request):  # pylint: disable=R1710
     else:
         logs = {}
         for task_name in ['input', 'main', 'output']:
-            log = await read_gs_log_file(instance_id, job_id, task_name)
+            log = await read_gs_log_file(app['blocking_pool'], instance_id, job_id, task_name)
             if log is not None:
                 logs[task_name] = log
         if logs:
@@ -838,11 +838,6 @@ async def recent(request):  # pylint: disable=W0613
     return {'recent': list(reversed(recent_events))}
 
 
-async def blocking_to_async(f, *args, **kwargs):
-    return await asyncio.get_event_loop().run_in_executor(
-        app['blocking_pool'], lambda: f(*args, **kwargs))
-
-
 class DeblockedIterator:
     def __init__(self, it):
         self.it = it
@@ -851,7 +846,7 @@ class DeblockedIterator:
         return self
 
     def __anext__(self):
-        return blocking_to_async(self.it.__next__)
+        return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
 async def pod_changed(pod):
@@ -874,6 +869,7 @@ async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
     pods = await blocking_to_async(
+        app['blocking_pool'],
         v1.list_namespaced_pod,
         HAIL_POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',

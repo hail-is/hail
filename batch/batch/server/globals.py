@@ -1,6 +1,7 @@
 import os
 import datetime
 import collections
+import asyncio
 
 import hailjwt as hj
 
@@ -26,16 +27,16 @@ def _gs_log_path(instance_id, job_id, task_name):
     return f'{instance_id}/{job_id}/{task_name}/job.log'
 
 
-async def write_gs_log_file(instance_id, job_id, task_name, log):
+async def write_gs_log_file(thread_pool, instance_id, job_id, task_name, log):
     path = _gs_log_path(instance_id, job_id, task_name)
-    await upload_private_gs_file_from_string(batch_bucket_name, path, log)
+    await upload_private_gs_file_from_string(thread_pool, batch_bucket_name, path, log)
     return path
 
 
-async def read_gs_log_file(instance_id, job_id, task_name):
+async def read_gs_log_file(thread_pool, instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
     if exists_gs_file(batch_bucket_name, path):
-        return await download_gs_file_as_string(batch_bucket_name, path)
+        return await download_gs_file_as_string(thread_pool, batch_bucket_name, path)
     return None
 
 
@@ -65,3 +66,8 @@ def add_event(event):
 
     event['time'] = str(datetime.datetime.now())
     _recent_events.append(event)
+
+
+async def blocking_to_async(thread_pool, f, *args, **kwargs):
+    return await asyncio.get_event_loop().run_in_executor(
+        thread_pool, lambda: f(*args, **kwargs))
