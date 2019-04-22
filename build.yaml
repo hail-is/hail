@@ -386,7 +386,7 @@ steps:
        -i \
        https://api.github.com/orgs/hail-ci-test/repos \
        -H "Authorization: token ${TOKEN}" \
-       -d "{ \"name\" : \"ci-test-{{ global.token }}\" }"
+       -d "{ \"name\" : \"ci-test-{{ token }}\" }"
    secrets:
     - name: hail-ci-0-1-service-account-key
       mountPath: /secret/ci-secrets
