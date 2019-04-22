@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 with open('hail/hail_pip_version') as f:
     hail_pip_version = f.read().strip()
 
-with open("../../README.md", "r") as fh:
+with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
