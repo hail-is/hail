@@ -134,7 +134,7 @@ steps:
  - kind: buildImage
    name: apiserver_image
    dockerFile: apiserver/Dockerfile.apiserver
-   contextPath: apiserver
+   contextPath: .
    publishAs: apiserver
    dependsOn:
     - hail_base_image
@@ -325,6 +325,7 @@ steps:
       for: completed
    dependsOn:
     - default_ns
+    - deploy_batch
     - test_batch_image
  - kind: deploy
    name: deploy_apiserver

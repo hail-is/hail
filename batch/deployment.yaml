@@ -21,8 +21,8 @@ spec:
       - name: batch
         image: "{{ batch_image.image }}"
         env:
-          - name: POD_NAMESPACE
-            value: "{{ batch_pods_ns.name }}"
+         - name: POD_NAMESPACE
+           value: "{{ batch_pods_ns.name }}"
          - name: HAIL_JWT_SECRET_KEY_FILE
            value: /jwt-secret/secret-key
          - name: HAIL_INSTANCE_ID

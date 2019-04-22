@@ -1,7 +1,5 @@
 FROM {{ hail_base_image.image }}
 
-RUN python3 -m pip install --no-cache-dir https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
-
 COPY apiserver/apiserver /apiserver
 COPY hailjwt/setup.py /hailjwt/
 COPY hailjwt/hailjwt/ /hailjwt/hailjwt/
