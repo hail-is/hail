@@ -20,6 +20,7 @@ setup(
         'aiohttp_jinja2',
         'jinja2',
         'uvloop>=0.12',
-        'pymysql'
+        'pymysql',
+        'google-cloud-storage=1.14.0'
     ],
 )

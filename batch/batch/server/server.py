@@ -17,8 +17,9 @@ import uvloop
 
 import hailjwt as hj
 
-from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event
+from .globals import max_id, pod_name_job, job_id_job, batch_id_batch
+from .globals import next_id, get_recent_events, add_event, blocking_to_async
+from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
 from .database import BatchDatabase
 
 from .. import schemas
@@ -56,13 +57,6 @@ def schedule(ttl, fun, args=(), kwargs=None):
     if kwargs is None:
         kwargs = {}
     asyncio.get_event_loop().call_later(ttl, functools.partial(fun, *args, **kwargs))
-
-
-if not os.path.exists('logs'):
-    os.mkdir('logs')
-else:
-    if not os.path.isdir('logs'):
-        raise OSError('logs exists but is not a directory')
 
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
@@ -223,8 +217,8 @@ class Job:
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
-    def _read_logs(self):
-        logs = {jt.name: _read_file(_log_path(self.id, jt.name))
+    async def _read_logs(self):
+        logs = {jt.name: await read_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Ready':
             if self._pod_name:
@@ -317,6 +311,7 @@ class Job:
 
         if not self.parent_ids:
             self.set_state('Ready')
+            print("creating pod")
             self._create_pod()
         else:
             self.refresh_parents_and_maybe_create()
@@ -372,7 +367,7 @@ class Job:
             self._delete_k8s_resources()
             self.set_state('Cancelled')
 
-    def delete(self):
+    async def delete(self):
         for cid in self.child_ids:
             child = job_id_job[cid]
             child.cancel()
@@ -399,6 +394,10 @@ class Job:
         self._delete_k8s_resources()
         self._state = 'Cancelled'
 
+        for idx, jt in enumerate(self._tasks):
+            if idx < self._task_idx:
+                await delete_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
+
         log.info(f'job {self.id} deleted')
 
     def is_complete(self):
@@ -413,7 +412,7 @@ class Job:
             self._pod_name = None
         self._create_pod()
 
-    def mark_complete(self, pod):
+    async def mark_complete(self, pod):
         task_name = self._current_task.name
 
         terminated = pod.status.container_statuses[0].state.terminated
@@ -427,10 +426,7 @@ class Job:
 
         add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
 
-        fname = _log_path(self.id, task_name)
-        with open(fname, 'w') as f:
-            f.write(pod_log)
-        log.info(f'wrote log for job {self.id}, {task_name} task to {fname}')
+        await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, pod_log)
 
         if self._pod_name:
             del pod_name_job[self._pod_name]
@@ -458,12 +454,12 @@ class Job:
                         f'callback for job {id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, await self.to_dict())).start()
 
         if self.batch_id:
-            batch_id_batch[self.batch_id].mark_job_complete(self)
+            await batch_id_batch[self.batch_id].mark_job_complete(self)
 
-    def to_dict(self):
+    async def to_dict(self):
         result = {
             'id': self.id,
             'state': self._state
@@ -472,7 +468,7 @@ class Job:
             result['exit_code'] = self.exit_code
             result['duration'] = self.duration
 
-        logs = self._read_logs()
+        logs = await self._read_logs()
         if logs is not None:
             result['log'] = logs
 
@@ -577,7 +573,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         output_files=output_files,
         userdata=userdata,
         always_run=always_run)
-    return jsonify(job.to_dict())
+    return jsonify(await job.to_dict())
 
 
 @routes.get('/alive')
@@ -609,7 +605,7 @@ async def get_job_list(request):
             jobs = [job for job in jobs
                     if job.attributes and k in job.attributes and job.attributes[k] == value]
 
-    return jsonify([job.to_dict() for job in jobs])
+    return jsonify([await job.to_dict() for job in jobs])
 
 
 @routes.get('/jobs/{job_id}')
@@ -619,7 +615,7 @@ async def get_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    return jsonify(job.to_dict())
+    return jsonify(await job.to_dict())
 
 
 @routes.get('/jobs/{job_id}/log')
@@ -631,15 +627,15 @@ async def get_job_log(request):  # pylint: disable=R1710
 
     job = job_id_job.get(job_id)
     if job:
-        job_log = job._read_logs()
+        job_log = await job._read_logs()
         if job_log:
             return jsonify(job_log)
     else:
         logs = {}
         for task_name in ['input', 'main', 'output']:
-            fname = _log_path(job_id, task_name)
-            if os.path.exists(fname):
-                logs[task_name] = _read_file(fname)
+            log = await read_gs_log_file(app['blocking_pool'], instance_id, job_id, task_name)
+            if log is not None:
+                logs[task_name] = log
         if logs:
             return jsonify(logs)
     abort(404)
@@ -652,7 +648,7 @@ async def delete_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    job.delete()
+    await job.delete()
     return jsonify({})
 
 
@@ -695,7 +691,7 @@ class Batch:
     def remove(self, job):
         self.jobs.remove(job)
 
-    def mark_job_complete(self, job):
+    async def mark_job_complete(self, job):
         assert job in self.jobs
         if self.callback:
             def handler(id, job_id, callback, json):
@@ -708,7 +704,7 @@ class Batch:
 
             threading.Thread(
                 target=handler,
-                args=(self.id, job.id, self.callback, job.to_dict())
+                args=(self.id, job.id, self.callback, await job.to_dict())
             ).start()
 
     def close(self):
@@ -724,10 +720,10 @@ class Batch:
     def is_successful(self):
         return all(j.is_successful() for j in self.jobs)
 
-    def to_dict(self):
+    async def to_dict(self):
         result = {
             'id': self.id,
-            'jobs': sorted([j.to_dict() for j in self.jobs], key=lambda j: j['id']),
+            'jobs': sorted([await j.to_dict() for j in self.jobs], key=lambda j: j['id']),
             'is_open': self.is_open
         }
         if self.attributes:
@@ -758,7 +754,7 @@ async def get_batches_list(request):
             batches = [batch for batch in batches
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
-    return jsonify([batch.to_dict() for batch in batches])
+    return jsonify([await batch.to_dict() for batch in batches])
 
 
 @routes.post('/batches/create')
@@ -780,7 +776,7 @@ async def create_batch(request):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
-    return jsonify(batch.to_dict())
+    return jsonify(await batch.to_dict())
 
 
 @routes.get('/batches/{batch_id}')
@@ -790,7 +786,7 @@ async def get_batch(request):
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
-    return jsonify(batch.to_dict())
+    return jsonify(await batch.to_dict())
 
 
 @routes.patch('/batches/{batch_id}/cancel')
@@ -825,7 +821,7 @@ async def close_batch(request):
     return jsonify({})
 
 
-def update_job_with_pod(job, pod):
+async def update_job_with_pod(job, pod):
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
@@ -833,7 +829,7 @@ def update_job_with_pod(job, pod):
             assert container_status.name in ['input', 'main', 'output']
 
             if container_status.state and container_status.state.terminated:
-                job.mark_complete(pod)
+                await job.mark_complete(pod)
     else:
         job.mark_unscheduled()
 
@@ -846,11 +842,6 @@ async def recent(request):  # pylint: disable=W0613
     return {'recent': list(reversed(recent_events))}
 
 
-async def blocking_to_async(f, *args, **kwargs):
-    return await asyncio.get_event_loop().run_in_executor(
-        app['blocking_pool'], lambda: f(*args, **kwargs))
-
-
 class DeblockedIterator:
     def __init__(self, it):
         self.it = it
@@ -859,14 +850,14 @@ class DeblockedIterator:
         return self
 
     def __anext__(self):
-        return blocking_to_async(self.it.__next__)
+        return blocking_to_async(app['blocking_pool'], self.it.__next__)
 
 
-def pod_changed(pod):
+async def pod_changed(pod):
     job = pod_name_job.get(pod.metadata.name)
 
     if job and not job.is_complete():
-        update_job_with_pod(job, pod)
+        await update_job_with_pod(job, pod)
 
 
 async def kube_event_loop():
@@ -875,13 +866,14 @@ async def kube_event_loop():
         HAIL_POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     async for event in DeblockedIterator(stream):
-        pod_changed(event['object'])
+        await pod_changed(event['object'])
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
     pods = await blocking_to_async(
+        app['blocking_pool'],
         v1.list_namespaced_pod,
         HAIL_POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',
@@ -894,11 +886,11 @@ async def refresh_k8s_state():  # pylint: disable=W0613
 
         job = pod_name_job.get(pod_name)
         if job and not job.is_complete():
-            update_job_with_pod(job, pod)
+            await update_job_with_pod(job, pod)
 
     for pod_name, job in pod_name_job.items():
         if pod_name not in seen_pods:
-            update_job_with_pod(job, None)
+            await update_job_with_pod(job, None)
 
     log.info('k8s state refresh complete')
 
