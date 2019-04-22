@@ -355,6 +355,7 @@ class WatchedBranch(Code):
         branch_gh_json = await gh.getitem(f'/repos/{repo_ss}/git/refs/heads/{self.branch.name}')
         new_sha = branch_gh_json['object']['sha']
         if new_sha != self.sha:
+            log.info(f'{self.branch.short_str()} sha changed: {self.sha} => {new_sha}')
             self.sha = new_sha
             self.deploy_batch = None
             self.deploy_state = None
@@ -382,6 +383,7 @@ class WatchedBranch(Code):
     async def _heal(self, batch_client):
         if self.deployable and self.sha and not self.deploy_state:
             if not self.deploy_batch:
+                # FIXME we should wait on any depending deploy
                 deploy_branches = await batch_client.list_batches(
                     attributes={
                         'deploy': '1',
