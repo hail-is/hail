@@ -19,14 +19,8 @@ from asyncinit import asyncinit
 
 import hailjwt as hj
 
-<<<<<<< HEAD
-from .globals import max_id, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event, blocking_to_async
-from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
-=======
 from .globals import get_recent_events, add_event, blocking_to_async
-from .globals import write_gs_log_file, read_gs_log_file
->>>>>>> [batch] Use SQL database in server.py
+from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
 from .database import BatchDatabase
 
 from .. import schemas
@@ -344,7 +338,7 @@ class Job:
                                            attributes=json.dumps(self.attributes),
                                            task_idx=self._task_idx,
                                            always_run=self.always_run,
-                                           cancelled = self._cancelled,
+                                           cancelled=self._cancelled,
                                            duration=self.duration,
                                            userdata=json.dumps(self.userdata))
 

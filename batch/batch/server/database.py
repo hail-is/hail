@@ -96,6 +96,7 @@ class JobsTable(Table):
             return records[0][uri_field]
         return None
 
+
 class JobsParentsTable(Table):
     async def __init__(self, db, name='jobs-parents'):
         schema = {'job_id': 'BIGINT',
