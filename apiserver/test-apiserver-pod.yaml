@@ -12,10 +12,20 @@ spec:
      - |
        python3 -m unittest test.hail.table.test_table.Tests.test_range_table
     env:
-    - name: HAIL_TEST_RESOURCES_DIR
-      value: ./resources
-    - name: HAIL_DOCTEST_DATA_DIR
-      value: ./data
-    - name: HAIL_TEST_SERVICE_BACKEND_URL
-      value: http://apiserver:5000
+     - name: HAIL_TEST_RESOURCES_DIR
+       value: ./resources
+     - name: HAIL_DOCTEST_DATA_DIR
+       value: ./data
+     - name: HAIL_TEST_SERVICE_BACKEND_URL
+       value: http://apiserver:5000
+     - name: HAIL_TOKEN_FILE
+       value: '/jwt/jwt'
+    volumeMounts:
+      - mountPath: /jwt
+        readOnly: true
+        name: test-batch-jwt
+  volumes:
+    - name: test-batch-jwt
+      secret:
+        secretName: user-jwt-vkqfw
   restartPolicy: Never

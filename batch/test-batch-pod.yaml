@@ -7,12 +7,12 @@ spec:
   - name: test-batch
     image: "{{ test_batch_image.image }}"
     env:
-    - name: POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
-    - name: HAIL_TOKEN_FILE
-      value: '/jwt/jwt'
+     - name: POD_IP
+       valueFrom:
+         fieldRef:
+           fieldPath: status.podIP
+     - name: HAIL_TOKEN_FILE
+       value: '/jwt/jwt'
     volumeMounts:
       - mountPath: /jwt
         readOnly: true

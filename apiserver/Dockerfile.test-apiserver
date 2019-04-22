@@ -1,5 +1,10 @@
 FROM {{ hail_base_image.image }}
 
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
 COPY test.tar.gz .
 RUN tar xzvf test.tar.gz && \
   rm -f test.tar.gz
