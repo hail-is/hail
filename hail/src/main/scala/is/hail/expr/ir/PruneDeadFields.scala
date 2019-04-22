@@ -318,8 +318,13 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
-      case TableIntervalJoin(left, right, root) =>
-        val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+      case TableIntervalJoin(left, right, root, product) =>
+        val fieldDep = requestedType.rowType.fieldOption(root).map { field =>
+          if (product)
+            field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+          else
+            field.typ.asInstanceOf[TStruct]
+        }
         fieldDep match {
           case Some(struct) =>
             val rightDep = TableType(
@@ -624,8 +629,13 @@ object PruneDeadFields {
           globalType = unify(child.typ.globalType, requestedType.globalType, irDepEntry.globalType, irDepCol.globalType),
           rvRowType = unify(child.typ.rvRowType, irDepEntry.rvRowType, irDepCol.rvRowType, requestedType.rowType))
         memoizeMatrixIR(child, childDep, memo)
-      case MatrixAnnotateRowsTable(child, table, root) =>
-        val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+      case MatrixAnnotateRowsTable(child, table, root, product) =>
+        val fieldDep = requestedType.rvRowType.fieldOption(root).map { field =>
+          if (product)
+            field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+          else
+            field.typ.asInstanceOf[TStruct]
+        }
         fieldDep match {
           case Some(struct) =>
             val tk = table.typ.key
@@ -1251,9 +1261,9 @@ object PruneDeadFields {
           TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
         else
           rebuild(left, memo)
-      case TableIntervalJoin(left, right, root) =>
+      case TableIntervalJoin(left, right, root, product) =>
         if (requestedType.rowType.hasField(root))
-          TableIntervalJoin(rebuild(left, memo), rebuild(right, memo), root)
+          TableIntervalJoin(rebuild(left, memo), rebuild(right, memo), root, product)
         else
           rebuild(left, memo)
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
@@ -1368,14 +1378,14 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         })
-      case MatrixAnnotateRowsTable(child, table, root) =>
+      case MatrixAnnotateRowsTable(child, table, root, product) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rvRowType.hasField(root))
           rebuild(child, memo)
         else {
           val child2 = rebuild(child, memo)
           val table2 = rebuild(table, memo)
-          MatrixAnnotateRowsTable(child2, table2, root)
+          MatrixAnnotateRowsTable(child2, table2, root, product)
         }
       case MatrixAnnotateColsTable(child, table, uid) =>
         // if the field is not used, this node can be elided entirely

@@ -63,24 +63,29 @@ class TableLeftJoinRightDistinct(TableIR):
 
 
 class TableIntervalJoin(TableIR):
-    def __init__(self, left, right, root):
+    def __init__(self, left, right, root, product=False):
         super().__init__(left, right)
         self.left = left
         self.right = right
         self.root = root
+        self.product = product
 
     def head_str(self):
-        return escape_id(self.root)
+        return f'{escape_id(self.root)} {self.product}'
 
     def _eq(self, other):
-        return self.root == other.root
+        return self.root == other.root and self.product == other.product
 
     def _compute_type(self):
         left_typ = self.left.typ
         right_typ = self.right.typ
+        if self.product:
+            right_val_typ = left_typ.row_type._insert_field(self.root, hl.tarray(right_typ.value_type))
+        else:
+            right_val_typ = left_typ.row_type._insert_field(self.root, right_typ.value_type)
         self._type = hl.ttable(
             left_typ.global_type,
-            left_typ.row_type._insert_field(self.root, right_typ.value_type),
+            right_val_typ,
             left_typ.row_key)
 
 

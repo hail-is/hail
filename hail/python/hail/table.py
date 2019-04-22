@@ -1431,7 +1431,7 @@ class Table(ExprContainer):
                 handler = print
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs) -> 'StructExpression':
+    def index(self, *exprs, product=False) -> 'StructExpression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1530,17 +1530,24 @@ class Table(ExprContainer):
             if (len(exprs) == 1
                     and isinstance(exprs[0], TupleExpression)
                     and types_compatible(self.key.values(), exprs[0])):
-                return self.index(*exprs[0])
+                return self.index(*exprs[0], product=product)
             elif (len(exprs) == 1
                   and isinstance(exprs[0], StructExpression)
                   and types_compatible(self.key.values(), exprs[0].values())):
-                return self.index(*exprs[0].values())
+                return self.index(*exprs[0].values(), product=product)
             else:
                 raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
                                           f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
                                           f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
         uid = Env.get_uid()
+
+        is_interval = (len(self.key) == 1
+                       and isinstance(self.key[0].dtype, hl.tinterval)
+                       and exprs[0].dtype == self.key[0].dtype.point_type)
+
+        if product and not is_interval:
+            return self.collect_by_key(uid).index(*exprs)[uid]
 
         new_schema = self.row_value.dtype
 
@@ -1549,9 +1556,6 @@ class Table(ExprContainer):
                 analyze('Table.index', e, src._row_indices)
 
             is_key = len(src.key) >= len(exprs) and all(expr is key_field for expr, key_field in zip(exprs, src.key.values()))
-            is_interval = (len(self.key) == 1
-                           and isinstance(self.key[0].dtype, hl.tinterval)
-                           and exprs[0].dtype == self.key[0].dtype.point_type)
 
             if not is_key:
                 uids = [Env.get_uid() for i in range(len(exprs))]
@@ -1571,7 +1575,7 @@ class Table(ExprContainer):
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table(TableIntervalJoin(left._tir, self._tir, uid))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid, product))
                 else:
                     left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
@@ -1593,9 +1597,6 @@ class Table(ExprContainer):
             elif indices == src._row_indices:
                 is_subset_row_key = len(exprs) <= len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-                is_interval = (len(self.key) == 1
-                               and isinstance(self.key[0].dtype, hl.tinterval)
-                               and exprs[0].dtype == self.key[0].dtype.point_type)
 
                 if is_interval and (len(exprs) != 1 or
                                     exprs[0] is not src.row_key[0] or
@@ -1634,14 +1635,14 @@ class Table(ExprContainer):
                                 ))
                             )
                 else:
-                    joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right._tir, uid))
+                    def joiner(left: MatrixTable):
+                        return MatrixTable(MatrixAnnotateRowsTable(left._mir, right._tir, uid, product))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
                            joiner)
                 return construct_expr(ast, new_schema, indices, aggregations)
-            elif indices == src._col_indices:
+            elif indices == src._col_indices and not (is_interval and product):
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):

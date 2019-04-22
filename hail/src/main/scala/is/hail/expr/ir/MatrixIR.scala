@@ -883,8 +883,10 @@ case class MatrixAnnotateColsTable(
 case class MatrixAnnotateRowsTable(
   child: MatrixIR,
   table: TableIR,
-  root: String) extends MatrixIR {
-  require(table.typ.keyType.isPrefixOf(child.typ.rowKeyStruct) ||
+  root: String,
+  product: Boolean
+) extends MatrixIR {
+  require((!product && table.typ.keyType.isPrefixOf(child.typ.rowKeyStruct)) ||
     (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))),
     s"\n  L: ${ child.typ }\n  R: ${ table.typ }")
 
@@ -903,7 +905,7 @@ case class MatrixAnnotateRowsTable(
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
-    MatrixAnnotateRowsTable(child, table, root)
+    MatrixAnnotateRowsTable(child, table, root, product)
   }
 }
 
