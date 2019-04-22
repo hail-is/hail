@@ -212,7 +212,8 @@ mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 
         script = f'''
 set -ex
-{code.checkout_script()}
+mkdir repo
+(cd repo; {code.checkout_script()})
 {render_dockerfile}
 {init_context}
 {copy_inputs}
