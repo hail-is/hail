@@ -153,7 +153,6 @@ class PR(Code):
         assert self.sha is not None
         target_repo = self.target_branch.branch.repo
         return {
-            'repo_dir': self.repo_dir(),
             'checkout_script': self.checkout_script(),
             'number': self.number,
             'source_repo': self.source_repo.short_str(),
@@ -192,7 +191,11 @@ class PR(Code):
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
-            await check_shell(self.checkout_script())
+            await check_shell(f'''
+set -ex
+mkdir -p {shq(repo_dir)}
+(cd {shq(repo_dir)}; {self.checkout_script()})
+''')
 
             sha_out, _ = await check_shell_output(
                 f'git -C {shq(repo_dir)} rev-parse HEAD')
@@ -259,27 +262,25 @@ class PR(Code):
             status = await self.batch.status()
             if all(j['state'] == 'Complete' for j in status['jobs']):
                 self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
-                self.batch_changed = True
+                self.target_branch.batch_changed = True
 
     def checkout_script(self):
-        repo_dir = self.repo_dir()
         return f'''
-if [ ! -d "{shq(repo_dir)}" ]; then
-  mkdir -p {shq(repo_dir)}
-  git clone {shq(self.target_branch.branch.repo.url)} {shq(repo_dir)}
+if [ ! -d .git ]; then
+  git clone {shq(self.target_branch.branch.repo.url)} .
 
-  git -C {shq(repo_dir)} config user.email hail-ci@example.com
-  git -C {shq(repo_dir)} config user.name hail-ci
+  git config user.email hail-ci@example.com
+  git config user.name hail-ci
 else
-  git -C {shq(repo_dir)} reset --merge
-  git -C {shq(repo_dir)} fetch origin
+  git reset --merge
+  git fetch origin
 fi
 
-git -C {shq(repo_dir)} remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
+git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-git -C {shq(repo_dir)} fetch {shq(self.source_repo.short_str())}
-git -C {shq(repo_dir)} checkout {shq(self.target_branch.sha)}
-git -C {shq(repo_dir)} merge {shq(self.source_sha)} -m 'merge PR'
+git fetch {shq(self.source_repo.short_str())}
+git checkout {shq(self.target_branch.sha)}
+git merge {shq(self.source_sha)} -m 'merge PR'
 '''
 
 
@@ -300,7 +301,7 @@ class WatchedBranch(Code):
         self.batch_changed = True
 
     def short_str(self):
-        return f'{self.branch.name}'
+        return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
 
     def repo_dir(self):
         return f'repos/{self.branch.repo.short_str()}'
@@ -308,7 +309,6 @@ class WatchedBranch(Code):
     def config(self):
         assert self.sha is not None
         return {
-            'repo_dir': self.repo_dir(),
             'checkout_script': self.checkout_script(),
             'branch': self.branch.name,
             'repo': self.branch.repo.short_str(),
@@ -426,7 +426,10 @@ class WatchedBranch(Code):
 
         try:
             repo_dir = self.repo_dir()
-            await check_shell(self.checkout_script())
+            await check_shell(f'''
+mkdir -p {shq(repo_dir)}
+(cd {shq(repo_dir)}; {self.checkout_script()})
+''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), deploy=True)
         except (CalledProcessError, FileNotFoundError) as e:
@@ -452,18 +455,16 @@ class WatchedBranch(Code):
                 await deploy_batch.cancel()
 
     def checkout_script(self):
-        repo_dir = self.repo_dir()
         return f'''
-if [ ! -d "{shq(repo_dir)}" ]; then
-  mkdir -p {shq(repo_dir)}
-  git clone {shq(self.branch.repo.url)} {shq(repo_dir)}
+if [ ! -d .git ]; then
+  git clone {shq(self.branch.repo.url)} .
 
-  git -C {shq(repo_dir)} config user.email hail-ci@example.com
-  git -C {shq(repo_dir)} config user.name hail-ci
+  git -C config user.email hail-ci@example.com
+  git -C config user.name hail-ci
 else
-  git -C {shq(repo_dir)} reset --merge
-  git -C {shq(repo_dir)} fetch origin
+  git -C reset --merge
+  git -C fetch origin
 fi
 
-git -C {shq(repo_dir)} checkout {shq(self.sha)}
+git -C checkout {shq(self.sha)}
 '''

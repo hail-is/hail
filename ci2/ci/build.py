@@ -48,11 +48,11 @@ class Code(abc.ABC):
 
     @abc.abstractmethod
     def repo_dir(self):
-        pass
+        """Path to repository on the ci (locally)."""
 
     @abc.abstractmethod
     def checkout_script(self):
-        pass
+        """Bash script to checkout out the code in the current directory."""
 
 
 class BuildConfiguration:
@@ -165,8 +165,6 @@ class BuildImageStep(Step):
         }
 
     async def build(self, batch, code, deploy):
-        repo_dir = code.repo_dir()
-
         if self.inputs:
             input_files = []
             for i in self.inputs:
@@ -177,14 +175,14 @@ class BuildImageStep(Step):
         config = self.input_config(code)
 
         if self.context_path:
-            context = f'{repo_dir}/{self.context_path}'
+            context = f'repo/{self.context_path}'
             init_context = ''
         else:
             context = 'context'
             init_context = 'mkdir context'
 
         dockerfile = 'Dockerfile'
-        render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"{repo_dir}/{self.dockerfile}")} Dockerfile'
+        render_dockerfile = f'python3 jinja2_render.py {shq(json.dumps(config))} {shq(f"repo/{self.dockerfile}")} Dockerfile'
 
         if self.publish_as:
             published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
@@ -334,7 +332,7 @@ class RunImageStep(Step):
         }
 
     async def build(self, batch, code, deploy):
-        template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined)
+        template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code))
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
@@ -403,7 +401,7 @@ class CreateNamespaceStep(Step):
         if deploy:
             self._name = namespace_name
         else:
-            self._name = f'test-{code.short_str()}-{namespace_name}-{self.token}'
+            self._name = f'{code.short_str()}-{namespace_name}-{self.token}'
 
     def self_ids(self):
         return [self.job.id]
@@ -524,7 +522,6 @@ kubectl delete namespace {self._name}
 class DeployStep(Step):
     def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(name, deps)
-        # FIXME check available namespaces
         self.namespace = get_namespace(namespace, self.input_config(code))
         self.config_file = config_file
         self.link = link
@@ -549,9 +546,8 @@ class DeployStep(Step):
         }
 
     async def build(self, batch, code, deploy):
-        repo_dir = code.repo_dir()
-        with open(f'{repo_dir}/{self.config_file}', 'r') as f:
-            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined)
+        with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
+            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code))
 
         script = f'''
@@ -616,8 +612,7 @@ class CreateDatabaseStep(Step):
         if deploy:
             self._name = database_name
         else:
-            # FIXME test-pr-batch-NNNN, batch-NNNN
-            self._name = f'test-{code.short_str()}-{database_name}-{self.token}'
+            self._name = f'{code.short_str()}-{database_name}-{self.token}'
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         self.admin_username = generate_token()
