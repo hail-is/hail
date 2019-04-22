@@ -302,6 +302,10 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: batch/deployment.yaml
+   wait:
+    - kind: Deployment
+      name: batch
+      for: available
    dependsOn:
     - default_ns
     - batch_pods_ns
