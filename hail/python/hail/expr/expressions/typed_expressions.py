@@ -31,64 +31,6 @@ class CollectionExpression(Expression):
             collection = self.filter(hl.is_defined)
         return collection._method(name, ret_type, *args)
 
-    def __getattr__(self, item):
-        return CollectionExpression.__getitem__(self, item)
-
-    @typecheck_method(item=oneof(str))
-    def __getitem__(self, item):
-        """Get a field from each struct in this collection.
-
-        Examples
-        --------
-
-        Note, in the examples below ``hl.eval`` is used to convert a hail
-        expression to a python value so that it prints nicely. It is not
-        necssary to use ``hl.eval`` inside ``annotate_rows`` or similar
-        methods.
-
-        >>> x = hl.array([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
-        >>> hl.eval(x.a)
-        ['foo', 'bar']
-
-        >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
-        ...                            hl.struct(inner=2)]),
-        ...               hl.struct(b=[hl.struct(inner=3)])])
-        >>> hl.eval(a.b)
-        [[Struct(inner=1), Struct(inner=2)], [Struct(inner=3)]]
-        >>> hl.eval(a.b.inner)
-        [[1, 2], [3]]
-        >>> hl.eval(hl.flatten(a.b).inner)
-        [1, 2, 3]
-        >>> hl.eval(hl.flatten(a.b.inner))
-        [1, 2, 3]
-
-        Parameters
-        ----------
-        item : :obj:`str`
-            Field name
-
-        Returns
-        -------
-        :class:`.CollectionExpression`
-            A collection formed by getting the given field for each struct in
-            this collection
-        """
-
-        etype = self.dtype.element_type
-        if isinstance(etype, hl.tstruct):
-            return self.map(lambda x: x[item])
-        try:
-            if isinstance(etype, (hl.tarray, hl.tset)):
-                return self.map(lambda x: x[item])
-        except TypeError as err:
-            if "elements must be structs or collections that eventaully contain structs." not in str(err):
-                raise
-        raise TypeError(
-            f"Cannot use 'collection.{item}' or 'collection['{item}']' on "
-            f"{type(self).__name__} of type {self.dtype}, the "
-            f"elements must be structs or collections that eventaully "
-            f"contain structs.")
-
     @typecheck_method(f=func_spec(1, expr_bool))
     def any(self, f):
         """Returns ``True`` if `f` returns ``True`` for any element.
@@ -688,6 +630,65 @@ class ArrayExpression(CollectionExpression):
         return construct_expr(ir, tarray(body.dtype), indices, aggregations)
 
 
+class ArrayStructExpression(ArrayExpression):
+    """Expression of type :class:`.tarray` that eventually contains structs.
+
+    >>> people = hl.literal([hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)])
+
+    Nested collections that contain structs are also
+    :class:`.ArrayStructExpressions`s
+
+    >>> people = hl.literal([[hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)],
+    ...                      [hl.struct(name='Charlie', age=34)]])
+
+    See Also
+    --------
+    :class:`.ArrayExpression:`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return ArrayStructExpression.__getitem__(self, item)
+
+    @typecheck_method(item=oneof(str))
+    def __getitem__(self, item):
+        """Get a field from each struct in this array.
+
+        Examples
+        --------
+
+        >>> x = hl.array([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
+        >>> hl.eval(x.a)
+        ['foo', 'bar']
+
+        >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
+        ...                            hl.struct(inner=2)]),
+        ...               hl.struct(b=[hl.struct(inner=3)])])
+        >>> hl.eval(a.b)
+        [[Struct(inner=1), Struct(inner=2)], [Struct(inner=3)]]
+        >>> hl.eval(a.b.inner)
+        [[1, 2], [3]]
+        >>> hl.eval(hl.flatten(a.b).inner)
+        [1, 2, 3]
+        >>> hl.eval(hl.flatten(a.b.inner))
+        [1, 2, 3]
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            An array formed by getting the given field for each struct in
+            this array
+        """
+
+        return self.map(lambda x: x[item])
+
+
 class ArrayNumericExpression(ArrayExpression):
     """Expression of type :class:`.tarray` with a numeric type.
 
@@ -1106,6 +1107,61 @@ class SetExpression(CollectionExpression):
                             "    set type:    '{}'\n"
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
+
+
+class SetStructExpression(SetExpression):
+    """Expression of type :class:`.tset` that eventually contains structs.
+
+    >>> people = hl.literal({hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)})
+
+    Nested collections that contain structs are also
+    :class:`.SetStructExpressions`s
+
+    >>> people = hl.set([hl.set([hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)],
+    ...                         [hl.struct(name='Charlie', age=34)])])
+
+    See Also
+    --------
+    :class:`.SetExpression:`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return SetStructExpression.__getitem__(self, item)
+
+    @typecheck_method(item=oneof(str))
+    def __getitem__(self, item):
+        """Get a field from each struct in this set.
+
+        Examples
+        --------
+
+        >>> x = hl.set({hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)})
+        >>> hl.eval(x.a)
+        {'foo', 'bar'}
+
+        >>> a = hl.set({hl.struct(b={hl.struct(inner=1),
+        ...                          hl.struct(inner=2)}),
+        ...             hl.struct(b={hl.struct(inner=3)})})
+        >>> hl.eval(hl.flatten(a.b).inner)
+        {1, 2, 3}
+        >>> hl.eval(hl.flatten(a.b.inner))
+        {1, 2, 3}
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            A set formed by getting the given field for each struct in
+            this set
+        """
+
+        return self.map(lambda x: x[item])
 
 
 class DictExpression(Expression):
@@ -3511,14 +3567,27 @@ def construct_expr(ir: IR,
         return Expression(ir, None, indices, aggregations)
     if isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
+    if isinstance(type, tarray):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return ArrayStructExpression(ir, type, indices, aggregations)
+    if isinstance(type, tset) and isinstance(type.element_type, tstruct):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return SetStructExpression(ir, type, indices, aggregations)
     if isinstance(type, tndarray) and is_numeric(type.element_type):
         return NDArrayNumericExpression(ir, type, indices, aggregations)
-    elif type in scalars:
+    if type in scalars:
         return scalars[type](ir, type, indices, aggregations)
-    elif type.__class__ in typ_to_expr:
+    if type.__class__ in typ_to_expr:
         return typ_to_expr[type.__class__](ir, type, indices, aggregations)
-    else:
-        raise NotImplementedError(type)
+    raise NotImplementedError(type)
 
 
 @typecheck(name=str, type=HailType, indices=Indices)
