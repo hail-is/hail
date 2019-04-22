@@ -32,6 +32,12 @@ spec:
         - name: jwt-secret
           mountPath: /jwt-secret
           readOnly: true
+        - name: @gsa_secret@
+          mountPath: /batch-gsa-key
+          readOnly: true
+        - name: @jwt_secret@
+          mountPath: /batch-jwt
+          readOnly: true
       volumes:
       - name: batch-production-cloud-sql-config
         secret:
@@ -41,6 +47,14 @@ spec:
         secret:
           optional: false
           secretName: notebook-secrets
+      - name: @gsa_secret@
+        secret:
+          optional: false
+          secretName: @gsa_secret@
+      - name: @jwt_secret@
+        secret:
+          optional: false
+          secretName: @jwt_secret@
 ---
 apiVersion: v1
 kind: Service
