@@ -220,7 +220,7 @@ def ld_matrix(entry_expr,
             must be a field "locus" of type 'locus<any>'.""")
 
     if coord_expr is None:
-        coord_expr = mt.locus
+        coord_expr = ds.locus
     else:
         analyze('ld_matrix/coord_expr',
                 coord_expr,
@@ -228,7 +228,7 @@ def ld_matrix(entry_expr,
 
     ds = ds._select_all(
         row_exprs={'locus': ds.locus,
-                   'coord': scoord_expr},
+                   'coord': coord_expr},
         row_key=['locus'],
         col_exprs=dict(**ds.col_key),
         col_key=list(ds.col_key.keys()),
@@ -882,8 +882,7 @@ def estimate_heritability(z_expr,
     *  **trait** (:py:data:`.tstr`) -- The name of the trait for which
        SNP-heritability is being estimated, defined by the column key of
        the originating matrix table. If the input expressions to the 
-       function originate from a table, **trait** is given the generic
-       value ``"trait"``.
+       function originate from a table, this field is omitted.
     *  **n_samples** (:py:data:`.tfloat`) -- The mean number of samples
        across variants for the given trait.
     *  **n_variants** (:py:data:`.tint`) -- The number of variants used
@@ -964,8 +963,8 @@ def estimate_heritability(z_expr,
             ds._row_indices)
 
     if not n_reference_panel_variants:
-        M = mt.aggregate_rows(hl.agg.count_where(
-            hl.is_defined(ds.ld_score_expr)))
+        M = ds.aggregate_rows(hl.agg.count_where(
+            hl.is_defined(ld_score_expr)))
     else:
         M = n_reference_panel_variants
 
