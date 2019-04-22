@@ -17,7 +17,7 @@ spec:
      - name: HAIL_DOCTEST_DATA_DIR
        value: ./data
      - name: HAIL_APISERVER_URL
-       value: http://apiserver:5000
+       value: http://apiserver.{{ default_ns.name }}:5000
      - name: HAIL_TOKEN_FILE
        value: '/jwt/jwt'
     volumeMounts:

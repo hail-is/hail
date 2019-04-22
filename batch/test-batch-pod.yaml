@@ -14,7 +14,7 @@ spec:
      - name: HAIL_TOKEN_FILE
        value: '/jwt/jwt'
      - name: BATCH_URL
-       value: http://batch
+       value: http://batch.{{ default_ns.name }}
     volumeMounts:
       - mountPath: /jwt
         readOnly: true

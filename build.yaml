@@ -324,6 +324,7 @@ steps:
       name: test-batch
       for: completed
    dependsOn:
+    - default_ns
     - batch_pods_ns
     - deploy_batch
     - test_batch_image
@@ -358,6 +359,7 @@ steps:
       name: test-apiserver
       for: completed
    dependsOn:
+    - default_ns
     - batch_pods_ns
     - test_apiserver_image
     - deploy_apiserver
