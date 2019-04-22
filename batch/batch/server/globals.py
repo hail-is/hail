@@ -3,15 +3,17 @@ import datetime
 import collections
 import asyncio
 
+from google.cloud import storage
+from google.oauth2 import service_account
 import hailjwt as hj
 
 from .google_storage import upload_private_gs_file_from_string, download_gs_file_as_string
 from .google_storage import exists_gs_file
 
 
-if 'GOOGLE_APPLICATION_CREDENTIALS' not in os.environ:
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/batch-gsa-key/privateKeyData'
-
+batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
+credentials = service_account.Credentials.from_service_account_file(batch_gsa_key)
+gcs_client = storage.Client(credentials=credentials)
 
 batch_jwt = os.environ.get('BATCH_JWT', '/batch-jwt/jwt')
 with open(batch_jwt, 'r') as f:
@@ -29,14 +31,14 @@ def _gs_log_path(instance_id, job_id, task_name):
 
 async def write_gs_log_file(thread_pool, instance_id, job_id, task_name, log):
     path = _gs_log_path(instance_id, job_id, task_name)
-    await blocking_to_async(thread_pool, upload_private_gs_file_from_string, batch_bucket_name, path, log)
+    await blocking_to_async(thread_pool, upload_private_gs_file_from_string, gcs_client, batch_bucket_name, path, log)
     return path
 
 
 async def read_gs_log_file(thread_pool, instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
-    if exists_gs_file(batch_bucket_name, path):
-        return await blocking_to_async(thread_pool, download_gs_file_as_string, batch_bucket_name, path)
+    if await blocking_to_async(thread_pool, exists_gs_file, gcs_client, batch_bucket_name, path):
+        return await blocking_to_async(thread_pool, download_gs_file_as_string, gcs_client, batch_bucket_name, path)
     return None
 
 

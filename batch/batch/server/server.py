@@ -218,7 +218,7 @@ class Job:
             self._pod_name = None
 
     async def _read_logs(self):
-        logs = {jt.name: read_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
+        logs = {jt.name: await read_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
                 for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Ready':
             if self._pod_name:
