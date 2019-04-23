@@ -15,6 +15,12 @@ from hail.utils.misc import *
 table_type = lazy()
 
 
+class TableIndexKeyError(Exception):
+    def __init__(self, key_type, index_expressions):
+        self.key_type = key_type
+        self.index_expressions = index_expressions
+
+
 class Ascending(object):
     def __init__(self, col):
         self.col = col
@@ -55,6 +61,7 @@ def desc(col):
     """Sort by `col` descending."""
 
     return Descending(col)
+
 
 class ExprContainer(object):
 
@@ -1431,7 +1438,7 @@ class Table(ExprContainer):
                 handler = print
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs, product=False) -> 'StructExpression':
+    def index(self, *exprs, product=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1497,17 +1504,28 @@ class Table(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        product : bool
+            If ``True``, value of expression is array of all matches.
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
+        try:
+            return self._index(*exprs, product=product)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
+                                      f"  Table key:         {', '.join(str(t) for t in key_type.values())}\n"
+                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+
+    def _index(self, *exprs, product=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
         if non_exprs:
-            raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
+            raise TypeError(f"Index arguments must be expressions, found {non_exprs}")
 
         from hail.matrixtable import MatrixTable
         indices, aggregations = unify_all(*exprs)
@@ -1515,44 +1533,31 @@ class Table(ExprContainer):
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
-            raise ExpressionException('Cannot index table with a scalar expression')
+            raise ExpressionException('Cannot index with a scalar expression')
 
-        def types_compatible(left, right):
-            left = list(left)
-            right = list(right)
-            return (types_match(left, right)
-                    or (len(left) == 1
-                        and len(right) == 1
-                        and isinstance(left[0].dtype, tinterval)
-                        and left[0].dtype.point_type == right[0].dtype))
+        if (len(exprs) == 1
+                and isinstance(exprs[0], TupleExpression)):
+            return self.index(*exprs[0], product=product)
 
-        if not types_compatible(self.key.values(), exprs):
-            if (len(exprs) == 1
-                    and isinstance(exprs[0], TupleExpression)
-                    and types_compatible(self.key.values(), exprs[0])):
-                return self.index(*exprs[0], product=product)
-            elif (len(exprs) == 1
-                  and isinstance(exprs[0], StructExpression)
-                  and types_compatible(self.key.values(), exprs[0].values())):
-                return self.index(*exprs[0].values(), product=product)
-            else:
-                raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                          f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                          f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+        if (len(exprs) == 1
+                and isinstance(exprs[0], StructExpression)):
+            return self.index(*exprs[0].values(), product=product)
 
-        uid = Env.get_uid()
-
-        is_interval = (len(self.key) == 1
+        is_interval = (len(exprs) == 1
                        and isinstance(self.key[0].dtype, hl.tinterval)
                        and exprs[0].dtype == self.key[0].dtype.point_type)
+
+        uid = Env.get_uid()
 
         if product and not is_interval:
             return self.collect_by_key(uid).index(*exprs)[uid]
 
+        if not (is_interval or types_match(list(self.key.values()), list(exprs))):
+            raise TableIndexKeyError(self.key.dtype, exprs)
+
+        new_schema = self.row_value.dtype
         if product:
-            new_schema = hl.tarray(self.row_value.dtype)
-        else:
-            new_schema = self.row_value.dtype
+            new_schema = hl.tarray(new_schema)
 
         if isinstance(src, Table):
             for e in exprs:
@@ -1600,13 +1605,6 @@ class Table(ExprContainer):
             elif indices == src._row_indices:
                 is_subset_row_key = len(exprs) <= len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-
-                if is_interval and (len(exprs) != 1 or
-                                    exprs[0] is not src.row_key[0] or
-                                    self.key[0].dtype.point_type != exprs[0].dtype):
-                    raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                              f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                              f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
                 if not (is_subset_row_key or is_interval):
                     # foreign-key join

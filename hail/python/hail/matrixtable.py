@@ -10,7 +10,7 @@ from hail.expr.types import *
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir import *
-from hail.table import Table, ExprContainer
+from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
@@ -2710,7 +2710,7 @@ class MatrixTable(ExprContainer):
         """
         return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
-    def index_rows(self, *exprs) -> 'StructExpression':
+    def index_rows(self, *exprs, product=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2726,6 +2726,8 @@ class MatrixTable(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        product : bool
+            If ``True``, value of expression is array of all matches.
 
         Notes
         -----
@@ -2737,61 +2739,18 @@ class MatrixTable(ExprContainer):
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
-        exprs = [to_expr(e) for e in exprs]
-        indices, aggregations = unify_all(*exprs)
-        src = indices.source
+        try:
+            return self.rows()._index(*exprs, product=product)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(
+                f"Key type mismatch: cannot index matrix table with given expressions:\n"
+                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
-        if aggregations:
-            raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env.get_uid()
-        uids_to_delete = [uid]
-
-        if src is None:
-            raise ExpressionException('Cannot index with a scalar expression')
-
-        if not types_match(self.row_key.values(), exprs):
-            if (len(exprs) == 1
-                    and isinstance(exprs[0], TupleExpression)
-                    and types_match(self.row_key.values(), exprs[0])):
-                return self.index_rows(*exprs[0])
-            elif (len(exprs) == 1
-                  and isinstance(exprs[0], StructExpression)
-                  and types_match(self.row_key.values(), exprs[0].values())):
-                return self.index_rows(*exprs[0].values())
-            else:
-                raise ExpressionException(
-                    f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
-
-        if isinstance(src, Table):
-            # join table with matrix.rows_table()
-            right = self.rows()
-            return right.index(*exprs)
-        else:
-            assert isinstance(src, MatrixTable)
-            right = self
-
-            # fast path
-            is_row_key = len(exprs) == len(src.row_key) and all(
-                exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
-
-            if is_row_key:
-                def joiner(left):
-                    return MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right.rows()._tir, uid))
-                schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                ir = Join(GetField(TopLevelReference('va'), uid),
-                          uids_to_delete,
-                          exprs,
-                          joiner)
-                return construct_expr(ir, schema, indices, aggregations)
-            else:
-                return self.rows().index(*exprs)
-
-    def index_cols(self, *exprs) -> 'StructExpression':
+    def index_cols(self, *exprs, product=False) -> 'Expression':
         """Expose the column values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2807,6 +2766,8 @@ class MatrixTable(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        product : bool
+            If ``True``, value of expression is array of all matches.
 
         Notes
         -----
@@ -2818,9 +2779,16 @@ class MatrixTable(ExprContainer):
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
-        return self.cols().index(*exprs)
+        try:
+            return self.cols()._index(*exprs, product=product)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(
+                f"Key type mismatch: cannot index matrix table with given expressions:\n"
+                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_entries(self, row_exprs, col_exprs):
         """Expose the entries as if looked up in a dictionary, indexing

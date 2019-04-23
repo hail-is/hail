@@ -388,6 +388,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
+    def test_table_product_join(self):
+        left = hl.utils.range_matrix_table(5, 1)
+        right = hl.utils.range_table(5)
+        right = right.select(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate_rows(matches=right.index(left.row_key, product=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(rows.matches.length() == rows.row_idx))
+
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
         self.assertEqual(vds.n_partitions(), 8)
