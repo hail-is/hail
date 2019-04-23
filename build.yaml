@@ -12,6 +12,9 @@ steps:
     # hail|ci2
     - user-jwt-fzp4f
     - gsa-key-hnmrj
+    # hail|batch
+    - user-jwt-fh7kp
+    - gsa-key-n6hf9
  - kind: deploy
    name: deploy_batch_sa
    namespace:
