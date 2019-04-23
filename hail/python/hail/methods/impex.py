@@ -569,7 +569,8 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool)
+           skip_invalid_intervals=bool,
+           kwargs=anytype)
 def import_bed(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
