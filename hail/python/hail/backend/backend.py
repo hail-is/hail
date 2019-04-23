@@ -87,12 +87,11 @@ class Backend(abc.ABC):
 
 
 class SparkBackend(Backend):
-    def __init__(self):
-        from hail.fs.hadoop_fs import HadoopFS
-        self._fs = HadoopFS()
-
     @property
     def fs(self):
+        if not hasattr(self, '_fs'):
+            from hail.fs.hadoop_fs import HadoopFS
+            self._fs = HadoopFS()
         return self._fs
 
     def _to_java_ir(self, ir):
@@ -205,12 +204,10 @@ class LocalBackend(Backend):
 
 class ServiceBackend(Backend):
     def __init__(self, url, token=None, token_file=None):
-        from hail.fs.google_fs import GoogleCloudStorageFS
-
         if token_file is not None and token is not None:
             raise ValueError('set only one of token_file and token')
         self.url = url
-        self._fs = GoogleCloudStorageFS()
+
         if token is None:
             token_file = (token_file or
                           os.environ.get('HAIL_TOKEN_FILE') or
@@ -225,6 +222,9 @@ class ServiceBackend(Backend):
 
     @property
     def fs(self):
+        if not hasattr(self, '_fs'):
+            from hail.fs.google_fs import GoogleCloudStorageFS
+            self._fs = GoogleCloudStorageFS()
         return self._fs
 
     def _render(self, ir):
