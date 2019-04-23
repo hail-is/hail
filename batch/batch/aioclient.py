@@ -124,6 +124,8 @@ class BatchClient:
                     f'found at {token_file}')
             with open(token_file) as f:
                 token = f.read()
+        assert "bucket_name" in token, token
+        self.bucket = token["bucket_name"]
         self.cookies = {'user': token}
         self.headers = headers
 
