@@ -384,13 +384,13 @@ class WatchedBranch(Code):
         if self.deployable and self.sha and not self.deploy_state:
             if not self.deploy_batch:
                 # FIXME we should wait on any depending deploy
-                deploy_branches = await batch_client.list_batches(
+                deploy_batches = await batch_client.list_batches(
                     attributes={
                         'deploy': '1',
                         'sha': self.sha
                     })
-                if deploy_branches:
-                    self.deploy_batch = deploy_branches[0]
+                if deploy_batches:
+                    self.deploy_batch = deploy_batches[0]
                 else:
                     self.deploy_batch = await self._start_deploy(batch_client)
 
