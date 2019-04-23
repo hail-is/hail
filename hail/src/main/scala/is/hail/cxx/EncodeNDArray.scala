@@ -6,15 +6,15 @@ object NumpyType {
   // Adheres to numpy Array datatype protocol:
   // https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
   // 1. < or > for Little/Big Endian or | for not relevant
-  // 2. char for the dtype
+  // 2. char for the basic element type
   // 3. int for number of bytes
   def apply(t: PType): String = {
     t match {
-      case _: PInt32 => "int32"
-      case _: PInt64 => "int64"
-      case _: PFloat32 => "float32"
-      case _: PFloat64 => "float64"
-      case _: PBoolean => "bool"
+      case _: PInt32 => "<i4"
+      case _: PInt64 => "<i8"
+      case _: PFloat32 => "<f4"
+      case _: PFloat64 => "<f8"
+      case _: PBoolean => "<b1"
       case _ => throw new UnsupportedOperationException(s"Type not supported in npy conversion: $t")
     }
   }
@@ -26,27 +26,31 @@ object EncodeNDArray {
   // https://www.numpy.org/devdocs/reference/generated/numpy.lib.format.html
   def npy(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
     val numpyMagicStr = "\"\\x93NUMPY\""
+    val magicStrLen = 6
     val npyFormatMajorVersion = "'\\x01'"
     val npyFormatMinorVersion = "'\\x00'"
+    val formatVersionLen = 2
 
+    val headerLenLen = 2
     val dtype = "\"" + NumpyType(t.elementType) + "\""
     val header = tub.variable("header", "std::string", s"npy_header($nd, $dtype)")
-    val headerLenUnpadded = tub.variable("header_len_unpadded", "short", s"$header.length() + 1") // WHHYYYYYYY
-    val headerPaddingLen = tub.variable("header_padding_len", "short", s"64 - (6 + 2 + 2 + $headerLenUnpadded) % 64")
-    val totalHeaderLen = tub.variable("header_len", "short", s"$headerLenUnpadded + $headerPaddingLen")
+    val headerOffset = tub.variable("header_offset", "short", s"$header.length()")
+    val headerPadding = tub.variable("header_padding", "short",
+      s"64 - ($magicStrLen + $formatVersionLen + $headerLenLen + $headerOffset) % 64")
+    val totalHeaderLen = tub.variable("header_len", "short", s"$headerOffset + $headerPadding")
 
     s"""
        | ${ header.define }
-       | ${ headerLenUnpadded.define }
-       | ${ headerPaddingLen.define }
+       | ${ headerOffset.define }
+       | ${ headerPadding.define }
        | ${ totalHeaderLen.define }
        |
-       | $output_buf_ptr->write_bytes($numpyMagicStr, 6);
+       | $output_buf_ptr->write_bytes($numpyMagicStr, $magicStrLen);
        | $output_buf_ptr->write_byte($npyFormatMajorVersion);
        | $output_buf_ptr->write_byte($npyFormatMinorVersion);
-       | $output_buf_ptr->write_bytes(reinterpret_cast<const char *>(&$totalHeaderLen), 2);
+       | $output_buf_ptr->write_bytes(reinterpret_cast<const char *>(&$totalHeaderLen), $headerLenLen);
        | $output_buf_ptr->write_bytes($header.c_str(), $header.length());
-       | for (int i = 0; i < $headerPaddingLen; ++i) {
+       | for (int i = 0; i < $headerPadding - 1; ++i) {
        |   $output_buf_ptr->write_byte(' ');
        | }
        | $output_buf_ptr->write_byte('\\n');
