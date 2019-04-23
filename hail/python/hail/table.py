@@ -1549,7 +1549,10 @@ class Table(ExprContainer):
         if product and not is_interval:
             return self.collect_by_key(uid).index(*exprs)[uid]
 
-        new_schema = self.row_value.dtype
+        if product:
+            new_schema = hl.tarray(self.row_value.dtype)
+        else:
+            new_schema = self.row_value.dtype
 
         if isinstance(src, Table):
             for e in exprs:
