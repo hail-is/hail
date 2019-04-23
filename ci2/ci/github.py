@@ -243,12 +243,12 @@ mkdir -p {shq(repo_dir)}
                 })
 
             # FIXME
-            def batch_was_cancelled(batch):
-                status = batch.status()
+            async def batch_was_cancelled(batch):
+                status = await batch.status()
                 return any(j['state'] == 'Cancelled' for j in status['jobs'])
 
             # we might be returning to a commit that was only partially tested
-            batches = [b for b in batches if not batch_was_cancelled(b)]
+            batches = [b for b in batches if not await batch_was_cancelled(b)]
 
             # should be at most one batch
             if len(batches) > 0:
