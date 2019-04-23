@@ -6,7 +6,10 @@ Hail is built to scale and has first-class support for multi-dimensional structu
 
 Hail is exposed as a Python library, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++.
 
-See the [documentation](https://hail.is/docs/0.2/) for more info on using Hail.
+See the [documentation](https://hail.is/docs/0.2/) for more info on using
+Hail. Post to the [Discussion Forum](http://discuss.hail.is) for user support
+and feature requests. Chat with the Hail team and user community in Hail's
+[Zulip chatroom](https://hail.zulipchat.com).
 
 ### Contribute
 
