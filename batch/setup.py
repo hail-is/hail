@@ -21,6 +21,6 @@ setup(
         'jinja2',
         'uvloop>=0.12',
         'pymysql',
-        'google-cloud-storage=1.14.0'
+        'google-cloud-storage==1.14.0'
     ],
 )
