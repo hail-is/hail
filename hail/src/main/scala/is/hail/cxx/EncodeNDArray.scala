@@ -3,7 +3,7 @@ package is.hail.cxx
 import is.hail.expr.types.physical._
 
 object NumpyType {
-  // Adheres to numpy Array datatype protocol:
+  // Follows numpy Array datatype protocol:
   // https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
   // 1. < or > for Little/Big Endian or | for not relevant
   // 2. char for the basic element type

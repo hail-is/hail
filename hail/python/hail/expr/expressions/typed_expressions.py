@@ -3114,7 +3114,7 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(uri=str)
     def save(self, uri):
-        """Write out the NDArray as to the given path as a .npy file. If the URI does not
+        """Write out the NDArray to the given path as in .npy format. If the URI does not
         end with ".npy" the file extension will be appended. This method reflects the numpy
         `save` method. NDArrays saved with this method can be loaded into numpy using numpy
         `load`.
