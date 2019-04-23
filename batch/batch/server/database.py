@@ -67,7 +67,7 @@ class JobsTable(Table):
                           ON `{self.name}`.id = `{jobs_parents_name}`.parent_id
                           WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.job_id = %s"""
 
-                await cursor.execute(sql.replace('\n', ' '), (('Created', 'Ready'), id))
+                await cursor.execute(sql, (('Created', 'Ready'), id))
                 result = await cursor.fetchall()
                 return [record['id'] for record in result]
 

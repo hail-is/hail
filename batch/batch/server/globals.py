@@ -5,10 +5,11 @@ import asyncio
 
 from google.cloud import storage
 from google.oauth2 import service_account
+import google.api_core
 import hailjwt as hj
 
 from .google_storage import upload_private_gs_file_from_string, download_gs_file_as_string
-from .google_storage import exists_gs_file, delete_gs_file
+from .google_storage import delete_gs_file
 
 
 batch_gsa_key = os.environ.get('BATCH_GSA_KEY', '/batch-gsa-key/privateKeyData')
@@ -36,8 +37,10 @@ async def read_gs_log_file(thread_pool, uri):
         uri = uri.lstrip('gs://').split('/')
         bucket_name = uri[0]
         path = '/'.join(uri[1:])
-        if await blocking_to_async(thread_pool, exists_gs_file, gcs_client, bucket_name, path):
+        try:
             return await blocking_to_async(thread_pool, download_gs_file_as_string, gcs_client, bucket_name, path)
+        except google.api_core.exceptions.NotFound:
+            return None
     return None
 
 

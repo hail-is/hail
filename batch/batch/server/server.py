@@ -102,13 +102,11 @@ def jsonify(data):
 
 
 class JobTask:  # pylint: disable=R0903
-    @classmethod
-    def from_dict(cls, d):
-        jt = object.__new__(cls)
-        jt.name = d['name']
-        assert d['pod_template'] is not None
-        jt.pod_template = v1.api_client._ApiClient__deserialize(d['pod_template'], kube.client.V1Pod)
-        return jt
+    @staticmethod
+    def from_dict(d):
+        name = d['name']
+        pod_template = v1.api_client._ApiClient__deserialize(d['pod_template'], kube.client.V1Pod)
+        return JobTask(name, pod_template)
 
     @staticmethod
     def copy_task(job_id, task_name, files):
@@ -131,21 +129,23 @@ class JobTask:  # pylint: disable=R0903
             spec = kube.client.V1PodSpec(
                 containers=[container],
                 restart_policy='Never')
-            return JobTask(job_id, task_name, spec)
+            return JobTask.from_spec(job_id, task_name, spec)
         return None
 
-    def __init__(self, job_id, name, pod_spec):
-        assert pod_spec is not None
+    @staticmethod
+    def from_spec(job_id, name, pod_spec):
+        return JobTask(name, kube.client.V1Pod(
+            metadata=kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
+                                              labels={
+                                                  'app': 'batch-job',
+                                                  'hail.is/batch-instance': instance_id,
+                                                  'uuid': uuid.uuid4().hex
+                                              }),
+            spec=pod_spec))
 
-        metadata = kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
-                                            labels={
-                                                'app': 'batch-job',
-                                                'hail.is/batch-instance': instance_id,
-                                                'uuid': uuid.uuid4().hex
-                                            })
-
-        self.pod_template = kube.client.V1Pod(metadata=metadata,
-                                              spec=pod_spec)
+    def __init__(self, name, pod_template):
+        assert pod_template is not None
+        self.pod_template = pod_template
         self.name = name
 
     def to_dict(self):
@@ -220,10 +220,10 @@ class Job:
                 if err.status == 404:
                     log.info(f'persistent volume claim {self._pvc.metadata.name} in '
                              f'{self._pvc.metadata.namespace} is already deleted')
-                    await db.jobs.update_record(self.id, pvc=None)
                     return
                 raise
-            await db.jobs.update_record(self.id, pvc=None)
+            finally:
+                await db.jobs.update_record(self.id, pvc=None)
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
@@ -243,9 +243,11 @@ class Job:
     async def _read_logs(self):
         async def _read_log(jt):
             log_uri = await db.jobs.get_log_uri(self.id, jt.name)
-            return await read_gs_log_file(app['blocking_pool'], log_uri)
+            return jt.name, await read_gs_log_file(app['blocking_pool'], log_uri)
 
-        logs = {jt.name: await _read_log(jt) for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
+        future_logs = asyncio.gather(*map(_read_log, [jt for idx, jt in enumerate(self._tasks)
+                                                      if idx < self._task_idx]))
+        logs = {k: v for k, v in await future_logs}
 
         if self._state == 'Ready':
             if self._pod_name:
@@ -338,7 +340,7 @@ class Job:
                                            userdata=json.dumps(self.userdata))
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
-                       JobTask(self.id, 'main', pod_spec),
+                       JobTask.from_spec(self.id, 'main', pod_spec),
                        JobTask.copy_task(self.id, 'output', output_files)]
 
         self._tasks = [t for t in self._tasks if t is not None]
@@ -775,7 +777,7 @@ class Batch:
                                             ttl=self.ttl,
                                             is_open=self.is_open)
 
-        asyncio.ensure_future(self.close_ttl())
+        self.close_ttl()
 
     async def get_jobs(self):
         job_ids = await db.batch_jobs.get_jobs(self.id)
@@ -811,9 +813,11 @@ class Batch:
                 args=(self.id, job.id, self.callback, await job.to_dict())
             ).start()
 
-    async def close_ttl(self):
-        await asyncio.sleep(self.ttl)
-        await self.close()
+    def close_ttl(self):
+        async def _close():
+            await asyncio.sleep(self.ttl)
+            await self.close()
+        return asyncio.ensure_future(_close())
 
     async def close(self):
         if self.is_open:
