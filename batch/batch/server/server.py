@@ -263,14 +263,9 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Created'
         return None
 
-    async def _write_log(self, task, log):
-        uri = await blocking_to_async(write_gs_log_file,
-                                      instance_id,
-                                      self.id,
-                                      task.name,
-                                      log)
-
-        await db.jobs.update_log_uri(self.id, task.name, uri)
+    async def _write_log(self, task_name, log):
+        uri = await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, log)
+        await db.jobs.update_log_uri(self.id, task_name, uri)
 
     @classmethod
     async def from_record(cls, record):
@@ -513,8 +508,7 @@ class Job:
 
         add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
 
-        uri = await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, pod_log)
-        await db.jobs.update_log_uri(self.id, task_name, uri)
+        await self._write_log(task_name, pod_log)
 
         if self._pod_name:
             await db.jobs.update_record(self.id, pod_name=None)
