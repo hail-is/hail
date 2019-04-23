@@ -36,7 +36,7 @@ spec:
          - name: jwt-secret
            mountPath: /jwt-secret
            readOnly: true
-         - name: gsa
+         - name: gsa-key
            mountPath: /batch-gsa-key
            readOnly: true
          - name: jwt
