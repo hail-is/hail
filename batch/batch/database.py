@@ -117,6 +117,14 @@ class Table:  # pylint: disable=R0903
         self._db = db
         await self._db.create_table(name, schema, keys, can_exist)
 
+    async def new_index(self, index_name, *fields):
+        assert len(fields) != 0
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                names = ", ".join([f'`{fd.replace("`", "``")}`' for fd in fields])
+                sql = f"CREATE INDEX `{index_name}` ON `{self.name}` ({names})"
+                await cursor.execute(sql)
+
     async def new_record(self, **items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:

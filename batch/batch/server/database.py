@@ -32,6 +32,7 @@ class JobsTable(Table):
                   'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                   'duration': 'BIGINT',
                   'userdata': 'TEXT(65535)',
+                  'user': 'VARCHAR(100)',
                   'attributes': 'TEXT(65535)',
                   'tasks': 'TEXT(65535)',
                   'input_log_uri': 'VARCHAR(1024)',
@@ -41,6 +42,7 @@ class JobsTable(Table):
         keys = ['id']
 
         await super().__init__(db, name, schema, keys)
+        await super().new_index('user', 'user')
 
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
@@ -141,10 +143,13 @@ class BatchTable(Table):
                   'ttl': 'INT',
                   'is_open': 'BOOLEAN NOT NULL',
                   'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                  'userdata': 'TEXT(65535)',
+                  'user': 'VARCHAR(100)'
                   }
         keys = ['id']
 
         await super().__init__(db, name, schema, keys)
+        await super().new_index('user', 'user')
 
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
