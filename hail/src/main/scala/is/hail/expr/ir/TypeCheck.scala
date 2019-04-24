@@ -104,6 +104,7 @@ object TypeCheck {
       case x@Ref(name, _) =>
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+      case RelationalRef(_, _) =>
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
@@ -306,6 +307,7 @@ object TypeCheck {
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
         assert(x.typ == query.typ)
+      case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>

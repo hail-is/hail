@@ -167,6 +167,8 @@ object Pretty {
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case Ref(name, _) => prettyIdentifier(name)
+            case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
+            case RelationalLet(name, _, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
             case ApplyComparisonOp(op, _, _) => prettyClass(op)
@@ -305,6 +307,9 @@ object Pretty {
               prettyStringLiteral(Serialization.write(
                 JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
               )(RelationalSpec.formats)) + " " + prettyBooleanLiteral(keep)
+            case RelationalLetTable(name, _, _) => prettyIdentifier(name)
+            case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
+            case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
             case ReadPartition(path, spec, encodedType, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ encodedType.parsableString() } ${ rowType.parsableString() }"
 

@@ -509,3 +509,14 @@ case class BlockMatrixRandom(
     BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian)
   }
 }
+
+case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR) extends BlockMatrixIR {
+  def typ: BlockMatrixType = body.typ
+
+  def children: IndexedSeq[BaseIR] = Array(value, body)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
+    val IndexedSeq(newValue: IR, newBody: BlockMatrixIR) = newChildren
+    RelationalLetBlockMatrix(name, newValue, newBody)
+  }
+}
