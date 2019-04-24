@@ -12,7 +12,7 @@ from . import schemas
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
+    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
@@ -22,7 +22,6 @@ class Job:
         self.id = id
         self.attributes = attributes
         self.parent_ids = parent_ids
-        self.scratch_folder = scratch_folder
         self._status = _status
 
     async def is_complete(self):
@@ -60,7 +59,6 @@ class Job:
         del self.id
         del self.attributes
         del self.parent_ids
-        del self.scratch_folder
         del self._status
 
     async def log(self):
@@ -76,13 +74,13 @@ class Batch:
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
                          service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                         scratch_folder=None, input_files=None, output_files=None,
-                         copy_service_account_name=None, always_run=False):
+                         input_files=None, output_files=None, copy_service_account_name=None,
+                         always_run=False):
         if parent_ids is None:
             parent_ids = []
         return await self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
+            service_account_name, attributes, self.id, callback, parent_ids,
             input_files, output_files, copy_service_account_name, always_run)
 
     async def close(self):
@@ -165,7 +163,6 @@ class BatchClient:
                           batch_id,
                           callback,
                           parent_ids,
-                          scratch_folder,
                           input_files,
                           output_files,
                           copy_service_account_name,
@@ -229,8 +226,6 @@ class BatchClient:
             doc['batch_id'] = batch_id
         if callback:
             doc['callback'] = callback
-        if scratch_folder:
-            doc['scratch_folder'] = scratch_folder
         if input_files:
             doc['input_files'] = input_files
         if output_files:
@@ -294,7 +289,6 @@ class BatchClient:
                          attributes=None,
                          callback=None,
                          parent_ids=None,
-                         scratch_folder=None,
                          input_files=None,
                          output_files=None,
                          copy_service_account_name=None,
@@ -303,7 +297,7 @@ class BatchClient:
             parent_ids = []
         return await self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
+            service_account_name, attributes, None, callback, parent_ids,
             input_files, output_files, copy_service_account_name, always_run)
 
     async def create_batch(self, attributes=None, callback=None, ttl=None):

@@ -10,7 +10,7 @@ from .poll_until import poll_until
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
+    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
@@ -20,7 +20,6 @@ class Job:
         self.id = id
         self.attributes = attributes
         self.parent_ids = parent_ids
-        self.scratch_folder = scratch_folder
         self._status = _status
 
     def is_complete(self):
@@ -56,7 +55,6 @@ class Job:
         del self.id
         del self.attributes
         del self.parent_ids
-        del self.scratch_folder
         del self._status
 
     def log(self):
@@ -72,13 +70,13 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   scratch_folder=None, input_files=None, output_files=None, always_run=False):
+                   input_files=None, output_files=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
-            input_files, output_files, always_run)
+            service_account_name, attributes, self.id, callback, parent_ids, input_files,
+            output_files, always_run)
 
     def close(self):
         self.client._close_batch(self.id)
@@ -140,7 +138,6 @@ class BatchClient:
                     batch_id,
                     callback,
                     parent_ids,
-                    scratch_folder,
                     input_files,
                     output_files,
                     always_run):
@@ -193,8 +190,7 @@ class BatchClient:
             spec['serviceAccountName'] = service_account_name
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
-                                parent_ids, scratch_folder, input_files, output_files,
-                                always_run)
+                                parent_ids, input_files, output_files, always_run)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
@@ -269,7 +265,6 @@ class BatchClient:
                    attributes=None,
                    callback=None,
                    parent_ids=None,
-                   scratch_folder=None,
                    input_files=None,
                    output_files=None,
                    always_run=False):
@@ -277,8 +272,8 @@ class BatchClient:
             parent_ids = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
-            input_files, output_files, always_run)
+            service_account_name, attributes, None, callback, parent_ids, input_files, output_files,
+            always_run)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)

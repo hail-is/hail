@@ -282,10 +282,10 @@ class Job:
             userdata = json.loads(record['userdata'])
 
             return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
-                       callback=record['callback'], scratch_folder=record['scratch_folder'],
-                       userdata=userdata, always_run=record['always_run'], pvc=pvc,
-                       pod_name=record['pod_name'], exit_code=record['exit_code'], duration=record['duration'],
-                       tasks=tasks, task_idx=record['task_idx'], state=record['state'], cancelled=record['cancelled'])
+                       callback=record['callback'], userdata=userdata, always_run=record['always_run'],
+                       pvc=pvc, pod_name=record['pod_name'], exit_code=record['exit_code'],
+                       duration=record['duration'], tasks=tasks, task_idx=record['task_idx'],
+                       state=record['state'], cancelled=record['cancelled'])
         return None
 
     @staticmethod
@@ -296,7 +296,7 @@ class Job:
 
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
-                         scratch_folder, input_files, output_files, userdata, always_run):
+                         input_files, output_files, userdata, always_run):
         pvc = None
         pod_name = None
         exit_code = None
@@ -308,7 +308,6 @@ class Job:
         id = await db.jobs.new_record(state=state,
                                       exit_code=exit_code,
                                       batch_id=batch_id,
-                                      scratch_folder=scratch_folder,
                                       pod_name=pod_name,
                                       pvc=pvc,
                                       callback=callback,
@@ -326,9 +325,9 @@ class Job:
         tasks = [t for t in tasks if t is not None]
 
         job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
-                  scratch_folder=scratch_folder, userdata=userdata, always_run=always_run,
-                  pvc=pvc, pod_name=pod_name, exit_code=exit_code, duration=duration,
-                  tasks=tasks, task_idx=task_idx, state=state, cancelled=cancelled)
+                  userdata=userdata, always_run=always_run, pvc=pvc, pod_name=pod_name,
+                  exit_code=exit_code, duration=duration, tasks=tasks, task_idx=task_idx,
+                  state=state, cancelled=cancelled)
 
         for task in tasks:
             volumes = [
@@ -385,14 +384,12 @@ class Job:
 
         return job
 
-    def __init__(self, id, batch_id, attributes, callback, scratch_folder,
-                 userdata, always_run, pvc, pod_name, exit_code, duration,
-                 tasks, task_idx, state, cancelled):
+    def __init__(self, id, batch_id, attributes, callback, userdata, always_run,
+                 pvc, pod_name, exit_code, duration, tasks, task_idx, state, cancelled):
         self.id = id
         self.batch_id = batch_id
         self.attributes = attributes
         self.callback = callback
-        self.scratch_folder = scratch_folder
         self.always_run = always_run
         self.userdata = userdata
         self.exit_code = exit_code
@@ -567,8 +564,6 @@ class Job:
         parent_ids = [record['id'] for record in await db.jobs_parents.get_parents(self.id)]
         if parent_ids:
             result['parent_ids'] = parent_ids
-        if self.scratch_folder:
-            result['scratch_folder'] = self.scratch_folder
         return result
 
 
@@ -602,7 +597,6 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         'spec': schemas.pod_spec,
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
-        'scratch_folder': {'type': 'string'},
         'input_files': {
             'type': 'list',
             'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
@@ -642,7 +636,6 @@ async def create_job(request, userdata):  # pylint: disable=R0912
                   f'invalid parent batch: {parent_id} is in batch '
                   f'{parent_job.batch_id} but child is in {batch_id}')
 
-    scratch_folder = parameters.get('scratch_folder')
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
     always_run = parameters.get('always_run', False)
@@ -659,7 +652,6 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         parent_ids=parent_ids,
-        scratch_folder=scratch_folder,
         input_files=input_files,
         output_files=output_files,
         userdata=userdata,
