@@ -31,7 +31,7 @@ setup(
         'matplotlib<3',
         'seaborn<0.9',
         'bokeh<0.14',
-        'pyspark>=2.4,<2.5',
+        'pyspark>=2.4,<2.4.2',
         'parsimonious<0.9',
         'ipykernel<5',
         'decorator<5',
