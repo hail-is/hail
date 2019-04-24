@@ -71,7 +71,8 @@ class PruneSuite extends SparkSuite {
   }
 
   lazy val tab = TableLiteral(new Table(hc,
-    TableParallelize(
+    TableKeyBy(
+      TableParallelize(
       Literal(
         TStruct(
           "rows" -> TArray(TStruct("1" -> TString(),
@@ -81,7 +82,9 @@ class PruneSuite extends SparkSuite {
             "5" -> TString())),
           "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
-      None)
+      None),
+      FastIndexedSeq("3"),
+      false)
   ).value)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
@@ -139,7 +142,7 @@ class PruneSuite extends SparkSuite {
   }
 
   def tableRefStruct(tt: TableType, fields: String*): IR = {
-    MakeStruct(FastIndexedSeq("foo" -> tableRefBoolean(tt, fields: _*)))
+    MakeStruct(tt.key.map(k => k -> GetField(Ref("row", tt.rowType), k)) ++ FastIndexedSeq("foo" -> tableRefBoolean(tt, fields: _*)))
   }
 
   def matrixRefBoolean(mt: MatrixType, fields: String*): IR = {
@@ -296,12 +299,19 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableKeyByMemo() {
     val tk = TableKeyBy(tab, Array("1"))
-    checkMemo(tk, subsetTable(tk.typ, "row.2"), Array(subsetTable(tab.typ, "row.1", "row.2")))
+    checkMemo(tk, subsetTable(tk.typ, "row.2"), Array(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY")))
+
+    val tk2 = TableKeyBy(tab, Array("3"), isSorted = true)
+    checkMemo(tk2, subsetTable(tk2.typ, "row.2"), Array(subsetTable(tab.typ, "row.2")))
+
   }
 
   @Test def testTableMapRowsMemo() {
     val tmr = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"))
     checkMemo(tmr, subsetTable(tmr.typ, "row.foo"), Array(subsetTable(tab.typ, "row.1", "row.2"), null))
+
+    val tmr2 = TableMapRows(tab, tableRefStruct(tab.typ, "row.1", "row.2"))
+    checkMemo(tmr2, subsetTable(tmr2.typ, "row.foo", "NO_KEY"), Array(subsetTable(tab.typ, "row.1", "row.2", "NO_KEY"), null))
   }
 
   @Test def testTableMapGlobalsMemo() {
@@ -337,8 +347,8 @@ class PruneSuite extends SparkSuite {
       None,
       1)
 
-    checkMemo(tka, subsetTable(tka.typ, "row.foo"), Array(subsetTable(tab.typ, "row.2", "row.3"), null, null))
-    checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3"), null, null))
+    checkMemo(tka, subsetTable(tka.typ, "row.foo"), Array(subsetTable(tab.typ, "row.2", "row.3", "NO_KEY"), null, null))
+    checkMemo(tka, subsetTable(tka.typ), Array(subsetTable(tab.typ, "row.3", "NO_KEY"), null, null))
   }
 
   @Test def testTableUnionMemo() {
@@ -352,7 +362,10 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableOrderByMemo() {
     val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
-    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A")))
+    checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A", "NO_KEY")))
+
+    val tob2 = TableOrderBy(tab, Array(SortField("3", Ascending)))
+    checkMemo(tob2, subsetTable(tob2.typ), Array(subsetTable(tab.typ)))
   }
 
   @Test def testCastMatrixToTableMemo() {
@@ -642,11 +655,11 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableCountMemo() {
-    checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
+    checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ, "NO_KEY")))
   }
 
   @Test def testTableGetGlobalsMemo() {
-    checkMemo(TableGetGlobals(tab), TStruct("g1" -> TInt32()), Array(subsetTable(tab.typ, "global.g1")))
+    checkMemo(TableGetGlobals(tab), TStruct("g1" -> TInt32()), Array(subsetTable(tab.typ, "global.g1", "NO_KEY")))
   }
 
   @Test def testTableCollectMemo() {
@@ -699,8 +712,17 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val tmr = r.asInstanceOf[TableMapRows]
         TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
-        tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1")
+        tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1", "row.3")
       })
+
+    val tmr2 = TableMapRows(tr, tableRefStruct(tr.typ, "row.2", "global.g1"))
+    checkRebuild(tmr2, subsetTable(tmr2.typ, "row.foo", "NO_KEY"),
+      (_: BaseIR, r: BaseIR) => {
+        val tmr = r.asInstanceOf[TableMapRows]
+        TypeCheck(tmr.newRow, PruneDeadFields.relationalTypeToEnv(tmr.child.typ))
+        tmr.child.typ == subsetTable(tr.typ, "row.2", "global.g1", "row.3", "NO_KEY") // FIXME: remove row.3 when TableRead is fixed
+      })
+
   }
 
   @Test def testTableMapGlobalsRebuild() {

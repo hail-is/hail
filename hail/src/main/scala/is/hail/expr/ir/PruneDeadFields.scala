@@ -397,19 +397,22 @@ object PruneDeadFields {
       case TableFilter(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, requestedType, irDep), memo)
-      case TableKeyBy(child, keys, isSorted) =>
+      case TableKeyBy(child, _, isSorted) =>
+        val reqKey = requestedType.key
+        val childReqKey = if (isSorted) child.typ.key.take(reqKey.length) else FastIndexedSeq()
         memoizeTableIR(child, TableType(
-          key = if (isSorted) child.typ.key else FastIndexedSeq(),
-          rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, keys), requestedType.rowType),
+          key = childReqKey,
+          rowType = unify(child.typ.rowType, selectKey(child.typ.rowType, childReqKey), requestedType.rowType),
           globalType = requestedType.globalType), memo)
       case TableOrderBy(child, sortFields) =>
+        val k = if (sortFields.forall(_.sortOrder == Ascending) && child.typ.key.startsWith(sortFields.map(_.field)))
+          child.typ.key
+        else
+          FastIndexedSeq()
         memoizeTableIR(child, TableType(
-          key = if (sortFields.forall(_.sortOrder == Ascending) && child.typ.key.startsWith(sortFields.map(_.field)))
-            child.typ.key
-          else
-            FastIndexedSeq(),
+          key = k,
           rowType = unify(child.typ.rowType,
-            child.typ.rowType.filterSet((sortFields.map(_.field) ++ child.typ.key).toSet)._1,
+            selectKey(child.typ.rowType, sortFields.map(_.field) ++ k),
             requestedType.rowType),
           globalType = requestedType.globalType), memo)
       case TableDistinct(child) =>
