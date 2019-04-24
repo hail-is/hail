@@ -141,6 +141,8 @@ steps:
        to: /data.tar.gz
      - from: /io/repo/hail/www-src.tar.gz
        to: /www-src.tar.gz
+     - from: /io/repo/hail/cluster-tests.tar.gz
+       to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
  - kind: buildImage
