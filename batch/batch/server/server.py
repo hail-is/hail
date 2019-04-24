@@ -245,8 +245,8 @@ class Job:
             log_uri = await db.jobs.get_log_uri(self.id, jt.name)
             return jt.name, await read_gs_log_file(app['blocking_pool'], log_uri)
 
-        future_logs = asyncio.gather(*map(_read_log, [jt for idx, jt in enumerate(self._tasks)
-                                                      if idx < self._task_idx]))
+        future_logs = asyncio.gather(*[_read_log(jt) for idx, jt in enumerate(self._tasks)
+                                       if idx < self._task_idx])
         logs = {k: v for k, v in await future_logs}
 
         if self._state == 'Ready':
@@ -270,7 +270,7 @@ class Job:
         await db.jobs.update_log_uri(self.id, task_name, uri)
 
     @classmethod
-    async def from_record(cls, record):
+    def from_record(cls, record):
         if record is not None:
             j = object.__new__(cls)
 
@@ -300,12 +300,13 @@ class Job:
             j._current_task = j._tasks[j._task_idx] if j._task_idx < len(j._tasks) else None
 
             return j
+        return None
 
     @staticmethod
     async def from_db(id):
         records = await db.jobs.get_records(id)
         if len(records) == 1:
-            return await Job.from_record(records[0])
+            return Job.from_record(records[0])
 
     async def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
                        scratch_folder, input_files, output_files, userdata, always_run):
@@ -672,7 +673,7 @@ async def get_alive(request):  # pylint: disable=W0613
 async def get_job_list(request):
     params = request.query
 
-    jobs = [await Job.from_record(record) for record in await db.jobs.get_all_records()]
+    jobs = [Job.from_record(record) for record in await db.jobs.get_all_records()]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -969,7 +970,7 @@ class DeblockedIterator:
 
 
 async def pod_changed(pod):
-    job = await Job.from_record(await db.jobs.get_record_by_pod(pod.metadata.name))
+    job = Job.from_record(await db.jobs.get_record_by_pod(pod.metadata.name))
 
     if job and not job.is_complete():
         await update_job_with_pod(job, pod)
@@ -999,11 +1000,11 @@ async def refresh_k8s_state():  # pylint: disable=W0613
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
 
-        job = await Job.from_record(await db.jobs.get_record_by_pod(pod_name))
+        job = Job.from_record(await db.jobs.get_record_by_pod(pod_name))
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
-    pod_jobs = [await Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
     for job in pod_jobs:
         pod_name = job._pod_name
         if pod_name not in seen_pods:
