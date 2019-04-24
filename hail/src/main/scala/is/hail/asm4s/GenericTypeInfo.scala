@@ -1,6 +1,5 @@
 package is.hail.asm4s
 
-import scala.language.implicitConversions
 import scala.reflect.ClassTag
 
 sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {

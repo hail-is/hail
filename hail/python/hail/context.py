@@ -1,11 +1,11 @@
 import pkg_resources
 from pyspark import SparkContext, SparkConf
-from pyspark.sql import SQLContext
+from pyspark.sql import SparkSession
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
-from hail.utils import wrap_to_list, get_env_or_default
+from hail.utils import get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 from hail.backend import Backend, ServiceBackend, SparkBackend
 
@@ -100,18 +100,18 @@ class HailContext(object):
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jsql_context = self._jhc.sqlContext()
-        self._sql_context = SQLContext(self.sc, jsqlContext=self._jsql_context)
+        self._jspark_session = self._jhc.sparkSession
+        self._spark_session = SparkSession(sc, self._jhc.sparkSession)
 
         super(HailContext, self).__init__()
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
-        
+
         ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
         ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
-        
+
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
         else:

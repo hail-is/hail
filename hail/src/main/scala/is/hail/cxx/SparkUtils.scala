@@ -4,11 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.using
-
-import scala.collection.mutable
 
 class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
 

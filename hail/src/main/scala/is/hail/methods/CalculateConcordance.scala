@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations.UnsafeRow
-import is.hail.expr.ir.{Interpret, Literal, MatrixIR, MatrixValue, TableIR, TableKeyBy, TableLiteral, TableParallelize, TableRead, TableValue}
+import is.hail.expr.ir.{Interpret, Literal, MatrixIR, MatrixValue, TableIR, TableKeyBy, TableLiteral, TableParallelize, TableValue}
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
 import is.hail.utils._
 import is.hail.variant._

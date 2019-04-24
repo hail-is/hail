@@ -1,6 +1,5 @@
 package is.hail.expr
 
-import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
 

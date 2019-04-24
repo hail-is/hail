@@ -1,20 +1,16 @@
 package is.hail.methods
 
-import is.hail.{HailContext, SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
-import is.hail.check.Prop._
-import is.hail.check.{Gen, Properties}
 import is.hail.expr.ir.{Interpret, TextTableReader}
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
 import is.hail.table.Table
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import is.hail.{HailContext, SparkSuite, TestUtils}
 import org.testng.SkipException
+import org.testng.annotations.Test
 
 import scala.language._
 import scala.sys.process._

@@ -6,8 +6,6 @@ import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.utils._
 
-import scala.language.postfixOps
-
 class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
 
   private def this(mb: MethodBuilder, typ: PType, parent: StagedRegionValueBuilder) = {

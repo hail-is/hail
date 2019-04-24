@@ -4,7 +4,6 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
@@ -24,14 +23,13 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
@@ -267,10 +265,9 @@ object HailContext {
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(sparkContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -385,7 +382,6 @@ object HailContext {
 }
 
 class HailContext private(val sc: SparkContext,
-  val sqlContext: SQLContext,
   val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int,
@@ -393,6 +389,7 @@ class HailContext private(val sc: SparkContext,
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
   val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
   val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
+  val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 

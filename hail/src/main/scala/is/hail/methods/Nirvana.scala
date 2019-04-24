@@ -5,14 +5,13 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.TableToTableFunction
-import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
 import org.apache.spark.sql.Row

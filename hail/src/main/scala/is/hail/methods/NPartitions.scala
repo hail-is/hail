@@ -1,9 +1,9 @@
 package is.hail.methods
 
-import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TInt32, Type}
+import is.hail.expr.types.{MatrixType, TableType}
 
 case class NPartitionsTable() extends TableToValueFunction {
   override def typ(childType: TableType): Type = TInt32()

@@ -323,8 +323,8 @@ object Interpret {
           null
         else
           cValue match {
-            case s: Set[Any] =>
-              s.toFastIndexedSeq.sorted(ordering)
+            case s: Set[_] =>
+              s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
             case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
             case a => a
           }
@@ -511,7 +511,7 @@ object Interpret {
           interpret(key, env)
         }
         groupedAgg.mapValues { row =>
-          interpret(aggIR, agg=Some(row, aggElementType))
+          interpret(aggIR, agg=Some((row, aggElementType)))
         }
 
       case x@AggArrayPerElement(a, elementName, indexName, aggBody, isScan) => ???

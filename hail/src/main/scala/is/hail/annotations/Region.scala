@@ -4,8 +4,6 @@ import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.nativecode._
 
-import scala.collection.mutable
-
 object Region {
   def apply(sizeHint: Long = 128): Region = new Region()
 

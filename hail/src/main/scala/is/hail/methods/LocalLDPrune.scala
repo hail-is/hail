@@ -4,8 +4,8 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._

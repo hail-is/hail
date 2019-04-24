@@ -4,8 +4,7 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import scala.collection.generic.Growable
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBaseStruct, PStruct, PType}
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 

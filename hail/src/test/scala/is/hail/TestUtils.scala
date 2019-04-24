@@ -10,7 +10,6 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException

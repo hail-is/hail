@@ -2,29 +2,24 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.check.Gen
+import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.expr.{ir, _}
-import is.hail.linalg._
-import is.hail.methods._
 import is.hail.rvd._
-import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, cxx, utils}
+import is.hail.{HailContext, utils}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec

@@ -183,7 +183,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     PStruct(newFieldsBuilder.result(): _*)
   }

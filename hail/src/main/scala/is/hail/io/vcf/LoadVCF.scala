@@ -1368,7 +1368,7 @@ class PartitionedVCFRDD(
 
     // clean up
     val context = TaskContext.get
-    context.addTaskCompletionListener { context =>
+    context.addTaskCompletionListener { (context: TaskContext) =>
       lines.close()
     }
 

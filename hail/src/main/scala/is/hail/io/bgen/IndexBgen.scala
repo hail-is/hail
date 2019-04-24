@@ -7,9 +7,9 @@ import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
+import org.apache.spark.{Partition, TaskContext}
 
 private case class IndexBgenPartition(
   path: String,
