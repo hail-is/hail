@@ -127,7 +127,7 @@ steps:
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
-     tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
+     tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail-all-spark.jar
@@ -252,24 +252,19 @@ steps:
    dependsOn:
     - hail_base_image
  - kind: runImage
-   name: test_dataproc
+   name: create_dataproc_cluster
    image:
      valueFrom: base_image.image
    script: |
      set -ex
-     python3 -m pip install -U cloudtools
+     # FIXME
+     python3 -m pip install -U cloudtools==4.0.0
      gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
      gcloud config set project broad-ctsa
-     tar xzf /io/cluster-tests.tar.gz
-     CONF=hail-config-0.2-test.json
-     python create_config_file.py 0.2 $CONF
-     SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
-     time gsutil cp \
-       /io/hail-all-spark.jar \
-       $SCRATCH/hail.jar
-     time gsutil cp \
-       /io/hail.zip \
-       $SCRATCH/hail.zip
+     # FIXME
+     cat > config.json <<EOF
+     {"vars": {"version": "0.2", "supported_spark": {"2.4.0": "1.4-debian9"}, "hash": null, "driver_memory": null, "spark": null, "image": null}, "flags": {"image-version": "{image}", "metadata": {"JAR": "gs://hail-common/builds/{version}/jars/hail-{version}-{hash}-Spark-{spark}.jar", "ZIP": "gs://hail-common/builds/{version}/python/hail-{version}-{hash}.zip"}, "properties": {"spark:spark.driver.memory": "{driver_memory}g", "spark:spark.driver.maxResultSize": "0", "spark:spark.task.maxFailures": "20", "spark:spark.kryoserializer.buffer.max": "1g", "spark:spark.driver.extraJavaOptions": "-Xss4M", "spark:spark.executor.extraJavaOptions": "-Xss4M", "hdfs:dfs.replication": "1"}}}
+     EOF
      CLUSTER=ci-test-{{ token }}
      time cluster start $CLUSTER \
        --master-machine-type n1-standard-1 \
@@ -280,11 +275,36 @@ steps:
        --spark 2.4.0 \
        --max-idle 10m \
        --bucket hail-ci-0-1-dataproc-staging-bucket \
-       --config-file $CONF \
-       --hash {{ code.sha }} \
-       --jar $SCRATCH/{{ token }}/hail.jar \
-       --zip $SCRATCH/{{ token }}/hail.zip \
+       --config-file config.json \
+       --hash $(gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-4-spark-2.4.0.txt) \
        --vep
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secrets/ci-secrets
+   dependsOn:
+    - base_image
+ - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # FIXME
+     python3 -m pip install -U cloudtools==4.0.0
+     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
+     gcloud config set project broad-ctsa
+     SCRATCH=gs://hail-ci-0-1/temp/{{ create_dataproc_cluster.token }}
+     time gsutil cp \
+       /io/hail-all-spark.jar \
+       $SCRATCH/hail.jar
+     time gsutil cp \
+       /io/hail.zip \
+       $SCRATCH/hail.zip
+     CLUSTER=ci-test-{{ create_dataproc_cluster.token }}
+     time cluster modify $CLUSTER \
+       --jar $SCRATCH/hail.jar \
+       --zip $SCRATCH/hail.zip
+     tar xzf /io/cluster-tests.tar.gz
      for SCRIPT in python/cluster-tests/*.py; do
        time cluster submit $CLUSTER $SCRIPT
      done
@@ -303,6 +323,7 @@ steps:
    dependsOn:
     - base_image
     - build_hail
+    - create_dataproc_cluster
  - kind: runImage
    name: cleanup_dataproc
    image:
@@ -311,8 +332,8 @@ steps:
      set -x
      gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
      gcloud config set project broad-ctsa
-     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ test_dataproc.token }}
-     time gcloud -q dataproc clusters delete --async ci-test-{{ test_dataproc.token }}
+     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ create_dataproc_cluster.token }}
+     time gcloud -q dataproc clusters delete --async ci-test-{{ create_dataproc_cluster.token }}
      true
    secrets:
     - name: hail-ci-0-1-service-account-key
