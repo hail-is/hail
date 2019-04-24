@@ -290,14 +290,14 @@ steps:
      time cluster stop $CLUSTER --async
    secrets:
     - name: hail-ci-0-1-service-account-key
-      mountPath: /secret/ci-secrets
+      mountPath: /secrets/ci-secrets
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
     - from: /hail-all-spark.jar
       to: /io/hail-all-spark.jar
-    - from: /io/cluster-tests.tar.gz
-      to: /cluster-tests.tar.gz
+    - from: /cluster-tests.tar.gz
+      to: /io/cluster-tests.tar.gz
    dependsOn:
     - base_image
     - build_hail

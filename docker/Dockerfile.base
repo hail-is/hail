@@ -40,6 +40,7 @@ RUN apt-get update && \
   apt-get -y install \
     zip \
     xsltproc \
+    python \
     pandoc && \
   rm -rf /var/lib/apt/lists/*
 ENV PYSPARK_PYTHON python3
