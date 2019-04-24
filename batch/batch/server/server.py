@@ -153,7 +153,6 @@ class JobTask:  # pylint: disable=R0903
                 'pod_template': v1.api_client.sanitize_for_serialization(self.pod_template)}
 
 
-@asyncinit
 class Job:
     async def _next_task(self):
         self._task_idx += 1
@@ -269,37 +268,25 @@ class Job:
         uri = await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, log)
         await db.jobs.update_log_uri(self.id, task_name, uri)
 
-    @classmethod
-    def from_record(cls, record):
+    @staticmethod
+    def from_record(record):
         if record is not None:
-            j = object.__new__(cls)
+            tasks = [JobTask.from_dict(item) for item in json.loads(record['tasks'])]
 
-            j.id = record['id']
-            j.batch_id = record['batch_id']
-            j.attributes = json.loads(record['attributes'])
-            j.userdata = json.loads(record['userdata'])
-            j.callback = record['callback']
-            j.scratch_folder = record['scratch_folder']
-            j.always_run = record['always_run']
-            j._cancelled = record['cancelled']
-            j.duration = record['duration']
-
-            if record['pvc']:
-                j._pvc = v1.api_client._ApiClient__deserialize(json.loads(record['pvc']),
-                                                               kube.client.V1PersistentVolumeClaim)
+            if record['pvc'] is not None:
+                pvc = v1.api_client._ApiClient__deserialize(json.loads(record['pvc']),
+                                                            kube.client.V1PersistentVolumeClaim)
             else:
-                j._pvc = None
+                pvc = None
 
-            j._pod_name = record['pod_name']
-            j.exit_code = record['exit_code']
-            j._state = record['state']
-            j._task_idx = record['task_idx']
+            attributes = json.loads(record['attributes'])
+            userdata = json.loads(record['userdata'])
 
-            x = json.loads(record['tasks'])
-            j._tasks = [JobTask.from_dict(item) for item in x]
-            j._current_task = j._tasks[j._task_idx] if j._task_idx < len(j._tasks) else None
-
-            return j
+            return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
+                       callback=record['callback'], scratch_folder=record['scratch_folder'],
+                       userdata=userdata, always_run=record['always_run'], pvc=pvc,
+                       pod_name=record['pod_name'], exit_code=record['exit_code'], duration=record['duration'],
+                       tasks=tasks, task_idx=record['task_idx'], state=record['state'], cancelled=record['cancelled'])
         return None
 
     @staticmethod
@@ -308,65 +295,63 @@ class Job:
         if len(records) == 1:
             return Job.from_record(records[0])
 
-    async def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                       scratch_folder, input_files, output_files, userdata, always_run):
-        self.batch_id = batch_id
-        self.attributes = attributes
-        self.callback = callback
-        self.scratch_folder = scratch_folder
-        self.always_run = always_run
-        self.userdata = userdata
+    @staticmethod
+    async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
+                         scratch_folder, input_files, output_files, userdata, always_run):
+        pvc = None
+        pod_name = None
+        exit_code = None
+        duration = None
+        task_idx = -1
+        state = 'Created'
+        cancelled = False
 
-        self._pvc = None
-        self._pod_name = None
-        self.exit_code = None
-        self.duration = None
-        self._task_idx = -1
-        self._current_task = None
-        self._state = 'Created'
-        self._cancelled = False
+        id = await db.jobs.new_record(state=state,
+                                      exit_code=exit_code,
+                                      batch_id=batch_id,
+                                      scratch_folder=scratch_folder,
+                                      pod_name=pod_name,
+                                      pvc=pvc,
+                                      callback=callback,
+                                      attributes=json.dumps(attributes),
+                                      task_idx=task_idx,
+                                      always_run=always_run,
+                                      cancelled=cancelled,
+                                      duration=duration,
+                                      userdata=json.dumps(userdata))
 
-        self.id = await db.jobs.new_record(state=self._state,
-                                           exit_code=self.exit_code,
-                                           batch_id=self.batch_id,
-                                           scratch_folder=self.scratch_folder,
-                                           pod_name=self._pod_name,
-                                           pvc=self._pvc,
-                                           callback=self.callback,
-                                           attributes=json.dumps(self.attributes),
-                                           task_idx=self._task_idx,
-                                           always_run=self.always_run,
-                                           cancelled=self._cancelled,
-                                           duration=self.duration,
-                                           userdata=json.dumps(self.userdata))
+        tasks = [JobTask.copy_task(id, 'input', input_files),
+                 JobTask.from_spec(id, 'main', pod_spec),
+                 JobTask.copy_task(id, 'output', output_files)]
 
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
-                       JobTask.from_spec(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files)]
+        tasks = [t for t in tasks if t is not None]
 
-        self._tasks = [t for t in self._tasks if t is not None]
+        job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
+                  scratch_folder=scratch_folder, userdata=userdata, always_run=always_run,
+                  pvc=pvc, pod_name=pod_name, exit_code=exit_code, duration=duration,
+                  tasks=tasks, task_idx=task_idx, state=state, cancelled=cancelled)
 
-        for task in self._tasks:
+        for task in tasks:
             volumes = [
                 kube.client.V1Volume(
                     secret=kube.client.V1SecretVolumeSource(
-                        secret_name=self.userdata['gsa_key_secret_name']),
+                        secret_name=userdata['gsa_key_secret_name']),
                     name='gsa-key')]
             volume_mounts = [
                 kube.client.V1VolumeMount(
                     mount_path='/gsa-key',
                     name='gsa-key')]
 
-            if len(self._tasks) > 1:
-                if self._pvc is None:
-                    self._pvc = await self._create_pvc()
+            if len(job._tasks) > 1:
+                if job._pvc is None:
+                    job._pvc = await job._create_pvc()
                 volumes.append(kube.client.V1Volume(
                     persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=self._pvc.metadata.name),
-                    name=self._pvc.metadata.name))
+                        claim_name=job._pvc.metadata.name),
+                    name=job._pvc.metadata.name))
                 volume_mounts.append(kube.client.V1VolumeMount(
                     mount_path='/io',
-                    name=self._pvc.metadata.name))
+                    name=job._pvc.metadata.name))
 
             current_pod_spec = task.pod_template.spec
             if current_pod_spec.volumes is None:
@@ -377,28 +362,50 @@ class Job:
                     container.volume_mounts = []
                 container.volume_mounts.extend(volume_mounts)
 
-        await db.jobs.update_record(self.id,
-                                    tasks=json.dumps([jt.to_dict() for jt in self._tasks]))
+        await db.jobs.update_record(id, tasks=json.dumps([jt.to_dict() for jt in job._tasks]))
 
-        await self._next_task()
-        assert self._current_task is not None
+        await job._next_task()
+        assert job._current_task is not None
 
         for parent in parent_ids:
-            await db.jobs_parents.new_record(job_id=self.id,
+            await db.jobs_parents.new_record(job_id=id,
                                              parent_id=parent)
 
         if batch_id:
             await db.batch_jobs.new_record(batch_id=batch_id,
-                                           job_id=self.id)
+                                           job_id=id)
 
-        log.info('created job {}'.format(self.id))
-        add_event({'message': f'created job {self.id}'})
+        log.info('created job {}'.format(id))
+        add_event({'message': f'created job {id}'})
 
         if not parent_ids:
-            await self.set_state('Ready')
-            await self._create_pod()
+            await job.set_state('Ready')
+            await job._create_pod()
         else:
-            await self.refresh_parents_and_maybe_create()
+            await job.refresh_parents_and_maybe_create()
+
+        return job
+
+    def __init__(self, id, batch_id, attributes, callback, scratch_folder,
+                 userdata, always_run, pvc, pod_name, exit_code, duration,
+                 tasks, task_idx, state, cancelled):
+        self.id = id
+        self.batch_id = batch_id
+        self.attributes = attributes
+        self.callback = callback
+        self.scratch_folder = scratch_folder
+        self.always_run = always_run
+        self.userdata = userdata
+        self.exit_code = exit_code
+        self.duration = duration
+
+        self._pvc = pvc
+        self._pod_name = pod_name
+        self._tasks = tasks
+        self._task_idx = task_idx
+        self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
+        self._state = state
+        self._cancelled = cancelled
 
     # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
@@ -649,7 +656,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
-    job = await Job(
+    job = await Job.create_job(
         pod_spec=pod_spec,
         batch_id=batch_id,
         attributes=parameters.get('attributes'),
@@ -741,20 +748,18 @@ async def cancel_job(request):
     return jsonify({})
 
 
-@asyncinit
 class Batch:
     MAX_TTL = 30 * 60
 
-    @classmethod
-    def from_record(cls, record):
+    @staticmethod
+    def from_record(record):
         if record is not None:
-            b = object.__new__(cls)
-            b.id = record['id']
-            b.attributes = json.loads(record['attributes'])
-            b.callback = record['callback']
-            b.ttl = record['ttl']
-            b.is_open = record['is_open']
-            return b
+            attributes = json.loads(record['attributes'])
+            return Batch(id=record['id'],
+                         attributes=attributes,
+                         callback=record['callback'],
+                         ttl=record['ttl'],
+                         is_open=record['is_open'])
         return None
 
     @staticmethod
@@ -764,21 +769,29 @@ class Batch:
             return Batch.from_record(records[0])
         return None
 
-    async def __init__(self, attributes, callback, ttl):
-        self.attributes = attributes
-        self.callback = callback
-        self.is_open = True
+    @staticmethod
+    async def create_batch(attributes, callback, ttl):
+        is_open = True
 
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
+
+        id = await db.batch.new_record(attributes=json.dumps(attributes),
+                                       callback=callback,
+                                       ttl=ttl,
+                                       is_open=is_open)
+
+        batch = Batch(id=id, attributes=attributes, callback=callback,
+                      ttl=ttl, is_open=is_open)
+        batch.close_ttl()
+        return batch
+
+    def __init__(self, id, attributes, callback, ttl, is_open):
+        self.id = id
+        self.attributes = attributes
+        self.callback = callback
         self.ttl = ttl
-
-        self.id = await db.batch.new_record(attributes=json.dumps(self.attributes),
-                                            callback=self.callback,
-                                            ttl=self.ttl,
-                                            is_open=self.is_open)
-
-        self.close_ttl()
+        self.is_open = is_open
 
     async def get_jobs(self):
         job_ids = await db.batch_jobs.get_jobs(self.id)
@@ -891,7 +904,9 @@ async def create_batch(request):
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = await Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
+    batch = await Batch.create_batch(attributes=parameters.get('attributes'),
+                                     callback=parameters.get('callback'),
+                                     ttl=parameters.get('ttl'))
     return jsonify(await batch.to_dict())
 
 
