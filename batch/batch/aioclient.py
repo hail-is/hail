@@ -5,6 +5,8 @@ import random
 import yaml
 import cerberus
 
+import hailjwt as hj
+
 from .requests_helper import filter_params
 from . import schemas
 
@@ -124,6 +126,9 @@ class BatchClient:
                     f'found at {token_file}')
             with open(token_file) as f:
                 token = f.read()
+        userdata = hj.JWTClient.unsafe_decode(token)
+        assert "bucket_name" in userdata, userdata
+        self.bucket = userdata["bucket_name"]
         self.cookies = {'user': token}
         self.headers = headers
 

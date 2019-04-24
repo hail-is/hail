@@ -3,6 +3,8 @@ import yaml
 
 import cerberus
 
+import hailjwt as hj
+
 from . import api, schemas
 from .poll_until import poll_until
 
@@ -116,6 +118,9 @@ class BatchClient:
                     f'found at {token_file}')
             with open(token_file) as f:
                 token = f.read()
+        userdata = hj.JWTClient.unsafe_decode(token)
+        assert "bucket_name" in userdata, userdata
+        self.bucket = userdata["bucket_name"]
         self.api = api.API(timeout=timeout,
                            cookies={'user': token},
                            headers=headers)
