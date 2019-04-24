@@ -1197,6 +1197,11 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    def test_import_bed_kwargs_to_import_table(self):
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', find_replace=('gene', ''))
+        self.assertFalse('gene1' in t.aggregate(hl.agg.collect_as_set(t.target)))
+
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
