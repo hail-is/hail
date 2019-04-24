@@ -1,5 +1,20 @@
 FROM hail-base
 
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt
+RUN python3 -m pip install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch
+RUN python3 -m pip install --no-cache-dir /batch && \
+  rm -rf /batch
+
+COPY pipeline/setup.py /pipeline/
+COPY pipeline/pipeline /pipeline/pipeline
+RUN python3 -m pip install --no-cache-dir /pipeline && \
+  rm -rf /pipeline
+
 RUN mkdir /home/jovian && \
     mkdir /home/jovian/bin && \
     groupadd jovian && \
@@ -12,6 +27,6 @@ ENV HOME /home/jovian
 ENV PATH "/home/jovian/bin:$PATH"
 ENV HAIL_APISERVER_URL "http://apiserver:5000"
 
-COPY jupyter_notebook_config.py /home/jovian/
+COPY apiserver/jupyter_notebook_config.py /home/jovian/
 
 CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser"]
