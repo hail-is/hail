@@ -644,7 +644,9 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
     **kwargs :
-        All optional arguments to :func:`import_table` are valid arguments here.
+        Additional optional arguments to :func:`import_table` are valid arguments here except:
+        `no_header`, `delimiter`, `impute`, `skip_blank_lines`, `types`, and `comment` as these
+        are used by import_bed.
 
     Returns
     -------
