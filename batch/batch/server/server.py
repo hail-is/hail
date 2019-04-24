@@ -106,7 +106,7 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def copy_task(job_id, task_name, files):
         if files is not None:
-            authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/key.json'
+            authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):

@@ -101,7 +101,7 @@ run-local: restart-proxy
 	HAIL_GCP_PROJECT=$(PROJECT) \
 	  HAIL_DOMAIN=$(DOMAIN) \
 	  HAIL_IP=$(IP) \
-	  HAIL_CI_UTILS_IMAGE=gcr.io/$(PROJECT)/ci-utils:latest \
+	  HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc/ci-utils:f477fdaa98d0e640f1bc2003ccfe1d2a86cf2d7531ff595476ca2412d28fc678 \
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
