@@ -106,12 +106,26 @@ class JobsParentsTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def get_parents(self, job_id):
-        result = await super().get_record({'job_id': job_id}, ['parent_id'])
-        return [record['parent_id'] for record in result]
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                jobs_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{jobs_name}`
+                          INNER JOIN `{self.name}`
+                          ON `{jobs_name}`.id = `{self.name}`.parent_id
+                          WHERE `{self.name}`.job_id = %s"""
+                await cursor.execute(sql, job_id)
+                return await cursor.fetchall()
 
     async def get_children(self, parent_id):
-        result = await super().get_record({'parent_id': parent_id}, ['job_id'])
-        return [record['job_id'] for record in result]
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                jobs_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{jobs_name}`
+                          INNER JOIN `{self.name}`
+                          ON `{jobs_name}`.id = `{self.name}`.job_id
+                          WHERE `{self.name}`.parent_id = %s"""
+                await cursor.execute(sql, parent_id)
+                return await cursor.fetchall()
 
     async def has_record(self, job_id, parent_id):
         return await super().has_record({'job_id': job_id, 'parent_id': parent_id})

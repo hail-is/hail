@@ -408,9 +408,9 @@ class Job:
 
     # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
-        for parent in await db.jobs_parents.get_parents(self.id):
-            parent_job = await Job.from_db(parent)
-            await self.parent_new_state(parent_job._state, parent)
+        for record in await db.jobs_parents.get_parents(self.id):
+            parent_job = Job.from_record(record)
+            await self.parent_new_state(parent_job._state, parent_job.id)
 
     async def set_state(self, new_state):
         if self._state != new_state:
@@ -423,13 +423,12 @@ class Job:
             await self.notify_children(new_state)
 
     async def notify_children(self, new_state):
-        child_ids = await db.jobs_parents.get_children(self.id)
-        for child_id in child_ids:
-            child = await Job.from_db(child_id)
+        children = [Job.from_record(record) for record in await db.jobs_parents.get_children(self.id)]
+        for child in children:
             if child:
                 await child.parent_new_state(new_state, self.id)
             else:
-                log.info(f'missing child: {child_id}')
+                log.info(f'missing child: {child.id}')
 
     async def parent_new_state(self, new_state, parent_id):
         assert await db.jobs_parents.has_record(self.id, parent_id)
@@ -439,7 +438,7 @@ class Job:
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
         if self._state == 'Created' and not incomplete_parent_ids:
-            parents = [await Job.from_db(pid) for pid in await db.jobs_parents.get_parents(self.id)]
+            parents = [Job.from_record(record) for record in await db.jobs_parents.get_parents(self.id)]
             if (self.always_run or
                     (all(p.is_successful() for p in parents) and not self._cancelled)):
                 log.info(f'all parents complete for {self.id},'
@@ -463,8 +462,7 @@ class Job:
             await self._delete_k8s_resources()
 
     async def delete(self):
-        child_ids = await db.jobs_parents.get_children(self.id)
-        children = [await Job.from_db(cid) for cid in child_ids]
+        children = [Job.from_record(record) for record in await db.jobs_parents.get_children(self.id)]
         for child in children:
             await child.cancel()
 
@@ -566,7 +564,7 @@ class Job:
 
         if self.attributes:
             result['attributes'] = self.attributes
-        parent_ids = await db.jobs_parents.get_parents(self.id)
+        parent_ids = [record['id'] for record in await db.jobs_parents.get_parents(self.id)]
         if parent_ids:
             result['parent_ids'] = parent_ids
         if self.scratch_folder:
