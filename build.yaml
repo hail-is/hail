@@ -168,7 +168,7 @@ steps:
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
-   contextPath: apiserver
+   contextPath: .
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
