@@ -15,7 +15,6 @@ import jwt
 import kubernetes as kube
 import requests
 import uvloop
-from asyncinit import asyncinit
 
 import hailjwt as hj
 
