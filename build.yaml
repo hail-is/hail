@@ -127,6 +127,7 @@ steps:
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
+     tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail-all-spark.jar
@@ -248,6 +249,76 @@ steps:
        --ignore=docs/doctest_write_data.py
    dependsOn:
     - hail_base_image
+ - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     python3 -m pip install -U cloudtools
+     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
+     gcloud config set project broad-ctsa
+     tar xzf /io/cluster-tests.tar.gz
+     CONF=hail-config-0.2-test.json
+     python create_config_file.py 0.2 $CONF
+     SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
+     time gsutil cp \
+       /io/hail-all-spark.jar \
+       $SCRATCH/hail.jar
+     time gsutil cp \
+       /io/hail.zip \
+       $SCRATCH/hail.zip
+     CLUSTER=ci-test-{{ token }}
+     time cluster start $CLUSTER \
+       --master-machine-type n1-standard-1 \
+       --master-boot-disk-size 40 \
+       --worker-machine-type n1-standard-1 \
+       --worker-boot-disk-size 40 \
+       --version 0.2 \
+       --spark 2.4.0 \
+       --max-idle 10m \
+       --bucket hail-ci-0-1-dataproc-staging-bucket \
+       --config-file $CONF \
+       --hash {{ code.sha }} \
+       --jar $SCRATCH/{{ token }}/hail.jar \
+       --zip $SCRATCH/{{ token }}/hail.zip \
+       --vep
+     for SCRIPT in python/cluster-tests/*.py; do
+       time cluster submit $CLUSTER $SCRIPT
+     done
+     time gsutil rm -rf $SCRATCH
+     time cluster stop $CLUSTER --async
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   inputs:
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /hail-all-spark.jar
+      to: /io/hail-all-spark.jar
+    - from: /io/cluster-tests.tar.gz
+      to: /cluster-tests.tar.gz
+   dependsOn:
+    - base_image
+    - build_hail
+ - kind: runImage
+   name: cleanup_dataproc
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -x
+     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
+     gcloud config set project broad-ctsa
+     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ test_dataproc.token }}
+     time gcloud -q dataproc clusters delete --async ci-test-{{ test_dataproc.token }}
+     true
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   alwaysRun: true
+   dependsOn:
+    - base_image
+    - test_dataproc
  - kind: runImage
    name: make_docs
    image:
