@@ -27,7 +27,7 @@ ENV HOME /home/jovian
 ENV PATH "/home/jovian/bin:$PATH"
 ENV HAIL_APISERVER_URL "http://apiserver:5000"
 
-COPY jupyter_notebook_config.py.in /home/jovian/
+COPY apiserver/jupyter_notebook_config.py.in /home/jovian/
 RUN sed -e "s,@project@,{{ global.project }},g" \
   < /home/jovian/jupyter_notebook_config.py.in \
   > jupyter_notebook_config.py
