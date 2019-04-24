@@ -15,13 +15,17 @@ WORKDIR /batch
 COPY batch/batch batch
 COPY batch/setup.py .
 
+WORKDIR /
+COPY hailjwt hailjwt
+WORKDIR /hailjwt
+
 WORKDIR /hail-ci
 
 COPY ci/index.html ci/pr-build-script ci/pr-deploy-script ci/deploy-index.html ./
 COPY ci/ci ./ci
 COPY ci/run_ci.py ./
 RUN chown -R hail-ci:hail-ci ./
-RUN pip3 install /batch
+RUN pip3 install /batch && pip3 install /hailjwt
 
 USER hail-ci
 EXPOSE 5000
