@@ -20,6 +20,6 @@ if [[ -z $IN_HAIL_CI ]]; then
     ../until-with-fuel 30 curl -fL $host:$port
 fi
 
-for table in jobs jobs-parents batch batch-jobs; do
+for table in jobs jobs-parents batch batch-jobs batch-attributes; do
     python3 -c "from batch.database import Database; db = Database.create_synchronous(\"$CLOUD_SQL_CONFIG_PATH\"); db.drop_table_sync(\"$table\"); assert not db.has_table_sync(\"$table\")"
 done

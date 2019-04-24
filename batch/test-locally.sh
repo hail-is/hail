@@ -39,9 +39,11 @@ fi
 export JOBS_TABLE=jobs-$(../generate-uid.sh)
 export JOBS_PARENTS_TABLE=jobs-parents-$(../generate-uid.sh)
 export BATCH_TABLE=batch-$(../generate-uid.sh)
-tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE)
+export BATCH_ATTRIBUTES_TABLE=batch-attributes-$(../generate-uid.sh)
+tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_ATTRIBUTES_TABLE)
 
-python3 -c 'import batch.server; batch.server.serve(5000)' &
+python3 -c 'import batch.server; batch.server.serve(5000)'
+exit 1
 server_pid=$!
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5000/healthcheck

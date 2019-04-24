@@ -13,7 +13,7 @@ BATCH_TEST_IMAGE = gcr.io/$(PROJECT)/batch-test:$(shell docker images -q --no-tr
 
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hailjwt
+PYTHONPATH := ../hailjwt$${PYTHONPATH:+:$${PYTHONPATH}}
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 BATCH_PORT ?= 5000

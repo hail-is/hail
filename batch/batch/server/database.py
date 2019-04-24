@@ -8,6 +8,7 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
+        self.batch_attributes = BatchAttributesTable(self)
 
 
 class JobsTable(Table):
@@ -162,3 +163,16 @@ class BatchTable(Table):
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
+
+class BatchAttributesTable(Table):
+    def __init__(self, db):
+        super().__init__(db, 'batch-attributes')
+
+    async def _query(self, *select, **where):
+        return await super().get_record(where, select_fields=select)
+
+    async def get_attributes(self, batch_id):
+        return self._query('key', 'value', batch_id=batch_id)
+
+    async def get_batches(self, key, value):
+        return self._query('batch_id', key=key, value=value)
