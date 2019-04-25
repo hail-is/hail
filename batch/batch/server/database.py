@@ -147,6 +147,30 @@ class BatchTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
+    async def get_by(self, complete, success, attributes):
+        if complete:
+            sql = "SELECT batch.*"
+
+        where = []
+        joins = ""
+        if complete or success:
+            joins += "INNER JOIN {self._db.batch_jobs.name} AS jobs USING (batch_id)"
+            if complete:
+                where.append("batch.
+            else:
+                
+        where = " OR ".join("(attr.key = %s AND attr.value = %s)" for _ in attributes)
+        values = [x for key, val in attributes.items() for x in (key, val)]
+        query = f"""SELECT batch.*
+FROM {self.name} AS batch
+INNER JOIN {self._db.batch_attributes.name} AS attr USING (batch_id)
+WHERE {where};
+"""
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(self._get_batch_by_attributes_sql(**attributes))
+                return await cursor.fetchall()
+
     async def has_record(self, id):
         return await super().has_record({'id': id})
 
