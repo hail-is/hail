@@ -1,5 +1,6 @@
 package is.hail.expr.ir.functions
 
+import is.hail.GenericIndexedSeqSerializer
 import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
@@ -136,7 +137,8 @@ object RelationalFunctions {
     classOf[WrappedMatrixToValueFunction]
   )) +
     new MatrixFilterIntervalsSerializer +
-    new TableFilterIntervalsSerializer
+    new TableFilterIntervalsSerializer +
+    GenericIndexedSeqSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)
