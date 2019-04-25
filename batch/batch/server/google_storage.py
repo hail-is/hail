@@ -15,12 +15,6 @@ def download_gs_file_as_string(gcs_client, bucket, path):
     return content.decode('utf-8')
 
 
-def exists_gs_file(gcs_client, bucket, path):
-    bucket = gcs_client.bucket(bucket)
-    f = bucket.blob(path)
-    return f.exists()
-
-
 def delete_gs_file(gcs_client, bucket, path):
     bucket = gcs_client.bucket(bucket)
     f = bucket.blob(path)
