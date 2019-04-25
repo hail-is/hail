@@ -8,9 +8,7 @@ import json
 import uuid
 
 from aiohttp import web
-import aiohttp_jinja2
 import cerberus
-import jinja2
 import jwt
 import kubernetes as kube
 import requests
@@ -18,7 +16,7 @@ import uvloop
 
 import hailjwt as hj
 
-from .globals import get_recent_events, add_event, blocking_to_async
+from .globals import blocking_to_async
 from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
 from .database import BatchDatabase
 
@@ -82,7 +80,6 @@ log.info(f'instance_id = {instance_id}')
 
 app = web.Application()
 routes = web.RouteTableDef()
-aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
 db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
                                                      '/batch-secrets/batch-production-cloud-sql-config.json'))
@@ -197,9 +194,6 @@ class Job:
 
         await db.jobs.update_record(self.id,
                                     pod_name=self._pod_name)
-
-        add_event({'message': f'created pod for job {self.id}, task {self._current_task.name}',
-                   'command': f'{pod.spec.containers[0].command}'})
 
         log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
                                                                    self.id,
@@ -375,7 +369,6 @@ class Job:
                                            job_id=id)
 
         log.info('created job {}'.format(id))
-        add_event({'message': f'created job {id}'})
 
         if not parent_ids:
             await job.set_state('Ready')
@@ -512,8 +505,6 @@ class Job:
             pod.metadata.name,
             HAIL_POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
-        add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
 
         await self._write_log(task_name, pod_log)
 
@@ -960,14 +951,6 @@ async def update_job_with_pod(job, pod):
                 await job.mark_complete(pod)
     else:
         await job.mark_unscheduled()
-
-
-@routes.get('/recent')
-@aiohttp_jinja2.template('recent.html')
-@authenticated_users_only
-async def recent(request):  # pylint: disable=W0613
-    recent_events = get_recent_events()
-    return {'recent': list(reversed(recent_events))}
 
 
 class DeblockedIterator:

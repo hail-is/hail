@@ -1,6 +1,4 @@
 import os
-import datetime
-import collections
 import asyncio
 
 from google.cloud import storage
@@ -47,20 +45,6 @@ async def read_gs_log_file(thread_pool, uri):
 async def delete_gs_log_file(thread_pool, instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
     await blocking_to_async(thread_pool, delete_gs_file, gcs_client, batch_bucket_name, path)
-
-
-_recent_events = collections.deque(maxlen=50)
-
-
-def get_recent_events():
-    return _recent_events
-
-
-def add_event(event):
-    global _recent_events
-
-    event['time'] = str(datetime.datetime.now())
-    _recent_events.append(event)
 
 
 async def blocking_to_async(thread_pool, f, *args, **kwargs):
