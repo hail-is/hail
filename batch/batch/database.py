@@ -13,9 +13,10 @@ def run_synchronous(coro):
 
 @asyncinit
 class Database:
-    @staticmethod
-    def create_synchronous(config_file):
-        db = run_synchronous(Database(config_file))
+    @classmethod
+    def create_synchronous(cls, config_file):
+        db = object.__new__(cls)
+        run_synchronous(cls.__init__(db, config_file))
         return db
 
     async def __init__(self, config_file):
@@ -97,6 +98,10 @@ def make_where_statement(items):
             else:
                 template.append(f'`{k.replace("`", "``")}` IN %s')
                 values.append(v)
+        elif v is None:
+            template.append(f'`{k.replace("`", "``")}` IS NULL')
+        elif v == "NOT NULL":
+            template.append(f'`{k.replace("`", "``")}` IS NOT NULL')
         else:
             template.append(f'`{k.replace("`", "``")}` = %s')
             values.append(v)
@@ -112,11 +117,11 @@ class Table:  # pylint: disable=R0903
         self._db = db
         await self._db.create_table(name, schema, keys, can_exist)
 
-    async def new_record(self, items):
-        names = ", ".join([f'`{name.replace("`", "``")}`' for name in items.keys()])
-        values_template = ", ".join(["%s" for _ in items.values()])
+    async def new_record(self, **items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                names = ", ".join([f'`{name.replace("`", "``")}`' for name in items])
+                values_template = ", ".join(["%s" for _ in items.values()])
                 sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values_template})"
                 await cursor.execute(sql, tuple(items.values()))
                 id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
@@ -139,9 +144,15 @@ class Table:  # pylint: disable=R0903
                 where_template, where_values = make_where_statement(where_items)
                 select_fields = ",".join(select_fields) if select_fields is not None else "*"
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, where_values)
+                await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
         return result
+
+    async def get_all_records(self):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(f"SELECT * FROM `{self.name}`")
+                return await cursor.fetchall()
 
     async def has_record(self, where_items):
         async with self._db.pool.acquire() as conn:
@@ -156,4 +167,4 @@ class Table:  # pylint: disable=R0903
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
                 sql = f"DELETE FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, where_values)
+                await cursor.execute(sql, tuple(where_values))

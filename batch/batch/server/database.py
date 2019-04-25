@@ -1,15 +1,9 @@
 import os
-import json
 
-from ..database import Database, Table, run_synchronous
+from ..database import Database, Table
 
 
 class BatchDatabase(Database):
-    @staticmethod
-    def create_synchronous(config_file):
-        db = run_synchronous(BatchDatabase(config_file))
-        return db
-
     async def __init__(self, config_file):
         await super().__init__(config_file)
 
@@ -20,26 +14,30 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
+    uri_log_mapping = {'input': 'input_log_uri',
+                       'main': 'main_log_uri',
+                       'output': 'output_log_uri'}
+
     async def __init__(self, db, name='jobs'):
         schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
                   'state': 'VARCHAR(40) NOT NULL',
                   'exit_code': 'INT',
                   'batch_id': 'BIGINT',
-                  'scratch_folder': 'VARCHAR(1000)',
-                  'pod_name': 'VARCHAR(1000)',
+                  'scratch_folder': 'VARCHAR(1024)',
+                  'pod_name': 'VARCHAR(1024)',
                   'pvc': 'TEXT(65535)',
                   'callback': 'TEXT(65535)',
                   'task_idx': 'INT NOT NULL',
                   'always_run': 'BOOLEAN',
+                  'cancelled': 'BOOLEAN',
                   'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                  'time_ended': 'TIMESTAMP',
-                  'user': 'VARCHAR(1000)',
+                  'duration': 'BIGINT',
+                  'userdata': 'TEXT(65535)',
                   'attributes': 'TEXT(65535)',
                   'tasks': 'TEXT(65535)',
-                  'parent_ids': 'TEXT(65535)',
-                  'input_log_uri': 'VARCHAR(1000)',
-                  'main_log_uri': 'VARCHAR(1000)',
-                  'output_log_uri': 'VARCHAR(1000)'}
+                  'input_log_uri': 'VARCHAR(1024)',
+                  'main_log_uri': 'VARCHAR(1024)',
+                  'output_log_uri': 'VARCHAR(1024)'}
 
         keys = ['id']
 
@@ -48,14 +46,11 @@ class JobsTable(Table):
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
-    async def get_records(self, ids, fields=None):
-        assert isinstance(ids, list)
-        return await super().get_record({'id': id}, fields)
+    async def get_all_records(self):
+        return await super().get_all_records()
 
-    async def get_record(self, id, fields=None):
-        records = await self.get_records({'id': id}, fields)
-        assert len(records) == 1
-        return records[0]
+    async def get_records(self, ids, fields=None):
+        return await super().get_record({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -64,12 +59,42 @@ class JobsTable(Table):
         await super().delete_record({'id': id})
 
     async def get_incomplete_parents(self, id):
-        parent_ids = await self.get_record(id, ['parent_ids'])
-        parent_ids = json.loads(parent_ids['parent_ids'])
-        parent_records = await self.get_records(parent_ids)
-        incomplete_parents = [pr['id'] for pr in parent_records.result()
-                              if pr['state'] == 'Created' or pr['state'] == 'Ready']
-        return incomplete_parents
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                jobs_parents_name = self._db.jobs_parents.name
+                sql = f"""SELECT id FROM `{self.name}`
+                          INNER JOIN `{jobs_parents_name}`
+                          ON `{self.name}`.id = `{jobs_parents_name}`.parent_id
+                          WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.job_id = %s"""
+
+                await cursor.execute(sql, (('Created', 'Ready'), id))
+                result = await cursor.fetchall()
+                return [record['id'] for record in result]
+
+    async def get_record_by_pod(self, pod):
+        records = await self.get_records_where({'pod_name': pod})
+        if len(records) == 0:  # pylint: disable=R1705
+            return None
+        elif len(records) == 1:
+            return records[0]
+        else:
+            jobs_w_pod = [record['id'] for record in records]
+            raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
+                            f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
+
+    async def get_records_where(self, condition):
+        return await super().get_record(condition)
+
+    async def update_log_uri(self, id, task_name, uri):
+        await self.update_record(id, **{JobsTable.uri_log_mapping[task_name]: uri})
+
+    async def get_log_uri(self, id, task_name):
+        uri_field = JobsTable.uri_log_mapping[task_name]
+        records = await self.get_records(id, fields=[uri_field])
+        if records:
+            assert len(records) == 1
+            return records[0][uri_field]
+        return None
 
 
 class JobsParentsTable(Table):
@@ -81,12 +106,32 @@ class JobsParentsTable(Table):
         await super().__init__(db, name, schema, keys)
 
     async def get_parents(self, job_id):
-        result = await super().get_record({'job_id': job_id}, ['parent_id'])
-        return [record['parent_id'] for record in result]
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                jobs_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{jobs_name}`
+                          INNER JOIN `{self.name}`
+                          ON `{jobs_name}`.id = `{self.name}`.parent_id
+                          WHERE `{self.name}`.job_id = %s"""
+                await cursor.execute(sql, job_id)
+                return await cursor.fetchall()
 
     async def get_children(self, parent_id):
-        result = await super().get_record({'parent_id': parent_id}, ['job_id'])
-        return [record['job_id'] for record in result]
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                jobs_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{jobs_name}`
+                          INNER JOIN `{self.name}`
+                          ON `{jobs_name}`.id = `{self.name}`.job_id
+                          WHERE `{self.name}`.parent_id = %s"""
+                await cursor.execute(sql, parent_id)
+                return await cursor.fetchall()
+
+    async def has_record(self, job_id, parent_id):
+        return await super().has_record({'job_id': job_id, 'parent_id': parent_id})
+
+    async def delete_records_where(self, condition):
+        return await super().delete_record(condition)
 
 
 class BatchTable(Table):
@@ -95,7 +140,8 @@ class BatchTable(Table):
                   'attributes': 'TEXT(65535)',
                   'callback': 'TEXT(65535)',
                   'ttl': 'INT',
-                  'is_open': 'BOOLEAN NOT NULL'
+                  'is_open': 'BOOLEAN NOT NULL',
+                  'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
                   }
         keys = ['id']
 
@@ -104,14 +150,11 @@ class BatchTable(Table):
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
-    async def get_records(self, ids, fields=None):
-        assert isinstance(ids, list)
-        return await super().get_record({'id': id}, fields)
+    async def get_all_records(self):
+        return await super().get_all_records()
 
-    async def get_record(self, id, fields=None):
-        records = await self.get_records({'id': id}, fields)
-        assert len(records) == 1
-        return records[0]
+    async def get_records(self, ids, fields=None):
+        return await super().get_record({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
