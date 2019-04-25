@@ -128,8 +128,8 @@ class BatchTable(Table):
         values = (,)
         sql = "select * from {self.name} as batch"
         if complete or success:
-            sql += " inner join {self._db.batch_jobs.name} as bj on (batch_id)"
-            sql += " inner join {self._db.jobs.name} as job on (job_id)"
+            sql += " inner join {self._db.batch_jobs.name} as bj using (batch_id)"
+            sql += " inner join {self._db.jobs.name} as job using (job_id)"
             if complete:
                 values += "Complete"
                 sql += " where job.state = %s"
