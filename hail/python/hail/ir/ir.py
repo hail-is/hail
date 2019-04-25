@@ -520,6 +520,23 @@ class NDArrayRef(IR):
         self._type = self.nd.typ.element_type
 
 
+class NDArrayWrite(IR):
+    @typecheck_method(nd=IR, path=IR)
+    def __init__(self, nd, path):
+        super().__init__(nd, path)
+        self.nd = nd
+        self.path = path
+
+    @typecheck_method(nd=IR, path=IR)
+    def copy(self, nd, path):
+        return NDArrayWrite(nd, path)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.path._compute_type(env, agg_env)
+        self._type = tvoid
+
+
 class ArraySort(IR):
     @typecheck_method(a=IR, l_name=str, r_name=str, compare=IR)
     def __init__(self, a, l_name, r_name, compare):
