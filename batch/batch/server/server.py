@@ -863,24 +863,23 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_record({'user': user})]
+    complete = params.get('complete')
+    if complete:
+        del params['complete']
+        complete = complete == '1'
+    success = params.get('success')
+    if success:
+        del params['success']
+        success = success = '1'
+    batches = [Batch.from_record(r)
+               for r in await db.batch.find_records(
+                       user=user, complete=complete, success=success)]
     for name, value in params.items():
-        if name == 'complete':
-            if value not in ('0', '1'):
-                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
-            c = value == '1'
-            batches = [batch for batch in batches if await batch.is_complete() == c]
-        elif name == 'success':
-            if value not in ('0', '1'):
-                abort(400, f'invalid success value, expected 0 or 1, got {value}')
-            s = value == '1'
-            batches = [batch for batch in batches if await batch.is_successful() == s]
-        else:
-            if not name.startswith('a:'):
-                abort(400, f'unknown query parameter {name}')
-            k = name[2:]
-            batches = [batch for batch in batches
-                       if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
+        if not name.startswith('a:'):
+            abort(400, f'unknown query parameter {name}')
+        k = name[2:]
+        batches = [batch for batch in batches
+                   if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
     return jsonify([await batch.to_dict() for batch in batches])
 

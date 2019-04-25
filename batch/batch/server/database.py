@@ -123,3 +123,23 @@ class BatchTable(Table):
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
+
+    async def find_records(self, user, complete=None, success=None):
+        values = (,)
+        sql = "select * from {self.name} as batch"
+        if complete or success:
+            sql += " inner join {self._db.batch_jobs.name} as bj on (batch_id)"
+            sql += " inner join {self._db.jobs.name} as job on (job_id)"
+            if complete:
+                values += "Complete"
+                sql += " where job.state = %s"
+            if success:
+                values += 0
+                sql += " where job.exit_code = %s"
+        if user:
+            values += user
+            sql += " where job.user = %s"
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(sql, values)
+                return await cursor.fetchall()
