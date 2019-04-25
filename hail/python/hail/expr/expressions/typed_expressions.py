@@ -3571,29 +3571,34 @@ def construct_expr(ir: IR,
                    aggregations: LinkedList = LinkedList(Aggregation)):
     if type is None:
         return Expression(ir, None, indices, aggregations)
-    if isinstance(type, tarray) and is_numeric(type.element_type):
+    elif isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
-    if isinstance(type, tarray):
+    elif isinstance(type, tarray):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
             while isinstance(etype, (hl.tarray, hl.tset)):
                 etype = etype.element_type
         if isinstance(etype, hl.tstruct):
             return ArrayStructExpression(ir, type, indices, aggregations)
-    if isinstance(type, tset) and isinstance(type.element_type, tstruct):
+        else:
+            raise NotImplementedError(type)
+    elif isinstance(type, tset) and isinstance(type.element_type, tstruct):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
             while isinstance(etype, (hl.tarray, hl.tset)):
                 etype = etype.element_type
         if isinstance(etype, hl.tstruct):
             return SetStructExpression(ir, type, indices, aggregations)
-    if isinstance(type, tndarray) and is_numeric(type.element_type):
+        else:
+            raise NotImplementedError(type)
+    elif isinstance(type, tndarray) and is_numeric(type.element_type):
         return NDArrayNumericExpression(ir, type, indices, aggregations)
-    if type in scalars:
+    elif type in scalars:
         return scalars[type](ir, type, indices, aggregations)
-    if type.__class__ in typ_to_expr:
+    elif type.__class__ in typ_to_expr:
         return typ_to_expr[type.__class__](ir, type, indices, aggregations)
-    raise NotImplementedError(type)
+    else:
+        raise NotImplementedError(type)
 
 
 @typecheck(name=str, type=HailType, indices=Indices)
