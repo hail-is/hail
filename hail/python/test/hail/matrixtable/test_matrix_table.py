@@ -391,10 +391,10 @@ class Tests(unittest.TestCase):
     def test_table_product_join(self):
         left = hl.utils.range_matrix_table(5, 1)
         right = hl.utils.range_table(5)
-        right = right.select(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
         left = left.annotate_rows(matches=right.index(left.row_key, product=True))
         rows = left.rows()
-        self.assertTrue(rows.all(rows.matches.length() == rows.row_idx))
+        self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
@@ -570,9 +570,11 @@ class Tests(unittest.TestCase):
         intervals = intervals.key_by(interval=hl.interval(
             1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
             (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
         left = left.annotate_rows(interval_matches=intervals.index(left.row_key, product=True))
         rows = left.rows()
-        self.assertTrue(rows.all(rows.interval_matches.length() == hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10)))
+        self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
 
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])

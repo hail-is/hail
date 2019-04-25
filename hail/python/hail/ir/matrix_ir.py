@@ -392,14 +392,14 @@ class MatrixAnnotateRowsTable(MatrixIR):
     def _compute_type(self):
         child_typ = self.child.typ
         if self.product:
-            new_row_type = child_typ.row_type._insert_field(self.root, hl.tarray(self.table.typ.value_type))
+            value_type = hl.tarray(self.table.typ.value_type)
         else:
-            new_row_type = child_typ.row_type._insert_field(self.root, self.table.typ.value_type)
+            value_type = self.table.typ.value_type
         self._type = hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
-            new_row_type,
+            child_typ.row_type._insert_field(self.root, value_type),
             child_typ.row_key,
             child_typ.entry_type)
 

@@ -1438,7 +1438,7 @@ class Table(ExprContainer):
                 handler = print
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs, product=False) -> 'Expression':
+    def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1504,8 +1504,8 @@ class Table(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
-        product : bool
-            If ``True``, value of expression is array of all matches.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Returns
         -------

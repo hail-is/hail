@@ -2710,7 +2710,7 @@ class MatrixTable(ExprContainer):
         """
         return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
-    def index_rows(self, *exprs, product=False) -> 'Expression':
+    def index_rows(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2726,8 +2726,8 @@ class MatrixTable(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
-        product : bool
-            If ``True``, value of expression is array of all matches.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Notes
         -----
@@ -2750,7 +2750,7 @@ class MatrixTable(ExprContainer):
                 f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values())}\n"
                 f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
-    def index_cols(self, *exprs, product=False) -> 'Expression':
+    def index_cols(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the column values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2766,8 +2766,8 @@ class MatrixTable(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
-        product : bool
-            If ``True``, value of expression is array of all matches.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Notes
         -----
