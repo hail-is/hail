@@ -707,6 +707,15 @@ class Tests(unittest.TestCase):
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    def test_aggregators_hist_neg0(self):
+        table = hl.utils.range_table(32)
+        table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
+        r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
+        self.assertEquals(r.bin_edges, [0, 2, 4, 6, 8, 10])
+        self.assertEquals(r.bin_freq, [6, 5, 6, 6, 7])
+        self.assertEquals(r.n_smaller, 1)
+        self.assertEquals(r.n_larger, 1)
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
@@ -850,7 +859,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding[None].n_called, 3)
         self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
         self.assertEqual(r.inbreeding[None].observed_homs, 2)
-        
+
         self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
         self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
@@ -2100,12 +2109,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 100))))
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 109))))
         self.assertFalse(hl.eval(li.contains(hl.locus("1", 110))))
-    
+
         li2 = hl.parse_locus_interval("1:109-200")
         li3 = hl.parse_locus_interval("1:110-200")
         li4 = hl.parse_locus_interval("1:90-101")
         li5 = hl.parse_locus_interval("1:90-100")
-    
+
         self.assertTrue(hl.eval(li.overlaps(li2)))
         self.assertTrue(hl.eval(li.overlaps(li4)))
         self.assertFalse(hl.eval(li.overlaps(li3)))
@@ -2363,7 +2372,7 @@ class Tests(unittest.TestCase):
         res = hl.eval(hl.chi_squared_test(51, 43, 22, 92))
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
-        
+
         res = hl.eval(hl.chi_squared_test(61, 17493, 95, 84145))
         self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
