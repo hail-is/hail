@@ -3112,6 +3112,30 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
+    @typecheck_method(uri=str)
+    def save(self, uri):
+        """Write out the NDArray to the given path as in .npy format. If the URI does not
+        end with ".npy" the file extension will be appended. This method reflects the numpy
+        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
+        `load`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> nd.save('file://local/file') # doctest: +SKIP
+        >>> np.load('/local/file.npy') # doctest: +SKIP
+        array([[1, 2],
+               [3, 4]], dtype=int32)
+
+        Parameters
+        ----------
+        uri : :obj: `str`
+        """
+        if not uri.endswith('.npy'):
+            uri += '.npy'
+
+        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
+
 
 class NDArrayNumericExpression(NDArrayExpression):
     """Expression of type :class:`.tndarray` with a numeric element type.

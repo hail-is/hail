@@ -2,6 +2,7 @@
 #define HAIL_NDARRAY_H 1
 
 #include <vector>
+#include <sstream>
 
 struct NDArray {
   int flags; // Not currently used. Will store metadata for numpy compatibility
@@ -58,6 +59,21 @@ std::vector<long> strides_row_major(std::vector<long> &shape) {
     }
   }
   return strides;
+}
+
+std::string npy_header(NDArray &nd, const char * numpy_dtype) {
+  std::stringstream s;
+
+  s << "{";
+  s << "'descr': " << "'" << numpy_dtype << "'" << ", ";
+  s << "'fortran_order': False" << ", ";
+  s << "'shape': " << "(";
+  for (int i = 0; i < nd.shape.size(); ++i) {
+    s << nd.shape[i] << ", ";
+  }
+  s << ")" << "}";
+
+  return s.str();
 }
 
 std::vector<long> strides_col_major(std::vector<long> &shape) {
