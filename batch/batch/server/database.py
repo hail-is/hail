@@ -23,7 +23,6 @@ class JobsTable(Table):
                   'state': 'VARCHAR(40) NOT NULL',
                   'exit_code': 'INT',
                   'batch_id': 'BIGINT',
-                  'scratch_folder': 'VARCHAR(1024)',
                   'pod_name': 'VARCHAR(1024)',
                   'pvc': 'TEXT(65535)',
                   'callback': 'TEXT(65535)',
