@@ -137,8 +137,7 @@ object RelationalFunctions {
     classOf[WrappedMatrixToValueFunction]
   )) +
     new MatrixFilterIntervalsSerializer +
-    new TableFilterIntervalsSerializer +
-    GenericIndexedSeqSerializer
+    new TableFilterIntervalsSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)
