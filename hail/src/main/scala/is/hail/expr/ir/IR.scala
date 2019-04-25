@@ -22,7 +22,11 @@ sealed trait IR extends BaseIR {
 
   def typ: Type = {
     if (_typ == null)
-      _typ = InferType(this)
+      try {
+        _typ = InferType(this)
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+      }
     _typ
   }
 

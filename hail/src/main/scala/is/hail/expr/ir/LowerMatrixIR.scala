@@ -328,6 +328,8 @@ object LowerMatrixIR {
                     aggLet(sa = 'global (colsField)('__element_idx),
                       g = 'row (entriesField)('__element_idx)) {
                       entryExpr
+                      // FIXME THIS IS WRONG
+                      asdas
                     }
                   }))})
 
