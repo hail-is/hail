@@ -400,8 +400,26 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
+
+    def test_globals_lowering(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
+        lit = hl.literal(hl.utils.Struct(x = 0))
+
+        mt.annotate_rows(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.annotate_cols(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.filter_rows(mt.globals == lit)._force_count_rows()
+        mt.filter_cols(mt.globals == lit)._force_count_rows()
+        mt.filter_entries(mt.globals == lit)._force_count_rows()
+        (mt.group_rows_by(mt.row_idx)
+         .aggregate_rows(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
+        (mt.group_cols_by(mt.col_idx)
+         .aggregate_cols(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
 
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
