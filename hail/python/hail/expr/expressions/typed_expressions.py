@@ -3122,8 +3122,8 @@ class NDArrayExpression(Expression):
         Examples
         --------
         >>> import numpy as np
-        >>> nd.save('file://local/file')
-        >>> np.load('/local/file.npy')
+        >>> nd.save('file://local/file') # doctest: +SKIP
+        >>> np.load('/local/file.npy') # doctest: +SKIP
         array([[1, 2],
                [3, 4]], dtype=int32)
 
