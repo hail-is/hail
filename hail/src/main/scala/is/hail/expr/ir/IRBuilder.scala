@@ -70,6 +70,9 @@ object IRBuilder {
     ApplyAggOp(c, i, s, AggSignature(op, c.map(_.typ), i.map(_.map(_.typ)), s.map(_.typ)))
   }
 
+  def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>
+    AggFilter(filterCond(env), query(env), isScan)
+
   class TableIRProxy(val tir: TableIR) extends AnyVal {
     def empty: E = Env.empty
 
@@ -259,6 +262,12 @@ object IRBuilder {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
+    def arrayAggScan(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayAggScan(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
     def aggElements(elementsSym: Symbol, indexSym: Symbol, knownLength: Option[IRProxy])(aggBody: IRProxy): IRProxy = (env: E) => {
