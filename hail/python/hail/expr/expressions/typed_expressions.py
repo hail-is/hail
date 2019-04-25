@@ -3119,6 +3119,14 @@ class NDArrayExpression(Expression):
         `save` method. NDArrays saved with this method can be loaded into numpy using numpy
         `load`.
 
+        Examples
+        --------
+        >>> import numpy as np
+        >>> nd.save('file://local/file')
+        >>> np.load('/local/file.npy')
+        array([[1, 2],
+               [3, 4]], dtype=int32)
+
         Parameters
         ----------
         uri : :obj: `str`
