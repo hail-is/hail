@@ -28,23 +28,13 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
   var frequency = Array.fill(indices.length - 1)(0L)
 
   def merge(d: Double): HistogramCombiner = {
-    if (d < min)
-      nSmaller += 1
-    else if (d > max)
-      nLarger += 1
-    else if (!d.isNaN) {
-      val bs = binarySearch(indices, d)
-      val ind = if (bs < 0)
-        -bs - 2
-      else
-        math.min(bs, frequency.length - 1)
-      if (ind >= frequency.length || ind < 0)
-        fatal(
-          s"""found out of bounds index $ind
-             |  Resulted from trying to merge $d
-             |  Indices are [${ indices.mkString(", ") }]
-             |  Binary search index was $bs""".stripMargin)
-      frequency(ind) += 1
+    if (!java.lang.Double.isNaN(d)) {
+      binarySearch(indices, d) match {
+        case -1 => nSmaller += 1
+        case x if (x < 0 && -x - 1 == indices.length) => nLarger += 1
+        case x if (x < 0) => frequency(-x - 2) += 1
+        case x => frequency(math.min(x, frequency.length - 1)) += 1
+      }
     }
 
     this
