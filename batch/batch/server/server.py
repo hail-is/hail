@@ -286,7 +286,7 @@ class Job:
     async def from_db(id, user):
         records = await db.jobs.get_records(id)
         if len(records) == 1:
-            job = await Job.from_record(records[0])
+            job = Job.from_record(records[0])
             if user == job.user:
                 return job
         return None
