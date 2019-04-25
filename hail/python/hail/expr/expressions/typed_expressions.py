@@ -423,13 +423,14 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
-        if isinstance(item, str):
+        elif isinstance(item, str):
             return CollectionExpression.__getitem__(self, item)
         item = to_expr(item)
         if not item.dtype == tint32:
             raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                             "found expression of type '{}'".format(item._type))
-        return self._method("indexArray", self.dtype.element_type, item)
+        else:
+            return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
