@@ -444,6 +444,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {self.namespace_name}-admin
   namespace: {self._name}
+  labels:
+    for: test
 rules:
 - apiGroups: [""]
   resources: ["*"]
