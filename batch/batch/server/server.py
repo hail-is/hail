@@ -668,7 +668,7 @@ async def get_job_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    jobs = [Job.from_record(record) for record in await db.jobs.get_all_records() if record['user'] == user]
+    jobs = [Job.from_record(record) for record in await db.jobs.get_record({'user': user})]
 
     for name, value in params.items():
         if name == 'complete':
@@ -874,7 +874,7 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_all_records() if user == record['user']]
+    batches = [Batch.from_record(record) for record in await db.batch.get_record({'user': user})]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
