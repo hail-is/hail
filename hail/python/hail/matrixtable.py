@@ -2742,7 +2742,7 @@ class MatrixTable(ExprContainer):
         :class:`.Expression`
         """
         try:
-            return self.rows()._index(*exprs, product=product)
+            return self.rows()._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
             key_type, exprs = err.args
             raise ExpressionException(
@@ -2782,7 +2782,7 @@ class MatrixTable(ExprContainer):
         :class:`.Expression`
         """
         try:
-            return self.cols()._index(*exprs, product=product)
+            return self.cols()._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
             key_type, exprs = err.args
             raise ExpressionException(

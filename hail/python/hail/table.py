@@ -1512,14 +1512,14 @@ class Table(ExprContainer):
         :class:`.Expression`
         """
         try:
-            return self._index(*exprs, product=product)
+            return self._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
             key_type, exprs = err.args
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
                                       f"  Table key:         {', '.join(str(t) for t in key_type.values())}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
-    def _index(self, *exprs, product=False) -> 'Expression':
+    def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
@@ -1537,11 +1537,11 @@ class Table(ExprContainer):
 
         if (len(exprs) == 1
                 and isinstance(exprs[0], TupleExpression)):
-            return self.index(*exprs[0], product=product)
+            return self._index(*exprs[0], all_matches=all_matches)
 
         if (len(exprs) == 1
                 and isinstance(exprs[0], StructExpression)):
-            return self.index(*exprs[0].values(), product=product)
+            return self._index(*exprs[0].values(), all_matches=all_matches)
 
         is_interval = (len(exprs) == 1
                        and isinstance(self.key[0].dtype, hl.tinterval)
@@ -1549,14 +1549,14 @@ class Table(ExprContainer):
 
         uid = Env.get_uid()
 
-        if product and not is_interval:
+        if all_matches and not is_interval:
             return self.collect_by_key(uid).index(*exprs)[uid]
 
         if not (is_interval or types_match(list(self.key.values()), list(exprs))):
             raise TableIndexKeyError(self.key.dtype, exprs)
 
         new_schema = self.row_value.dtype
-        if product:
+        if all_matches:
             new_schema = hl.tarray(new_schema)
 
         if isinstance(src, Table):
@@ -1583,7 +1583,7 @@ class Table(ExprContainer):
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table(TableIntervalJoin(left._tir, self._tir, uid, product))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
@@ -1637,13 +1637,13 @@ class Table(ExprContainer):
                             )
                 else:
                     def joiner(left: MatrixTable):
-                        return MatrixTable(MatrixAnnotateRowsTable(left._mir, right._tir, uid, product))
+                        return MatrixTable(MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
                            joiner)
                 return construct_expr(ast, new_schema, indices, aggregations)
-            elif indices == src._col_indices and not (is_interval and product):
+            elif indices == src._col_indices and not (is_interval and all_matches):
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
