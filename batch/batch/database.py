@@ -37,6 +37,7 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
+                                               echo=True,
                                                autocommit=True)
 
     async def has_table(self, name):
