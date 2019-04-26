@@ -125,21 +125,27 @@ class BatchTable(Table):
         return await super().has_record({'id': id})
 
     async def find_records(self, user, complete=None, success=None):
-        values = (,)
+        values = []
         sql = "select * from {self.name} as batch"
         if complete or success:
             sql += " inner join {self._db.batch_jobs.name} as bj using (batch_id)"
             sql += " inner join {self._db.jobs.name} as job using (job_id)"
-            if complete:
+            if complete is not None:
                 values += "Complete"
-                sql += " where job.state = %s"
+                if complete:
+                    sql += " where job.state = %s"
+                else:
+                    sql += " where job.state != %s"
             if success:
                 values += 0
-                sql += " where job.exit_code = %s"
+                if success:
+                    sql += " where job.exit_code = %s"
+                else:
+                    sql += " where job.exit_code != %s"
         if user:
             values += user
             sql += " where job.user = %s"
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(sql, values)
+                await cursor.execute(sql, tuple(values))
                 return await cursor.fetchall()
