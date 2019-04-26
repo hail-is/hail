@@ -98,24 +98,10 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 }
 
 object NDArrayLoopEmitter {
-  def linearizeIndices(fb: FunctionBuilder, idxs: Seq[Variable], strides: Code, shape: Code): Code = {
-    val result = fb.variable("result", "int", "0")
-    val buildIndex = idxs.zipWithIndex.map { case (idx, dim) =>
-        s"""
-           | // length-1 dimensions not factored into the index for broadcasting
-           | if ($shape[$dim] > 1) {
-           |   $result += $idx * $strides[$dim];
-           | }
-         """.stripMargin
-    }.mkString("\n")
-
-    s"""
-       |({
-       | ${ result.define }
-       | $buildIndex
-       | $result;
-       |})
-     """.stripMargin
+  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+    idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
+        s"$idxVar * $strides[$dim] + $linearIndex"
+    }
   }
 
   def loadElement(nd: Variable, index: Code, elemType: PType): Code = {
@@ -161,7 +147,7 @@ abstract class NDArrayLoopEmitter(
 
   private def emitLoops(builder: Variable, strides: Variable): Code = {
     val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
-    val outIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, strides.toString, shape.toString)
+    val outIndex = NDArrayLoopEmitter.linearizeIndices(idxVars, strides.toString)
 
     val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
     idxVars.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>

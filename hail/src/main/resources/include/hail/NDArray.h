@@ -53,9 +53,15 @@ std::vector<long> strides_row_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
-    strides[shape.size() - 1] = 1;
+    long prev_stride = 1;
+    strides[shape.size() - 1] = prev_stride;
     for (int i = shape.size() - 2; i >= 0; --i) {
-      strides[i] = shape[i + 1] * strides[i + 1];
+      if (shape[i] == 1) {
+        strides[i] = 0;
+      } else {
+        strides[i] = shape[i + 1] * prev_stride;
+        prev_stride = strides[i];
+      }
     }
   }
   return strides;
@@ -80,9 +86,16 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
-    strides[0] = 1;
+    long prev_stride = 1;
+    strides[0] = prev_stride;
     for (int i = 1; i < shape.size(); ++i) {
-      strides[i] = shape[i - 1] * strides[i - 1];
+      if (shape[i] == 1) {
+        strides[i] = 0;
+      }
+      else {
+        strides[i] = shape[i - 1] * prev_stride;
+        prev_stride = strides[i];
+      }
     }
   }
   return strides;
