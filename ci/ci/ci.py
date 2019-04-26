@@ -356,7 +356,7 @@ def job_log(id):
 def receive_ci_job(source, target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
                                       f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/job.log',
-                                      job.cached_status()['log']['main'])
+                                      job.log()['main'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
         f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/index.html',
@@ -367,7 +367,7 @@ def receive_ci_job(source, target, job):
 def receive_deploy_job(target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
                                       f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/job.log',
-                                      job.cached_status()['log']['main'])
+                                      job.log()['main'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
         f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/index.html',

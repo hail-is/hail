@@ -1,3 +1,4 @@
+
 import collections
 import batch
 import json
@@ -26,7 +27,6 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 0)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
@@ -260,7 +260,6 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 127)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())

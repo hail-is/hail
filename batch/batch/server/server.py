@@ -546,10 +546,6 @@ class Job:
             result['exit_code'] = self.exit_code
             result['duration'] = self.duration
 
-        logs = await self._read_logs()
-        if logs is not None:
-            result['log'] = logs
-
         if self.attributes:
             result['attributes'] = self.attributes
         parent_ids = [record['id'] for record in await db.jobs_parents.get_parents(self.id)]
