@@ -300,9 +300,9 @@ class BatchBackend(Backend):
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            jstatus = self._batch_client.get_job(jid).status()
-            log = jstatus['log']
-            label = jstatus['attributes'].get('label', None)
+            job = self._batch_client.get_job(jid)
+            log = job.log()
+            label = job.status()['attributes'].get('label', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
