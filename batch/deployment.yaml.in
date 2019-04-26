@@ -25,6 +25,8 @@ spec:
         env:
         - name: HAIL_JWT_SECRET_KEY_FILE
           value: /jwt-secret/secret-key
+        - name: HAIL_INSTANCE_ID
+          value: cd50b95a89914efb897965a5e982a29d
         volumeMounts:
         - name: batch-production-cloud-sql-config
           mountPath: /batch-secrets
