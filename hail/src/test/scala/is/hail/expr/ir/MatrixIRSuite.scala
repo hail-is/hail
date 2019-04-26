@@ -286,15 +286,6 @@ class MatrixIRSuite extends SparkSuite {
     Interpret(MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
   }
 
-  @Test def testMatrixPLINKWrite() {
-    val plinkPath = "src/test/resources/skip_invalid_loci"
-    val plink = is.hail.TestUtils.importPlink(hc, plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
-    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType),
-      FastIndexedSeq("varid" -> GetField(Ref("va", plink.rvRowType), "rsid"))))
-    val path = tmpDir.createLocalTempFile()
-    Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
-  }
-
   @Test def testMatrixMultiWrite() {
     // partitioning must be the same
     val ranges = FastIndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
