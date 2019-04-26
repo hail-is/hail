@@ -79,13 +79,13 @@ def main():
         main_parser.print_help()
         sys.exit(0)
 
-    args = main_parser.parse_args()
+    args, pass_through_args = main_parser.parse_known_args()
 
     if args.module == 'start':
         start.main(args)
 
     elif args.module == 'submit':
-        submit.main(args)
+        submit.main(args, pass_through_args)
 
     elif args.module == 'connect':
         connect.main(args)

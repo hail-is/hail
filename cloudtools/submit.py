@@ -15,10 +15,9 @@ def init_parser(parser):
     parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
-    parser.add_argument('--args', type=str, help='Quoted string of arguments to pass to the Hail script being submitted.')
 
 
-def main(args):
+def main(args, pass_through_args):
     print("Submitting to cluster '{}'...".format(args.name))
 
     # create files argument
@@ -68,10 +67,9 @@ def main(args):
     ]
 
     # append arguments to pass to the Hail script
-    if args.args:
+    if pass_through_args is not None:
         cmd.append('--')
-        for x in args.args.split():
-            cmd.append(x)
+        cmd.extend(pass_through_args)
 
     # print underlying gcloud command
     print('gcloud command:')
