@@ -987,10 +987,12 @@ async def refresh_k8s_state():  # pylint: disable=W0613
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
+    log.info('starting pods not seen in k8s')
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
     for job in pod_jobs:
         pod_name = job._pod_name
         if pod_name not in seen_pods:
+            log.info(f'restarting job {job.id}')
             await update_job_with_pod(job, None)
 
     log.info('k8s state refresh complete')
