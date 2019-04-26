@@ -61,11 +61,13 @@ KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECO
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
+INSTANCE_ID = os.environ.get('HAIL_INSTANCE_ID', uuid.uuid4().hex)
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
+log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -75,8 +77,6 @@ else:
     kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
-instance_id = uuid.uuid4().hex
-log.info(f'instance_id = {instance_id}')
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -134,7 +134,7 @@ class JobTask:  # pylint: disable=R0903
             metadata=kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
                                               labels={
                                                   'app': 'batch-job',
-                                                  'hail.is/batch-instance': instance_id,
+                                                  'hail.is/batch-instance': INSTANCE_ID,
                                                   'uuid': uuid.uuid4().hex
                                               }),
             spec=pod_spec))
@@ -166,7 +166,7 @@ class Job:
                 metadata=kube.client.V1ObjectMeta(
                     generate_name=f'job-{self.id}-',
                     labels={'app': 'batch-job',
-                            'hail.is/batch-instance': instance_id}),
+                            'hail.is/batch-instance': INSTANCE_ID}),
                 spec=kube.client.V1PersistentVolumeClaimSpec(
                     access_modes=['ReadWriteOnce'],
                     volume_mode='Filesystem',
@@ -258,7 +258,7 @@ class Job:
         return None
 
     async def _write_log(self, task_name, log):
-        uri = await write_gs_log_file(app['blocking_pool'], instance_id, self.id, task_name, log)
+        uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
         await db.jobs.update_log_uri(self.id, task_name, uri)
 
     @staticmethod
@@ -472,7 +472,7 @@ class Job:
 
         for idx, jt in enumerate(self._tasks):
             if idx < self._task_idx:
-                await delete_gs_log_file(app['blocking_pool'], instance_id, self.id, jt.name)
+                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
 
         log.info(f'job {self.id} deleted')
 
@@ -963,7 +963,7 @@ async def kube_event_loop():
     stream = kube.watch.Watch().stream(
         v1.list_namespaced_pod,
         HAIL_POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
+        label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
     async for event in DeblockedIterator(stream):
         await pod_changed(event['object'])
 
@@ -975,9 +975,10 @@ async def refresh_k8s_state():  # pylint: disable=W0613
         app['blocking_pool'],
         v1.list_namespaced_pod,
         HAIL_POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',
+        label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
+    log.info(f'k8s had {len(pods.items)} pods')
     seen_pods = set()
     for pod in pods.items:
         pod_name = pod.metadata.name
