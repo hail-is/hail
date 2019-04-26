@@ -241,18 +241,6 @@ class MatrixIRSuite extends SparkSuite {
     assert(entries < 400 && entries > 0)
   }
 
-  @Test def testMatrixAggregateColsByKeyWithEntriesPosition() {
-    val range = MatrixTable.range(hc, 3, 3, Some(1)).ast
-    val withEntries = MatrixMapEntries(range, MakeStruct(FastIndexedSeq("x" -> 2)))
-    val m = MatrixAggregateColsByKey(
-      MatrixMapRows(withEntries,
-        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1))),
-      MakeStruct(FastIndexedSeq("foo" -> IRAggCount)),
-      MakeStruct(FastIndexedSeq("bar" -> IRAggCount))
-    )
-    assert(Interpret(m).rowsRVD().count() == 3)
-  }
-
   @Test def testMatrixRepartition() {
     val range = MatrixTable.range(hc, 11, 3, Some(10)).ast
 

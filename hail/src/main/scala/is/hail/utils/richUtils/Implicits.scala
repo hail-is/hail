@@ -39,8 +39,6 @@ trait Implicits {
   implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
     new RichHadoopConfiguration(hConf)
 
-  implicit def toRichInt(i: Int): RichInt = new RichInt(i)
-
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
@@ -55,8 +53,6 @@ trait Implicits {
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)
-
-  implicit def toRichLong(l: Long): RichLong = new RichLong(l)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -80,8 +76,6 @@ trait Implicits {
   implicit def toRichRDD[T](r: RDD[T])(implicit tct: ClassTag[T]): RichRDD[T] = new RichRDD(r)
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RVDContext, RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
-
-  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
 
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 

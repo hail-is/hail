@@ -3,7 +3,7 @@ package is.hail.check
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
 import is.hail.check.Arbitrary.arbitrary
-import is.hail.utils.{UInt, roundWithConstantSum}
+import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -104,9 +104,6 @@ object Gen {
     val sum = draws.sum
     draws.map((x: Double) => x / sum).toArray
   }
-
-  def partition(parts: Int, sum: UInt)(implicit tn: Numeric[UInt], uct: ClassTag[UInt]): Gen[Array[UInt]] =
-    Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: UInt) => UInt(rng.nextLong(0, avail.toLong))) }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] =
     Gen { p => partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail)) }
