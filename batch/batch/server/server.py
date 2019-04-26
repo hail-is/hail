@@ -276,17 +276,20 @@ class Job:
             userdata = json.loads(record['userdata'])
 
             return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
-                       callback=record['callback'], userdata=userdata, always_run=record['always_run'],
-                       pvc=pvc, pod_name=record['pod_name'], exit_code=record['exit_code'],
-                       duration=record['duration'], tasks=tasks, task_idx=record['task_idx'],
-                       state=record['state'], cancelled=record['cancelled'])
+                       callback=record['callback'], userdata=userdata, user=record['user'],
+                       always_run=record['always_run'], pvc=pvc, pod_name=record['pod_name'],
+                       exit_code=record['exit_code'], duration=record['duration'], tasks=tasks,
+                       task_idx=record['task_idx'], state=record['state'], cancelled=record['cancelled'])
         return None
 
     @staticmethod
-    async def from_db(id):
+    async def from_db(id, user):
         records = await db.jobs.get_records(id)
         if len(records) == 1:
-            return Job.from_record(records[0])
+            job = Job.from_record(records[0])
+            if user == job.user:
+                return job
+        return None
 
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
@@ -298,6 +301,7 @@ class Job:
         task_idx = -1
         state = 'Created'
         cancelled = False
+        user = userdata['ksa_name']
 
         id = await db.jobs.new_record(state=state,
                                       exit_code=exit_code,
@@ -310,7 +314,8 @@ class Job:
                                       always_run=always_run,
                                       cancelled=cancelled,
                                       duration=duration,
-                                      userdata=json.dumps(userdata))
+                                      userdata=json.dumps(userdata),
+                                      user=user)
 
         tasks = [JobTask.copy_task(id, 'input', input_files),
                  JobTask.from_spec(id, 'main', pod_spec),
@@ -319,9 +324,9 @@ class Job:
         tasks = [t for t in tasks if t is not None]
 
         job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
-                  userdata=userdata, always_run=always_run, pvc=pvc, pod_name=pod_name,
-                  exit_code=exit_code, duration=duration, tasks=tasks, task_idx=task_idx,
-                  state=state, cancelled=cancelled)
+                  userdata=userdata, user=user, always_run=always_run, pvc=pvc,
+                  pod_name=pod_name, exit_code=exit_code, duration=duration, tasks=tasks,
+                  task_idx=task_idx, state=state, cancelled=cancelled)
 
         for task in tasks:
             volumes = [
@@ -377,7 +382,7 @@ class Job:
 
         return job
 
-    def __init__(self, id, batch_id, attributes, callback, userdata, always_run,
+    def __init__(self, id, batch_id, attributes, callback, userdata, user, always_run,
                  pvc, pod_name, exit_code, duration, tasks, task_idx, state, cancelled):
         self.id = id
         self.batch_id = batch_id
@@ -385,6 +390,7 @@ class Job:
         self.callback = callback
         self.always_run = always_run
         self.userdata = userdata
+        self.user = user
         self.exit_code = exit_code
         self.duration = duration
 
@@ -534,7 +540,7 @@ class Job:
             threading.Thread(target=handler, args=(self.id, self.callback, await self.to_dict())).start()
 
         if self.batch_id:
-            batch = await Batch.from_db(self.batch_id)
+            batch = await Batch.from_db(self.batch_id, self.user)
             await batch.mark_job_complete(self)
 
     async def to_dict(self):
@@ -578,6 +584,7 @@ def authenticated_users_only(fun):
 @authenticated_users_only
 async def create_job(request, userdata):  # pylint: disable=R0912
     parameters = await request.json()
+    user = userdata['ksa_name']
 
     schema = {
         # will be validated when creating pod
@@ -607,7 +614,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
 
     batch_id = parameters.get('batch_id')
     if batch_id:
-        batch = await Batch.from_db(batch_id)
+        batch = await Batch.from_db(batch_id, user)
         if batch is None:
             abort(404, f'invalid request: batch_id {batch_id} not found')
         if not batch.is_open:
@@ -615,7 +622,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        parent_job = await Job.from_db(parent_id)
+        parent_job = await Job.from_db(parent_id, user)
         if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
         if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
@@ -653,10 +660,12 @@ async def get_alive(request):  # pylint: disable=W0613
 
 @routes.get('/jobs')
 @authenticated_users_only
-async def get_job_list(request):
+async def get_job_list(request, userdata):
     params = request.query
+    user = userdata['ksa_name']
 
-    jobs = [Job.from_record(record) for record in await db.jobs.get_all_records()]
+    jobs = [Job.from_record(record) for record in await db.jobs.get_record({'user': user})]
+
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -680,9 +689,11 @@ async def get_job_list(request):
 
 @routes.get('/jobs/{job_id}')
 @authenticated_users_only
-async def get_job(request):
+async def get_job(request, userdata):
     job_id = int(request.match_info['job_id'])
-    job = await Job.from_db(job_id)
+    user = userdata['ksa_name']
+
+    job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
     return jsonify(await job.to_dict())
@@ -690,9 +701,11 @@ async def get_job(request):
 
 @routes.get('/jobs/{job_id}/log')
 @authenticated_users_only
-async def get_job_log(request):  # pylint: disable=R1710
+async def get_job_log(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
-    job = await Job.from_db(job_id)
+    user = userdata['ksa_name']
+
+    job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
 
@@ -704,9 +717,11 @@ async def get_job_log(request):  # pylint: disable=R1710
 
 @routes.delete('/jobs/{job_id}/delete')
 @authenticated_users_only
-async def delete_job(request):
+async def delete_job(request, userdata):
     job_id = int(request.match_info['job_id'])
-    job = await Job.from_db(job_id)
+    user = userdata['ksa_name']
+
+    job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
     await job.delete()
@@ -715,9 +730,11 @@ async def delete_job(request):
 
 @routes.patch('/jobs/{job_id}/cancel')
 @authenticated_users_only
-async def cancel_job(request):
+async def cancel_job(request, userdata):
     job_id = int(request.match_info['job_id'])
-    job = await Job.from_db(job_id)
+    user = userdata['ksa_name']
+
+    job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
     await job.cancel()
@@ -731,23 +748,29 @@ class Batch:
     def from_record(record):
         if record is not None:
             attributes = json.loads(record['attributes'])
+            userdata = json.loads(record['userdata'])
             return Batch(id=record['id'],
                          attributes=attributes,
                          callback=record['callback'],
                          ttl=record['ttl'],
-                         is_open=record['is_open'])
+                         is_open=record['is_open'],
+                         userdata=userdata,
+                         user=record['user'])
         return None
 
     @staticmethod
-    async def from_db(id):
+    async def from_db(id, user):
         records = await db.batch.get_records(id)
         if len(records) == 1:
-            return Batch.from_record(records[0])
+            batch = Batch.from_record(records[0])
+            if user == batch.user:
+                return batch
         return None
 
     @staticmethod
-    async def create_batch(attributes, callback, ttl):
+    async def create_batch(attributes, callback, ttl, userdata):
         is_open = True
+        user = userdata['ksa_name']
 
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
@@ -755,23 +778,27 @@ class Batch:
         id = await db.batch.new_record(attributes=json.dumps(attributes),
                                        callback=callback,
                                        ttl=ttl,
-                                       is_open=is_open)
+                                       is_open=is_open,
+                                       userdata=json.dumps(userdata),
+                                       user=user)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
-                      ttl=ttl, is_open=is_open)
+                      ttl=ttl, is_open=is_open, userdata=userdata, user=user)
         batch.close_ttl()
         return batch
 
-    def __init__(self, id, attributes, callback, ttl, is_open):
+    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user):
         self.id = id
         self.attributes = attributes
         self.callback = callback
         self.ttl = ttl
         self.is_open = is_open
+        self.userdata = userdata
+        self.user = user
 
     async def get_jobs(self):
         job_ids = await db.batch_jobs.get_jobs(self.id)
-        return [await Job.from_db(jid) for jid in job_ids]
+        return [await Job.from_db(jid, self.user) for jid in job_ids]
 
     async def cancel(self):
         jobs = await self.get_jobs()
@@ -838,9 +865,12 @@ class Batch:
 
 
 @routes.get('/batches')
-async def get_batches_list(request):
+@authenticated_users_only
+async def get_batches_list(request, userdata):
     params = request.query
-    batches = [Batch.from_record(record) for record in await db.batch.get_all_records()]
+    user = userdata['ksa_name']
+
+    batches = [Batch.from_record(record) for record in await db.batch.get_record({'user': user})]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -864,7 +894,7 @@ async def get_batches_list(request):
 
 @routes.post('/batches/create')
 @authenticated_users_only
-async def create_batch(request):
+async def create_batch(request, userdata):
     parameters = await request.json()
 
     schema = {
@@ -882,24 +912,30 @@ async def create_batch(request):
 
     batch = await Batch.create_batch(attributes=parameters.get('attributes'),
                                      callback=parameters.get('callback'),
-                                     ttl=parameters.get('ttl'))
+                                     ttl=parameters.get('ttl'),
+                                     userdata=userdata)
     return jsonify(await batch.to_dict())
 
 
 @routes.get('/batches/{batch_id}')
 @authenticated_users_only
-async def get_batch(request):
+async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(batch_id)
+    user = userdata['ksa_name']
+
+    batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
     return jsonify(await batch.to_dict())
 
 
 @routes.patch('/batches/{batch_id}/cancel')
-async def cancel_batch(request):
+@authenticated_users_only
+async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(batch_id)
+    user = userdata['ksa_name']
+
+    batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
     await batch.cancel()
@@ -908,9 +944,11 @@ async def cancel_batch(request):
 
 @routes.delete('/batches/{batch_id}/delete')
 @authenticated_users_only
-async def delete_batch(request):
+async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(batch_id)
+    user = userdata['ksa_name']
+
+    batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
     await batch.delete()
@@ -919,9 +957,11 @@ async def delete_batch(request):
 
 @routes.patch('/batches/{batch_id}/close')
 @authenticated_users_only
-async def close_batch(request):
+async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    batch = await Batch.from_db(batch_id)
+    user = userdata['ksa_name']
+
+    batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
     await batch.close()
