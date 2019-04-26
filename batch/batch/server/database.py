@@ -4,13 +4,13 @@ from ..database import Database, Table
 
 
 class BatchDatabase(Database):
-    async def __init__(self, config_file):
-        await super().__init__(config_file)
+    def __init__(self, config_file):
+        super().__init__(config_file)
 
-        self.jobs = await JobsTable(self, os.environ.get('JOBS_TABLE', 'jobs'))
-        self.jobs_parents = await JobsParentsTable(self, os.environ.get('JOBS_PARENTS_TABLE', 'jobs-parents'))
-        self.batch = await BatchTable(self, os.environ.get('BATCH_TABLE', 'batch'))
-        self.batch_jobs = await BatchJobsTable(self, os.environ.get('BATCH_JOBS_TABLE', 'batch-jobs'))
+        self.jobs = await JobsTable(self)
+        self.jobs_parents = await JobsParentsTable(self)
+        self.batch = await BatchTable(self)
+        self.batch_jobs = await BatchJobsTable(self)
 
 
 class JobsTable(Table):
@@ -18,31 +18,8 @@ class JobsTable(Table):
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
-    async def __init__(self, db, name='jobs'):
-        schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
-                  'state': 'VARCHAR(40) NOT NULL',
-                  'exit_code': 'INT',
-                  'batch_id': 'BIGINT',
-                  'pod_name': 'VARCHAR(1024)',
-                  'pvc': 'TEXT(65535)',
-                  'callback': 'TEXT(65535)',
-                  'task_idx': 'INT NOT NULL',
-                  'always_run': 'BOOLEAN',
-                  'cancelled': 'BOOLEAN',
-                  'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                  'duration': 'BIGINT',
-                  'userdata': 'TEXT(65535)',
-                  'user': 'VARCHAR(100)',
-                  'attributes': 'TEXT(65535)',
-                  'tasks': 'TEXT(65535)',
-                  'input_log_uri': 'VARCHAR(1024)',
-                  'main_log_uri': 'VARCHAR(1024)',
-                  'output_log_uri': 'VARCHAR(1024)'}
-
-        keys = ['id']
-
-        await super().__init__(db, name, schema, keys)
-        await super().new_index('user', 'user')
+    def __init__(self, db):
+        super().__init__(db, 'jobs')
 
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
@@ -99,12 +76,8 @@ class JobsTable(Table):
 
 
 class JobsParentsTable(Table):
-    async def __init__(self, db, name='jobs-parents'):
-        schema = {'job_id': 'BIGINT',
-                  'parent_id': 'BIGINT'}
-        keys = ['job_id', 'parent_id']
-
-        await super().__init__(db, name, schema, keys)
+    def __init__(self, db):
+        super().__init__(db, 'jobs-parents')
 
     async def get_parents(self, job_id):
         async with self._db.pool.acquire() as conn:
@@ -136,20 +109,8 @@ class JobsParentsTable(Table):
 
 
 class BatchTable(Table):
-    async def __init__(self, db, name='batch'):
-        schema = {'id': 'BIGINT NOT NULL AUTO_INCREMENT',
-                  'attributes': 'TEXT(65535)',
-                  'callback': 'TEXT(65535)',
-                  'ttl': 'INT',
-                  'is_open': 'BOOLEAN NOT NULL',
-                  'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
-                  'userdata': 'TEXT(65535)',
-                  'user': 'VARCHAR(100)'
-                  }
-        keys = ['id']
-
-        await super().__init__(db, name, schema, keys)
-        await super().new_index('user', 'user')
+    def __init__(self, db):
+        super().__init__(db, 'batch')
 
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
@@ -165,12 +126,8 @@ class BatchTable(Table):
 
 
 class BatchJobsTable(Table):
-    async def __init__(self, db, name='batch-jobs'):
-        schema = {'batch_id': 'BIGINT',
-                  'job_id': 'BIGINT'}
-        keys = ['batch_id', 'job_id']
-
-        await super().__init__(db, name, schema, keys)
+    def __init__(self, db):
+        super().__init__(db, 'batch-jobs')
 
     async def get_jobs(self, batch_id):
         result = await super().get_record({'batch_id': batch_id})

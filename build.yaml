@@ -406,6 +406,25 @@ steps:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
+ - kind: buildImage
+   name: create_batch_tables_image
+   dockerFile: batch/Dockerfile.create-tables
+   contextPath: batch
+   dependsOn:
+    - base_image
+ - kind: deploy
+   name: create_batch_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch-tables
+      for: completed
+   dependsOn:
+     - default_ns
+     - create_batch_tables_image
+     - batch_database
  - kind: deploy
    name: deploy_batch
    namespace:
