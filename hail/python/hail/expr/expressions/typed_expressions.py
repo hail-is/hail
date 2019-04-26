@@ -3582,7 +3582,7 @@ def construct_expr(ir: IR,
         if isinstance(etype, hl.tstruct):
             return ArrayStructExpression(ir, type, indices, aggregations)
         else:
-            raise NotImplementedError(type)
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
     elif isinstance(type, tset) and isinstance(type.element_type, tstruct):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
@@ -3591,7 +3591,7 @@ def construct_expr(ir: IR,
         if isinstance(etype, hl.tstruct):
             return SetStructExpression(ir, type, indices, aggregations)
         else:
-            raise NotImplementedError(type)
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
     elif isinstance(type, tndarray) and is_numeric(type.element_type):
         return NDArrayNumericExpression(ir, type, indices, aggregations)
     elif type in scalars:
