@@ -441,7 +441,7 @@ object PruneDeadFields {
         val exprDep = memoizeAndGetDep(expr, requestedType.valueType, child.typ, memo)
         memoizeTableIR(child,
           TableType(
-            key = FastIndexedSeq(),
+            key = FastIndexedSeq(), // note: this can deoptimize if prune runs before Simplify
             rowType = unify(child.typ.rowType, keyDep.rowType, exprDep.rowType),
             globalType = unify(child.typ.globalType, keyDep.globalType, exprDep.globalType, requestedType.globalType)),
           memo)
@@ -1279,12 +1279,6 @@ object PruneDeadFields {
           upcastTable(rebuild(c, memo), requestedType, upcastGlobals = false)
         }
         TableUnion(rebuilt)
-
-      // REMOVE DEBUG
-      case MatrixToTableApply(child, function) =>
-        val child2 = rebuild(child, memo)
-        assert(child2.typ == child.typ, s"rebuild in MTTA FAILED\n  ${ child2.typ }\n  ${ child.typ }\n  ${ memo.lookup(child) }\n${ Pretty(child2) }")
-        MatrixToTableApply(child2, function)
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
