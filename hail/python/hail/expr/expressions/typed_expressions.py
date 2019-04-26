@@ -3142,8 +3142,8 @@ class NDArrayExpression(Expression):
                 return self._broadcast(other.ndim, init), other
             elif self.ndim > other.ndim:
                 return self, other._broadcast(self.ndim, init)
-        else:
-            return self, other
+
+        return self, other
 
     def _broadcast(self, n_output_dims, init):
         assert self.ndim < n_output_dims
