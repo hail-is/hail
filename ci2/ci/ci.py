@@ -65,6 +65,8 @@ async def get_pr(request):
     pr_number = int(request.match_info['pr_number'])
     try:
         wb = watched_branches[watched_branch_index]
+        if not wb.prs:
+            raise web.HTTPNotFound()
         pr = wb.prs[pr_number]
     except IndexError:
         raise web.HTTPNotFound()
@@ -147,7 +149,7 @@ async def update_loop(app):
     while True:
         try:
             for wb in watched_branches:
-                log.info(f'updating {wb.branch}')
+                log.info(f'updating {wb.branch.short_str()}')
                 await wb.update(app)
         except concurrent.futures.CancelledError:
             raise

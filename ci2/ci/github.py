@@ -133,6 +133,7 @@ class PR(Code):
         head = gh_json['head']
         new_source_sha = head['sha']
         if self.source_sha != new_source_sha:
+            log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
             self.sha = None
             self.batch = None
@@ -332,24 +333,28 @@ class WatchedBranch(Code):
 
     async def _update(self, app):
         if self.updating:
+            log.info('already updating')
             return
-        self.updating = True
 
-        gh = app['github_client']
-        batch_client = app['batch_client']
+        try:
+            self.updating = True
+            gh = app['github_client']
+            batch_client = app['batch_client']
 
-        while self.github_changed or self.batch_changed:
-            if self.github_changed:
-                self.github_changed = False
-                await self._refresh(gh)
+            while self.github_changed or self.batch_changed:
+                if self.github_changed:
+                    self.github_changed = False
+                    await self._refresh(gh)
 
-            if self.batch_changed:
-                self.batch_changed = False
-                await self._heal(batch_client)
-
-        self.updating = False
+                if self.batch_changed:
+                    self.batch_changed = False
+                    await self._heal(batch_client)
+        finally:
+            self.updating = False
 
     async def _refresh(self, gh):
+        log.info(f'refresh {self.short_str()}')
+
         repo_ss = self.branch.repo.short_str()
 
         branch_gh_json = await gh.getitem(f'/repos/{repo_ss}/git/refs/heads/{self.branch.name}')
@@ -381,6 +386,8 @@ class WatchedBranch(Code):
             await pr._refresh_review_state(gh)
 
     async def _heal(self, batch_client):
+        log.info(f'heal {self.short_str()}')
+
         if self.deployable and self.sha and not self.deploy_state:
             if not self.deploy_batch:
                 # FIXME we should wait on any depending deploy
@@ -421,6 +428,8 @@ class WatchedBranch(Code):
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
+                attrs = batch.attributes
+                log.info(f'cancel batch for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
     async def _start_deploy(self, batch_client):
