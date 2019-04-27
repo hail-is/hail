@@ -110,166 +110,6 @@ def _require_first_key_field_locus(dataset, method):
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
 
 
-@typecheck(entry_expr=expr_numeric,
-           radius=nullable(oneof(int, float)),
-           coord_expr=nullable(expr_float64),
-           block_size=int)
-def ld_matrix(entry_expr,
-              radius,
-              coord_expr,
-              block_size=4096) -> BlockMatrix:
-    """Compute a matrix of squared correlations between variants.
-
-    Given a reference panel of genotype data, :func:`.ld_matrix`
-    computes a linkage disequilibrium (LD) matrix between variants,
-    and returns a matrix :math:`r^2_{adj}` of approximately unbiased
-    estimators of the squared correlations between the variants found
-    in the reference panel.
-
-    Specifically, given an input matrix table :math:`G` with dimensions
-    :math:`M` variants by :math:`N` samples, the method returns an
-    :math:`M x M` matrix:
-
-    .. math:: 
-
-        r^2_{adj} = \\left( \\frac{N-1}{N-2} \\right) \\left( \\frac{1}{N} G_{S}{G_{S}}^T \\right) ^{\\circ 2} - \\left( \\frac{1}{N-2} \\right)
-
-    where :math:`G_S` is the standardized genotype matrix obtained 
-    by subtracting the row means from each entry of :math:`G` and
-    dividing by the row standard deviations.
-
-    If a ``radius`` argument is provided, then the method will
-    only calculate :math:`r^2_{adj}` values between variants within
-    ``radius`` of each other, where distance is measured in terms of
-    ``coord_expr`` (if no ``coord_expr`` argument is provided, ``radius``
-    will be in terms of base-pair position). Entries corresponding
-    to pairs of variants greater than ``radius`` distance apart will have
-    value :math:`0.0`.
-
-    The :class:`.BlockMatrix` output by this method can be used
-    as input to the :func:`.ld_scores` method.
-
-
-    Example
-    -------
-
-    Compute an LD matrix from a reference panel of genotypes.
-
-    >>> # Load genetic data into MatrixTable
-    >>> mt = hl.import_plink(
-    ...     bed='data/ldsc.bed',
-    ...     bim='data/ldsc.bim',
-    ...     fam='data/ldsc.fam')
-
-    >>> # Compute LD matrix using 1 centimorgan windows
-    >>> r2 = hl.experimental.ld_score.ld_matrix(
-    ...          entry_expr=mt.GT.n_alt_alleles(),
-    ...          radius=1.0,
-    ...          coord_expr=mt.cm_position)
-
-
-    Notes
-    -----
-
-    ``entry_expr`` must originate from a matrix table. The first row key
-    field of this matrix table must be a field ``"locus"`` of type
-    :py:data:`.tlocus`.
-
-    If a ``coord_expr`` argument is provided, it must originate from the
-    same matrix table as ``entry_expr``.
-
-
-    Warning
-    -------
-
-    Rows with a constant genotype value across samples (i.e., zero variance)
-    will result in ``nan`` correlation values. To avoid this, filter out
-    variants that are constant across samples from the matrix table before
-    calling :func:`.ld_matrix`.
-
-    If provided, ``coord_expr`` must be non-missing, non-``nan``, originate
-    from the same matrix table as ``entry_expr``, and be ascending with
-    respect to locus position for each contig; otherwise the method will
-    raise an error.
-
-
-    Parameters
-    ----------
-    entry_expr : :class:`.NumericExpression`
-        Entry-indexed numeric genotype expression on a matrix table.
-    radius : :obj:`int` or :obj:`float`, optional
-        Radius of LD window for row values.
-    coord_expr: :class:`.NumericExpression`, optional
-        Row-indexed numeric expression for the row value used to window
-        variants. By default, the row value is given by the locus
-        position.
-    block_size : :obj:`int`, optional
-        Block size. Defaults to ``4096``.
-
-    Returns
-    -------
-    :class:`.BlockMatrix`
-        A windowed LD matrix between variants."""
-
-    ds = entry_expr._indices.source
-
-    if (list(ds.row_key)[0] != 'locus' or
-            not isinstance(ds.row_key[0].dtype, tlocus)):
-        raise ValueError(
-            """The first row key field of the "entry_expr" matrix table
-            must be a field "locus" of type 'locus<any>'.""")
-
-    if coord_expr is None:
-        coord_expr = ds.locus
-    else:
-        analyze('ld_matrix/coord_expr',
-                coord_expr,
-                ds._row_indices)
-
-    ds = ds._select_all(
-        row_exprs={'locus': ds.locus,
-                   'coord': coord_expr},
-        row_key=['locus'],
-        col_exprs=dict(**ds.col_key),
-        col_key=list(ds.col_key.keys()),
-        entry_exprs={'x': entry_expr})
-
-    g_tmp = new_temp_file()
-    BlockMatrix.write_from_entry_expr(
-        entry_expr=ds.repartition(
-            int(ds.count_rows() / block_size)).x,
-        path=g_tmp,
-        mean_impute=False,
-        center=False,
-        normalize=False,
-        block_size=block_size)
-
-    g = BlockMatrix.read(g_tmp)
-    n = g.shape[1]
-    m1 = g.sum(axis=1).cache()
-    m2 = (g**2).sum(axis=1).cache()
-
-    mean = m1 / n
-    stdev = ((m2-m1**2 / n) / (n-1)).sqrt()
-    g_std = ((g - mean) / stdev)
-    r2 = ((n-1) / (n-2)) * (g_std @ g_std.T / n)**2-(1 / (n-2))
-
-    if radius is not None:
-        starts_and_stops = hl.linalg.utils.locus_windows(
-            locus_expr=ds.locus,
-            radius=radius,
-            coord_expr=ds.coord,
-            _localize=False)
-        r2 = BlockMatrix._from_java(r2._jbm.filterRowIntervalsIR(
-            Env.backend()._to_java_ir(starts_and_stops._ir),
-            False))
-
-    r2_tmp = new_temp_file()
-    r2.write(r2_tmp)
-    
-    return BlockMatrix.read(r2_tmp)
-
-
 @typecheck(ld_matrix=BlockMatrix,
            annotation_exprs=oneof(expr_numeric,
                                   sequenceof(expr_numeric)))
@@ -374,6 +214,7 @@ def ld_scores(ld_matrix,
     annotation_exprs = wrap_to_list(annotation_exprs)
     ds = annotation_exprs[0]._indices.source
     block_size = ld_matrix.block_size
+    n_variants = ds.count()
 
     for i, expr in enumerate(annotation_exprs):
         analyze(f'calculate_ld_scores/annotation_exprs{i}',
@@ -403,381 +244,73 @@ def ld_scores(ld_matrix,
     ds = ds.annotate_globals(_names=hl.array([
         hl.struct(_n=f'a{i}') for i, _ in enumerate(annotation_exprs)]))
 
+    ds = ds.repartition(n_variants / block_size)
+    ds = ds._unlocalize_entries('_annotations', '_names', ['_n'])
+    ds = ds.add_row_index()
+
     a_tmp = new_temp_file()
     BlockMatrix.write_from_entry_expr(  
-        entry_expr=(ds.repartition(int(ds.count() / block_size))
-                      ._unlocalize_entries('_annotations',
-                                           '_names',
-                                           ['_n'])._a),
+        entry_expr=(ds._a),
         path=a_tmp,
-        mean_impute=False,
+        mean_impute=True,
         center=False,
         normalize=False,
         block_size=block_size)
+
     a = BlockMatrix.read(a_tmp)
+    l2 = (ld_matrix @ a).to_table_row_major()
 
-    ht_l2 = (ld_matrix @ a).to_table_row_major()
-    ds = ds.add_index()
+    scores = ds.annotate(
+        ld_scores=l2[ds.row_idx].entries)
+    scores = scores.key_by(scores.locus)
 
-    ht_scores = ds.annotate(
-        ld_scores=ht_l2[ds.idx].entries)
-    ht_scores = ht_scores.key_by(ht_scores.locus)
-    ht_scores = ht_scores.select_globals()
-    ht_scores = ht_scores.select(ht_scores.ld_scores)
+    scores = scores.select_globals()
+    scores = scores.select(scores.ld_scores)
 
-    ht_scores_tmp = new_temp_file()
-    ht_scores.write(ht_scores_tmp)
+    scores_tmp = new_temp_file()
+    scores.write(scores_tmp)
 
-    return hl.read_table(ht_scores_tmp)
-    
-
-@typecheck(annotation_exprs=oneof(expr_numeric,
-                                  sequenceof(expr_numeric)),
-           ld_matrix=nullable(BlockMatrix),
-           entry_expr=nullable(expr_numeric),
-           radius=nullable(oneof(int, float)),
-           coord_expr=nullable(expr_numeric),
-           block_size=nullable(int))
-def calculate_ld_scores(annotation_exprs,
-                        ld_matrix=None,
-                        entry_expr=None,
-                        radius=None,
-                        coord_expr=None,
-                        block_size=4096) -> Table:
-    """Calculate LD scores.
-
-    :func:`.calculate_ld_scores` calculates LD scores across
-    different annotations for each variant in a reference panel.
-
-    The univariate LD score of variant :math:`j` is defined as the
-    sum of the squared correlations between variant :math:`j` and
-    all other variants :math:`k` in the reference panel:
-
-    .. math::
-
-        l_j = \sum_{k=1}^{M}r_{jk}^2
-
-    In practice, the formula above is approximated using
-    only a window of variants around variant :math:`j`.
-
-    Given a categorical annotation :math:`C`, the LD score of
-    variant :math:`j` with respect to that annotation is
-    the sum of squared correlations between variant :math:`j`
-    and all variants :math:`k` in the annotation category:
-
-    .. math::
-
-        l(j, C) = \sum_{k\in{C}}r_{jk}^2
-
-    :func:`.calculate_ld_scores` can take as arguments either
-    an ``entry_expr`` from a matrix table of reference panel
-    samples or an ``ld_matrix`` pre-computed from a
-    reference panel.
-
-    If provided, ``entry_expr`` will be used to construct a
-    sparse LD matrix from the reference panel data. For each
-    variant :math:`j`, correlations will only be computed
-    between variant :math:`j` and variants within ``radius``
-    of variant :math:`j`, where distance between variants is
-    in terms of ``coord_expr``.
-
-    If using a pre-computed LD matrix, the ``radius``
-    and ``coord_expr`` arguments are not used.
-
-    Using the sparse LD matrix (either computed from the
-    ``entry_expr`` argument or provided by the ``ld_matrix``
-    argument), :func:`.calculate_ld_scores` will calculate
-    LD scores for each variant across all annotations
-    provided to ``annotation_exprs``.
+    return hl.read_table(scores_tmp)
 
 
-    **Further reading**
+@typecheck(z_expr=expr_numeric,
+           n_samples_expr=expr_numeric,
+           ld_score_exprs=oneof(expr_numeric,
+                                sequenceof(expr_numeric)),
+           weight_expr=expr_numeric,
+           n_blocks=int,
+           two_step_threshold=nullable(int),
+           n_reference_panel_variants=nullable(int))
+def ld_score_regression(z_expr,
+                        n_samples_expr,
+                        ld_score_exprs,
+                        weight_expr,
+                        n_blocks=200,
+                        two_step_threshold=None,
+                        n_reference_panel_variants=None):
 
-    For more in-depth discussion of LD scores, see:
+    ds = z_expr._indices.source
 
-    - `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
-    - `Partitioning heritability by functional annotation using genome-wide association summary statistics (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
+    analyze('ld_score_regression/weight_expr',
+            weight_expr,
+            ds._row_indices)
 
-    Example
-    -------
-
-    Calculate LD scores using genotypes from a reference panel of samples.
-
-    >>> # Load genetic data into MatrixTable
-    >>> mt = hl.import_plink(
-    ...     bed='data/ldsc.bed',
-    ...     bim='data/ldsc.bim',
-    ...     fam='data/ldsc.fam')
-
-    >>> # Create locus-keyed table with annotations
-    >>> ht = hl.import_table(
-    ...     paths='data/ldsc.annot',
-    ...     types={'BP': hl.tint,
-    ...            'univariate': hl.tfloat,
-    ...            'binary': hl.tfloat,
-    ...            'continuous': hl.tfloat})
-    >>> ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))
-    >>> ht = ht.key_by(ht.locus)
-
-    >>> # Calculate LD scores using 1 centimorgan windows
-    >>> ht_scores = hl.experimental.ld_score.calculate_ld_scores(
-    ...     entry_expr=mt.GT.n_alt_alleles(),
-    ...     radius=1,
-    ...     coord_expr=mt.cm_position,
-    ...     annotation_exprs=[
-    ...         ht.univariate,
-    ...         ht.binary_annotation,
-    ...         ht.continuous_annotation])
-
-    Calculate LD scores using a pre-computed LD matrix.
-
-    >>> # Create locus-keyed table with annotations
-    >>> ht = hl.import_table(
-    ...     paths='data/ldsc.annot',
-    ...     types={'BP': hl.tint,
-    ...            'univariate': hl.tfloat,
-    ...            'binary': hl.tfloat,
-    ...            'continuous': hl.tfloat})
-    >>> ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))
-    >>> ht = ht.key_by(ht.locus)
-
-    >>> # Read a pre-computed LD matrix
-    >>> ld = BlockMatrix.read('data/ldsc.bm')
-
-    >>> # Calculate LD scores using the pre-computed LD matrix
-    >>> ht_scores = hl.experimental.ld_score.calculate_ld_scores(
-    ...     ld_matrix=ld,
-    ...     annotation_exprs=[
-    ...         ht.univariate,
-    ...         ht.binary,
-    ...         ht.continuous])
-
-
-    Notes
-    -----
-
-    Either an ``entry_expr`` or an ``ld_matrix`` argument must be provided
-    to the method.
-
-    ``entry_expr`` must originate from a matrix table. The first row key
-    field of this matrix table must be a field ``"locus"`` of type
-    :py:data:`.tlocus`.
-
-    If an ``entry_expr`` and a ``coord_expr`` are provided, they must originate
-    from the same matrix table.
-
-    At least one ``annotation_exprs`` must be provided, and all expressions
-    in ``annotation_exprs`` must originate from the same table or matrix table,
-    though this can be different than the ``entry_expr`` matrix table.
-    
-    The first key or row key field of the ``annotation_exprs`` table or matrix
-    table must be a field ``"locus"`` of type :py:data:`.tlocus`.
-
-    The table returned by :func:`.calculate_ld_scores` will be keyed
-    by a field ``"locus"`` of type :py:data:`.tlocus` and will contain
-    one additional row field ``"ld_scores"`` of type :py:data:`.tarray`,
-    where each element is of type :py:data:`.tfloat`.
-
-    The :math:`i^{th}` element of the ``"ld_scores"`` field is the LD score
-    for the :math:`i^{th}` annotation in ``annotation_exprs``.
-
-
-    Warning
-    -------
-
-    Only the intersection of loci in the ``entry_expr`` matrix table and
-    the ``annotation_exprs`` table or matrix table are used in the LD score
-    calculation.
-
-    Loci not found in both data sources are dropped from the 
-    calculation and are not included in the table of LD scores returned by
-    the method.
-
-
-    Warning
-    -------
-
-    If using a pre-computed LD matrix to calculate LD scores, the method will
-    raise an error if the number of rows in the ``annotation_exprs`` table or
-    matrix table differs from the dimensions of the ``ld_matrix``.
-
-    However, if the dimensions match and the rows of the table are shuffled
-    compared to the ``ld_matrix`` rows/columns, then the method will
-    report inaccurate LD scores.
-
-
-    Parameters
-    ----------
-    entry_expr : :class:`.NumericExpression`
-        Genotype entry expression.
-    ld_matrix : :class:`.BlockMatrix`
-        A pre-computed LD matrix.
-    radius : :obj:`int` or :obj:`float`, optional
-        Radius of window for row values (in units of `coord_expr` if set,
-        otherwise in units of basepairs).
-    coord_expr: :class:`.Float64Expression`, optional
-        Row-indexed numeric expression for the row value used to window
-        variants. By default, the row value is given by the locus
-        position.
-    annotation_exprs : :class:`.NumericExpression` or
-                       :obj:`list` of :class:`.NumericExpression`
-        A single numeric annotation expression or a list of annotation
-        expressions. LD scores will be calculated for each of the expressions
-        provided to this argument. By default, calculate LD scores for
-        the univariate annotation (all variants in the dataset).
-    block_size : :obj:`int`, optional
-        Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
-
-    Returns
-    -------
-    :class:`.Table`
-        Table keyed by a field ``"locus"`` of type :py:data:`.tlocus` with a row
-        field ``"ld_scores"`` of type :py:data:`.tarray`, where each element is
-        of type :py:data:`.tfloat`."""
-
-
-    annotation_exprs = wrap_to_list(annotation_exprs)
-    dsa = annotation_exprs[0]._indices.source
-
-    for i, expr in enumerate(annotation_exprs):
-        analyze(f'calculate_ld_scores/annotation_exprs{i}',
+    for i, expr in ld_score_exprs:
+        analyze(f'ld_score_regression/ld_score_expr{i}',
                 expr,
-                dsa._row_indices)
+                ds._row_indices)
 
-    if isinstance(dsa, MatrixTable):
-        if (list(dsa.row_key)[0] != 'locus' or
-                not isinstance(dsa.row_key[0].dtype, tlocus)):
-            raise ValueError(
-                """The first row key field of an "annotation_exprs" matrix
-                table must be a field "locus" of type 'locus<any>'.""")           
-        dsa = dsa.select_rows(_annotations=hl.array([
-            hl.struct(_a=hl.float(a)) for a in annotation_exprs]))
-        dsa = dsa.key_rows_by(dsa.locus)
-        dsa = dsa.rows()
-
-    else:
-        assert isinstance(dsa, Table)
-        if (list(dsa.key)[0] != 'locus' or
-                not isinstance(dsa.key[0].dtype, tlocus)):
-            raise ValueError(
-                """The first key field of an "annotation_exprs" table must
-                be a field "locus" of type 'locus<any>'.""")
-        dsa = dsa.select(_annotations=hl.array([
-            hl.struct(_a=hl.float(a)) for a in annotation_exprs]))
-        dsa = dsa.key_by(dsa.locus)
-
-    dsa = dsa.annotate_globals(_names=hl.array([
-        hl.struct(_n=f'a{i}') for i, _ in enumerate(annotation_exprs)]))
-    n_partitions = int(dsa.count() / block_size)
-
-    a_tmp = new_temp_file()
-    BlockMatrix.write_from_entry_expr(
-        entry_expr=dsa._unlocalize_entries(
-            '_annotations', '_names', ['_n']).repartition(n_partitions)._a,
-        path=a_tmp,
-        mean_impute=False,
-        center=False,
-        normalize=False,
-        block_size=block_size)
-    a = BlockMatrix.read(a_tmp)
-
-    if entry_expr is not None:
-        if ld_matrix is not None:
-            raise ValueEerror(
-                'Only one of "entry_expr" or "ld_matrix" arguments can be specified.')
-
-        ds = entry_expr._indices.source
-
-        if not isinstance(ds, MatrixTable):
-            raise ValueError(
-                'The "entry_expr" expression must originate from a matrix table.')
-        if (list(ds.row_key)[0] != 'locus' or
-                not isinstance(ds.row_key[0].dtype, tlocus)):
-            raise ValueError(
-                """The first row key field of the "entry_expr" matrix table
-                must be a field "locus" of type 'locus<any>'.""")
-
-        if coord_expr is None:
-            coord_expr = ds.locus
-        else:
-            analyze('calculate_ld_scores/coord_expr',
-                    coord_expr,
-                    ds._row_indices)
-
-        ds = ds._select_all(row_exprs={'locus': ds.locus,
-                                       'coord': coord_expr},
-                            row_key=['locus'],
-                            col_exprs=dict(**ds.col_key),
-                            col_key=list(ds.col_key.keys()),
-                            entry_exprs={'x': entry_expr})
-
-        ds = ds.filter_rows(hl.is_defined(dsa[ds.locus]))
-        dsa = dsa.filter(hl.is_defined(ds.rows()[dsa.locus]))
-
-        n_partitions = int(ds.count_rows() / block_size)
-
-        g_tmp = new_temp_file()
-        BlockMatrix.write_from_entry_expr(
-            entry_expr=ds.repartition(n_partitions).x,
-            path=g_tmp,
-            mean_impute=False,
-            center=False,
-            normalize=False,
-            block_size=block_size)
-
-        g = BlockMatrix.read(g_tmp)
-        n = g.shape[1]
-        m1 = g.sum(axis=1)
-        m2 = (g**2).sum(axis=1)
-        mean = m1 / n
-        stdev = ((m2-m1**2 / n) / (n-1)).sqrt()
-
-        g_std_tmp = new_temp_file()
-        ((g - mean) / stdev).write(g_std_tmp)
-
-        g_std = BlockMatrix.read(g_std_tmp)
-        r2 = ((n-1) / (n-2)) * (g_std @ g_std.T / n)**2-(1 / (n-2))
-
-        if radius is not None:
-            starts, stops = hl.linalg.utils.locus_windows(
-                locus_expr=ds.locus,
-                radius=radius,
-                coord_expr=ds.coord)
-            r2 = r2.sparsify_row_intervals(starts, stops)
-
-        r2_tmp = new_temp_file()
-        r2.write(r2_tmp)
-        r2 = BlockMatrix.read(r2_tmp)
-
-    else:
-        if ld_matrix is None:
-            raise ValueError(
-                'Either an "entry_expr" or an "ld_matrix" argument must be specified.')
-        m = dsa.count()
-        if (m, m) != ld_matrix.shape:
-            raise ValueError(
-                """"ld_matrix" must be a square block matrix where the number of rows
-                and the number of columns equals the number of rows in table or matrix
-                table from which "annotation_exprs" originate.""")
-        r2 = ld_matrix
-
-    ht_l2 = (r2 @ a).to_table_row_major()
-    dsa = dsa.add_index()
-
-    ht_scores = dsa.annotate(
-        ld_scores=ht_l2[dsa.idx].entries)
-    ht_scores = ht_scores.select(ht_scores.ld_scores)
-
-    ht_scores_tmp = new_temp_file()
-    ht_scores.write(ht_scores_tmp)
-
-    return hl.read_table(ht_scores_tmp)
-
+    if isinstance(ds, MatrixTable):
+        analyze('ld_score_regression/n_samples_expr',
+                n_samples_expr,
+                ds._entry_indices)
         
 @typecheck(z_expr=expr_numeric,
            n_samples_expr=expr_numeric,
            weight_expr=expr_numeric,
            ld_score_expr=expr_numeric,
+           annotation_exprs=nullable(oneof(expr_numeric,
+                                           sequenceof(expr_numeric))),
            n_blocks=int,
            two_step_threshold=nullable(int),
            n_reference_panel_variants=nullable(int),
@@ -786,6 +319,7 @@ def estimate_heritability(z_expr,
                           n_samples_expr,
                           weight_expr,
                           ld_score_expr,
+                          annotation_exprs=None,
                           n_blocks=200,
                           two_step_threshold=30,
                           n_reference_panel_variants=None,
@@ -949,18 +483,13 @@ def estimate_heritability(z_expr,
 
     ds = z_expr._indices.source
 
-    analyze('estimate_heritability/locus_expr',
-            ds.locus,
-            ds._row_indices)
-    analyze('estimate_heritability/alleles_expr',
-            ds.alleles,
-            ds._row_indices)
-    analyze('estimate_heritability/weight_expr',
+    analyze('ld_score_regression/weight_expr',
             weight_expr,
             ds._row_indices)
-    analyze('estimate_heritability/ld_score_expr',
-            ld_score_expr,
-            ds._row_indices)
+    for i, expr in ld_score_exprs:
+        analyze(f'ld_score_regression/ld_score_expr{i}',
+                expr,
+                ds._row_indices)
 
     if not n_reference_panel_variants:
         M = ds.aggregate_rows(hl.agg.count_where(
