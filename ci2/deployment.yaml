@@ -23,7 +23,7 @@ spec:
             - name: HAIL_CI2_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
             - name: HAIL_WATCHED_BRANCHES
-              value: '[["hail-is/hail:master",false]]'
+              value: '[["hail-is/hail:master",true]]'
             - name: BATCH_SERVER_URL
               value: http://batch.default
             - name: HAIL_GCP_PROJECT
