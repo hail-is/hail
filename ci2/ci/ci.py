@@ -17,14 +17,14 @@ from .log import log
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch
 
-with open(os.environ.get('CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
 uvloop.install()
 
 watched_branches = [
-    WatchedBranch(FQBranch.from_short_str(bss))
-    for bss in json.loads(os.environ.get('WATCHED_BRANCHES'))
+    WatchedBranch(FQBranch.from_short_str(bss), deployable)
+    for [bss, deployable] in json.loads(os.environ.get('HAIL_WATCHED_BRANCHES'))
 ]
 
 app = web.Application()
@@ -41,6 +41,8 @@ async def index(request):  # pylint: disable=unused-argument
                 'index': i,
                 'branch': wb.branch.short_str(),
                 'sha': wb.sha,
+                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch else None,
+                'deploy_state': wb.deploy_state,
                 'repo': wb.branch.repo.short_str(),
                 'prs': [
                     {
@@ -141,16 +143,16 @@ async def callback(request):
     return web.Response(status=200)
 
 
-async def refresh_loop(app):
+async def update_loop(app):
     while True:
         try:
             for wb in watched_branches:
-                log.info(f'refreshing {wb.branch}')
+                log.info(f'updating {wb.branch}')
                 await wb.update(app)
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
+            log.error(f'{wb.branch} update due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
 routes.static('/static', 'ci/static')
@@ -166,7 +168,7 @@ async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
     app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
-    asyncio.ensure_future(refresh_loop(app))
+    asyncio.ensure_future(update_loop(app))
 
 app.on_startup.append(on_startup)
 

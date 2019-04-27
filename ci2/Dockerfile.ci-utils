@@ -3,6 +3,7 @@ FROM base
 RUN apt-get update && \
   apt-get -y install \
     tar \
+    jq \
     docker.io \
     mysql-client && \
   rm -rf /var/lib/apt/lists/*
