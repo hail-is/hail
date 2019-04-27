@@ -311,8 +311,8 @@ mkdir -p {shq(repo_dir)}
 if [ ! -d .git ]; then
   git clone {shq(self.target_branch.branch.repo.url)} .
 
-  git config user.email hail-ci@example.com
-  git config user.name hail-ci
+  git config user.email ci@hail.is
+  git config user.name ci
 else
   git reset --merge
   git fetch origin
@@ -534,12 +534,12 @@ mkdir -p {shq(repo_dir)}
 if [ ! -d .git ]; then
   git clone {shq(self.branch.repo.url)} .
 
-  git -C config user.email hail-ci@example.com
-  git -C config user.name hail-ci
+  git config user.email ci@hail.is
+  git config user.name ci
 else
-  git -C reset --merge
-  git -C fetch origin
+  git reset --merge
+  git fetch origin
 fi
 
-git -C checkout {shq(self.sha)}
+git checkout {shq(self.sha)}
 '''
