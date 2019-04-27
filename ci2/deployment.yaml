@@ -20,19 +20,19 @@ spec:
         - name: ci2
           image: "{{ ci_image.image }}"
           env:
-            - name: CI2_OAUTH_TOKEN
+            - name: HAIL_CI2_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
-            - name: WATCHED_BRANCHES
+            - name: HAIL_WATCHED_BRANCHES
               value: '[["hail-is/hail:master",false]]'
             - name: BATCH_SERVER_URL
               value: http://batch.default
-            - name: GCP_PROJECT
+            - name: HAIL_GCP_PROJECT
               value: "{{ global.project }}"
-            - name: CI_UTILS_IMAGE
+            - name: HAIL_CI_UTILS_IMAGE
               value: "{{ ci_utils_image.image }}"
-            - name: IP
+            - name: HAIL_IP
               value: "{{ global.ip }}"
-            - name: DOMAIN
+            - name: HAIL_DOMAIN
               value: "{{ global.domain }}"
             - name: HAIL_TOKEN_FILE
               value: '/ci2-jwt/jwt'
