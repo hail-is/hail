@@ -106,7 +106,7 @@ class FQBranch:
 
 
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch):
+    def __init__(self, gh, number, title, source_repo, source_sha, target_branch):
         self.number = number
         self.title = title
         self.source_repo = source_repo
@@ -121,13 +121,14 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
+        self.notify_github(gh)
 
         self.target_branch.batch_changed = True
 
     def short_str(self):
         return f'pr-{self.number}'
 
-    def update_from_gh_json(self, gh_json):
+    def update_from_gh_json(self, gh, gh_json):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
 
@@ -138,15 +139,15 @@ class PR(Code):
             self.source_sha = new_source_sha
             self.sha = None
             self.batch = None
-            self.build_state = None
+            self.set_build_state(gh, None)
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
 
     @staticmethod
-    def from_gh_json(gh_json, target_branch):
+    def from_gh_json(gh, gh_json, target_branch):
         head = gh_json['head']
-        return PR(gh_json['number'], gh_json['title'], Repo.from_gh_json(head['repo']), head['sha'], target_branch)
+        return PR(gh, gh_json['number'], gh_json['title'], Repo.from_gh_json(head['repo']), head['sha'], target_branch)
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -165,6 +166,33 @@ class PR(Code):
             'target_sha': self.target_branch.sha,
             'sha': self.sha
         }
+
+    async def notify_github(self, gh):
+        log.info(f'{self.short_str()}: notify github of build state: {self.build_state}')
+        if self.build_state is None:
+            gh_state = 'pending'
+        elif self.build_state == 'success':
+            gh_state = 'success'
+        else:
+            assert self.build_state == 'failure' or self.build_state == 'merge_failure'
+            gh_state = 'failure'
+        data = {
+            'state': gh_state,
+            # FIXME should be this build, not the pr
+            'target_url': f'https://ci2.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
+            'description': self.build_state,
+            'context': 'ci-test'
+        }
+        try:
+            gh.post(f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data)
+        except gidgethub.HTTPException as e:
+            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
+
+    async def set_build_state(self, gh, new_build_state):
+        if self.build_state != new_build_state:
+            self.build_state = new_build_state
+            self.target_branch.batch_changed = True
+            await self.notify_github(self, gh)
 
     async def _refresh_review_state(self, gh):
         latest_state_by_login = {}
@@ -187,7 +215,7 @@ class PR(Code):
 
         self.review_state = review_state
 
-    async def _start_build(self, batch_client):
+    async def _start_build(self, gh, batch_client):
         assert not self.batch
 
         try:
@@ -208,7 +236,7 @@ mkdir -p {shq(repo_dir)}
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             # FIXME save merge failure output for UI
-            self.build_state = 'merge_failure'
+            self.set_build_state(gh, 'merge_failure')
             self.target_branch.batch_changed = True
             return
 
@@ -230,7 +258,7 @@ mkdir -p {shq(repo_dir)}
             if batch and not self.batch:
                 await batch.cancel()
 
-    async def _heal(self, batch_client, run, seen_batch_ids):
+    async def _heal(self, gh, batch_client, run, seen_batch_ids):
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
@@ -257,13 +285,13 @@ mkdir -p {shq(repo_dir)}
                 self.batch = batches[0]
             elif run:
                 async with repos_lock:
-                    await self._start_build(batch_client)
+                    await self._start_build(gh, batch_client)
 
         if self.batch:
             seen_batch_ids.add(self.batch.id)
             status = await self.batch.status()
             if all(j['state'] == 'Complete' for j in status['jobs']):
-                self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
+                self.set_build_state(gh, 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure')
                 self.target_branch.batch_changed = True
 
     def is_mergeable(self):
@@ -302,7 +330,8 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 
 
 class WatchedBranch(Code):
-    def __init__(self, branch, deployable):
+    def __init__(self, index, branch, deployable):
+        self.index = index
         self.branch = branch
         self.deployable = deployable
 
@@ -364,7 +393,7 @@ class WatchedBranch(Code):
 
                 if self.batch_changed:
                     self.batch_changed = False
-                    await self._heal(batch_client)
+                    await self._heal(gh, batch_client)
         finally:
             self.updating = False
 
@@ -391,7 +420,7 @@ class WatchedBranch(Code):
                 for pr in self.prs.values():
                     pr.sha = None
                     pr.batch = None
-                    pr.build_state = None
+                    pr.set_build_state(gh, None)
             self.batch_changed = True
 
         new_prs = {}
@@ -399,9 +428,9 @@ class WatchedBranch(Code):
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]
-                pr.update_from_gh_json(gh_json_pr)
+                pr.update_from_gh_json(gh, gh_json_pr)
             else:
-                pr = PR.from_gh_json(gh_json_pr, self)
+                pr = PR.from_gh_json(gh, gh_json_pr, self)
             new_prs[number] = pr
         self.prs = new_prs
 
@@ -411,7 +440,7 @@ class WatchedBranch(Code):
         for pr in new_prs.values():
             await pr._refresh_review_state(gh)
 
-    async def _heal(self, batch_client):
+    async def _heal(self, gh, batch_client):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable and self.sha and not self.deploy_state:
@@ -451,7 +480,7 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            await pr._heal(batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
+            await pr._heal(gh, batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:

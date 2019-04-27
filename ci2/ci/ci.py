@@ -23,8 +23,8 @@ with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r'
 uvloop.install()
 
 watched_branches = [
-    WatchedBranch(FQBranch.from_short_str(bss), deployable)
-    for [bss, deployable] in json.loads(os.environ.get('HAIL_WATCHED_BRANCHES'))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
+    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES')))
 ]
 
 app = web.Application()

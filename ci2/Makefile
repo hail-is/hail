@@ -1,4 +1,4 @@
-.PHONY: build
+.PHONY: build clean
 
 PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
@@ -106,3 +106,6 @@ run-local: restart-proxy
 
 run-docker:
 	docker run -p 5000:5000 ci2
+
+clean:
+	rm -f flake8-stmp pylint-stmp

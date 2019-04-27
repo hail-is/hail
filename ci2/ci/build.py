@@ -577,13 +577,18 @@ EOF
                     assert w['for'] == 'available', w['for']
                     # FIXME what if the cluster isn't big enough?
                     script += f'''
-kubectl -n {self.namespace} wait --timeout=600s deployment --for=condition=available {name}
+set +e
+kubectl -n {self.namespace} wait --timeout=300s deployment --for=condition=available {name}
+EC=$?
+kubectl -n {self.namespace} logs -l app={name}
+set -e
+(exit $EC)
 '''
                 else:
                     assert w['for'] == 'completed', w['for']
                     script += f'''
 set +e
-python3 wait-for-pod.py 600 {self.namespace} {name}
+python3 wait-for-pod.py 300 {self.namespace} {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e
