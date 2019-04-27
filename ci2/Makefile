@@ -1,4 +1,4 @@
-.PHONY: build clean
+.PHONY: build base-image clean
 
 PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
@@ -24,8 +24,6 @@ ifeq ($(IN_HAIL_CI),1)
 
 PROJECT := $(shell gcloud config get-value project)
 
-BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
-
 CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
 CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
 
@@ -35,7 +33,7 @@ CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed 
 build-ci-utils:
 	make -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
-	python3 jinja2_render.py "{\"base_image\":{\"image\":\"$(BASE_IMAGE)\"}}" Dockerfile.ci-utils Dockerfile.ci-utils.out
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
 	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
 
 push-ci-utils: build-ci-utils
@@ -47,8 +45,8 @@ push-ci-utils: build-ci-utils
 build:
 	make -C ../docker build
 	-docker	pull $(CI2_LATEST)
-	python3 jinja2_render.py '{"base_image":{"image":"$(BASE_IMAGE)"}}' Dockerfile Dockerfile.out
-	docker build -t ci2 -f Dockerfile.out --cache-from ci2,$(CI2_LATEST),base,ubuntu:18.04 ..
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t ci2 -f Dockerfile.out --cache-from ci2,$(CI2_LATEST),base ..
 
 push: build
 	docker tag ci2 $(CI2_LATEST)
@@ -57,7 +55,7 @@ push: build
 	docker push $(CI2_IMAGE)
 
 deploy: push push-ci-utils
-	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"ci_image":{"image":"$(CI2_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"}}' Dockerfile Dockerfile.out
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"ci_image":{"image":"$(CI2_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 else
 build-ci-utils:
