@@ -77,12 +77,11 @@ else:
     kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
-
 app = web.Application()
 routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                     '/batch-secrets/batch-production-cloud-sql-config.json'))
+                                                     '/batch-user-secret/sql-config.json'))
 
 
 def abort(code, reason=None):

@@ -1,6 +1,8 @@
 /ci.log
 /oauth-token
-/deployment.yaml
+/Dockerfile.out
+/Dockerfile.ci-utils.out
+/deployment.yaml.out
 /repos
 /proxy.err
 /proxy.log
