@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `output_log_uri` VARCHAR(1024),
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
-CREATE INDEX user ON jobs (user);
+CREATE INDEX jobs_user ON jobs (user);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `job_id` BIGINT,
@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS `jobs-parents` (
 
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `userdata` TEXT(65535),
+  `user` VARCHAR(100),
   `attributes` TEXT(65535),
   `callback` TEXT(65535),
   `ttl` INT,
@@ -37,6 +39,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
+CREATE INDEX batch_user ON batch (user);
 
 CREATE TABLE IF NOT EXISTS `batch-jobs` (
   `batch_id` BIGINT,
