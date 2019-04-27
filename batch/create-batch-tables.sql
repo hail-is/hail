@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `output_log_uri` VARCHAR(1024),
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
-CREATE INDEX user ON batch (user);
+CREATE INDEX user ON jobs (user);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `job_id` BIGINT,
