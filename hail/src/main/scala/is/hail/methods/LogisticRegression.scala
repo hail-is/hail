@@ -13,10 +13,10 @@ import org.apache.spark.storage.StorageLevel
 
 case class LogisticRegression(
   test: String,
-  yFields: IndexedSeq[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: IndexedSeq[String],
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  covFields: Seq[String],
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val logRegTest = LogisticRegressionTest.tests(test)

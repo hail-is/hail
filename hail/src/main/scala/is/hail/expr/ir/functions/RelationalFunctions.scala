@@ -1,5 +1,6 @@
 package is.hail.expr.ir.functions
 
+import is.hail.GenericIndexedSeqSerializer
 import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
