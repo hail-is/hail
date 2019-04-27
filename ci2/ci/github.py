@@ -2,6 +2,7 @@ import secrets
 from shlex import quote as shq
 import json
 import asyncio
+import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
 from .utils import CalledProcessError, check_shell, check_shell_output
@@ -265,6 +266,21 @@ mkdir -p {shq(repo_dir)}
                 self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
                 self.target_branch.batch_changed = True
 
+    def is_mergeable(self):
+        return self.review_state == 'approved' and self.build_state == 'success'
+
+    async def merge(self, gh):
+        try:
+            await gh.put(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/merge',
+                         data={
+                             'merge_method': 'squash',
+                             'sha': self.source_sha
+                         })
+            return True
+        except gidgethub.HTTPException as e:
+            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed due to exception: {e}')
+        return False
+
     def checkout_script(self):
         return f'''
 if [ ! -d .git ]; then
@@ -352,6 +368,13 @@ class WatchedBranch(Code):
         finally:
             self.updating = False
 
+    async def merge_if_possible(self):
+        for pr in self.prs.values():
+            if pr.is_mergeable():
+                if pr.merge():
+                    self.github_changed = True
+                    return True
+
     async def _refresh(self, gh):
         log.info(f'refresh {self.short_str()}')
 
@@ -382,6 +405,9 @@ class WatchedBranch(Code):
             new_prs[number] = pr
         self.prs = new_prs
 
+        if await self.merge_if_possible():
+            return
+
         for pr in new_prs.values():
             await pr._refresh_review_state(gh)
 
@@ -406,7 +432,8 @@ class WatchedBranch(Code):
                 if all(j['state'] == 'Complete' for j in status['jobs']):
                     self.deploy_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
 
-        # FIXME do merge
+        if await self.merge_if_possible():
+            return
 
         merge_candidate = None
         for pr in self.prs.values():

@@ -554,9 +554,17 @@ class DeployStep(Step):
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, deploy))
 
-        script = f'''
+        script = '''\
 set -ex
+'''
 
+        if self.wait:
+            for w in self.wait:
+                if w['kind'] == 'Pod':
+                    script += f'''\
+kubectl delete --ignore-not-found pod {w['name']}
+'''
+        script += f'''
 cat | kubectl apply -n {self.namespace} -f - <<EOF
 {rendered_config}
 EOF
@@ -568,18 +576,12 @@ EOF
                 if w['kind'] == 'Deployment':
                     assert w['for'] == 'available', w['for']
                     # FIXME what if the cluster isn't big enough?
-                    script = script + f'''
+                    script += f'''
 kubectl -n {self.namespace} wait --timeout=600s deployment --for=condition=available {name}
 '''
                 else:
-                    assert w['kind'] == 'Pod', w['kind']
-                    if w['for'] == 'ready':
-                        script = script + f'''
-kubectl -n {self.namespace} wait --timeout=600s pod --for=condition=ready {name}
-'''
-                    else:
-                        assert w['for'] == 'completed', w['for']
-                        script = script + f'''
+                    assert w['for'] == 'completed', w['for']
+                    script += f'''
 set +e
 python3 wait-for-pod.py 600 {self.namespace} {name}
 EC=$?
