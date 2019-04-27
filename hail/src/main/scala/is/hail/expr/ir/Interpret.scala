@@ -435,6 +435,8 @@ object Interpret {
           .map(Row(_))
         interpret(body, env, args, Some(aValue -> aggElementType))
 
+      case ArrayAggScan(a, name, query) =>
+        throw new UnsupportedOperationException("ArrayAggScan")
       case Begin(xs) =>
         xs.foreach(x => interpret(x))
       case x@SeqOp(i, seqOpArgs, aggSig) =>

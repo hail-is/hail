@@ -96,6 +96,8 @@ object InferPType {
         propagateStreamable(coerce[PStreamable](a.pType), zero.pType)
       case ArrayAgg(_, _, query) =>
         query.pType
+      case ArrayAggScan(_, _, query) =>
+        PArray(query.pType)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         propagateStreamable(coerce[PStreamable](left.pType), join.pType)
         PArray(join.pType)

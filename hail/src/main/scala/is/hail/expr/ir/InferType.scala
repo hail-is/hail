@@ -96,6 +96,8 @@ object InferType {
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
+      case ArrayAggScan(_, _, query) =>
+        TArray(query.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)

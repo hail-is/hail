@@ -995,6 +995,17 @@ object PruneDeadFields {
         unifyEnvs(
           BindingEnv(eval = concatEnvs(Array(queryEnv.eval, queryEnv.aggOrEmpty.delete(name)))),
           aEnv)
+      case ArrayAggScan(a, name, query) =>
+        val aType = a.typ.asInstanceOf[TStreamable]
+        val queryEnv = memoizeValueIR(query, requestedType.asInstanceOf[TStreamable].elementType, memo)
+        val requestedElemType = unifySeq(
+          aType.elementType,
+          queryEnv.scanOrEmpty.lookupOption(name).map(_.result()).getOrElse(Array()) ++
+            queryEnv.eval.lookupOption(name).map(_.result()).getOrElse(Array()))
+        val aEnv = memoizeValueIR(a, aType.copyStreamable(requestedElemType), memo)
+        unifyEnvs(
+          BindingEnv(eval = concatEnvs(Array(queryEnv.eval.delete(name), queryEnv.scanOrEmpty.delete(name)))),
+          aEnv)
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
@@ -1410,6 +1421,10 @@ object PruneDeadFields {
         val a2 = rebuildIR(a, env, memo)
         val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
         ArrayAgg(a2, name, query2)
+      case ArrayAggScan(a, name, query) =>
+        val a2 = rebuildIR(a, env, memo)
+        val query2 = rebuildIR(query, env.copy(scan = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)
+        ArrayAggScan(a2, name, query2)
       case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         val constructorArgs2 = constructorArgs.map(rebuildIR(_, BindingEnv.empty[Type], memo))
         val initOpArgs2 = initOpArgs.map(_.map(rebuildIR(_, env, memo)))
