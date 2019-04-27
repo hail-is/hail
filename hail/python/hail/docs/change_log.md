@@ -4,8 +4,8 @@
 
 Released 2019-04-24
 
-A back-incompatible patch update to PySpark, 2.4.2, has rendered fresh installs
-of Hail 0.2.13 unusable. To fix this, either *downgrade* Spark to 2.4.2 or
+A back-incompatible patch update to PySpark, 2.4.2, has broken fresh pip
+installs of Hail 0.2.13. To fix this, either *downgrade* PySpark to 2.4.1 or
 upgrade to the latest version of Hail.
 
 ### New features
