@@ -1206,45 +1206,23 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
-    def _R_pc_relate(self, mt, maf):
-        plink_file = utils.uri_path(utils.new_temp_file())
-        hl.export_plink(mt, plink_file, ind_id=hl.str(mt.col_key[0]))
-        utils.run_command(["Rscript",
-                           resource("is/hail/methods/runPcRelate.R"),
-                           plink_file,
-                           str(maf)])
-
-        types = {
-            'ID1': hl.tstr,
-            'ID2': hl.tstr,
-            'nsnp': hl.tfloat64,
-            'kin': hl.tfloat64,
-            'k0': hl.tfloat64,
-            'k1': hl.tfloat64,
-            'k2': hl.tfloat64
-        }
-        plink_kin = hl.import_table(plink_file + '.out',
-                                    delimiter=' +',
-                                    types=types)
-        return plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
-                                j=hl.struct(sample_idx=plink_kin.ID2),
-                                kin=plink_kin.kin,
-                                ibd0=plink_kin.k0,
-                                ibd1=plink_kin.k1,
-                                ibd2=plink_kin.k2).key_by('i', 'j')
-
     @skip_unless_spark_backend()
-    @unittest.skipIf('HAIL_TEST_SKIP_R' in os.environ, 'Skipping tests requiring R')
-    def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
-        mt = hl.balding_nichols_model(3, 100, 1000)
-        mt = mt.key_cols_by(sample_idx=hl.str(mt.sample_idx))
-        hkin = hl.pc_relate(mt.GT, 0.00, k=2).cache()
-        rkin = self._R_pc_relate(mt, 0.00).cache()
+    def test_pc_relate_against_R_truth(self):
+        mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
+        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(suffix='ht'))
 
-        self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3, absolute=True))
-        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1.3e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2.6e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1.3e-2, absolute=True))
+        r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
+                                types={'i': 'struct{s:str}',
+                                       'j': 'struct{s:str}',
+                                       'kin': 'float',
+                                       'ibd0': 'float',
+                                       'ibd1': 'float',
+                                       'ibd2': 'float'},
+                                key=['i', 'j'])
+        assert r_kin.select("kin")._same(hail_kin.select("kin"), tolerance=1e-3, absolute=True)
+        assert r_kin.select("ibd0")._same(hail_kin.select("ibd0"), tolerance=1.3e-2, absolute=True)
+        assert r_kin.select("ibd1")._same(hail_kin.select("ibd1"), tolerance=2.6e-2, absolute=True)
+        assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
     @skip_unless_spark_backend()
     def test_pcrelate_paths(self):
