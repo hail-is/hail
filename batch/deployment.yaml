@@ -32,8 +32,8 @@ spec:
         ports:
          - containerPort: 5000
         volumeMounts:
-         - name: batch-admin-secret
-           mountPath: /batch-admin-secret
+         - name: batch-user-secret
+           mountPath: /batch-user-secret
            readOnly: true
          - name: jwt-secret
            mountPath: /jwt-secret
@@ -51,10 +51,10 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
-       - name: batch-admin-secret
+       - name: batch-user-secret
          secret:
            optional: false
-           secretName: "{{ batch_database.admin_secret_name }}"
+           secretName: "{{ batch_database.user_secret_name }}"
        - name: jwt-secret
          secret:
            optional: false

@@ -439,6 +439,7 @@ steps:
     - batch_pods_ns
     - batch_image
     - batch_database
+    - create_batch_tables
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
