@@ -154,7 +154,7 @@ async def update_loop(app):
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.error(f'{wb.branch} update due to exception: {traceback.format_exc()}{e}')
+            log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
 routes.static('/static', 'ci/static')
