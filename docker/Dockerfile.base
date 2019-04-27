@@ -38,6 +38,7 @@ RUN python3 -m pip install --no-cache-dir -U parsimonious
 ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip"
 RUN apt-get update && \
   apt-get -y install \
+    mysql-client \
     zip \
     xsltproc \
     python \

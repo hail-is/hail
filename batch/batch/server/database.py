@@ -7,10 +7,10 @@ class BatchDatabase(Database):
     def __init__(self, config_file):
         super().__init__(config_file)
 
-        self.jobs = await JobsTable(self)
-        self.jobs_parents = await JobsParentsTable(self)
-        self.batch = await BatchTable(self)
-        self.batch_jobs = await BatchJobsTable(self)
+        self.jobs = JobsTable(self)
+        self.jobs_parents = JobsParentsTable(self)
+        self.batch = BatchTable(self)
+        self.batch_jobs = BatchJobsTable(self)
 
 
 class JobsTable(Table):
