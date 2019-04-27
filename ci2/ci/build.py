@@ -680,9 +680,10 @@ cat > sql-config.json <<EOF
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-user={self.admin_username}
 host=10.80.0.3
+user={self.admin_username}
 password="$ADMIN_PASSWORD"
+database={self._name}
 EOF
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
@@ -700,9 +701,10 @@ cat > sql-config.json <<EOF
 EOF
 cat > sql-config.cnf <<EOF
 [client]
-user={self.user_username}
 host=10.80.0.3
+user={self.user_username}
 password="$USER_PASSWORD"
+database={self._name}
 EOF
 kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
