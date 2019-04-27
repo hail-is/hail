@@ -678,7 +678,13 @@ cat > sql-config.json <<EOF
   "db": "{self._name}"
 }}
 EOF
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json
+cat > sql-config.cnf <<EOF
+[client]
+user={self.admin_username}
+host=10.80.0.3
+password="$ADMIN_PASSWORD"
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo create user secret...
 cat > sql-config.json <<EOF
@@ -692,7 +698,13 @@ cat > sql-config.json <<EOF
   "db": "{self._name}"
 }}
 EOF
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json
+cat > sql-config.cnf <<EOF
+[client]
+user={self.user_username}
+host=10.80.0.3
+password="$USER_PASSWORD"
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo database = {shq(self._name)}
 echo admin_username = {shq(self.admin_username)}
