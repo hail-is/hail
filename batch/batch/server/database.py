@@ -5,7 +5,7 @@ from ..database import Database, Table
 
 class BatchDatabase(Database):
     async def __init__(self, config_file):
-        super().__init__(config_file)
+        await super().__init__(config_file)
 
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
