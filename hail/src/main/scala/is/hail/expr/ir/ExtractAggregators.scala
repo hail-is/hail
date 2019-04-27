@@ -170,6 +170,7 @@ object ExtractAggregators {
           ))
 
       case x: ArrayAgg => x
+      case x: ArrayAggScan => x
       case _ => MapIR(extract)(ir)
     }
   }

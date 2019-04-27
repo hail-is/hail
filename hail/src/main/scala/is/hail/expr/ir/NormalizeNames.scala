@@ -116,6 +116,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+      case ArrayAggScan(a, name, body) =>
+        // FIXME: Uncomment when bindings are threaded through test suites
+        // assert(env.scan.isEmpty)
+        val newName = gen()
+        val newEnv = env.eval.bind(name, newName)
+        ArrayAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
       case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
         val newL = gen()
         val newR = gen()

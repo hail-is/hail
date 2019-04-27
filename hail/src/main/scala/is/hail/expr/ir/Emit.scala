@@ -603,7 +603,7 @@ private class Emit(
               srvb.offset
             ))))
 
-      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct =>
+      case _: ArrayMap | _: ArrayFilter | _: ArrayRange | _: ArrayFlatMap | _: ArrayScan | _: ArrayLeftJoinDistinct | _: ArrayAggScan =>
         emitArrayIterator(ir).toEmitTriplet(mb, coerce[PStreamable](ir.pType))
 
       case ArrayFold(a, zero, name1, name2, body) =>
@@ -1424,6 +1424,60 @@ private class Emit(
         }
 
         ArrayIteratorTriplet(larray.calcLength, larray.length, ae)
+
+      case ArrayAggScan(a, name, query) =>
+        val StagedExtractedAggregators(postAggIR_, resultType, init_, perElt_, makeRVAggs) =
+          StagedExtractAggregators(mb.fb, CompileWithAggregators.liftScan(query))
+
+        val postAggIR = Optimize(postAggIR_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAggScan/StagedExtractAggregators/postAggIR"))
+        val init = Optimize(init_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAggScan/StagedExtractAggregators/init"))
+        val perElt = Optimize(perElt_, noisy = true, canGenerateLiterals = false,
+          context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
+
+        val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
+        val aggInit = this.emit(init, env, Some(rvas))
+
+        val elt = coerce[TStreamable](a.typ).elementType
+        val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
+        val xmv = mb.newField[Boolean]()
+        val xvv = mb.newField(name)(elementTypeInfoA)
+        val bodyEnv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
+        val accumulate = this.emit(perElt, bodyEnv, Some(rvas))
+
+        val aggr = mb.newField[Long]("AGGR")
+        val rvb = mb.newField[RegionValueBuilder]("rvb")
+        val i = mb.newField[Int]("i")
+
+        val postEnv = bodyEnv.bind("AGGR" -> (typeInfo[Long], const(false), aggr.load()))
+        val codePost = emit(postAggIR, env = postEnv)
+
+        val scanCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := v,
+            Code(
+              rvb := Code.newInstance[RegionValueBuilder, Region](region),
+              rvb.load().start(mb.fb.getPType(resultType)),
+              rvb.load().startTuple(const(true)),
+              i := const(0),
+              Code.whileLoop(i < rvas.load().length(),
+                rvas.load()(i).result(rvb),
+                i := i + const(1)),
+              rvb.load().endTuple(),
+              aggr := rvb.load().end()),
+            codePost.setup,
+            cont(codePost.m, codePost.v),
+            accumulate.setup
+          )
+        }
+
+        val it = emitArrayIterator(a).wrapContinuation(scanCont)
+        it.copy(calcLength = Code(
+          rvas := makeRVAggs,
+          aggInit.setup,
+          it.calcLength))
 
       case _ =>
         val t: PArray = coerce[PStreamable](ir.pType).asPArray
