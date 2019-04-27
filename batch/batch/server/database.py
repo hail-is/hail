@@ -4,7 +4,7 @@ from ..database import Database, Table
 
 
 class BatchDatabase(Database):
-    def __init__(self, config_file):
+    async def __init__(self, config_file):
         super().__init__(config_file)
 
         self.jobs = JobsTable(self)
