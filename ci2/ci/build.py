@@ -89,7 +89,7 @@ class Step(abc.ABC):
         self.deps = deps
         self.token = generate_token()
 
-    def input_config(self, code):
+    def input_config(self, code, deploy):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
@@ -97,6 +97,7 @@ class Step(abc.ABC):
             'ip': IP
         }
         config['token'] = self.token
+        config['deploy'] = deploy
         config['code'] = code.config()
         if self.deps:
             for d in self.deps:
@@ -172,7 +173,7 @@ class BuildImageStep(Step):
         else:
             input_files = None
 
-        config = self.input_config(code)
+        config = self.input_config(code, deploy)
 
         if self.context_path:
             context = f'repo/{self.context_path}'
@@ -306,7 +307,7 @@ gcloud -q container images delete {shq(self.image)}
 class RunImageStep(Step):
     def __init__(self, code, deploy, name, deps, image, script, inputs, outputs, secrets, always_run):  # pylint: disable=unused-argument
         super().__init__(name, deps)
-        self.image = expand_value_from(image, self.input_config(code))
+        self.image = expand_value_from(image, self.input_config(code, deploy))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
@@ -334,7 +335,7 @@ class RunImageStep(Step):
 
     async def build(self, batch, code, deploy):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-        rendered_script = template.render(**self.input_config(code))
+        rendered_script = template.render(**self.input_config(code, deploy))
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
@@ -392,7 +393,7 @@ class CreateNamespaceStep(Step):
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],
-                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(code))
+                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(code, deploy))
             }
         else:
             self.admin_service_account = None
@@ -444,6 +445,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {self.namespace_name}-admin
   namespace: {self._name}
+  labels:
+    for: test
 rules:
 - apiGroups: [""]
   resources: ["*"]
@@ -523,7 +526,7 @@ kubectl delete namespace {self._name}
 class DeployStep(Step):
     def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(name, deps)
-        self.namespace = get_namespace(namespace, self.input_config(code))
+        self.namespace = get_namespace(namespace, self.input_config(code, deploy))
         self.config_file = config_file
         self.link = link
         self.wait = wait
@@ -549,11 +552,19 @@ class DeployStep(Step):
     async def build(self, batch, code, deploy):
         with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-            rendered_config = template.render(**self.input_config(code))
+            rendered_config = template.render(**self.input_config(code, deploy))
 
-        script = f'''
+        script = '''\
 set -ex
+'''
 
+        if self.wait:
+            for w in self.wait:
+                if w['kind'] == 'Pod':
+                    script += f'''\
+kubectl delete --ignore-not-found pod {w['name']}
+'''
+        script += f'''
 cat | kubectl apply -n {self.namespace} -f - <<EOF
 {rendered_config}
 EOF
@@ -565,20 +576,19 @@ EOF
                 if w['kind'] == 'Deployment':
                     assert w['for'] == 'available', w['for']
                     # FIXME what if the cluster isn't big enough?
-                    script = script + f'''
-kubectl -n {self.namespace} wait --timeout=600s deployment --for=condition=available {name}
+                    script += f'''
+set +e
+kubectl -n {self.namespace} wait --timeout=300s deployment --for=condition=available {name}
+EC=$?
+kubectl -n {self.namespace} logs -l app={name}
+set -e
+(exit $EC)
 '''
                 else:
-                    assert w['kind'] == 'Pod', w['kind']
-                    if w['for'] == 'ready':
-                        script = script + f'''
-kubectl -n {self.namespace} wait --timeout=600s pod --for=condition=ready {name}
-'''
-                    else:
-                        assert w['for'] == 'completed', w['for']
-                        script = script + f'''
+                    assert w['for'] == 'completed', w['for']
+                    script += f'''
 set +e
-python3 wait-for-pod.py 600 {self.namespace} {name}
+python3 wait-for-pod.py 300 {self.namespace} {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e
@@ -607,7 +617,7 @@ class CreateDatabaseStep(Step):
         super().__init__(name, deps)
         # FIXME validate
         self.database_name = database_name
-        self.namespace = get_namespace(namespace, self.input_config(code))
+        self.namespace = get_namespace(namespace, self.input_config(code, deploy))
         self.job = None
 
         if deploy:
@@ -675,7 +685,14 @@ cat > sql-config.json <<EOF
   "db": "{self._name}"
 }}
 EOF
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json
+cat > sql-config.cnf <<EOF
+[client]
+host=10.80.0.3
+user={self.admin_username}
+password="$ADMIN_PASSWORD"
+database={self._name}
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.admin_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo create user secret...
 cat > sql-config.json <<EOF
@@ -689,7 +706,14 @@ cat > sql-config.json <<EOF
   "db": "{self._name}"
 }}
 EOF
-kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json
+cat > sql-config.cnf <<EOF
+[client]
+host=10.80.0.3
+user={self.user_username}
+password="$USER_PASSWORD"
+database={self._name}
+EOF
+kubectl -n {shq(self.namespace)} create secret generic {shq(self.user_secret_name)} --from-file=sql-config.json --from-file=sql-config.cnf
 
 echo database = {shq(self._name)}
 echo admin_username = {shq(self.admin_username)}

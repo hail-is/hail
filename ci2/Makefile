@@ -1,11 +1,11 @@
-.PHONY: build
+.PHONY: build base-image clean
 
 PROJECT := $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hailjwt python3
 
 PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
@@ -18,11 +18,6 @@ pylint-stmp: $(PY_FILES)
 	touch $@
 
 check: flake8-stmp pylint-stmp
-
-install-batch-locally:
-	rm -rf batch
-	mkdir batch
-	cp -a ../batch/setup.py ../batch/MANIFEST.in ../batch/batch batch
 
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy
@@ -38,7 +33,8 @@ CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed 
 build-ci-utils:
 	make -C ../docker build
 	-docker pull $(CI_UTILS_LATEST)
-	docker build -t ci-utils -f Dockerfile.ci-utils --cache-from ci-utils,$(CI_UTILS_LATEST),base .
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
+	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
 
 push-ci-utils: build-ci-utils
 	docker tag ci-utils $(CI_UTILS_LATEST)
@@ -46,10 +42,11 @@ push-ci-utils: build-ci-utils
 	docker tag ci-utils $(CI_UTILS_IMAGE)
 	docker push $(CI_UTILS_IMAGE)
 
-build: install-batch-locally
+build:
 	make -C ../docker build
 	-docker	pull $(CI2_LATEST)
-	docker build -t ci2 -f Dockerfile.ci2 --cache-from ci2,$(CI2_LATEST),base,ubuntu:18.04 .
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t ci2 -f Dockerfile.out --cache-from ci2,$(CI2_LATEST),base ..
 
 push: build
 	docker tag ci2 $(CI2_LATEST)
@@ -58,22 +55,16 @@ push: build
 	docker push $(CI2_IMAGE)
 
 deploy: push push-ci-utils
-	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
-	  -e "s,@image@,$(CI2_IMAGE)," \
-	  -e "s,@ci_utils_image@,$(CI_UTILS_IMAGE)," \
-	  -e "s,@gcp_project@,$(PROJECT)," \
-	  -e "s,@ip@,$(IP)," \
-	  -e "s,@domain@,$(DOMAIN)," \
-	  < deployment.yaml.in > deployment.yaml
-	kubectl -n default apply -f deployment.yaml
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"ci_image":{"image":"$(CI2_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"}}' deployment.yaml deployment.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
 else
 build-ci-utils:
 	make -C ../docker build
 	docker build -t ci-utils -f Dockerfile.ci-utils .
 
-build: install-batch-locally
+build:
 	make -C ../docker build
-	docker build . -t ci2 -f Dockerfile.ci2
+	docker build -t ci2 -f Dockerfile.ci2 ..
 endif
 
 PROXY_REMOTE_PORT = 3001
@@ -101,8 +92,11 @@ run-local: restart-proxy
 	HAIL_GCP_PROJECT=$(PROJECT) \
 	  HAIL_DOMAIN=$(DOMAIN) \
 	  HAIL_IP=$(IP) \
-	  HAIL_CI_UTILS_IMAGE=gcr.io/$(PROJECT)/ci-utils:latest \
+	  HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc/ci-utils:f477fdaa98d0e640f1bc2003ccfe1d2a86cf2d7531ff595476ca2412d28fc678 \
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
 	docker run -p 5000:5000 ci2
+
+clean:
+	rm -f flake8-stmp pylint-stmp

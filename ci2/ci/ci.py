@@ -23,8 +23,8 @@ with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r'
 uvloop.install()
 
 watched_branches = [
-    WatchedBranch(FQBranch.from_short_str(bss), deployable)
-    for [bss, deployable] in json.loads(os.environ.get('HAIL_WATCHED_BRANCHES'))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
+    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES')))
 ]
 
 app = web.Application()
@@ -65,6 +65,8 @@ async def get_pr(request):
     pr_number = int(request.match_info['pr_number'])
     try:
         wb = watched_branches[watched_branch_index]
+        if not wb.prs:
+            raise web.HTTPNotFound()
         pr = wb.prs[pr_number]
     except IndexError:
         raise web.HTTPNotFound()
@@ -147,12 +149,12 @@ async def update_loop(app):
     while True:
         try:
             for wb in watched_branches:
-                log.info(f'updating {wb.branch}')
+                log.info(f'updating {wb.branch.short_str()}')
                 await wb.update(app)
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.error(f'{wb.branch} update due to exception: {traceback.format_exc()}{e}')
+            log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
 routes.static('/static', 'ci/static')

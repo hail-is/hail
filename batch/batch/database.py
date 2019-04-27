@@ -40,54 +40,6 @@ class Database:
                                                echo=True,
                                                autocommit=True)
 
-    async def has_table(self, name):
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                sql = f"SELECT * FROM INFORMATION_SCHEMA.tables " \
-                    f"WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s"
-                await cursor.execute(sql, (self.db, name))
-                result = cursor.fetchone()
-        return result.result() is not None
-
-    def has_table_sync(self, name):
-        return run_synchronous(self.has_table(name))
-
-    async def drop_table(self, *names):
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute("DROP TABLE IF EXISTS {}".format(",".join([f'`{name}`' for name in names])))
-
-    def drop_table_sync(self, *names):
-        return run_synchronous(self.drop_table(*names))
-
-    async def create_table(self, name, schema, keys, can_exist=True):
-        assert all([k in schema for k in keys])
-
-        async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                schema = ", ".join([f'`{n.replace("`", "``")}` {t}' for n, t in schema.items()])
-                key_names = ", ".join([f'`{name.replace("`", "``")}`' for name in keys])
-                keys = f", PRIMARY KEY( {key_names} )" if keys else ''
-                exists = 'IF NOT EXISTS' if can_exist else ''
-                sql = f"CREATE TABLE {exists} `{name}` ( {schema} {keys})"
-                await cursor.execute(sql)
-
-    def create_table_sync(self, name, schema, keys):
-        return run_synchronous(self.create_table(name, schema, keys))
-
-    async def create_temporary_table(self, root_name, schema, keys):
-        for i in range(5):
-            try:
-                suffix = uuid.uuid4().hex[:8]
-                name = f'{root_name}-{suffix}'
-                return await Table(self, name, schema, keys, can_exist=False)
-            except pymysql.err.InternalError:
-                pass
-        raise Exception("Too many attempts to get temp table.")
-
-    def create_temporary_table_sync(self, root_name, schema, keys):
-        return run_synchronous(self.create_temporary_table(root_name, schema, keys))
-
 
 def make_where_statement(items):
     template = []
@@ -111,12 +63,10 @@ def make_where_statement(items):
     return template, values
 
 
-@asyncinit
 class Table:  # pylint: disable=R0903
-    async def __init__(self, db, name, schema, keys, can_exist=True):
+    def __init__(self, db, name):
         self.name = name
         self._db = db
-        await self._db.create_table(name, schema, keys, can_exist)
 
     async def new_index(self, index_name, *fields):
         assert len(fields) != 0
