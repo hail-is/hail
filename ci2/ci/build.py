@@ -1,3 +1,4 @@
+import abc
 import os.path
 import json
 from shlex import quote as shq
@@ -36,19 +37,37 @@ def get_namespace(value, config):
     return v['name']
 
 
+class Code(abc.ABC):
+    @abc.abstractmethod
+    def short_str(self):
+        pass
+
+    @abc.abstractmethod
+    def config(self):
+        pass
+
+    @abc.abstractmethod
+    def repo_dir(self):
+        """Path to repository on the ci (locally)."""
+
+    @abc.abstractmethod
+    def checkout_script(self):
+        """Bash script to checkout out the code in the current directory."""
+
+
 class BuildConfiguration:
-    def __init__(self, pr, config_str):
+    def __init__(self, code, config_str, deploy):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
         for step_config in config['steps']:
-            step = Step.from_json(pr, step_config, name_step)
+            step = Step.from_json(code, deploy, step_config, name_step)
             self.steps.append(step)
             name_step[step.name] = step
 
-    async def build(self, batch, pr):
+    async def build(self, batch, code, deploy):
         for step in self.steps:
-            await step.build(batch, pr)
+            await step.build(batch, code, deploy)
 
         ids = set()
         for step in self.steps:
@@ -61,22 +80,24 @@ class BuildConfiguration:
                                       parent_ids=ids)
 
         for step in self.steps:
-            await step.cleanup(batch, sink)
+            await step.cleanup(batch, deploy, sink)
 
 
-class Step:
+class Step(abc.ABC):
     def __init__(self, name, deps):
         self.name = name
         self.deps = deps
         self.token = generate_token()
 
-    def input_config(self, pr):
+    def input_config(self, code):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
+            'domain': DOMAIN,
             'ip': IP
         }
-        config['pr'] = pr.config()
+        config['token'] = self.token
+        config['code'] = code.config()
         if self.deps:
             for d in self.deps:
                 config[d.name] = d.config()
@@ -88,7 +109,7 @@ class Step:
         return flatten([d.self_ids() for d in self.deps])
 
     @staticmethod
-    def from_json(pr, json, name_step):
+    def from_json(code, deploy, json, name_step):
         kind = json['kind']
         name = json['name']
         if 'dependsOn' in json:
@@ -96,43 +117,54 @@ class Step:
         else:
             deps = None
         if kind == 'buildImage':
-            return BuildImageStep.from_json(name, deps, json)
+            return BuildImageStep.from_json(code, deploy, name, deps, json)
         if kind == 'runImage':
-            return RunImageStep.from_json(pr, name, deps, json)
+            return RunImageStep.from_json(code, deploy, name, deps, json)
         if kind == 'createNamespace':
-            return CreateNamespaceStep.from_json(pr, name, deps, json)
+            return CreateNamespaceStep.from_json(code, deploy, name, deps, json)
         if kind == 'deploy':
-            return DeployStep.from_json(pr, name, deps, json)
+            return DeployStep.from_json(code, deploy, name, deps, json)
         if kind == 'createDatabase':
-            return CreateDatabaseStep.from_json(pr, name, deps, json)
+            return CreateDatabaseStep.from_json(code, deploy, name, deps, json)
         raise ValueError(f'unknown build step kind: {kind}')
+
+    @abc.abstractmethod
+    async def build(self, batch, code, deploy):
+        pass
 
 
 class BuildImageStep(Step):
-    def __init__(self, name, deps, dockerfile, context_path, publish_as, inputs):
+    def __init__(self, code, deploy, name, deps, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
         super().__init__(name, deps)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
-        self.image = f'gcr.io/{GCP_PROJECT}/ci-intermediate:{self.token}'
+        if deploy and publish_as:
+            self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
+        else:
+            self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
+        self.image = f'{self.base_image}:{self.token}'
         self.job = None
 
     def self_ids(self):
         return [self.job.id]
 
     @staticmethod
-    def from_json(name, deps, json):
-        return BuildImageStep(name, deps,
+    def from_json(code, deploy, name, deps, json):
+        return BuildImageStep(code, deploy, name, deps,
                               json['dockerFile'],
                               json.get('contextPath'),
                               json.get('publishAs'),
                               json.get('inputs'))
 
     def config(self):
-        return {'image': self.image}
+        return {
+            'token': self.token,
+            'image': self.image
+        }
 
-    async def build(self, batch, pr):
+    async def build(self, batch, code, deploy):
         if self.inputs:
             input_files = []
             for i in self.inputs:
@@ -140,7 +172,7 @@ class BuildImageStep(Step):
         else:
             input_files = None
 
-        config = self.input_config(pr)
+        config = self.input_config(code)
 
         if self.context_path:
             context = f'repo/{self.context_path}'
@@ -160,6 +192,15 @@ class BuildImageStep(Step):
             pull_published_latest = ''
             cache_from_published_latest = ''
 
+        push_image = f'''
+docker push {self.image}
+'''
+        if deploy and self.publish_as:
+            push_image = f'''
+docker tag {shq(self.image)} {self.base_image}:latest
+docker push {self.base_image}:latest
+''' + push_image
+
         copy_inputs = ''
         if self.inputs:
             for i in self.inputs:
@@ -171,17 +212,8 @@ mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 
         script = f'''
 set -ex
-
-git clone {shq(pr.target_branch.branch.repo.url)} repo
-
-git -C repo config user.email hail-ci-leader@example.com
-git -C repo config user.name hail-ci-leader
-
-git -C repo remote add {shq(pr.source_repo.short_str())} {shq(pr.source_repo.url)}
-git -C repo fetch -q {shq(pr.source_repo.short_str())}
-git -C repo checkout {shq(pr.target_branch.sha)}
-git -C repo merge {shq(pr.source_sha)} -m 'merge PR'
-
+mkdir repo
+(cd repo; {code.checkout_script()})
 {render_dockerfile}
 {init_context}
 {copy_inputs}
@@ -198,7 +230,7 @@ docker build -t {shq(self.image)} \
   -f {dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
-docker push {shq(self.image)}
+{push_image}
 '''
 
         log.info(f'step {self.name}, script:\n{script}')
@@ -230,19 +262,17 @@ docker push {shq(self.image)}
             }
         }]
 
-        sa = None
-        if self.inputs is not None:
-            sa = 'ci2'
-
         self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
                                           attributes={'name': self.name},
                                           volumes=volumes,
                                           input_files=input_files,
-                                          copy_service_account_name=sa,
                                           parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, sink):
+    async def cleanup(self, batch, deploy, sink):
+        if deploy and self.publish_as:
+            return
+
         volumes = [{
             'volume': {
                 'name': 'gcr-push-service-account-key',
@@ -274,31 +304,37 @@ gcloud -q container images delete {shq(self.image)}
 
 
 class RunImageStep(Step):
-    def __init__(self, pr, name, deps, image, script, inputs, outputs):
+    def __init__(self, code, deploy, name, deps, image, script, inputs, outputs, secrets, always_run):  # pylint: disable=unused-argument
         super().__init__(name, deps)
-        self.image = expand_value_from(image, self.input_config(pr))
+        self.image = expand_value_from(image, self.input_config(code))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
+        self.secrets = secrets
+        self.always_run = always_run
         self.job = None
 
     def self_ids(self):
         return [self.job.id]
 
     @staticmethod
-    def from_json(pr, name, deps, json):
-        return RunImageStep(pr, name, deps,
+    def from_json(code, deploy, name, deps, json):
+        return RunImageStep(code, deploy, name, deps,
                             json['image'],
                             json['script'],
                             json.get('inputs'),
-                            json.get('outputs'))
+                            json.get('outputs'),
+                            json.get('secrets'),
+                            json.get('alwaysRun', False))
 
     def config(self):  # pylint: disable=no-self-use
-        return {}
+        return {
+            'token': self.token
+        }
 
-    async def build(self, batch, pr):
-        template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined)
-        rendered_script = template.render(**self.input_config(pr))
+    async def build(self, batch, code, deploy):
+        template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
+        rendered_script = template.render(**self.input_config(code))
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
@@ -316,9 +352,24 @@ class RunImageStep(Step):
         else:
             output_files = None
 
-        sa = None
-        if (self.outputs is not None) or (self.inputs is not None):
-            sa = 'ci2'
+        volumes = []
+        if self.secrets:
+            for secret in self.secrets:
+                name = secret['name']
+                mount_path = secret['mountPath']
+                volumes.append({
+                    'volume': {
+                        'name': name,
+                        'secret': {
+                            'optional': False,
+                            'secretName': name
+                        }
+                    },
+                    'volume_mount': {
+                        'mountPath': mount_path,
+                        'name': name
+                    }
+                })
 
         self.job = await batch.create_job(
             self.image,
@@ -326,35 +377,39 @@ class RunImageStep(Step):
             attributes={'name': self.name},
             input_files=input_files,
             output_files=output_files,
-            copy_service_account_name=sa,
-            parent_ids=self.deps_parent_ids())
+            volumes=volumes,
+            parent_ids=self.deps_parent_ids(),
+            always_run=self.always_run)
 
-    async def cleanup(self, batch, sink):
+    async def cleanup(self, batch, deploy, sink):
         pass
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, pr, name, deps, namespace_name, admin_service_account, public, secrets):
+    def __init__(self, code, deploy, name, deps, namespace_name, admin_service_account, public, secrets):
         super().__init__(name, deps)
         self.namespace_name = namespace_name
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],
-                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(pr))
+                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(code))
             }
         else:
             self.admin_service_account = None
         self.public = public
         self.secrets = secrets
         self.job = None
-        self._name = f'test-{pr.number}-{namespace_name}-{self.token}'
+        if deploy:
+            self._name = namespace_name
+        else:
+            self._name = f'{code.short_str()}-{namespace_name}-{self.token}'
 
     def self_ids(self):
         return [self.job.id]
 
     @staticmethod
-    def from_json(pr, name, deps, json):
-        return CreateNamespaceStep(pr, name, deps,
+    def from_json(code, deploy, name, deps, json):
+        return CreateNamespaceStep(code, deploy, name, deps,
                                    json['namespaceName'],
                                    json.get('adminServiceAccount'),
                                    json.get('public', False),
@@ -362,6 +417,7 @@ class CreateNamespaceStep(Step):
 
     def config(self):
         conf = {
+            'token': self.token,
             'kind': 'createNamespace',
             'name': self._name
         }
@@ -369,7 +425,7 @@ class CreateNamespaceStep(Step):
             conf['domain'] = f'{self._name}.internal.{DOMAIN}'
         return conf
 
-    async def build(self, batch, pr):  # pylint: disable=unused-argument
+    async def build(self, batch, code, deploy):  # pylint: disable=unused-argument
         # FIXME label
         config = f'''\
 apiVersion: v1
@@ -435,10 +491,10 @@ cat | kubectl apply -f - <<EOF
 EOF
 '''
 
-        if self.secrets:
+        if self.secrets and not deploy:
             for s in self.secrets:
                 script = script + f'''
-kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {self._name} apply -f -
+kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
 '''
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,
@@ -448,7 +504,10 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | kubectl -n {s
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, sink):
+    async def cleanup(self, batch, deploy, sink):
+        if deploy:
+            return
+
         script = f'''
 kubectl delete namespace {self._name}
 '''
@@ -462,10 +521,9 @@ kubectl delete namespace {self._name}
 
 
 class DeployStep(Step):
-    def __init__(self, pr, name, deps, namespace, config_file, link, wait):
+    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(name, deps)
-        # FIXME check available namespaces
-        self.namespace = get_namespace(namespace, self.input_config(pr))
+        self.namespace = get_namespace(namespace, self.input_config(code))
         self.config_file = config_file
         self.link = link
         self.wait = wait
@@ -475,8 +533,8 @@ class DeployStep(Step):
         return [self.job.id]
 
     @staticmethod
-    def from_json(pr, name, deps, json):
-        return DeployStep(pr, name, deps,
+    def from_json(code, deploy, name, deps, json):
+        return DeployStep(code, deploy, name, deps,
                           json['namespace'],
                           # FIXME config_file
                           json['config'],
@@ -484,15 +542,14 @@ class DeployStep(Step):
                           json.get('wait'))
 
     def config(self):  # pylint: disable=no-self-use
-        return {}
+        return {
+            'token': self.token
+        }
 
-    async def build(self, batch, pr):
-        target_repo = pr.target_branch.branch.repo
-        repo_dir = f'repos/{target_repo.short_str()}'
-
-        with open(f'{repo_dir}/{self.config_file}', 'r') as f:
-            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined)
-            rendered_config = template.render(**self.input_config(pr))
+    async def build(self, batch, code, deploy):
+        with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
+            template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
+            rendered_config = template.render(**self.input_config(code))
 
         script = f'''
 set -ex
@@ -540,36 +597,42 @@ set -e
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, sink):
+    async def cleanup(self, batch, deploy, sink):
         # namespace cleanup will handle deployments
         pass
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, pr, name, deps, database_name, namespace):
+    def __init__(self, code, deploy, name, deps, database_name, namespace):
         super().__init__(name, deps)
         # FIXME validate
         self.database_name = database_name
-        self.namespace = get_namespace(namespace, self.input_config(pr))
+        self.namespace = get_namespace(namespace, self.input_config(code))
         self.job = None
-        self._name = f'test-{pr.number}-{database_name}-{self.token}'
+
+        if deploy:
+            self._name = database_name
+        else:
+            self._name = f'{code.short_str()}-{database_name}-{self.token}'
+
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         self.admin_username = generate_token()
-        self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
+        self.admin_secret_name = f'sql-{self.admin_username}-config'
         self.user_username = generate_token()
-        self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
+        self.user_secret_name = f'sql-{self.user_username}-config'
 
     def self_ids(self):
         return [self.job.id]
 
     @staticmethod
-    def from_json(pr, name, deps, json):
-        return CreateDatabaseStep(pr, name, deps,
+    def from_json(code, deploy, name, deps, json):
+        return CreateDatabaseStep(code, deploy, name, deps,
                                   json['databaseName'],
                                   json['namespace'])
 
     def config(self):
         return {
+            'token': self.token,
             'name': self._name,
             'admin_username': self.admin_username,
             'admin_secret_name': self.admin_secret_name,
@@ -577,7 +640,10 @@ class CreateDatabaseStep(Step):
             'user_secret_name': self.user_secret_name
         }
 
-    async def build(self, batch, pr):  # pylint: disable=unused-argument
+    async def build(self, batch, code, deploy):  # pylint: disable=unused-argument
+        if deploy:
+            return
+
         script = f'''
 set -e
 
@@ -641,7 +707,10 @@ echo done.
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, sink):
+    async def cleanup(self, batch, deploy, sink):
+        if deploy:
+            return
+
         script = f'''
 cat | mysql --host=10.80.0.3 -u root <<EOF
 DROP DATABASE \\`{self._name}\\`;

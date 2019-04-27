@@ -98,10 +98,10 @@ restart-proxy:
 # Paradox: can't push locally, but ci2 needs ci-utils.  Just use the latest.
 run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-proxy
-	GCP_PROJECT=$(PROJECT) \
-	  DOMAIN=$(DOMAIN) \
-	  IP=$(IP) \
-	  CI_UTILS_IMAGE=gcr.io/$(PROJECT)/ci-utils:latest \
+	HAIL_GCP_PROJECT=$(PROJECT) \
+	  HAIL_DOMAIN=$(DOMAIN) \
+	  HAIL_IP=$(IP) \
+	  HAIL_CI_UTILS_IMAGE=gcr.io/$(PROJECT)/ci-utils:latest \
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
