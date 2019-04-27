@@ -236,6 +236,25 @@ class If(IR):
         self._type = self.cnsq.typ
 
 
+class Coalesce(IR):
+    @typecheck_method(values=IR)
+    def __init__(self, *values):
+        super().__init__(*values)
+        self.values = values
+
+    @typecheck_method(values=IR)
+    def copy(self, *values):
+        return Coalesce(*values)
+
+    def _compute_type(self, env, agg_env):
+        first, *rest = self.values
+        first._compute_type(env, agg_env)
+        for x in rest:
+            x._compute_type(env, agg_env)
+            assert x.typ == first.typ
+        self._type = first.typ
+
+
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
     def __init__(self, name, value, body):

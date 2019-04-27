@@ -131,6 +131,14 @@ object Simplify {
 
     case x@If(NA(_), _, _) => NA(x.typ)
 
+    case Coalesce(values) if isDefinitelyDefined(values.head) => values.head
+
+    case Coalesce(values) if values.zipWithIndex.exists { case (ir, i) => isDefinitelyDefined(ir) && i != values.size - 1 } =>
+      val idx = values.indexWhere(isDefinitelyDefined)
+      Coalesce(values.take(idx + 1))
+
+    case Coalesce(values) if values.size == 1 => values.head
+
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)

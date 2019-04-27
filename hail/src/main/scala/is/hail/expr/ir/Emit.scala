@@ -292,6 +292,37 @@ private class Emit(
         val codeV = emit(v)
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
+      case Coalesce(values) =>
+        val va = values.toArray.map(emit(_))
+        val mbs = Array.fill(va.length - 1)(mb.newLocal[Boolean])
+
+        val outType = values.head.typ
+        val mout = mb.newLocal[Boolean]()
+        val out = coerce[Any](mb.newLocal()(typeToTypeInfo(outType)))
+
+        val setup = va.indices
+          .init
+          .foldRight(Code(
+            mout := va.last.m,
+            out := defaultValue(outType),
+            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            Code(
+              mbs(i) := va(i).m,
+              mbs(i).mux(
+                comb,
+                Code(
+                  mout := false,
+                  out := va(i).v)))
+          }
+
+        EmitTriplet(
+          setup = Code(
+            Code(va.map(_.setup): _*),
+            setup),
+          m = mout,
+          v = out
+        )
+
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
 

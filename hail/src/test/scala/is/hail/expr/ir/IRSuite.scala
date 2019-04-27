@@ -108,7 +108,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(False(), false)
   }
 
-  // FIXME Void() doesn't work becuase we can't handle a void type in a tuple
+  // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
     assertEvalsTo(Cast(I32(5), TInt32()), 5)
@@ -142,6 +142,16 @@ class IRSuite extends SparkSuite {
   @Test def testIsNA() {
     assertEvalsTo(IsNA(NA(TInt32())), true)
     assertEvalsTo(IsNA(I32(5)), false)
+  }
+
+  @Test def testCoalesce() {
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
   }
 
   val i32na = NA(TInt32())
@@ -1458,6 +1468,7 @@ class IRSuite extends SparkSuite {
       Cast(i, TFloat64()),
       NA(TInt32()), IsNA(i),
       If(b, i, j),
+      Coalesce(FastSeq(In(0, TInt32()), I32(1))),
       Let("v", i, v),
       AggLet("v", i, v, false),
       Ref("x", TInt32()),

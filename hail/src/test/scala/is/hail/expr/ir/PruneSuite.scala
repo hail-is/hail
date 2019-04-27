@@ -482,6 +482,12 @@ class PruneSuite extends SparkSuite {
       Array(TBoolean(), justA, justA))
   }
 
+  @Test def testCoalesceMemo() {
+    checkMemo(Coalesce(FastSeq(ref, ref)),
+      justA,
+      Array(justA, justA))
+  }
+
   @Test def testLetMemo() {
     checkMemo(Let("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
     checkMemo(Let("foo", ref, True()), TBoolean(), Array(empty, null))
@@ -872,6 +878,13 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[If]
         ir.cnsq.typ == subsetTS("b") && ir.altr.typ == subsetTS("b")
+      })
+  }
+
+  @Test def testCoalesceRebuild() {
+    checkRebuild(Coalesce(FastSeq(NA(ts), NA(ts))), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        r.children.forall(_.typ == subsetTS("b"))
       })
   }
 

@@ -418,7 +418,7 @@ object TestUtils {
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected, strategy=$strat)")
+        assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
       } catch {
         case e: Exception =>
           error(s"error from strategy $strat")

@@ -269,6 +269,42 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           m.toString,
           v.toString)
 
+      case ir.Coalesce(values) =>
+        val va = values.toArray.map(emit(_))
+        val mbs = Array.tabulate(va.length - 1)(i => fb.variable(s"i_${ i }_", "bool"))
+
+        val m = fb.variable("m", "bool")
+        val v = fb.variable("v", typeToCXXType(pType))
+
+        val setup = Code.sequence(va.map(_.setup))
+
+        //  if (${mbs(i)}) $m = true;
+        val computeMissingAndValue = va.indices.init
+          .foldRight(
+            s"""$m = ${va.last.m};
+               |if (!$m)
+               |  $v = ${ va.last.v };
+               |""".stripMargin) { case (i, comb) =>
+            s"""${ mbs(i) } = ${ va(i).m };
+               |if (${ mbs(i) }) {
+               |  $comb
+               |}
+               |else {
+               |  $m = false;
+               |  $v = ${ va(i).v };
+               |}""".stripMargin
+          }
+        triplet(
+          s"""
+             |$setup
+             |${ m.define }
+             |${ v.define }
+             |${ Code.sequence(mbs.map(_.define)) }
+             |${ computeMissingAndValue }
+             |""".stripMargin,
+          m.toString,
+          v.toString)
+
       case ir.Let(name, value, body) =>
         val tvalue = emit(value)
         val m = fb.variable("let_m", "bool", tvalue.m)
