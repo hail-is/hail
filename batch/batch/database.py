@@ -13,6 +13,12 @@ def run_synchronous(coro):
 
 @asyncinit
 class Database:
+    @classmethod
+    def create_synchronous(cls, config_file):
+        db = object.__new__(cls)
+        run_synchronous(cls.__init__(db, config_file))
+        return db
+
     async def __init__(self, config_file):
         with open(config_file, 'r') as f:
             config = json.loads(f.read().strip())
