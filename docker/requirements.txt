@@ -24,3 +24,5 @@ requests
 urllib3<1.25,>=1.21.1
 uvloop>=0.12
 werkzeug
+parsimonious
+kubernetes_asyncio

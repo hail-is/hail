@@ -43,7 +43,7 @@ class Code(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def config(self):
+    def config(self, deploy):
         pass
 
     @abc.abstractmethod
@@ -101,7 +101,7 @@ class Step(abc.ABC):
         config['code'] = code.config()
         if self.deps:
             for d in self.deps:
-                config[d.name] = d.config()
+                config[d.name] = d.config(deploy)
         return config
 
     def deps_parent_ids(self):
@@ -149,7 +149,9 @@ class BuildImageStep(Step):
         self.job = None
 
     def self_ids(self):
-        return [self.job.id]
+        if self.job:
+            return [self.job.id]
+        return []
 
     @staticmethod
     def from_json(code, deploy, name, deps, json):
@@ -159,7 +161,7 @@ class BuildImageStep(Step):
                               json.get('publishAs'),
                               json.get('inputs'))
 
-    def config(self):
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'image': self.image
@@ -293,7 +295,8 @@ docker build -t {shq(self.image)} \
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
-gcloud -q container images delete {shq(self.image)}
+gcloud -q container images delete --force-delete-tags {shq(self.image)}
+true
 '''
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,
@@ -316,7 +319,9 @@ class RunImageStep(Step):
         self.job = None
 
     def self_ids(self):
-        return [self.job.id]
+        if self.job:
+            return [self.job.id]
+        return []
 
     @staticmethod
     def from_json(code, deploy, name, deps, json):
@@ -328,7 +333,7 @@ class RunImageStep(Step):
                             json.get('secrets'),
                             json.get('alwaysRun', False))
 
-    def config(self):  # pylint: disable=no-self-use
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
@@ -406,7 +411,9 @@ class CreateNamespaceStep(Step):
             self._name = f'{code.short_str()}-{namespace_name}-{self.token}'
 
     def self_ids(self):
-        return [self.job.id]
+        if self.job:
+            return [self.job.id]
+        return []
 
     @staticmethod
     def from_json(code, deploy, name, deps, json):
@@ -416,14 +423,17 @@ class CreateNamespaceStep(Step):
                                    json.get('public', False),
                                    json.get('secrets'))
 
-    def config(self):
+    def config(self, deploy):
         conf = {
             'token': self.token,
             'kind': 'createNamespace',
             'name': self._name
         }
         if self.public:
-            conf['domain'] = f'{self._name}.internal.{DOMAIN}'
+            if deploy:
+                conf['domain'] = DOMAIN
+            else:
+                conf['domain'] = 'internal'
         return conf
 
     async def build(self, batch, code, deploy):  # pylint: disable=unused-argument
@@ -433,6 +443,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {self._name}
+  labels:
+    for: test
 '''
 
         if self.admin_service_account:
@@ -445,8 +457,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: {self.namespace_name}-admin
   namespace: {self._name}
-  labels:
-    for: test
 rules:
 - apiGroups: [""]
   resources: ["*"]
@@ -513,6 +523,7 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata
 
         script = f'''
 kubectl delete namespace {self._name}
+true
 '''
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,
@@ -533,7 +544,9 @@ class DeployStep(Step):
         self.job = None
 
     def self_ids(self):
-        return [self.job.id]
+        if self.job:
+            return [self.job.id]
+        return []
 
     @staticmethod
     def from_json(code, deploy, name, deps, json):
@@ -544,7 +557,7 @@ class DeployStep(Step):
                           json.get('link'),
                           json.get('wait'))
 
-    def config(self):  # pylint: disable=no-self-use
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
@@ -620,19 +633,23 @@ class CreateDatabaseStep(Step):
         self.namespace = get_namespace(namespace, self.input_config(code, deploy))
         self.job = None
 
+        # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
         if deploy:
             self._name = database_name
+            self.admin_username = f'{self._name}-admin'
+            self.user_username = f'{self._name}-user'
         else:
             self._name = f'{code.short_str()}-{database_name}-{self.token}'
+            self.admin_username = generate_token()
+            self.user_username = generate_token()
 
-        # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
-        self.admin_username = generate_token()
-        self.admin_secret_name = f'sql-{self.admin_username}-config'
-        self.user_username = generate_token()
-        self.user_secret_name = f'sql-{self.user_username}-config'
+        self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
+        self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
     def self_ids(self):
-        return [self.job.id]
+        if self.job:
+            return [self.job.id]
+        return []
 
     @staticmethod
     def from_json(code, deploy, name, deps, json):
@@ -640,7 +657,7 @@ class CreateDatabaseStep(Step):
                                   json['databaseName'],
                                   json['namespace'])
 
-    def config(self):
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'name': self._name,
@@ -656,7 +673,6 @@ class CreateDatabaseStep(Step):
 
         script = f'''
 set -e
-
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
@@ -741,6 +757,7 @@ DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
 EOF
+true
 '''
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,

@@ -270,11 +270,11 @@ class Test(unittest.TestCase):
             (requests.get, '/jobs'),
             (requests.get, '/jobs/0'),
             (requests.get, '/jobs/0/log'),
-            (requests.delete, '/jobs/0/delete'),
+            (requests.delete, '/jobs/0'),
             (requests.patch, '/jobs/0/cancel'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
-            (requests.delete, '/batches/0/delete'),
+            (requests.delete, '/batches/0'),
             (requests.patch, '/batches/0/close')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)

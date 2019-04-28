@@ -5,7 +5,7 @@ import asyncio
 import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
-from .utils import CalledProcessError, check_shell, check_shell_output
+from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
@@ -243,6 +243,7 @@ mkdir -p {shq(repo_dir)}
             batch = await batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
+                    'test': '1',
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
@@ -263,8 +264,8 @@ mkdir -p {shq(repo_dir)}
 
         if self.batch is None:
             batches = await batch_client.list_batches(
-                complete=False,
                 attributes={
+                    'test': '1',
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 })
@@ -272,14 +273,15 @@ mkdir -p {shq(repo_dir)}
             # FIXME
             async def batch_was_cancelled(batch):
                 status = await batch.status()
-                return any(j['state'] == 'Cancelled' for j in status['jobs'])
+                update_batch_status(status)
+                return status['state'] == 'cancelled'
 
             # we might be returning to a commit that was only partially tested
             batches = [b for b in batches if not await batch_was_cancelled(b)]
 
             # should be at most one batch
             if len(batches) > 0:
-                self.batch = batches[0]
+                self.batch = min(batches, key=lambda b: b.id)
             elif run:
                 async with repos_lock:
                     await self._start_build(batch_client)
@@ -287,8 +289,12 @@ mkdir -p {shq(repo_dir)}
         if self.batch:
             seen_batch_ids.add(self.batch.id)
             status = await self.batch.status()
-            if all(j['state'] == 'Complete' for j in status['jobs']):
-                self.build_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
+            update_batch_status(status)
+            if status['complete']:
+                if status['state'] == 'success':
+                    self.build_state = 'success'
+                else:
+                    self.build_state = 'failure'
                 self.target_branch.batch_changed = True
 
     def is_mergeable(self):
@@ -311,8 +317,8 @@ mkdir -p {shq(repo_dir)}
 if [ ! -d .git ]; then
   git clone {shq(self.target_branch.branch.repo.url)} .
 
-  git config user.email hail-ci@example.com
-  git config user.name hail-ci
+  git config user.email ci@hail.is
+  git config user.name ci
 else
   git reset --merge
   git fetch origin
@@ -411,6 +417,7 @@ class WatchedBranch(Code):
                 if pr.merge():
                     self.github_changed = True
                     return True
+        return False
 
     async def _refresh(self, gh):
         log.info(f'refresh {self.short_str()}')
@@ -460,14 +467,19 @@ class WatchedBranch(Code):
                         'sha': self.sha
                     })
                 if deploy_batches:
-                    self.deploy_batch = deploy_batches[0]
+                    self.deploy_batch = min(deploy_batches, key=lambda b: b.id)
                 else:
-                    self.deploy_batch = await self._start_deploy(batch_client)
+                    async with repos_lock:
+                        self.deploy_batch = await self._start_deploy(batch_client)
 
             if self.deploy_batch:
                 status = await self.deploy_batch.status()
-                if all(j['state'] == 'Complete' for j in status['jobs']):
-                    self.deploy_state = 'success' if all(j['exit_code'] == 0 for j in status['jobs']) else 'failure'
+                update_batch_status(status)
+                if status['complete']:
+                    if status['state'] == 'success':
+                        self.deploy_state = 'success'
+                    else:
+                        self.deploy_state = 'failure'
 
         if await self.merge_if_possible():
             return
@@ -483,6 +495,7 @@ class WatchedBranch(Code):
         running_batches = await batch_client.list_batches(
             complete=False,
             attributes={
+                'test': '1',
                 'target_branch': self.branch.short_str()
             })
 
@@ -513,33 +526,31 @@ mkdir -p {shq(repo_dir)}
             return
 
         deploy_batch = None
-        try:
-            log.info(f'creating deploy batch for {self.branch.short_str()}')
-            deploy_batch = await batch_client.create_batch(
-                attributes={
-                    'token': secrets.token_hex(16),
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str(),
-                    'sha': self.sha
-                })
-            await config.build(deploy_batch, self, deploy=True)
-            await deploy_batch.close()
-            self.deploy_batch = deploy_batch
-        finally:
-            if deploy_batch and not self.deploy_batch:
-                await deploy_batch.cancel()
+
+        log.info(f'creating deploy batch for {self.branch.short_str()}')
+        deploy_batch = await batch_client.create_batch(
+            attributes={
+                'token': secrets.token_hex(16),
+                'deploy': '1',
+                'target_branch': self.branch.short_str(),
+                'sha': self.sha
+            })
+        # FIXME make build atomic
+        await config.build(deploy_batch, self, deploy=True)
+        await deploy_batch.close()
+        self.deploy_batch = deploy_batch
 
     def checkout_script(self):
         return f'''
 if [ ! -d .git ]; then
   git clone {shq(self.branch.repo.url)} .
 
-  git -C config user.email hail-ci@example.com
-  git -C config user.name hail-ci
+  git config user.email ci@hail.is
+  git config user.name ci
 else
-  git -C reset --merge
-  git -C fetch origin
+  git reset --merge
+  git fetch origin
 fi
 
-git -C checkout {shq(self.sha)}
+git checkout {shq(self.sha)}
 '''

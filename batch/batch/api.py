@@ -85,7 +85,7 @@ class API():
         return self.get(f'{url}/jobs/{job_id}/log')
 
     def delete_job(self, url, job_id):
-        return self.delete(f'{url}/jobs/{job_id}/delete', json_response=False)
+        return self.delete(f'{url}/jobs/{job_id}', json_response=False)
 
     def cancel_job(self, url, job_id):
         return self.patch(f'{url}/jobs/{job_id}/cancel', json_response=False)

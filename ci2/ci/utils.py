@@ -40,3 +40,23 @@ def generate_token(size=12):
 
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
+
+
+# FIXME move to batch
+def update_batch_status(status):
+    jobs = status['jobs']
+
+    if any(job['state'] == 'Complete' and job['exit_code'] > 0 for job in jobs):
+        state = 'failure'
+    elif any(job['state'] == 'Cancelled' for job in jobs):
+        state = 'cancelled'
+    elif all(job['state'] == 'Complete' and job['exit_code'] == 0 for job in jobs):
+        state = 'success'
+    else:
+        state = 'running'
+
+    if state:
+        status['state'] = state
+
+    complete = all(job['state'] in ('Cancelled', 'Complete') for job in jobs)
+    status['complete'] = complete

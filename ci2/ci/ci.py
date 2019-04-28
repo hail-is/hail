@@ -16,6 +16,7 @@ import batch
 from .log import log
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch
+from .utils import update_batch_status
 
 with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -85,6 +86,34 @@ async def get_pr(request):
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
 
     return config
+
+
+@routes.get('/batches')
+@aiohttp_jinja2.template('batches.html')
+async def get_batches(request):
+    batch_client = request.app['batch_client']
+    batches = await batch_client.list_batches()
+    statuses = [await b.status() for b in batches]
+    for status in statuses:
+        update_batch_status(status)
+    return {
+        'batches': statuses
+    }
+
+
+@routes.get('/batches/{batch_id}')
+@aiohttp_jinja2.template('batch.html')
+async def get_batch(request):
+    batch_id = int(request.match_info['batch_id'])
+    batch_client = request.app['batch_client']
+    b = await batch_client.get_batch(batch_id)
+    status = await b.status()
+    for j in status['jobs']:
+        if 'duration' in j and j['duration']:
+            j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+    return {
+        'batch': status
+    }
 
 
 @routes.get('/jobs/{job_id}/log')
