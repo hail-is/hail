@@ -77,7 +77,7 @@ async def get_pr(request):
     if pr.batch:
         status = await pr.batch.status()
         for j in status['jobs']:
-            if 'duration' in j:
+            if 'duration' in j and j['duration'] is not None:
                 j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
             attrs = j['attributes']
             if 'link' in attrs:
@@ -109,7 +109,7 @@ async def get_batch(request):
     b = await batch_client.get_batch(batch_id)
     status = await b.status()
     for j in status['jobs']:
-        if 'duration' in j and j['duration']:
+        if 'duration' in j and j['duration'] is not None:
             j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
     return {
         'batch': status
