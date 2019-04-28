@@ -971,7 +971,6 @@ async def close_batch(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    log.info(f'update job {job.id} with pod {pod.metadata.name}')
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
@@ -979,11 +978,11 @@ async def update_job_with_pod(job, pod):
             assert container_status.name in ['input', 'main', 'output']
 
             if container_status.state:
-                log.info(f'pod {pod.metadata.name} container status state {container_status.state}')
                 if container_status.state.terminated:
                     await job.mark_complete(pod)
                 elif (container_status.state.waiting
                       and container_status.state.waiting.reason == 'ImagePullBackOff'):
+                    log.info(f'marking job {job.id} failed: ImagePullBackOff')
                     await job.mark_complete(pod, failed=True)
     else:
         await job.mark_unscheduled()
@@ -1030,13 +1029,9 @@ async def refresh_k8s_state():  # pylint: disable=W0613
     seen_pods = set()
     for pod in pods.items:
         pod_name = pod.metadata.name
-        log.info(f'k8s refresh: pod {pod_name}')
         seen_pods.add(pod_name)
 
         job = Job.from_record(await db.jobs.get_record_by_pod(pod_name))
-        if job:
-            log.info(f'k8s refresh: job {job.id}')
-
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
