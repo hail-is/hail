@@ -43,7 +43,7 @@ class Code(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def config(self):
+    def config(self, deploy):
         pass
 
     @abc.abstractmethod
@@ -101,7 +101,7 @@ class Step(abc.ABC):
         config['code'] = code.config()
         if self.deps:
             for d in self.deps:
-                config[d.name] = d.config()
+                config[d.name] = d.config(deploy)
         return config
 
     def deps_parent_ids(self):
@@ -161,7 +161,7 @@ class BuildImageStep(Step):
                               json.get('publishAs'),
                               json.get('inputs'))
 
-    def config(self):
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'image': self.image
@@ -333,7 +333,7 @@ class RunImageStep(Step):
                             json.get('secrets'),
                             json.get('alwaysRun', False))
 
-    def config(self):  # pylint: disable=no-self-use
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
@@ -423,7 +423,7 @@ class CreateNamespaceStep(Step):
                                    json.get('public', False),
                                    json.get('secrets'))
 
-    def config(self):
+    def config(self, deploy):
         conf = {
             'token': self.token,
             'kind': 'createNamespace',
@@ -557,7 +557,7 @@ class DeployStep(Step):
                           json.get('link'),
                           json.get('wait'))
 
-    def config(self):  # pylint: disable=no-self-use
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
@@ -657,7 +657,7 @@ class CreateDatabaseStep(Step):
                                   json['databaseName'],
                                   json['namespace'])
 
-    def config(self):
+    def config(self, deploy):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'name': self._name,

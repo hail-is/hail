@@ -90,7 +90,6 @@ class Table:  # pylint: disable=R0903
         assert select_fields is None or len(select_fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                print(f'autocommit {conn.get_autocommit()}')
                 where_template, where_values = make_where_statement(where_items)
                 select_fields = ",".join(select_fields) if select_fields is not None else "*"
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
