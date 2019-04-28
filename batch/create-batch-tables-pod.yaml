@@ -10,11 +10,10 @@ spec:
      - /bin/bash
      - -c
      - |
-       set -x
+       set -ex
        # index creation isn't idempotent, don't create if a table exists
-       echo 'SELECT 1 FROM jobs WHERE FALSE;' | mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf
-       if [ "$?" != "0" ]; then
-         set -e
+       JOBS=$(echo 'SHOW TABLES LIKE 'jobs';' | mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf)
+       if [ "$JOBS" != "jobs" ]; then
          mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf < ./create-batch-tables.sql
        fi
     volumeMounts:
