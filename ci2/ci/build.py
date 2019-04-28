@@ -302,7 +302,7 @@ date
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
-gcloud -q container images delete --force-delete-tags {shq(self.image)}
+gcloud -q container images untag {shq(self.image)}
 
 date
 true
