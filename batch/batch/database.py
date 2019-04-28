@@ -1,5 +1,4 @@
 import json
-import uuid
 import asyncio
 import pymysql
 import aiomysql
@@ -37,7 +36,6 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               echo=True,
                                                autocommit=True)
 
 
@@ -67,17 +65,6 @@ class Table:  # pylint: disable=R0903
     def __init__(self, db, name):
         self.name = name
         self._db = db
-
-    async def new_index(self, index_name, *fields):
-        assert len(fields) != 0
-        try:
-            async with self._db.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    names = ", ".join([f'`{fd.replace("`", "``")}`' for fd in fields])
-                    sql = f"CREATE INDEX `{index_name}` ON `{self.name}` ({names})"
-                    await cursor.execute(sql)
-        except pymysql.err.InternalError:
-            pass
 
     async def new_record(self, **items):
         async with self._db.pool.acquire() as conn:
