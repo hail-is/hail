@@ -196,7 +196,7 @@ class BuildImageStep(Step):
             cache_from_published_latest = ''
 
         push_image = f'''
-docker push {self.image}
+time docker push {self.image}
 '''
         if deploy and self.publish_as:
             push_image = f'''
@@ -215,6 +215,8 @@ mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 
         script = f'''
 set -ex
+date
+
 mkdir repo
 (cd repo; {code.checkout_script()})
 {render_dockerfile}
@@ -234,6 +236,8 @@ docker build -t {shq(self.image)} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
 {push_image}
+
+date
 '''
 
         log.info(f'step {self.name}, script:\n{script}')
@@ -292,10 +296,15 @@ docker build -t {shq(self.image)} \
         }]
 
         script = f'''
+set -x
+date
+
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
 
 gcloud -q container images delete --force-delete-tags {shq(self.image)}
+
+date
 true
 '''
 
@@ -498,6 +507,7 @@ spec:
 
         script = f'''
 set -ex
+date
 
 cat | kubectl apply -f - <<EOF
 {config}
@@ -506,8 +516,12 @@ EOF
 
         if self.secrets and not deploy:
             for s in self.secrets:
-                script = script + f'''
+                script += f'''
 kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+'''
+
+        script += '''
+date
 '''
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,
@@ -522,7 +536,12 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata
             return
 
         script = f'''
+set -x
+date
+
 kubectl delete namespace {self._name}
+
+date
 true
 '''
 
@@ -569,6 +588,7 @@ class DeployStep(Step):
 
         script = '''\
 set -ex
+date
 '''
 
         if self.wait:
@@ -606,6 +626,10 @@ EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e
 (exit $EC)
+'''
+
+        script += '''
+date
 '''
 
         attrs = {'name': self.name}
@@ -673,6 +697,9 @@ class CreateDatabaseStep(Step):
 
         script = f'''
 set -e
+echo date
+date
+
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 
@@ -737,6 +764,8 @@ echo admin_secret_name = {shq(self.admin_secret_name)}
 echo user_username = {shq(self.user_username)}
 echo user_secret_name = {shq(self.user_secret_name)}
 
+echo date
+date
 echo done.
 '''
 
@@ -752,11 +781,16 @@ echo done.
             return
 
         script = f'''
+set -x
+date
+
 cat | mysql --host=10.80.0.3 -u root <<EOF
 DROP DATABASE \\`{self._name}\\`;
 DROP USER '{self.admin_username}';
 DROP USER '{self.user_username}';
 EOF
+
+date
 true
 '''
 
