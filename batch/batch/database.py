@@ -1,5 +1,4 @@
 import json
-import uuid
 import asyncio
 import pymysql
 import aiomysql
@@ -37,7 +36,6 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               echo=True,
                                                autocommit=True)
 
 
@@ -68,17 +66,6 @@ class Table:  # pylint: disable=R0903
         self.name = name
         self._db = db
 
-    async def new_index(self, index_name, *fields):
-        assert len(fields) != 0
-        try:
-            async with self._db.pool.acquire() as conn:
-                async with conn.cursor() as cursor:
-                    names = ", ".join([f'`{fd.replace("`", "``")}`' for fd in fields])
-                    sql = f"CREATE INDEX `{index_name}` ON `{self.name}` ({names})"
-                    await cursor.execute(sql)
-        except pymysql.err.InternalError:
-            pass
-
     async def new_record(self, **items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
@@ -103,6 +90,7 @@ class Table:  # pylint: disable=R0903
         assert select_fields is None or len(select_fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                print(f'autocommit {conn.get_autocommit()}')
                 where_template, where_values = make_where_statement(where_items)
                 select_fields = ",".join(select_fields) if select_fields is not None else "*"
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"

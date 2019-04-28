@@ -1,9 +1,11 @@
 <html lang="en">
   <head>
-    <title>CI2: PR {{ number }}</title>
+    <title>CI | PR {{ number }}</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
+    <p><a href="/">ci</a> : <a href="/watched_branches">watched branches</a> : pr #{{ number }}</p>
+
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
     <h2>Batch {{ batch['id'] }} Jobs</h2>

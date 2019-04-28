@@ -493,25 +493,31 @@ class Job:
             self._pod_name = None
         await self._create_pod()
 
-    async def mark_complete(self, pod):
+    async def mark_complete(self, pod, failed=False):
         task_name = self._current_task.name
 
-        terminated = pod.status.container_statuses[0].state.terminated
-        self.exit_code = terminated.exit_code
-        self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
-        await db.jobs.update_record(self.id,
-                                    exit_code=self.exit_code,
-                                    duration=self.duration)
+        if failed:
+            await db.jobs.update_record(self.id,
+                                        # FIXME hack
+                                        exit_code=999,
+                                        pod_name=None)
+        else:
+            terminated = pod.status.container_statuses[0].state.terminated
+            self.exit_code = terminated.exit_code
+            self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
+            await db.jobs.update_record(self.id,
+                                        exit_code=self.exit_code,
+                                        duration=self.duration,
+                                        pod_name=None)
 
-        pod_log = v1.read_namespaced_pod_log(
-            pod.metadata.name,
-            HAIL_POD_NAMESPACE,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            pod_log = v1.read_namespaced_pod_log(
+                pod.metadata.name,
+                HAIL_POD_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-        await self._write_log(task_name, pod_log)
+            await self._write_log(task_name, pod_log)
 
         if self._pod_name:
-            await db.jobs.update_record(self.id, pod_name=None)
             self._pod_name = None
 
         await self._next_task()
@@ -553,9 +559,6 @@ class Job:
 
         if self.attributes:
             result['attributes'] = self.attributes
-        parent_ids = [record['id'] for record in await db.jobs_parents.get_parents(self.id)]
-        if parent_ids:
-            result['parent_ids'] = parent_ids
         return result
 
 
@@ -808,7 +811,7 @@ class Batch:
         jobs = await self.get_jobs()
         for j in jobs:
             assert j.batch_id == self.id
-            await db.jobs.update_record(j, batch_id=None)
+            await db.jobs.update_record(j.id, batch_id=None)
 
     async def remove(self, job):
         await db.batch_jobs.delete_record(self.id, job.id)
@@ -941,7 +944,7 @@ async def cancel_batch(request, userdata):
     return jsonify({})
 
 
-@routes.delete('/batches/{batch_id}/delete')
+@routes.delete('/batches/{batch_id}')
 @authenticated_users_only
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -968,14 +971,20 @@ async def close_batch(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
+    log.info(f'update job {job.id} with pod {pod.metadata.name}')
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
             container_status = pod.status.container_statuses[0]
             assert container_status.name in ['input', 'main', 'output']
 
-            if container_status.state and container_status.state.terminated:
-                await job.mark_complete(pod)
+            if container_status.state:
+                log.info(f'pod {pod.metadata.name} container status state {container_status.state}')
+                if container_status.state.terminated:
+                    await job.mark_complete(pod)
+                elif (container_status.state.waiting
+                      and container_status.state.waiting.reason == 'ImagePullBackOff'):
+                    await job.mark_complete(pod, failed=True)
     else:
         await job.mark_unscheduled()
 
@@ -1021,9 +1030,13 @@ async def refresh_k8s_state():  # pylint: disable=W0613
     seen_pods = set()
     for pod in pods.items:
         pod_name = pod.metadata.name
+        log.info(f'k8s refresh: pod {pod_name}')
         seen_pods.add(pod_name)
 
         job = Job.from_record(await db.jobs.get_record_by_pod(pod_name))
+        if job:
+            log.info(f'k8s refresh: job {job.id}')
+
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
