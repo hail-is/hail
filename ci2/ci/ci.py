@@ -77,7 +77,7 @@ async def get_pr(request):
     if pr.batch:
         status = await pr.batch.status()
         for j in status['jobs']:
-            if 'duration' in j:
+            if 'duration' in j and j['duration']:
                 j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
             attrs = j['attributes']
             if 'link' in attrs:

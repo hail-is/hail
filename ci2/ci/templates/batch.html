@@ -1,15 +1,18 @@
 <html lang="en">
   <head>
-    <title>CI | PR {{ number }}</title>
+    <title>CI: Batch {{ batch['id'] }}</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
-    <p><a href="/">ci</a> : <a href="/watched_branches">watched branches</a> : pr #{{ number }}</p>
+    <p><a href="/">ci</a> : <a href="/batches">batches</a> : batch {{ batch['id'] }}</p>
 
-    <h1>PR {{ number }}</h1>
-    {% if batch is defined %}
-    <h2>Batch {{ batch['id'] }} Jobs</h2>
-    <p>artifacts: {{ artifacts }}</p>
+    <h1>Batch {{ batch['id'] }}</h1>
+    {% if 'attributes' in batch %}
+    {% for name, value in batch['attributes'].items() %}
+    <p>{{ name }}: {{ value }}</p>
+    {% endfor %}
+    {% endif %}
+    <h2>Jobs</h2>
     <table>
       <thead>
         <tr>
@@ -19,7 +22,6 @@
           <th align="right">exit_code</th>
           <th align="right">duration</th>
           <th align="left">log</th>
-          <th align="left">links</th>
         </tr>
       </thead>
       <tbody>
@@ -41,17 +43,9 @@
           <td align="left">
 	    <a href="/jobs/{{ job['id'] }}/log">log</a>
 	  </td>
-          <td>
-            {% if 'link' in job['attributes'] %}
-            {% for name in job['attributes']['link'] %}
-            <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
-	    {% endfor %}
-            {% endif %}
-          </td>
         </tr>
 	{% endfor %}
       </tbody>
-      {% endif %}
     </table>
   </body>
 </html>
