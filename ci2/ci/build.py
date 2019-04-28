@@ -509,9 +509,7 @@ spec:
 set -ex
 date
 
-cat | kubectl apply -f - <<EOF
-{config}
-EOF
+echo {shq(config)} | kubectl apply -f -
 '''
 
         if self.secrets and not deploy:
@@ -598,9 +596,7 @@ date
 kubectl delete --ignore-not-found pod {w['name']}
 '''
         script += f'''
-cat | kubectl apply -n {self.namespace} -f - <<EOF
-{rendered_config}
-EOF
+echo {shq(rendered_config)} | kubectl apply -n {self.namespace} -f -
 '''
 
         if self.wait:
