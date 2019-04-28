@@ -717,7 +717,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     abort(404)
 
 
-@routes.delete('/jobs/{job_id}/delete')
+@routes.delete('/jobs/{job_id}')
 @authenticated_users_only
 async def delete_job(request, userdata):
     job_id = int(request.match_info['job_id'])
