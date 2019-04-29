@@ -2648,7 +2648,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
         self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
 
-        self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
+        self.assertRaises(AttributeError, hl._ndarray, [[4], [1, 2, 3], 5])
 
     def ndarray_eq(self, expr, expected):
         self.assertTrue(np.array_equal(expr.to_numpy(), expected))
