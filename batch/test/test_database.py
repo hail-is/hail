@@ -113,10 +113,13 @@ class Test(unittest.TestCase):
         finally:
             self.db.drop_table_sync(t.name)
 
-    def test_get_batch_by_attributes_sql(self):
-        bdb = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH'))
-        where, values = bdb._get_batch_by_attributes_sql({'color': 'red', 'size': 'large'})
-        assert where == ("""SELECT *
-FROM {os.environ["BATCH_TABLE"]}"""
-"INNER JOIN {os.environ["BATCH_ATTRIRBUTES_TABLE"]} as x1 USING (batch_id)"
-where KEY = %s AND VALUE = %s AND 
+    def test_get_not_null_records(self):
+        t = self.temp_table()
+        try:
+            run_synchronous(t.update_record({'id': 1}, {'name': None}))
+            records = run_synchronous(t.get_record({'name': 'NOT NULL'}))
+            assert len(records) == 4
+            records = run_synchronous(t.get_record({'name': None}))
+            assert len(records) == 1
+        finally:
+            self.db.drop_table_sync(t.name)
