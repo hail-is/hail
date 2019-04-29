@@ -360,7 +360,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
            range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
-           font_size=str, colors=sequenceof(str),
+           colors=sequenceof(str),
            log=bool)
 def histogram2d(x: hl.expr.NumericExpression,
                 y: hl.expr.NumericExpression,
@@ -369,7 +369,6 @@ def histogram2d(x: hl.expr.NumericExpression,
                 title: str = None,
                 width: int = 600,
                 height: int = 600,
-                font_size: str = '7pt',
                 colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
                 log: bool = False):
     """Plot a two-dimensional histogram.
@@ -410,8 +409,6 @@ def histogram2d(x: hl.expr.NumericExpression,
         Plot height (default 600px).
     title : str
         Title of the plot.
-    font_size : str
-        String of font size in points (default '7pt').
     colors : List[str]
         List of colors (hex codes, or strings as described
         `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
@@ -472,10 +469,11 @@ def histogram2d(x: hl.expr.NumericExpression,
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
                              hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
 
-    if log:
-        data['c'] = np.log10(data['c'])
 
-    mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    if log:
+        mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    else:
+        mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
     x_axis = sorted(set(data.x), key=lambda z: float(z))
     y_axis = sorted(set(data.y), key=lambda z: float(z))
@@ -488,7 +486,6 @@ def histogram2d(x: hl.expr.NumericExpression,
     p.axis.axis_line_color = None
     p.axis.major_tick_line_color = None
     p.axis.major_label_standoff = 0
-    p.axis.major_label_text_font_size = font_size
     import math
     p.xaxis.major_label_orientation = math.pi / 3
 
@@ -497,38 +494,12 @@ def histogram2d(x: hl.expr.NumericExpression,
            fill_color={'field': 'c', 'transform': mapper},
            line_color=None)
 
-    color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size=font_size,
-                         ticker=BasicTicker(desired_num_ticks=6),
-                         label_standoff=6, border_line_color=None, location=(0, 0))
+    color_bar = ColorBar(color_mapper=mapper,
+                         ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
+                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
-    def set_font_size(p, font_size: str = '12pt'):
-        """Set most of the font sizes in a bokeh figure
-
-        Parameters
-        ----------
-        p : :class:`bokeh.plotting.figure.Figure`
-            Input figure.
-        font_size : str
-            String of font size in points (e.g. '12pt').
-
-        Returns
-        -------
-        :class:`bokeh.plotting.figure.Figure`
-        """
-        p.legend.label_text_font_size = font_size
-        p.xaxis.axis_label_text_font_size = font_size
-        p.yaxis.axis_label_text_font_size = font_size
-        p.xaxis.major_label_text_font_size = font_size
-        p.yaxis.major_label_text_font_size = font_size
-        if hasattr(p.title, 'text_font_size'):
-            p.title.text_font_size = font_size
-        if hasattr(p.xaxis, 'group_text_font_size'):
-            p.xaxis.group_text_font_size = font_size
-        return p
-
     p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
-    p = set_font_size(p, font_size)
     return p
 
 
