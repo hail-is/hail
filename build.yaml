@@ -426,6 +426,20 @@ steps:
      - create_batch_tables_image
      - batch_database
  - kind: deploy
+   name: create_batch_tables_2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch-tables
+      for: completed
+   dependsOn:
+     - default_ns
+     - create_batch_tables_image
+     - batch_database
+     - create_batch_tables
+ - kind: deploy
    name: deploy_batch
    namespace:
      valueFrom: default_ns.name
