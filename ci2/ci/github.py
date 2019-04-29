@@ -315,18 +315,18 @@ mkdir -p {shq(repo_dir)}
     def checkout_script(self):
         return f'''
 if [ ! -d .git ]; then
-  git clone {shq(self.target_branch.branch.repo.url)} .
+  time git clone {shq(self.target_branch.branch.repo.url)} .
 
   git config user.email ci@hail.is
   git config user.name ci
 else
   git reset --merge
-  git fetch origin
+  time git fetch origin
 fi
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-git fetch {shq(self.source_repo.short_str())}
+time git fetch {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -543,13 +543,13 @@ mkdir -p {shq(repo_dir)}
     def checkout_script(self):
         return f'''
 if [ ! -d .git ]; then
-  git clone {shq(self.branch.repo.url)} .
+  time git clone {shq(self.branch.repo.url)} .
 
   git config user.email ci@hail.is
   git config user.name ci
 else
   git reset --merge
-  git fetch origin
+  time git fetch origin
 fi
 
 git checkout {shq(self.sha)}
