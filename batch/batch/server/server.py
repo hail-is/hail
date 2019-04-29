@@ -974,6 +974,7 @@ async def update_job_with_pod(job, pod):
     log.info(f'update job {job.id} with pod {pod.metadata.name if pod else "None"}')
     if (not pod
         or (pod.status and pod.status.reason == 'Evicted')):
+        log.info(f'job {job.id} mark unscheduled')
         await job.mark_unscheduled()
     elif (pod
           and pod.status
@@ -984,10 +985,11 @@ async def update_job_with_pod(job, pod):
 
         if container_status.state:
             if container_status.state.terminated:
+                log.info(f'job {job.id} mark complete')
                 await job.mark_complete(pod)
             elif (container_status.state.waiting
                   and container_status.state.waiting.reason == 'ImagePullBackOff'):
-                log.info(f'marking job {job.id} failed: ImagePullBackOff')
+                log.info(f'job {job.id} mark failed: ImagePullBackOff')
                 await job.mark_complete(pod, failed=True)
 
 
