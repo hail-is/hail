@@ -41,6 +41,8 @@ case class MatrixFilterIntervals(
   override def lower(): Option[TableToTableFunction] = Some(TableFilterIntervals(keyType, intervals, keep))
 
   def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
+
+  override def requestType(requestedType: MatrixType, childBaseType: MatrixType): MatrixType = requestedType
 }
 
 class TableFilterIntervalsSerializer extends CustomSerializer[TableFilterIntervals](format => (
@@ -78,4 +80,6 @@ case class TableFilterIntervals(
       tv.rvd.typ.key.length - 1)
     TableValue(tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
   }
+
+  override def requestType(requestedType: TableType, childBaseType: TableType): TableType = requestedType
 }
