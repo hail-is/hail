@@ -505,7 +505,7 @@ class Job:
             terminated = pod.status.container_statuses[0].state.terminated
             self.exit_code = terminated.exit_code
             if terminated.finished_at is not None and terminated.started_at is not None:
-                self.duration = terminated.finished_at - terminated.started_at).total_seconds()
+                self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
             else:
                 log.warn(f'job {self.id} has pod {pod.metadata.name} which is '
                          f'terminated but has no timing information. {pod}')
