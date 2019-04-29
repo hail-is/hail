@@ -1,4 +1,4 @@
-from ..database import Database, Table, make_where_statement
+from ..database import Database, Table
 
 
 class BatchDatabase(Database):
@@ -147,33 +147,37 @@ class BatchTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
-    async def find_records(self, user, complete=None, success=None, attributes=None):
+    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
         values = []
-        select = "select batch.* from {self.name} as batch"
-        joins = ""
-        wheres = ""
-        if attributes:
-            sql += " inner join {self._db.batch_attributes} as attr using (batch_id) "
-        if complete or success:
-            sql += " inner join {self._db.batch_jobs.name} as bj using (batch_id)"
-            sql += " inner join {self._db.jobs.name} as job using (job_id)"
-        if attributes:
-            
+        sql = "select batch.* from {self.name} as batch"
+        joins = []
+        wheres = []
+
+        values += user
+        wheres += "job.user = %s"
+        if deleted is not None:
+            if deleted:
+                wheres += "batch.deleted"
+            else:
+                wheres += "not batch.deleted"
         if complete is not None:
-            values += "Complete"
+            condition = "not batch.is_open and batch.n_completed = batch.n_jobs"
             if complete:
-                sql += " where job.state = %s"
+                wheres += condition
             else:
-                sql += " where job.state != %s"
-        if success:
-            values += 0
+                wheres += f"not ({condition})"
+        if success is not None:
+            condition = "not batch.is_open and batch.n_succeeded = batch.n_jobs"
             if success:
-                sql += " where job.exit_code = %s"
+                wheres += condition
             else:
-                sql += " where job.exit_code != %s"
-        if user:
-            values += user
-            sql += " where job.user = %s"
+                wheres += f"not ({condition})"
+        if attributes:
+            joins += "inner join {self._db.batch_attributes.name} as attr using (batch_id)"
+            for k, v in attributes.items():
+                values += v
+                wheres += f"attr.`{k}` = %s"
+        sql += joins.join(" ") + " " + wheres.join(" and ")
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(sql, tuple(values))
