@@ -12,7 +12,7 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
-    uri_log_mapping = {'input': 'input_log_uri',
+    log_uri_mapping = {'input': 'input_log_uri',
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
@@ -62,10 +62,10 @@ class JobsTable(Table):
         return await super().get_record(condition)
 
     async def update_log_uri(self, id, task_name, uri):
-        await self.update_record(id, **{JobsTable.uri_log_mapping[task_name]: uri})
+        await self.update_record(id, **{JobsTable.log_uri_mapping[task_name]: uri})
 
     async def get_log_uri(self, id, task_name):
-        uri_field = JobsTable.uri_log_mapping[task_name]
+        uri_field = JobsTable.log_uri_mapping[task_name]
         records = await self.get_records(id, fields=[uri_field])
         if records:
             assert len(records) == 1
