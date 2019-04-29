@@ -351,6 +351,9 @@ object Simplify {
     case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
     case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
     case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
+
+    case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
+      ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
