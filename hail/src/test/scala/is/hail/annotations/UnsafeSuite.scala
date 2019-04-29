@@ -344,7 +344,55 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
-  
+
+  @Test def testRegionsAllocation() {
+    val pool = RegionPool.get
+
+    case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
+      def allocateRegion(): Counts =
+        if (freeRegions == 0)
+          copy(regions = regions + 1)
+        else copy(freeRegions = freeRegions - 1)
+
+      def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
+        if (freeRegions == 0)
+          Counts(regions + 1, freeRegions + nDependentRegions + 1, freeBlocks - nBlocks)
+        else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
+    }
+    def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+
+    var counts = getCurrentCounts
+
+    val region = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    val region2 = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.reference(region2)
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(1))
+
+    val region3 = Region()
+    region3.reference(region)
+    region3.reference(region2)
+
+    counts = getCurrentCounts
+    region.refreshRegion()
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion().allocateRegion())
+
+    counts = getCurrentCounts
+    region3.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(2))
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.

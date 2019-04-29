@@ -100,6 +100,30 @@ REGIONMETHOD(void, RegionPool, nativeCtor)(
   init_NativePtr(env, thisJ, &ptr);
 }
 
+REGIONMETHOD(jint, RegionPool, numRegions)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, thisJ));
+  return (jint) pool->pool_.num_regions();
+}
+
+REGIONMETHOD(jint, RegionPool, numFreeRegions)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, thisJ));
+  return (jint) pool->pool_.num_free_regions();
+}
+
+REGIONMETHOD(jint, RegionPool, numFreeBlocks)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+    auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, thisJ));
+    return (jint) pool->pool_.num_free_blocks();
+}
+
 REGIONMETHOD(void, Region, nativeCtor)(
   JNIEnv* env,
   jobject thisJ,
@@ -156,7 +180,7 @@ REGIONMETHOD(void, Region, nativeAddReferenceTo)(
   r->region_->add_reference_to(r2->region_);
 }
 
-REGIONMETHOD(void, Region, disownAndGetNew)(
+REGIONMETHOD(void, Region, nativeGetNewRegion)(
   JNIEnv* env,
   jobject thisJ
 ) {
