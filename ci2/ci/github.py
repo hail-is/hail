@@ -2,6 +2,7 @@ import secrets
 from shlex import quote as shq
 import json
 import asyncio
+import aiohttp
 import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
@@ -308,7 +309,7 @@ mkdir -p {shq(repo_dir)}
                              'sha': self.source_sha
                          })
             return True
-        except gidgethub.HTTPException as e:
+        except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError) as e:
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed due to exception: {e}')
         return False
 
@@ -395,10 +396,12 @@ class WatchedBranch(Code):
                 if self.github_changed:
                     self.github_changed = False
                     await self._refresh(gh)
+                    await self.merge_if_possible(gh)
 
                 if self.batch_changed:
                     self.batch_changed = False
                     await self._heal(batch_client)
+                    await self.merge_if_possible(gh)
 
             # update statuses
             new_statuses = {}
@@ -411,13 +414,12 @@ class WatchedBranch(Code):
         finally:
             self.updating = False
 
-    async def merge_if_possible(self):
+    async def merge_if_possible(self, gh):
         for pr in self.prs.values():
             if pr.is_mergeable():
-                if pr.merge():
+                if await pr.merge(gh):
                     self.github_changed = True
-                    return True
-        return False
+                    return
 
     async def _refresh(self, gh):
         log.info(f'refresh {self.short_str()}')
@@ -449,9 +451,6 @@ class WatchedBranch(Code):
             new_prs[number] = pr
         self.prs = new_prs
 
-        if await self.merge_if_possible():
-            return
-
         for pr in new_prs.values():
             await pr._refresh_review_state(gh)
 
@@ -480,9 +479,6 @@ class WatchedBranch(Code):
                         self.deploy_state = 'success'
                     else:
                         self.deploy_state = 'failure'
-
-        if await self.merge_if_possible():
-            return
 
         merge_candidate = None
         for pr in self.prs.values():
