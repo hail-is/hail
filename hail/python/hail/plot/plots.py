@@ -360,10 +360,18 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
            range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
-           font_size=str, colors=sequenceof(str))
-def histogram2d(x, y, bins=40, range=None,
-                 title=None, width=600, height=600, font_size='7pt',
-                 colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
+           font_size=str, colors=sequenceof(str),
+           log=bool)
+def histogram2d(x: hl.expr.NumericExpression,
+                y: hl.expr.NumericExpression,
+                bins: int = 40,
+                range: Tuple[int, int] = None,
+                title: str = None,
+                width: int = 600,
+                height: int = 600,
+                font_size: str = '7pt',
+                colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
+                log: bool = False):
     """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
@@ -408,6 +416,8 @@ def histogram2d(x, y, bins=40, range=None,
         List of colors (hex codes, or strings as described
         `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
         built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
+    log : bool
+        Plot the log10 of the bin counts.
 
     Returns
     -------
@@ -461,6 +471,9 @@ def histogram2d(x, y, bins=40, range=None,
     ).aggregate(c=hail.agg.count())
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
                              hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
+
+    if log:
+        data['c'] = np.log10(data['c'])
 
     mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
