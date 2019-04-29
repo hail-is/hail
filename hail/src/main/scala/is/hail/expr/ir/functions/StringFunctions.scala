@@ -156,7 +156,7 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(setup, missing, value)
     }
 
-    registerCodeWithMissingness("hamming", TString(), TString(), TInt32()) { case (r: EmitMethodBuilder, e1: EmitTriplet, e2: EmitTriplet) =>
+    registerCodeWithMissingness("hamming", TString(), TString(), TInt32()) { case (r: EmitRegion, e1: EmitTriplet, e2: EmitTriplet) =>
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
       val n = r.mb.newLocal[Int]
