@@ -392,7 +392,7 @@ class Tests(unittest.TestCase):
         left = hl.utils.range_matrix_table(5, 1)
         right = hl.utils.range_table(5)
         right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
-        left = left.annotate_rows(matches=right.index(left.row_key, product=True))
+        left = left.annotate_rows(matches=right.index(left.row_key, all_matches=True))
         rows = left.rows()
         self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
 
@@ -571,7 +571,7 @@ class Tests(unittest.TestCase):
             1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
             (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
         intervals = intervals.annotate(i=intervals.idx % 5)
-        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, product=True))
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, all_matches=True))
         rows = left.rows()
         self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))

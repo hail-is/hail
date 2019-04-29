@@ -402,7 +402,7 @@ class Tests(unittest.TestCase):
             1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
             (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
         intervals = intervals.annotate(i=intervals.idx % 5)
-        left = left.annotate(interval_matches=intervals.index(left.key, product=True))
+        left = left.annotate(interval_matches=intervals.index(left.key, all_matches=True))
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
@@ -420,7 +420,7 @@ class Tests(unittest.TestCase):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
         right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
-        left = left.annotate(matches=right.index(left.key, product=True))
+        left = left.annotate(matches=right.index(left.key, all_matches=True))
         self.assertTrue(left.all(left.matches.length() == left.idx))
         self.assertTrue(left.all(left.matches.map(lambda x: x.idx) == hl.range(0, left.idx)))
 
