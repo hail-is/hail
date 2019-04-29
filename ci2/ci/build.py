@@ -217,6 +217,7 @@ mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 set -ex
 date
 
+rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
 {render_dockerfile}
