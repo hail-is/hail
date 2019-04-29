@@ -34,7 +34,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[EmitTriplet]) => EmitTriplet) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[EmitTriplet]) => EmitTriplet) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -44,13 +44,13 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
-          impl(mb, seed, args.toArray)
+        def applySeeded(seed: Long, r: EmitRegion, args: EmitTriplet*): EmitTriplet =
+          impl(r, seed, args.toArray)
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, EmitTriplet) => EmitTriplet): Unit =
-      registerSeededWithMissingness(mname, Array(mt1), rType) { case (mb, seed, Array(a1)) => impl(mb, seed, a1) }
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, EmitTriplet) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType) { case (r, seed, Array(a1)) => impl(r, seed, a1) }
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
