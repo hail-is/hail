@@ -2,7 +2,6 @@ import os
 import unittest
 
 from batch.database import Database, run_synchronous
-from batch.server.database import BatchDatabase
 
 
 class Test(unittest.TestCase):
