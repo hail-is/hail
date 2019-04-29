@@ -593,10 +593,10 @@ date
             for w in self.wait:
                 if w['kind'] == 'Pod':
                     script += f'''\
-kubectl delete --ignore-not-found pod {w['name']}
+kubectl -n {self.namespace} delete --ignore-not-found pod {w['name']}
 '''
         script += f'''
-echo {shq(rendered_config)} | kubectl apply -n {self.namespace} -f -
+echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
 '''
 
         if self.wait:
