@@ -403,7 +403,7 @@ class Job:
 
     # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
-        for record in await db.jobs_parents.get_parents(self.id):
+        for record in await db.jobs.get_parents(self.id):
             parent_job = Job.from_record(record)
             await self.parent_new_state(parent_job._state, parent_job.id)
 
@@ -433,7 +433,7 @@ class Job:
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
         if self._state == 'Created' and not incomplete_parent_ids:
-            parents = [Job.from_record(record) for record in await db.jobs_parents.get_parents(self.id)]
+            parents = [Job.from_record(record) for record in await db.jobs.get_parents(self.id)]
             if (self.always_run or
                     (all(p.is_successful() for p in parents) and not self._cancelled)):
                 log.info(f'all parents complete for {self.id},'
@@ -457,7 +457,7 @@ class Job:
             await self._delete_k8s_resources()
 
     async def delete(self):
-        children = [Job.from_record(record) for record in await db.jobs_parents.get_children(self.id)]
+        children = [Job.from_record(record) for record in await db.jobs.get_children(self.id)]
         for child in children:
             await child.cancel()
 
@@ -799,8 +799,7 @@ class Batch:
         self.user = user
 
     async def get_jobs(self):
-        job_ids = await db.batch_jobs.get_jobs(self.id)
-        return [await Job.from_db(jid, self.user) for jid in job_ids]
+        return [Job.from_record(record) for record in await db.batch.get_jobs(self.id)]
 
     async def cancel(self):
         jobs = await self.get_jobs()

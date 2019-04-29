@@ -72,32 +72,32 @@ class JobsTable(Table):
             return records[0][uri_field]
         return None
 
-
-class JobsParentsTable(Table):
-    def __init__(self, db):
-        super().__init__(db, 'jobs-parents')
-
     async def get_parents(self, job_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                jobs_name = self._db.jobs.name
-                sql = f"""SELECT * FROM `{jobs_name}`
-                          INNER JOIN `{self.name}`
-                          ON `{jobs_name}`.id = `{self.name}`.parent_id
-                          WHERE `{self.name}`.job_id = %s"""
+                jobs_parents_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{self.name}`
+                          INNER JOIN `{jobs_parents_name}`
+                          ON `{self.name}`.id = `{jobs_parents_name}`.parent_id
+                          WHERE `{jobs_parents_name}`.job_id = %s"""
                 await cursor.execute(sql, job_id)
                 return await cursor.fetchall()
 
     async def get_children(self, parent_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                jobs_name = self._db.jobs.name
-                sql = f"""SELECT * FROM `{jobs_name}`
-                          INNER JOIN `{self.name}`
-                          ON `{jobs_name}`.id = `{self.name}`.job_id
-                          WHERE `{self.name}`.parent_id = %s"""
+                jobs_parents_name = self._db.jobs.name
+                sql = f"""SELECT * FROM `{self.name}`
+                          INNER JOIN `{jobs_parents_name}`
+                          ON `{self.name}`.id = `{jobs_parents_name}`.job_id
+                          WHERE `{jobs_parents_name}`.parent_id = %s"""
                 await cursor.execute(sql, parent_id)
                 return await cursor.fetchall()
+
+
+class JobsParentsTable(Table):
+    def __init__(self, db):
+        super().__init__(db, 'jobs-parents')
 
     async def has_record(self, job_id, parent_id):
         return await super().has_record({'job_id': job_id, 'parent_id': parent_id})
@@ -122,14 +122,21 @@ class BatchTable(Table):
     async def has_record(self, id):
         return await super().has_record({'id': id})
 
+    async def get_jobs(self, batch_id):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_jobs_name = self._db.batch_jobs.name
+                sql = f"""SELECT * FROM `{self.name}`
+                                  INNER JOIN `{batch_jobs_name}`
+                                  ON `{self.name}`.id = `{batch_jobs_name}`.job_id
+                                  WHERE `{batch_jobs_name}`.batch_id = %s"""
+                await cursor.execute(sql, batch_id)
+                return await cursor.fetchall()
+
 
 class BatchJobsTable(Table):
     def __init__(self, db):
         super().__init__(db, 'batch-jobs')
-
-    async def get_jobs(self, batch_id):
-        result = await super().get_record({'batch_id': batch_id})
-        return [record['job_id'] for record in result]
 
     async def delete_record(self, batch_id, job_id):
         await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
