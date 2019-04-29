@@ -11,6 +11,46 @@ object Contig {
 object VariantMethods {
   def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
+
+  def minRep(locus: Locus, alleles: IndexedSeq[String]): (Locus, IndexedSeq[String]) = {
+    val ref = alleles(0)
+
+    val altAlleles = alleles.tail
+
+    if (ref.length == 1)
+      (locus, alleles)
+    else if (altAlleles.forall(a => a == "*"))
+      (locus, ref.substring(0, 1) +: altAlleles)
+    else {
+      val alts = altAlleles.filter(a => a != "*")
+      require(!alts.contains(ref))
+
+      val min_length = math.min(ref.length, alts.map(x => x.length).min)
+      var ne = 0
+
+      while (ne < min_length - 1
+        && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
+      ) {
+        ne += 1
+      }
+
+      var ns = 0
+      while (ns < min_length - ne - 1
+        && alts.forall(x => ref(ns) == x(ns))
+      ) {
+        ns += 1
+      }
+
+      if (ne + ns == 0)
+        (locus, alleles)
+      else {
+        assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
+        (Locus(locus.contig, locus.position + ns),
+          ref.substring(ns, ref.length - ne) +:
+            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray)
+      }
+    }
+  }
 }
 
 object VariantSubgen {
