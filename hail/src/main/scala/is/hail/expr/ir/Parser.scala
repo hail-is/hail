@@ -721,7 +721,7 @@ object IRParser {
       case "ArrayAggScan" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAggScan(a, name, query)
       case "AggFilter" =>
         val isScan = boolean_literal(it)

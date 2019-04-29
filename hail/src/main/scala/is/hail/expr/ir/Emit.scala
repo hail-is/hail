@@ -1479,14 +1479,14 @@ private class Emit(
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
-        val bodyEnv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
+        val bodyEnv = env.bind(name, (elementTypeInfoA, xmv.load(), xvv.load()))
         val accumulate = this.emit(perElt, bodyEnv, Some(rvas), er)
 
         val aggr = mb.newField[Long]("AGGR")
         val rvb = mb.newField[RegionValueBuilder]("rvb")
         val i = mb.newField[Int]("i")
 
-        val postEnv = bodyEnv.bind("AGGR" -> (typeInfo[Long], const(false), aggr.load()))
+        val postEnv = bodyEnv.bind("AGGR", (typeInfo[Long], const(false), aggr.load()))
         val codePost = emit(postAggIR, env = postEnv)
 
         val scanCont = { (cont: F, m: Code[Boolean], v: Code[_]) =>
