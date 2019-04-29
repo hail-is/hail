@@ -225,6 +225,35 @@ class Test(unittest.TestCase):
         n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
         self.assertTrue(n_failed == 1)
 
+    def test_batch_status(self):
+        b1 = self.batch.create_batch()
+        b1.create_job('alpine', ['true'])
+
+        b2 = self.batch.create_batch()
+        b2.create_job('alpine', ['false'])
+        b2.create_job('alpine', ['true'])
+
+        b3 = self.batch.create_batch()
+        b3.create_job('alpine', ['sleep', '30'])
+
+        b4 = self.batch.create_batch()
+        j1 = b4.create_job('alpine', ['sleep', '30'])
+        j1.cancel()
+
+        batches = self.batch.list_batches()
+        statuses = {b.id: b.status() for b in batches}
+
+        b1s = statuses[b1.id]
+        assert b1s['complete'] and b1s['state'] == 'success'
+        b2s = statuses[b2.id]
+        assert b2s['complete'] and b2s['state'] == 'failure'
+        b3s = statuses[b3.id]
+        assert not b3s['complete'] and b3s['state'] == 'running'
+        b4s = statuses[b4.id]
+        assert b4s['complete'] and b4s['state'] == 'cancelled'
+
+        b3.cancel()
+
     def test_callback(self):
         app = Flask('test-client')
 

@@ -1,4 +1,4 @@
-from ..database import Database, Table
+from ..database import Database, Table, make_where_statement
 
 
 class BatchDatabase(Database):
@@ -11,7 +11,7 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
-    uri_log_mapping = {'input': 'input_log_uri',
+    log_uri_mapping = {'input': 'input_log_uri',
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
@@ -25,7 +25,7 @@ class JobsTable(Table):
         return await super().get_all_records()
 
     async def get_records(self, ids, fields=None):
-        return await super().get_record({'id': ids}, fields)
+        return await super().get_records({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -61,13 +61,13 @@ class JobsTable(Table):
         return await self.get_records_where({'batch_id': batch_id})
 
     async def get_records_where(self, condition):
-        return await super().get_record(condition)
+        return await super().get_records(condition)
 
     async def update_log_uri(self, id, task_name, uri):
-        await self.update_record(id, **{JobsTable.uri_log_mapping[task_name]: uri})
+        await self.update_record(id, **{JobsTable.log_uri_mapping[task_name]: uri})
 
     async def get_log_uri(self, id, task_name):
-        uri_field = JobsTable.uri_log_mapping[task_name]
+        uri_field = JobsTable.log_uri_mapping[task_name]
         records = await self.get_records(id, fields=[uri_field])
         if records:
             assert len(records) == 1
@@ -116,10 +116,38 @@ class BatchTable(Table):
         await super().update_record({'id': id}, items)
 
     async def get_all_records(self):
-        return await super().get_all_records()
+        return await self._get_records()
 
-    async def get_records(self, ids, fields=None):
-        return await super().get_record({'id': ids}, fields)
+    async def get_records(self, ids):
+        return await self._get_records(ids)
+
+    async def _get_records(self, ids=None):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_name = self.name
+                jobs_name = self._db.jobs.name
+                batch_jobs_name = self._db.batch_jobs.name
+                if ids is not None:
+                    where_template, where_values = make_where_statement({'id': ids})
+                    where_template = f'WHERE {where_template}'
+                else:
+                    where_template = ''
+                    where_values = ()
+
+                sql = f"""SELECT
+                `{batch_name}`.*,
+                sum(case when `{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code = 0) = count(*) as success,
+                sum(case when `{jobs_name}`.state = 'Cancelled') > 0 as cancelled,
+                sum(case when `{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code > 0) > 0 as failure,
+                sum(case when `{jobs_name}`.state = 'Complete' || `{jobs_name}`.state = 'Cancelled') = count(*) as complete
+                FROM `{batch_name}`
+                INNER JOIN `{batch_jobs_name}` ON `{batch_name}`.id = `{batch_jobs_name}`.`batch_id`
+                INNER JOIN `{jobs_name}` ON `{jobs_name}`.id = `{batch_jobs_name}`.`job_id`
+                {where_template}
+                GROUP BY `{batch_name}`.`id`"""
+
+                await cursor.execute(sql, where_values)
+                return await cursor.fetchall()
 
     async def has_record(self, id):
         return await super().has_record({'id': id})

@@ -539,13 +539,13 @@ class Job:
                         f'callback for job {id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, await self.to_dict())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
 
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
             await batch.mark_job_complete(self)
 
-    async def to_dict(self):
+    def to_dict(self):
         result = {
             'id': self.id,
             'state': self._state
@@ -649,7 +649,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         output_files=output_files,
         userdata=userdata,
         always_run=always_run)
-    return jsonify(await job.to_dict())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/healthcheck')
@@ -663,7 +663,7 @@ async def get_job_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    jobs = [Job.from_record(record) for record in await db.jobs.get_record({'user': user})]
+    jobs = [Job.from_record(record) for record in await db.jobs.get_records({'user': user})]
 
     for name, value in params.items():
         if name == 'complete':
@@ -683,7 +683,7 @@ async def get_job_list(request, userdata):
             jobs = [job for job in jobs
                     if job.attributes and k in job.attributes and job.attributes[k] == value]
 
-    return jsonify([await job.to_dict() for job in jobs])
+    return jsonify([job.to_dict() for job in jobs])
 
 
 @routes.get('/jobs/{job_id}')
@@ -695,7 +695,7 @@ async def get_job(request, userdata):
     job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
-    return jsonify(await job.to_dict())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/jobs/{job_id}/log')
@@ -748,13 +748,27 @@ class Batch:
         if record is not None:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
+
+            if record['failure'] == 1:
+                state = 'failure'
+            elif record['cancelled'] == 1:
+                state = 'cancelled'
+            elif record['success'] == 1:
+                state = 'success'
+            else:
+                state = 'running'
+
+            complete = record['complete'] == 1
+
             return Batch(id=record['id'],
                          attributes=attributes,
                          callback=record['callback'],
                          ttl=record['ttl'],
                          is_open=record['is_open'],
                          userdata=userdata,
-                         user=record['user'])
+                         user=record['user'],
+                         state=state,
+                         complete=complete)
         return None
 
     @staticmethod
@@ -782,11 +796,13 @@ class Batch:
                                        user=user)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
-                      ttl=ttl, is_open=is_open, userdata=userdata, user=user)
+                      ttl=ttl, is_open=is_open, userdata=userdata, user=user,
+                      state='running', complete=False)
         batch.close_ttl()
         return batch
 
-    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user):
+    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user,
+                 state, complete):
         self.id = id
         self.attributes = attributes
         self.callback = callback
@@ -794,6 +810,8 @@ class Batch:
         self.is_open = is_open
         self.userdata = userdata
         self.user = user
+        self.state = state
+        self.complete = complete
 
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
@@ -821,7 +839,7 @@ class Batch:
 
             threading.Thread(
                 target=handler,
-                args=(self.id, job.id, self.callback, await job.to_dict())
+                args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
     def close_ttl(self):
@@ -839,22 +857,23 @@ class Batch:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
     async def is_complete(self):
-        jobs = await self.get_jobs()
-        return all(j.is_complete() for j in jobs)
+        return self.complete
 
     async def is_successful(self):
-        jobs = await self.get_jobs()
-        return all(j.is_successful() for j in jobs)
+        return self.state == 'success'
 
-    async def to_dict(self):
-        jobs = await self.get_jobs()
+    async def to_dict(self, include_jobs=True):
         result = {
             'id': self.id,
-            'jobs': sorted([await j.to_dict() for j in jobs], key=lambda j: j['id']),
-            'is_open': self.is_open
+            'is_open': self.is_open,
+            'state': self.state,
+            'complete': self.complete,
         }
         if self.attributes:
             result['attributes'] = self.attributes
+        if include_jobs:
+            jobs = await self.get_jobs()
+            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['id'])
         return result
 
 
@@ -864,7 +883,7 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_record({'user': user})]
+    batches = [Batch.from_record(record) for record in await db.batch.get_records({'user': user})]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -883,7 +902,7 @@ async def get_batches_list(request, userdata):
             batches = [batch for batch in batches
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
-    return jsonify([await batch.to_dict() for batch in batches])
+    return jsonify([await batch.to_dict(include_jobs=False) for batch in batches])
 
 
 @routes.post('/batches/create')
@@ -920,7 +939,7 @@ async def get_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return jsonify(await batch.to_dict())
+    return jsonify(await batch.to_dict(include_jobs=True))
 
 
 @routes.patch('/batches/{batch_id}/cancel')

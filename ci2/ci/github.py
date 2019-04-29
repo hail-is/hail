@@ -7,7 +7,7 @@ import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
 from .environment import SELF_HOSTNAME
-from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
+from .utils import CalledProcessError, check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
@@ -293,7 +293,6 @@ mkdir -p {shq(repo_dir)}
         if self.batch:
             seen_batch_ids.add(self.batch.id)
             status = await self.batch.status()
-            update_batch_status(status)
             if status['complete']:
                 if status['state'] == 'success':
                     self.build_state = 'success'
@@ -476,7 +475,6 @@ class WatchedBranch(Code):
 
             if self.deploy_batch:
                 status = await self.deploy_batch.status()
-                update_batch_status(status)
                 if status['complete']:
                     if status['state'] == 'success':
                         self.deploy_state = 'success'
