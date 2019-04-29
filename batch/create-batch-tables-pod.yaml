@@ -12,7 +12,7 @@ spec:
      - |
        set -ex
        # index creation isn't idempotent, don't create if a table exists
-       JOBS=$(echo "SHOW TABLES LIKE 'jobs';" | mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf)
+       JOBS=$(echo "SHOW TABLES LIKE 'jobs';" | mysql -s --defaults-extra-file=/secrets/batch-admin/sql-config.cnf)
        if [ "$JOBS" != "jobs" ]; then
          mysql --defaults-extra-file=/secrets/batch-admin/sql-config.cnf < ./create-batch-tables.sql
        fi
