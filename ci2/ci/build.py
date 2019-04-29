@@ -217,6 +217,7 @@ mv {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
 set -ex
 date
 
+rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
 {render_dockerfile}
@@ -593,10 +594,10 @@ date
             for w in self.wait:
                 if w['kind'] == 'Pod':
                     script += f'''\
-kubectl delete --ignore-not-found pod {w['name']}
+kubectl -n {self.namespace} delete --ignore-not-found pod {w['name']}
 '''
         script += f'''
-echo {shq(rendered_config)} | kubectl apply -n {self.namespace} -f -
+echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
 '''
 
         if self.wait:

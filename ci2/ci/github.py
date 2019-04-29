@@ -506,7 +506,7 @@ class WatchedBranch(Code):
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
-                log.info(f'cancel batch for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
+                log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
     async def _start_deploy(self, batch_client):
