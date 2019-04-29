@@ -278,7 +278,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val setup = Code.sequence(va.map(_.setup))
 
-        //  if (${mbs(i)}) $m = true;
         val computeMissingAndValue = va.indices.init
           .foldRight(
             s"""$m = ${va.last.m};
