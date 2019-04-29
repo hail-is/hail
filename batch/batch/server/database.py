@@ -147,28 +147,36 @@ class BatchTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
-    async def get_by(self, complete, success, attributes):
-        if complete:
-            sql = "SELECT batch.*"
-
-        where = []
+    async def find_records(self, user, complete=None, success=None, attributes=None):
+        values = []
+        select = "select batch.* from {self.name} as batch"
         joins = ""
+        wheres = ""
+        if attributes:
+            sql += " inner join {self._db.batch_attributes} as attr using (batch_id) "
         if complete or success:
-            joins += "INNER JOIN {self._db.batch_jobs.name} AS jobs USING (batch_id)"
+            sql += " inner join {self._db.batch_jobs.name} as bj using (batch_id)"
+            sql += " inner join {self._db.jobs.name} as job using (job_id)"
+        if attributes:
+            
+        if complete is not None:
+            values += "Complete"
             if complete:
-                where.append("batch.
+                sql += " where job.state = %s"
             else:
-                
-        where = " OR ".join("(attr.key = %s AND attr.value = %s)" for _ in attributes)
-        values = [x for key, val in attributes.items() for x in (key, val)]
-        query = f"""SELECT batch.*
-FROM {self.name} AS batch
-INNER JOIN {self._db.batch_attributes.name} AS attr USING (batch_id)
-WHERE {where};
-"""
-        async with self.pool.acquire() as conn:
+                sql += " where job.state != %s"
+        if success:
+            values += 0
+            if success:
+                sql += " where job.exit_code = %s"
+            else:
+                sql += " where job.exit_code != %s"
+        if user:
+            values += user
+            sql += " where job.user = %s"
+        async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute(self._get_batch_by_attributes_sql(**attributes))
+                await cursor.execute(sql, tuple(values))
                 return await cursor.fetchall()
 
     async def has_record(self, id):
