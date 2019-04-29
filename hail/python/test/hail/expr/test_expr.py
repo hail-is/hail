@@ -2854,7 +2854,7 @@ class Tests(unittest.TestCase):
         assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
         assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
 
-        self.assertRaises(TypeError, lambda: hl.array([1,2,3]).a)
-        self.assertRaises(TypeError, lambda: hl.array([1,2,3])["a"])
-        self.assertRaises(TypeError, lambda: hl.array([[1],[2],[3]])["a"])
-        self.assertRaises(TypeError, lambda: hl.array([{1},{2},{3}])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
