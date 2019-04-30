@@ -27,7 +27,7 @@ object FreeVariables {
             .map {
               case (child: IR, i) =>
                 val childEnv = ChildEnvWithoutBindings(ir1, i, baseEnv)
-                val sub = compute(child, ChildEnvWithoutBindings(ir1, i, childEnv))
+                val sub = compute(child, childEnv)
                   .subtract(NewBindings(ir1, i, childEnv))
                 if (UsesAggEnv(ir1, i))
                   sub.copy(agg = Some(sub.eval))
