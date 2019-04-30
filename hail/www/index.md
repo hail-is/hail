@@ -1,6 +1,6 @@
 # Hail
 
-[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
+Hail is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
 
 Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS).
 
@@ -11,15 +11,7 @@ Hail. Post to the [Discussion Forum](http://discuss.hail.is) for user support
 and feature requests. Chat with the Hail team and user community in Hail's
 [Zulip chatroom](https://hail.zulipchat.com).
 
-### Contribute
-
-If you'd like to discuss or contribute to the development of methods or infrastructure, please:
-
-- see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
-- chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
-- visit the [Development Forum](http://dev.hail.is) for longer-form discussions
-
-Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the [Discussion Forum](http://discuss.hail.is). We recommend creating an account on the Discussion Forum so that you can subscribe to these updates as well.
+Hail is actively developed, and new features are frequently added. See the [changelog](https://hail.is/docs/0.2/change_log.html) for more information.
 
 ### Maintainer
 
@@ -75,15 +67,17 @@ Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ##### Acknowledgements
 
 The Hail team has several sources of funding at the Broad Institute:
-- The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
-- Principal Investigators Benjamin Neale and Daniel MacArthur, whose scientific leadership has been essential for solving the right problems.
-- Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
+
+ - The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
+ - Principal Investigators Benjamin Neale and Daniel MacArthur, whose scientific leadership has been essential for solving the right problems.
+ - Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
 
 We are grateful for generous support from:
-- The National Institute of Diabetes and Digestive and Kidney Diseases
-- The National Institute of Mental Health
-- The National Human Genome Research Institute
-- The Chan Zuckerburg Initiative
+
+ - The National Institute of Diabetes and Digestive and Kidney Diseases
+ - The National Institute of Mental Health
+ - The National Human Genome Research Institute
+ - The Chan Zuckerburg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
 open-source by providing free hosting, and YourKit, LLC for generously providing
