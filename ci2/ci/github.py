@@ -5,7 +5,8 @@ import asyncio
 import aiohttp
 import gidgethub
 from .log import log
-from .constants import GITHUB_CLONE_URL, SELF_HOSTNAME
+from .constants import GITHUB_CLONE_URL
+from .environment import SELF_HOSTNAME
 from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
 from .build import BuildConfiguration, Code
 
