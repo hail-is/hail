@@ -78,17 +78,17 @@ async def main():
 
     args = parser.parse_args()
 
-    if 'USE_KUBE_CONFIG' in os.environ:
-        await config.load_kube_config()
-    else:
-        config.load_incluster_config()
-    v1 = client.CoreV1Api()
-
     if args.kind == 'Pod':
+        if 'USE_KUBE_CONFIG' in os.environ:
+            await config.load_kube_config()
+        else:
+            config.load_incluster_config()
+        v1 = client.CoreV1Api()
+
         t = wait_for_pod_complete(v1, args.namespace, args.name)
     else:
         assert args.kind == 'Service'
-        t = wait_for_service_alive(v1, args.namespace, args.name)
+        t = wait_for_service_alive(args.namespace, args.name)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 
