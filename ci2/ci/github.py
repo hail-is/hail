@@ -155,7 +155,8 @@ class PR(Code):
         new_source_sha = head['sha']
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
-            self.set_build_state_to_unknown(new_source_sha)
+            self.source_sha = new_source_sha
+            self.set_build_state_to_unknown()
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -188,25 +189,21 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def tip_source_sha_has_been_built_once(self):
-        current_build_is_complete = self.build and self.build.is_complete()
-        most_recent_build_is_tip_and_complete = (
-            self.most_recent_build and self.source_sha == self.most_recent_build.source_sha and self.most_recent_build.is_complete())
-        return current_build_is_complete or most_recent_build_is_tip_and_complete
-
     def should_build(self):
-        return not self.tip_source_sha_has_been_built_once() and self.most_recent_build.is_complete()
+        return self.batch is None and (
+            self.most_recent_build is None or self.source_sha != self.most_recent_build.source_sha)
 
     def build_complete(self):
         return complete_build_state(self.build_state)
 
     def should_update_most_recent_build(self):
         return self.batch is not None and (
-            self.most_recent_build is None or self.build_complete() or (not self.most_recent_build.is_complete()))
+            self.most_recent_build is None or
+            self.build_complete() or
+            (not self.most_recent_build.is_complete() and
+             self.source_sha != self.most_recent_build.source_sha))
 
-    def set_build_state_to_unknown(self, new_source_sha=None):
-        if new_source_sha is not None:
-            self.source_sha = new_source_sha
+    def set_build_state_to_unknown(self):
         if self.should_update_most_recent_build():
             self.most_recent_build = MostRecentBuild(self.batch.attributes['source_sha'],
                                                      self.batch.attributes['target_sha'],
