@@ -367,10 +367,6 @@ class Job:
             await db.jobs_parents.new_record(job_id=id,
                                              parent_id=parent)
 
-        if batch_id:
-            await db.batch_jobs.new_record(batch_id=batch_id,
-                                           job_id=id)
-
         log.info('created job {}'.format(id))
 
         if not parent_ids:
@@ -403,7 +399,7 @@ class Job:
 
     # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
-        for record in await db.jobs_parents.get_parents(self.id):
+        for record in await db.jobs.get_parents(self.id):
             parent_job = Job.from_record(record)
             await self.parent_new_state(parent_job._state, parent_job.id)
 
@@ -433,7 +429,7 @@ class Job:
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
         if self._state == 'Created' and not incomplete_parent_ids:
-            parents = [Job.from_record(record) for record in await db.jobs_parents.get_parents(self.id)]
+            parents = [Job.from_record(record) for record in await db.jobs.get_parents(self.id)]
             if (self.always_run or
                     (all(p.is_successful() for p in parents) and not self._cancelled)):
                 log.info(f'all parents complete for {self.id},'
@@ -457,15 +453,11 @@ class Job:
             await self._delete_k8s_resources()
 
     async def delete(self):
-        children = [Job.from_record(record) for record in await db.jobs_parents.get_children(self.id)]
+        children = [Job.from_record(record) for record in await db.jobs.get_children(self.id)]
         for child in children:
             await child.cancel()
 
         await db.jobs.delete_record(self.id)
-
-        if self.batch_id:
-            await db.batch_jobs.delete_record(self.batch_id, self.id)
-
         await db.jobs_parents.delete_records_where({'job_id': self.id})
         await db.jobs_parents.delete_records_where({'parent_id': self.id})
 
@@ -804,8 +796,7 @@ class Batch:
         self.user = user
 
     async def get_jobs(self):
-        job_ids = await db.batch_jobs.get_jobs(self.id)
-        return [await Job.from_db(jid, self.user) for jid in job_ids]
+        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
         jobs = await self.get_jobs()
@@ -818,11 +809,7 @@ class Batch:
             assert j.batch_id == self.id
             await db.jobs.update_record(j.id, batch_id=None)
 
-    async def remove(self, job):
-        await db.batch_jobs.delete_record(self.id, job.id)
-
     async def mark_job_complete(self, job):
-        assert await db.batch_jobs.has_record(self.id, job.id)
         if self.callback:
             def handler(id, job_id, callback, json):
                 try:
