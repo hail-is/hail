@@ -77,10 +77,76 @@ class Batch:
                          input_files=None, output_files=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
-        return await self.client._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, input_files, output_files,
-            always_run)
+
+        if env:
+            env = [{'name': k, 'value': v} for (k, v) in env.items()]
+        else:
+            env = []
+        env.extend([{
+            'name': 'POD_IP',
+            'valueFrom': {
+                'fieldRef': {'fieldPath': 'status.podIP'}
+            }
+        }, {
+            'name': 'POD_NAME',
+            'valueFrom': {
+                'fieldRef': {'fieldPath': 'metadata.name'}
+            }
+        }])
+
+        container = {
+            'image': image,
+            'name': 'main'
+        }
+        if command:
+            container['command'] = command
+        if args:
+            container['args'] = args
+        if env:
+            container['env'] = env
+        if ports:
+            container['ports'] = [{
+                'containerPort': p,
+                'protocol': 'TCP'
+            } for p in ports]
+        if resources:
+            container['resources'] = resources
+        if volumes:
+            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
+        spec = {
+            'containers': [container],
+            'restartPolicy': 'Never'
+        }
+        if volumes:
+            spec['volumes'] = [v['volume'] for v in volumes]
+        if tolerations:
+            spec['tolerations'] = tolerations
+        if security_context:
+            spec['securityContext'] = security_context
+        if service_account_name:
+            spec['serviceAccountName'] = service_account_name
+
+        doc = {
+            'spec': spec,
+            'parent_ids': parent_ids,
+            'always_run': always_run,
+            'batch_id': self.id
+        }
+        if attributes:
+            doc['attributes'] = attributes
+        if callback:
+            doc['callback'] = callback
+        if input_files:
+            doc['input_files'] = input_files
+        if output_files:
+            doc['output_files'] = output_files
+
+        j = await self.client._post('/jobs/create', json=doc)
+
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []))
 
     async def close(self):
         await self.client._patch('/batches/{}/close'.format(self.id))
@@ -147,95 +213,6 @@ class BatchClient:
         await self._session.delete(
             self.url + path, cookies=self.cookies, headers=self.headers)
 
-    async def _create_job(self,  # pylint: disable=R0912
-                          image,
-                          command,
-                          args,
-                          env,
-                          ports,
-                          resources,
-                          tolerations,
-                          volumes,
-                          security_context,
-                          service_account_name,
-                          attributes,
-                          batch_id,
-                          callback,
-                          parent_ids,
-                          input_files,
-                          output_files,
-                          always_run):
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
-
-        container = {
-            'image': image,
-            'name': 'main'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
-
-        doc = {
-            'spec': spec,
-            'parent_ids': parent_ids,
-            'always_run': always_run
-        }
-        if attributes:
-            doc['attributes'] = attributes
-        if batch_id:
-            doc['batch_id'] = batch_id
-        if callback:
-            doc['callback'] = callback
-        if input_files:
-            doc['input_files'] = input_files
-        if output_files:
-            doc['output_files'] = output_files
-
-        j = await self._post('/jobs/create', json=doc)
-
-        return Job(self,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []))
-
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')
 
@@ -270,30 +247,6 @@ class BatchClient:
         return Batch(self,
                      j['id'],
                      attributes=j.get('attributes'))
-
-    async def create_job(self,
-                         image,
-                         command=None,
-                         args=None,
-                         env=None,
-                         ports=None,
-                         resources=None,
-                         tolerations=None,
-                         volumes=None,
-                         security_context=None,
-                         service_account_name=None,
-                         attributes=None,
-                         callback=None,
-                         parent_ids=None,
-                         input_files=None,
-                         output_files=None,
-                         always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return await self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, input_files, output_files,
-            always_run)
 
     async def create_batch(self, attributes=None, callback=None, ttl=None):
         doc = {}
