@@ -55,34 +55,6 @@ class OrderingSuite extends SparkSuite {
     }.toArray
   }
 
-  def getCompiledFunction(irFunction: Seq[IR] => IR, ts: Type*): (Region, Seq[Annotation]) => Annotation = {
-    val args = ts.init
-    val rt = ts.last
-    val irs = args.zipWithIndex.map { case (t, i) => GetTupleElement(In(i, TTuple(t)), 0) }
-    val ir = MakeTuple(Seq(irFunction(irs)))
-
-    args.size match {
-      case 1 =>
-        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long]
-        Emit(ir, fb)
-        val f = fb.resultWithIndex()(0)
-        val f2 = { (region: Region, as: Seq[Annotation]) =>
-          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
-          SafeRow(TTuple(rt).physicalType, region, f(region, offs(0), false)).get(0)
-        }
-        f2
-      case 2 =>
-        val fb = EmitFunctionBuilder[Region, Long, Boolean, Long, Boolean, Long]
-        Emit(ir, fb)
-        val f = fb.resultWithIndex()(0)
-        val f2 = { (region: Region, as: Seq[Annotation]) =>
-          val offs = addTupledArgsToRegion(region, args.zip(as): _*)
-          SafeRow(TTuple(rt).physicalType, region, f(region, offs(0), false, offs(1), false)).get(0)
-        }
-        f2
-    }
-  }
-
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -140,45 +112,40 @@ class OrderingSuite extends SparkSuite {
   }
 
   @Test def testSortOnRandomArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
       asc <- Gen.coin()
     } yield (elt, a, asc)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
-      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal.coerce(TBoolean(), asc)) }
-      val f = getCompiledFunction(irF, TArray(t), TArray(t))
       val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
-
-      Region.scoped { region =>
-        val actual = f(region, Seq(a))
-        val expected = a.sorted(ord)
-        expected == actual
-      }
+      assertEvalsTo(ArraySort(In(0, TArray(t)), Literal.coerce(TBoolean(), asc)),
+        FastIndexedSeq(a -> TArray(t)),
+        expected = a.sorted(ord))
+      true
     }
     p.check()
   }
 
   @Test def testToSetOnRandomDuplicatedArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
       a <- TArray(elt).genNonmissingValue
     } yield (elt, a)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
       val array = a ++ a
-      val irF = { irs: Seq[IR] => ToSet(irs(0)) }
-      val f = getCompiledFunction(irF, TArray(t), TArray(t))
-
-      Region.scoped { region =>
-        val actual = f(region, Seq(array))
-        val expected = array.sorted(t.ordering.toOrdering).distinct
-        expected == actual
-      }
+      assertEvalsTo(ToArray(ToSet(In(0, TArray(t)))),
+        FastIndexedSeq(array -> TArray(t)),
+        expected = array.sorted(t.ordering.toOrdering).distinct)
+      true
     }
     p.check()
   }
 
   @Test def testToDictOnRandomDuplicatedArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       kt <- Type.genArb
       vt <- Type.genArb
@@ -186,60 +153,46 @@ class OrderingSuite extends SparkSuite {
       a <- TArray(telt).genNonmissingValue
     } yield (telt, a)
     val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]@unchecked) =>
+      val tdict = TDict(telt.types(0), telt.types(1))
       val array: IndexedSeq[Row] = a ++ a
-      val irF = { irs: Seq[IR] => ToDict(irs(0)) }
-      val f = getCompiledFunction(irF, TArray(telt), TArray(+telt))
-
-      Region.scoped { region =>
-        val actual = f(region, Seq(array)).asInstanceOf[IndexedSeq[Row]]
-        val actualKeys = actual.filter(_ != null).map { case Row(k, _) => k }
-        val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
-        val expectedKeys = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering)
-
-        expectedKeys == actualKeys
-      }
+      val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
+      assertEvalsTo(
+        ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
+        "x", GetField(Ref("x", tdict.elementType), "key")),
+        FastIndexedSeq(array -> TArray(telt)),
+        expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering))
+      true
     }
     p.check()
   }
 
   @Test def testSortOnMissingArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
     val tarray = TArray(TStruct("key" -> TInt32(), "value" -> TInt32()))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
-    for (irF <- irs) {
-      val ir = IsNA(irF(NA(tarray)))
-      val fb = EmitFunctionBuilder[Region, Boolean]
-      Emit(ir, fb)
-
-      val f = fb.resultWithIndex()(0)
-      Region.scoped { region =>
-        assert(f(region))
-      }
-    }
+    for (irF <- irs) { assertEvalsTo(IsNA(irF(NA(tarray))), true) }
   }
 
   @Test def testSetContainsOnRandomSet() {
+    implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
     val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any]@unchecked, test1) =>
       val telt = tset.elementType
 
-      val ir = { irs: Seq[IR] => invoke("contains", irs(0), irs(1)) }
-      val setcontainsF = getCompiledFunction(ir, tset, telt, TBoolean())
-
-      Region.scoped { region =>
-        if (set.nonEmpty) {
-          val test2 = set.head
-          val expected2 = set(test2)
-          val actual2 = setcontainsF(region, Seq(set, test2))
-          assert(expected2 == actual2)
-        }
-
-        val expected1 = set.contains(test1)
-        val actual1 = setcontainsF(region, Seq(set, test1))
-
-        expected1 == actual1
+      if (set.nonEmpty) {
+        assertEvalsTo(
+          invoke("contains", In(0, tset), In(1, telt)),
+          FastIndexedSeq(set -> tset, set.head -> telt),
+          expected = true)
       }
+
+      assertEvalsTo(
+        invoke("contains", In(0, tset), In(1, telt)),
+        FastIndexedSeq(set -> tset, test1 -> telt),
+        expected = set.contains(test1))
+      true
     }
     p.check()
   }
@@ -362,23 +315,14 @@ class OrderingSuite extends SparkSuite {
   }
 
   @Test def testContainsWithArrayFold() {
-
+    implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeArray(Seq(I32(1), I32(4)), TArray(TInt32())))
     val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
-    val ir =
-      ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
+    assertEvalsTo(ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
         ApplySpecial("&&",
           FastSeq(
             Ref("accumulator", TBoolean()),
-            invoke("contains", set2, Ref("setelt", TInt32())))))
-
-    val fb = EmitFunctionBuilder[Region, Boolean]
-    Emit(ir, fb)
-
-    val f = fb.resultWithIndex()(0)
-    Region.scoped { region =>
-      assert(f(region))
-    }
+            invoke("contains", set2, Ref("setelt", TInt32()))))), true)
   }
 
   @DataProvider(name = "arrayDoubleOrderingData")
