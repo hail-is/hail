@@ -100,7 +100,7 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 object NDArrayLoopEmitter {
   def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
     idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
-        s"$idxVar * $strides[$dim] + $linearIndex"
+        s"($idxVar * $strides[$dim] + $linearIndex)"
     }
   }
 
