@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(40) NOT NULL,
   `exit_code` INT,
-  `batch_id` BIGINT,
+  `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc` TEXT(65535),
   `callback` TEXT(65535),
@@ -24,8 +24,8 @@ CREATE INDEX jobs_user ON jobs (user);
 CREATE INDEX jobs_batch ON jobs (batch_id);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
-  `job_id` BIGINT,
-  `parent_id` BIGINT,
+  `job_id` BIGINT NOT NULL,
+  `parent_id` BIGINT NOT NULL,
   PRIMARY KEY (`job_id`, `parent_id`)
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (parent_id);
