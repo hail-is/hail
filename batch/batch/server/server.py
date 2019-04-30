@@ -507,8 +507,8 @@ class Job:
             if terminated.finished_at is not None and terminated.started_at is not None:
                 self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
             else:
-                log.warn(f'job {self.id} has pod {pod.metadata.name} which is '
-                         f'terminated but has no timing information. {pod}')
+                log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
+                            f'terminated but has no timing information. {pod}')
                 self.duration = None
             await db.jobs.update_record(self.id,
                                         exit_code=self.exit_code,
@@ -977,8 +977,7 @@ async def close_batch(request, userdata):
 
 async def update_job_with_pod(job, pod):
     log.info(f'update job {job.id} with pod {pod.metadata.name if pod else "None"}')
-    if (not pod
-        or (pod.status and pod.status.reason == 'Evicted')):
+    if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.id} mark unscheduled')
         await job.mark_unscheduled()
     elif (pod
