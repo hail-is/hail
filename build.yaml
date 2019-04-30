@@ -117,6 +117,7 @@ steps:
    script: |
      set -ex
      cd /io
+     rm -rf repo
      mkdir repo
      cd repo
      {{ code.checkout_script }}
