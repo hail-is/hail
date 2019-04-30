@@ -356,14 +356,41 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
+@typecheck(p=bokeh.plotting.Figure, font_size=str)
+def set_font_size(p, font_size: str = '12pt'):
+    """Set most of the font sizes in a bokeh figure
+
+    Parameters
+    ----------
+    p : :class:`bokeh.plotting.figure.Figure`
+        Input figure.
+    font_size : str
+        String of font size in points (e.g. '12pt').
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    p.legend.label_text_font_size = font_size
+    p.xaxis.axis_label_text_font_size = font_size
+    p.yaxis.axis_label_text_font_size = font_size
+    p.xaxis.major_label_text_font_size = font_size
+    p.yaxis.major_label_text_font_size = font_size
+    if hasattr(p.title, 'text_font_size'):
+        p.title.text_font_size = font_size
+    if hasattr(p.xaxis, 'group_text_font_size'):
+        p.xaxis.group_text_font_size = font_size
+    return p
+
+
 @typecheck(x=expr_numeric, y=expr_numeric, bins=oneof(int, sequenceof(int)),
            range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
            colors=sequenceof(str),
            log=bool)
-def histogram2d(x: hl.expr.NumericExpression,
-                y: hl.expr.NumericExpression,
+def histogram2d(x: NumericExpression,
+                y: expr.NumericExpression,
                 bins: int = 40,
                 range: Tuple[int, int] = None,
                 title: str = None,

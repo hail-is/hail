@@ -1,4 +1,4 @@
-from .plots import output_notebook, show, histogram, cumulative_histogram, histogram2d, scatter, joint_plot, qq, manhattan, pdf, cdf
+from .plots import output_notebook, show, histogram, cumulative_histogram, histogram2d, scatter, joint_plot, qq, manhattan, pdf, cdf, set_font_size
 
 __all__ = ['output_notebook',
            'show',
@@ -10,4 +10,5 @@ __all__ = ['output_notebook',
            'qq',
            'manhattan',
            'pdf',
-           'cdf']
+           'cdf',
+           'set_font_size']
