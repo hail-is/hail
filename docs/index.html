@@ -15,12 +15,6 @@
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
           integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr"
           crossorigin="anonymous">
-
-    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
-    <script src="//unpkg.com/vue@latest/dist/vue.js"></script>
-    <script src="//unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
-    <script src="vue-clipboard.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/3.4.2/fuse.js"></script>
 </head>
 <body>
     <div id="app" class="m-2">
@@ -111,6 +105,7 @@
         </b-container>
     </div>
     <script>
+        import Vue from 'vue'
         var app = new Vue({
             el: '#app',
             mounted () {
