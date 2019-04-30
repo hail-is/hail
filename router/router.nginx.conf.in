@@ -8,6 +8,10 @@ map $http_x_forwarded_proto $updated_scheme {
 server {
     server_name @domain@ www.@domain@;
 
+    location = /healthcheck {
+      return 204;
+    }
+
     location / {
         proxy_pass http://site/;
     }

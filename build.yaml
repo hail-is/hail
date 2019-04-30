@@ -117,6 +117,7 @@ steps:
    script: |
      set -ex
      cd /io
+     rm -rf repo
      mkdir repo
      cd repo
      {{ code.checkout_script }}
@@ -392,9 +393,9 @@ steps:
      valueFrom: default_ns.name
    config: ci2/deployment.yaml
    wait:
-    - kind: Deployment
+    - kind: Service
       name: ci2
-      for: available
+      for: alive
    dependsOn:
     - default_ns
     - ci_image
@@ -445,9 +446,9 @@ steps:
      valueFrom: default_ns.name
    config: batch/deployment.yaml
    wait:
-    - kind: Deployment
+    - kind: Service
       name: batch
-      for: available
+      for: alive
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -488,9 +489,10 @@ steps:
     - kind: Deployment
       name: spark-worker
       for: available
-    - kind: Deployment
+    - kind: Service
       name: apiserver
-      for: available
+      port: 5000
+      for: alive
    dependsOn:
     - default_ns
     - test_batch_image

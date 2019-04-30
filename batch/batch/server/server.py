@@ -507,8 +507,8 @@ class Job:
             if terminated.finished_at is not None and terminated.started_at is not None:
                 self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
             else:
-                log.warn(f'job {self.id} has pod {pod.metadata.name} which is '
-                         f'terminated but has no timing information. {pod}')
+                log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
+                            f'terminated but has no timing information. {pod}')
                 self.duration = None
             await db.jobs.update_record(self.id,
                                         exit_code=self.exit_code,
@@ -660,8 +660,8 @@ async def create_job(request, userdata):  # pylint: disable=R0912
     return jsonify(await job.to_dict())
 
 
-@routes.get('/alive')
-async def get_alive(request):  # pylint: disable=W0613
+@routes.get('/healthcheck')
+async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
@@ -977,8 +977,7 @@ async def close_batch(request, userdata):
 
 async def update_job_with_pod(job, pod):
     log.info(f'update job {job.id} with pod {pod.metadata.name if pod else "None"}')
-    if (not pod
-        or (pod.status and pod.status.reason == 'Evicted')):
+    if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.id} mark unscheduled')
         await job.mark_unscheduled()
     elif (pod
@@ -1028,6 +1027,10 @@ async def kube_event_loop():
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
+    # if we do this after we get pods, we will pick up jobs created
+    # while listing pods and unnecessarily restart them
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
+
     pods = await blocking_to_async(
         app['blocking_pool'],
         v1.list_namespaced_pod,
@@ -1036,6 +1039,7 @@ async def refresh_k8s_state():  # pylint: disable=W0613
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
     log.info(f'k8s had {len(pods.items)} pods')
+
     seen_pods = set()
     for pod in pods.items:
         pod_name = pod.metadata.name
@@ -1046,7 +1050,7 @@ async def refresh_k8s_state():  # pylint: disable=W0613
             await update_job_with_pod(job, pod)
 
     log.info('starting pods not seen in k8s')
-    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
+
     for job in pod_jobs:
         pod_name = job._pod_name
         if pod_name not in seen_pods:

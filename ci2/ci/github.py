@@ -6,6 +6,7 @@ import aiohttp
 import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
+from .environment import SELF_HOSTNAME
 from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
 from .build import BuildConfiguration, Code
 
@@ -249,12 +250,14 @@ mkdir -p {shq(repo_dir)}
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
-                })
+                },
+                callback=SELF_HOSTNAME + '/batch_callback')
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
         finally:
             if batch and not self.batch:
+                log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
     async def _heal(self, batch_client, run, seen_batch_ids):
@@ -522,19 +525,25 @@ mkdir -p {shq(repo_dir)}
             return
 
         deploy_batch = None
+        try:
+            log.info(f'creating deploy batch for {self.branch.short_str()}')
+            deploy_batch = await batch_client.create_batch(
+                attributes={
+                    'token': secrets.token_hex(16),
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha
+                },
+                callback=SELF_HOSTNAME + '/batch_callback')
+            # FIXME make build atomic
+            await config.build(deploy_batch, self, deploy=True)
+            await deploy_batch.close()
+            self.deploy_batch = deploy_batch
+        finally:
+            if deploy_batch and not self.deploy_batch:
+                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
+                deploy_batch.cancel()
 
-        log.info(f'creating deploy batch for {self.branch.short_str()}')
-        deploy_batch = await batch_client.create_batch(
-            attributes={
-                'token': secrets.token_hex(16),
-                'deploy': '1',
-                'target_branch': self.branch.short_str(),
-                'sha': self.sha
-            })
-        # FIXME make build atomic
-        await config.build(deploy_batch, self, deploy=True)
-        await deploy_batch.close()
-        self.deploy_batch = deploy_batch
 
     def checkout_script(self):
         return f'''
