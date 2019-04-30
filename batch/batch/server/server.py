@@ -1027,6 +1027,10 @@ async def kube_event_loop():
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
+    # if we do this after we get pods, we will pick up jobs created
+    # while listing pods and unnecessarily restart them
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
+
     pods = await blocking_to_async(
         app['blocking_pool'],
         v1.list_namespaced_pod,
@@ -1035,6 +1039,7 @@ async def refresh_k8s_state():  # pylint: disable=W0613
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
     log.info(f'k8s had {len(pods.items)} pods')
+
     seen_pods = set()
     for pod in pods.items:
         pod_name = pod.metadata.name
@@ -1045,7 +1050,7 @@ async def refresh_k8s_state():  # pylint: disable=W0613
             await update_job_with_pod(job, pod)
 
     log.info('starting pods not seen in k8s')
-    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
+
     for job in pod_jobs:
         pod_name = job._pod_name
         if pod_name not in seen_pods:
