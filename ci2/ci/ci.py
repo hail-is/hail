@@ -174,6 +174,20 @@ async def callback(request):
     return web.Response(status=200)
 
 
+@routes.post('/batch_callack')
+async def batch_callback(request):
+    params = await request.json()
+    log.info(f'batch callback {params}')
+    attrs = params.get('attributes')
+    if attrs:
+        target_branch = attrs.get('target_branch')
+        if target_branch:
+            for wb in watched_branches:
+                if wb.branch.short_str() == target_branch:
+                    log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+                    wb.notify_batch_changed()
+
+
 async def update_loop(app):
     while True:
         try:

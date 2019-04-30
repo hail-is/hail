@@ -22,10 +22,15 @@ spec:
           env:
             - name: HAIL_CI2_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
+{% if deploy %}
             - name: HAIL_WATCHED_BRANCHES
               value: '[["hail-is/hail:master",true]]'
+{% else %}
+            - name: HAIL_WATCHED_BRANCHES
+              value: '[]'
+{% endif %}
             - name: BATCH_SERVER_URL
-              value: http://batch.default
+              value: http://batch.{{ default_ns.name }}
             - name: HAIL_GCP_PROJECT
               value: "{{ global.project }}"
             - name: HAIL_CI_UTILS_IMAGE
@@ -36,6 +41,8 @@ spec:
               value: "{{ global.domain }}"
             - name: HAIL_TOKEN_FILE
               value: '/ci2-jwt/jwt'
+            - name: HAIL_SELF_HOSTNAME
+              value: ci2
           ports:
             - containerPort: 5000
           volumeMounts:
