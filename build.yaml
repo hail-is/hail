@@ -491,6 +491,7 @@ steps:
       for: available
     - kind: Service
       name: apiserver
+      port: 5000
       for: alive
    dependsOn:
     - default_ns

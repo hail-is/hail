@@ -50,12 +50,12 @@ async def wait_for_pod_complete(v1, namespace, name):
         await asyncio.sleep(1)
 
 
-async def wait_for_service_alive(namespace, name):
+async def wait_for_service_alive(namespace, name, port):
     print('info: in wait_for_service_alive', file=sys.stderr)
     async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
-                async with session.get(f'http://{name}.{namespace}/healthcheck') as resp:
+                async with session.get(f'http://{name}.{namespace}:{port}/healthcheck') as resp:
                     if resp.status >= 200 and resp.status < 300:
                         print('info: success')
                         sys.exit(0)
@@ -73,8 +73,15 @@ async def main():
 
     parser.add_argument('timeout_seconds', type=int)
     parser.add_argument('namespace', type=str)
-    parser.add_argument('kind', type=str)
-    parser.add_argument('name', type=str)
+
+    subparsers = parser.add_subparsers(dest='kind')
+
+    pod_parser = subparsers.add_parser('Pod')
+    pod_parser.add_argument('name', type=str)
+
+    service_parser = subparsers.add_parser('Service')
+    service_parser.add_argument('name', type=str)
+    service_parser.add_argument('--port', '-p', type=int, default=80)
 
     args = parser.parse_args()
 
@@ -88,7 +95,7 @@ async def main():
         t = wait_for_pod_complete(v1, args.namespace, args.name)
     else:
         assert args.kind == 'Service'
-        t = wait_for_service_alive(args.namespace, args.name)
+        t = wait_for_service_alive(args.namespace, args.name, args.port)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
 
