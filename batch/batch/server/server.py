@@ -366,10 +366,6 @@ class Job:
         for parent in parent_ids:
             await db.jobs_parents.new_record(job_id=id,
                                              parent_id=parent)
-        #
-        # if batch_id:
-        #     await db.batch_jobs.new_record(batch_id=batch_id,
-        #                                    job_id=id)
 
         log.info('created job {}'.format(id))
 
@@ -462,10 +458,6 @@ class Job:
             await child.cancel()
 
         await db.jobs.delete_record(self.id)
-
-        # if self.batch_id:
-        #     await db.batch_jobs.delete_record(self.batch_id, self.id)
-
         await db.jobs_parents.delete_records_where({'job_id': self.id})
         await db.jobs_parents.delete_records_where({'parent_id': self.id})
 
@@ -813,7 +805,6 @@ class Batch:
             await db.jobs.update_record(j.id, batch_id=None)
 
     async def mark_job_complete(self, job):
-        # assert await db.batch_jobs.has_record(self.id, job.id)
         if self.callback:
             def handler(id, job_id, callback, json):
                 try:
