@@ -591,7 +591,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
     schema = {
         # will be validated when creating pod
         'spec': schemas.pod_spec,
-        'batch_id': {'type': 'integer'},
+        'batch_id': {'required': True, 'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'input_files': {
             'type': 'list',
@@ -615,9 +615,6 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         parameters['spec'], kube.client.V1PodSpec)
 
     batch_id = parameters.get('batch_id')
-    if batch_id is None:
-        abort(404, f'invalid request: batch_id is undefined')
-
     batch = await Batch.from_db(batch_id, user)
     if batch is None:
         abort(404, f'invalid request: batch_id {batch_id} not found')

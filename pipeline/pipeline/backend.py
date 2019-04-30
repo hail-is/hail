@@ -290,7 +290,7 @@ class BatchBackend(Backend):
         if delete_scratch_on_exit:
             parent_ids = list(job_id_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            cmd = activate_service_account + '&&' + rm_cmd
+            cmd = f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
                 image='google/cloud-sdk:alpine',
                 command=['/bin/bash', '-c', cmd],
