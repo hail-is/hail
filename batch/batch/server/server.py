@@ -883,7 +883,7 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_records({'user': user})]
+    batches = [Batch.from_record(record) for record in await db.batch.get_all_records({'user': user})]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):

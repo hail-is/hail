@@ -115,20 +115,19 @@ class BatchTable(Table):
     async def update_record(self, id, **items):
         await super().update_record({'id': id}, items)
 
-    async def get_all_records(self):
-        return await self._get_records()
+    async def get_all_records(self, condition):
+        return await self._get_records(condition)
 
     async def get_records(self, ids):
-        return await self._get_records(ids)
+        return await self._get_records(condition={'id': ids})
 
-    async def _get_records(self, ids=None):
+    async def _get_records(self, condition=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self.name
                 jobs_name = self._db.jobs.name
-                batch_jobs_name = self._db.batch_jobs.name
-                if ids is not None:
-                    where_template, where_values = make_where_statement({'id': ids})
+                if condition is not None:
+                    where_template, where_values = make_where_statement(condition)
                     where_template = f'WHERE {where_template}'
                 else:
                     where_template = ''
@@ -136,13 +135,12 @@ class BatchTable(Table):
 
                 sql = f"""SELECT
                 `{batch_name}`.*,
-                sum(case when `{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code = 0) = count(*) as success,
-                sum(case when `{jobs_name}`.state = 'Cancelled') > 0 as cancelled,
-                sum(case when `{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code > 0) > 0 as failure,
-                sum(case when `{jobs_name}`.state = 'Complete' || `{jobs_name}`.state = 'Cancelled') = count(*) as complete
+                sum(`{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code = 0) = count(*) as success,
+                sum(`{jobs_name}`.state = 'Cancelled') > 0 as cancelled,
+                sum(`{jobs_name}`.state = 'Complete' && `{jobs_name}`.exit_code > 0) > 0 as failure,
+                sum(`{jobs_name}`.state = 'Complete' || `{jobs_name}`.state = 'Cancelled') = count(*) as complete
                 FROM `{batch_name}`
-                INNER JOIN `{batch_jobs_name}` ON `{batch_name}`.id = `{batch_jobs_name}`.`batch_id`
-                INNER JOIN `{jobs_name}` ON `{jobs_name}`.id = `{batch_jobs_name}`.`job_id`
+                INNER JOIN `{jobs_name}` ON `{jobs_name}`.`batch_id` = `{batch_name}`.id
                 {where_template}
                 GROUP BY `{batch_name}`.`id`"""
 
