@@ -616,16 +616,16 @@ set -e
 '''
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
+                    port = w.get('port', 80)
                     script += f'''
-python3 wait-for.py 300 {self.namespace} Service {name}
+python3 wait-for.py 300 {self.namespace} Service -p {port} {name}
 '''
                 else:
                     assert w['kind'] == 'Pod', w['kind']
                     assert w['for'] == 'completed', w['for']
-                    port = w.get('port', 80)
                     script += f'''
 set +e
-python3 wait-for.py 300 {self.namespace} Pod -p {port} {name}
+python3 wait-for.py 300 {self.namespace} Pod {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e
