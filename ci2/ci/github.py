@@ -257,6 +257,7 @@ mkdir -p {shq(repo_dir)}
             self.batch = batch
         finally:
             if batch and not self.batch:
+                log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
     async def _heal(self, batch_client, run, seen_batch_ids):
@@ -524,20 +525,25 @@ mkdir -p {shq(repo_dir)}
             return
 
         deploy_batch = None
+        try:
+            log.info(f'creating deploy batch for {self.branch.short_str()}')
+            deploy_batch = await batch_client.create_batch(
+                attributes={
+                    'token': secrets.token_hex(16),
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha
+                },
+                callback=SELF_HOSTNAME + '/batch_callback')
+            # FIXME make build atomic
+            await config.build(deploy_batch, self, deploy=True)
+            await deploy_batch.close()
+            self.deploy_batch = deploy_batch
+        finally:
+            if deploy_batch and not self.deploy_batch:
+                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
+                deploy_batch.cancel()
 
-        log.info(f'creating deploy batch for {self.branch.short_str()}')
-        deploy_batch = await batch_client.create_batch(
-            attributes={
-                'token': secrets.token_hex(16),
-                'deploy': '1',
-                'target_branch': self.branch.short_str(),
-                'sha': self.sha
-            },
-            callback=SELF_HOSTNAME + '/batch_callback')
-        # FIXME make build atomic
-        await config.build(deploy_batch, self, deploy=True)
-        await deploy_batch.close()
-        self.deploy_batch = deploy_batch
 
     def checkout_script(self):
         return f'''
