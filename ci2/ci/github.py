@@ -13,6 +13,10 @@ from .build import BuildConfiguration, Code
 repos_lock = asyncio.Lock()
 
 
+def complete_build_state(build_state):
+    return build_state in ('success', 'failure')
+
+
 class Repo:
     def __init__(self, owner, name):
         assert isinstance(owner, str)
@@ -115,7 +119,7 @@ class MostRecentBuild:
         self.batch = batch
 
     def is_complete(self):
-        return self.build_state == 'success' or self.build_state == 'failure'
+        return complete_build_state(self.build_state)
 
 
 class PR(Code):
@@ -190,10 +194,13 @@ class PR(Code):
     def tip_has_been_built_once(self):
         return self.most_recent_build and self.source_sha == self.most_recent_build.source_sha
 
+    def build_complete(self):
+        return complete_build_state(self.build_state)
+
     def set_build_state_to_unknown(self, new_source_sha=None):
         if new_source_sha is not None:
             self.source_sha = new_source_sha
-        if self.most_recent_build is None or new_source_sha is not None:
+        if self.most_recent_build is None or self.build_complete() or (not self.most_recent_build.is_complete() and self.batch is not None):
             self.most_recent_build = MostRecentBuild(self.batch.attributes['source_sha'],
                                                      self.batch.attributes['target_sha'],
                                                      self.build_state,
@@ -297,8 +304,6 @@ mkdir -p {shq(repo_dir)}
                 await batch.cancel()
 
     async def _heal(self, batch_client, run, seen_batch_ids):
-        if self.most_recent_build:
-            seen_batch_ids.add(self.most_recent_build.batch)
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
