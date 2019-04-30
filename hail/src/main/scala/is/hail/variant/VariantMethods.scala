@@ -9,6 +9,17 @@ object Contig {
 }
 
 object VariantMethods {
+
+  def parse(str: String, rg: RGBase): (Locus, IndexedSeq[String]) = {
+    val elts = str.split(":")
+    val size = elts.length
+    if (size < 4)
+      fatal(s"Invalid string for Variant. Expecting contig:pos:ref:alt1,alt2 -- found '$str'.")
+
+    val contig = elts.take(size - 3).mkString(":")
+    (Locus(contig, elts(size - 3).toInt, rg), elts(size - 2) +: elts(size - 1).split(","))
+  }
+
   def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 
