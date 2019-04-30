@@ -414,7 +414,7 @@ class Job:
             await self.notify_children(new_state)
 
     async def notify_children(self, new_state):
-        children = [Job.from_record(record) for record in await db.jobs_parents.get_children(self.id)]
+        children = [Job.from_record(record) for record in await db.jobs.get_children(self.id)]
         for child in children:
             if child:
                 await child.parent_new_state(new_state, self.id)
