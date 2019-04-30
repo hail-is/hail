@@ -152,6 +152,7 @@ class PR(Code):
             self.sha = None
             self.batch = None
             self.build_state = None
+            self.most_recent_complete_state = None
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
