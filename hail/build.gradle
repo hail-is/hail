@@ -284,6 +284,8 @@ task testPython(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task doctest(type: Exec, dependsOn: shadowJar) {
@@ -292,6 +294,8 @@ task doctest(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task benchmark(type: Exec, dependsOn: shadowJar) {
