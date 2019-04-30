@@ -107,6 +107,14 @@ class FQBranch:
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
+class MostRecentCompleteState:
+    def __init__(self, source_sha, target_sha, build_state, batch):
+        self.source_sha = source_sha
+        self.target_sha = target_sha
+        self.build_state = build_state
+        self.batch = batch
+
+
 class PR(Code):
     def __init__(self, number, title, source_repo, source_sha, target_branch, author):
         self.number = number
@@ -124,6 +132,7 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
+        self.most_recent_complete_state = None
 
         self.target_branch.batch_changed = True
 
@@ -308,6 +317,10 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
+                self.most_recent_complete_state = MostRecentCompleteState(self.batch.attributes['source_sha'],
+                                                                          self.batch.attributes['target_sha'],
+                                                                          self.build_state,
+                                                                          self.batch)
                 self.target_branch.batch_changed = True
 
     def is_mergeable(self):
@@ -509,7 +522,8 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            await pr._heal(batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
+            should_run = (merge_candidate is None or pr == merge_candidate or pr.most_recent_complete_state is None)
+            await pr._heal(batch_client, should_run, seen_batch_ids)
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:

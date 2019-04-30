@@ -23,35 +23,95 @@
         </tr>
       </thead>
       <tbody>
-	{% for job in batch['jobs'] %}
+	      {% for job in batch['jobs'] %}
         <tr>
           <td align="right">{{ job['id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-	    {% if 'exit_code' in job %}
-	    {{ job['exit_code'] }}
-	    {% endif %}
-	  </td>
+	          {% if 'exit_code' in job %}
+	          {{ job['exit_code'] }}
+	          {% endif %}
+	        </td>
           <td align="right">
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
             {% endif %}
           </td>
           <td align="left">
-	    <a href="/jobs/{{ job['id'] }}/log">log</a>
-	  </td>
+	          <a href="/jobs/{{ job['id'] }}/log">log</a>
+	        </td>
           <td>
             {% if 'link' in job['attributes'] %}
             {% for name in job['attributes']['link'] %}
             <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
-	    {% endfor %}
+	          {% endfor %}
             {% endif %}
           </td>
         </tr>
-	{% endfor %}
+	      {% endfor %}
       </tbody>
       {% endif %}
     </table>
+    {% if most_recent_complete_state is not none }
+    <h2>Most Recent Complete Build: Batch {{ most_recent_complete_state.batch['id'] }} Jobs</h2>
+    <dl>
+      <dt>Source SHA</dt>
+      <dd><pre>{most_recent_complete_state.source_sha}</pre></dd>
+      <dt>Target SHA</dt>
+      <dd><pre>{most_recent_complete_state.target_sha}</pre></dd>
+      <dt>Build Status</dt>
+      <dd>
+        {% if pr.most_recent_complete_state.build_state == 'success' %}
+        successful build
+        {% else %}
+        failed build
+        {% endif %}
+      </dd>
+    </dl>
+    <p>artifacts: {{ most_recent_complete_state.artifacts }}</p>
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="left">name</th>
+          <th align="left">state</th>
+          <th align="right">exit_code</th>
+          <th align="right">duration</th>
+          <th align="left">log</th>
+          <th align="left">links</th>
+        </tr>
+      </thead>
+      <tbody>
+	      {% for job in most_recent_complete_state.batch['jobs'] %}
+        <tr>
+          <td align="right">{{ job['id'] }}</td>
+          <td align="left">{{ job['attributes']['name'] }}</td>
+          <td align="left">{{ job['state'] }}</td>
+          <td align="right">
+	          {% if 'exit_code' in job %}
+	          {{ job['exit_code'] }}
+	          {% endif %}
+	        </td>
+          <td align="right">
+            {% if 'duration' in job and job['duration'] %}
+            {{ job['duration'] }}
+            {% endif %}
+          </td>
+          <td align="left">
+	          <a href="/jobs/{{ job['id'] }}/log">log</a>
+	        </td>
+          <td>
+            {% if 'link' in job['attributes'] %}
+            {% for name in job['attributes']['link'] %}
+            <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
+	          {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+	      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
   </body>
 </html>
