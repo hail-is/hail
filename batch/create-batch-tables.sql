@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `main_log_uri` VARCHAR(1024),
   `output_log_uri` VARCHAR(1024),
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batch(id)
+  FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_user ON jobs (user);
 CREATE INDEX jobs_batch ON jobs (batch_id);
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `job_id` BIGINT,
   `parent_id` BIGINT,
   PRIMARY KEY (`job_id`, `parent_id`),
-  FOREIGN KEY (`job_id`) REFERENCES jobs(id),
-  FOREIGN KEY (`parent_id`) REFERENCES jobs(id)
+  FOREIGN KEY (`job_id`) REFERENCES jobs(id) ON DELETE CASCADE,
+  FOREIGN KEY (`parent_id`) REFERENCES jobs(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (parent_id);

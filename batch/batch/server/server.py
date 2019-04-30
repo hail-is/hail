@@ -458,8 +458,6 @@ class Job:
             await child.cancel()
 
         await db.jobs.delete_record(self.id)
-        await db.jobs_parents.delete_records_where({'job_id': self.id})
-        await db.jobs_parents.delete_records_where({'parent_id': self.id})
 
         for child in children:
             await child.create_if_ready()
@@ -804,10 +802,7 @@ class Batch:
             await j.cancel()
 
     async def delete(self):
-        jobs = await self.get_jobs()
-        for j in jobs:
-            assert j.batch_id == self.id
-            await db.jobs.update_record(j.id, batch_id=None)
+        db.batch.delete_record({'id': self.id})
 
     async def mark_job_complete(self, job):
         if self.callback:
