@@ -16,7 +16,7 @@ sealed trait IR extends BaseIR {
 
   def pType: PType = {
     if (_ptype == null)
-      _ptype = InferPType(this)
+      _ptype = PType.canonical(typ)
     _ptype
   }
 
