@@ -585,6 +585,16 @@ class PruneSuite extends SparkSuite {
     checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
   }
 
+  @Test def testCastRenameMemo() {
+    checkMemo(
+      CastRename(
+        Ref("x", TArray(TStruct("x" -> TInt32(), "y" -> TString()))),
+        TArray(TStruct("y" -> TInt32(), "z" -> TString()))),
+      TArray(TStruct("z" -> TString())),
+      Array(TArray(TStruct("y" -> TString())))
+    )
+  }
+
   @Test def testAggFilterMemo(): Unit = {
     val t = TStruct("a" -> TInt32(), "b" -> TInt64(), "c" -> TString())
     val select = SelectFields(Ref("x", t), Seq("c"))
@@ -943,6 +953,18 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[SelectFields]
         ir.fields == Seq("b")
+      })
+  }
+
+  @Test def testCastRenameRebuild() {
+    checkRebuild(
+      CastRename(
+        NA(TArray(TStruct("x" -> TInt32(), "y" -> TString()))),
+        TArray(TStruct("y" -> TInt32(), "z" -> TString()))),
+      TArray(TStruct("z" -> TString())),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[CastRename]
+        ir._typ == TArray(TStruct("z" -> TString()))
       })
   }
 

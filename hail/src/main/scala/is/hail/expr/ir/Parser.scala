@@ -552,6 +552,10 @@ object IRParser {
         val typ = type_expr(it)
         val v = ir_value_expr(env)(it)
         Cast(v, typ)
+      case "CastRename" =>
+        val typ = type_expr(it)
+        val v = ir_value_expr(env)(it)
+        CastRename(v, typ)
       case "NA" => NA(type_expr(it))
       case "IsNA" => IsNA(ir_value_expr(env)(it))
       case "If" =>

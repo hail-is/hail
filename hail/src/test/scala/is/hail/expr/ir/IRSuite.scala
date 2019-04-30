@@ -135,6 +135,13 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Cast(F64(3.14), TFloat64()), 3.14)
   }
 
+  @Test def testCastRename() {
+    assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32())), Row(1))
+    assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
+      TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32()))),
+      FastIndexedSeq(Row(1)))
+  }
+
   @Test def testNA() {
     assertEvalsTo(NA(TInt32()), null)
   }
@@ -1456,6 +1463,7 @@ class IRSuite extends SparkSuite {
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
+      CastRename(NA(TStruct("a" -> TInt32())), TStruct("b" -> TInt32())),
       NA(TInt32()), IsNA(i),
       If(b, i, j),
       Let("v", i, v),

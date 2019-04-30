@@ -104,6 +104,21 @@ object LowerMatrixIR {
           entriesFieldName, entriesFieldName,
           child.typ.colKey)))
 
+    case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+      var t = lower(child).rename(rowMap, globalMap)
+
+      if (colMap.nonEmpty) {
+        val newColsType = TArray(child.typ.colType.rename(colMap))
+        t = t.mapGlobals('global.insertFields(colsField -> 'global (colsField).castRename(newColsType)))
+      }
+
+      if (entryMap.nonEmpty) {
+        val newEntriesType = child.typ.entryArrayType.copy(elementType = child.typ.entryType.rename(entryMap))
+        t = t.mapRows('row.insertFields(entriesField -> 'row (entriesField).castRename(newEntriesType)))
+      }
+
+      t
+
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       lower(child).keyBy(keys, isSorted)
 

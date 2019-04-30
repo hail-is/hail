@@ -129,6 +129,7 @@ object Interpret {
             case (_: TFloat64, _: TFloat32) => vValue.asInstanceOf[Double].toFloat
             case (_: TInt32, _: TCall) => vValue
           }
+      case CastRename(v, _) => interpret(v)
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
       case If(cond, cnsq, altr) =>

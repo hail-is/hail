@@ -1138,10 +1138,4 @@ case class MatrixRename(child: MatrixIR,
     val IndexedSeq(newChild: MatrixIR) = newChildren
     MatrixRename(newChild, globalMap, colMap, rowMap, entryMap)
   }
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-
-    MatrixValue(typ, prev.globals, prev.colValues, prev.rvd.cast(rvdType.rowType))
-  }
 }

@@ -206,6 +206,8 @@ object IRBuilder {
       }
     }
 
+    def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
