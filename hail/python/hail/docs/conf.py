@@ -17,6 +17,7 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
+import datetime
 import os
 import sys
 
@@ -97,7 +98,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Hail'
-copyright = u'2016, Hail Team'
+copyright = datetime.datetime.now().year + u', Hail Team'
 author = u'Hail Team'
 
 # The version info for the project you're documenting, acts as replacement for
