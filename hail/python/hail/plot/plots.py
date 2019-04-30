@@ -390,7 +390,7 @@ def set_font_size(p, font_size: str = '12pt'):
            colors=sequenceof(str),
            log=bool)
 def histogram2d(x: NumericExpression,
-                y: expr.NumericExpression,
+                y: NumericExpression,
                 bins: int = 40,
                 range: Tuple[int, int] = None,
                 title: str = None,
@@ -496,6 +496,9 @@ def histogram2d(x: NumericExpression,
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
                              hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
 
+    # Use python prettier float -> str function
+    data['x'] = data['x'].apply(lambda e: str(float(e)))
+    data['y'] = data['y'].apply(lambda e: str(float(e)))
 
     if log:
         mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
