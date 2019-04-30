@@ -109,12 +109,12 @@ object LowerMatrixIR {
 
       if (colMap.nonEmpty) {
         val newColsType = TArray(child.typ.colType.rename(colMap))
-        t = t.mapGlobals('global.insertFields(colsField -> 'global (colsField).castRename(newColsType)))
+        t = t.mapGlobals('global.castRename(t.typ.globalType.insertFields(FastSeq((colsFieldName, newColsType)))))
       }
 
       if (entryMap.nonEmpty) {
         val newEntriesType = child.typ.entryArrayType.copy(elementType = child.typ.entryType.rename(entryMap))
-        t = t.mapRows('row.insertFields(entriesField -> 'row (entriesField).castRename(newEntriesType)))
+        t = t.mapRows('row.castRename(t.typ.rowType.insertFields(FastSeq((entriesFieldName, newEntriesType)))))
       }
 
       t
