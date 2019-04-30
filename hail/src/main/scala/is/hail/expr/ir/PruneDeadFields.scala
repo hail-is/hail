@@ -282,7 +282,7 @@ object PruneDeadFields {
             requestedType.globalType.fieldOption(f).map(reqF => f -> reqF.typ)): _*))
         memoizeTableIR(left, leftDep, memo)
 
-        val rk = right.typ.key.take(joinKey)
+        val rk = right.typ.key.take(joinKey + math.max(0, requestedType.key.length - left.typ.key.length))
         val rightKeyFields = rk.toSet
         val rightDep = TableType(
           key = rk,

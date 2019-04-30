@@ -246,6 +246,24 @@ class PruneSuite extends SparkSuite {
         subsetTable(tk2.typ, "row.1_", "row.3_")
       )
     )
+
+    val tk3 = TableKeyBy(tab, Array("1", "2"))
+    val tk4 = mangle(TableKeyBy(tab, Array("1", "2")))
+
+    val tj2 = TableJoin(tk3, tk4, "inner", 1)
+    checkMemo(tj2,
+      subsetTable(tj2.typ, "row.3_"),
+      Array(
+        subsetTable(tk3.typ, "row.1", "row.2"),
+        subsetTable(tk4.typ, "row.1_", "row.2_", "row.3_")
+      ))
+
+    checkMemo(tj2,
+      subsetTable(tj2.typ, "row.3_", "NO_KEY"),
+      Array(
+        TableType(globalType = TStruct(), key = Array("1"), rowType = TStruct("1" -> TString())),
+        TableType(globalType = TStruct(), key = Array("1_"), rowType = TStruct("1_" -> TString(), "3_" -> TString()))
+      ))
   }
 
   @Test def testTableLeftJoinRightDistinctMemo() {
