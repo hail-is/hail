@@ -1,8 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.Type
-import is.hail.utils.ArrayBuilder
-
 object FreeVariables {
   def apply(ir: IR, supportsAgg: Boolean, supportsScan: Boolean): BindingEnv[Unit] = {
 
