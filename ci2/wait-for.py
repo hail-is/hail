@@ -56,7 +56,7 @@ async def wait_for_service_alive(namespace, name):
         while True:
             try:
                 async with session.get(f'http://{name}.{namespace}/healthcheck') as resp:
-                    if resp.status == 200:
+                    if resp.status >= 200 and resp.status < 300:
                         print('info: success')
                         sys.exit(0)
             except concurrent.futures.CancelledError:
