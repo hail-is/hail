@@ -52,7 +52,7 @@ async def wait_for_pod_complete(v1, namespace, name):
 
 async def wait_for_service_alive(namespace, name):
     print('info: in wait_for_service_alive', file=sys.stderr)
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5.0)) as session:
         while True:
             try:
                 async with session.get(f'http://{name}.{namespace}/healthcheck') as resp:
