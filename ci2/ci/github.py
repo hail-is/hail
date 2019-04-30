@@ -107,7 +107,7 @@ class FQBranch:
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
-class MostRecentCompleteState:
+class MostRecentBuild:
     def __init__(self, source_sha, target_sha, build_state, batch):
         self.source_sha = source_sha
         self.target_sha = target_sha
@@ -132,8 +132,7 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
-        self.old_target_batch = None
-        self.most_recent_complete_state = None
+        self.most_recent_build = None
 
         self.target_branch.batch_changed = True
 
@@ -150,10 +149,13 @@ class PR(Code):
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
+            self.most_recent_build = MostRecentBuild(self.batch.attributes['source_sha'],
+                                                     self.batch.attributes['target_sha'],
+                                                     self.build_state,
+                                                     self.batch)
             self.sha = None
             self.batch = None
             self.build_state = None
-            self.most_recent_complete_state = None
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -185,6 +187,9 @@ class PR(Code):
             'target_sha': self.target_branch.sha,
             'sha': self.sha
         }
+
+    def tip_has_been_built_once(self):
+        return self.most_recent_build and self.source_sha == self.most_recent_build.source_sha
 
     async def post_github_status(self, gh):
         assert self.source_sha is not None
@@ -281,6 +286,8 @@ mkdir -p {shq(repo_dir)}
                 await batch.cancel()
 
     async def _heal(self, batch_client, run, seen_batch_ids):
+        if self.most_recent_build:
+            seen_batch_ids.add(self.most_recent_build.batch)
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
@@ -319,10 +326,7 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
-                self.most_recent_complete_state = MostRecentCompleteState(self.batch.attributes['source_sha'],
-                                                                          self.batch.attributes['target_sha'],
-                                                                          self.build_state,
-                                                                          self.batch)
+                self.most_recent_build = None
                 self.target_branch.batch_changed = True
 
     def is_mergeable(self):
@@ -462,6 +466,10 @@ class WatchedBranch(Code):
             self.deploy_state = None
             if self.prs:
                 for pr in self.prs.values():
+                    pr.most_recent_build = MostRecentBuild(pr.batch.attributes['source_sha'],
+                                                           pr.batch.attributes['target_sha'],
+                                                           pr.build_state,
+                                                           pr.batch)
                     pr.sha = None
                     pr.batch = None
                     pr.build_state = None
@@ -524,7 +532,7 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            should_run = (merge_candidate is None or pr == merge_candidate or pr.most_recent_complete_state is None)
+            should_run = (merge_candidate is None or pr == merge_candidate or not pr.tip_has_been_built_once())
             await pr._heal(batch_client, should_run, seen_batch_ids)
 
         for batch in running_batches:

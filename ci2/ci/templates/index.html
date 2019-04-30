@@ -50,9 +50,9 @@
             {{ pr.title }}
           </td>
           <td>
-            {% if pr.most_recent_complete_state is not none %}
+            {% if pr.most_recent_build is not none %}
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
-              {% if pr.most_recent_complete_state.build_state == 'success' %}
+              {% if pr.most_recent_build.build_state == 'success' %}
               successful build
               {% else %}
               failed build

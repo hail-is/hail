@@ -53,23 +53,23 @@
       </tbody>
       {% endif %}
     </table>
-    {% if most_recent_complete_state is not none }
-    <h2>Most Recent Complete Build: Batch {{ most_recent_complete_state.batch['id'] }} Jobs</h2>
+    {% if most_recent_build is not none }
+    <h2>Most Recent Complete Build: Batch {{ most_recent_build.batch['id'] }} Jobs</h2>
     <dl>
       <dt>Source SHA</dt>
-      <dd><pre>{most_recent_complete_state.source_sha}</pre></dd>
+      <dd><pre>{most_recent_build.source_sha}</pre></dd>
       <dt>Target SHA</dt>
-      <dd><pre>{most_recent_complete_state.target_sha}</pre></dd>
+      <dd><pre>{most_recent_build.target_sha}</pre></dd>
       <dt>Build Status</dt>
       <dd>
-        {% if pr.most_recent_complete_state.build_state == 'success' %}
+        {% if pr.most_recent_build.build_state == 'success' %}
         successful build
         {% else %}
         failed build
         {% endif %}
       </dd>
     </dl>
-    <p>artifacts: {{ most_recent_complete_state.artifacts }}</p>
+    <p>artifacts: {{ most_recent_build.artifacts }}</p>
     <table>
       <thead>
         <tr>
@@ -83,7 +83,7 @@
         </tr>
       </thead>
       <tbody>
-	      {% for job in most_recent_complete_state.batch['jobs'] %}
+	      {% for job in most_recent_build.batch['jobs'] %}
         <tr>
           <td align="right">{{ job['id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
