@@ -174,7 +174,7 @@ async def callback(request):
     return web.Response(status=200)
 
 
-@requests.post('/batch_callack')
+@routes.post('/batch_callack')
 async def batch_callback(request):
     params = await request.json()
     log.info(f'batch callback {params}')

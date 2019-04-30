@@ -614,11 +614,17 @@ kubectl -n {self.namespace} logs -l app={name}
 set -e
 (exit $EC)
 '''
+                elif w['kind'] == 'Service':
+                    assert w['for'] == 'alive', w['for']
+                    script += f'''
+python3 wait-for.py 300 {self.namespace} Service {name}
+'''
                 else:
+                    assert w['kind'] == 'Pod', w['kind']
                     assert w['for'] == 'completed', w['for']
                     script += f'''
 set +e
-python3 wait-for-pod.py 300 {self.namespace} {name}
+python3 wait-for.py 300 {self.namespace} Pod {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e

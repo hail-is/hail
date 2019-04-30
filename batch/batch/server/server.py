@@ -660,8 +660,8 @@ async def create_job(request, userdata):  # pylint: disable=R0912
     return jsonify(await job.to_dict())
 
 
-@routes.get('/alive')
-async def get_alive(request):  # pylint: disable=W0613
+@routes.get('/healthcheck')
+async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
