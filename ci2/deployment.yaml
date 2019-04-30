@@ -36,6 +36,8 @@ spec:
               value: "{{ global.domain }}"
             - name: HAIL_TOKEN_FILE
               value: '/ci2-jwt/jwt'
+            - name: HAIL_SELF_HOSTNAME
+              value: ci2
           ports:
             - containerPort: 5000
           volumeMounts:

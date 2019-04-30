@@ -5,7 +5,7 @@ import asyncio
 import aiohttp
 import gidgethub
 from .log import log
-from .constants import GITHUB_CLONE_URL
+from .constants import GITHUB_CLONE_URL, SELF_HOSTNAME
 from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
 from .build import BuildConfiguration, Code
 
@@ -249,7 +249,8 @@ mkdir -p {shq(repo_dir)}
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
-                })
+                },
+                callback=SELF_HOSTNAME + '/batch_callback')
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
@@ -530,7 +531,8 @@ mkdir -p {shq(repo_dir)}
                 'deploy': '1',
                 'target_branch': self.branch.short_str(),
                 'sha': self.sha
-            })
+            },
+            callback=SELF_HOSTNAME + '/batch_callback')
         # FIXME make build atomic
         await config.build(deploy_batch, self, deploy=True)
         await deploy_batch.close()
