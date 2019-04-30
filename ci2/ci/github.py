@@ -188,11 +188,14 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def tip_has_been_built_once(self):
-        return self.most_recent_build and self.source_sha == self.most_recent_build.source_sha
+    def tip_source_sha_has_been_built_once(self):
+        current_build_is_complete = self.build and self.build.is_complete()
+        most_recent_build_is_tip_and_complete = (
+            self.most_recent_build and self.source_sha == self.most_recent_build.source_sha and self.most_recent_build.is_complete())
+        return current_build_is_complete or most_recent_build_is_tip_and_complete
 
     def should_build(self):
-        return not self.tip_has_been_built_once() and self.most_recent_build.is_complete()
+        return not self.tip_source_sha_has_been_built_once() and self.most_recent_build.is_complete()
 
     def build_complete(self):
         return complete_build_state(self.build_state)
