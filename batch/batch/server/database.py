@@ -77,7 +77,7 @@ class JobsTable(Table):
     async def get_parents(self, job_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                jobs_parents_name = self._db.jobs.name
+                jobs_parents_name = self._db.jobs_parents.name
                 sql = f"""SELECT * FROM `{self.name}`
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.id = `{jobs_parents_name}`.parent_id
@@ -88,7 +88,7 @@ class JobsTable(Table):
     async def get_children(self, parent_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                jobs_parents_name = self._db.jobs.name
+                jobs_parents_name = self._db.jobs_parents.name
                 sql = f"""SELECT * FROM `{self.name}`
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.id = `{jobs_parents_name}`.job_id
