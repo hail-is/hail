@@ -114,6 +114,9 @@ class MostRecentBuild:
         self.build_state = build_state
         self.batch = batch
 
+    def is_complete(self):
+        return self.build_state == 'success' or self.build_state == 'failure'
+
 
 class PR(Code):
     def __init__(self, number, title, source_repo, source_sha, target_branch, author):
@@ -148,14 +151,7 @@ class PR(Code):
         new_source_sha = head['sha']
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
-            self.source_sha = new_source_sha
-            self.most_recent_build = MostRecentBuild(self.batch.attributes['source_sha'],
-                                                     self.batch.attributes['target_sha'],
-                                                     self.build_state,
-                                                     self.batch)
-            self.sha = None
-            self.batch = None
-            self.build_state = None
+            self.set_build_state_to_unknown(new_source_sha)
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -188,8 +184,23 @@ class PR(Code):
             'sha': self.sha
         }
 
+    def should_build(self):
+        return not self.tip_has_been_built_once() and self.most_recent_build.is_complete()
+
     def tip_has_been_built_once(self):
         return self.most_recent_build and self.source_sha == self.most_recent_build.source_sha
+
+    def set_build_state_to_unknown(self, new_source_sha=None):
+        if new_source_sha is not None:
+            self.source_sha = new_source_sha
+        if self.most_recent_build is None or new_source_sha is not None:
+            self.most_recent_build = MostRecentBuild(self.batch.attributes['source_sha'],
+                                                     self.batch.attributes['target_sha'],
+                                                     self.build_state,
+                                                     self.batch)
+        self.sha = None
+        self.batch = None
+        self.build_state = None
 
     async def post_github_status(self, gh):
         assert self.source_sha is not None
@@ -466,13 +477,7 @@ class WatchedBranch(Code):
             self.deploy_state = None
             if self.prs:
                 for pr in self.prs.values():
-                    pr.most_recent_build = MostRecentBuild(pr.batch.attributes['source_sha'],
-                                                           pr.batch.attributes['target_sha'],
-                                                           pr.build_state,
-                                                           pr.batch)
-                    pr.sha = None
-                    pr.batch = None
-                    pr.build_state = None
+                    pr.set_build_state_to_unknown()
             self.batch_changed = True
 
         new_prs = {}
@@ -532,7 +537,7 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            should_run = (merge_candidate is None or pr == merge_candidate or not pr.tip_has_been_built_once())
+            should_run = (merge_candidate is None or pr == merge_candidate or pr.should_build())
             await pr._heal(batch_client, should_run, seen_batch_ids)
 
         for batch in running_batches:
