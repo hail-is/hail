@@ -366,10 +366,10 @@ class Job:
         for parent in parent_ids:
             await db.jobs_parents.new_record(job_id=id,
                                              parent_id=parent)
-
-        if batch_id:
-            await db.batch_jobs.new_record(batch_id=batch_id,
-                                           job_id=id)
+        #
+        # if batch_id:
+        #     await db.batch_jobs.new_record(batch_id=batch_id,
+        #                                    job_id=id)
 
         log.info('created job {}'.format(id))
 
@@ -463,8 +463,8 @@ class Job:
 
         await db.jobs.delete_record(self.id)
 
-        if self.batch_id:
-            await db.batch_jobs.delete_record(self.batch_id, self.id)
+        # if self.batch_id:
+        #     await db.batch_jobs.delete_record(self.batch_id, self.id)
 
         await db.jobs_parents.delete_records_where({'job_id': self.id})
         await db.jobs_parents.delete_records_where({'parent_id': self.id})
@@ -799,7 +799,7 @@ class Batch:
         self.user = user
 
     async def get_jobs(self):
-        return [Job.from_record(record) for record in await db.batch.get_jobs(self.id)]
+        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
         jobs = await self.get_jobs()
@@ -812,11 +812,8 @@ class Batch:
             assert j.batch_id == self.id
             await db.jobs.update_record(j.id, batch_id=None)
 
-    async def remove(self, job):
-        await db.batch_jobs.delete_record(self.id, job.id)
-
     async def mark_job_complete(self, job):
-        assert await db.batch_jobs.has_record(self.id, job.id)
+        # assert await db.batch_jobs.has_record(self.id, job.id)
         if self.callback:
             def handler(id, job_id, callback, json):
                 try:

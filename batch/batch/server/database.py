@@ -8,7 +8,6 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
-        self.batch_jobs = BatchJobsTable(self)
 
 
 class JobsTable(Table):
@@ -57,6 +56,9 @@ class JobsTable(Table):
             jobs_w_pod = [record['id'] for record in records]
             raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
                             f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
+
+    async def get_records_by_batch(self, batch_id):
+        return await self.get_records_where({'batch_id': batch_id})
 
     async def get_records_where(self, condition):
         return await super().get_record(condition)
@@ -121,25 +123,3 @@ class BatchTable(Table):
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
-
-    async def get_jobs(self, batch_id):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                batch_jobs_name = self._db.batch_jobs.name
-                sql = f"""SELECT * FROM `{self.name}`
-                                  INNER JOIN `{batch_jobs_name}`
-                                  ON `{self.name}`.id = `{batch_jobs_name}`.job_id
-                                  WHERE `{batch_jobs_name}`.batch_id = %s"""
-                await cursor.execute(sql, batch_id)
-                return await cursor.fetchall()
-
-
-class BatchJobsTable(Table):
-    def __init__(self, db):
-        super().__init__(db, 'batch-jobs')
-
-    async def delete_record(self, batch_id, job_id):
-        await super().delete_record({'batch_id': batch_id, 'job_id': job_id})
-
-    async def has_record(self, batch_id, job_id):
-        return await super().has_record({'batch_id': batch_id, 'job_id': job_id})

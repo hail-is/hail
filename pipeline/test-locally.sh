@@ -38,8 +38,7 @@ fi
 export JOBS_TABLE=jobs-$(../generate-uid.sh)
 export JOBS_PARENTS_TABLE=jobs-parents-$(../generate-uid.sh)
 export BATCH_TABLE=batch-$(../generate-uid.sh)
-export BATCH_JOBS_TABLE=batch-jobs-$(../generate-uid.sh)
-tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_JOBS_TABLE)
+tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE)
 
 cd ../batch/
 python3 -c 'import batch.server; batch.server.serve()' &
