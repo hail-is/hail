@@ -132,6 +132,7 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
+        self.old_target_batch = None
         self.most_recent_complete_state = None
 
         self.target_branch.batch_changed = True
