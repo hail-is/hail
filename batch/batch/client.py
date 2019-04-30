@@ -251,30 +251,6 @@ class BatchClient:
                      j['id'],
                      j.get('attributes'))
 
-    def create_job(self,
-                   image,
-                   command=None,
-                   args=None,
-                   env=None,
-                   ports=None,
-                   resources=None,
-                   tolerations=None,
-                   volumes=None,
-                   security_context=None,
-                   service_account_name=None,
-                   attributes=None,
-                   callback=None,
-                   parent_ids=None,
-                   input_files=None,
-                   output_files=None,
-                   always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, input_files, output_files,
-            always_run)
-
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)
         return Batch(self, batch['id'], batch.get('attribute'))

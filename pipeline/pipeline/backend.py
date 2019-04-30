@@ -287,14 +287,19 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {write_cmd}")
 
-        status = batch.wait()
-
         if delete_scratch_on_exit:
+            parent_ids = list(job_id_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            j = self._batch_client.create_job(image='google/cloud-sdk:alpine',
-                                              command=['/bin/bash', '-c', activate_service_account + '&&' + rm_cmd],
-                                              volumes=volumes,
-                                              attributes={'label': 'remove_tmpdir'})
+            cmd = activate_service_account + '&&' + rm_cmd
+            j = batch.create_job(
+                image='google/cloud-sdk:alpine',
+                command=['/bin/bash', '-c', cmd],
+                parent_ids=parent_ids,
+                volumes=volumes,
+                attributes={'label': 'remove_tmpdir'})
+            job_id_to_command[j.id] = cmd
+
+        status = batch.wait()
 
         failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
