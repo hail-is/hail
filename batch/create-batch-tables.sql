@@ -26,8 +26,9 @@ CREATE INDEX jobs_batch ON jobs (batch_id);
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `job_id` BIGINT,
   `parent_id` BIGINT,
-  PRIMARY KEY (`job_id`, `parent_id`)
+  PRIMARY KEY (`job_id`)
 ) ENGINE = InnoDB;
+CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (parent_id);
 
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
