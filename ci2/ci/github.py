@@ -190,7 +190,7 @@ class PR(Code):
         return self.batch is not None and (
             self.most_recent_batch is None or
             self.build_is_complete() or
-            self.source_sha == self.batch.attributes['source_sha'])
+            self.most_recent_batch.attributes['source_sha'] != self.source_sha)
 
     def clear_build(self):
         if self.should_update_most_recent_batch():
@@ -294,7 +294,7 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
-    async def _heal(self, batch_client, merge_candidate, seen_batch_ids):
+    async def _heal(self, batch_client, on_deck, seen_batch_ids):
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
@@ -322,7 +322,7 @@ mkdir -p {shq(repo_dir)}
             # should be at most one batch
             if len(batches) > 0:
                 self.batch = min(batches, key=lambda b: b.id)
-            elif merge_candidate is None or self == merge_candidate or self.most_recent_build_has_out_of_date_source():
+            elif on_deck or self.most_recent_build_has_out_of_date_source():
                 async with repos_lock:
                     await self._start_build(batch_client)
 
@@ -546,7 +546,7 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            await pr._heal(batch_client, merge_candidate, seen_batch_ids)
+            await pr._heal(batch_client, merge_candidate is None or self == merge_candidate, seen_batch_ids)
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:

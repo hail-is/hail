@@ -50,15 +50,12 @@
             {{ pr.title }}
           </td>
           <td>
-            {% if pr.most_recent_build is not none %}
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
-              {% if pr.most_recent_build.build_state == 'success' %}
-              successful build
-              {% else %}
-              failed build
+              {% if pr.most_recent_build is not none %}
+              {{ pr.most_recent_build.build_state }}
               {% endif %}
+              building
             </a>
-            {% endif %}
           </td>
           <td align="left">
             {% if pr.build_state == 'merge_failure' %}
@@ -67,11 +64,7 @@
             {% if pr.batch_id is not none %}
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
               {% if pr.build_state is not none %}
-              {% if pr.build_state == 'success' %}
-              successful build
-              {% elif pr.build_state == 'failure' %}
-              failed build
-              {% endif %}
+              {{ if pr.build_state }}
               {% else %}
               building
               {% endif %}

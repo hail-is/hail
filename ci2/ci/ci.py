@@ -78,13 +78,13 @@ async def get_pr(request):
     if pr.batch:
         config['batch'] = await batch_status_template_context(pr.batch)
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
-    if pr.most_recent_build is not None:
+    if pr.most_recent_batch is not None:
         config['most_recent_build'] = {
-            'source_sha': pr.most_recent_build.source_sha,
-            'target_sha': pr.most_recent_build.target_sha,
-            'build_state': pr.most_recent_build.build_state,
-            'batch': await batch_status_template_context(pr.most_recent_build.batch),
-            'artifacts': f'{BUCKET}/build/{pr.most_recent_build.batch.attributes["token"]}'
+            'source_sha': pr.most_recent_batch.attributes['source_sha'],
+            'target_sha': pr.most_recent_build.attributes['target_sha'],
+            'build_state': pr.most_recent_build_state,
+            'batch': await batch_status_template_context(pr.most_recent_batch),
+            'artifacts': f'{BUCKET}/build/{pr.most_recent_batch.attributes["token"]}'
         }
     else:
         config['most_recent_build'] = None
