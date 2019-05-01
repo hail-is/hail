@@ -34,6 +34,8 @@ steps:
     # hail|test-batch
     - user-jwt-vkqfw
     - gsa-key-2x975
+    # pipeline|test-user
+    - pipeline-test-0-1--hail-is-service-account-key
    dependsOn:
     - default_ns
     - deploy_batch_sa
@@ -89,6 +91,13 @@ steps:
    dockerFile: batch/Dockerfile.test
    contextPath: .
    publishAs: test-batch
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: test_pipeline_image
+   dockerFile: pipeline/Dockerfile.test
+   contextPath: .
+   publishAs: test-pipeline
    dependsOn:
      - base_image
  - kind: buildImage
@@ -485,6 +494,20 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: deploy
+   name: test_pipeline
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: pipeline/test-pipeline-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-pipeline
+      for: completed
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - test_pipeline_image
  - kind: deploy
    name: deploy_apiserver
    namespace:

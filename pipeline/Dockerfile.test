@@ -1,0 +1,20 @@
+FROM {{ base_image.image }}
+
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
+COPY batch/setup.py /batch/
+COPY batch/batch/ /batch/batch/
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
+
+COPY pipeline/setup.py /pipeline/
+COPY pipeline/pipeline/ /pipeline/pipeline/
+RUN pip3 install --no-cache-dir /pipeline && \
+  rm -rf /pipeline
+
+COPY pipeline/test/ /test/
+
+CMD ["python3", "-m", "pytest", "-v", "/test/"]
