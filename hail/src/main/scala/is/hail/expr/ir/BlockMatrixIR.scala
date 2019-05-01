@@ -40,7 +40,7 @@ object BlockMatrixIR {
     assert(shape.length <= 2)
     shape match {
       case IndexedSeq() => (1, 1)
-      case IndexedSeq(len) => if (isRowVector) (len, 1) else (1, len)
+      case IndexedSeq(len) => if (isRowVector) (1, len) else (len, 1)
       case IndexedSeq(r, c) => (r, c)
     }
   }
@@ -331,10 +331,14 @@ case class BlockMatrixBroadcast(
   assert(shape.length == 2)
   assert(inIndexExpr.length <= 2 && inIndexExpr.forall(x => x == 0 || x == 1))
 
+  val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
+  val childMatrixShape = IndexedSeq(nRows, nCols)
+  assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) =>
+    !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
+  }))
+
   override def typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == tensorShape(out) }))
-
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize)
   }
 
