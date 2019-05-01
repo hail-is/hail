@@ -100,8 +100,8 @@ class HailContext(object):
 
         self._jsc = self._jhc.sc()
         self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
-        self._jspark_session = self._jhc.sparkSession
-        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession)
+        self._jspark_session = self._jhc.sparkSession()
+        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession())
 
         super(HailContext, self).__init__()
 
