@@ -1138,9 +1138,12 @@ object LoadVCF {
     callFields: Set[String],
     entryFloatType: TNumeric,
     lines: Array[String],
-    arrayElementsRequired: Boolean = true
+    arrayElementsRequired: Boolean = true,
+    repairHeader: Boolean = true
   ): VCFHeaderInfo = {
     val codec = new htsjdk.variant.vcf.VCFCodec()
+    if (!repairHeader)
+      codec.disableOnTheFlyModifications()
     val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
@@ -1403,6 +1406,7 @@ case class MatrixVCFReader(
   callFields: Set[String],
   entryFloatTypeName: String,
   headerFile: Option[String],
+  repairHeader: Boolean,
   minPartitions: Option[Int],
   rg: Option[String],
   contigRecoding: Map[String, String],
@@ -1425,7 +1429,7 @@ case class MatrixVCFReader(
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
 
   private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head), filterAndReplace)
-  private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
+  private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired, repairHeader = repairHeader)
 
   if (headerFile.isEmpty) {
     val confBc = HailContext.hadoopConfBc
@@ -1435,12 +1439,13 @@ case class MatrixVCFReader(
     val localFloatType = entryFloatType
     val localInputs = inputs
     val localArrayElementsRequired = arrayElementsRequired
+    val localRepairHeader = repairHeader
     val localFilterAndReplace = filterAndReplace
     sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
       val hConf = confBc.value.value
       val hd = parseHeader(
         localCallFields, localFloatType, getHeaderLines(hConf, file, localFilterAndReplace),
-        arrayElementsRequired = localArrayElementsRequired)
+        arrayElementsRequired = localArrayElementsRequired, repairHeader = localRepairHeader)
       val hd1 = header1Bc.value
 
       if (hd1.sampleIds.length != hd.sampleIds.length) {
@@ -1560,6 +1565,7 @@ object ImportVCFs {
     rg: String,
     contigRecoding: java.util.Map[String, String],
     arrayElementsRequired: Boolean,
+    repairHeader: Boolean,
     skipInvalidLoci: Boolean,
     gzAsBGZ: Boolean,
     forceGZ: Boolean,
@@ -1575,6 +1581,7 @@ object ImportVCFs {
       Option(rg),
       Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
       arrayElementsRequired,
+      repairHeader,
       skipInvalidLoci,
       gzAsBGZ,
       forceGZ,
@@ -1599,6 +1606,7 @@ class VCFsReader(
   rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
+  repairHeader: Boolean,
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
@@ -1620,7 +1628,7 @@ class VCFsReader(
   private val headerLines1 = getHeaderLines(hConf, file1, filterAndReplace)
   private val headerLines1Bc = sc.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
-  private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
+  private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired, repairHeader)
 
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
