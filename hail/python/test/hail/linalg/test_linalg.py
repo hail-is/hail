@@ -419,6 +419,12 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
 
+        self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
+        self._assert_eq(m.sum(axis=1).T, np.array([6.0, 15.0]))
+        self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
+                                                         [14.0, 15.0, 16.0],
+                                                         [16.0, 17.0, 18.0]]))
+
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
