@@ -183,13 +183,13 @@ class PR(Code):
         assert self.batch is None
         return self.most_recent_batch is None or self.source_sha != self.most_recent_batch.attributes['source_sha']
 
-    def build_complete(self):
+    def build_is_complete(self):
         return build_state_is_complete(self.build_state)
 
     def should_update_most_recent_batch(self):
         return self.batch is not None and (
             self.most_recent_batch is None or
-            self.build_complete() or
+            self.build_is_complete() or
             self.source_sha == self.batch.attributes['source_sha'])
 
     def clear_build(self):
