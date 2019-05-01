@@ -884,6 +884,9 @@ case class MatrixAnnotateRowsTable(
   child: MatrixIR,
   table: TableIR,
   root: String) extends MatrixIR {
+  require(table.typ.keyType.isPrefixOf(child.typ.rowKeyStruct) ||
+    (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))),
+    s"\n  L: ${ child.typ }\n  R: ${ table.typ }")
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
 

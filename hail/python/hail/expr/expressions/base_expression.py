@@ -787,7 +787,8 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid).key_by().select(uid)
+        t = self._to_table(uid)
+        t = t.order_by(*t.key).select(uid)
 
         e = t.collect(_localize=False).map(lambda r: r[uid])
         if _localize:
