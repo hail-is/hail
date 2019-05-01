@@ -569,6 +569,28 @@ object Simplify {
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) =>
       val uid = genUID()
       MatrixMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
+
+    // Note: the following MMR and MMC fusing rules are much weaker than they could be. If they contain aggregations
+    // but those aggregations that mention "row" / "sa" but do not depend on the updated value, we should locally
+    // prune and fuse anyway.
+    case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va")
+      && !Exists.inIR(newRow2, {
+      case a: ApplyAggOp => a.initOpArgs.exists(_.exists(Mentions(_, "va"))) // Lowering produces invalid IR
+      case _ => false
+    }) =>
+      val uid = genUID()
+      MatrixMapRows(child, Let(uid, newRow1,
+        Subst(newRow2, BindingEnv[IR](Env(("va", Ref(uid, newRow1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))))
+
+    case MatrixMapCols(MatrixMapCols(child, newCol1, nk1), newCol2, nk2) if !Mentions.inAggOrScan(newCol2, "sa") =>
+      val uid = genUID()
+      MatrixMapCols(child, Let(uid, newCol1,
+        Subst(newCol2, BindingEnv[IR](Env(("sa", Ref(uid, newCol1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))),
+        if (nk2.isDefined) nk2 else nk1)
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
