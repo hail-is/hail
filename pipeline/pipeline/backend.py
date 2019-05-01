@@ -273,14 +273,12 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
-        status = batch.wait()
-
         if delete_scratch_on_exit:
             parent_ids = list(job_id_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
             cmd = f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
-                image='google/cloud-sdk:alpine',
+                image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
                 parent_ids=parent_ids,
                 volumes=volumes,
