@@ -131,7 +131,7 @@ class BatchTable(Table):
         wheres = []
         if complete or success:
             joins += "inner join {self._db.batch_jobs.name} as bj using (batch_id)"
-            joins += "inner join {self._db.jobs.name} as job using (job_id)"
+            joins += "inner join {self._db.jobs.name} as job on bj.job_id == job.id"
             if complete is not None:
                 values += "Complete"
                 if complete:
@@ -147,7 +147,7 @@ class BatchTable(Table):
         if user:
             values += user
             wheres += "job.user = %s"
-        sql += joins.join(" ") + " " + wheres.join(" and ")
+        sql += " ".join(joins) + " " + " and ".join(wheres)
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(sql, tuple(values))
