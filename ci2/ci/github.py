@@ -179,7 +179,7 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def most_recent_build_source_is_out_of_date(self):
+    def most_recent_build_has_out_of_date_source(self):
         assert self.batch is None
         return self.most_recent_batch is None or self.source_sha != self.most_recent_batch.attributes['source_sha']
 
@@ -322,7 +322,7 @@ mkdir -p {shq(repo_dir)}
             # should be at most one batch
             if len(batches) > 0:
                 self.batch = min(batches, key=lambda b: b.id)
-            elif merge_candidate is None or self == merge_candidate or self.most_recent_build_source_is_out_of_date():
+            elif merge_candidate is None or self == merge_candidate or self.most_recent_build_has_out_of_date_source():
                 async with repos_lock:
                     await self._start_build(batch_client)
 
