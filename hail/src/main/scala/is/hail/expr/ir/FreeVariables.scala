@@ -27,9 +27,9 @@ object FreeVariables {
                 val sub = compute(child, childEnv)
                   .subtract(NewBindings(ir1, i, childEnv))
                 if (UsesAggEnv(ir1, i))
-                  sub.copy(agg = Some(sub.eval))
+                  sub.copy(eval = Env.empty[Unit], agg = Some(sub.eval), scan = baseEnv.scan)
                 else if (UsesScanEnv(ir1, i))
-                  sub.copy(scan = Some(sub.eval))
+                  sub.copy(eval = Env.empty[Unit], agg = baseEnv.agg, scan = Some(sub.eval))
                 else
                   sub
               case _ =>

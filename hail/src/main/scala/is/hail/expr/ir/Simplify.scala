@@ -569,11 +569,17 @@ object Simplify {
     // prune and fuse anyway.
     case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va") =>
       val uid = genUID()
-      MatrixMapRows(child, Let(uid, newRow1, Subst(newRow2, BindingEnv(Env(("va", Ref(uid, newRow1.typ)))))))
+      MatrixMapRows(child, Let(uid, newRow1,
+        Subst(newRow2, BindingEnv[IR](Env(("va", Ref(uid, newRow1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))))
 
     case MatrixMapCols(MatrixMapCols(child, newCol1, nk1), newCol2, nk2) if !Mentions.inAggOrScan(newCol2, "sa") =>
       val uid = genUID()
-      MatrixMapCols(child, Let(uid, newCol1, Subst(newCol2, BindingEnv(Env(("sa", Ref(uid, newCol1.typ)))))),
+      MatrixMapCols(child, Let(uid, newCol1,
+        Subst(newCol2, BindingEnv[IR](Env(("sa", Ref(uid, newCol1.typ))),
+          agg = Some(Env.empty[IR]),
+          scan = Some(Env.empty[IR])))),
         if (nk2.isDefined) nk2 else nk1)
   }
 
