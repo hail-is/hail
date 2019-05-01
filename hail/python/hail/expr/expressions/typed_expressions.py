@@ -3510,16 +3510,22 @@ class NDArrayNumericExpression(NDArrayExpression):
         if not isinstance(other, NDArrayNumericExpression):
             other = hl._ndarray(other)
 
-        if self.ndim == 1:
-            result_ndim = other.ndim - 1
-        elif other.ndim == 1:
-            result_ndim = self.ndim - 1
-        else:
-            assert self.ndim == other.ndim
-            result_ndim = self.ndim
+        if self.ndim == 0 or other.ndim == 0:
+            raise FatalError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
-        nd_typ = tndarray(self._type.element_type, result_ndim)
-        return construct_expr(NDArrayMatMul(self._ir, other), nd_typ, self._indices, self._aggregations)
+        l_ndim = self.ndim
+        r_ndim = other.ndim
+
+        if l_ndim == 1 and r_ndim == 1:
+            ndim = 0
+        elif l_ndim == 1 or r_ndim == 1:
+            ndim = 1
+        else:
+            # TODO Broadcast
+            assert l_ndim == r_ndim
+            ndim = l_ndim
+
+        return NDArrayNumericExpression(NDArrayMatMul(self._ir, other._ir), tndarray(self._type.element_type, ndim))
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):

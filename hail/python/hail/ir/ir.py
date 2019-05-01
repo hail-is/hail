@@ -622,17 +622,22 @@ class NDArrayMatMul(IR):
 
     @typecheck_method(l=IR, r=IR)
     def copy(self, l, r):
-        return NDArrayRef(l, r)
+        return NDArrayMatMul(l, r)
 
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-
         l_ndim = self.l.typ.ndim
         r_ndim = self.r.typ.ndim
-        assert l_ndim > 0 and r_ndim > 0
 
-        self._type = tndarray(self.l.typ.element_type, l_ndim + r_ndim - 2)
+        if l_ndim == 1 and r_ndim == 1:
+            ndim = 0
+        elif l_ndim == 1 or r_ndim == 1:
+            ndim = 1
+        else:
+            assert l_ndim == r_ndim
+            ndim = l_ndim
+        self._type = tndarray(tfloat64, ndim)
 
 
 class NDArrayWrite(IR):
