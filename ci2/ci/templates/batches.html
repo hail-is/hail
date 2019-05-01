@@ -12,8 +12,8 @@
       <thead>
         <tr>
           <th align="right">id</th>
-          <th align="right">type</th>
-          <th align="right">state</th>
+          <th align="left">type</th>
+          <th align="left">state</th>
         </tr>
       </thead>
       <tbody>
@@ -21,7 +21,7 @@
         <tr>
           <td align="right">
             <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
-          <td align="right">
+          <td align="left">
             {% if 'attributes' in batch %}
             {% if 'deploy' in batch['attributes'] %}
             deploy

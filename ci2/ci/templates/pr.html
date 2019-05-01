@@ -52,6 +52,48 @@
 	{% endfor %}
       </tbody>
       {% endif %}
+      
+      <h2>History</h2>
+      {% if history %}
+      <table>
+	<thead>
+          <tr>
+            <th align="right">id</th>
+            <th align="left">type</th>
+            <th align="left">state</th>
+          </tr>
+	</thead>
+	<tbody>
+	  {% for batch in history %}
+          <tr>
+            <td align="right">
+              <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+            <td align="left">
+              {% if 'attributes' in batch %}
+              {% if 'deploy' in batch['attributes'] %}
+              deploy
+              {% elif 'test' in batch['attributes'] %}
+              test
+              {% else %}
+              unknown
+              {% endif %}
+              {% endif %}
+            </td>
+            <td align="left">
+              {% if 'state' in batch and batch['state'] %}
+              {{ batch['state'] }}
+              {% endif %}
+              {% if not batch['complete'] %}
+              running
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+	</tbody>
+      </table>
+      {% else %}
+      No builds.
+      {% endif %}
     </table>
   </body>
 </html>

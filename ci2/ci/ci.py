@@ -67,13 +67,14 @@ async def index(request):  # pylint: disable=unused-argument
 async def get_pr(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
-    try:
-        wb = watched_branches[watched_branch_index]
-        if not wb.prs:
+
+    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
             raise web.HTTPNotFound()
-        pr = wb.prs[pr_number]
-    except IndexError:
+    wb = watched_branches[watched_branch_index]
+    
+    if wb.prs or pr_number not in wb.prs:
         raise web.HTTPNotFound()
+    pr = wb.prs[pr_number]
 
     config = {}
     config['number'] = pr.number
@@ -87,6 +88,19 @@ async def get_pr(request):
                 attrs['link'] = attrs['link'].split(',')
         config['batch'] = status
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+
+    batch_client = request.app['batch_client']
+    batches = await batch_client.list_batches(
+        attributes={
+            'test': '1',
+            'pr': pr_number
+        })
+    batches = sorted(batches, key=lambda b: b.id, reverse=True)
+    # FIXME performance
+    statuses = [await b.status() for b in batches]
+    for status in statuses:
+        update_batch_status(status)
+    config['history'] = statuses
 
     return config
 
