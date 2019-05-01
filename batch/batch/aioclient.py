@@ -48,19 +48,6 @@ class Job:
             if i < 64:
                 i = i + 1
 
-    async def cancel(self):
-        await self.client._patch('/jobs/{}/cancel'.format(self.id))
-
-    async def delete(self):
-        await self.client._delete('/jobs/{}/delete'.format(self.id))
-
-        # this object should not be referenced again
-        del self.client
-        del self.id
-        del self.attributes
-        del self.parent_ids
-        del self._status
-
     async def log(self):
         return await self.client._get('/jobs/{}/log'.format(self.id))
 
@@ -215,16 +202,6 @@ class BatchClient:
 
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')
-
-    async def list_jobs(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        jobs = await self._get('/jobs', params=params)
-        return [Job(self,
-                    j['id'],
-                    attributes=j.get('attributes'),
-                    parent_ids=j.get('parent_ids', []),
-                    _status=j)
-                for j in jobs]
 
     async def list_batches(self, complete=None, success=None, attributes=None):
         params = filter_params(complete, success, attributes)

@@ -656,35 +656,6 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
-@routes.get('/jobs')
-@authenticated_users_only
-async def get_job_list(request, userdata):
-    params = request.query
-    user = userdata['ksa_name']
-
-    jobs = [Job.from_record(record) for record in await db.jobs.get_record({'user': user})]
-
-    for name, value in params.items():
-        if name == 'complete':
-            if value not in ('0', '1'):
-                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
-            c = value == '1'
-            jobs = [job for job in jobs if job.is_complete() == c]
-        elif name == 'success':
-            if value not in ('0', '1'):
-                abort(400, f'invalid success value, expected 0 or 1, got {value}')
-            s = value == '1'
-            jobs = [job for job in jobs if (job._state == 'Complete' and job.exit_code == 0) == s]
-        else:
-            if not name.startswith('a:'):
-                abort(400, f'unknown query parameter {name}')
-            k = name[2:]
-            jobs = [job for job in jobs
-                    if job.attributes and k in job.attributes and job.attributes[k] == value]
-
-    return jsonify([await job.to_dict() for job in jobs])
-
-
 @routes.get('/jobs/{job_id}')
 @authenticated_users_only
 async def get_job(request, userdata):
@@ -711,32 +682,6 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     if job_log:
         return jsonify(job_log)
     abort(404)
-
-
-@routes.delete('/jobs/{job_id}')
-@authenticated_users_only
-async def delete_job(request, userdata):
-    job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
-
-    job = await Job.from_db(job_id, user)
-    if not job:
-        abort(404)
-    await job.delete()
-    return jsonify({})
-
-
-@routes.patch('/jobs/{job_id}/cancel')
-@authenticated_users_only
-async def cancel_job(request, userdata):
-    job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
-
-    job = await Job.from_db(job_id, user)
-    if not job:
-        abort(404)
-    await job.cancel()
-    return jsonify({})
 
 
 class Batch:
