@@ -11,7 +11,7 @@ Hail. Post to the [Discussion Forum](http://discuss.hail.is) for user support
 and feature requests. Chat with the Hail team and user community in Hail's
 [Zulip chatroom](https://hail.zulipchat.com).
 
-Hail is actively developed, and new features are frequently added. See the [changelog](https://hail.is/docs/0.2/change_log.html) for more information.
+Hail is actively developed with new features and performance improvements integrated weekly. See the [changelog](https://hail.is/docs/0.2/change_log.html) for more information.
 
 ### Maintainer
 
