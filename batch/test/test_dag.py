@@ -111,25 +111,6 @@ def test_cancel_left_after_tail(client):
         assert node.status()['state'] == 'Cancelled'
 
 
-def test_one_of_two_parent_ids_cancelled(client):
-    batch = client.create_batch()
-    left = batch.create_job(
-        'alpine:3.8',
-        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
-    right.wait()
-    batch.cancel()
-    status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 1
-    assert batch_status_job_counter(status, 'Cancelled') == 2
-    right_status = right.status()
-    assert right_status['state'] == 'Complete'
-    assert right_status['exit_code'] == 0
-    for node in [left, tail]:
-        assert node.status()['state'] == 'Cancelled'
-
-
 def test_parent_already_done(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
