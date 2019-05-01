@@ -1,4 +1,4 @@
-from ..database import Database, Table
+from ..database import Database, Table, make_where_statement
 
 
 class BatchDatabase(Database):
@@ -11,7 +11,7 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
-    uri_log_mapping = {'input': 'input_log_uri',
+    log_uri_mapping = {'input': 'input_log_uri',
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
@@ -25,7 +25,18 @@ class JobsTable(Table):
         return await super().get_all_records()
 
     async def get_records(self, ids, fields=None):
-        return await super().get_record({'id': ids}, fields)
+        return await super().get_records({'id': ids}, fields)
+
+    async def get_undeleted_records(self, ids):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_name = self._db.batch.name
+                where_template, where_values = make_where_statement({'id': ids})
+                sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS 
+                (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = 0)"""
+                await cursor.execute(sql, tuple(where_values))
+                result = await cursor.fetchall()
+        return result
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -61,13 +72,13 @@ class JobsTable(Table):
         return await self.get_records_where({'batch_id': batch_id})
 
     async def get_records_where(self, condition):
-        return await super().get_record(condition)
+        return await super().get_records(condition)
 
     async def update_log_uri(self, id, task_name, uri):
-        await self.update_record(id, **{JobsTable.uri_log_mapping[task_name]: uri})
+        await self.update_record(id, **{JobsTable.log_uri_mapping[task_name]: uri})
 
     async def get_log_uri(self, id, task_name):
-        uri_field = JobsTable.uri_log_mapping[task_name]
+        uri_field = JobsTable.log_uri_mapping[task_name]
         records = await self.get_records(id, fields=[uri_field])
         if records:
             assert len(records) == 1
@@ -123,3 +134,9 @@ class BatchTable(Table):
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
+
+    async def purge_finished_deleted_records(self):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                sql = f"DELETE FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
+                await cursor.execute(sql)
