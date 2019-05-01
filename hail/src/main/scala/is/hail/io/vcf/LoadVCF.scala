@@ -1141,6 +1141,8 @@ object LoadVCF {
     arrayElementsRequired: Boolean = true
   ): VCFHeaderInfo = {
     val codec = new htsjdk.variant.vcf.VCFCodec()
+    // Disable "repairing" of headers by htsjdk according to the VCF standard.
+    codec.disableOnTheFlyModifications()
     val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
