@@ -251,7 +251,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 },
-                callback=SELF_HOSTNAME + '/batch_callback')
+                callback=f'http://{SELF_HOSTNAME}/batch_callback')
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
@@ -534,7 +534,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=SELF_HOSTNAME + '/batch_callback')
+                callback=f'{SELF_HOSTNAME}/batch_callback')
             # FIXME make build atomic
             await config.build(deploy_batch, self, deploy=True)
             await deploy_batch.close()
@@ -543,7 +543,6 @@ mkdir -p {shq(repo_dir)}
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
                 deploy_batch.cancel()
-
 
     def checkout_script(self):
         return f'''
