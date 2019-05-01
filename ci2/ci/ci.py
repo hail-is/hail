@@ -76,31 +76,19 @@ async def get_pr(request):
     config = {}
     config['number'] = pr.number
     if pr.batch:
-        config['batch'] = await batch_status_template_context(pr.batch)
+        status = await batch.status()
+        config['batch'] = status
+        for j in status['jobs']:
+            if 'duration' in j and j['duration'] is not None:
+                j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+            attrs = j['attributes']
+            if 'link' in attrs:
+                attrs['link'] = attrs['link'].split(',')
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
-    if pr.most_recent_batch is not None:
-        config['most_recent_build'] = {
-            'source_sha': pr.most_recent_batch.attributes['source_sha'],
-            'target_sha': pr.most_recent_build.attributes['target_sha'],
-            'build_state': pr.most_recent_build_state,
-            'batch': await batch_status_template_context(pr.most_recent_batch),
-            'artifacts': f'{BUCKET}/build/{pr.most_recent_batch.attributes["token"]}'
-        }
     else:
         config['most_recent_build'] = None
 
     return config
-
-
-async def batch_status_template_context(batch):
-    status = await batch.status()
-    for j in status['jobs']:
-        if 'duration' in j and j['duration'] is not None:
-            j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-        attrs = j['attributes']
-        if 'link' in attrs:
-            attrs['link'] = attrs['link'].split(',')
-    return status
 
 
 @routes.get('/batches')
