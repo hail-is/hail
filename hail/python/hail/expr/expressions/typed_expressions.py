@@ -2,7 +2,7 @@ from typing import *
 
 import hail as hl
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Aggregation
+    unify_all, Indices, Aggregation, unify_types
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.ir import *
@@ -3513,6 +3513,8 @@ class NDArrayNumericExpression(NDArrayExpression):
         if self.ndim == 0 or other.ndim == 0:
             raise FatalError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
+        elem_type = unify_types(self._type.element_type, other._type.element_type)
+
         l_ndim = self.ndim
         r_ndim = other.ndim
 
@@ -3523,10 +3525,9 @@ class NDArrayNumericExpression(NDArrayExpression):
         else:
             self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
             return NDArrayNumericExpression(NDArrayMatMul(self_broadcast._ir, other_broadcast._ir),
-                                            tndarray(self._type.element_type, self_broadcast.ndim))
+                                            tndarray(elem_type, self_broadcast.ndim))
 
-        assert self.ndim == other.ndim
-        return NDArrayNumericExpression(NDArrayMatMul(self._ir, other._ir), tndarray(self._type.element_type, ndim))
+        return NDArrayNumericExpression(NDArrayMatMul(self._ir, other._ir), tndarray(elem_type, ndim))
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):

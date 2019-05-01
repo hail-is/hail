@@ -9,13 +9,10 @@ import scala.reflect.{ClassTag, classTag}
 
 object TNDArray {
   def matMulNDims(l: Int, r: Int): Int = {
-    if (l == 1) {
-      r - 1
-    } else if (r == 1) {
-      l - 1
-    } else {
-      assert(l == r)
-      l
+    (l, r) match {
+      case (1, 1) => 0
+      case (1, _) | (_, 1) => 1
+      case (_, _) => l
     }
   }
 }

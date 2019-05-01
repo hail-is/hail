@@ -101,7 +101,8 @@ object NDArrayLoopEmitter {
     }
   }
 
-  def loadElement(nd: Variable, index: Code, elemType: PType): Code = {
+  def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
+    val index = linearizeIndices(idxs, s"$nd.strides")
     s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
   }
 }

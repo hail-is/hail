@@ -637,7 +637,9 @@ class NDArrayMatMul(IR):
         else:
             assert l_ndim == r_ndim
             ndim = l_ndim
-        self._type = tndarray(tfloat64, ndim)
+
+        from hail.expr.expressions import unify_types
+        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
 
 
 class NDArrayWrite(IR):

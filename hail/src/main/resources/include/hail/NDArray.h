@@ -144,12 +144,15 @@ std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right
     result.push_back(left[i]);
   }
 
-  // Doesn't work for vectors
-  int n = left[l_size - 2];
-  result.push_back(n);
+  if (l_size > 1) {
+    int n = left[l_size - 2];
+    result.push_back(n);
+  }
 
-  int m = right[r_size - 1];
-  result.push_back(m);
+  if (r_size > 1) {
+    int m = right[r_size - 1];
+    result.push_back(m);
+  }
 
   return result;
 }

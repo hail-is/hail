@@ -2893,10 +2893,20 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_matmul(self):
-        a = [[1, 2], [3, 4]]
-        b = hl._ndarray(a)
-        c = hl._ndarray(a)
-        d = b @ c
+        np_v = np.array([1, 2])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_cube = np.array([[[1, 2],
+                             [3, 4]],
+                            [[5, 6],
+                             [7, 8]]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        cube = hl._ndarray(np_cube)
+
+        hl.eval((m @ m)[0, 0])
+        hl.eval((v @ m)[0])
+        hl.eval((m @ v)[0])
+        hl.eval((cube @ cube)[0, 0, 0])
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]

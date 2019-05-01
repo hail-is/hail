@@ -1100,22 +1100,16 @@ class IRSuite extends SparkSuite {
 
   @Test def testNDArrayMatMul() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
-    //
-    //    val twoByThreeByFive = threeTensorRowMajor
-    //    val twoByFiveByThree = NDArrayReindex(threeTensorRowMajor, IndexedSeq(0, 2, 1))
-    //    val twoByThree = NDArrayMatMul(threeTensorRowMajor, threeTensorTranspose)
-    //    //TODO finish assert
-    //
-    //    val zeroTensor = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
-    //    val zero = NDArrayRef(zeroTensor, MakeArray(IndexedSeq(), TArray(TInt64())))
-    //    assertEvalsTo(zero, 0.0)
+
+    val twoByThreeByFive = threeTensorRowMajor
+    val twoByFiveByThree = NDArrayReindex(threeTensorRowMajor, IndexedSeq(0, 2, 1))
+    val twoByThree = NDArrayMatMul(twoByThreeByFive, twoByFiveByThree)
+    val asdf = makeNDArrayRef(twoByThree, IndexedSeq(0, 0))
+    assertEvalsTo(asdf, 0.0)
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-
-    val result = NDArrayMatMul(mat, mat)
-    val seven = NDArrayRef(result, IndexedSeq(I64(0), I64(0)))
-
+    val seven = makeNDArrayRef(NDArrayMatMul(mat, mat), IndexedSeq(0, 0))
     assertEvalsTo(seven, 7.0)
   }
 
