@@ -3521,10 +3521,11 @@ class NDArrayNumericExpression(NDArrayExpression):
         elif l_ndim == 1 or r_ndim == 1:
             ndim = 1
         else:
-            # TODO Broadcast
-            assert l_ndim == r_ndim
-            ndim = l_ndim
+            self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+            return NDArrayNumericExpression(NDArrayMatMul(self_broadcast._ir, other_broadcast._ir),
+                                            tndarray(self._type.element_type, self_broadcast.ndim))
 
+        assert self.ndim == other.ndim
         return NDArrayNumericExpression(NDArrayMatMul(self._ir, other._ir), tndarray(self._type.element_type, ndim))
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
