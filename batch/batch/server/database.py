@@ -130,8 +130,7 @@ class BatchTable(Table):
         joins = []
         wheres = []
         if complete or success:
-            joins += "inner join {self._db.batch_jobs.name} as bj using (batch_id)"
-            joins += "inner join {self._db.jobs.name} as job on bj.job_id == job.id"
+            joins += "inner join {self._db.jobs.name} as job on batch.id == job.batch_id"
             if complete is not None:
                 values += "Complete"
                 if complete:
