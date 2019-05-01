@@ -255,6 +255,8 @@ mkdir -p {shq(repo_dir)}
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
+        except Exception as e:
+            log.exception(f'could not build {self.number} due to exception {e}')
         finally:
             if batch and not self.batch:
                 log.info(f'cancelling partial test batch {batch.id}')
