@@ -1,7 +1,7 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
-import is.hail.expr.ir.{BindingEnv, Str}
+import is.hail.expr.ir.BindingEnv
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -859,26 +859,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |""".stripMargin)
 
       case ir.NDArrayMap(child, elemName, body) =>
-        val childTyp = child.pType.asInstanceOf[PNDArray]
-        val elemPType = childTyp.elementType
-        val nDims = childTyp.nDims
+        val elemPType = child.pType.asInstanceOf[PNDArray].elementType
         val cxxElemType = typeToCXXType(elemPType)
         val elemRef = fb.variable("elemRef", cxxElemType)
         val bodyt = outer.emit(body,
           env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
-        val ndt = emit(child)
-        val nd = fb.variable("nd", "NDArray", ndt.v)
-        val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
+        val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
+        val setup = Code(childEmitter.setup, elemRef.define)
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            assert(idxVars.length == nDims)
-            val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", shape.toString)
             s"""
                |({
-               | $elemRef = load_element<$cxxElemType>(load_index($nd, $index));
+               | $elemRef = ${ childEmitter.outputElement(idxVars) }
                |
                | ${ bodyt.setup }
                | if (${ bodyt.m }) {
@@ -891,50 +886,32 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-        present(
-          s"""
-             |({
-             | ${ ndt.setup }
-             |
-             | ${ nd.define }
-             | ${ elemRef.define }
-             |
-             | ${ emitter.emit() };
-             |})
-           """.stripMargin)
+        present(emitter.emit(body.pType))
 
       case ir.NDArrayMap2(lChild, rChild, lName, rName, body) =>
-        val lType = lChild.pType.asInstanceOf[PNDArray]
-        val lElemType = lType.elementType
-        val nDims = lType.nDims
-        val cxxLElemType = typeToCXXType(lElemType)
+        val lElemType = lChild.pType.asInstanceOf[PNDArray].elementType
         val rElemType = rChild.pType.asInstanceOf[PNDArray].elementType
-        val cxxRElemType = typeToCXXType(rElemType)
 
-        val lRef = fb.variable("lRef", cxxLElemType)
-        val rRef = fb.variable("rRef", cxxRElemType)
+        val lRef = fb.variable("lRef", typeToCXXType(lElemType))
+        val rRef = fb.variable("rRef", typeToCXXType(rElemType))
         val bodyt = outer.emit(body,
           env.bind(
             (lName, EmitTriplet(lElemType, "", "false", lRef.toString, resultRegion)),
             (rName, EmitTriplet(rElemType, "", "false", rRef.toString, resultRegion))))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
-        val lt = emit(lChild)
-        val rt = emit(rChild)
-        val l = fb.variable("l", "NDArray", lt.v)
-        val r = fb.variable("r", "NDArray", rt.v)
+        val lEmitter = emitDeforestedNDArray(resultRegion, lChild, env)
+        val rEmitter = emitDeforestedNDArray(resultRegion, rChild, env)
 
-        val shape = fb.variable("shape", "std::vector<long>", s"$l.shape")
+        val shape = fb.variable("shape", "std::vector<long>", s"unify_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
+        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define)
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, body.pType, shape, 0 until nDims) {
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, x.pType.asInstanceOf[PNDArray].nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$l.strides", shape.toString)
-            val rIndex = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$r.strides", shape.toString)
-
             s"""
                |({
-               | $lRef = load_element<$cxxLElemType>(load_index($l, $lIndex));
-               | $rRef = load_element<$cxxRElemType>(load_index($r, $rIndex));
+               | $lRef = ${ lEmitter.outputElement(idxVars) }
+               | $rRef = ${ rEmitter.outputElement(idxVars) }
                |
                | ${ bodyt.setup }
                | if (${ bodyt.m }) {
@@ -947,37 +924,25 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-        present(
-          s"""
-             |({
-             | ${ lt.setup }
-             | ${ rt.setup }
-             |
-             | ${ l.define }
-             | ${ r.define }
-             |
-             | if ($l.shape != $r.shape) {
-             |   ${ fb.nativeError("Cannot Map2 with NDArrays of different shape") }
-             | }
-             |
-             | ${ lRef.define }
-             | ${ rRef.define }
-             |
-             | ${ emitter.emit() };
-             |})
-           """.stripMargin)
+        present(emitter.emit(body.pType))
 
       case ir.NDArrayReindex(child, indexExpr) =>
-        assert(indexExpr.length == child.typ.asInstanceOf[TNDArray].nDims,
-          "Cannot realize reindexing that is not a transpose")
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
+
         val shape = fb.variable("shape", "std::vector<long>")
         val strides = fb.variable("strides", "std::vector<long>")
-
-        val permuteShapeAndStrides = indexExpr
-          .map{ i => s"$shape.push_back($nd.shape[$i]); $strides.push_back($nd.strides[$i]);" }
-          .mkString("\n")
+        val reindexShapeAndStrides = indexExpr.map { i =>
+          s"""
+             | if ($i < $nd.shape.size()) {
+             |  $shape.push_back($nd.shape[$i]);
+             |  $strides.push_back($nd.strides[$i]);
+             | } else {
+             |  $shape.push_back(1);
+             |  $strides.push_back(0);
+             | }
+           """.stripMargin
+        }.mkString("\n")
         present(
           s"""
              |({
@@ -986,14 +951,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${ shape.define }
              |  ${ strides.define }
              |
-             |  ${ permuteShapeAndStrides }
+             |  ${ reindexShapeAndStrides }
              |  make_ndarray($nd.flags, $nd.offset, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
-        val elemType = typeToCXXType(ndIR.pType.asInstanceOf[PNDArray].elementType)
 
         val ndt = emit(ndIR)
         val idxst = idxs.map(emit(_))
@@ -1001,7 +965,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val nd = fb.variable("nd", "NDArray", ndt.v)
 
         val idxVars = idxst.map(i => fb.variable("idx", "int", i.v))
-        val index = NDArrayLoopEmitter.linearizeIndices(fb, idxVars, s"$nd.strides", s"$nd.shape")
+        val index = NDArrayLoopEmitter.linearizeIndices(idxVars, s"$nd.strides")
 
         triplet(
           s"""
@@ -1013,7 +977,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ nd.define }
              | ${ idxVars.map(_.define).mkString("\n") }
-             | load_element<$elemType>(load_index($nd, $index));
+             | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) }
              |})
            """.stripMargin)
 
@@ -1266,6 +1230,30 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
+    }
+  }
+
+  def emitDeforestedNDArray(resultRegion: EmitRegion, x: ir.IR, env: E): NDArrayLoopEmitter = {
+    x match {
+      case _ =>
+        val ndt = emit(resultRegion, x, env)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val shape = fb.variable("shape", "std::vector<long>", s"$nd.shape")
+
+        val setup =
+          s"""
+             | ${ ndt.setup }
+             | ${ nd.define }
+             | ${ shape.define }
+           """.stripMargin
+
+        val xType = x.pType.asInstanceOf[PNDArray]
+        new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val index = NDArrayLoopEmitter.linearizeIndices(idxVars, s"$nd.strides")
+            NDArrayLoopEmitter.loadElement(nd, index, xType.elementType)
+          }
+        }
     }
   }
 }
