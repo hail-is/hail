@@ -34,6 +34,7 @@
           <th align="left">Title</th>
           <th align="left">Build State</th>
           <th align="left">Review State</th>
+          <th align="left">Author</th>
         </tr>
       </thead>
       <tbody>
@@ -70,6 +71,9 @@
             {% if pr.review_state %}
             {{ pr.review_state }}
             {% endif %}
+          </td>
+          <td> align="left">
+            {{ pr.author }}
           </td>
         </tr>
         {% endfor %}

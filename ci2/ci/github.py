@@ -108,12 +108,13 @@ class FQBranch:
 
 
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch):
+    def __init__(self, number, title, source_repo, source_sha, target_branch, author):
         self.number = number
         self.title = title
         self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
+        self.author = author
 
         # pending, changes_requested, approve
         self.review_state = None
@@ -132,6 +133,7 @@ class PR(Code):
     def update_from_gh_json(self, gh_json):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
+        self.author = gh_json['user']['login']
 
         head = gh_json['head']
         new_source_sha = head['sha']
@@ -148,7 +150,12 @@ class PR(Code):
     @staticmethod
     def from_gh_json(gh_json, target_branch):
         head = gh_json['head']
-        return PR(gh_json['number'], gh_json['title'], Repo.from_gh_json(head['repo']), head['sha'], target_branch)
+        return PR(gh_json['number'],
+                  gh_json['title'],
+                  Repo.from_gh_json(head['repo']),
+                  head['sha'],
+                  target_branch,
+                  gh_json['user']['login'])
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
