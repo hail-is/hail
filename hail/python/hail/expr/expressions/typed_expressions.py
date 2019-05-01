@@ -12,6 +12,9 @@ from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 from hail.genetics.reference_genome import reference_genome_type
 
+import tempfile
+import numpy as np
+
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.tarray` or :class:`.tset`
@@ -3136,6 +3139,26 @@ class NDArrayExpression(Expression):
 
         Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
 
+    def to_numpy(self):
+        """Execute and convert this NDArray to a `NumPy ndarray.
+
+        Examples
+        --------
+        >>> a = nd.to_numpy() # doctest: +SKIP
+
+        Notes
+        -----
+        The resulting ndarray will have the same shape as the block matrix.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        # FIXME Use filesystem abstraction instead when that is ready
+        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
+        self.save(temp_file)
+        return np.load(temp_file)
+
     def _broadcast_to_same_ndim(self, other):
         if isinstance(other, NDArrayExpression):
             if self.ndim < other.ndim:
@@ -3179,14 +3202,14 @@ class NDArrayNumericExpression(NDArrayExpression):
     """
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
