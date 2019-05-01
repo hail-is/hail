@@ -1776,7 +1776,6 @@ def get_vcf_metadata(path):
            force=bool,
            force_bgz=bool,
            header_file=nullable(str),
-           repair_header=bool,
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, sequenceof(str)),
@@ -1793,7 +1792,6 @@ def import_vcf(path,
                force=False,
                force_bgz=False,
                header_file=None,
-               repair_header=True,
                min_partitions=None,
                drop_samples=False,
                call_fields=['PGT'],
@@ -1897,8 +1895,6 @@ def import_vcf(path,
     header_file : :obj:`str`, optional
         Optional header override file. If not specified, the first file in
         `path` is used.
-    repair_header : :obj:`bool`
-        Repair header file based on VCF standard.
     min_partitions : :obj:`int`, optional
         Minimum partitions to load per file.
     drop_samples : :obj:`bool`
@@ -1939,8 +1935,8 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, repair_header,
-                             min_partitions, reference_genome, contig_recoding, array_elements_required,
+    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
+                             reference_genome, contig_recoding, array_elements_required,
                              skip_invalid_loci, force_bgz, force, filter, find_replace, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
