@@ -567,7 +567,11 @@ object Simplify {
     // Note: the following MMR and MMC fusing rules are much weaker than they could be. If they contain aggregations
     // but those aggregations that mention "row" / "sa" but do not depend on the updated value, we should locally
     // prune and fuse anyway.
-    case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va") =>
+    case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2) if !Mentions.inAggOrScan(newRow2, "va")
+      && !Exists.inIR(newRow2, {
+      case a: ApplyAggOp => a.initOpArgs.exists(_.exists(Mentions(_, "va"))) // Lowering produces invalid IR
+      case _ => false
+    }) =>
       val uid = genUID()
       MatrixMapRows(child, Let(uid, newRow1,
         Subst(newRow2, BindingEnv[IR](Env(("va", Ref(uid, newRow1.typ))),
