@@ -6,4 +6,3 @@ for file in /tmp/baseline_v1.1/*.bed; do
     echo $file;
     bgzip -c $file | gsutil cp - gs://hail-datasets-raw-data/LDSC/baseline_v1.1/bed_files/$(basename ${file}).bgz;
 done
-rm -r /tmp/baseline_v1.1*
