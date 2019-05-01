@@ -13,6 +13,10 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   lazy val canonicalRVDType = RVDType(rowType.physicalType, key)
+  key.foreach {k =>
+    if (!rowType.hasField(k))
+      throw new RuntimeException(s"key field $k not in row type: $rowType")
+  }
 
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
