@@ -13,6 +13,10 @@ from .build import BuildConfiguration, Code
 repos_lock = asyncio.Lock()
 
 
+def build_state_is_complete(build_state):
+    return build_state in ('success', 'failure')
+
+
 class Repo:
     def __init__(self, owner, name):
         assert isinstance(owner, str)
@@ -124,6 +128,8 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
+        self.most_recent_build_state = None
+        self.most_recent_batch = None
 
         self.target_branch.batch_changed = True
 
@@ -140,9 +146,7 @@ class PR(Code):
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
-            self.sha = None
-            self.batch = None
-            self.build_state = None
+            self.clear_build()
             self.target_branch.batch_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -174,6 +178,27 @@ class PR(Code):
             'target_sha': self.target_branch.sha,
             'sha': self.sha
         }
+
+    def most_recent_build_has_out_of_date_source(self):
+        assert self.batch is None
+        return self.most_recent_batch is None or self.source_sha != self.most_recent_batch.attributes['source_sha']
+
+    def build_is_complete(self):
+        return build_state_is_complete(self.build_state)
+
+    def should_update_most_recent_batch(self):
+        return self.batch is not None and (
+            self.most_recent_batch is None or
+            self.build_is_complete() or
+            self.most_recent_batch.attributes['source_sha'] != self.source_sha)
+
+    def clear_build(self):
+        if self.should_update_most_recent_batch():
+            self.most_recent_batch = self.batch
+            self.most_recent_build_state = self.build_state
+        self.sha = None
+        self.batch = None
+        self.build_state = None
 
     async def post_github_status(self, gh):
         assert self.source_sha is not None
@@ -269,10 +294,12 @@ mkdir -p {shq(repo_dir)}
                 log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
-    async def _heal(self, batch_client, run, seen_batch_ids):
+    async def _heal(self, batch_client, on_deck, seen_batch_ids):
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
+            if self.most_recent_batch:
+                seen_batch_ids.add(self.most_recent_batch.id)
             return
 
         if self.batch is None:
@@ -295,7 +322,7 @@ mkdir -p {shq(repo_dir)}
             # should be at most one batch
             if len(batches) > 0:
                 self.batch = min(batches, key=lambda b: b.id)
-            elif run:
+            elif on_deck or self.most_recent_build_has_out_of_date_source():
                 async with repos_lock:
                     await self._start_build(batch_client)
 
@@ -308,7 +335,19 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
+                self.most_recent_build_state = None
+                self.most_recent_batch = None
                 self.target_branch.batch_changed = True
+
+        if self.most_recent_batch:
+            seen_batch_ids.add(self.most_recent_batch.id)
+            status = await self.most_recent_batch.status()
+            update_batch_status(status)
+            if status['complete']:
+                if status['state'] == 'success':
+                    self.most_recent_build_state = 'success'
+                else:
+                    self.most_recent_build_state = 'failure'
 
     def is_mergeable(self):
         return self.review_state == 'approved' and self.build_state == 'success'
@@ -447,9 +486,7 @@ class WatchedBranch(Code):
             self.deploy_state = None
             if self.prs:
                 for pr in self.prs.values():
-                    pr.sha = None
-                    pr.batch = None
-                    pr.build_state = None
+                    pr.clear_build()
             self.batch_changed = True
 
         new_prs = {}
@@ -509,7 +546,7 @@ class WatchedBranch(Code):
 
         seen_batch_ids = set()
         for pr in self.prs.values():
-            await pr._heal(batch_client, (merge_candidate is None or pr == merge_candidate), seen_batch_ids)
+            await pr._heal(batch_client, merge_candidate is None or self == merge_candidate, seen_batch_ids)
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
