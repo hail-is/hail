@@ -618,6 +618,7 @@ set -e
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
                     script += f'''
+kubectl -n {self.namespace} wait --timeout=300s deployment --for=condition=available {name}
 python3 wait-for.py 300 {self.namespace} Service -p {port} {name}
 '''
                 else:
