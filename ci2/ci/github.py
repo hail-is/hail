@@ -534,7 +534,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=f'{SELF_HOSTNAME}/batch_callback')
+                callback=f'http://{SELF_HOSTNAME}/batch_callback')
             # FIXME make build atomic
             await config.build(deploy_batch, self, deploy=True)
             await deploy_batch.close()
