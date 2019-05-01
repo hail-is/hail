@@ -19,7 +19,7 @@
       {{ wb.deploy_state }}
       {% endif %}
     </p>
-    <p>Deploy Batch:
+    <p>Deploy Batch: 
       {% if wb.deploy_batch_id is not none %}
       <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
       {% endif %}
@@ -32,7 +32,6 @@
         <tr>
           <th align="left">Number</th>
           <th align="left">Title</th>
-          <th align="left">Most Recent Complete Build State</th>
           <th align="left">Build State</th>
           <th align="left">Review State</th>
           <th align="left">Author</th>
@@ -49,14 +48,6 @@
           <td align="left">
             {{ pr.title }}
           </td>
-          <td>
-            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
-              {% if pr.most_recent_build is not none %}
-              {{ pr.most_recent_build.build_state }}
-              {% endif %}
-              building
-            </a>
-          </td>
           <td align="left">
             {% if pr.build_state == 'merge_failure' %}
             failed merge
@@ -64,7 +55,11 @@
             {% if pr.batch_id is not none %}
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
               {% if pr.build_state is not none %}
-              {{ if pr.build_state }}
+              {% if pr.build_state == 'success' %}
+              successful build
+              {% elif pr.build_state == 'failure' %}
+              failed build
+              {% endif %}
               {% else %}
               building
               {% endif %}
@@ -88,7 +83,7 @@
     No PRs.
     {% endif %}
     {% endif %}
-
+    
     {% endfor %}
   </body>
 </html>

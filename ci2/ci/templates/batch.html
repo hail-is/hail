@@ -25,26 +25,26 @@
         </tr>
       </thead>
       <tbody>
-        {% for job in batch['jobs'] %}
+	{% for job in batch['jobs'] %}
         <tr>
           <td align="right">{{ job['id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-            {% if 'exit_code' in job %}
-            {{ job['exit_code'] }}
-            {% endif %}
-          </td>
+	    {% if 'exit_code' in job %}
+	    {{ job['exit_code'] }}
+	    {% endif %}
+	  </td>
           <td align="right">
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
             {% endif %}
           </td>
           <td align="left">
-            <a href="/jobs/{{ job['id'] }}/log">log</a>
-          </td>
+	    <a href="/jobs/{{ job['id'] }}/log">log</a>
+	  </td>
         </tr>
-        {% endfor %}
+	{% endfor %}
       </tbody>
     </table>
   </body>
