@@ -194,8 +194,8 @@ class PR(Code):
 
     def clear_build(self):
         if self.should_update_most_recent_batch():
-            self.most_recent_build_state = self.build_state
             self.most_recent_batch = self.batch
+            self.most_recent_build_state = self.build_state
         self.sha = None
         self.batch = None
         self.build_state = None
