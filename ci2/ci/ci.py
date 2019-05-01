@@ -51,7 +51,8 @@ async def index(request):  # pylint: disable=unused-argument
                         'title': pr.title,
                         'batch_id': pr.batch.id if pr.batch else None,
                         'build_state': pr.build_state,
-                        'review_state': pr.review_state
+                        'review_state': pr.review_state,
+                        'author': pr.author
                     }
                     for pr in wb.prs.values()
                 ] if wb.prs else None}
