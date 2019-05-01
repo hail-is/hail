@@ -76,17 +76,15 @@ async def get_pr(request):
     config = {}
     config['number'] = pr.number
     if pr.batch:
-        status = await batch.status()
-        config['batch'] = status
+        status = await pr.batch.status()
         for j in status['jobs']:
             if 'duration' in j and j['duration'] is not None:
                 j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
             attrs = j['attributes']
             if 'link' in attrs:
                 attrs['link'] = attrs['link'].split(',')
+        config['batch'] = status
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
-    else:
-        config['most_recent_build'] = None
 
     return config
 
