@@ -588,7 +588,7 @@ mkdir -p {shq(repo_dir)}
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
-                deploy_batch.cancel()
+                await deploy_batch.cancel()
 
     def checkout_script(self):
         return f'''
