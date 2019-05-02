@@ -858,11 +858,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
-      case ir.NDArrayMap(_, _, _) =>
-        val emitter = emitDeforestedNDArray(resultRegion, x, env)
-        present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
-
-      case ir.NDArrayMap2(_, _, _, _, _) =>
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
@@ -1192,7 +1188,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""
              | ${ nd.setup }
              | ${ shape.define }
-             | ${ reindexShapeAndStrides }
+             | ${ reindexShapeAndStrides.mkString("\n") }
            """.stripMargin
 
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
