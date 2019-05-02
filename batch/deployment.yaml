@@ -81,3 +81,23 @@ spec:
     targetPort: 5000
   selector:
     app: batch
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: {{ batch_pods_ns.name }}
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: {{ batch_pods_ns.name }}
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 300
