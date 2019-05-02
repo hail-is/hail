@@ -10,6 +10,7 @@ import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object Emit {
 
@@ -929,6 +930,65 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  make_ndarray($nd.flags, $nd.offset, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
+
+      case ir.NDArrayContract(child, axes) =>
+        val childTyp = child.pType.asInstanceOf[PNDArray]
+        val resTyp = x.pType.asInstanceOf[PNDArray]
+
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val shape = fb.variable("shape", "std::vector<long>")
+
+        var shapeBuilder = new ListBuffer[String]()
+        var dim = 0
+        while (dim < childTyp.nDims) {
+          if (!axes.contains(dim)) {
+            shapeBuilder += s"$shape.push_back($nd.shape[$dim]);"
+          }
+          dim += 1
+        }
+
+        val setup = Code(ndt.setup, nd.define, shape.define, shapeBuilder.mkString("\n"))
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val contractIdxVars = axes.map(_ => fb.variable("dim", "int"))
+            val resultDimsIter = idxVars.iterator
+            val contractDimsIter = contractIdxVars.iterator
+            val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
+              if (axes.contains(dim)) {
+                assert(contractDimsIter.hasNext)
+                contractDimsIter.next()
+              } else {
+                assert(resultDimsIter.hasNext)
+                resultDimsIter.next()
+              }
+            }
+            assert(!contractDimsIter.hasNext)
+            assert(!resultDimsIter.hasNext)
+
+            val acc = fb.variable("acc", typeToCXXType(resTyp.elementType))
+            val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
+            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, resTyp.elementType) }"
+            val loops = contractIdxVars.zip(axes).foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
+              s"""
+                 |${ dimVar.define }
+                 |for ($dimVar = 0; $dimVar < $nd.shape[$dimIdx]; ++$dimVar) {
+                 |  $innerLoops
+                 |}
+                 |""".stripMargin
+            }
+
+            s"""
+               |({
+               |  ${ acc.define }
+               |  ${ loops }
+               |  $acc;
+               |})
+             """.stripMargin
+          }
+        }
+
+        present(emitter.emit(resTyp.elementType))
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")

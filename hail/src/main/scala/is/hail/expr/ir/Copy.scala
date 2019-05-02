@@ -76,6 +76,9 @@ object Copy {
       case NDArrayReindex(_, indexExpr) =>
         val IndexedSeq(nd: IR) = newChildren
         NDArrayReindex(nd, indexExpr)
+      case NDArrayContract(_, axes) =>
+        val IndexedSeq(nd: IR) = newChildren
+        NDArrayContract(nd, axes)
       case NDArrayWrite(_, _) =>
         val IndexedSeq(nd: IR, path: IR) = newChildren
         NDArrayWrite(nd, path)
