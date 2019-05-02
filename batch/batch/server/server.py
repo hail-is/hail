@@ -506,11 +506,17 @@ class Job:
                                         duration=self.duration,
                                         pod_name=None)
 
-            pod_log = v1.read_namespaced_pod_log(
-                pod.metadata.name,
-                HAIL_POD_NAMESPACE,
-                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
+            try:
+                pod_log = v1.read_namespaced_pod_log(
+                    pod.metadata.name,
+                    HAIL_POD_NAMESPACE,
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kubernetes.client.rest.ApiException as exc:
+                if e.status == 400:
+                    log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
+                    pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
+                else:
+                    raise
             await self._write_log(task_name, pod_log)
 
         if self._pod_name:
