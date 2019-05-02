@@ -13,6 +13,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io._
+import is.hail.io.fs.HadoopFS
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -152,12 +153,12 @@ object BlockMatrix {
   val metadataRelativePath = "/metadata.json"
 
   def checkWriteSuccess(hc: HailContext, uri: String) {
-    if (!hc.hadoopConf.exists(uri + "/_SUCCESS"))
+    if (!hc.sFS.exists(uri + "/_SUCCESS"))
       fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")    
   }
   
   def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
-    hc.hadoopConf.readTextFile(uri + metadataRelativePath) { isr =>
+    hc.sFS.readTextFile(uri + metadataRelativePath) { isr =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.read[BlockMatrixMetadata](isr)
     }
@@ -227,30 +228,30 @@ object BlockMatrix {
   def collectMatrices(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = new CollectMatricesRDD(bms)
 
   def binaryWriteBlockMatrices(bms: IndexedSeq[BlockMatrix], prefix: String, overwrite: Boolean): Unit = {
-    val hadoopConf = HailContext.hadoopConf
+    val fs = HailContext.sFS
 
     if (overwrite)
-      hadoopConf.delete(prefix, recursive = true)
-    else if (hadoopConf.exists(prefix))
+      fs.delete(prefix, recursive = true)
+    else if (fs.exists(prefix))
       fatal(s"file already exists: $prefix")
 
-    hadoopConf.mkDir(prefix)
+    fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val hadoopConfBc = HailContext.hadoopConfBc
+    val bcFS = HailContext.bcFS
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
         val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
 
-        RichDenseMatrixDouble.exportToDoubles(hadoopConfBc.value.value, path, m, forceRowMajor = true)
+        RichDenseMatrixDouble.exportToDoubles(bcFS.value, path, m, forceRowMajor = true)
 
         Iterator.single(1)
       }
       .collect()
 
-    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
   }
 
   def exportBlockMatrices(
@@ -260,17 +261,17 @@ object BlockMatrix {
     delimiter: String,
     header: Option[String],
     addIndex: Boolean): Unit = {
-    val hadoopConf = HailContext.hadoopConf
+    val fs = HailContext.sFS
 
     if (overwrite)
-      hadoopConf.delete(prefix, recursive = true)
-    else if (hadoopConf.exists(prefix))
+      fs.delete(prefix, recursive = true)
+    else if (fs.exists(prefix))
       fatal(s"file already exists: $prefix")
 
-    hadoopConf.mkDir(prefix)
+    fs.mkDir(prefix)
 
     val d = digitsNeeded(bms.length)
-    val hadoopConfBc = HailContext.hadoopConfBc
+    val bcFS = HailContext.bcFS
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
@@ -281,7 +282,7 @@ object BlockMatrix {
           new PrintWriter(
             new BufferedWriter(
               new OutputStreamWriter(
-                hadoopConfBc.value.value.unsafeWriter(path))))) { f =>
+                bcFS.value.unsafeWriter(path))))) { f =>
           header.foreach { h =>
             f.println(h)
           }
@@ -309,7 +310,7 @@ object BlockMatrix {
       }
       .collect()
 
-    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
+    fs.writeTextFile(prefix + "/_SUCCESS")(out => ())
   }
 }
 
@@ -567,14 +568,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     val writeRectangle = if (binary) writeRectangleBinary else writeRectangleText
 
     val dRect = digitsNeeded(rectangles.length)
-    val sHadoopBc = hc.hadoopConfBc
+    val bcFS = hc.bcFS
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach { case (index, rectData) =>
       val r = rectangles(index)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
 
       if (rectData.size > 0) {
-        sHadoopBc.value.value.writeFile(outputFile)(writeRectangle(_, rectData))
+        bcFS.value.writeFile(outputFile)(writeRectangle(_, rectData))
       }
     }
   }
@@ -760,14 +761,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def write(uri: String, overwrite: Boolean = false, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
-    val hadoop = blocks.sparkContext.hadoopConfiguration
+    // TODO: more efficient way?
+    val fs = new HadoopFS(blocks.sparkContext.hadoopConfiguration)
 
     if (overwrite)
-      hadoop.delete(uri, recursive = true)
-    else if (hadoop.exists(uri))
+      fs.delete(uri, recursive = true)
+    else if (fs.exists(uri))
       fatal(s"file already exists: $uri")
 
-    hadoop.mkDir(uri)
+    fs.mkDir(uri)
 
     def writeBlock(it: Iterator[((Int, Int), BDM[Double])], os: OutputStream): Int = {
       assert(it.hasNext)
@@ -782,14 +784,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val (partFiles, partitionCounts) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
-    hadoop.writeDataFile(uri + metadataRelativePath) { os =>
+    fs.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, nRows, nCols, gp.maybeBlocks, partFiles),
         os)
     }
 
-    hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
+    fs.writeTextFile(uri + "/_SUCCESS")(out => ())
 
     val nBlocks = partitionCounts.length
     assert(nBlocks == partitionCounts.sum)
@@ -1676,7 +1678,7 @@ class WriteBlocksRDD(path: String,
   private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = HailContext.hadoopConfBc
+  private val bcFS = HailContext.bcFS
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
@@ -1734,7 +1736,7 @@ class WriteBlocksRDD(path: String,
       val f = partFile(d, i, ctx)
       val filename = path + "/parts/" + f
 
-      val os = sHadoopBc.value.value.unsafeWriter(filename)
+      val os = bcFS.value.unsafeWriter(filename)
       val out = BlockMatrix.bufferSpec.buildOutputBuffer(os)
 
       out.writeInt(nRowsInBlock)
@@ -1819,7 +1821,7 @@ class BlockMatrixReadRowBlockedRDD(
   hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
 
   val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
-  val localHadoopConfBc = hc.hadoopConfBc
+  val bcFS = hc.bcFS
 
   val gp = GridPartitioner(blockSize, nRows, nCols)
 
@@ -1857,7 +1859,7 @@ class BlockMatrixReadRowBlockedRDD(
 
   private def readPartFileRow(rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
     val filename = path + "/parts/" + pFile
-    val is = localHadoopConfBc.value.value.unsafeReader(filename)
+    val is = bcFS.value.unsafeReader(filename)
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
     val rows = in.readInt()

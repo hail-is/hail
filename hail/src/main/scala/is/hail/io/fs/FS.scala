@@ -18,7 +18,7 @@ trait FileSystem {
   type FsPath = Path
   protected val defaultPath: FsPath
 
-  def open: HailInputStream
+  def open(): HailInputStream
   def open(path: FsPath = defaultPath): HailInputStream
   def open(path: String = defaultPath.toString()): HailInputStream
 
@@ -29,7 +29,7 @@ trait FileSystem {
 trait Path {
   def toString: String
   def getName: String
-  def getFileSystem(conf: Object): FileSystem
+  def getFileSystem: FileSystem
 }
 
 trait Configuration extends Iterable[Map.Entry[String,String]] with Writable {
@@ -46,13 +46,12 @@ trait FileStatus {
   def getOwner: String
 }
 
-// TODO: A better way to enforce interfaces for the configuration object
-abstract class FS[T >: Object](@transient var conf: T) extends Serializable {
+abstract class FS extends Serializable {
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit
 
-  def getProperties: util.Iterator[util.Map.Entry[String, String]]
+  def getProperties: Iterator[util.Map.Entry[String, String]]
 
   protected def open(filename: String, checkCodec: Boolean = true): InputStream
   /**

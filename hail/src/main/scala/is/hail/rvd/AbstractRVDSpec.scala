@@ -28,7 +28,7 @@ object AbstractRVDSpec {
     new TStructSerializer +
     new RVDTypeSerializer
 
-  def read(fs: fs.FS, path: String): AbstractRVDSpec = {
+  def read(fs: FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
     fs.readFile(metadataFile) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh

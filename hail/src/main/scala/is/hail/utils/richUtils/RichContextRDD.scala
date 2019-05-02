@@ -27,30 +27,30 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
 
     hadoopConf.mkDir(path + "/parts")
 
-    val sHadoopConfBc = HailContext.hadoopConfBc
+    val bcFS = HailContext.bcFS
 
     val nPartitions = crdd.getNumPartitions
 
     val d = digitsNeeded(nPartitions)
 
     val (partFiles, partitionCounts) = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      val hConf = sHadoopConfBc.value.value
+      val fs = bcFS.value
       val f = partFile(d, i, TaskContext.get)
       val finalFilename = path + "/parts/" + f
       val filename =
         if (stageLocally) {
           val context = TaskContext.get
-          val partPath = hConf.getTemporaryFile("file:///tmp")
+          val partPath = fs.getTemporaryFile("file:///tmp")
           context.addTaskCompletionListener { context =>
-            hConf.delete(partPath, recursive = false)
+            fs.delete(partPath, recursive = false)
           }
           partPath
         } else
           finalFilename
-      val os = hConf.unsafeWriter(filename)
+      val os = fs.unsafeWriter(filename)
       val count = write(ctx, it, os)
       if (stageLocally)
-        hConf.copy(filename, finalFilename)
+        fs.copy(filename, finalFilename)
       ctx.region.clear()
       Iterator.single(f -> count)
     }

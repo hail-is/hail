@@ -1,7 +1,8 @@
 package is.hail.utils.richUtils
 
 import is.hail.HailContext
-import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer, fs}
+import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer}
+import is.hail.io.fs.FS
 
 object RichArray {
   val defaultBufSize: Int = 4096 << 3
@@ -20,10 +21,10 @@ object RichArray {
     }
   }
 
-  def exportToDoubles(fs: fs.FS, path: String, a: Array[Double]): Unit =
+  def exportToDoubles(fs: FS, path: String, a: Array[Double]): Unit =
     exportToDoubles(fs, path, a, defaultBufSize)
 
-  def exportToDoubles(fs: fs.FS, path: String, a: Array[Double], bufSize: Int): Unit = {
+  def exportToDoubles(fs: FS, path: String, a: Array[Double], bufSize: Int): Unit = {
     fs.writeFile(path) { os =>
       val out = new DoubleOutputBuffer(os, bufSize)
 

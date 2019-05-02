@@ -9,7 +9,8 @@ import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
-import is.hail.io.{VCFAttributes, VCFMetadata, fs}
+import is.hail.io.{VCFAttributes, VCFMetadata}
+import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -1035,7 +1036,7 @@ object LoadVCF {
   }
 
   def globAllVCFs(arguments: Array[String],
-                  fs: fs.FS,
+                  fs: FS,
     forceGZ: Boolean = false,
     gzAsBGZ: Boolean = false): Array[String] = {
     val inputs = fs.globAll(arguments)
@@ -1184,7 +1185,7 @@ object LoadVCF {
   }
 
   def getHeaderLines[T](
-    fs: fs.FS,
+    fs: FS,
     file: String,
     filterAndReplace: TextInputFilterAndReplace): Array[String] = fs.readLines(file, filterAndReplace) { lines =>
       lines

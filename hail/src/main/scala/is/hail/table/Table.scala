@@ -62,7 +62,7 @@ object Table {
     delimiter: String = "\\t",
     missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.hadoopConf)
+    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.sFS)
     val jv = JSONAnnotationImpex.exportAnnotation(
       Row(typ.toString, data),
       TStruct("type" -> TString(), "data" -> TArray(typ)))

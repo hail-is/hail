@@ -6,14 +6,13 @@ import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, LowerMatrixIR,
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io._
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.Partition
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
@@ -47,7 +46,7 @@ case class BgenFileMetadata(
 )
 
 object LoadBgen {
-  def readSamples(fs: fs.FS, file: String): Array[String] = {
+  def readSamples(fs: FS, file: String): Array[String] = {
     val bState = readState(fs, file)
     if (bState.hasIds) {
       fs.readFile(file) { is =>
@@ -74,7 +73,7 @@ object LoadBgen {
     }
   }
 
-  def readSampleFile(fs: fs.FS, file: String): Array[String] = {
+  def readSampleFile(fs: FS, file: String): Array[String] = {
     fs.readFile(file) { s =>
       Source.fromInputStream(s)
         .getLines()
@@ -88,7 +87,7 @@ object LoadBgen {
     }
   }
 
-  def readState(fs: fs.FS, file: String): BgenHeader = {
+  def readState(fs: FS, file: String): BgenHeader = {
     fs.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
       readState(reader, file, fs.getFileSize(file))
@@ -149,7 +148,7 @@ object LoadBgen {
             |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
   }
 
-  def getAllFileStatuses(fs: fs.FS, files: Array[String]): Array[FileStatus] = {
+  def getAllFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
     val badFiles = new ArrayBuilder[String]()
 
     val statuses = files.flatMap { file =>
@@ -178,10 +177,10 @@ object LoadBgen {
     statuses
   }
 
-  def getAllFilePaths(fs: fs.FS, files: Array[String]): Array[String] =
+  def getAllFilePaths(fs: FS, files: Array[String]): Array[String] =
     getAllFileStatuses(fs, files).map(_.getPath.toString)
 
-  def getBgenFileMetadata(fs: fs.FS, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
+  def getBgenFileMetadata(fs: FS, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
     require(files.length == indexFiles.length)
     val headers = getFileHeaders(fs, files)
     headers.zip(indexFiles).map { case (h, indexFile) =>
@@ -214,7 +213,7 @@ object LoadBgen {
     }
   }
 
-  def getIndexFileNames(fs: fs.FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+  def getIndexFileNames(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
     def absolutePath(rel: String): String = fs.fileStatus(rel).getPath.toString
 
     val fileMapping = Option(indexFileMap)
@@ -231,7 +230,7 @@ object LoadBgen {
   }
 
 
-  def getIndexFiles(fs: fs.FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+  def getIndexFiles(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)
     val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => fs.exists(index) && index.endsWith("idx2") }.map(_._1)
     if (missingIdxFiles.nonEmpty)
@@ -241,7 +240,7 @@ object LoadBgen {
     indexFiles
   }
 
-  def getFileHeaders(fs: fs.FS, files: Seq[String]): Array[BgenHeader] =
+  def getFileHeaders(fs: FS, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(fs, _)).toArray
 
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =

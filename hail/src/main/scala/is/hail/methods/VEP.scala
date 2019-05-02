@@ -15,9 +15,8 @@ import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
-import org.apache.hadoop
+import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -29,8 +28,8 @@ case class VEPConfiguration(
   vep_json_schema: TStruct)
 
 object VEP {
-  def readConfiguration(hadoopConf: hadoop.conf.Configuration, path: String): VEPConfiguration = {
-    val jv = hadoopConf.readFile(path) { in =>
+  def readConfiguration(fs: FS, path: String): VEPConfiguration = {
+    val jv = fs.readFile(path) { in =>
       JsonMethods.parse(in)
     }
     implicit val formats = defaultJSONFormats + new TStructSerializer
@@ -101,7 +100,7 @@ object VEP {
 }
 
 case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private lazy val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
+  private lazy val conf = VEP.readConfiguration(HailContext.get.sFS, config)
   private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
@@ -116,7 +115,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
-    val conf = readConfiguration(HailContext.get.hadoopConf, config)
+    val conf = readConfiguration(HailContext.get.sFS, config)
     val vepSignature = conf.vep_json_schema
 
     val cmd = conf.command.map(s =>

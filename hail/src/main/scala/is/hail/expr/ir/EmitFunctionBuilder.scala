@@ -150,7 +150,7 @@ class EmitFunctionBuilder[F >: Null](
     assert(fs != null)
     if (_fs == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
-      val confField = newField[SerializableHadoopConfiguration]
+      val confField = newField[FS]
       val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
       methods.append(mb)
       mb.emit(confField := mb.getArg[FS](1))

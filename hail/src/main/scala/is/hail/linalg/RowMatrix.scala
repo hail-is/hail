@@ -189,7 +189,7 @@ class ReadBlocksAsRowsRDD(path: String,
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
 
-  private val sHadoopBc = HailContext.hadoopConfBc
+  private val bcFS = HailContext.bcFS
 
   protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi => 
     ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1)))
@@ -214,7 +214,7 @@ class ReadBlocksAsRowsRDD(path: String,
               if (pi >= 0) {
                 val filename = path + "/parts/" + partFiles(pi)
 
-                val is = sHadoopBc.value.value.unsafeReader(filename)
+                val is = bcFS.value.unsafeReader(filename)
                 val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
 
                 val nColsInBlock = gp.blockColNCols(blockCol)
