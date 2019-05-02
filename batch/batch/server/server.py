@@ -1001,12 +1001,17 @@ async def pod_changed(pod):
 
 
 async def kube_event_loop():
-    stream = kube.watch.Watch().stream(
-        v1.list_namespaced_pod,
-        HAIL_POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
-    async for event in DeblockedIterator(stream):
-        await pod_changed(event['object'])
+    while True:
+        try:
+            stream = kube.watch.Watch().stream(
+                v1.list_namespaced_pod,
+                HAIL_POD_NAMESPACE,
+                label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
+            async for event in DeblockedIterator(stream):
+                await pod_changed(event['object'])
+        except Exception as exc:  # pylint: disable=W0703
+            log.exception(f'k8s event stream failed due to: {exc}')
+        await asyncio.sleep(5)
 
 
 async def refresh_k8s_pods():
