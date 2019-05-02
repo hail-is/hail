@@ -19,6 +19,10 @@ spec:
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
+        resources:
+          requests:
+            memory: "500M"
+            cpu: "500m"
         ports:
         - containerPort: 5000
         volumeMounts:

@@ -19,6 +19,10 @@ spec:
       containers:
         - name: ci2
           image: "{{ ci_image.image }}"
+          resources:
+            requests:
+              memory: "1G"
+              cpu: "1"
           env:
             - name: HAIL_CI2_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
