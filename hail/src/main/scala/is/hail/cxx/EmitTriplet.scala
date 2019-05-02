@@ -144,10 +144,9 @@ abstract class NDArrayLoopEmitter(
 
   private def emitLoops(builder: StagedContainerBuilder): Code = {
     val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
-    val offset = fb.variable("offset", "int", "0")
 
     val body = Code(builder.add(outputElement(idxVars)), builder.advance())
-    val loops = idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
+    idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
       s"""
          |${ dimVar.define }
          |for ($dimVar = 0; $dimVar < $shape[$dimIdx]; ++$dimVar) {
@@ -155,7 +154,5 @@ abstract class NDArrayLoopEmitter(
          |}
          |""".stripMargin
     }
-
-    Code(offset.define, loops)
   }
 }
