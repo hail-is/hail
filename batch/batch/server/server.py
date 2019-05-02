@@ -641,10 +641,10 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
     if not pod_spec.containers[0].resources.requests:
         pod_spec.containers[0].resources.requests = {}
-    if 'cpu' not in pod_specs.containers[0].resources.requests:
-        pod_specs.containers[0].resources.requests['cpu'] = '100m'
-    if 'memory' not in pod_specs.containers[0].resources.requests:
-        pod_specs.containers[0].resources.requests['cpu'] = '500M'
+    if 'cpu' not in pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests['cpu'] = '100m'
+    if 'memory' not in pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests['cpu'] = '500M'
 
     job = await Job.create_job(
         pod_spec=pod_spec,
