@@ -1,5 +1,21 @@
 # Change Log
 
+## 0.2.14
+
+Released 2019-04-24
+
+A back-incompatible patch update to PySpark, 2.4.2, has broken fresh pip
+installs of Hail 0.2.13. To fix this, either *downgrade* PySpark to 2.4.1 or
+upgrade to the latest version of Hail.
+
+### New features
+
+- (hail#5915) Added `hl.cite_hail` and `hl.cite_hail_bibtex` functions to
+  generate appropriate citations.
+- (hail#5872) Fixed `hl.init` when the `idempotent` parameter is `True`.
+
+-----
+
 ## 0.2.13
 
 Released 2019-04-18

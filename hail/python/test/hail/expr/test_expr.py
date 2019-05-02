@@ -3,6 +3,8 @@ import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
+import numpy as np
+import tempfile
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -705,6 +707,15 @@ class Tests(unittest.TestCase):
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    def test_aggregators_hist_neg0(self):
+        table = hl.utils.range_table(32)
+        table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
+        r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
+        self.assertEquals(r.bin_edges, [0, 2, 4, 6, 8, 10])
+        self.assertEquals(r.bin_freq, [6, 5, 6, 6, 7])
+        self.assertEquals(r.n_smaller, 1)
+        self.assertEquals(r.n_larger, 1)
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
@@ -848,7 +859,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding[None].n_called, 3)
         self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
         self.assertEqual(r.inbreeding[None].observed_homs, 2)
-        
+
         self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
         self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
@@ -2098,12 +2109,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 100))))
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 109))))
         self.assertFalse(hl.eval(li.contains(hl.locus("1", 110))))
-    
+
         li2 = hl.parse_locus_interval("1:109-200")
         li3 = hl.parse_locus_interval("1:110-200")
         li4 = hl.parse_locus_interval("1:90-101")
         li5 = hl.parse_locus_interval("1:90-100")
-    
+
         self.assertTrue(hl.eval(li.overlaps(li2)))
         self.assertTrue(hl.eval(li.overlaps(li4)))
         self.assertFalse(hl.eval(li.overlaps(li3)))
@@ -2361,7 +2372,7 @@ class Tests(unittest.TestCase):
         res = hl.eval(hl.chi_squared_test(51, 43, 22, 92))
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
-        
+
         res = hl.eval(hl.chi_squared_test(61, 17493, 95, 84145))
         self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
@@ -2664,6 +2675,7 @@ class Tests(unittest.TestCase):
         b = 3.0
         x = [a, b]
         y = [b, a]
+        row_vec = [[1, 2]]
         cube1 = [[[1, 2],
                   [3, 4]],
                  [[5, 6],
@@ -2676,6 +2688,7 @@ class Tests(unittest.TestCase):
         na = hl._ndarray(a)
         nx = hl._ndarray(x)
         ny = hl._ndarray(y)
+        nrow_vec = hl._ndarray(row_vec)
         ncube1 = hl._ndarray(cube1)
         ncube2 = hl._ndarray(cube2)
 
@@ -2694,27 +2707,85 @@ class Tests(unittest.TestCase):
         expr_eq((nx + ny)[0], a + b)
         expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
         expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+        # Broadcasting
+        expr_eq((ncube1 + na)[0, 1, 0], 5.0)
+        expr_eq((na + ncube1)[0, 1, 0], 5.0)
+        expr_eq((ncube1 + ny)[0, 1, 0], 6.0)
+        expr_eq((ny + ncube1)[0, 1, 0], 6.0)
+        expr_eq((nrow_vec + ncube1)[0, 1, 0], 4.0)
+        expr_eq((ncube1 + nrow_vec)[0, 1, 0], 4.0)
 
         # Subtraction
         expr_eq((na - na)[()], a - a)
         expr_eq((nx - nx)[0], a - a)
         expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
         expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+        # Broadcasting
+        expr_eq((ncube1 - na)[0, 1, 0], 1.0)
+        expr_eq((na - ncube1)[0, 1, 0], -1.0)
+        expr_eq((ncube1 - ny)[0, 1, 0], 0.0)
+        expr_eq((ny - ncube1)[0, 1, 0], 0.0)
+        expr_eq((ncube1 - nrow_vec)[0, 1, 0], 2.0)
+        expr_eq((nrow_vec - ncube1)[0, 1, 0], -2.0)
 
         # Multiplication
         expr_eq((na * na)[()], a * a)
         expr_eq((nx * nx)[0], a * a)
+        expr_eq((nx * na)[1], a * b)
+        expr_eq((na * nx)[1], b * a)
         expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
         expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+        # Broadcasting
+        expr_eq((ncube1 * na)[0, 1, 0], 6.0)
+        expr_eq((na * ncube1)[0, 1, 0], 6.0)
+        expr_eq((ncube1 * ny)[0, 1, 0], 9.0)
+        expr_eq((ny * ncube1)[0, 1, 0], 9.0)
+        expr_eq((ncube1 * nrow_vec)[0, 1, 0], 3.0)
+        expr_eq((nrow_vec * ncube1)[0, 1, 0], 3.0)
 
         # Division
         expr_almost_eq((na / na)[()], a / a)
         expr_almost_eq((nx / nx)[0], a / a)
+        expr_almost_eq((nx / na)[1], b / a)
+        expr_almost_eq((na / nx)[1], a / b)
         expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
         expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+        # Broadcasting
+        expr_almost_eq((ncube1 / na)[0, 1, 0], 3 / 2)
+        expr_almost_eq((na / ncube1)[0, 1, 0], 2 / 3)
+        expr_almost_eq((ncube1 / ny)[0, 1, 0], 3 / 3)
+        expr_almost_eq((ny / ncube1)[0, 1, 0], 3 / 3)
+        expr_almost_eq((ncube1 / nrow_vec)[0, 1, 0], 3 / 1)
+        expr_almost_eq((nrow_vec / ncube1)[0, 1, 0], 1 / 3)
 
         # Floor div
         expr_eq((na // na)[()], a // a)
         expr_eq((nx // nx)[0], a // a)
+        expr_eq((nx // na)[1], b // a)
+        expr_eq((na // nx)[1], a // b)
         expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
         expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+        # Broadcasting
+        expr_eq((ncube1 // na)[0, 1, 0], 3 // 2)
+        expr_eq((na // ncube1)[0, 1, 0], 2 // 3)
+        expr_eq((ncube1 // ny)[0, 1, 0], 3 // 3)
+        expr_eq((ny // ncube1)[0, 1, 0], 3 // 3)
+        expr_eq((ncube1 // nrow_vec)[0, 1, 0], 3 // 1)
+        expr_eq((nrow_vec // ncube1)[0, 1, 0], 1 // 3)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_save(self):
+        arrs = [
+            np.array([[[1, 2, 3], [4, 5, 6]],
+                      [[7, 8, 9], [10, 11, 12]]], dtype=np.int32),
+            np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64),
+            np.array(3.0, dtype=np.float32),
+            np.array([3.0], dtype=np.float64),
+            np.array([True, False, True, True])
+        ]
+
+        for arr in arrs:
+            with tempfile.NamedTemporaryFile(suffix='.npy') as f:
+                hl._ndarray(arr).save(f.name)
+                self.assertTrue(np.array_equal(arr, np.load(f.name)))

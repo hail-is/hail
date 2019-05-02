@@ -1,11 +1,14 @@
-FROM base
+FROM {{ hail_run_image.image }}
 
-COPY requirements.txt .
-RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
+COPY hail.zip .
+RUN unzip -q hail.zip && \
+  mv hail inner && \
+  mkdir -p /hail/python && \
+  mv inner /hail/python/hail
 
-COPY build/hail /hail
+COPY hail-all-spark.jar /hail/jars/hail-all-spark.jar
 RUN cp /hail/jars/hail-all-spark.jar $SPARK_HOME/jars/hail-all-spark.jar
 
 ENV HAIL_HOME /hail
-ENV PYTHONPATH "$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.7-src.zip:$HAIL_HOME/python"
+ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$HAIL_HOME/python"
 ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"

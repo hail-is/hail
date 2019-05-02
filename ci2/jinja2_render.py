@@ -4,7 +4,7 @@ import json
 
 def jinja2_render(config, input, output):
     with open(input, 'r') as f:
-        template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined)
+        template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
     with open(output, 'w') as f:
         f.write(template.render(**config))
 

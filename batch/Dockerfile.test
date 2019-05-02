@@ -1,23 +1,15 @@
-FROM alpine:3.8
+FROM {{ base_image.image }}
 
-RUN apk add --no-cache \
-  g++ \
-  gcc \
-  libc-dev \
-  make \
-  py3-cffi \
-  py3-cryptography \
-  python3 \
-  python3-dev \
-  && true
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
 
-COPY setup.py /batch/
-COPY batch /batch/batch/
-RUN pip3 install --no-cache-dir pytest /batch
+COPY batch/setup.py /batch/
+COPY batch/batch/ /batch/batch/
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
 
-COPY hailjwt/ /hailjwt/
-RUN cd /hailjwt && python3 setup.py install
+COPY batch/test/ /test/
 
-COPY test /test
-
-CMD ["python3", "-m", "pytest", "-v", "--maxfail=1", "test"]
+CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]

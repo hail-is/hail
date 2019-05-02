@@ -1,9 +1,11 @@
 <html lang="en">
   <head>
-    <title>CI2: PR {{ number }}</title>
+    <title>CI | PR {{ number }}</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
+    <p><a href="/">ci</a> : <a href="/watched_branches">watched branches</a> : pr #{{ number }}</p>
+
     <h1>PR {{ number }}</h1>
     {% if batch is defined %}
     <h2>Batch {{ batch['id'] }} Jobs</h2>
@@ -31,7 +33,11 @@
 	    {{ job['exit_code'] }}
 	    {% endif %}
 	  </td>
-          <td align="right">{{ job['duration'] }}</td>
+          <td align="right">
+            {% if 'duration' in job and job['duration'] %}
+            {{ job['duration'] }}
+            {% endif %}
+          </td>
           <td align="left">
 	    <a href="/jobs/{{ job['id'] }}/log">log</a>
 	  </td>

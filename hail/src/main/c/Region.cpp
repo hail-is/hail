@@ -115,8 +115,7 @@ REGIONMETHOD(void, Region, clearButKeepMem)(
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  auto r2 = r->region_->get_region();
-  r->region_ = std::move(r2);
+  r->region_->clear();
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(

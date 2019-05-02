@@ -662,11 +662,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val first = children.head
   private val rest = children.tail
 
-  require(
-    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
-    "all keys must be the same type"
-  )
   require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 

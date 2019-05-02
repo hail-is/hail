@@ -16,15 +16,16 @@ import batch
 from .log import log
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch
+from .utils import update_batch_status
 
-with open(os.environ.get('CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
 uvloop.install()
 
 watched_branches = [
-    WatchedBranch(FQBranch.from_short_str(bss))
-    for bss in json.loads(os.environ.get('WATCHED_BRANCHES'))
+    WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
+    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES')))
 ]
 
 app = web.Application()
@@ -41,6 +42,8 @@ async def index(request):  # pylint: disable=unused-argument
                 'index': i,
                 'branch': wb.branch.short_str(),
                 'sha': wb.sha,
+                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch else None,
+                'deploy_state': wb.deploy_state,
                 'repo': wb.branch.repo.short_str(),
                 'prs': [
                     {
@@ -48,7 +51,8 @@ async def index(request):  # pylint: disable=unused-argument
                         'title': pr.title,
                         'batch_id': pr.batch.id if pr.batch else None,
                         'build_state': pr.build_state,
-                        'review_state': pr.review_state
+                        'review_state': pr.review_state,
+                        'author': pr.author
                     }
                     for pr in wb.prs.values()
                 ] if wb.prs else None}
@@ -63,6 +67,8 @@ async def get_pr(request):
     pr_number = int(request.match_info['pr_number'])
     try:
         wb = watched_branches[watched_branch_index]
+        if not wb.prs:
+            raise web.HTTPNotFound()
         pr = wb.prs[pr_number]
     except IndexError:
         raise web.HTTPNotFound()
@@ -72,7 +78,7 @@ async def get_pr(request):
     if pr.batch:
         status = await pr.batch.status()
         for j in status['jobs']:
-            if 'duration' in j:
+            if 'duration' in j and j['duration'] is not None:
                 j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
             attrs = j['attributes']
             if 'link' in attrs:
@@ -81,6 +87,34 @@ async def get_pr(request):
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
 
     return config
+
+
+@routes.get('/batches')
+@aiohttp_jinja2.template('batches.html')
+async def get_batches(request):
+    batch_client = request.app['batch_client']
+    batches = await batch_client.list_batches()
+    statuses = [await b.status() for b in batches]
+    for status in statuses:
+        update_batch_status(status)
+    return {
+        'batches': statuses
+    }
+
+
+@routes.get('/batches/{batch_id}')
+@aiohttp_jinja2.template('batch.html')
+async def get_batch(request):
+    batch_id = int(request.match_info['batch_id'])
+    batch_client = request.app['batch_client']
+    b = await batch_client.get_batch(batch_id)
+    status = await b.status()
+    for j in status['jobs']:
+        if 'duration' in j and j['duration'] is not None:
+            j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+    return {
+        'batch': status
+    }
 
 
 @routes.get('/jobs/{job_id}/log')
@@ -141,16 +175,30 @@ async def callback(request):
     return web.Response(status=200)
 
 
-async def refresh_loop(app):
+@routes.post('/batch_callack')
+async def batch_callback(request):
+    params = await request.json()
+    log.info(f'batch callback {params}')
+    attrs = params.get('attributes')
+    if attrs:
+        target_branch = attrs.get('target_branch')
+        if target_branch:
+            for wb in watched_branches:
+                if wb.branch.short_str() == target_branch:
+                    log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
+                    wb.notify_batch_changed()
+
+
+async def update_loop(app):
     while True:
         try:
             for wb in watched_branches:
-                log.info(f'refreshing {wb.branch}')
+                log.info(f'updating {wb.branch.short_str()}')
                 await wb.update(app)
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.error(f'{wb.branch} refresh due to exception: {traceback.format_exc()}{e}')
+            log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
 routes.static('/static', 'ci/static')
@@ -166,7 +214,7 @@ async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci2', oauth_token=oauth_token)
     app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
-    asyncio.ensure_future(refresh_loop(app))
+    asyncio.ensure_future(update_loop(app))
 
 app.on_startup.append(on_startup)
 

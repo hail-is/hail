@@ -40,10 +40,8 @@ check: flake8-stmp pylint-stmp
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
-	mkdir -p hailjwt
-	cp ../hailjwt/setup.py hailjwt/
-	cp -R ../hailjwt/hailjwt/ hailjwt/hailjwt/
-	docker build -t batch --cache-from batch,$(BATCH_LATEST),base,ubuntu:18.04 .
+	python3 ../ci2/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),base ..
 
 build-test:
 	docker build -t batch-test -f Dockerfile.test .
@@ -105,14 +103,8 @@ test-local-in-cluster: check test/jwt-test-user-token
 		./test-locally.sh
 
 deploy: push
-	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
-	  -e "s,@image@,$(BATCH_IMAGE)," \
-          -e "s,@gsa_secret@,$(BATCH_GSA_SECRET_NAME)," \
-          -e "s,@jwt_secret@,$(BATCH_JWT_SECRET_NAME)," \
-	  < deployment.yaml.in > deployment.yaml
-	kubectl delete persistentvolumeclaim --all --namespace test
-	kubectl delete persistentvolumeclaim --all --namespace batch-pods
-	kubectl -n default apply -f deployment.yaml
+	python3 ../ci2/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-batch-admin-config"}}' deployment.yaml deployment.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
 
 test-deploy: push-test
 	ifndef TEST_NAMESPACE
@@ -134,10 +126,10 @@ clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
 clean-db-production:
-	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-production-cloud-sql-config.json ./clean-db.sh
 
 clean-db-test-local: batch-secrets/batch-test-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
 
 clean-db-test:
-	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
+	CLOUD_SQL_CONFIG_PATH=/batch-secrets/batch-test-cloud-sql-config.json ./clean-db.sh

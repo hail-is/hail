@@ -1,12 +1,14 @@
-FROM base
+FROM {{ base_image.image }}
 
-COPY hailjwt/ /hailjwt/
-RUN cd /hailjwt && python3 setup.py install
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
 
-COPY setup.py /batch/
-COPY MANIFEST.in /batch/
-COPY batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch/
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
 
 EXPOSE 5000
 

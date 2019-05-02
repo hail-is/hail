@@ -68,7 +68,7 @@ build-apiserver: build-hail-base hailjwt
 build-hail-jupyter: build-hail-base jupyter_notebook_config.py
 	-docker pull $(REPO)/hail-base:latest
 	-docker pull $(REPO)/hail-jupyter:latest
-	docker build -t hail-jupyter -f Dockerfile.hail-jupyter . --cache-from hail-jupyter,$(REPO)/hail-jupyter:latest,hail-base
+	docker build -t hail-jupyter -f Dockerfile.hail-jupyter --cache-from hail-jupyter,$(REPO)/hail-jupyter:latest,hail-base ..
 
 build: build-spark-master build-spark-worker build-apiserver build-hail-jupyter
 

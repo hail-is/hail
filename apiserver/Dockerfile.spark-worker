@@ -1,4 +1,4 @@
-FROM hail-base
+FROM {{ hail_base_image.image }}
 
 COPY start-worker.sh /
 

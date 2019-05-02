@@ -14,11 +14,11 @@ import is.hail.utils._
 import net.sourceforge.jdistlib.T
 
 case class LinearRegressionRowsSingle(
-  yFields: IndexedSeq[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: IndexedSeq[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
@@ -171,11 +171,11 @@ case class LinearRegressionRowsSingle(
 }
 
 case class LinearRegressionRowsChained(
-  yFields: IndexedSeq[IndexedSeq[String]],
+  yFields: Seq[Seq[String]],
   xField: String,
-  covFields: IndexedSeq[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)

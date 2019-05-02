@@ -57,6 +57,16 @@ object TypeCheck {
     }
 
   private def check(ir: IR, env: BindingEnv[Type]): Unit = {
+    ir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -192,6 +202,9 @@ object TypeCheck {
       case x@ArrayAgg(a, name, query) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(env.agg.isEmpty)
+      case x@ArrayAggScan(a, name, query) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(env.scan.isEmpty)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ == aggIR.typ)
@@ -279,15 +292,5 @@ object TypeCheck {
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
     }
-
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach {
-        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
-        case (tir: TableIR, _) => check(tir)
-        case (mir: MatrixIR, _) => check(mir)
-        case (bmir: BlockMatrixIR, _) => check(bmir)
-      }
   }
 }

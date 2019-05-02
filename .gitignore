@@ -11,3 +11,4 @@ out/
 target
 .classpath
 .DS_Store
+*-stmp

@@ -185,8 +185,7 @@ object LowerMatrixIR {
               .filter('i ~> !'row (entriesField)('i).isNA)
               .arrayAgg('i ~>
                 (aggLet(sa = 'global (colsField)('i),
-                  g = 'row (entriesField)('i),
-                  va = 'row)
+                  g = 'row (entriesField)('i))
                   in b0))
           } else
             b0
@@ -198,11 +197,12 @@ object LowerMatrixIR {
         }
       }
 
-      val e = Env[IRProxy]("va" -> 'row, "global" -> 'global)
-      lower(child)
-        .mapRows(
-          subst(liftScans(newRow), BindingEnv(e, scan=Some(e)))
-            .insertFields(entriesField -> 'row (entriesField)))
+      val lc = lower(child)
+      val e = Env[IR]("va" -> Ref("row", lc.typ.rowType),
+        "global" -> SelectFields(Ref("global", lc.typ.globalType), child.typ.globalType.fieldNames))
+      lc.mapRows(
+        liftScans(Subst(newRow, BindingEnv(e, scan = Some(e), agg = Some(e))))
+          .insertFields(entriesField -> 'row (entriesField)))
     }
 
     case MatrixFilterEntries(child, pred) =>

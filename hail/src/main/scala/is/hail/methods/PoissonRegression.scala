@@ -15,8 +15,8 @@ case class PoissonRegression(
   test: String,
   yField: String,
   xField: String,
-  covFields: IndexedSeq[String],
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  covFields: Seq[String],
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val poisRegTest = PoissonRegressionTest.tests(test)

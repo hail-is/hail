@@ -287,22 +287,28 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {write_cmd}")
 
-        status = batch.wait()
-
         if delete_scratch_on_exit:
+            parent_ids = list(job_id_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            j = self._batch_client.create_job(image='google/cloud-sdk:alpine',
-                                              command=['/bin/bash', '-c', activate_service_account + '&&' + rm_cmd],
-                                              volumes=volumes,
-                                              attributes={'label': 'remove_tmpdir'})
+            cmd = f'{activate_service_account} && {rm_cmd}'
+            j = batch.create_job(
+                image='google/cloud-sdk:alpine',
+                command=['/bin/bash', '-c', cmd],
+                parent_ids=parent_ids,
+                volumes=volumes,
+                attributes={'label': 'remove_tmpdir'},
+                always_run=True)
+            job_id_to_command[j.id] = cmd
+
+        status = batch.wait()
 
         failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            jstatus = self._batch_client.get_job(jid).status()
-            log = jstatus['log']
-            label = jstatus['attributes'].get('label', None)
+            job = self._batch_client.get_job(jid)
+            log = job.log()
+            label = job.status()['attributes'].get('label', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"

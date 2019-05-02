@@ -1,10 +1,8 @@
-FROM gcr.io/hail-vdc/base
-LABEL maintainer="hail-team@broadinstitute.org"
+FROM {{ base_image.image }}
 
-COPY requirements.txt /notebook/
-COPY notebook /notebook/
-COPY notebook-worker-images /notebook/
-COPY hailjwt /notebook/hailjwt/
+COPY notebook2/requirements.txt /notebook/
+COPY notebook2/notebook/ /notebook/
+COPY hailjwt/ /notebook/hailjwt/
 
 WORKDIR /notebook
 RUN pip3 install -r requirements.txt

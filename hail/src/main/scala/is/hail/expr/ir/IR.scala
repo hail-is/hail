@@ -16,7 +16,7 @@ sealed trait IR extends BaseIR {
 
   def pType: PType = {
     if (_ptype == null)
-      _ptype = InferPType(this)
+      _ptype = PType.canonical(typ)
     _ptype
   }
 
@@ -196,6 +196,7 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 

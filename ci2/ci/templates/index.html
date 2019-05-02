@@ -1,15 +1,29 @@
 <html lang="en">
   <head>
-    <title>CI2</title>
+    <title>CI</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
-    <h1>CI2</h1>
+    <h1>CI</h1>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
-    {% if wb.sha is not none %}
-    <p>sha: {{ wb.sha }}</p>
-    {% endif %}
+    <p>SHA:
+      {% if wb.sha is not none %}
+      {{ wb.sha }}
+      {% else %}
+      unknown
+      {% endif %}
+    </p>
+    <p>Deploy State:
+      {% if wb.deploy_state is not none %}
+      {{ wb.deploy_state }}
+      {% endif %}
+    </p>
+    <p>Deploy Batch: 
+      {% if wb.deploy_batch_id is not none %}
+      <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+      {% endif %}
+    </p>
     {% if wb.prs is not none %}
     <h3>PRs</h3>
     {% if wb.prs|length > 0 %}
@@ -20,6 +34,7 @@
           <th align="left">Title</th>
           <th align="left">Build State</th>
           <th align="left">Review State</th>
+          <th align="left">Author</th>
         </tr>
       </thead>
       <tbody>
@@ -56,6 +71,9 @@
             {% if pr.review_state %}
             {{ pr.review_state }}
             {% endif %}
+          </td>
+          <td align="left">
+            {{ pr.author }}
           </td>
         </tr>
         {% endfor %}
