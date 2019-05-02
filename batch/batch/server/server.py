@@ -397,7 +397,6 @@ class Job:
         self._state = state
         self._cancelled = cancelled
 
-    # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(self.id):
             parent_job = Job.from_record(record)
@@ -1055,8 +1054,8 @@ async def refresh_k8s_pvc():
     seen_pvcs = set()
     for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
         job = Job.from_record(record)
-        if job._pvc:
-            seen_pvcs.add(job._pvc.metadata.name)
+        assert job._pvc
+        seen_pvcs.add(job._pvc.metadata.name)
 
     for pvc in pvcs.items:
         if pvc.metadata.name not in seen_pvcs:
