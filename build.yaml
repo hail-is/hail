@@ -458,7 +458,7 @@ steps:
  - kind: deploy
    name: deploy_batch_pods
    namespace:
-     valueFrom: default_ns.name
+     valueFrom: batch_pods_ns.name
    config: batch/batch-pods-deployment.yaml
    dependsOn:
     - batch_pods_ns
