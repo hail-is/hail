@@ -70,7 +70,7 @@ async def get_pr(request):
         if not wb.prs:
             raise web.HTTPNotFound()
         pr = wb.prs[pr_number]
-    except IndexError:
+    except IndexError, KeyError:
         raise web.HTTPNotFound()
 
     config = {}
