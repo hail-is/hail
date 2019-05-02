@@ -1093,13 +1093,6 @@ async def polling_event_loop():
 
 
 def serve(port=5000):
-    def if_anyone_dies_we_all_die(loop, context):
-        try:
-            loop.default_exception_handler(context)
-        finally:
-            loop.stop()
-    asyncio.get_event_loop().set_exception_handler(
-        if_anyone_dies_we_all_die)
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
         app['blocking_pool'] = pool
