@@ -287,7 +287,7 @@ mkdir -p {shq(repo_dir)}
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log.exception(f'could not build {self.number} due to exception {e}')
         finally:
             if batch and not self.batch:
