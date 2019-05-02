@@ -130,27 +130,31 @@ std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right
   int l_size = left.size();
   int r_size = right.size();
 
-  int left_inner_dim = left[l_size - 1];
-  int right_inner_dim = r_size == 1 ? right[0] : right[r_size - 2];
-  if (left_inner_dim != right_inner_dim) {
+  int left_inner_dim = l_size - 1;
+  int right_inner_dim = std::max(0, r_size - 2);
+  if (left[left_inner_dim] != right[right_inner_dim]) {
     throw new FatalError("Invalid shapes for matrix multiplication");
   }
 
-  // stack dimensions
-  for (int i = 0; i < l_size - 2; i++) {
-    if (left[i] != right[i]) {
-      throw new FatalError("Invalid shapes for matrix multiplication");
+  if (l_size == 1 && r_size == 1) {
+    return result;
+  } else if (l_size == 1) {
+    result.assign(right.begin(), right.begin() + right_inner_dim);
+    result.push_back(right[r_size - 1]);
+  } else if (r_size == 1) {
+    result.assign(left.begin(), left.begin() + left_inner_dim);
+  } else {
+    assert(l_size == r_size);
+
+    for (int i = 0; i < l_size - 2; i++) {
+      if (left[i] != right[i] && left[i] != 1 && right[i] != 1) {
+        throw new FatalError("Invalid shapes for matrix multiplication");
+      }
+      result.push_back(std::max(left[i], right[i]));
     }
-    result.push_back(left[i]);
-  }
-
-  if (l_size > 1) {
-    int n = left[l_size - 2];
+    long n = left[l_size - 2];
+    long m = right[r_size - 1];
     result.push_back(n);
-  }
-
-  if (r_size > 1) {
-    int m = right[r_size - 1];
     result.push_back(m);
   }
 

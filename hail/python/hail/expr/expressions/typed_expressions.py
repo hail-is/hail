@@ -3513,21 +3513,26 @@ class NDArrayNumericExpression(NDArrayExpression):
         if self.ndim == 0 or other.ndim == 0:
             raise FatalError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
-        elem_type = unify_types(self._type.element_type, other._type.element_type)
-
         l_ndim = self.ndim
         r_ndim = other.ndim
-
+        left, right = self, other
         if l_ndim == 1 and r_ndim == 1:
             ndim = 0
-        elif l_ndim == 1 or r_ndim == 1:
-            ndim = 1
+        elif l_ndim == 1:
+            ndim = r_ndim - 1
+        elif r_ndim == 1:
+            ndim = l_ndim - 1
         else:
-            self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
-            return NDArrayNumericExpression(NDArrayMatMul(self_broadcast._ir, other_broadcast._ir),
-                                            tndarray(elem_type, self_broadcast.ndim))
+            left, right = self._broadcast_to_same_ndim(other)
+            assert left.ndim == right.ndim
+            ndim = left.ndim
 
-        return NDArrayNumericExpression(NDArrayMatMul(self._ir, other._ir), tndarray(elem_type, ndim))
+        elem_type = unify_types(self._type.element_type, other._type.element_type)
+        ret_type = tndarray(elem_type, ndim)
+        left = left._promote_numeric(ret_type)
+        right = right._promote_numeric(ret_type)
+
+        return NDArrayNumericExpression(NDArrayMatMul(left._ir, right._ir), ret_type)
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):

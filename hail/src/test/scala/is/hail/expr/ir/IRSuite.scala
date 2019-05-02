@@ -1101,16 +1101,24 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayMatMul() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val twoByThreeByFive = threeTensorRowMajor
-    val twoByFiveByThree = NDArrayReindex(threeTensorRowMajor, IndexedSeq(0, 2, 1))
-    val twoByThree = NDArrayMatMul(twoByThreeByFive, twoByFiveByThree)
-    val asdf = makeNDArrayRef(twoByThree, IndexedSeq(0, 0))
-    assertEvalsTo(asdf, 0.0)
+    val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor)
+    val zero = makeNDArrayRef(dotProduct, IndexedSeq())
+    assertEvalsTo(zero, 2.0)
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
     val seven = makeNDArrayRef(NDArrayMatMul(mat, mat), IndexedSeq(0, 0))
     assertEvalsTo(seven, 7.0)
+
+    val twoByThreeByFive = threeTensorRowMajor
+    val twoByFiveByThree = NDArrayReindex(twoByThreeByFive, IndexedSeq(0, 2, 1))
+    val twoByThreeByThree = NDArrayMatMul(twoByThreeByFive, twoByFiveByThree)
+    val thirty = makeNDArrayRef(twoByThreeByThree, IndexedSeq(0, 0, 0))
+    assertEvalsTo(thirty, 30.0)
+
+    val threeByTwoByFive = NDArrayReindex(twoByThreeByFive, IndexedSeq(1, 0, 2))
+    val matMulCube = NDArrayMatMul(NDArrayReindex(mat, IndexedSeq(2, 0, 1)), threeByTwoByFive)
+    assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
   @Test def testNDArrayWrite() {

@@ -1047,11 +1047,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case x@ir.NDArrayMatMul(lIR, rIR) =>
         val lt = emit(lIR)
         val rt = emit(rIR)
-        val lType = lIR.pType.asInstanceOf[PNDArray]
-        val rType = rIR.pType.asInstanceOf[PNDArray]
+        val lNDims = lIR.pType.asInstanceOf[PNDArray].nDims
+        val rNDims = rIR.pType.asInstanceOf[PNDArray].nDims
 
-        val nDims = x.pType.asInstanceOf[PNDArray].nDims
-        val elemType = x.pType.asInstanceOf[PNDArray].elementType
+        val xType = x.pType.asInstanceOf[PNDArray]
 
         val l = fb.variable("l", "NDArray", lt.v)
         val r = fb.variable("r", "NDArray", rt.v)
@@ -1059,14 +1058,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shape = fb.variable("shape", "std::vector<long>", s"matmul_shape($l.shape, $r.shape)")
         val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define)
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, nDims, shape, setup) {
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val element = fb.variable("element", typeToCXXType(elemType), "0")
+            val element = fb.variable("element", typeToCXXType(xType.elementType), "0")
             val k = fb.variable("k", "int")
 
             // NOTE: Follows semantics of numpy.matmul, explained here:
             // https://docs.scipy.org/doc/numpy/reference/generated/numpy.matmul.html
-            val (lIdxVars, rIdxVars) = (lType.nDims, rType.nDims) match {
+            val (lIdxVars, rIdxVars) = (lNDims, rNDims) match {
               case (1, 1) => (Seq(k), Seq(k))
               case (1, _) =>
                 val stackDims :+ m = idxVars
@@ -1079,13 +1078,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                 (stackDims :+ n :+ k, stackDims :+ k :+ m)
             }
 
-            val lElem = NDArrayLoopEmitter.loadElement(l, lIdxVars, lType.elementType)
-            val rElem = NDArrayLoopEmitter.loadElement(r, rIdxVars, rType.elementType)
+            val lElem = NDArrayLoopEmitter.loadElement(l, lIdxVars, xType.elementType)
+            val rElem = NDArrayLoopEmitter.loadElement(r, rIdxVars, xType.elementType)
             s"""
                |({
                |  ${ element.define }
                |  ${ k.define }
-               |  for ($k = 0; $k < $l.shape[${ nDims - 1 }]; ++$k) {
+               |  for ($k = 0; $k < $l.shape[${ lNDims - 1 }]; ++$k) {
                |    $element += $lElem * $rElem;
                |  }
                |
@@ -1095,7 +1094,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-        present(emitter.emit(elemType))
+        present(emitter.emit(xType.elementType))
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")

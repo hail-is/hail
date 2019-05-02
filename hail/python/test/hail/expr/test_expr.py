@@ -2903,10 +2903,15 @@ class Tests(unittest.TestCase):
         m = hl._ndarray(np_m)
         cube = hl._ndarray(np_cube)
 
+        hl.eval((v @ v)[()])
         hl.eval((m @ m)[0, 0])
         hl.eval((v @ m)[0])
         hl.eval((m @ v)[0])
         hl.eval((cube @ cube)[0, 0, 0])
+        hl.eval((cube @ v)[0, 0])
+        hl.eval((v @ cube)[0, 0])
+        hl.eval((cube @ m)[0, 0, 0])
+        hl.eval((m @ cube)[0, 0, 0])
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]

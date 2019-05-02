@@ -177,11 +177,12 @@ object TypeCheck {
       case x@NDArrayMatMul(l, r) =>
         assert(l.typ.isInstanceOf[TNDArray])
         assert(r.typ.isInstanceOf[TNDArray])
-        val lNDims = l.typ.asInstanceOf[TNDArray].nDims
-        val rNDims = r.typ.asInstanceOf[TNDArray].nDims
-        assert(lNDims > 0)
-        assert(rNDims > 0)
-        assert(lNDims == 1 || rNDims == 1 || lNDims == rNDims)
+        val lType = l.typ.asInstanceOf[TNDArray]
+        val rType = r.typ.asInstanceOf[TNDArray]
+        assert(lType.elementType == rType.elementType)
+        assert(lType.nDims > 0)
+        assert(rType.nDims > 0)
+        assert(lType.nDims == 1 || rType.nDims == 1 || lType.nDims == rType.nDims)
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))
