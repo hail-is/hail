@@ -637,6 +637,15 @@ async def create_job(request, userdata):  # pylint: disable=R0912
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
+    if not pod_spec.containers[0].resources:
+        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
+    if not pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests = {}
+    if 'cpu' not in pod_specs.containers[0].resources.requests:
+        pod_specs.containers[0].resources.requests['cpu'] = '100m'
+    if 'memory' not in pod_specs.containers[0].resources.requests:
+        pod_specs.containers[0].resources.requests['cpu'] = '500M'
+
     job = await Job.create_job(
         pod_spec=pod_spec,
         batch_id=batch_id,
