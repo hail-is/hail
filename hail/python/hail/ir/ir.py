@@ -564,6 +564,28 @@ class NDArrayReindex(IR):
         self._type = tndarray(self.nd.typ.element_type, n_output_dims)
 
 
+class NDArrayAgg(IR):
+    @typecheck_method(nd=IR, axes=sequenceof(int))
+    def __init__(self, nd, axes):
+        super().__init__(nd)
+        self.nd = nd
+        self.axes = axes
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayAgg(nd, self.axes)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.axes])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        assert len(self.axes.distinct) == len(self.axes)
+        assert all([axis < self.nd.typ.ndim for axis in self.axes])
+
+        self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
+
+
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)
     def __init__(self, nd, path):

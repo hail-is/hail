@@ -3269,6 +3269,23 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
+    @typecheck_method(axis=sequenceof(int))
+    def sum(self, axis=None):
+        if axis is None:
+            axes = list(range(self.ndim))
+        else:
+            axes = wrap_to_list(axis)
+
+        for axis in axes:
+            if not 0 <= axis <= self.ndim:
+                raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
+
+        if len(axes.distinct) != len(axes):
+            raise ValueError(f'Axes should not be repeated')
+
+        return NDArrayNumericExpression(NDArrayAgg(self._ir, axes),
+                                        tndarray(self._type.element_type, self.ndim - len(axes)))
+
     @typecheck_method(uri=str)
     def save(self, uri):
         """Write out the NDArray to the given path as in .npy format. If the URI does not

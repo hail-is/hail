@@ -107,7 +107,7 @@ object InferPType {
         PNDArray(body.pType, coerce[TNDArray](l.typ).nDims, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
         PNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length)
-      case NDArrayContract(nd, axes) =>
+      case NDArrayAgg(nd, axes) =>
         val childType = coerce[PNDArray](nd.pType)
         PNDArray(childType.elementType, childType.nDims - axes.length)
       case NDArrayRef(nd, idxs) =>

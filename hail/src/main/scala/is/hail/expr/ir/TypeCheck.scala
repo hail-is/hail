@@ -161,7 +161,7 @@ object TypeCheck {
         assert(nInputDims <= nOutputDims)
         assert(indexExpr.forall(i => i < nOutputDims))
         assert((0 until nOutputDims).forall(i => indexExpr.contains(i)))
-      case x@NDArrayContract(nd, axes) =>
+      case x@NDArrayAgg(nd, axes) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val nInputDims = coerce[TNDArray](nd.typ).nDims
         assert(axes.length <= nInputDims)

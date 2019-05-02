@@ -1073,18 +1073,18 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayContract() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val three = makeNDArrayRef(NDArrayContract(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
+    val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
     assertEvalsTo(three, 3.0)
 
-    val zero = makeNDArrayRef(NDArrayContract(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
+    val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
     assertEvalsTo(zero, 0.0)
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val ten = makeNDArrayRef(NDArrayContract(mat, IndexedSeq(0)), IndexedSeq(0))
+    val ten = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(0))
     assertEvalsTo(ten, 4.0)
 
-    val twentySeven = makeNDArrayRef(NDArrayContract(cubeRowMajor, IndexedSeq(2)), IndexedSeq(0, 0))
+    val twentySeven = makeNDArrayRef(NDArrayAgg(cubeRowMajor, IndexedSeq(2)), IndexedSeq(0, 0))
     assertEvalsTo(twentySeven, 3.0)
   }
 
@@ -1508,7 +1508,7 @@ class IRSuite extends SparkSuite {
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
       NDArrayReindex(nd, FastIndexedSeq(0, 1)),
-      NDArrayContract(nd, FastIndexedSeq(0)),
+      NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       ArrayRef(a, i),
       ArrayLen(a),

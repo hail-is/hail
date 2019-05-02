@@ -2786,3 +2786,16 @@ class Tests(unittest.TestCase):
             with tempfile.NamedTemporaryFile(suffix='.npy') as f:
                 hl._ndarray(arr).save(f.name)
                 self.assertTrue(np.array_equal(arr, np.load(f.name)))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_sum(self):
+        nd = hl._ndarray([[1, 2], [3, 4]])
+
+        row = nd.sum(axis=[0])
+        col = nd.sum(axis=[1])
+        scalar = nd.sum()
+
+        hl.eval(row[0])
+        hl.eval(col[0])
+        hl.eval(scalar[()])

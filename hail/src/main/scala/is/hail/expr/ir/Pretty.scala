@@ -190,7 +190,7 @@ object Pretty {
             case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
-            case NDArrayContract(_, axes) => prettyInts(axes)
+            case NDArrayAgg(_, axes) => prettyInts(axes)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

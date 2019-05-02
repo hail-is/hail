@@ -8,7 +8,7 @@ object Interpretable {
            _: NDArrayMap |
            _: NDArrayMap2 |
            _: NDArrayReindex |
-           _: NDArrayContract |
+           _: NDArrayAgg |
            _: NDArrayWrite => false
       case _ => true
     }

@@ -91,7 +91,7 @@ object Children {
       Array(l, r, body)
     case NDArrayReindex(nd, _) =>
       Array(nd)
-    case NDArrayContract(nd, _) =>
+    case NDArrayAgg(nd, _) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)

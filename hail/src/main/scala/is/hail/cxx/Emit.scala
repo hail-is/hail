@@ -931,7 +931,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case ir.NDArrayContract(child, axes) =>
+      case ir.NDArrayAgg(child, axes) =>
         val childTyp = child.pType.asInstanceOf[PNDArray]
         val resTyp = x.pType.asInstanceOf[PNDArray]
 

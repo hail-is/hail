@@ -109,7 +109,7 @@ object InferType {
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
-      case NDArrayContract(nd, axes) =>
+      case NDArrayAgg(nd, axes) =>
         val childType = coerce[TNDArray](nd.typ)
         TNDArray(childType.elementType, Nat(childType.nDims - axes.length), childType.required)
       case NDArrayRef(nd, idxs) =>
