@@ -14,9 +14,9 @@ object ExportGen {
 
   def apply(mv: MatrixValue, path: String, precision: Int = 4) {
     val hc = HailContext.get
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
 
-    hConf.writeTable(path + ".sample",
+    fs.writeTable(path + ".sample",
       "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.value.map { a =>
         val r = a.asInstanceOf[Row]
         assert(r.length == 3)

@@ -5,6 +5,7 @@ import is.hail.expr.types.virtual.TStruct
 import is.hail.io.CodecSpec
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
+import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.{Partition, TaskContext}
@@ -19,7 +20,7 @@ private case class IndexBgenPartition(
   startByteOffset: Long,
   endByteOffset: Long,
   partitionIndex: Int,
-  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+  bcFS: Broadcast[FS]
 ) extends BgenPartition {
 
   def index = partitionIndex
@@ -33,24 +34,24 @@ object IndexBgen {
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false) {
-    val hConf = hc.hadoopConf
-    val hConfBc = hc.hadoopConfBc
+    val fs = hc.sFS
+    val bcFS = hc.bcFS
 
-    val statuses = LoadBgen.getAllFileStatuses(hConf, files)
+    val statuses = LoadBgen.getAllFileStatuses(fs, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)
-    val indexFilePaths = LoadBgen.getIndexFileNames(hConf, bgenFilePaths, indexFileMap)
+    val indexFilePaths = LoadBgen.getIndexFileNames(fs, bgenFilePaths, indexFileMap)
 
     indexFilePaths.foreach { f =>
       assert(f.endsWith(".idx2"))
-      if (hConf.exists(f))
-        hConf.delete(f, recursive = true)
+      if (fs.exists(f))
+        fs.delete(f, recursive = true)
     }
 
     val recoding = Option(contigRecoding).getOrElse(Map.empty[String, String])
     val referenceGenome = rg.map(ReferenceGenome.getReference)
     referenceGenome.foreach(_.validateContigRemap(recoding))
 
-    val headers = LoadBgen.getFileHeaders(hConf, bgenFilePaths)
+    val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
     val annotationType = +TStruct()
@@ -75,7 +76,7 @@ object IndexBgen {
         f.dataStart,
         f.fileByteSize,
         i,
-        hConfBc)
+        bcFS)
     }
 
     val rowType = typ.rowType
@@ -104,7 +105,7 @@ object IndexBgen {
       .foreachPartition({ it =>
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(hConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType,
+        using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
           makeLeafEncoder, makeInternalEncoder, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)

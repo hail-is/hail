@@ -47,10 +47,10 @@ case class BgenFileMetadata(
 )
 
 object LoadBgen {
-  def readSamples(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
-    val bState = readState(hConf, file)
+  def readSamples(fs: fs.FS, file: String): Array[String] = {
+    val bState = readState(fs, file)
     if (bState.hasIds) {
-      hConf.readFile(file) { is =>
+      fs.readFile(file) { is =>
         val reader = new HadoopFSDataBinaryReader(is)
 
         reader.seek(bState.headerLength + 4)
@@ -74,8 +74,8 @@ object LoadBgen {
     }
   }
 
-  def readSampleFile(hConf: org.apache.hadoop.conf.Configuration, file: String): Array[String] = {
-    hConf.readFile(file) { s =>
+  def readSampleFile(fs: fs.FS, file: String): Array[String] = {
+    fs.readFile(file) { s =>
       Source.fromInputStream(s)
         .getLines()
         .drop(2)
@@ -88,10 +88,10 @@ object LoadBgen {
     }
   }
 
-  def readState(hConf: org.apache.hadoop.conf.Configuration, file: String): BgenHeader = {
-    hConf.readFile(file) { is =>
+  def readState(fs: fs.FS, file: String): BgenHeader = {
+    fs.readFile(file) { is =>
       val reader = new HadoopFSDataBinaryReader(is)
-      readState(reader, file, hConf.getFileSize(file))
+      readState(reader, file, fs.getFileSize(file))
     }
   }
 
@@ -149,11 +149,11 @@ object LoadBgen {
             |  ${ notVersionTwo.mkString("\n  ") }""".stripMargin)
   }
 
-  def getAllFileStatuses(hConf: Configuration, files: Array[String]): Array[FileStatus] = {
+  def getAllFileStatuses(fs: fs.FS, files: Array[String]): Array[FileStatus] = {
     val badFiles = new ArrayBuilder[String]()
 
     val statuses = files.flatMap { file =>
-      val matches = hConf.glob(file)
+      val matches = fs.glob(file)
       if (matches.isEmpty)
         badFiles += file
 
@@ -162,8 +162,8 @@ object LoadBgen {
         if (!file.endsWith(".bgen"))
           warn(s"input file does not have .bgen extension: $file")
 
-        if (hConf.isDir(file))
-          hConf.listStatus(file)
+        if (fs.isDir(file))
+          fs.listStatus(file)
             .filter(status => ".*part-[0-9]+".r.matches(status.getPath.toString))
         else
           Array(status)
@@ -178,14 +178,14 @@ object LoadBgen {
     statuses
   }
 
-  def getAllFilePaths(hConf: Configuration, files: Array[String]): Array[String] =
-    getAllFileStatuses(hConf, files).map(_.getPath.toString)
+  def getAllFilePaths(fs: fs.FS, files: Array[String]): Array[String] =
+    getAllFileStatuses(fs, files).map(_.getPath.toString)
 
-  def getBgenFileMetadata(hConf: Configuration, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
+  def getBgenFileMetadata(fs: fs.FS, files: Array[String], indexFiles: Array[String]): Array[BgenFileMetadata] = {
     require(files.length == indexFiles.length)
-    val headers = getFileHeaders(hConf, files)
+    val headers = getFileHeaders(fs, files)
     headers.zip(indexFiles).map { case (h, indexFile) =>
-      using(IndexReader(hConf, indexFile)) { index =>
+      using(IndexReader(fs, indexFile)) { index =>
         val attributes = index.attributes
         val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]
@@ -214,8 +214,8 @@ object LoadBgen {
     }
   }
 
-  def getIndexFileNames(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    def absolutePath(rel: String): String = hConf.fileStatus(rel).getPath.toString
+  def getIndexFileNames(fs: fs.FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+    def absolutePath(rel: String): String = fs.fileStatus(rel).getPath.toString
 
     val fileMapping = Option(indexFileMap)
       .getOrElse(Map.empty[String, String])
@@ -230,9 +230,10 @@ object LoadBgen {
     files.map(absolutePath).map(f => fileMapping.getOrElse(f, f + ".idx2"))
   }
 
-  def getIndexFiles(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
-    val indexFiles = getIndexFileNames(hConf, files, indexFileMap)
-    val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => hConf.exists(index) && index.endsWith("idx2") }.map(_._1)
+
+  def getIndexFiles(fs: fs.FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
+    val indexFiles = getIndexFileNames(fs, files, indexFileMap)
+    val missingIdxFiles = files.zip(indexFiles).filterNot { case (f, index) => fs.exists(index) && index.endsWith("idx2") }.map(_._1)
     if (missingIdxFiles.nonEmpty)
       fatal(
         s"""The following BGEN files have no .idx2 index file. Use 'index_bgen' to create the index file once before calling 'import_bgen':
@@ -240,8 +241,8 @@ object LoadBgen {
     indexFiles
   }
 
-  def getFileHeaders(hConf: Configuration, files: Seq[String]): Array[BgenHeader] =
-    files.map(LoadBgen.readState(hConf, _)).toArray
+  def getFileHeaders(fs: fs.FS, files: Seq[String]): Array[BgenHeader] =
+    files.map(LoadBgen.readState(fs, _)).toArray
 
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
     getReferenceGenome(fileMetadata.map(_.rg))
@@ -341,15 +342,15 @@ case class MatrixBGENReader(
   includedVariants: Option[TableIR]) extends MatrixHybridReader {
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val hConf = sc.hadoopConfiguration
+  private val fs = hc.sFS
 
-  val allFiles = LoadBgen.getAllFilePaths(hConf, files.toArray)
-  val indexFiles = LoadBgen.getIndexFiles(hConf, allFiles, indexFileMap)
-  val fileMetadata = LoadBgen.getBgenFileMetadata(hConf, allFiles, indexFiles)
+  val allFiles = LoadBgen.getAllFilePaths(fs, files.toArray)
+  val indexFiles = LoadBgen.getIndexFiles(fs, allFiles, indexFileMap)
+  val fileMetadata = LoadBgen.getBgenFileMetadata(fs, allFiles, indexFiles)
   assert(fileMetadata.nonEmpty)
 
-  private val sampleIds = sampleFile.map(file => LoadBgen.readSampleFile(hConf, file))
-    .getOrElse(LoadBgen.readSamples(hConf, fileMetadata.head.path))
+  private val sampleIds = sampleFile.map(file => LoadBgen.readSampleFile(fs, file))
+    .getOrElse(LoadBgen.readSamples(fs, fileMetadata.head.path))
 
   LoadVCF.warnDuplicates(sampleIds)
 

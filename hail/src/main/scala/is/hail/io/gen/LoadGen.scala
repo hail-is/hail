@@ -2,17 +2,18 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
+import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, TableRead, TableValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
+import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.broadcast.Broadcast
 
@@ -20,18 +21,18 @@ case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Anno
 
 object LoadGen {
   def apply(
-    genFile: String,
-    sampleFile: String,
-    sc: SparkContext,
-    rgBc: Option[Broadcast[ReferenceGenome]],
-    nPartitions: Option[Int] = None,
-    tolerance: Double = 0.02,
-    chromosome: Option[String] = None,
-    contigRecoding: Map[String, String] = Map.empty[String, String],
-    skipInvalidLoci: Boolean = false): GenResult = {
+             genFile: String,
+             sampleFile: String,
+             sc: SparkContext,
+             fs: FS,
+             rgBc: Option[Broadcast[ReferenceGenome]],
+             nPartitions: Option[Int] = None,
+             tolerance: Double = 0.02,
+             chromosome: Option[String] = None,
+             contigRecoding: Map[String, String] = Map.empty[String, String],
+             skipInvalidLoci: Boolean = false): GenResult = {
 
-    val hConf = sc.hadoopConfiguration
-    val sampleIds = LoadBgen.readSampleFile(hConf, sampleFile)
+    val sampleIds = LoadBgen.readSampleFile(fs, sampleFile)
 
     LoadVCF.warnDuplicates(sampleIds)
 
@@ -113,7 +114,7 @@ case class MatrixGENReader(
   skipInvalidLoci: Boolean) extends MatrixHybridReader {
 
   files.foreach { input =>
-    if (!HailContext.get.hadoopConf.stripCodec(input).endsWith(".gen"))
+    if (!HailContext.get.sFS.stripCodec(input).endsWith(".gen"))
       fatal(s"gen inputs must end in .gen[.bgz], found $input")
   }
 
@@ -124,12 +125,12 @@ case class MatrixGENReader(
 
   referenceGenome.foreach(ref => ref.validateContigRemap(contigRecoding))
 
-  private val samples = LoadBgen.readSampleFile(HailContext.get.hadoopConf, sampleFile)
+  private val samples = LoadBgen.readSampleFile(HailContext.get.sFS, sampleFile)
   private val nSamples = samples.length
 
   // FIXME: can't specify multiple chromosomes
-  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.sc, referenceGenome.map(_.broadcast), nPartitions,
-    tolerance, chromosome, contigRecoding, skipInvalidLoci))
+  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, HailContext.get.sFS,
+    referenceGenome.map(_.broadcast), nPartitions, tolerance, chromosome, contigRecoding, skipInvalidLoci))
 
   private val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
   if (unequalSamples.nonEmpty)

@@ -4,15 +4,15 @@ import is.hail.HailContext
 import is.hail.variant.{Locus, ReferenceGenome}
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 
 import scala.collection.JavaConverters._
 import scala.collection.concurrent
 import scala.language.implicitConversions
 
-class SerializableHtsjdkLiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String) extends Serializable {
+class SerializableHtsjdkLiftOver(val fs: FS, val chainFile: String) extends Serializable {
   @transient lazy val value = {
-    val localChainFile = LiftOver.getLocalChainFileName(hConf.value, chainFile)
+    val localChainFile = LiftOver.getLocalChainFileName(fs, chainFile)
     new htsjdk.samtools.liftover.LiftOver(new java.io.File(localChainFile))
   }
 }
@@ -20,30 +20,30 @@ class SerializableHtsjdkLiftOver(val hConf: SerializableHadoopConfiguration, val
 object LiftOver {
   private[this] val localChainFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
 
-  def getLocalChainFileName(hConf: Configuration, chainFile: String): String =
-    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(hConf, chainFile))
+  def getLocalChainFileName(fs: FS, chainFile: String): String =
+    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(fs, chainFile))
 
-  def setup(hConf: Configuration, chainFile: String): String = {
-    val tmpDir = TempDir(hConf)
+  def setup(fs: FS, chainFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localChainFile = tmpDir.createLocalTempFile(extension = "chain")
 
-    hConf.readFile(chainFile) { in =>
-      hConf.writeFile(localChainFile) { out =>
+    fs.readFile(chainFile) { in =>
+      fs.writeFile(localChainFile) { out =>
         IOUtils.copy(in, out)
       }}
 
-    if (!hConf.exists(localChainFile))
+    if (!fs.exists(localChainFile))
       fatal(s"Error while copying chain file to local file system. Did not find '$localChainFile'.")
 
     uriPath(localChainFile)
   }
 
   def apply(hc: HailContext, chainFile: String): LiftOver =
-    new LiftOver(hc.sHadoopConf, chainFile)
+    new LiftOver(hc.sFS, chainFile)
 }
 
-class LiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String) extends Serializable {
-  val lo = new SerializableHtsjdkLiftOver(hConf, chainFile)
+class LiftOver(val fs: FS, val chainFile: String) extends Serializable {
+  val lo = new SerializableHtsjdkLiftOver(fs, chainFile)
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]

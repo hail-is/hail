@@ -4,7 +4,7 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.Parser
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
@@ -18,7 +18,6 @@ import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.commons.io.FileUtils
-import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
@@ -57,11 +56,9 @@ object HailContext {
 
   def sc: SparkContext = get.sc
 
-  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
+  def sFS: FS = get.sFS
 
-  def sHadoopConf: SerializableHadoopConfiguration = get.sHadoopConf
-
-  def hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = get.hadoopConfBc
+  def bcFS: Broadcast[FS] = get.bcFS
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -264,13 +261,16 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
+    val sFS = new HadoopFS(sc.hadoopConfiguration)
+
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
+    val hailTempDir = TempDir.createTempDir(tmpDir, sFS)
+
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(sparkContext, sqlContext, sFS, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -365,16 +365,16 @@ object HailContext {
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
 
   def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    val hadoopConf = HailContext.get.hadoopConf
+    val hadoopFS = HailContext.get.sFS
     if (!force)
       body
     else {
-      val defaultCodecs = hadoopConf.get(codecsKey)
-      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+      val defaultCodecs = hadoopFS.getProperty(codecsKey)
+      hadoopFS.setProperty(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
       try {
         body
       } finally {
-        hadoopConf.set(codecsKey, defaultCodecs)
+        hadoopFS.setProperty(codecsKey, defaultCodecs)
       }
     }
   }
@@ -386,13 +386,13 @@ object HailContext {
 
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
+  val sFS: FS,
   val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
-  val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
-  val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
+
+  val bcFS: Broadcast[FS] = sc.broadcast(sFS)
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
@@ -416,7 +416,7 @@ class HailContext private(val sc: SparkContext,
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r
-    sc.textFilesLines(hadoopConf.globAll(files))
+    sc.textFilesLines(sFS.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.asInstanceOf[Context].file)
@@ -479,7 +479,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean = false): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
-    val files = hadoopConf.globAll(inputs)
+    val files = sFS.globAll(inputs)
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
@@ -504,8 +504,6 @@ class HailContext private(val sc: SparkContext,
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val localHadoopConfBc = hadoopConfBc
-
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
         Array.tabulate(nPartitions)(i => FilePartition(i, partFiles(i)))
@@ -513,7 +511,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = localHadoopConfBc.value.value.unsafeReader(filename)
+        val in = bcFS.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
@@ -571,7 +569,7 @@ class HailContext private(val sc: SparkContext,
     sep: String = "\t"): MatrixIR = {
     assert(sep.length == 1)
 
-    val inputs = hadoopConf.globAll(files)
+    val inputs = sFS.globAll(files)
 
     HailContext.maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))

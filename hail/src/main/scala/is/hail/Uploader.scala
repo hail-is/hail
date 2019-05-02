@@ -56,7 +56,7 @@ class Uploader { self =>
   private val config = {
     val hc = HailContext.get
     val sc = hc.sc
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
     val runtime = Runtime.getRuntime
 
     JObject(
@@ -78,7 +78,7 @@ class Uploader { self =>
         }
           .toList),
       "hadoop_conf" -> JObject(
-        hConf.iterator().asScala.map { entry =>
+        fs.getProperties.map { entry =>
           entry.getKey -> JString(entry.getValue)
         }
           .toList),

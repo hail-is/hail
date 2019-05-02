@@ -3,15 +3,12 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
-import is.hail.expr.types._
+import is.hail.io.fs.FS
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
-import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{Partition, SparkContext}
 
@@ -24,13 +21,13 @@ trait BgenPartition extends Partition {
 
   def contigRecoding: Map[String, String]
 
-  def sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+  def fs: FS
+
+  def bcFS: Broadcast[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {
-    val hadoopPath = new Path(path)
-    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-    val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-    bfis
+    val fs = bcFS.value.fileSystem(path)
+    new HadoopFSDataBinaryReader(fs.open())
   }
 
   def recodeContig(contig: String): String =
@@ -47,7 +44,8 @@ private case class LoadBgenPartition(
   partitionIndex: Int,
   startIndex: Long,
   endIndex: Long,
-  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+  fs: FS,
+  bcFS: Broadcast[FS]
 ) extends BgenPartition {
   assert(startIndex <= endIndex)
 
@@ -55,7 +53,7 @@ private case class LoadBgenPartition(
 }
 
 object BgenRDDPartitions extends Logging {
-  def checkFilesDisjoint(hConf: Configuration, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+  def checkFilesDisjoint(fs: FS, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
     assert(fileMetadata.nonEmpty)
     val pord = keyType.ordering
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
@@ -91,10 +89,10 @@ object BgenRDDPartitions extends Logging {
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
-    val hConf = sc.hadoopConfiguration
-    val sHadoopConfBc = HailContext.hadoopConfBc
+    val fs = HailContext.sFS
+    val bcFS = HailContext.bcFS
 
-    val fileRangeBounds = checkFilesDisjoint(hConf, files, keyType)
+    val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering
 
     val sortedFiles = files.zip(fileRangeBounds)
@@ -128,7 +126,7 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(IndexReader(hConf, file.indexPath)) { index =>
+        using(IndexReader(fs, file.indexPath)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
@@ -148,7 +146,8 @@ object BgenRDDPartitions extends Logging {
               partitionIndex,
               firstVariantIndex,
               lastVariantIndex,
-              sHadoopConfBc
+              fs,
+              bcFS
             )
 
             rangeBounds += Interval(

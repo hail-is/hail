@@ -23,7 +23,7 @@ import scala.reflect.ClassTag
 object TableIR {
   def read(hc: HailContext, path: String, dropRows: Boolean, requestedType: Option[TableType]): TableIR = {
     val successFile = path + "/_SUCCESS"
-    if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
+    if (!hc.sFS.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
     val tr = TableNativeReader(path)

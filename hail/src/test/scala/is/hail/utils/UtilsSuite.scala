@@ -3,7 +3,6 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.Arbitrary._
 import is.hail.check.{Gen, Prop}
-import is.hail.utils.richUtils.RichHadoopConfiguration
 import is.hail.variant._
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test

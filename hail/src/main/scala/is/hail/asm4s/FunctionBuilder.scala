@@ -99,8 +99,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 
   def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] = fb.newLazyField(name)(setup)
 
-  def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
-    assert(i >= 0)
+  def   getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i < layout.length)
     new LocalRef[T](argIndex(i))
   }

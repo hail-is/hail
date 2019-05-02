@@ -30,7 +30,7 @@ class RichRDDSuite extends SparkSuite {
   }
 
   @Test def binaryParallelWrite() {
-    def readBytes(file: String): Array[Byte] = hadoopConf.readFile(file) { dis =>
+    def readBytes(file: String): Array[Byte] = sFS.readFile(file) { dis =>
       val buffer = new Array[Byte](32)
       val size = dis.read(buffer)
       buffer.take(size)
@@ -61,7 +61,7 @@ class RichRDDSuite extends SparkSuite {
   }
 
   @Test def parallelWrite() {
-    def read(file: String): Array[String] = hc.hadoopConf.readLines(file)(_.map(_.value).toArray)
+    def read(file: String): Array[String] = hc.sFS.readLines(file)(_.map(_.value).toArray)
 
     val header = "my header is awesome!"
     val data = Array("the cat jumped over the moon.", "all creatures great and small")
@@ -90,8 +90,8 @@ class RichRDDSuite extends SparkSuite {
     val merged = tmpDir.createTempFile("merged", ".gz")
     val mergeList = Array(separateHeader + "/header.gz",
       separateHeader + "/part-00000.gz",
-      separateHeader + "/part-00001.gz").flatMap(hadoopConf.glob)
-    hadoopConf.copyMergeList(mergeList, merged, deleteSource = false)
+      separateHeader + "/part-00001.gz").flatMap(sFS.glob)
+    sFS.copyMergeList(mergeList, merged, deleteSource = false)
 
     assert(read(merged) sameElements read(concatenated))
   }

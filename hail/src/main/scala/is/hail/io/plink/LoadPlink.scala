@@ -6,13 +6,12 @@ import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixRea
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
+import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.{Locus, _}
-import org.apache.hadoop
-import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.sql.Row
 
@@ -23,9 +22,9 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
+  def parseBim(bimPath: String, fs: FS, a2Reference: Boolean = true,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, Double, String, String, String)] = {
-    hConf.readLines(bimPath)(_.map(_.map { line =>
+    fs.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
         case Array(contig, rsId, cmPos, bpPos, allele1, allele2) =>
           val recodedContig = contigRecoding.getOrElse(contig, contig)
@@ -44,7 +43,7 @@ object LoadPlink {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    hConf: hadoop.conf.Configuration): (IndexedSeq[Row], TStruct) = {
+               fs: FS): (IndexedSeq[Row], TStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
@@ -56,8 +55,8 @@ object LoadPlink {
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Row]
 
-    val m = hConf.readLines(filename) {
-      _.foreachLine { line =>
+    val m = fs.readLines(filename) {
+      _.foreach ( _.foreach { line =>
         val split = line.split(delimiter)
         if (split.length != 6)
           fatal(s"expected 6 fields, but found ${ split.length }")
@@ -105,7 +104,7 @@ object LoadPlink {
             }
         idBuilder += kid
         structBuilder += Row(kid, fam1, dad1, mom1, isFemale1, pheno1)
-      }
+      })
     }
 
     val sampleIds = idBuilder.result()
@@ -138,7 +137,7 @@ case class MatrixPLINKReader(
 
   val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
-  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.hadoopConf)
+  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.sFS)
 
   val nameMap = Map("id" -> "s")
   val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
@@ -147,7 +146,7 @@ case class MatrixPLINKReader(
   if (nSamples <= 0)
     fatal("FAM file does not contain any samples")
 
-  val variants = LoadPlink.parseBim(bim, hc.hadoopConf, a2Reference, contigRecoding)
+  val variants = LoadPlink.parseBim(bim, hc.sFS, a2Reference, contigRecoding)
   val nVariants = variants.length
   if (nVariants <= 0)
     fatal("BIM file does not contain any variants")
@@ -155,7 +154,7 @@ case class MatrixPLINKReader(
   info(s"Found $nSamples samples in fam file.")
   info(s"Found $nVariants variants in bim file.")
 
-  hc.sc.hadoopConfiguration.readFile(bed) { dis =>
+  hc.sFS.readFile(bed) { dis =>
     val b1 = dis.read()
     val b2 = dis.read()
     val b3 = dis.read()
@@ -167,7 +166,7 @@ case class MatrixPLINKReader(
       fatal("BED file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
   }
 
-  val bedSize = hc.sc.hadoopConfiguration.getFileSize(bed)
+  val bedSize = hc.sFS.getFileSize(bed)
   if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
     fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
 

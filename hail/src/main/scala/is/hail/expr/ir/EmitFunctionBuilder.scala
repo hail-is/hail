@@ -3,14 +3,13 @@ package is.hail.expr.ir
 import java.io.PrintWriter
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -44,8 +43,8 @@ object EmitFunctionBuilder {
     new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-trait FunctionWithHadoopConfiguration {
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -144,25 +143,25 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] var _hconf: SerializableHadoopConfiguration = _
-  private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+  private[this] var _fs: FS = _
+  private[this] var _hfield: ClassFieldRef[FS] = _
 
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    assert(hConf != null)
-    if (_hconf == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
+  def addFS(fs: FS): Unit = {
+    assert(fs != null)
+    if (_fs == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
       val confField = newField[SerializableHadoopConfiguration]
-      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+      val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-      _hconf = hConf
+      mb.emit(confField := mb.getArg[FS](1))
+      _fs = fs
       _hfield = confField
     }
-    assert(_hconf.value == hConf.value && _hfield != null)
+    assert(_fs == fs && _hfield != null)
   }
 
-  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+  def getFS: Code[FS] = {
+    assert(_fs != null && _hfield != null, s"${_hfield == null}")
     _hfield.load()
   }
 
@@ -336,7 +335,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
-    val localHConf = _hconf
+    val localFs = _fs
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -355,8 +354,8 @@ class EmitFunctionBuilder[F >: Null](
             }
           }
           val f = theClass.newInstance().asInstanceOf[F]
-          if (localHConf != null)
-            f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+          if (localFs != null)
+            f.asInstanceOf[FunctionWithFS].addFS(localFs)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

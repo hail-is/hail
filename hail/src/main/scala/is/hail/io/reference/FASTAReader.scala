@@ -7,6 +7,7 @@ import htsjdk.samtools.reference.ReferenceSequenceFileFactory
 import is.hail.HailContext
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
+import is.hail.io.fs.FS
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop.conf.Configuration
 
@@ -64,14 +65,14 @@ object FASTAReader {
     if (capacity <= 0)
       fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
-    new FASTAReader(hc.sHadoopConf, rg, fastaFile, indexFile, blockSize, capacity)
+    new FASTAReader(hc.sFS, rg, fastaFile, indexFile, blockSize, capacity)
   }
 }
 
-class FASTAReader(val hConf: SerializableHadoopConfiguration, val rg: ReferenceGenome,
+class FASTAReader(val fs: FS, val rg: ReferenceGenome,
   val fastaFile: String, val indexFile: String, val blockSize: Int, val capacity: Int) extends Serializable {
 
-  val reader = new SerializableReferenceSequenceFile(hConf, fastaFile, indexFile)
+  val reader = new SerializableReferenceSequenceFile(fs, fastaFile, indexFile)
   assert(reader.value.isIndexed)
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {

@@ -30,7 +30,7 @@ case class BlockMatrixNativeWriter(
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
-    RichDenseMatrixDouble.exportToDoubles(hc.hadoopConf, path, bm.toBreezeMatrix(), forceRowMajor = true)
+    RichDenseMatrixDouble.exportToDoubles(hc.sFS, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
 }
 

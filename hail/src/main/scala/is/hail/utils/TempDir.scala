@@ -2,23 +2,24 @@ package is.hail.utils
 
 import java.io.IOException
 
+import is.hail.io.fs.FS
 import org.apache.hadoop
 
 import scala.util.Random
 
 object TempDir {
-  def createTempDir(tmpdir: String, hConf: hadoop.conf.Configuration): String = {
+  def createTempDir(tmpdir: String, sfs: is.hail.io.fs.FS): String = {
     while (true) {
       try {
         val dir = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
 
-        if (hConf.exists(dir)) {
+        if (sfs.exists(dir)) {
           // try again
         } else {
-          hConf.mkDir(dir)
+          sfs.mkDir(dir)
 
-          val fs = hConf.fileSystem(tmpdir)
-          val qDir = fs.makeQualified(new hadoop.fs.Path(dir))
+          val fs = sfs.fileSystem(tmpdir)
+          val qDir = fs.makeQualified(dir)
           fs.deleteOnExit(qDir)
 
           return qDir.toString
@@ -33,9 +34,9 @@ object TempDir {
     null
   }
 
-  def apply(hConf: hadoop.conf.Configuration): TempDir =
-    new TempDir(createTempDir("file:///tmp", hConf),
-      createTempDir("/tmp", hConf))
+  def apply(fs: FS): TempDir =
+    new TempDir(createTempDir("file:///tmp", fs),
+      createTempDir("/tmp", fs))
 }
 
 class TempDir(localTempDir: String, tempDir: String) {

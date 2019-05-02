@@ -42,7 +42,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val partFileBase = path + "/tmp/"
 
-      val hConfBc = HailContext.hadoopConfBc
+      val bcFS = HailContext.bcFS
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
@@ -56,7 +56,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(hConfBc.value.value.unsafeWriter(partFolder + "/" + j.toString + extension), "UTF-8")
+          new OutputStreamWriter(bcFS.value.unsafeWriter(partFolder + "/" + j.toString + extension), "UTF-8")
         }
 
         if (i == 0) {
@@ -118,8 +118,8 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
-          val fileStatuses = partFolders.map(pf => hConfBc.value.value.fileStatus(pf + s"/$sampleIdx" + extension))
-          hConfBc.value.value.copyMergeList(fileStatuses, partFilePath, deleteSource = true)
+          val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))
+          bcFS.value.copyMergeList(fileStatuses, partFilePath, deleteSource = true)
           partFilePath
         }.collect()
 

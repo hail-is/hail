@@ -50,8 +50,6 @@ trait Implicits {
 
   implicit def toRichIterable[T](a: Array[T]): RichIterable[T] = new RichIterable(a)
 
-  implicit def toRichContextIterator[T](it: Iterator[WithContext[T]]): RichContextIterator[T] = new RichContextIterator[T](it)
-
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)

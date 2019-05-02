@@ -3,8 +3,7 @@ package is.hail.io
 import java.io.Closeable
 import java.util.Arrays
 import is.hail.utils._
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs._
+import is.hail.io.fs.FS
 
 import scala.collection.mutable
 
@@ -75,9 +74,9 @@ object IndexBTree {
   def write(
     arr: Array[Long],
     fileName: String,
-    hConf: Configuration,
+    fs: FS,
     branchingFactor: Int = 1024
-  ): Unit = hConf.writeDataFile(fileName) { w =>
+  ): Unit = fs.writeDataFile(fileName) { w =>
     w.write(btreeBytes(arr, branchingFactor))
   }
 
@@ -88,10 +87,10 @@ object IndexBTree {
     btreeLayers(arr, branchingFactor).map(_.mkString("[", " ", "]")).mkString("(BTREE\n", "\n", "\n)")
 }
 
-class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: Int = 1024) extends Closeable {
+class IndexBTree(indexFileName: String, sFS: FS, branchingFactor: Int = 1024) extends Closeable {
   val maxDepth = calcDepth()
   private val fs = try {
-    hConf.fileSystem(indexFileName).open(new Path(indexFileName))
+    sFS.fileSystem(indexFileName).open(indexFileName)
   } catch {
     case e: Exception => fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
@@ -99,7 +98,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
   def close() = fs.close()
 
   def calcDepth(): Int =
-    IndexBTree.calcDepth(hConf.getFileSize(indexFileName) / 8, branchingFactor)
+    IndexBTree.calcDepth(sFS.getFileSize(indexFileName) / 8, branchingFactor)
 
   private def getOffset(depth: Int): Long = {
     (1 until depth).map(math.pow(branchingFactor, _).toLong * 8).sum
@@ -203,7 +202,7 @@ class IndexBTree(indexFileName: String, hConf: Configuration, branchingFactor: I
 // like an on-disk array and looks up values by index
 class OnDiskBTreeIndexToValue(
   path: String,
-  hConf: Configuration,
+  sFS: FS,
   branchingFactor: Int = 1024
 ) extends AutoCloseable {
   private[this] def numLayers(size: Long): Int =
@@ -219,11 +218,11 @@ class OnDiskBTreeIndexToValue(
     leadingElements
   }
 
-  private[this] val layers = numLayers(hConf.getFileSize(path) / 8)
+  private[this] val layers = numLayers(sFS.getFileSize(path) / 8)
   private[this] val junk = leadingElements(layers - 1)
   private[this] var fs = try {
     log.info("reading index file: " + path)
-    hConf.fileSystem(path).open(new Path(path))
+    sFS.fileSystem(path).open(path)
   } catch {
     case e: Exception =>
       fatal(s"Could not find a BGEN .idx file at $path. Try running HailContext.index_bgen().", e)

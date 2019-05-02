@@ -10,8 +10,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
-import is.hail.utils.{SerializableHadoopConfiguration, fatal}
-import is.hail.utils.richUtils.RichHadoopConfiguration
+import is.hail.utils.fatal
 
 import scala.reflect.classTag
 
@@ -141,14 +140,13 @@ object Compile {
     mod.close()
     st.close()
 
-    val hadoopConf = new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration)
+    // TODO: WHY NOT JUST Hailcontext.fs?
+    // new HadoopFS(HailContext.get.sc.hadoopConfiguration)
+    val fs = HailContext.sFS
 
     { (region: Long) =>
       val st2 = new NativeStatus()
-      val jObjectArgs = new ObjectArray(sparkUtils,
-        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
-        new ByteArrayInputStream(literals)).get()
-
+      val jObjectArgs = new ObjectArray(sparkUtils,fs,new ByteArrayInputStream(literals)).get()
       val res = nativef(st2, jObjectArgs, region)
       if (st2.fail)
         fatal(st2.toString())
@@ -172,13 +170,13 @@ object Compile {
     mod.close()
     st.close()
 
-    val hadoopConf = new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration)
+    // TODO: WHY NOT JUST Hailcontext.fs?
+    // new HadoopFS(HailContext.get.sc.hadoopConfiguration)
+    val fs = HailContext.sFS
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()
-      val jObjectArgs = new ObjectArray(sparkUtils,
-        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
-        new ByteArrayInputStream(literals)).get()
+      val jObjectArgs = new ObjectArray(sparkUtils,fs,new ByteArrayInputStream(literals)).get()
       val res = nativef(st2, jObjectArgs, region, v2)
       if (st2.fail)
         fatal(st2.toString())

@@ -7,24 +7,20 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
-import is.hail.linalg._
-import is.hail.methods._
 import is.hail.rvd._
-import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, cxx, utils}
+import is.hail.io.fs.FS
+import is.hail.{HailContext, utils}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.{Serialization}
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
@@ -40,10 +36,10 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def read(hc: HailContext, path: String): RelationalSpec = {
-    if (!hc.hadoopConf.isDir(path))
+    if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
+    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -61,7 +57,7 @@ object RelationalSpec {
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -80,8 +76,8 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def write(hadoopConf: org.apache.hadoop.conf.Configuration, path: String) {
-    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+  def write(fs: FS, path: String) {
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
@@ -90,18 +86,18 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def rvdSpec(hadoopConf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(hadoopConf, path + "/" + rel_path)
+  def rvdSpec(fs: FS, path: String): AbstractRVDSpec =
+    AbstractRVDSpec.read(fs, path + "/" + rel_path)
 
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
@@ -454,7 +450,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def sparkContext: SparkContext = hc.sc
 
-  def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
+  def fs: FS = hc.sFS
 
   def head(n: Long): MatrixTable = {
     if (n < 0)
