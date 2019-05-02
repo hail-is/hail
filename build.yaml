@@ -456,6 +456,13 @@ steps:
     - batch_database
     - create_batch_tables
  - kind: deploy
+   name: deploy_batch_pods
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/batch-pods-deployment.yaml
+   dependsOn:
+    - batch_pods_ns
+ - kind: deploy
    name: deploy_image_fetcher
    namespace:
      valueFrom: default_ns.name
@@ -476,6 +483,7 @@ steps:
     - default_ns
     - batch_pods_ns
     - deploy_batch
+    - deploy_batch_pods
     - test_batch_image
  - kind: deploy
    name: deploy_apiserver
