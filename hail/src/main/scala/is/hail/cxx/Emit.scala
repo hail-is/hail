@@ -1170,15 +1170,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   }
 
   def emitDeforestedNDArray(resultRegion: EmitRegion, x: ir.IR, env: E): NDArrayLoopEmitter = {
-    val xType = x.typ.asInstanceOf[PNDArray]
+    val xType = x.pType.asInstanceOf[PNDArray]
     x match {
       case ir.NDArrayReindex(child, indexExpr) =>
-        val nd = emitDeforestedNDArray(resultRegion, child, env)
+        val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
         val shape = fb.variable("shape", "std::vector<long>")
         val reindexShapeAndStrides = indexExpr.map { i =>
           s"""
-             | if ($i < $nd.shape.size()) {
-             |  $shape.push_back($nd.shape[$i]);
+             | if ($i < ${ childEmitter.shape }.size()) {
+             |  $shape.push_back(${ childEmitter.shape }[$i]);
              | } else {
              |  $shape.push_back(1);
              | }
@@ -1186,19 +1186,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
         val setup =
           s"""
-             | ${ nd.setup }
+             | ${ childEmitter.setup }
              | ${ shape.define }
              | ${ reindexShapeAndStrides.mkString("\n") }
            """.stripMargin
 
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val concreteDims = Seq.tabulate(nd.nDims) { dim =>
-              val idxForDim = indexExpr.indexOf(dim)
-              idxVars(idxForDim)
+            val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
+              val parentDim = indexExpr.indexOf(childDim)
+              idxVars(parentDim)
             }
 
-            nd.outputElement(concreteDims)
+            childEmitter.outputElement(concreteIdxsForChild)
           }
         }
 
