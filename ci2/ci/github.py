@@ -312,7 +312,7 @@ mkdir -p {shq(repo_dir)}
                 # otherwise, take the newest one
                 self.batch = max(batches, key=lambda b: b.id)
             else:
-                if self.target_branch.n_running_batches < 3:
+                if self.target_branch.n_running_batches < 4:
                     self.target_branch.n_running_batches += 1
                     async with repos_lock:
                         await self._start_build(batch_client)
@@ -529,6 +529,10 @@ class WatchedBranch(Code):
             })
 
         self.n_running_batches = len(running_batches)
+
+        # prioritize creating build for merge candidate
+        if merge_candidate:
+            await merge_candidate._heal(batch_client, True, seen_batch_ids)
 
         seen_batch_ids = set()
         for pr in self.prs.values():
