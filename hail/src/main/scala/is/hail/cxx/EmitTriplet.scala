@@ -123,7 +123,7 @@ abstract class NDArrayLoopEmitter(
   def emit(elemType: PType): Code = {
     val container = PArray(elemType)
 
-    val builder = fb.variable("builder", StagedContainerBuilder.builderType(container))
+    val builder = new StagedContainerBuilder(fb, resultRegion.region, container)
     val data = fb.variable("data", "const char *")
     // Always stores the result as row-major
     val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
@@ -131,26 +131,22 @@ abstract class NDArrayLoopEmitter(
     s"""
       |({
       | ${ setup }
-      | ${ data.define }
       | ${ strides.define }
       |
-      | ${ builder.defineWith(s"{ (int) n_elements($shape), $resultRegion }") }
-      | $builder.clear_missing_bits();
+      | ${ builder.start(s"(int) n_elements($shape)") }
+      | ${ emitLoops(builder) }
       |
-      | ${ emitLoops(builder, strides) }
-      |
-      | $data = ${container.cxxImpl}::elements_address($builder.offset());
+      | ${ data.defineWith(s"${ container.cxxImpl }::elements_address(${ builder.end() })") }
       | make_ndarray(0, 0, ${elemType.byteSize}, $shape, $strides, $data);
       |})
     """.stripMargin
   }
 
-  private def emitLoops(builder: Variable, strides: Variable): Code = {
+  private def emitLoops(builder: StagedContainerBuilder): Code = {
     val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
-    val outIndex = NDArrayLoopEmitter.linearizeIndices(idxVars, strides.toString)
 
-    val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
-    idxVars.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
+    val body = Code(builder.add(outputElement(idxVars)), builder.advance())
+    idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
       s"""
          |${ dimVar.define }
          |for ($dimVar = 0; $dimVar < $shape[$dimIdx]; ++$dimVar) {
