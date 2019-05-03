@@ -522,7 +522,7 @@ class WatchedBranch(Code):
                         self.deploy_state = 'success'
                     else:
                         self.deploy_state = 'failure'
-                    # re-deploy if target updated, setting batch_chagned=True here is overly aggressive
+                    # re-deploy if target updated, setting batch_changed=True here is overly aggressive
                     self._heal_deploy(batch_client)
 
     async def _heal(self, batch_client):
