@@ -488,12 +488,13 @@ class WatchedBranch(Code):
 
         if self.deployable and self.sha and not self.deploy_state:
             if not self.deploy_batch:
-                # FIXME we should wait on any depending deploy
                 deploy_batches = await batch_client.list_batches(
+                    complete=False,
                     attributes={
                         'deploy': '1',
-                        'sha': self.sha
+                        'target_branch': self.branch.short_str()
                     })
+                # there should be at most one deploy batch
                 if deploy_batches:
                     self.deploy_batch = min(deploy_batches, key=lambda b: b.id)
                 else:
