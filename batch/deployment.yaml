@@ -17,6 +17,9 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: batch
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
       - name: batch
         image: "{{ batch_image.image }}"

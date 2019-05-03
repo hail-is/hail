@@ -17,6 +17,7 @@ spec:
         hail.is/sha: "@sha@"
     spec:
       serviceAccountName: gateway
+      priorityClassName: infrastructure
       containers:
       - name: gateway
         image: @image@

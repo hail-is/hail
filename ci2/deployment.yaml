@@ -16,6 +16,9 @@ spec:
         app: ci2
         hail.is/sha: "{{ code.sha }}"
     spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
         - name: ci2
           image: "{{ ci_image.image }}"
