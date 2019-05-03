@@ -483,24 +483,35 @@ class WatchedBranch(Code):
         for pr in new_prs.values():
             await pr._refresh_review_state(gh)
 
-    async def _heal(self, batch_client):
-        log.info(f'heal {self.short_str()}')
+    async def _heal_deploy(self):
+        assert self.deployable
 
-        if self.deployable and self.sha and not self.deploy_state:
-            if not self.deploy_batch:
+        # no deploy batch on record, or
+        # deploy is finished and the target has updated
+        if (self.deploy_batch is None
+            or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
+            running_deploy_batches = await batch_client.list_batches(
+                complete=False,
+                attributes={
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str()
+                })
+            if running_deploy_batches:
+                self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
+            else:
                 deploy_batches = await batch_client.list_batches(
-                    complete=False,
                     attributes={
                         'deploy': '1',
-                        'target_branch': self.branch.short_str()
+                        'target_branch': self.branch.short_str(),
+                        'sha': self.sha
                     })
-                # there should be at most one deploy batch
                 if deploy_batches:
-                    self.deploy_batch = min(deploy_batches, key=lambda b: b.id)
+                    self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
                 else:
                     async with repos_lock:
                         self.deploy_batch = await self._start_deploy(batch_client)
 
+        if self.deploy_state is None:
             if self.deploy_batch:
                 status = await self.deploy_batch.status()
                 update_batch_status(status)
@@ -509,6 +520,14 @@ class WatchedBranch(Code):
                         self.deploy_state = 'success'
                     else:
                         self.deploy_state = 'failure'
+                    # re-deploy if target updated, setting batch_chagned=True here is overly aggressive
+                    self._heal_deploy()
+
+    async def _heal(self, batch_client):
+        log.info(f'heal {self.short_str()}')
+
+        if self.deployable:
+            await self._heal_deploy()
 
         merge_candidate = None
         for pr in reversed(list(self.prs.values())):
