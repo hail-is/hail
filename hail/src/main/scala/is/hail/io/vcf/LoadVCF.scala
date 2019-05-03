@@ -1568,7 +1568,9 @@ object ImportVCFs {
     partitionsJSON: String,
     filter: String,
     find: String,
-    replace: String
+    replace: String,
+    externalSampleIds: java.util.List[java.util.List[String]],
+    externalHeader: String
   ): String = {
     val reader = new VCFsReader(
       files.asScala.toArray,
@@ -1581,7 +1583,9 @@ object ImportVCFs {
       gzAsBGZ,
       forceGZ,
       TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
-      partitionsJSON)
+      partitionsJSON,
+      Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
+      Option(externalHeader))
 
     val irArray = reader.read()
     val id = HailContext.get.addIrVector(irArray)
@@ -1605,7 +1609,11 @@ class VCFsReader(
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String) {
+  partitionsJSON: String,
+  externalSampleIds: Option[Array[Array[String]]],
+  externalHeader: Option[String]) {
+
+  require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
   private val hc = HailContext.get
   private val sc = hc.sc
@@ -1619,7 +1627,7 @@ class VCFsReader(
   private val rowKeyType = TStruct("locus" -> locusType)
 
   private val file1 = files.head
-  private val headerLines1 = getHeaderLines(hConf, file1, filterAndReplace)
+  private val headerLines1 = getHeaderLines(hConf, externalHeader.getOrElse(file1), filterAndReplace)
   private val headerLines1Bc = sc.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
@@ -1662,7 +1670,7 @@ class VCFsReader(
     PartitionedVCFPartition(i, start.contig, start.position, end.position): Partition
   }
 
-  private val fileInfo = {
+  private val fileInfo: Array[Array[String]] = externalSampleIds.getOrElse {
     val localHConfBc = hConfBc
     val localFile1 = file1
     val localEntryFloatType = entryFloatType
