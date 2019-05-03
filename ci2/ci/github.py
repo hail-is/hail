@@ -128,8 +128,6 @@ class PR(Code):
 
         # merge_failure, success, failure
         self.build_state = None
-        self.most_recent_build_state = None
-        self.most_recent_batch = None
 
         self.target_branch.batch_changed = True
 
@@ -179,23 +177,10 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def most_recent_build_has_out_of_date_source(self):
-        assert self.batch is None
-        return self.most_recent_batch is None or self.source_sha != self.most_recent_batch.attributes['source_sha']
-
     def build_is_complete(self):
         return build_state_is_complete(self.build_state)
 
-    def should_update_most_recent_batch(self):
-        return self.batch is not None and (
-            self.most_recent_batch is None or
-            self.build_is_complete() or
-            self.most_recent_batch.attributes['source_sha'] != self.source_sha)
-
     def clear_build(self):
-        if self.should_update_most_recent_batch():
-            self.most_recent_batch = self.batch
-            self.most_recent_build_state = self.build_state
         self.sha = None
         self.batch = None
         self.build_state = None
@@ -298,17 +283,16 @@ mkdir -p {shq(repo_dir)}
         if self.build_state is not None:
             if self.batch:
                 seen_batch_ids.add(self.batch.id)
-            if self.most_recent_batch:
-                seen_batch_ids.add(self.most_recent_batch.id)
             return
 
         if self.batch is None:
-            batches = await batch_client.list_batches(
-                attributes={
-                    'test': '1',
-                    'source_sha': self.source_sha,
-                    'target_sha': self.target_branch.sha
-                })
+            attrs = {
+                'test': '1',
+                'source_sha': self.source_sha
+            }
+            if on_deck:
+                attrs['target_sha'] = self.target_branch.sha
+            batches = await batch_client.list_batches(attributes=attrs)
 
             # FIXME
             async def batch_was_cancelled(batch):
@@ -321,10 +305,14 @@ mkdir -p {shq(repo_dir)}
 
             # should be at most one batch
             if len(batches) > 0:
-                self.batch = min(batches, key=lambda b: b.id)
-            elif on_deck or self.most_recent_build_has_out_of_date_source():
-                async with repos_lock:
-                    await self._start_build(batch_client)
+                # on deck, there should be at most one batch
+                # otherwise, take the newest one
+                self.batch = max(batches, key=lambda b: b.id)
+            else:
+                if self.target_branch.n_running_batches < 3:
+                    self.target_branch.n_running_batches += 1
+                    async with repos_lock:
+                        await self._start_build(batch_client)
 
         if self.batch:
             seen_batch_ids.add(self.batch.id)
@@ -335,19 +323,7 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
-                self.most_recent_build_state = None
-                self.most_recent_batch = None
                 self.target_branch.batch_changed = True
-
-        if self.most_recent_batch:
-            seen_batch_ids.add(self.most_recent_batch.id)
-            status = await self.most_recent_batch.status()
-            update_batch_status(status)
-            if status['complete']:
-                if status['state'] == 'success':
-                    self.most_recent_build_state = 'success'
-                else:
-                    self.most_recent_build_state = 'failure'
 
     def is_mergeable(self):
         return self.review_state == 'approved' and self.build_state == 'success'
@@ -402,6 +378,7 @@ class WatchedBranch(Code):
         self.batch_changed = True
 
         self.statuses = {}
+        self.n_running_batches = None
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
@@ -530,10 +507,11 @@ class WatchedBranch(Code):
                         self.deploy_state = 'failure'
 
         merge_candidate = None
-        for pr in self.prs.values():
+        for pr in reversed(self.prs.values()):
             if pr.review_state == 'approved' and pr.build_state is None:
-                merge_candidate = pr
-                break
+                if not merge_candidate or (not merge_candidate.batch and pr.batch):
+                    merge_candidate = pr
+
         if merge_candidate:
             log.info(f'merge candidate {merge_candidate.number}')
 
@@ -544,9 +522,11 @@ class WatchedBranch(Code):
                 'target_branch': self.branch.short_str()
             })
 
+        self.n_running_batches = len(running_batches)
+
         seen_batch_ids = set()
         for pr in self.prs.values():
-            await pr._heal(batch_client, merge_candidate is None or self == merge_candidate, seen_batch_ids)
+            await pr._heal(batch_client, pr == merge_candidate, seen_batch_ids)
 
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
