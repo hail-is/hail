@@ -65,22 +65,22 @@ class BuildConfiguration:
             self.steps.append(step)
             name_step[step.name] = step
 
-    async def build(self, batch, code, deploy):
+    def build(self, batch, code, deploy):
         for step in self.steps:
-            await step.build(batch, code, deploy)
+            step.build(batch, code, deploy)
 
         ids = set()
         for step in self.steps:
             ids.update(step.self_ids())
         ids = list(ids)
 
-        sink = await batch.create_job('ubuntu:18.04',
-                                      command=['/bin/true'],
-                                      attributes={'name': 'sink'},
-                                      parent_ids=ids)
+        sink = batch.create_job('ubuntu:18.04',
+                                command=['/bin/true'],
+                                attributes={'name': 'sink'},
+                                parent_ids=ids)
 
         for step in self.steps:
-            await step.cleanup(batch, deploy, sink)
+            step.cleanup(batch, deploy, sink)
 
 
 class Step(abc.ABC):
@@ -130,7 +130,7 @@ class Step(abc.ABC):
         raise ValueError(f'unknown build step kind: {kind}')
 
     @abc.abstractmethod
-    async def build(self, batch, code, deploy):
+    def build(self, batch, code, deploy):
         pass
 
 
@@ -167,7 +167,7 @@ class BuildImageStep(Step):
             'image': self.image
         }
 
-    async def build(self, batch, code, deploy):
+    def build(self, batch, code, deploy):
         if self.inputs:
             input_files = []
             for i in self.inputs:
@@ -270,14 +270,14 @@ date
             }
         }]
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': self.name},
-                                          volumes=volumes,
-                                          input_files=input_files,
-                                          parent_ids=self.deps_parent_ids())
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': self.name},
+                                    volumes=volumes,
+                                    input_files=input_files,
+                                    parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, deploy, sink):
         if deploy and self.publish_as:
             return
 
@@ -309,12 +309,12 @@ date
 true
 '''
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': f'cleanup_{self.name}'},
-                                          volumes=volumes,
-                                          parent_ids=[sink.id],
-                                          always_run=True)
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': f'cleanup_{self.name}'},
+                                    volumes=volumes,
+                                    parent_ids=[sink.id],
+                                    always_run=True)
 
 
 class RunImageStep(Step):
@@ -350,7 +350,7 @@ class RunImageStep(Step):
             'token': self.token
         }
 
-    async def build(self, batch, code, deploy):
+    def build(self, batch, code, deploy):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
         rendered_script = template.render(**self.input_config(code, deploy))
 
@@ -389,7 +389,7 @@ class RunImageStep(Step):
                     }
                 })
 
-        self.job = await batch.create_job(
+        self.job = batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
             attributes={'name': self.name},
@@ -400,7 +400,7 @@ class RunImageStep(Step):
             parent_ids=self.deps_parent_ids(),
             always_run=self.always_run)
 
-    async def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, deploy, sink):
         pass
 
 
@@ -449,7 +449,7 @@ class CreateNamespaceStep(Step):
                 conf['domain'] = 'internal'
         return conf
 
-    async def build(self, batch, code, deploy):  # pylint: disable=unused-argument
+    def build(self, batch, code, deploy):  # pylint: disable=unused-argument
         # FIXME label
         config = f'''\
 apiVersion: v1
@@ -526,14 +526,14 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata
 date
 '''
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': self.name},
-                                          # FIXME configuration
-                                          service_account_name='ci2-agent',
-                                          parent_ids=self.deps_parent_ids())
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': self.name},
+                                    # FIXME configuration
+                                    service_account_name='ci2-agent',
+                                    parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, deploy, sink):
         if deploy:
             return
 
@@ -547,12 +547,12 @@ date
 true
 '''
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': f'cleanup_{self.name}'},
-                                          service_account_name='ci2-agent',
-                                          parent_ids=[sink.id],
-                                          always_run=True)
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': f'cleanup_{self.name}'},
+                                    service_account_name='ci2-agent',
+                                    parent_ids=[sink.id],
+                                    always_run=True)
 
 
 class DeployStep(Step):
@@ -583,7 +583,7 @@ class DeployStep(Step):
             'token': self.token
         }
 
-    async def build(self, batch, code, deploy):
+    def build(self, batch, code, deploy):
         with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, deploy))
@@ -655,14 +655,14 @@ date
             attrs['link'] = ','.join(self.link)
             attrs['domain'] = f'{self.namespace}.internal.{DOMAIN}'
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes=attrs,
-                                          # FIXME configuration
-                                          service_account_name='ci2-agent',
-                                          parent_ids=self.deps_parent_ids())
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes=attrs,
+                                    # FIXME configuration
+                                    service_account_name='ci2-agent',
+                                    parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, deploy, sink):
         if self.wait:
             script = ''
             for w in self.wait:
@@ -676,13 +676,13 @@ date
                     assert w['kind'] == 'Pod', w['kind']
                     script += f'kubectl -n {self.namespace} logs {name}\n'
             script += 'date\n'
-            self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                              command=['bash', '-c', script],
-                                              attributes={'name': self.name + '_logs'},
-                                              # FIXME configuration
-                                              service_account_name='ci2-agent',
-                                              parent_ids=[sink.id],
-                                              always_run=True)
+            self.job = batch.create_job(CI_UTILS_IMAGE,
+                                        command=['bash', '-c', script],
+                                        attributes={'name': self.name + '_logs'},
+                                        # FIXME configuration
+                                        service_account_name='ci2-agent',
+                                        parent_ids=[sink.id],
+                                        always_run=True)
 
 
 class CreateDatabaseStep(Step):
@@ -727,7 +727,7 @@ class CreateDatabaseStep(Step):
             'user_secret_name': self.user_secret_name
         }
 
-    async def build(self, batch, code, deploy):  # pylint: disable=unused-argument
+    def build(self, batch, code, deploy):  # pylint: disable=unused-argument
         if deploy:
             return
 
@@ -805,14 +805,14 @@ date
 echo done.
 '''
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': self.name},
-                                          # FIXME configuration
-                                          service_account_name='ci2-agent',
-                                          parent_ids=self.deps_parent_ids())
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': self.name},
+                                    # FIXME configuration
+                                    service_account_name='ci2-agent',
+                                    parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, deploy, sink):
         if deploy:
             return
 
@@ -830,10 +830,10 @@ date
 true
 '''
 
-        self.job = await batch.create_job(CI_UTILS_IMAGE,
-                                          command=['bash', '-c', script],
-                                          attributes={'name': f'cleanup_{self.name}'},
-                                          # FIXME configuration
-                                          service_account_name='ci2-agent',
-                                          parent_ids=[sink.id],
-                                          always_run=True)
+        self.job = batch.create_job(CI_UTILS_IMAGE,
+                                    command=['bash', '-c', script],
+                                    attributes={'name': f'cleanup_{self.name}'},
+                                    # FIXME configuration
+                                    service_account_name='ci2-agent',
+                                    parent_ids=[sink.id],
+                                    always_run=True)

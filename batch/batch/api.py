@@ -50,51 +50,21 @@ class API():
     def delete(self, *args, **kwargs):
         return self.http(requests.delete, *args, **kwargs)
 
-    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   input_files, output_files, always_run):
-        doc = {
-            'spec': spec,
-            'parent_ids': parent_ids,
-            'always_run': always_run
-        }
-        if attributes:
-            doc['attributes'] = attributes
-        if batch_id:
-            doc['batch_id'] = batch_id
-        if callback:
-            doc['callback'] = callback
-        if input_files:
-            doc['input_files'] = input_files
-        if output_files:
-            doc['output_files'] = output_files
-
-        return self.post(f'{url}/jobs/create', json=doc)
-
     def list_batches(self, url, complete, success, attributes):
         params = filter_params(complete, success, attributes)
         return self.get(f'{url}/batches', params=params)
 
-    def get_job(self, url, job_id):
-        return self.get(f'{url}/jobs/{job_id}')
+    def get_job(self, url, batch_id, job_id):
+        return self.get(f'{url}/batches/{batch_id}/jobs/{job_id}')
 
-    def get_job_log(self, url, job_id):
-        return self.get(f'{url}/jobs/{job_id}/log')
+    def get_job_log(self, url, batch_id, job_id):
+        return self.get(f'{url}/batches/{batch_id}/jobs/{job_id}/log')
 
-    def create_batch(self, url, attributes, callback, ttl):
-        doc = {}
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-        if ttl:
-            doc['ttl'] = ttl
+    def create_batch(self, url, doc):
         return self.post(f'{url}/batches/create', json=doc)
 
     def get_batch(self, url, batch_id):
         return self.get(f'{url}/batches/{batch_id}')
-
-    def close_batch(self, url, batch_id):
-        self.patch(f'{url}/batches/{batch_id}/close', json_response=False)
 
     def delete_batch(self, url, batch_id):
         self.delete(f'{url}/batches/{batch_id}', json_response=False)

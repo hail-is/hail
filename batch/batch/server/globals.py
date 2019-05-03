@@ -19,12 +19,13 @@ with open(batch_jwt, 'r') as f:
     batch_bucket_name = hj.JWTClient.unsafe_decode(f.read())['bucket_name']
 
 
-def _gs_log_path(instance_id, job_id, task_name):
-    return f'{instance_id}/{job_id}/{task_name}/job.log'
+def _gs_log_path(instance_id, id, task_name):
+    batch_id, job_id = id
+    return f'{instance_id}/{batch_id}/{job_id}/{task_name}/job.log'
 
 
-async def write_gs_log_file(thread_pool, instance_id, job_id, task_name, log):
-    path = _gs_log_path(instance_id, job_id, task_name)
+async def write_gs_log_file(thread_pool, instance_id, id, task_name, log):
+    path = _gs_log_path(instance_id, id, task_name)
     await blocking_to_async(thread_pool, upload_private_gs_file_from_string, gcs_client, batch_bucket_name, path, log)
     return f'gs://{batch_bucket_name}/{path}'
 
@@ -42,8 +43,8 @@ async def read_gs_log_file(thread_pool, uri):
     return None
 
 
-async def delete_gs_log_file(thread_pool, instance_id, job_id, task_name):
-    path = _gs_log_path(instance_id, job_id, task_name)
+async def delete_gs_log_file(thread_pool, instance_id, id, task_name):
+    path = _gs_log_path(instance_id, id, task_name)
     try:
         await blocking_to_async(thread_pool, delete_gs_file, gcs_client, batch_bucket_name, path)
     except google.api_core.exceptions.NotFound:

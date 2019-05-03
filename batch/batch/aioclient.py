@@ -2,29 +2,38 @@ import os
 import math
 import time
 import random
-import yaml
-import cerberus
 
 import hailjwt as hj
 
 from .requests_helper import filter_params
-from . import schemas
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, client, batch_id, job_id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
         self.client = client
-        self.id = id
+        self.batch_id = batch_id
+        self.job_id = job_id
         self.attributes = attributes
         self.parent_ids = parent_ids
         self._status = _status
 
+    @property
+    def id(self):
+        return self.batch_id, self.job_id
+
+    @property
+    def _batch_is_open(self):
+        return self.batch_id is None
+
     async def is_complete(self):
+        if self._batch_is_open:
+            return False
+
         if self._status:
             state = self._status['state']
             if state in ('Complete', 'Cancelled'):
@@ -34,10 +43,19 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self.client._get('/jobs/{}'.format(self.id))
+        if self._batch_is_open:
+            raise ValueError("Job is not running yet")
+
+        self._status = await self.client._get('/batches/{}/jobs/{}'.format(*self.id))
+        assert self._status['batch_id'] == self.batch_id and \
+               self._status['job_id'] == self.job_id
+        self._status['id'] = (self._status['batch_id'], self._status['job_id'])
         return self._status
 
     async def wait(self):
+        if self._batch_is_open:
+            raise ValueError("Job is not running yet")
+
         i = 0
         while True:
             if await self.is_complete():
@@ -49,21 +67,53 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self.client._get('/jobs/{}/log'.format(self.id))
+        if self._batch_is_open:
+            raise ValueError("Job is not running yet")
+
+        return await self.client._get('/batches/{}/jobs/{}/log'.format(*self.id))
 
 
 class Batch:
-    def __init__(self, client, id, attributes):
+    def __init__(self, client, id, attributes, _doc=None, _is_open=False):
         self.client = client
         self.id = id
         self.attributes = attributes
+        self._doc = _doc
+        self._is_open = _is_open
+        self._job_idx = 0
+        self._job_docs = []
+        self._jobs = []
 
-    async def create_job(self, image, command=None, args=None, env=None, ports=None,
-                         resources=None, tolerations=None, volumes=None, security_context=None,
-                         service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                         input_files=None, output_files=None, always_run=False):
+    def create_job(self, image, command=None, args=None, env=None, ports=None,
+                   resources=None, tolerations=None, volumes=None, security_context=None,
+                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                   input_files=None, output_files=None, always_run=False):
+        self._job_idx += 1
+
+        if not self._is_open:
+            raise ValueError("Cannot add a job to a batch that has already been run")
+
         if parent_ids is None:
             parent_ids = []
+
+        def _get_pid(pid):
+            if isinstance(pid, tuple):
+                batch_id, job_id = pid
+            else:
+                assert isinstance(pid, int)
+                batch_id = None
+                job_id = pid
+
+            return batch_id, job_id
+
+        def _is_valid_pid(pid):
+            batch_id, job_id = pid
+            return batch_id is None and 0 < job_id < self._job_idx
+
+        parent_ids = [_get_pid(pid) for pid in parent_ids]
+        if not all([_is_valid_pid(pid) for pid in parent_ids]):
+            raise ValueError("Found the following invalid parent ids:\n{}".format(
+                "\n  ".join([str(pid) for pid in parent_ids if not _is_valid_pid(pid)])))
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -114,10 +164,10 @@ class Batch:
             spec['serviceAccountName'] = service_account_name
 
         doc = {
+            'job_id': self._job_idx,
             'spec': spec,
-            'parent_ids': parent_ids,
+            'parent_ids': [pid[1] for pid in parent_ids],
             'always_run': always_run,
-            'batch_id': self.id
         }
         if attributes:
             doc['attributes'] = attributes
@@ -128,23 +178,37 @@ class Batch:
         if output_files:
             doc['output_files'] = output_files
 
-        j = await self.client._post('/jobs/create', json=doc)
+        self._job_docs.append(doc)
 
-        return Job(self.client,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []))
+        j = Job(self.client,
+                None,
+                self._job_idx,
+                attributes=attributes,
+                parent_ids=parent_ids)
 
-    async def close(self):
-        await self.client._patch('/batches/{}/close'.format(self.id))
+        self._jobs.append(j)
+
+        return j
 
     async def cancel(self):
+        if self._is_open:
+            raise ValueError("Batch is not running yet")
         await self.client._patch('/batches/{}/cancel'.format(self.id))
 
+    async def delete(self):
+        if self._is_open:
+            raise ValueError("Batch is not running yet")
+        await self.client._delete('/batches/{}/delete'.format(self.id))
+
     async def status(self):
+        if self._is_open:
+            raise ValueError("Batch is not running yet")
         return await self.client._get('/batches/{}'.format(self.id))
 
     async def wait(self):
+        if self._is_open:
+            raise ValueError("Batch is not running yet")
+
         i = 0
         while True:
             status = await self.status()
@@ -156,8 +220,41 @@ class Batch:
             if i < 64:
                 i = i + 1
 
-    async def delete(self):
-        await self.client._delete('/batches/{}/delete'.format(self.id))
+    async def get_job(self, id):
+        if self._is_open:
+            raise ValueError("Batch is not running yet")
+
+        if isinstance(id, tuple):
+            batch_id, job_id = id
+            if batch_id != self.id:
+                raise ValueError(f"Invalid batch id {batch_id} for batch {self.id}")
+        else:
+            assert isinstance(id, int)
+            job_id = id
+
+        if not 0 < job_id <= self._job_idx:
+            raise ValueError(f"Invalid job id {id} for batch {self.id} with {self._job_idx} jobs")
+
+        j = await self.client._get('/batches/{}/jobs/{}'.format(self.id, job_id))
+        return Job(self.client,
+                   j['batch_id'],
+                   j['job_id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []),
+                   _status=j)
+
+    async def run(self):
+        assert self._doc is not None and self._is_open
+        self._doc['jobs'] = self._job_docs
+        b = await self.client._post('/batches/create', json=self._doc)
+        self.id = b['id']
+        self._is_open = False
+        self._doc = None
+        self._job_docs = []
+        self._job_idx = 0
+
+        for job in self._jobs:
+            job.batch_id = self.id
 
 
 class BatchClient:
@@ -211,64 +308,23 @@ class BatchClient:
                       attributes=j.get('attributes'))
                 for j in batches]
 
-    async def get_job(self, id):
-        j = await self._get('/jobs/{}'.format(id))
-        return Job(self,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []),
-                   _status=j)
-
     async def get_batch(self, id):
-        j = await self._get(f'/batches/{id}')
+        b = await self._get(f'/batches/{id}')
         return Batch(self,
-                     j['id'],
-                     attributes=j.get('attributes'))
+                     b['id'],
+                     attributes=b.get('attributes'))
 
-    async def create_batch(self, attributes=None, callback=None, ttl=None):
+    def create_batch(self, attributes=None, callback=None):
         doc = {}
         if attributes:
             doc['attributes'] = attributes
         if callback:
             doc['callback'] = callback
-        if ttl:
-            doc['ttl'] = ttl
-        j = await self._post('/batches/create', json=doc)
-        return Batch(self, j['id'], j.get('attributes'))
-
-    job_yaml_schema = {
-        'spec': schemas.pod_spec,
-        'type': {'type': 'string', 'allowed': ['execute']},
-        'name': {'type': 'string'},
-        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
-    }
-    job_yaml_validator = cerberus.Validator(job_yaml_schema)
-
-    async def create_batch_from_file(self, file):
-        job_id_by_name = {}
-
-        # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
-            job = job_id_by_name.get(id)
-            if job:
-                return job
-            raise ValueError(
-                '"{self_id}" must appear in the file after its dependency "{id}"')
-
-        batch = await self.create_batch()
-        for doc in yaml.load(file):
-            if not BatchClient.job_yaml_validator.validate(doc):
-                raise BatchClient.job_yaml_validator.errors
-            spec = doc['spec']
-            type = doc['type']
-            name = doc['name']
-            dependsOn = doc.get('dependsOn', [])
-            if type == 'execute':
-                job = await batch.create_job(
-                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
-                    **spec)
-                job_id_by_name[name] = job.id
-        return batch
+        return Batch(self,
+                     id=None,
+                     attributes=attributes,
+                     _doc=doc,
+                     _is_open=True)
 
     async def close(self):
         await self._session.close()

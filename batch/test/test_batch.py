@@ -6,7 +6,6 @@ import os
 import pkg_resources
 import re
 import secrets
-import time
 import unittest
 from flask import Flask, Response, request
 import requests
@@ -23,7 +22,7 @@ class Test(unittest.TestCase):
     def test_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
-        b.close()
+        b.run()
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
@@ -33,25 +32,11 @@ class Test(unittest.TestCase):
 
         self.assertTrue(j.is_complete())
 
-    def test_create_fails_for_closed_batch(self):
+    def test_create_fails_for_run_batch(self):
         b = self.batch.create_batch()
-        b.close()
-        try:
+        b.run()
+        with self.assertRaisesRegex(ValueError, 'Cannot add a job to a batch that has already been run'):
             b.create_job('alpine', ['echo', 'test'])
-        except requests.exceptions.HTTPError as err:
-            assert err.response.status_code == 400
-            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.response.text)
-            return
-        assert False
-
-    def test_batch_ttl(self):
-        b = self.batch.create_batch(ttl=1)
-        t = 1
-        while b.status()['is_open']:
-            if t > 64:
-                assert False, "took more than 128 seconds to close a batch with ttl 1"
-            time.sleep(t)
-            t = t * 2
 
     def test_attributes(self):
         a = {
@@ -60,6 +45,7 @@ class Test(unittest.TestCase):
         }
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['true'], attributes=a)
+        b.run()
         status = j.status()
         assert(status['attributes'] == a)
 
@@ -67,11 +53,11 @@ class Test(unittest.TestCase):
         tag = secrets.token_urlsafe(64)
         b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
         b1.create_job('alpine', ['sleep', '30'])
-        b1.close()
+        b1.run()
 
         b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
-        b2.close()
+        b2.run()
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
@@ -103,20 +89,19 @@ class Test(unittest.TestCase):
     def test_fail(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['false'])
-        b.close()
+        b.run()
         status = j.wait()
         self.assertEqual(status['exit_code']['main'], 1)
 
     def test_deleted_job_log(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
-        b.close()
-        id = j.id
+        b.run()
         j.wait()
         b.delete()
 
         try:
-            self.batch._get_job_log(id)
+            self.batch._get_job_log(*j.id)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 pass
@@ -126,23 +111,22 @@ class Test(unittest.TestCase):
     def test_delete_batch(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
-        b.close()
-        id = j.id
+        b.run()
         b.delete()
 
         # verify doesn't exist
         try:
-            self.batch._get_job(id)
+            self.batch._get_job(*j.id)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 pass
             else:
-                raise
+                raise e
 
     def test_cancel_batch(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
-        b.close()
+        b.run()
 
         status = j.status()
         self.assertTrue(status['state'], 'Ready')
@@ -164,7 +148,7 @@ class Test(unittest.TestCase):
 
     def test_get_nonexistent_job(self):
         try:
-            self.batch._get_job(666)
+            self.batch._get_job(1, 0)
         except requests.HTTPError as e:
             if e.response.status_code == 404:
                 pass
@@ -174,18 +158,18 @@ class Test(unittest.TestCase):
     def test_get_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['true'])
-        b.close()
+        b.run()
 
-        j2 = self.batch.get_job(j.id)
+        j2 = b.get_job(j.id)
         status2 = j2.status()
-        assert(status2['id'] == j.id)
+        assert(status2['job_id'] == j.id)
 
     def test_batch(self):
         b = self.batch.create_batch()
         j1 = b.create_job('alpine', ['false'])
         j2 = b.create_job('alpine', ['sleep', '1'])
         j3 = b.create_job('alpine', ['sleep', '30'])
-        b.close()
+        b.run()
 
         j1.wait()
         j2.wait()
@@ -205,7 +189,7 @@ class Test(unittest.TestCase):
     def test_batch_status(self):
         b1 = self.batch.create_batch()
         b1.create_job('alpine', ['true'])
-        b1.close()
+        b1.run()
         b1.wait()
         b1s = b1.status()
         assert b1s['complete'] and b1s['state'] == 'success', b1s
@@ -213,20 +197,21 @@ class Test(unittest.TestCase):
         b2 = self.batch.create_batch()
         b2.create_job('alpine', ['false'])
         b2.create_job('alpine', ['true'])
-        b2.close()
+        b2.run()
         b2.wait()
         b2s = b2.status()
         assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
         b3 = self.batch.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
-        b3.close()
+        b3.run()
         b3s = b3.status()
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
 
         b4 = self.batch.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
-        b4.close()
+        b4.run()
+
         b4.cancel()
         b4.wait()
         b4s = b4.status()
@@ -251,7 +236,7 @@ class Test(unittest.TestCase):
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
-            b.close()
+            b.run()
             j.wait()
 
             batch.poll_until(lambda: 'status' in d)
@@ -265,7 +250,7 @@ class Test(unittest.TestCase):
     def test_log_after_failing_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
-        b.close()
+        b.run()
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
@@ -277,14 +262,13 @@ class Test(unittest.TestCase):
 
     def test_authorized_users_only(self):
         endpoints = [
-            (requests.post, '/jobs/create'),
-            (requests.get, '/jobs/0'),
-            (requests.get, '/jobs/0/log'),
+            (requests.get, '/batches/0/jobs/0'),
+            (requests.get, '/batches/0/jobs/0/log'),
             (requests.get, '/batches'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
             (requests.delete, '/batches/0'),
-            (requests.patch, '/batches/0/close')]
+            (requests.patch, '/batches/0/cancel')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
@@ -300,7 +284,7 @@ class Test(unittest.TestCase):
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
-            b.close()
+            b.run()
             assert False, j
         except requests.HTTPError as e:
             if e.response.status_code == 401:
