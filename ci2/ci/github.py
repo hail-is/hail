@@ -160,7 +160,7 @@ class PR(Code):
                   head['sha'],
                   target_branch,
                   gh_json['user']['login'],
-                  any(l['name'] == 'prio:high' for l in gh_json['label']))
+                  any(l['name'] == 'prio:high' for l in gh_json['labels']))
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
