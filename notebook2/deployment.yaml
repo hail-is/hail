@@ -17,6 +17,9 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: notebook
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
       - name: notebook2
         image: "{{ notebook2_image.image }}"

@@ -16,6 +16,9 @@ spec:
         app: scorecard
         hail.is/sha: "{{ code.sha }}"
     spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
       - name: scorecard
         image: "{{ scorecard_image.image }}"
