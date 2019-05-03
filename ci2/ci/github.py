@@ -139,7 +139,7 @@ class PR(Code):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
-        self.high_prio = any(l['name'] == 'prio:high' for l in gh_json['label'])
+        self.high_prio = any(l['name'] == 'prio:high' for l in gh_json['labels'])
 
         head = gh_json['head']
         new_source_sha = head['sha']
