@@ -21,7 +21,7 @@ spec:
         resources:
           requests:
             cpu: 1m
-            memory: 1Mi
+            memory: 100Mi
         volumeMounts:
         - name: docksock
           mountPath: /var/run/docker.sock
