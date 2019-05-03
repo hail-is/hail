@@ -45,6 +45,7 @@ spec:
         hail.is/sha: "@sha@"
     spec:
       serviceAccountName: router-resolver
+      priorityClassName: infrastructure
       containers:
       - name: router-resolver
         image: @image@
