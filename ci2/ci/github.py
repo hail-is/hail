@@ -510,7 +510,7 @@ class WatchedBranch(Code):
                         self.deploy_state = 'failure'
 
         merge_candidate = None
-        for pr in reversed(self.prs.values()):
+        for pr in reversed(list(self.prs.values())):
             if pr.review_state == 'approved' and pr.build_state is None:
                 if (not merge_candidate or
                         (not merge_candidate.high_prio and pr.high_prio) or
