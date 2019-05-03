@@ -155,6 +155,8 @@ object Simplify {
 
     case Cast(x, t) if x.typ == t => x
 
+    case CastRename(x, t) if x.typ == t => x
+
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
     case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x

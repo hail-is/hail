@@ -15,6 +15,9 @@ object Copy {
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)
+      case CastRename(_, typ) =>
+        val IndexedSeq(v: IR) = newChildren
+        CastRename(v, typ)
       case NA(t) => NA(t)
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
