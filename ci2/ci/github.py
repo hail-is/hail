@@ -530,11 +530,11 @@ class WatchedBranch(Code):
 
         self.n_running_batches = len(running_batches)
 
+        seen_batch_ids = set()
+
         # prioritize creating build for merge candidate
         if merge_candidate:
             await merge_candidate._heal(batch_client, True, seen_batch_ids)
-
-        seen_batch_ids = set()
         for pr in self.prs.values():
             await pr._heal(batch_client, pr == merge_candidate, seen_batch_ids)
 
