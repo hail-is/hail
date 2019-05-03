@@ -491,7 +491,8 @@ class WatchedBranch(Code):
                 deploy_batches = await batch_client.list_batches(
                     complete=False,
                     attributes={
-                        'deploy': '1'
+                        'deploy': '1',
+                        'target_branch': self.branch.short_str()
                     })
                 # there should be at most one deploy batch
                 if deploy_batches:
