@@ -2650,6 +2650,12 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
+    def ndarray_eq(self, expr, expected):
+        self.assertTrue(np.array_equal(expr.to_numpy(), expected))
+
+    def ndarray_almost_eq(self, expr, expected):
+        self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_map(self):
@@ -2657,33 +2663,27 @@ class Tests(unittest.TestCase):
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
 
-        self.assertEqual(hl.eval(b[0, 0]), -2)
-        self.assertEqual(hl.eval(b[1, 2]), -7)
-        self.assertEqual(hl.eval(c[0, 0]), True)
-        self.assertEqual(hl.eval(c[1, 2]), True)
+        self.ndarray_eq(b, [[-2, -3, -4], [-5, -6, -7]])
+        self.ndarray_eq(c, [[True, True, True],
+                            [True, True, True]])
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_ops(self):
-        def expr_eq(expr, expected):
-            self.assertEqual(hl.eval(expr), expected)
-
-        def expr_almost_eq(expr, expected):
-            self.assertAlmostEqual(hl.eval(expr), expected)
 
         a = 2.0
         b = 3.0
-        x = [a, b]
-        y = [b, a]
-        row_vec = [[1, 2]]
-        cube1 = [[[1, 2],
-                  [3, 4]],
-                 [[5, 6],
-                  [7, 8]]]
-        cube2 = [[[9, 10],
-                  [11, 12]],
-                 [[13, 14],
-                  [15, 16]]]
+        x = np.array([a, b])
+        y = np.array([b, a])
+        row_vec = np.array([[1, 2]])
+        cube1 = np.array([[[1, 2],
+                           [3, 4]],
+                          [[5, 6],
+                           [7, 8]]])
+        cube2 = np.array([[[9, 10],
+                           [11, 12]],
+                          [[13, 14],
+                           [15, 16]]])
 
         na = hl._ndarray(a)
         nx = hl._ndarray(x)
@@ -2693,85 +2693,82 @@ class Tests(unittest.TestCase):
         ncube2 = hl._ndarray(cube2)
 
         # with lists/numerics
-        expr_eq((na + b)[()], a + b)
-        expr_eq((b + na)[()], a + b)
-        expr_eq((nx + y)[0], a + b)
-        expr_eq((y + nx)[0], a + b)
-        expr_eq((ncube1 + cube2)[0, 0, 0], 10)
-        expr_eq((cube2 + ncube1)[0, 0, 0], 10)
-        expr_eq((ncube1 + cube2)[1, 1, 1], 24)
-        expr_eq((cube2 + ncube1)[1, 1, 1], 24)
+        self.ndarray_eq(na + b, np.array(a + b))
+        self.ndarray_eq(b + na, np.array(a + b))
+        self.ndarray_eq(nx + y, x + y)
+        self.ndarray_eq(ncube1 + cube2, cube1 + cube2)
 
         # Addition
-        expr_eq((na + na)[()], a + a)
-        expr_eq((nx + ny)[0], a + b)
-        expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
-        expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+        self.ndarray_eq(na + na, np.array(a + a))
+        self.ndarray_eq(nx + ny, x + y)
+        self.ndarray_eq(ncube1 + ncube2, cube1 + cube2)
         # Broadcasting
-        expr_eq((ncube1 + na)[0, 1, 0], 5.0)
-        expr_eq((na + ncube1)[0, 1, 0], 5.0)
-        expr_eq((ncube1 + ny)[0, 1, 0], 6.0)
-        expr_eq((ny + ncube1)[0, 1, 0], 6.0)
-        expr_eq((nrow_vec + ncube1)[0, 1, 0], 4.0)
-        expr_eq((ncube1 + nrow_vec)[0, 1, 0], 4.0)
+        self.ndarray_eq(ncube1 + na, cube1 + a)
+        self.ndarray_eq(na + ncube1, a + cube1)
+        self.ndarray_eq(ncube1 + ny, cube1 + y)
+        self.ndarray_eq(ny + ncube1, y + cube1)
+        self.ndarray_eq(nrow_vec + ncube1, row_vec + cube1)
+        self.ndarray_eq(ncube1 + nrow_vec, cube1 + row_vec)
 
         # Subtraction
-        expr_eq((na - na)[()], a - a)
-        expr_eq((nx - nx)[0], a - a)
-        expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
-        expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+        self.ndarray_eq(na - na, np.array(a - a))
+        self.ndarray_eq(nx - nx, x - x)
+        self.ndarray_eq(ncube1 - ncube2, cube1 - cube2)
         # Broadcasting
-        expr_eq((ncube1 - na)[0, 1, 0], 1.0)
-        expr_eq((na - ncube1)[0, 1, 0], -1.0)
-        expr_eq((ncube1 - ny)[0, 1, 0], 0.0)
-        expr_eq((ny - ncube1)[0, 1, 0], 0.0)
-        expr_eq((ncube1 - nrow_vec)[0, 1, 0], 2.0)
-        expr_eq((nrow_vec - ncube1)[0, 1, 0], -2.0)
+        self.ndarray_eq(ncube1 - na, cube1 - a)
+        self.ndarray_eq(na - ncube1, a - cube1)
+        self.ndarray_eq(ncube1 - ny, cube1 - y)
+        self.ndarray_eq(ny - ncube1, y - cube1)
+        self.ndarray_eq(ncube1 - nrow_vec, cube1 - row_vec)
+        self.ndarray_eq(nrow_vec - ncube1, row_vec - cube1)
 
         # Multiplication
-        expr_eq((na * na)[()], a * a)
-        expr_eq((nx * nx)[0], a * a)
-        expr_eq((nx * na)[1], a * b)
-        expr_eq((na * nx)[1], b * a)
-        expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
-        expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+        self.ndarray_eq(na * na, np.array(a * a))
+        self.ndarray_eq(nx * nx, x * x)
+        self.ndarray_eq(nx * na, x * a)
+        self.ndarray_eq(na * nx, a * x)
+        self.ndarray_eq(ncube1 * ncube2, cube1 * cube2)
         # Broadcasting
-        expr_eq((ncube1 * na)[0, 1, 0], 6.0)
-        expr_eq((na * ncube1)[0, 1, 0], 6.0)
-        expr_eq((ncube1 * ny)[0, 1, 0], 9.0)
-        expr_eq((ny * ncube1)[0, 1, 0], 9.0)
-        expr_eq((ncube1 * nrow_vec)[0, 1, 0], 3.0)
-        expr_eq((nrow_vec * ncube1)[0, 1, 0], 3.0)
+        self.ndarray_eq(ncube1 * na, cube1 * a)
+        self.ndarray_eq(na * ncube1, a * cube1)
+        self.ndarray_eq(ncube1 * ny, cube1 * y)
+        self.ndarray_eq(ny * ncube1, y * cube1)
+        self.ndarray_eq(ncube1 * nrow_vec, cube1 * row_vec)
+        self.ndarray_eq(nrow_vec * ncube1, row_vec * cube1)
 
         # Division
-        expr_almost_eq((na / na)[()], a / a)
-        expr_almost_eq((nx / nx)[0], a / a)
-        expr_almost_eq((nx / na)[1], b / a)
-        expr_almost_eq((na / nx)[1], a / b)
-        expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
-        expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+        self.ndarray_almost_eq(na / na, np.array(a / a))
+        self.ndarray_almost_eq(nx / nx, x / x)
+        self.ndarray_almost_eq(nx / na, x / a)
+        self.ndarray_almost_eq(na / nx, a / x)
+        self.ndarray_almost_eq(ncube1 / ncube2, cube1 / cube2)
         # Broadcasting
-        expr_almost_eq((ncube1 / na)[0, 1, 0], 3 / 2)
-        expr_almost_eq((na / ncube1)[0, 1, 0], 2 / 3)
-        expr_almost_eq((ncube1 / ny)[0, 1, 0], 3 / 3)
-        expr_almost_eq((ny / ncube1)[0, 1, 0], 3 / 3)
-        expr_almost_eq((ncube1 / nrow_vec)[0, 1, 0], 3 / 1)
-        expr_almost_eq((nrow_vec / ncube1)[0, 1, 0], 1 / 3)
+        self.ndarray_almost_eq(ncube1 / na, cube1 / a)
+        self.ndarray_almost_eq(na / ncube1, a / cube1)
+        self.ndarray_almost_eq(ncube1 / ny, cube1 / y)
+        self.ndarray_almost_eq(ny / ncube1, y / cube1)
+        self.ndarray_almost_eq(ncube1 / nrow_vec, cube1 / row_vec)
+        self.ndarray_almost_eq(nrow_vec / ncube1, row_vec / cube1)
 
         # Floor div
-        expr_eq((na // na)[()], a // a)
-        expr_eq((nx // nx)[0], a // a)
-        expr_eq((nx // na)[1], b // a)
-        expr_eq((na // nx)[1], a // b)
-        expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
-        expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+        self.ndarray_eq(na // na, np.array(a // a))
+        self.ndarray_eq(nx // nx, x // x)
+        self.ndarray_eq(nx // na, x // a)
+        self.ndarray_eq(na // nx, a // x)
+        self.ndarray_eq(ncube1 // ncube2, cube1 // cube2)
         # Broadcasting
-        expr_eq((ncube1 // na)[0, 1, 0], 3 // 2)
-        expr_eq((na // ncube1)[0, 1, 0], 2 // 3)
-        expr_eq((ncube1 // ny)[0, 1, 0], 3 // 3)
-        expr_eq((ny // ncube1)[0, 1, 0], 3 // 3)
-        expr_eq((ncube1 // nrow_vec)[0, 1, 0], 3 // 1)
-        expr_eq((nrow_vec // ncube1)[0, 1, 0], 1 // 3)
+        self.ndarray_eq(ncube1 // na, cube1 // a)
+        self.ndarray_eq(na // ncube1, a // cube1)
+        self.ndarray_eq(ncube1 // ny, cube1 // y)
+        self.ndarray_eq(ny // ncube1, y // cube1)
+        self.ndarray_eq(ncube1 // nrow_vec, cube1 // row_vec)
+        self.ndarray_eq(nrow_vec // ncube1, row_vec // cube1)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_to_numpy(self):
+        nd = np.array([[1, 2, 3], [4, 5, 6]])
+        np.array_equal(hl._ndarray(nd).to_numpy(), nd)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
