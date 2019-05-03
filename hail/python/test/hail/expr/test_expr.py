@@ -2658,6 +2658,18 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
+    def test_ndarray_reshape(self):
+        a = hl._ndarray([1, 2, 3, 4, 5, 6])
+        fat = a.reshape((2, 3))
+        skinny = a.reshape((3, 2))
+
+        a_three = a[2]
+        fat_three = fat[0, 2]
+        skinny_three = skinny[1, 0]
+        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
     def test_ndarray_map(self):
         a = hl._ndarray([[2, 3, 4], [5, 6, 7]])
         b = hl.map(lambda x: -x, a)

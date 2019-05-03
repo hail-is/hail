@@ -51,6 +51,8 @@ object Children {
       Array(start, stop, step)
     case MakeNDArray(_, data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
+    case NDArrayReshape(nd, shape) =>
+      nd +: shape
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>

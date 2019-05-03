@@ -3145,6 +3145,18 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    def reshape(self, shape):
+        shape = wrap_to_list(shape)
+        if len(shape) == 0:
+            if self.ndim == 0:
+                return self
+            else:
+                raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
+
+        return type(self)(NDArrayReshape(self._ir, [dim._ir for dim in shape]),
+                          tndarray(self._type.element_type, len(shape)))
+
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
         """Transform each element of an NDArray.

@@ -103,6 +103,8 @@ object InferType {
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
+      case NDArrayReshape(nd, shape) =>
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.length), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>

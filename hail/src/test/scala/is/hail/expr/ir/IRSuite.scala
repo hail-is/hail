@@ -1506,6 +1506,7 @@ class IRSuite extends SparkSuite {
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
       MakeStream(FastSeq(i, NA(TInt32()), I32(-3)), TStream(TInt32())),
       nd,
+      NDArrayReshape(nd, IndexedSeq(4)),
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),
