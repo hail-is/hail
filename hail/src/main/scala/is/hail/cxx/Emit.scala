@@ -918,10 +918,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin
         }
 
-        val totalExpectedElements = shapeVars.foldRight("1") { (dimLen, elementsSoFar) =>
-          s"($dimLen * $elementsSoFar)"
-        }
-
+        val totalExpectedElements = shapeVars.foldRight("1") { (dimLen, nElements) => s"($dimLen * $nElements)" }
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
         present(
           s"""
