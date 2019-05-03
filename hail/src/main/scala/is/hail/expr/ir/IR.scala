@@ -86,6 +86,7 @@ final case class False() extends IR
 final case class Void() extends IR
 
 final case class Cast(v: IR, _typ: Type) extends IR
+final case class CastRename(v: IR, _typ: Type) extends IR
 
 final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
 final case class IsNA(value: IR) extends IR

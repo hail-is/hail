@@ -153,6 +153,7 @@ object Pretty {
             case F64(x) => x.toString
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
+            case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
             case Literal(typ, value) =>
               s"${ typ.parsableString() } " + (

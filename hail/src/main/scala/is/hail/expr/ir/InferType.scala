@@ -17,6 +17,7 @@ object InferType {
       case True() | False() => TBoolean()
       case Void() => TVoid
       case Cast(_, t) => t
+      case CastRename(_, t) => t
       case NA(t) => t
       case IsNA(_) => TBoolean()
       case Ref(_, t) => t

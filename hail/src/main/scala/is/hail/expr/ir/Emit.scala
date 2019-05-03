@@ -286,6 +286,9 @@ private class Emit(
         val cast = Casts.get(v.typ, typ)
         EmitTriplet(codeV.setup, codeV.m, cast(codeV.v))
 
+      case CastRename(v, _typ) =>
+        emit(v)
+
       case NA(typ) =>
         EmitTriplet(Code._empty, const(true), defaultValue(typ))
       case IsNA(v) =>

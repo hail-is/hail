@@ -830,6 +830,30 @@ object PruneDeadFields {
     memo.bind(ir, requestedType)
     ir match {
       case IsNA(value) => memoizeValueIR(value, minimal(value.typ), memo)
+      case CastRename(v, _typ) =>
+        def recur(reqType: Type, castType: Type, baseType: Type): Type = {
+          ((reqType, castType, baseType): @unchecked) match {
+            case (TStruct(reqFields, _), cast: TStruct, base: TStruct) =>
+              TStruct(reqFields.map { f =>
+                val idx = cast.fieldIdx(f.name)
+                Field(base.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
+              }, base.required)
+            case (TTuple(req, _), TTuple(cast, _), TTuple(base, r)) =>
+              assert(req.length == cast.length && req.length == base.length)
+              TTuple(req.indices.map { i => recur(req(i), cast(i), base(i)) }, r)
+            case (TArray(req, _), TArray(cast, _), TArray(base, r)) =>
+              TArray(recur(req, cast, base), r)
+            case (TSet(req, _), TSet(cast, _), TSet(base, r)) =>
+              TSet(recur(req, cast, base), r)
+            case (TDict(reqK, reqV, _), TDict(castK, castV, _), TDict(baseK, baseV, r)) =>
+              TDict(recur(reqK, castK, baseK), recur(reqV, castV, baseV), r)
+            case (TInterval(req, _), TInterval(cast, _), TInterval(base, r)) =>
+              TInterval(recur(req, cast, base), r)
+            case _ => reqType
+          }
+        }
+
+        memoizeValueIR(v, recur(requestedType, _typ, v.typ), memo)
       case If(cond, cnsq, alt) =>
         unifyEnvs(
           memoizeValueIR(cond, cond.typ, memo),
@@ -1417,6 +1441,32 @@ object PruneDeadFields {
     val requestedType = memo.lookup(ir).asInstanceOf[Type]
     ir match {
       case NA(_) => NA(requestedType)
+      case CastRename(v, _typ) =>
+        val v2 = rebuildIR(v, env, memo)
+
+        def recur(rebuildType: Type, castType: Type, baseType: Type): Type = {
+          ((rebuildType, castType, baseType): @unchecked) match {
+            case (TStruct(rebFields, _), cast: TStruct, base: TStruct) =>
+              TStruct(rebFields.map { f =>
+                val idx = base.fieldIdx(f.name)
+                Field(cast.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
+              }, base.required)
+            case (TTuple(reb, _), TTuple(cast, _), TTuple(base, r)) =>
+              assert(reb.length == cast.length && reb.length == base.length)
+              TTuple(reb.indices.map { i => recur(reb(i), cast(i), base(i)) }, r)
+            case (TArray(reb, _), TArray(cast, _), TArray(base, r)) =>
+              TArray(recur(reb, cast, base), r)
+            case (TSet(reb, _), TSet(cast, _), TSet(base, r)) =>
+              TSet(recur(reb, cast, base), r)
+            case (TDict(rebK, rebV, _), TDict(castK, castV, _), TDict(baseK, baseV, r)) =>
+              TDict(recur(rebK, castK, baseK), recur(rebV, castV, baseV), r)
+            case (TInterval(reb, _), TInterval(cast, _), TInterval(base, r)) =>
+              TInterval(recur(reb, cast, base), r)
+            case _ => rebuildType
+          }
+        }
+
+        CastRename(v2, recur(v2.typ, _typ, v.typ))
       case If(cond, cnsq, alt) =>
         val cond2 = rebuildIR(cond, env, memo)
         val cnsq2 = rebuildIR(cnsq, env, memo)

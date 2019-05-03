@@ -226,6 +226,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val t = emit(v)
         triplet(t.setup, t.m, s"static_cast<${ typeToCXXType(pType) }>(${ t.v })")
 
+      case ir.CastRename(v, _) =>
+        emit(v)
+
       case ir.NA(t) =>
         triplet("", "true", typeDefaultValue(pType))
 

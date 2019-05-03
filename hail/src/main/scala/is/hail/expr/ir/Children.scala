@@ -17,6 +17,8 @@ object Children {
     case Void() => none
     case Cast(v, typ) =>
       Array(v)
+    case CastRename(v, typ) =>
+      Array(v)
     case NA(typ) => none
     case IsNA(value) =>
       Array(value)
