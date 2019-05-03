@@ -917,7 +917,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  $strides.push_back(0);
              | }
            """.stripMargin
-        }.mkString("\n")
+        }
+
         present(
           s"""
              |({
@@ -926,7 +927,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${ shape.define }
              |  ${ strides.define }
              |
-             |  ${ reindexShapeAndStrides }
+             |  ${ Code.sequence(reindexShapeAndStrides) }
              |  make_ndarray($nd.flags, $nd.offset, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
@@ -948,31 +949,31 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           dim += 1
         }
 
-        val setup = Code(ndt.setup, nd.define, shape.define, shapeBuilder.mkString("\n"))
+        val setup = Code(ndt.setup, nd.define, shape.define, Code.sequence(shapeBuilder))
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val contractIdxVars = axes.map(_ => fb.variable("dim", "int"))
+            val aggIdxVars = axes.map(_ => fb.variable("dim", "int"))
             val resultDimsIter = idxVars.iterator
-            val contractDimsIter = contractIdxVars.iterator
+            val aggDimsIter = aggIdxVars.iterator
             val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
               if (axes.contains(dim)) {
-                assert(contractDimsIter.hasNext)
-                contractDimsIter.next()
+                assert(aggDimsIter.hasNext)
+                aggDimsIter.next()
               } else {
                 assert(resultDimsIter.hasNext)
                 resultDimsIter.next()
               }
             }
-            assert(!contractDimsIter.hasNext)
+            assert(!aggDimsIter.hasNext)
             assert(!resultDimsIter.hasNext)
 
             val acc = fb.variable("acc", typeToCXXType(resTyp.elementType))
             val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
             val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, resTyp.elementType) }"
-            val loops = contractIdxVars.zip(axes).foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
+            val loops = aggIdxVars.zip(axes).foldRight(body) { case ((dimVar, axis), innerLoops) =>
               s"""
                  |${ dimVar.define }
-                 |for ($dimVar = 0; $dimVar < $nd.shape[$dimIdx]; ++$dimVar) {
+                 |for ($dimVar = 0; $dimVar < $nd.shape[$axis]; ++$dimVar) {
                  |  $innerLoops
                  |}
                  |""".stripMargin
@@ -1004,13 +1005,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         triplet(
           s"""
              | ${ ndt.setup }
-             | ${ idxst.map(_.setup).mkString("\n") }
+             | ${ Code.sequence(idxst.map(_.setup)) }
            """.stripMargin,
           idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           s"""
              |({
              | ${ nd.define }
-             | ${ idxVars.map(_.define).mkString("\n") }
+             | ${ Code.sequence(idxVars.map(_.define)) }
              | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) }
              |})
            """.stripMargin)
