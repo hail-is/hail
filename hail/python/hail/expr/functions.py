@@ -1533,7 +1533,8 @@ def coalesce(*args):
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
-    return functools.reduce(lambda x, y: hl.or_else(y, x), exprs[::-1])
+    indices, aggregations = unify_all(*exprs)
+    return construct_expr(Coalesce(*(e._ir for e in exprs)), exprs[0].dtype, indices, aggregations)
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
@@ -1567,7 +1568,8 @@ def or_else(a, b):
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
     assert a.dtype == b.dtype
-    return hl.rbind(a, lambda aa: hl.cond(hl.is_defined(aa), aa, b))
+    indices, aggregations = unify_all(a, b)
+    return construct_expr(Coalesce(a._ir, b._ir), a.dtype, indices, aggregations)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):

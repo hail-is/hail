@@ -558,6 +558,9 @@ object IRParser {
         CastRename(v, typ)
       case "NA" => NA(type_expr(it))
       case "IsNA" => IsNA(ir_value_expr(env)(it))
+      case "Coalesce" =>
+        val children = ir_value_children(env)(it)
+        Coalesce.unify(children)
       case "If" =>
         val cond = ir_value_expr(env)(it)
         val consq = ir_value_expr(env)(it)

@@ -132,6 +132,11 @@ object Interpret {
       case CastRename(v, _) => interpret(v)
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
+      case Coalesce(values) =>
+        values.iterator
+          .flatMap(x => Option(interpret(x, env, args, agg)))
+          .headOption
+          .orNull
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
         val condValue = interpret(cond, env, args, agg)
