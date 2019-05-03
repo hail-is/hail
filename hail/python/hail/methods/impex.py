@@ -1952,7 +1952,9 @@ def import_vcf(path,
            array_elements_required=bool,
            skip_invalid_loci=bool,
            filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)))
+           find_replace=nullable(sized_tupleof(str, str)),
+           _external_sample_ids=nullable(sequenceof(sequenceof(str))),
+           _external_header=nullable(str))
 def import_vcfs(path,
                 partitions,
                 force=False,
@@ -1964,7 +1966,9 @@ def import_vcfs(path,
                 array_elements_required=True,
                 skip_invalid_loci=False,
                 filter=None,
-                find_replace=None) -> List[MatrixTable]:
+                find_replace=None,
+                _external_sample_ids=None,
+                _external_header=None) -> List[MatrixTable]:
     """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
     The arguments to this function are almost identical to :func:`.import_vcf`,
@@ -2021,7 +2025,9 @@ def import_vcfs(path,
         partitions,
         filter,
         find_replace[0] if find_replace is not None else None,
-        find_replace[1] if find_replace is not None else None)
+        find_replace[1] if find_replace is not None else None,
+        _external_sample_ids,
+        _external_header)
     tmp = json.loads(vector_ref_s)
     jir_vref = JIRVectorReference(tmp['vector_ir_id'],
                                   tmp['length'],
