@@ -22,6 +22,8 @@ object Copy {
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
         IsNA(value)
+      case Coalesce(_) =>
+        Coalesce(newChildren.map(_.asInstanceOf[IR]))
       case If(_, _, _) =>
         val IndexedSeq(cond: IR, cnsq: IR, altr: IR) = newChildren
         If(cond, cnsq, altr)

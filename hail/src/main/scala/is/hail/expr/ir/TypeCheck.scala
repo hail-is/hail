@@ -87,6 +87,11 @@ object TypeCheck {
         assert(t != null)
         assert(!t.required)
       case IsNA(v) =>
+      case Coalesce(values) =>
+        val t1 = values.head.typ
+        if (!values.tail.forall(_.typ == t1))
+          throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
+            s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
       case x@If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")

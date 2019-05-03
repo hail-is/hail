@@ -860,6 +860,7 @@ object PruneDeadFields {
           memoizeValueIR(cnsq, requestedType, memo),
           memoizeValueIR(alt, requestedType, memo)
         )
+      case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(_, requestedType, memo)))
       case Let(name, value, body) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.eval.lookupOption(name) match {
@@ -1472,6 +1473,8 @@ object PruneDeadFields {
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
         If.unify(cond2, cnsq2, alt2, unifyType = Some(requestedType))
+      case Coalesce(values) =>
+        Coalesce.unify(values.map(rebuildIR(_, env, memo)), unifyType = Some(requestedType))
       case Let(name, value, body) =>
         val value2 = rebuildIR(value, env, memo)
         Let(
