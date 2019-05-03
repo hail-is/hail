@@ -142,7 +142,7 @@ async def pull_request_callback(event):
     number = gh_pr['number']
     target_branch = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
-        if (number in wb.prs) or (wb.branch == target_branch):
+        if (wb.prs and number in wb.prs) or (wb.branch == target_branch):
             await wb.notify_github_changed(event.app)
 
 
