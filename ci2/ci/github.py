@@ -112,13 +112,14 @@ class FQBranch:
 
 
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch, author):
+    def __init__(self, number, title, source_repo, source_sha, target_branch, author, high_prio):
         self.number = number
         self.title = title
         self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
+        self.high_prio = high_prio
 
         # pending, changes_requested, approve
         self.review_state = None
@@ -138,6 +139,7 @@ class PR(Code):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
+        self.high_prio = any(l['name'] == 'prio:high' for l in gh_json['label'])
 
         head = gh_json['head']
         new_source_sha = head['sha']
@@ -157,7 +159,8 @@ class PR(Code):
                   Repo.from_gh_json(head['repo']),
                   head['sha'],
                   target_branch,
-                  gh_json['user']['login'])
+                  gh_json['user']['login'],
+                  any(l['name'] == 'prio:high' for l in gh_json['label']))
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -509,7 +512,10 @@ class WatchedBranch(Code):
         merge_candidate = None
         for pr in reversed(self.prs.values()):
             if pr.review_state == 'approved' and pr.build_state is None:
-                if not merge_candidate or (not merge_candidate.batch and pr.batch):
+                if (not merge_candidate or
+                        (not merge_candidate.high_prio and pr.high_prio) or
+                        (merge_candidate.high_prio == pr.high_prio and
+                         not merge_candidate.batch and pr.batch)):
                     merge_candidate = pr
 
         if merge_candidate:
