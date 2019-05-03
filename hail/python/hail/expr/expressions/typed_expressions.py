@@ -3505,7 +3505,7 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         Returns
         -------
-        :class:`.NDArrayNumericExpression`
+        :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
         if not isinstance(other, NDArrayNumericExpression):
             other = hl._ndarray(other)
@@ -3532,7 +3532,9 @@ class NDArrayNumericExpression(NDArrayExpression):
         left = left._promote_numeric(ret_type)
         right = right._promote_numeric(ret_type)
 
-        return NDArrayNumericExpression(NDArrayMatMul(left._ir, right._ir), ret_type)
+        res = NDArrayNumericExpression(NDArrayMatMul(left._ir, right._ir), ret_type)
+
+        return res if ndim > 0 else res[()]
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):

@@ -2903,15 +2903,15 @@ class Tests(unittest.TestCase):
         m = hl._ndarray(np_m)
         cube = hl._ndarray(np_cube)
 
-        hl.eval((v @ v)[()])
-        hl.eval((m @ m)[0, 0])
-        hl.eval((v @ m)[0])
-        hl.eval((m @ v)[0])
-        hl.eval((cube @ cube)[0, 0, 0])
-        hl.eval((cube @ v)[0, 0])
-        hl.eval((v @ cube)[0, 0])
-        hl.eval((cube @ m)[0, 0, 0])
-        hl.eval((m @ cube)[0, 0, 0])
+        self.assertEqual(hl.eval(v @ v), np_v @ np_v)
+        self.assertEqual(hl.eval((m @ m)[0, 0]), (np_m @ np_m)[0, 0])
+        self.assertEqual(hl.eval((v @ m)[0]), (np_v @ np_m)[0])
+        self.assertEqual(hl.eval((m @ v)[0]), (np_m @ np_v)[0])
+        self.assertEqual(hl.eval((cube @ cube)[0, 0, 0]), (np_cube @ np_cube)[0, 0, 0])
+        self.assertEqual(hl.eval((cube @ v)[0, 0]), (np_cube @ np_v)[0, 0])
+        self.assertEqual(hl.eval((v @ cube)[0, 0]), (np_v @ np_cube)[0, 0])
+        self.assertEqual(hl.eval((cube @ m)[0, 0, 0]), (np_cube @ np_m)[0, 0, 0])
+        self.assertEqual(hl.eval((m @ cube)[0, 0, 0]), (np_m @ np_cube)[0, 0, 0])
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
