@@ -415,10 +415,11 @@ class WatchedBranch(Code):
 
     async def _update(self, app):
         if self.updating:
-            log.info('already updating')
+            log.info(f'already updating {self.short_str()}')
             return
 
         try:
+            log.info(f'start update {self.short_str()}')
             self.updating = True
             gh = app['github_client']
             batch_client = app['batch_client']
@@ -443,6 +444,7 @@ class WatchedBranch(Code):
                     new_statuses[pr.source_sha] = pr.build_state
             self.statuses = new_statuses
         finally:
+            log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def merge_if_possible(self, gh):
@@ -483,13 +485,13 @@ class WatchedBranch(Code):
         for pr in new_prs.values():
             await pr._refresh_review_state(gh)
 
-    async def _heal_deploy(self):
+    async def _heal_deploy(self, batch_client):
         assert self.deployable
 
         # no deploy batch on record, or
         # deploy is finished and the target has updated
-        if (self.deploy_batch is None
-            or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
+        if (self.deploy_batch is None or
+                (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
             running_deploy_batches = await batch_client.list_batches(
                 complete=False,
                 attributes={
@@ -521,13 +523,13 @@ class WatchedBranch(Code):
                     else:
                         self.deploy_state = 'failure'
                     # re-deploy if target updated, setting batch_chagned=True here is overly aggressive
-                    self._heal_deploy()
+                    self._heal_deploy(batch_client)
 
     async def _heal(self, batch_client):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
-            await self._heal_deploy()
+            await self._heal_deploy(batch_client)
 
         merge_candidate = None
         for pr in reversed(list(self.prs.values())):
