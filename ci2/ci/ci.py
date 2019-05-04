@@ -42,14 +42,16 @@ async def index(request):  # pylint: disable=unused-argument
                 'index': i,
                 'branch': wb.branch.short_str(),
                 'sha': wb.sha,
-                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch else None,
+                # FIXME generate links to the merge log
+                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
                 'deploy_state': wb.deploy_state,
                 'repo': wb.branch.repo.short_str(),
                 'prs': [
                     {
                         'number': pr.number,
                         'title': pr.title,
-                        'batch_id': pr.batch.id if pr.batch else None,
+                        # FIXME generate links to the merge log
+                        'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
                         'build_state': pr.build_state,
                         'review_state': pr.review_state,
                         'author': pr.author

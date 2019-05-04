@@ -111,6 +111,12 @@ class FQBranch:
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
+# record the context for a merge failure
+class MergeFailureBatch:
+    def __init__(self, attributes=None):
+        self.attributes = attributes
+
+
 class PR(Code):
     def __init__(self, number, title, source_repo, source_sha, target_branch, author, high_prio):
         self.number = number
@@ -275,6 +281,14 @@ mkdir -p {shq(repo_dir)}
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             # FIXME save merge failure output for UI
+            self.batch = MergeFailureBatch(
+                attributes={
+                    'test': '1',
+                    'target_branch': self.target_branch.branch.short_str(),
+                    'pr': str(self.number),
+                    'source_sha': self.source_sha,
+                    'target_sha': self.target_branch.sha
+                })
             self.build_state = 'merge_failure'
             self.target_branch.state_changed = True
             return
@@ -303,6 +317,10 @@ mkdir -p {shq(repo_dir)}
                 await batch.cancel()
 
     async def _update_batch(self, batch_client):
+        if self.build_state:
+            assert self.batch
+            return
+
         if self.batch is None:
             # find the latest non-cancelled batch for source
             attrs = {
@@ -511,6 +529,10 @@ class WatchedBranch(Code):
     async def _update_deploy(self, batch_client):
         assert self.deployable
 
+        if self.deploy_state:
+            assert self.deploy_batch
+            return
+
         if self.deploy_batch is None:
             running_deploy_batches = await batch_client.list_batches(
                 complete=False,
@@ -530,16 +552,15 @@ class WatchedBranch(Code):
                 if deploy_batches:
                     self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
 
-        if self.deploy_state is None:
-            if self.deploy_batch:
-                status = await self.deploy_batch.status()
-                update_batch_status(status)
-                if status['complete']:
-                    if status['state'] == 'success':
-                        self.deploy_state = 'success'
-                    else:
-                        self.deploy_state = 'failure'
-                    self.state_changed = True
+        if self.deploy_batch:
+            status = await self.deploy_batch.status()
+            update_batch_status(status)
+            if status['complete']:
+                if status['state'] == 'success':
+                    self.deploy_state = 'success'
+                else:
+                    self.deploy_state = 'failure'
+                self.state_changed = True
 
     async def _heal_deploy(self, batch_client):
         assert self.deployable
@@ -587,7 +608,7 @@ class WatchedBranch(Code):
                 'test': '1',
                 'target_branch': self.branch.short_str()
             })
-        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch)
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
@@ -611,6 +632,12 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(self, f.read(), deploy=True)
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
+            self.deploy_batch = MergeFailureBatch(
+                attributes={
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha
+                })
             self.deploy_state = 'checkout_failure'
             return
 
