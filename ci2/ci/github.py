@@ -608,7 +608,7 @@ class WatchedBranch(Code):
                 'test': '1',
                 'target_branch': self.branch.short_str()
             })
-        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch)
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
