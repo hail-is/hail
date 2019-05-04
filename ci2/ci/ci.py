@@ -36,30 +36,37 @@ routes = web.RouteTableDef()
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
-    return {
-        'watched_branches': [
-            {
-                'index': i,
-                'branch': wb.branch.short_str(),
-                'sha': wb.sha,
-                # FIXME generate links to the merge log
-                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
-                'deploy_state': wb.deploy_state,
-                'repo': wb.branch.repo.short_str(),
-                'prs': [
-                    {
-                        'number': pr.number,
-                        'title': pr.title,
-                        # FIXME generate links to the merge log
-                        'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                        'build_state': pr.build_state,
-                        'review_state': pr.review_state,
-                        'author': pr.author
-                    }
-                    for pr in wb.prs.values()
-                ] if wb.prs else None}
-            for i, wb in enumerate(watched_branches)
-        ]}
+    wb_configs = []
+    for i, wb in enumerate(watched_branches):
+        if wb.prs:
+            pr_configs = []
+            for pr in wb.prs:
+                pr_config = {
+                    'number': pr.number,
+                    'title': pr.title,
+                    # FIXME generate links to the merge log
+                    'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
+                    'build_state': pr.build_state,
+                    'review_state': pr.review_state,
+                    'author': pr.author
+                }
+                pr_configs.append(pr_config)
+        else:
+            pr_configs = None
+        # FIXME recent deploy history
+        config = {
+            'index': i,
+            'branch': wb.branch.short_str(),
+            'sha': wb.sha,
+            # FIXME generate links to the merge log
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+            'deploy_state': wb.deploy_state,
+            'repo': wb.branch.repo.short_str(),
+            'prs': pr_configs
+        }
+        wb_configs.append(config)
+
+    return wb_configs
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')

@@ -53,13 +53,12 @@
       </tbody>
       {% endif %}
       
-      <h2>History</h2>
+      <h2>Build History</h2>
       {% if history %}
       <table>
 	<thead>
           <tr>
             <th align="right">id</th>
-            <th align="left">type</th>
             <th align="left">state</th>
           </tr>
 	</thead>
@@ -67,17 +66,7 @@
 	  {% for batch in history %}
           <tr>
             <td align="right">
-              <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
-            <td align="left">
-              {% if 'attributes' in batch %}
-              {% if 'deploy' in batch['attributes'] %}
-              deploy
-              {% elif 'test' in batch['attributes'] %}
-              test
-              {% else %}
-              unknown
-              {% endif %}
-              {% endif %}
+              <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
             </td>
             <td align="left">
               {% if 'state' in batch and batch['state'] %}
