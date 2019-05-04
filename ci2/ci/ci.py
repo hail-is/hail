@@ -77,7 +77,8 @@ async def get_pr(request):
 
     config = {}
     config['number'] = pr.number
-    if pr.batch:
+    # FIXME
+    if pr.batch and hasattr(pr.batch, 'id'):
         status = await pr.batch.status()
         for j in status['jobs']:
             if 'duration' in j and j['duration'] is not None:
@@ -169,16 +170,19 @@ async def pull_request_review_callback(event):
             await wb.notify_github_changed(event.app)
 
 
-@routes.post('/callback')
-async def callback(request):
+async def github_callback_handler(request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app
     await gh_router.dispatch(event)
+    
+
+@routes.post('/callback')
+async def callback(request):
+    await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
 
 
-@routes.post('/batch_callack')
-async def batch_callback(request):
+async def batch_callback_handler(request):
     params = await request.json()
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -189,6 +193,12 @@ async def batch_callback(request):
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     wb.notify_batch_changed()
+
+
+@routes.post('/batch_callack')
+async def batch_callback(request):
+    await asyncio.shield(batch_callback_handler(request))
+    return web.Response(status=200)
 
 
 async def update_loop(app):
