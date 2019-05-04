@@ -132,7 +132,7 @@ class PR(Code):
 
         self.sha = None
         self.batch = None
-        self.sha_failed = None
+        self.source_sha_failed = None
 
         # merge_failure, success, failure
         self.build_state = None
@@ -143,10 +143,10 @@ class PR(Code):
 
     def merge_priority(self):
         # passed > unknown > failed
-        if self.sha_failed is None:
-            sha_failed_prio = 1
+        if self.source_sha_failed is None:
+            souce_sha_failed_prio = 1
         else:
-            sha_failed_prio = 0 if self.sha_failed else 2
+            souce_sha_failed_prio = 0 if self.source_sha_failed else 2
 
         return (self.high_prio,
                 sha_failed_prio,
@@ -171,6 +171,7 @@ class PR(Code):
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
+            self.source_sha_failed = None
             self.target_branch.state_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -257,10 +258,7 @@ class PR(Code):
 
     async def _start_build(self, batch_client):
         # clear current batch
-        source_sha_changed = self.batch is None or self.batch.attributes['source_sha'] != self.source_sha
         self.batch = None
-        if source_sha_changed:
-            self.sha_failed = None
         self.build_state = None
 
         try:
@@ -290,7 +288,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha
                 })
             self.build_state = 'merge_failure'
-            self.sha_failed = True
+            self.source_sha_failed = True
             self.target_branch.state_changed = True
             return
 
@@ -345,7 +343,7 @@ mkdir -p {shq(repo_dir)}
                     elif failed is None:
                         failed = False
             self.batch = min_batch
-            self.sha_failed = failed
+            self.source_sha_failed = failed
 
         if self.batch:
             status = await self.batch.status()
@@ -355,7 +353,8 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
-                    self.sha_failed = True
+                    if self.source_sha == self.batch.attributes['source_sha']:
+                        self.source_sha_failed = True
                 self.target_branch.state_changed = True
 
     async def _heal(self, batch_client, on_deck):
@@ -554,7 +553,7 @@ class WatchedBranch(Code):
                         'sha': self.sha
                     })
                 if deploy_batches:
-                    self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
+                    self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
         if self.deploy_batch:
             status = await self.deploy_batch.status()
@@ -597,7 +596,7 @@ class WatchedBranch(Code):
             if (pr.review_state == 'approved' and
                     ((pr.build_state == 'success' and
                       pr.source_sha == pr.batch.attributes['source_sha']) or
-                     pr.sha_failed != True)):
+                     pr.source_sha_failed != True)):
                 pri = pr.merge_priority()
                 if not merge_candidate or pri > merge_candidate_pri:
                     merge_candidate = pr
