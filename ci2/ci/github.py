@@ -171,7 +171,11 @@ class PR(Code):
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
+            self.sha = None
+            self.batch = None
             self.source_sha_failed = None
+            self.build_state = None
+            self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
@@ -353,13 +357,11 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
-                    if self.source_sha == self.batch.attributes['source_sha']:
-                        self.source_sha_failed = True
+                    self.source_sha_failed = True
                 self.target_branch.state_changed = True
 
     async def _heal(self, batch_client, on_deck):
         if (not self.batch or
-                self.batch.attributes['source_sha'] != self.source_sha or
                 (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
             if on_deck or self.target_branch.n_running_batches < 4:
@@ -370,7 +372,6 @@ mkdir -p {shq(repo_dir)}
     def is_mergeable(self):
         return (self.review_state == 'approved' and
                 self.build_state == 'success' and
-                self.source_sha == self.batch.attributes['source_sha'] and
                 self.target_branch.sha == self.batch.attributes['target_sha'])
 
     async def merge(self, gh):
@@ -594,9 +595,7 @@ class WatchedBranch(Code):
             # merge candidate if up-to-date build passing, or
             # pending but haven't failed
             if (pr.review_state == 'approved' and
-                    ((pr.build_state == 'success' and
-                      pr.source_sha == pr.batch.attributes['source_sha']) or
-                     pr.source_sha_failed != True)):
+                    (pr.build_state == 'success' or pr.source_sha_failed != True)):
                 pri = pr.merge_priority()
                 if not merge_candidate or pri > merge_candidate_pri:
                     merge_candidate = pr
