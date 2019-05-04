@@ -290,6 +290,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha
                 })
             self.build_state = 'merge_failure'
+            self.sha_failed = True
             self.target_branch.state_changed = True
             return
 
@@ -368,7 +369,10 @@ mkdir -p {shq(repo_dir)}
                     await self._start_build(batch_client)
 
     def is_mergeable(self):
-        return self.review_state == 'approved' and self.build_state == 'success'
+        return (self.review_state == 'approved' and
+                self.build_state == 'success' and
+                self.source_sha == self.batch.attributes['source_sha'] and
+                self.target_branch.sha == self.batch.attributes['target_sha'])
 
     async def merge(self, gh):
         try:
@@ -588,7 +592,12 @@ class WatchedBranch(Code):
         merge_candidate = None
         merge_candidate_pri = None
         for pr in self.prs.values():
-            if pr.review_state == 'approved' and pr.build_state is None:
+            # merge candidate if up-to-date build passing, or
+            # pending but haven't failed
+            if (pr.review_state == 'approved' and
+                    ((pr.build_state == 'success' and
+                      pr.source_sha == pr.batch.attributes['source_sha']) or
+                     pr.sha_failed != True)):
                 pri = pr.merge_priority()
                 if not merge_candidate or pri > merge_candidate_pri:
                     merge_candidate = pr
