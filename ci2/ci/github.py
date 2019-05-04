@@ -144,12 +144,12 @@ class PR(Code):
     def merge_priority(self):
         # passed > unknown > failed
         if self.source_sha_failed is None:
-            souce_sha_failed_prio = 1
+            source_sha_failed_prio = 1
         else:
-            souce_sha_failed_prio = 0 if self.source_sha_failed else 2
+            source_sha_failed_prio = 0 if self.source_sha_failed else 2
 
         return (self.high_prio,
-                sha_failed_prio,
+                source_sha_failed_prio,
                 # oldest first
                 - self.number)
 

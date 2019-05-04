@@ -77,7 +77,8 @@ async def get_pr(request):
 
     config = {}
     config['number'] = pr.number
-    if pr.batch:
+    # FIXME
+    if pr.batch and hasattr(pr.batch, 'id'):
         status = await pr.batch.status()
         for j in status['jobs']:
             if 'duration' in j and j['duration'] is not None:
