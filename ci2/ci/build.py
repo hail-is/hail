@@ -618,8 +618,13 @@ set -e
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
                     script += f'''
-kubectl -n {self.namespace} wait --timeout=240s deployment --for=condition=available {name}
-python3 wait-for.py 60 {self.namespace} Service -p {port} {name}
+set +e
+kubectl -n {self.namespace} wait --timeout=240s deployment --for=condition=available {name} && \
+  python3 wait-for.py 60 {self.namespace} Service -p {port} {name}
+EC=$?
+kubectl -n {self.namespace} logs -l app={name}
+set -e
+(exit $EC)
 '''
                 else:
                     assert w['kind'] == 'Pod', w['kind']
