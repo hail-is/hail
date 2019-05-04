@@ -2904,14 +2904,14 @@ class Tests(unittest.TestCase):
         cube = hl._ndarray(np_cube)
 
         self.assertEqual(hl.eval(v @ v), np_v @ np_v)
-        self.assertEqual(hl.eval((m @ m)[0, 0]), (np_m @ np_m)[0, 0])
-        self.assertEqual(hl.eval((v @ m)[0]), (np_v @ np_m)[0])
-        self.assertEqual(hl.eval((m @ v)[0]), (np_m @ np_v)[0])
-        self.assertEqual(hl.eval((cube @ cube)[0, 0, 0]), (np_cube @ np_cube)[0, 0, 0])
-        self.assertEqual(hl.eval((cube @ v)[0, 0]), (np_cube @ np_v)[0, 0])
-        self.assertEqual(hl.eval((v @ cube)[0, 0]), (np_v @ np_cube)[0, 0])
-        self.assertEqual(hl.eval((cube @ m)[0, 0, 0]), (np_cube @ np_m)[0, 0, 0])
-        self.assertEqual(hl.eval((m @ cube)[0, 0, 0]), (np_m @ np_cube)[0, 0, 0])
+        self.ndarray_eq(m @ m, np_m @ np_m)
+        self.ndarray_eq(v @ m, np_v @ np_m)
+        self.ndarray_eq(m @ v, np_m @ np_v)
+        self.ndarray_eq(cube @ cube, np_cube @ np_cube)
+        self.ndarray_eq(cube @ v, np_cube @ np_v)
+        self.ndarray_eq(v @ cube, np_v @ np_cube)
+        self.ndarray_eq(cube @ m, np_cube @ np_m)
+        self.ndarray_eq(m @ cube, np_m @ np_cube)
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
