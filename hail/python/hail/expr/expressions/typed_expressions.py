@@ -3085,11 +3085,28 @@ class NDArrayExpression(Expression):
 
     @property
     def T(self):
+        return self.transpose()
+
+    @typecheck_method(axes=nullable(tupleof(int)))
+    def transpose(self, axes=None):
+        if axes is None:
+            axes = list(reversed(range(self.ndim)))
+        else:
+            if len(axes) != self.ndim:
+                raise ValueError(f'Must specify a complete permutation of the dimensions.'
+                                 f'Expected {self.ndim} axes, got {len(axes)}')
+
+            if len(set(axes)) != len(axes):
+                raise ValueError(f'Axes cannot contain duplicates: {axes}')
+
+            for axis in axes:
+                if not 0 <= axis < self.ndim:
+                    raise ValueError(f'Invalid axis: {axis}')
+
         if self.ndim < 2:
             return self
 
-        ordered_dims = list(reversed(range(self.ndim)))
-        return type(self)(NDArrayReindex(self._ir, ordered_dims), self._type)
+        return type(self)(NDArrayReindex(self._ir, axes), self._type)
 
     @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
