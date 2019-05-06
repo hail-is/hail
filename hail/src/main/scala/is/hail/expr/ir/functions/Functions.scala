@@ -156,9 +156,7 @@ abstract class RegistryFunctions {
   def tnum(name: String): TVariable =
     tv(name, "numeric")
 
-  def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
-
-  def wrapArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+  def wrapArg(r: EmitRegion, t: Type): Code[_] => Code[_] = t match {
     case _: TBoolean => coerce[Boolean]
     case _: TInt32 => coerce[Int]
     case _: TInt64 => coerce[Long]
@@ -168,15 +166,15 @@ abstract class RegistryFunctions {
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
         PString.getClass, "loadString",
-        getRegion(mb), coerce[Long](c))
+        r.region, coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
-        mb.getPType(t.physicalType),
-        getRegion(mb), coerce[Long](c))
+        r.mb.getPType(t.physicalType),
+        r.region, coerce[Long](c))
   }
 
-  def boxArg(mb: EmitMethodBuilder, t: Type): Code[_] => Code[Any] = t match {
+  def boxArg(r: EmitRegion, t: Type): Code[_] => Code[Any] = t match {
     case _: TBoolean => c => Code.boxBoolean(coerce[Boolean](c))
     case _: TInt32 => c => Code.boxInt(coerce[Int](c))
     case _: TInt64 => c => Code.boxLong(coerce[Long](c))
@@ -186,28 +184,28 @@ abstract class RegistryFunctions {
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
         PString.getClass, "loadString",
-        getRegion(mb), coerce[Long](c))
+        r.region, coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
-        mb.getPType(t.physicalType),
-        getRegion(mb), coerce[Long](c))
+        r.mb.getPType(t.physicalType),
+        r.region, coerce[Long](c))
   }
 
-  def unwrapReturn(mb: EmitMethodBuilder, t: Type): Code[_] => Code[_] = t match {
+  def unwrapReturn(r: EmitRegion, t: Type): Code[_] => Code[_] = t match {
     case _: TBoolean => coerce[Boolean]
     case _: TInt32 => coerce[Int]
     case _: TInt64 => coerce[Long]
     case _: TFloat32 => coerce[Float]
     case _: TFloat64 => coerce[Double]
     case _: TString => c =>
-      getRegion(mb).appendString(coerce[String](c))
+      r.region.appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
-      val alocal = mb.newLocal[IndexedSeq[Int]]
-      val len = mb.newLocal[Int]
-      val v = mb.newLocal[java.lang.Integer]
+      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val alocal = r.mb.newLocal[IndexedSeq[Int]]
+      val len = r.mb.newLocal[Int]
+      val v = r.mb.newLocal[java.lang.Integer]
 
       Code(
         alocal := coerce[IndexedSeq[Int]](c),
@@ -220,10 +218,10 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TFloat64, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
-      val alocal = mb.newLocal[IndexedSeq[Double]]
-      val len = mb.newLocal[Int]
-      val v = mb.newLocal[java.lang.Double]
+      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val alocal = r.mb.newLocal[IndexedSeq[Double]]
+      val len = r.mb.newLocal[Int]
+      val v = r.mb.newLocal[java.lang.Double]
 
       Code(
         alocal := coerce[IndexedSeq[Double]](c),
@@ -236,10 +234,10 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
-      val alocal = mb.newLocal[IndexedSeq[String]]
-      val len = mb.newLocal[Int]
-      val v = mb.newLocal[java.lang.String]
+      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val alocal = r.mb.newLocal[IndexedSeq[String]]
+      val len = r.mb.newLocal[Int]
+      val v = r.mb.newLocal[java.lang.String]
 
       Code(
         alocal := coerce[IndexedSeq[String]](c),
@@ -253,7 +251,7 @@ abstract class RegistryFunctions {
         srvb.offset)
   }
 
-  def registerCode(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Array[Code[_]]) => Code[_]) {
+  def registerCode(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Array[Code[_]]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithoutMissingness {
       override val name: String = mname
 
@@ -261,11 +259,11 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, args.toArray)
+      override def apply(r: EmitRegion, args: Code[_]*): Code[_] = impl(r, args.toArray)
     })
   }
 
-  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Array[EmitTriplet]) => EmitTriplet) {
+  def registerCodeWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Array[EmitTriplet]) => EmitTriplet) {
     IRFunctionRegistry.addIRFunction(new IRFunctionWithMissingness {
       override val name: String = mname
 
@@ -273,12 +271,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      override def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = impl(mb, args.toArray)
+      override def apply(r: EmitRegion, args: EmitTriplet*): EmitTriplet = impl(r, args.toArray)
     })
   }
 
   def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type)(cls: Class[_], method: String) {
-    registerCode(mname, argTypes, rType) { (mb, args) =>
+    registerCode(mname, argTypes, rType) { (r, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeScalaObject(cls, method, cts, args)(TypeToIRIntermediateClassTag(rType))
     }
@@ -327,52 +325,52 @@ abstract class RegistryFunctions {
     IRFunctionRegistry.addIR(mname, argTypes, retType, f)
   }
 
-  def registerCode(mname: String, rt: Type)(impl: EmitMethodBuilder => Code[_]): Unit =
+  def registerCode(mname: String, rt: Type)(impl: EmitRegion => Code[_]): Unit =
     registerCode(mname, Array[Type](), rt) { (emb, array) =>
       (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array()) => impl(mb)
+        case (r, Array()) => impl(r)
       }
     }
 
-  def registerCode[A1](mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1]) => Code[_]): Unit =
+  def registerCode[A1](mname: String, mt1: Type, rt: Type)(impl: (EmitRegion, Code[A1]) => Code[_]): Unit =
     registerCode(mname, Array(mt1), rt) {
-      case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, a1)
+      case (r, Array(a1: Code[A1] @unchecked)) => impl(r, a1)
     }
 
-  def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, Code[A1], Code[A2]) => Code[_]): Unit =
+  def registerCode[A1, A2](mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitRegion, Code[A1], Code[A2]) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2), rt) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+      case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(r, a1, a2)
     }
 
   def registerCode[A1, A2, A3](mname: String, mt1: Type, mt2: Type, mt3: Type, rt: Type)
-    (impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =
+    (impl: (EmitRegion, Code[A1], Code[A2], Code[A3]) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3), rt) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked)) => impl(mb, a1, a2, a3)
+      case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked)) => impl(r, a1, a2, a3)
     }
 
   def registerCode[A1, A2, A3, A4](mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)
-    (impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
+    (impl: (EmitRegion, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3, mt4), rt) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(mb, a1, a2, a3, a4)
+      case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(r, a1, a2, a3, a4)
     }
 
   def registerCode[A1, A2, A3, A4, A5](mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type)
-    (impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]): Unit =
+    (impl: (EmitRegion, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5]) => Code[_]): Unit =
     registerCode(mname, Array(mt1, mt2, mt3, mt4, mt5), rt) {
-      case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked, a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
+      case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked, a5: Code[A5] @unchecked)) => impl(r, a1, a2, a3, a4, a5)
     }
 
-  def registerCodeWithMissingness(mname: String, rt: Type)(impl: EmitMethodBuilder => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array[Type](), rt) { case (mb, Array()) => impl(mb) }
+  def registerCodeWithMissingness(mname: String, rt: Type)(impl: EmitRegion => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array[Type](), rt) { case (r, Array()) => impl(r) }
 
-  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet) => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array(mt1), rt) { case (mb, Array(a1)) => impl(mb, a1) }
+  def registerCodeWithMissingness(mname: String, mt1: Type, rt: Type)(impl: (EmitRegion, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1), rt) { case (r, Array(a1)) => impl(r, a1) }
 
-  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array(mt1, mt2), rt) { case (mb, Array(a1, a2)) => impl(mb, a1, a2) }
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, rt: Type)(impl: (EmitRegion, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1, mt2), rt) { case (r, Array(a1, a2)) => impl(r, a1, a2) }
 
-  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
-    registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4), rt) { case (mb, Array(a1, a2, a3, a4)) => impl(mb, a1, a2, a3, a4) }
+  def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(impl: (EmitRegion, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
+    registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4), rt) { case (r, Array(a1, a2, a3, a4)) => impl(r, a1, a2, a3, a4) }
 
   def registerIR(mname: String, retType: Type)(f: () => IR): Unit =
     registerIR(mname, Array[Type](), retType) { case Seq() => f() }
@@ -389,7 +387,7 @@ abstract class RegistryFunctions {
   def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
     registerIR(mname, Array(mt1, mt2, mt3, mt4), retType) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
 
-  def registerSeeded(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[Code[_]]) => Code[_]) {
+  def registerSeeded(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[Code[_]]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new SeededIRFunction {
       val isDeterministic: Boolean = false
 
@@ -399,12 +397,12 @@ abstract class RegistryFunctions {
 
       override val returnType: Type = rType
 
-      def applySeeded(seed: Long, mb: EmitMethodBuilder, args: Code[_]*): Code[_] = impl(mb, seed, args.toArray)
+      def applySeeded(seed: Long, r: EmitRegion, args: Code[_]*): Code[_] = impl(r, seed, args.toArray)
 
-      def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = {
+      def applySeeded(seed: Long, r: EmitRegion, args: EmitTriplet*): EmitTriplet = {
         val setup = args.map(_.setup)
         val missing: Code[Boolean] = if (args.isEmpty) false else args.map(_.m).reduce(_ || _)
-        val value = applySeeded(seed, mb, args.map(_.v): _*)
+        val value = applySeeded(seed, r, args.map(_.v): _*)
 
         EmitTriplet(setup, missing, value)
       }
@@ -413,31 +411,31 @@ abstract class RegistryFunctions {
     })
   }
 
-  def registerSeeded(mname: String, rType: Type)(impl: (EmitMethodBuilder, Long) => Code[_]): Unit =
-    registerSeeded(mname, Array[Type](), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array()) => impl(mb, seed)
+  def registerSeeded(mname: String, rType: Type)(impl: (EmitRegion, Long) => Code[_]): Unit =
+    registerSeeded(mname, Array[Type](), rType) { (er, seed, array) =>
+      (er: @unchecked, array: @unchecked) match {
+        case (r, Array()) => impl(r, seed)
       }
     }
 
-  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1]) => Code[_]): Unit =
-    registerSeeded(mname, Array(arg1), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked)) => impl(mb, seed, a1)
+  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1), rType) { (er, seed, array) =>
+      (er: @unchecked, array: @unchecked) match {
+        case (r, Array(a1: Code[A1] @unchecked)) => impl(r, seed, a1)
       }
     }
 
-  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1], Code[A2]) => Code[_]): Unit =
-    registerSeeded(mname, Array(arg1, arg2), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, seed, a1, a2)
+  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1], Code[A2]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1, arg2), rType) { (er, seed, array) =>
+      (er: @unchecked, array: @unchecked) match {
+        case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(r, seed, a1, a2)
       }
     }
 
-  def registerSeeded[A1, A2, A3, A4](mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rType: Type)(impl: (EmitMethodBuilder, Long, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
-    registerSeeded(mname, Array(arg1, arg2, arg3, arg4), rType) { (emb, seed, array) =>
-      (emb: @unchecked, array: @unchecked) match {
-        case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(mb, seed, a1, a2, a3, a4)
+  def registerSeeded[A1, A2, A3, A4](mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
+    registerSeeded(mname, Array(arg1, arg2, arg3, arg4), rType) { (er, seed, array) =>
+      (er: @unchecked, array: @unchecked) match {
+        case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(r, seed, a1, a2, a3, a4)
       }
     }
 }
@@ -447,7 +445,7 @@ sealed abstract class IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
+  def apply(mb: EmitRegion, args: EmitTriplet*): EmitTriplet
 
   def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = ???
 
@@ -468,12 +466,12 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: EmitMethodBuilder, args: Code[_]*): Code[_]
+  def apply(r: EmitRegion, args: Code[_]*): Code[_]
 
-  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet = {
+  def apply(r: EmitRegion, args: EmitTriplet*): EmitTriplet = {
     val setup = args.map(_.setup)
     val missing = args.map(_.m).reduce(_ || _)
-    val value = apply(mb, args.map(_.v): _*)
+    val value = apply(r, args.map(_.v): _*)
 
     EmitTriplet(setup, missing, value)
   }
@@ -482,7 +480,7 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
     unify(args)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
     val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
-    methodbuilder.emit(apply(methodbuilder, ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
+    methodbuilder.emit(apply(EmitRegion.default(methodbuilder), ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))
     methodbuilder
   }
 
@@ -494,7 +492,7 @@ abstract class IRFunctionWithMissingness extends IRFunction {
 
   def argTypes: Seq[Type]
 
-  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
+  def apply(r: EmitRegion, args: EmitTriplet*): EmitTriplet
 
   def returnType: Type
 }
@@ -507,9 +505,9 @@ abstract class SeededIRFunction extends IRFunction {
   private[this] var seed: Long = _
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet
-  def apply(mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
-    applySeeded(seed, mb, args: _*)
+  def applySeeded(seed: Long, region: EmitRegion, args: EmitTriplet*): EmitTriplet
+  def apply(region: EmitRegion, args: EmitTriplet*): EmitTriplet =
+    applySeeded(seed, region, args: _*)
 
   def returnType: Type
 

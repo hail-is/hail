@@ -16,7 +16,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
-import is.hail.utils._
+import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call, Call2, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
@@ -34,7 +34,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[EmitTriplet]) => EmitTriplet) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[EmitTriplet]) => EmitTriplet) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -44,13 +44,13 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
-          impl(mb, seed, args.toArray)
+        def applySeeded(seed: Long, r: EmitRegion, args: EmitTriplet*): EmitTriplet =
+          impl(r, seed, args.toArray)
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, EmitTriplet) => EmitTriplet): Unit =
-      registerSeededWithMissingness(mname, Array(mt1), rType) { case (mb, seed, Array(a1)) => impl(mb, seed, a1) }
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, EmitTriplet) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType) { case (r, seed, Array(a1)) => impl(r, seed, a1) }
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
@@ -2033,5 +2033,13 @@ class IRSuite extends SparkSuite {
       case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
       case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
     }
+  }
+
+  @Test def testFoldWithSetup() {
+    val v = In(0, TInt32())
+    val cond1 = If(v.ceq(I32(3)),
+      MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3)), TArray(TInt32())),
+      MakeArray(FastIndexedSeq(I32(4), I32(5), I32(6)), TArray(TInt32())))
+    assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
   }
 }
