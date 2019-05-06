@@ -142,9 +142,9 @@ def make_betas(mt, h2, pi=1, annot=None, rg=None):
         return mt
     elif len(h2)>1 and pi==[1]: #multi-trait infinitesimal
         return multitrait_inf(mt=mt,h2=h2,rg=rg)
-    elif len(h2)==2 and len(pi)>1: #multi-trait spike & slab
+    elif len(h2)==2 and len(pi)>1: #two-trait spike & slab
         return multitrait_ss(mt=mt,h2=h2,rg=0 if rg is [None] else rg[0],pi=pi)
-    elif len(h2)==1 and pi==[1]: #infinitesimal/spike & slab
+    elif len(h2)==1 and pi==[1]: #one-trait infinitesimal/spike & slab
         M = mt.count_rows()
         return mt.annotate_rows(beta = hl.rand_bool(pi[0])*hl.rand_norm(0,hl.sqrt(h2[0]/(M*pi[0]))))
     else:
@@ -191,7 +191,7 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     rg = [rg] if type(rg) is not list else rg
     assert (all(x >= 0 and x <= 1 for x in h2)), 'h2 values must be between 0 and 1'
     assert h2 is not [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
-    seed = seed if seed is not None else int(str(Env.next_seed())[:8])
+    seed = seed if seed is not None else Env.next_seed()
     M = mt.count_rows()
     if cov_matrix != None:
         n_phens = cov_matrix.shape[0]
@@ -217,8 +217,9 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
            h2=list,
            pi=list,
            rg=oneof(float,
-                    int))
-def multitrait_ss(mt, h2, pi, rg=0):
+                    int),
+           seed=nullable(int))
+def multitrait_ss(mt, h2, pi, rg=0, seed=None):
     """Generates spike & slab betas for simulation of two correlated phenotypes.
     
     Parameters
@@ -236,7 +237,9 @@ def multitrait_ss(mt, h2, pi, rg=0):
         of SNPs that are not causal for both traits.
     rg : :obj:`float` or :obj:`int`
         Genetic correlation between traits.
-        
+    seed : :obj:`int`, optional
+        Seed for random number generator. If seed=None, seed is set randomly.
+    
     Warning
     -------
     May give inaccurate results if chosen parameters make cov_matrix not positive
@@ -247,10 +250,12 @@ def multitrait_ss(mt, h2, pi, rg=0):
     :class:`.MatrixTable`
         MatrixTable with simulated SNP effects as a row field of arrays.
     """
+    seed = seed if seed is not None else Env.next_seed()
     ptt, ptf, pft, pff = pi[0], pi[1], pi[2], 1-sum(pi)
     cov_matrix = np.asarray([[1/(ptt+ptf), rg/ptt],[rg/ptt,1/(ptt+pft)]])
     M = mt.count_cols()
-    beta = np.random.multivariate_normal(mean=np.zeros(2),cov=cov_matrix,size=[int(M),])
+    randstate = np.random.RandomState(int(seed)) #seed random state for replicability
+    beta = randstate.multivariate_normal(mean=np.zeros(2),cov=cov_matrix,size=[int(M),])
     zeros = np.zeros(shape=int(M)).T
     beta_matrix = np.stack((np.asarray([zeros,zeros]).T,np.asarray([zeros,beta[:,1]]).T,
                             np.asarray([beta[:,0],zeros]).T,beta),axis=1)
@@ -281,6 +286,37 @@ def create_cov_matrix(h2, rg):
         rg values for traits. rg values should be ordered in the order they appear
         in the upper triangle of the covariance matrix, from left to right, top to
         bottom.
+        
+    Example
+    -------
+    Suppose we have four traits with the following heritabilities (h2): 0.1, 0.3, 0.2, 0.6.
+    That is, trait 1 has an h2 of 0.1, trait 2 has an h2 of 0.3 and so on.
+    Suppose the genetic correlations (rg) between traits are the following:
+    trait 1 & trait 2 rg = 0.4
+    trait 1 & trait 3 rg = 0.7
+    trait 1 & trait 4 rg = 0
+    trait 2 & trait 3 rg = 0.9
+    trait 2 & trait 4 rg = 0.15
+    trait 3 & trait 4 rg = 1
+    To obtain the covariance matrix corresponding to this scenario h2 values are
+    ordered according to user specification and rg values are ordered by the 
+    order in which the corresponding genetic covariance terms will appear in the 
+    covariance matrix, reading lines in the upper triangular matrix from left to
+    right, top to bottom (read first row left to right, read second row left to 
+    right, etc.), exluding the diagonal:
+    
+    >>> create_cov_matrix(h2=[0.1, 0.3, 0.2, 0.6], rg=[0.4, 0.7, 0, 0.9, 0.15, 1])
+    array([[0.1       , 0.06928203, 0.09899495, 0.        ],
+           [0.06928203, 0.3       , 0.22045408, 0.06363961],
+           [0.09899495, 0.22045408, 0.2       , 0.34641016],
+           [0.        , 0.06363961, 0.34641016, 0.6       ]])
+    
+    The diagonal corresponds directly to `h2`, the list of h2 values for all traits.
+    In the upper triangular matrix, excluding the diagonal, the entry (a, b), 
+    where a and b are in {1,2,3,4}, is the genetic covariance (rho_g) between 
+    traits a and b. Genetic covariance is calculated as rho_g = rg*sqrt(h2_a*h2_b)
+    where rg is the genetic correlation between traits a and b and h2_a and h2_b
+    are heritabilities corresponding to traits a and b.
     
     Notes
     -----
