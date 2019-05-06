@@ -5,8 +5,8 @@ shadowJar:
 
 jars:
 	make -C src/main/c
-	mvn compile test-compile jar:jar jar:test-jar assembly:single
+	mvn -B compile test-compile jar:jar jar:test-jar assembly:single
 
 clean:
 	make -C src/main/c clean
-	mvn clean
+	mvn -B clean
