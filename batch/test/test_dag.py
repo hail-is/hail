@@ -19,9 +19,7 @@ def client():
 
 @pytest.fixture
 def test_user():
-    fname = pkg_resources.resource_filename(
-        __name__,
-        'jwt-test-user.json')
+    fname = os.environ.get("HAIL_TOKEN_FILE")
     with open(fname) as f:
         return json.loads(f.read())
 
@@ -313,7 +311,7 @@ def test_input_dependency(client, test_user):
                             input_files=[(f'gs://{test_user["bucket_name"]}/data\\*', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
-    assert head.status()['exit_code'] == 0, str(head.cached_status()) + "\n" + str(head.log())
+    assert head.status()['exit_code'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
@@ -327,9 +325,7 @@ def test_input_dependency_directory(client, test_user):
                             input_files=[(f'gs://{test_user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
 
-    print(head.status())
-    status = tail.wait()
-    print(status)
+    assert head.status()['exit_code'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
 
 
