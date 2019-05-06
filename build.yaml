@@ -485,7 +485,6 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
-    - batch_database
  - kind: deploy
    name: deploy_apiserver
    namespace:

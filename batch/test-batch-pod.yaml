@@ -19,14 +19,7 @@ spec:
       - mountPath: /jwt
         readOnly: true
         name: test-batch-jwt
-      - name: batch-user-secret
-        mountPath: /batch-user-secret
-        readOnly: true
   volumes:
-    - name: batch-user-secret
-      secret:
-        optional: false
-        secretName: "{{ batch_database.user_secret_name }}"
     - name: test-batch-jwt
       secret:
         secretName: user-jwt-vkqfw
