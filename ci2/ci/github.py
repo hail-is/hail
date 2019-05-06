@@ -455,6 +455,7 @@ class WatchedBranch(Code):
         # update everything
         self.github_changed = True
         self.batch_changed = True
+        self.state_changed = True
         await self._update(app)
 
     async def _update(self, app):
