@@ -3513,7 +3513,7 @@ class NDArrayNumericExpression(NDArrayExpression):
             other = hl._ndarray(other)
 
         if self.ndim == 0 or other.ndim == 0:
-            raise FatalError('MatMul must be between objects of 1 dimension or more. Try * instead')
+            raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
         l_ndim = self.ndim
         r_ndim = other.ndim

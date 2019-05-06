@@ -2912,6 +2912,9 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(v @ cube, np_v @ np_cube)
         self.ndarray_eq(cube @ m, np_cube @ np_m)
         self.ndarray_eq(m @ cube, np_m @ np_cube)
+        
+        self.assertRaises(ValueError, lambda: m @ 5)
+        self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
