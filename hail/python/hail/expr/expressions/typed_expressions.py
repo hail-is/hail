@@ -3496,8 +3496,10 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         Notes
         -----
-        The last dimension of `a` and the second to last dimension of `b` must have the same length. The dimensions
-        prior to the last two of `a` and `b` must match or be compatible for broadcasting.
+        The last dimension of `a` and the second to last dimension of `b` (or only dimension if `b` is a vector)
+        must have the same length. The dimensions to the left of the last two dimensions of `a` and `b` (for NDArrays of
+        dimensionality > 2) must be equal or be compatible for broadcasting.
+        Number of dimensions of both NDArrays must be at least 1.
 
         Parameters
         ----------
