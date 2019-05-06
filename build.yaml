@@ -177,6 +177,9 @@ steps:
       to: /io/testng.xml
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
+   dependsOn:
+    - base_image
+    - build_hail
  - kind: buildImage
    name: hail_base_image
    dockerFile: apiserver/Dockerfile.hail-base
