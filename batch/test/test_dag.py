@@ -7,6 +7,8 @@ import re
 import requests
 from flask import Response
 
+import hailjwt as hj
+
 from batch.client import BatchClient
 
 from .serverthread import ServerThread
@@ -21,7 +23,7 @@ def client():
 def test_user():
     fname = os.environ.get("HAIL_TOKEN_FILE")
     with open(fname) as f:
-        return json.loads(f.read())
+        return json.loads(hj.JWTClient.unsafe_decode(f.read()))
 
 
 def batch_status_job_counter(batch_status, job_state):
