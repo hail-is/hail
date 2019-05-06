@@ -1070,7 +1070,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(colVectorWithMatrix, FastIndexedSeq(1, 0)), 2.0)
   }
 
-  @Test def testNDArrayContract() {
+  @Test def testNDArrayAgg() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val three = makeNDArrayRef(NDArrayAgg(scalarRowMajor, IndexedSeq.empty), IndexedSeq.empty)
