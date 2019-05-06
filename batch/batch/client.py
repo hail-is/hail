@@ -189,12 +189,6 @@ class BatchClient:
     def _get_job_log(self, id):
         return self.api.get_job_log(self.url, id)
 
-    def _delete_job(self, id):
-        self.api.delete_job(self.url, id)
-
-    def _cancel_job(self, id):
-        self.api.cancel_job(self.url, id)
-
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
 

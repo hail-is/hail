@@ -161,15 +161,6 @@ class Test(unittest.TestCase):
             else:
                 raise
 
-    def test_api_cancel_nonexistent_job(self):
-        try:
-            self.batch._cancel_job(666)
-        except requests.HTTPError as e:
-            if e.response.status_code == 404:
-                pass
-            else:
-                raise
-
     def test_get_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['true'])
