@@ -36,16 +36,16 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("counter")
+    registerSeeded("counter_seeded", TInt32()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Long]("seed")
+    registerSeeded("seed_seeded", TInt64()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("partitionIndex")
+    registerSeeded("pi_seeded", TInt32()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
 }
