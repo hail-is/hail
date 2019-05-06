@@ -313,7 +313,7 @@ def test_input_dependency(client, test_user):
                             input_files=[(f'gs://{test_user["bucket_name"]}/data\\*', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
-    assert head.status()['exit_code'] == 0, str(head.cached_status()) + "\n" + head.log()
+    assert head.status()['exit_code'] == 0, str(head.cached_status()) + "\n" + str(head.log())
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
