@@ -3083,6 +3083,14 @@ class NDArrayExpression(Expression):
         """
         return self._type.ndim
 
+    @property
+    def T(self):
+        if self.ndim < 2:
+            return self
+
+        ordered_dims = list(reversed(range(self.ndim)))
+        return type(self)(NDArrayReindex(self._ir, ordered_dims), self._type)
+
     @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
@@ -3136,13 +3144,8 @@ class NDArrayExpression(Expression):
         new_dims = range(self.ndim, n_output_dims)
         idx_mapping = list(reversed(new_dims)) + list(old_dims)
 
-        ir = NDArrayReindex(self._ir, idx_mapping)
-        expr_type = tndarray(self._type.element_type, n_output_dims)
-
-        if is_numeric(self._type.element_type):
-            return NDArrayNumericExpression(ir, expr_type)
-
-        return NDArrayExpression(ir, expr_type)
+        return type(self)(NDArrayReindex(self._ir, idx_mapping),
+                          tndarray(self._type.element_type, n_output_dims))
 
 
 class NDArrayNumericExpression(NDArrayExpression):

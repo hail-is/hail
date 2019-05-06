@@ -2796,3 +2796,15 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(m.sum(axis=0), np_m.sum(axis=0))
         self.ndarray_eq(m.sum(axis=1), np_m.sum(axis=1))
         self.ndarray_eq(m.sum(), np_m.sum())
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_transpose(self):
+        np_v = np.array([1, 2, 3])
+        np_m = np.array([[1, 2, 3], [4, 5, 6]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+
+        self.ndarray_eq(v.T, np_v.T)
+        self.ndarray_eq(v.T, np_v)
+        self.ndarray_eq(m.T, np_m.T)
