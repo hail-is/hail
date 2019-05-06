@@ -170,7 +170,7 @@ REGIONMETHOD(jlong, Region, nativeAllocate)(
   return reinterpret_cast<jlong>(r->region_->allocate((size_t)n));
 }
 
-REGIONMETHOD(void, Region, nativeAddReferenceTo)(
+REGIONMETHOD(void, Region, nativeReference)(
   JNIEnv* env,
   jobject thisJ,
   jobject otherJ
@@ -180,13 +180,12 @@ REGIONMETHOD(void, Region, nativeAddReferenceTo)(
   r->region_->add_reference_to(r2->region_);
 }
 
-REGIONMETHOD(void, Region, nativeGetNewRegion)(
+REGIONMETHOD(void, Region, nativeRefreshRegion)(
   JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  auto r2 = r->region_->get_region();
-  r->region_ = std::move(r2);
+  r->region_ = r->region_->get_region();
 }
 
 }

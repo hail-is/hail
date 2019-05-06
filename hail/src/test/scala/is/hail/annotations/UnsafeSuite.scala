@@ -345,7 +345,7 @@ class UnsafeSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testRegionsAllocation() {
+  @Test def testRegionAllocation() {
     val pool = RegionPool.get
 
     case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
@@ -356,7 +356,7 @@ class UnsafeSuite extends SparkSuite {
 
       def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
         if (freeRegions == 0)
-          Counts(regions + 1, freeRegions + nDependentRegions + 1, freeBlocks - nBlocks)
+          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks)
         else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
     }
     def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
