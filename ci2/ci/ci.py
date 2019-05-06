@@ -81,7 +81,7 @@ async def get_pr(request):
         raise web.HTTPNotFound()
     wb = watched_branches[watched_branch_index]
 
-    if wb.prs or pr_number not in wb.prs:
+    if not wb.prs or pr_number not in wb.prs:
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
 
