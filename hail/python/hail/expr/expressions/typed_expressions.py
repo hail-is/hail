@@ -1126,8 +1126,8 @@ class SetStructExpression(SetExpression):
     Nested collections that contain structs are also
     :class:`.SetStructExpressions`s
 
-    >>> people = hl.set([hl.set([hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)],
-    ...                         [hl.struct(name='Charlie', age=34)])])
+    >>> people = hl.set([hl.set([hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)]),
+    ...                  hl.set([hl.struct(name='Charlie', age=34)])])
 
     See Also
     --------
@@ -3583,7 +3583,7 @@ def construct_expr(ir: IR,
             return ArrayStructExpression(ir, type, indices, aggregations)
         else:
             return typ_to_expr[type.__class__](ir, type, indices, aggregations)
-    elif isinstance(type, tset) and isinstance(type.element_type, tstruct):
+    elif isinstance(type, tset):
         etype = type.element_type
         if isinstance(etype, (hl.tarray, hl.tset)):
             while isinstance(etype, (hl.tarray, hl.tset)):
