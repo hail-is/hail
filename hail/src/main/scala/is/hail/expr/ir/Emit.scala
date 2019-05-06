@@ -646,18 +646,18 @@ private class Emit(
         val marray = processAElts.m.getOrElse(const(false))
 
         EmitTriplet(Code(
+          codeZ.setup,
+          xmaccum := codeZ.m,
+          xvaccum := xmaccum.mux(defaultValue(typ), codeZ.v),
           processAElts.setup,
           marray.mux(
             Code(
               xmaccum := true,
               xvaccum := defaultValue(typ)),
             Code(
-              codeZ.setup,
-              xmaccum := codeZ.m,
-              xvaccum := xmaccum.mux(defaultValue(typ), codeZ.v),
               aBase.calcLength,
-              processAElts.addElements))
-        ), xmaccum, xvaccum)
+              processAElts.addElements))),
+          xmaccum, xvaccum)
 
       case ArrayFor(a, valueName, body) =>
         val tarray = coerce[TStreamable](a.typ)
@@ -983,7 +983,7 @@ private class Emit(
                       def estimatedSize: Int = vir.size * opSize
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-                        addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env, er))
+                        addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env, EmitRegion.default(mbLike.mb)))
                     }
                   case None =>
                     val oldField = oldtype.field(f.name)
@@ -994,8 +994,7 @@ private class Emit(
                         Code(
                           oldtype.isFieldMissing(region, xo, oldField.index).mux(
                             srvb.setMissing(),
-                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))
-                          ),
+                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
                           srvb.advance())
                     }
                 }

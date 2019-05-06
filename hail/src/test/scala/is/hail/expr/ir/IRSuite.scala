@@ -16,7 +16,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
-import is.hail.utils._
+import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call, Call2, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
@@ -1982,5 +1982,13 @@ class IRSuite extends SparkSuite {
       case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
       case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
     }
+  }
+
+  @Test def testFoldWithSetup() {
+    val v = In(0, TInt32())
+    val cond1 = If(v.ceq(I32(3)),
+      MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3)), TArray(TInt32())),
+      MakeArray(FastIndexedSeq(I32(4), I32(5), I32(6)), TArray(TInt32())))
+    assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
   }
 }
