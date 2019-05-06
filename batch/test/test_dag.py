@@ -303,17 +303,6 @@ def test_no_parents_allowed_in_other_batches(client):
     assert False
 
 
-def test_no_parents_allowed_without_batches(client):
-    head = client.create_job('alpine:3.8', command=['echo', 'head'])
-    try:
-        client.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid parent batch: .*', err.response.text)
-        return
-    assert False
-
-
 def test_input_dependency(client, test_user):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
@@ -324,7 +313,7 @@ def test_input_dependency(client, test_user):
                             input_files=[(f'gs://{test_user["bucket_name"]}/data\\*', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
-    assert head.status()['exit_code'] == 0, head.cached_status()
+    assert head.status()['exit_code'] == 0, head.cached_status() + "\n" + head.log()
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
@@ -338,7 +327,7 @@ def test_input_dependency_directory(client, test_user):
                             input_files=[(f'gs://{test_user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
-    assert tail.log()['main'] == 'head1\nhead2\n'
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
 
 
 def test_always_run_delete(client):

@@ -6,7 +6,7 @@ from batch.database import Database, run_synchronous
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.db = Database.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH'))
+        self.db = Database.create_synchronous('/batch-user-secret/sql-config.json')
 
     def temp_table(self):
         schema = {'id': 'INT',
