@@ -1,10 +1,17 @@
-import os
-import time
-import re
-import unittest
+
+import collections
 import batch
+import json
+import os
+import pkg_resources
+import re
+import secrets
+import time
+import unittest
 from flask import Flask, Response, request
 import requests
+
+import hailjwt as hj
 
 from .serverthread import ServerThread
 
@@ -14,13 +21,13 @@ class Test(unittest.TestCase):
         self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
 
     def test_job(self):
-        j = self.batch.create_job('alpine', ['echo', 'test'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['echo', 'test'])
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 0)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
@@ -50,30 +57,99 @@ class Test(unittest.TestCase):
             'name': 'test_attributes',
             'foo': 'bar'
         }
-        j = self.batch.create_job('alpine', ['true'], attributes=a)
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['true'], attributes=a)
         status = j.status()
         assert(status['attributes'] == a)
 
-    def test_scratch_folder(self):
-        sb = 'gs://test-bucket/folder'
-        j = self.batch.create_job('alpine', ['true'], scratch_folder=sb)
-        status = j.status()
-        assert(status['scratch_folder'] == sb)
+    def test_list_jobs(self):
+        tag = secrets.token_urlsafe(64)
+        b = self.batch.create_batch()
+        j1 = b.create_job('alpine', ['sleep', '30'], attributes={'tag': tag, 'name': 'j1'})
+        j2 = b.create_job('alpine', ['echo', 'test'], attributes={'tag': tag, 'name': 'j2'})
+
+        def assert_job_ids(expected, complete=None, success=None, attributes=None):
+            jobs = self.batch.list_jobs(complete=complete, success=success, attributes=attributes)
+            actual = set([job.id for job in jobs])
+            self.assertEqual(actual, expected)
+
+        assert_job_ids({j1.id, j2.id}, attributes={'tag': tag})
+
+        j2.wait()
+
+        assert_job_ids({j1.id}, complete=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, complete=True, attributes={'tag': tag})
+
+        assert_job_ids({j1.id}, success=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, success=True, attributes={'tag': tag})
+
+        j1.cancel()
+
+        assert_job_ids({j1.id}, success=False, attributes={'tag': tag})
+        assert_job_ids({j2.id}, success=True, attributes={'tag': tag})
+
+        assert_job_ids(set(), complete=False, attributes={'tag': tag})
+        assert_job_ids({j1.id, j2.id}, complete=True, attributes={'tag': tag})
+
+        assert_job_ids({j2.id}, attributes={'tag': tag, 'name': 'j2'})
+
+    def test_list_batches(self):
+        tag = secrets.token_urlsafe(64)
+        b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
+        b1.create_job('alpine', ['sleep', '30'])
+
+        b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
+        b2.create_job('alpine', ['echo', 'test'])
+
+        def assert_batch_ids(expected, complete=None, success=None, attributes=None):
+            batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
+            actual = set([batch.id for batch in batches])
+            self.assertEqual(actual, expected)
+
+        assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
+
+        b2.wait()
+
+        assert_batch_ids({b1.id}, complete=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, complete=True, attributes={'tag': tag})
+
+        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+
+        b1.cancel()
+
+        assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
+        assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
+
+        assert_batch_ids(set(), complete=False, attributes={'tag': tag})
+        assert_batch_ids({b1.id, b2.id}, complete=True, attributes={'tag': tag})
+
+        assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
     def test_fail(self):
-        j = self.batch.create_job('alpine', ['false'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['false'])
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
 
     def test_deleted_job_log(self):
-        j = self.batch.create_job('alpine', ['echo', 'test'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['echo', 'test'])
         id = j.id
         j.wait()
         j.delete()
-        self.assertEqual(self.batch._get_job_log(id), {'main': 'test\n'})
+
+        try:
+            self.batch._get_job_log(id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                self.assertTrue(False, f"batch should not have deleted log {e}")
 
     def test_delete_job(self):
-        j = self.batch.create_job('alpine', ['sleep', '30'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['sleep', '30'])
         id = j.id
         j.delete()
 
@@ -87,9 +163,10 @@ class Test(unittest.TestCase):
                 raise
 
     def test_cancel_job(self):
-        j = self.batch.create_job('alpine', ['sleep', '30'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['sleep', '30'])
         status = j.status()
-        self.assertTrue(status['state'], 'Created')
+        self.assertTrue(status['state'], 'Ready')
 
         j.cancel()
 
@@ -125,7 +202,8 @@ class Test(unittest.TestCase):
                 raise
 
     def test_get_job(self):
-        j = self.batch.create_job('alpine', ['true'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['true'])
         j2 = self.batch.get_job(j.id)
         status2 = j2.status()
         assert(status2['id'] == j.id)
@@ -141,19 +219,18 @@ class Test(unittest.TestCase):
         self.assertTrue(
             set([j.id for j in jobs]).issuperset([j1.id, j2.id, j3.id]))
 
-        # test refresh_k8s_state
-        self.batch._refresh_k8s_state()
-
         j2.wait()
         j3.cancel()
         bstatus = b.wait()
 
-        n_cancelled = bstatus['jobs']['Cancelled']
-        n_complete = bstatus['jobs']['Complete']
+        assert(len(bstatus['jobs']) == 3)
+        state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
+        n_cancelled = state_count['Cancelled']
+        n_complete = state_count['Complete']
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
-        n_failed = sum([ec > 0 for _, ec in bstatus['exit_codes'].items() if ec is not None])
+        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
         self.assertTrue(n_failed == 1)
 
     def test_callback(self):
@@ -169,14 +246,15 @@ class Test(unittest.TestCase):
         server = ServerThread(app)
         try:
             server.start()
-
-            j = self.batch.create_job(
+            b = self.batch.create_batch()
+            j = b.create_job(
                 'alpine',
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
             j.wait()
 
+            batch.poll_until(lambda: 'status' in d)
             status = d['status']
             self.assertEqual(status['state'], 'Complete')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
@@ -185,13 +263,47 @@ class Test(unittest.TestCase):
             server.join()
 
     def test_log_after_failing_job(self):
-        j = self.batch.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 127)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
+
+    def test_authorized_users_only(self):
+        endpoints = [
+            (requests.post, '/jobs/create'),
+            (requests.get, '/jobs'),
+            (requests.get, '/jobs/0'),
+            (requests.get, '/jobs/0/log'),
+            (requests.delete, '/jobs/0'),
+            (requests.patch, '/jobs/0/cancel'),
+            (requests.post, '/batches/create'),
+            (requests.get, '/batches/0'),
+            (requests.delete, '/batches/0'),
+            (requests.patch, '/batches/0/close')]
+        for f, url in endpoints:
+            r = f(os.environ.get('BATCH_URL')+url)
+            assert r.status_code == 401, r
+
+    def test_bad_jwt_key(self):
+        fname = pkg_resources.resource_filename(
+            __name__,
+            'jwt-test-user.json')
+        with open(fname) as f:
+            userdata = json.loads(f.read())
+        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata).decode('ascii')
+        bc = batch.client.BatchClient(url=os.environ.get('BATCH_URL'), token=token)
+        try:
+            b = bc.create_batch()
+            j = b.create_job('alpine', ['false'])
+            assert False, j
+        except requests.HTTPError as e:
+            if e.response.status_code == 401:
+                pass
+            else:
+                assert False, e

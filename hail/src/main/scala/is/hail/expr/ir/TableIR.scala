@@ -210,7 +210,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val Row(rows: IndexedSeq[Row], globals: Row) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    val (Row(rows: IndexedSeq[Row], globals: Row), _) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
@@ -662,11 +662,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val first = children.head
   private val rest = children.tail
 
-  require(
-    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
-    "all keys must be the same type"
-  )
   require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
@@ -674,7 +671,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
   private val newRowType = first.typ.keyType ++ newValueType
 
-  def typ: TableType = first.typ.copy(
+  lazy val typ: TableType = first.typ.copy(
     rowType = newRowType,
     globalType = newGlobalType
   )
@@ -686,7 +683,21 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val childValues = children.map(_.execute(hc))
     assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
 
-    val rvdType = childValues(0).rvd.typ
+
+    val childRVDs = childValues.map(_.rvd)
+    val repartitionedRVDs =
+      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
+        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
+        childRVDs.map(_.truncateKey(typ.key.length))
+      else {
+        info("TableMultiWayZipJoin: repartitioning children")
+        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+        childRVDs.map(_.repartition(newPartitioner))
+      }
+    val newPartitioner = repartitionedRVDs(0).partitioner
+
+    val rvdType = repartitionedRVDs(0).typ
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
@@ -722,21 +733,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       }
     }
 
-    val childRVDs = childValues.map(_.rvd)
-    val repartitionedRVDs =
-      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
-        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
-        childRVDs
-      else {
-        info("TableMultiWayZipJoin: repartitioning children")
-        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
-        childRVDs.map(_.repartition(newPartitioner))
-      }
-    val newPartitioner = repartitionedRVDs(0).partitioner
-    val newRVDType = RVDType(localNewRowType, localRVDType.key)
     val rvd = RVD(
-      typ = newRVDType,
+      typ = RVDType(localNewRowType, typ.key),
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.boundary)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
@@ -947,7 +945,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val newGlobalValue = CompileAndEvaluate[Row](newGlobals,
+    val (newGlobalValue, _) = CompileAndEvaluate[Row](newGlobals,
       Env("global" -> (tv.globals.value, tv.globals.t)),
       FastIndexedSeq(),
       optimize = false)
@@ -1087,13 +1085,6 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.entriesTableType
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    val mv = child.execute(hc)
-    val etv = mv.entriesTableValue
-    assert(etv.typ == typ)
-    etv
-  }
 }
 
 case class TableDistinct(child: TableIR) extends TableIR {
@@ -1466,7 +1457,7 @@ case class CastMatrixToTable(
   colsFieldName: String
 ) extends TableIR {
 
-  def typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
+  lazy val typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
 
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType
     .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)))
@@ -1481,13 +1472,7 @@ case class CastMatrixToTable(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val prev = child.execute(hc)
-    val newGlobals = BroadcastRow(
-      Row.merge(prev.globals.safeValue, Row(prev.colValues.safeValue)),
-      typ.globalType,
-      hc.sc)
-
-    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType.physicalType))
+    child.execute(hc).toTableValue(colsFieldName, entriesFieldName)
   }
 }
 
@@ -1499,7 +1484,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   def globalF(old: String): String = globalMap.getOrElse(old, old)
 
-  def typ: TableType = child.typ.copy(
+  lazy val typ: TableType = child.typ.copy(
     rowType = child.typ.rowType.rename(rowMap),
     globalType = child.typ.globalType.rename(globalMap),
     key = child.typ.key.map(k => rowMap.getOrElse(k, k))

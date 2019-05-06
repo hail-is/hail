@@ -399,6 +399,10 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     >>> ds = ds.annotate_rows(info = ds.info.annotate(AC=ds.variant_qc.AC)) # doctest: +SKIP
     >>> hl.export_vcf(ds, 'output/example.vcf.bgz')
 
+    Warning
+    -------
+    Do not export to a path that is being read from in the same pipeline.
+
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
@@ -565,8 +569,9 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
 
 @typecheck(path=str,
            reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool)
-def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -> Table:
+           skip_invalid_intervals=bool,
+           kwargs=anytype)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False, **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -638,6 +643,10 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     skip_invalid_intervals : :obj:`bool`
         If ``True`` and `reference_genome` is not ``None``, skip lines with
         intervals that are not consistent with the reference genome.
+    **kwargs :
+        Additional optional arguments to :func:`import_table` are valid arguments here except:
+        `no_header`, `delimiter`, `impute`, `skip_blank_lines`, `types`, and `comment` as these
+        are used by import_bed.
 
     Returns
     -------
@@ -652,7 +661,8 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
                                                    'f2': tint32, 'f3': tstr,
                                                    'f4': tstr},
                      comment=["""^browser.*""", """^track.*""",
-                              r"""^\w+=("[\w\d ]+"|\d+).*"""])
+                              r"""^\w+=("[\w\d ]+"|\d+).*"""],
+                     **kwargs)
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
@@ -1942,7 +1952,9 @@ def import_vcf(path,
            array_elements_required=bool,
            skip_invalid_loci=bool,
            filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)))
+           find_replace=nullable(sized_tupleof(str, str)),
+           _external_sample_ids=nullable(sequenceof(sequenceof(str))),
+           _external_header=nullable(str))
 def import_vcfs(path,
                 partitions,
                 force=False,
@@ -1954,7 +1966,9 @@ def import_vcfs(path,
                 array_elements_required=True,
                 skip_invalid_loci=False,
                 filter=None,
-                find_replace=None) -> List[MatrixTable]:
+                find_replace=None,
+                _external_sample_ids=None,
+                _external_header=None) -> List[MatrixTable]:
     """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
     The arguments to this function are almost identical to :func:`.import_vcf`,
@@ -2011,7 +2025,9 @@ def import_vcfs(path,
         partitions,
         filter,
         find_replace[0] if find_replace is not None else None,
-        find_replace[1] if find_replace is not None else None)
+        find_replace[1] if find_replace is not None else None,
+        _external_sample_ids,
+        _external_header)
     tmp = json.loads(vector_ref_s)
     jir_vref = JIRVectorReference(tmp['vector_ir_id'],
                                   tmp['length'],
@@ -2110,5 +2126,5 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
 
-    jdf = t.expand_types().to_spark()._jdf
+    jdf = t.expand_types().to_spark(flatten=False)._jdf
     Env.hail().io.ElasticsearchConnector.export(jdf, host, port, index, index_type, block_size, config, verbose)

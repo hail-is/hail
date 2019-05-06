@@ -8,6 +8,12 @@ import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
+
+  def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
+    val s = Pretty(ir)
+    if (s.length < maxLen) s else s.substring(0, maxLen)
+  }
+
   def prettyStringLiteral(s: String): String =
     "\"" + StringEscapeUtils.escapeString(s) + "\""
 
@@ -147,6 +153,7 @@ object Pretty {
             case F64(x) => x.toString
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
+            case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
             case Literal(typ, value) =>
               s"${ typ.parsableString() } " + (
@@ -164,6 +171,7 @@ object Pretty {
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
             case MakeArray(_, typ) => typ.parsableString()
+            case MakeStream(_, typ) => typ.parsableString()
             case ArrayMap(_, name, _) => prettyIdentifier(name)
             case ArrayFilter(_, name, _) => prettyIdentifier(name)
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
@@ -172,10 +180,16 @@ object Pretty {
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
+            case ArrayAggScan(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
-            case AggArrayPerElement(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
+            case AggArrayPerElement(_, elementName, indexName, _, isScan) =>
+              prettyIdentifier(elementName) + " " + prettyIdentifier(indexName) + " " + prettyBooleanLiteral(isScan)
+            case MakeNDArray(nDim, _, _, _) => nDim.toString
+            case NDArrayMap(_, name, _) => prettyIdentifier(name)
+            case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
+            case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
@@ -200,6 +214,8 @@ object Pretty {
             case BlockMatrixRead(reader) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
             case BlockMatrixWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
+            case BlockMatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
             case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
               prettyInts(inIndexExpr) + " " +
@@ -233,20 +249,8 @@ object Pretty {
               (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
                 '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
-            case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
-              prettyStringLiteral(path) + " " +
-                prettyBooleanLiteral(overwrite) + " " +
-                prettyBooleanLiteral(stageLocally) + " " +
-                (if (codecSpecJSONStr == null)
-                  "None"
-                else
-                  prettyStringLiteral(codecSpecJSONStr))
-            case TableExport(_, path, typesFile, header, exportType, delimiter) =>
-              prettyStringLiteral(path) + " " +
-                (if (typesFile == null) "None" else prettyStringLiteral(typesFile)) + " " +
-                prettyBooleanLiteral(header) + " " +
-                exportType.toString + " " +
-                prettyStringLiteral(delimiter)
+            case TableWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"'
             case TableKeyBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)

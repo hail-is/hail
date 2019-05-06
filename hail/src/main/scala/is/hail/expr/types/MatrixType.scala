@@ -35,6 +35,29 @@ object MatrixType {
   ): MatrixType = {
     MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
   }
+
+  def fromTableType(
+    typ: TableType,
+    colsFieldName: String,
+    entriesFieldName: String,
+    colKey: IndexedSeq[String]
+  ): MatrixType = {
+
+    val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
+      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+    }
+    val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+
+    val newRowType = typ.rowType.rename(m)
+
+    MatrixType(
+      typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+      colKey,
+      colType,
+      typ.key,
+      newRowType)
+  }
 }
 
 case class MatrixType(
@@ -49,12 +72,12 @@ case class MatrixType(
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
 
-  val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
-  val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
-  val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
-  val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
+  lazy val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
+  lazy val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
+  lazy val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
+  lazy val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
-  val entriesRVType: TStruct = TStruct(
+  lazy val entriesRVType: TStruct = TStruct(
     MatrixType.entriesIdentifier -> TArray(entryType))
 
   assert({
@@ -62,28 +85,28 @@ case class MatrixType(
     rowKey.forall(rowFields.contains)
   }, s"$rowKey: $rowType")
 
-  val (rowKeyStruct, _) = rowType.select(rowKey)
+  lazy val (rowKeyStruct, _) = rowType.select(rowKey)
   def extractRowKey: Row => Row = rowType.select(rowKey)._2
-  val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
-  val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
+  lazy val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
+  lazy val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
   def extractRowValue: Annotation => Annotation = rowType.filterSet(rowKey.toSet, include = false)._2
-  val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
+  lazy val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
 
-  val (colKeyStruct, _) = colType.select(colKey)
+  lazy val (colKeyStruct, _) = colType.select(colKey)
   def extractColKey: Row => Row = colType.select(colKey)._2
-  val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
-  val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
+  lazy val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
+  lazy val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
   def extractColValue: Annotation => Annotation = colType.filterSet(colKey.toSet, include = false)._2
-  val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
+  lazy val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
-  val colsTableType: TableType =
+  lazy val colsTableType: TableType =
     TableType(colType, colKey, globalType)
 
-  val rowsTableType: TableType =
+  lazy val rowsTableType: TableType =
     TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
-    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
+    val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ.setRequired(false)): _*)
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 

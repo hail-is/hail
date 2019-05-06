@@ -1,4 +1,2 @@
-/Dockerfile
 /deployment.yaml
-/hail.nginx.conf
 /service.yaml

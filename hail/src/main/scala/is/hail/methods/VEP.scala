@@ -83,7 +83,7 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
@@ -101,8 +101,8 @@ object VEP {
 }
 
 case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
-  private val vepSignature = conf.vep_json_schema
+  private lazy val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
+  private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
 

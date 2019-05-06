@@ -327,9 +327,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
-  def annotateGlobal(a: Annotation, t: String, name: String): Table =
-    annotateGlobal(a, IRParser.parseType(t), name)
-
   def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
 
@@ -347,7 +344,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableMapRows(tir, newRow))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
-    ir.Interpret(ir.TableExport(tir, path, typesFile, header, exportType, delimiter))
+    ir.Interpret(ir.TableWrite(tir, ir.TableTextWriter(path, typesFile, header, exportType, delimiter)))
   }
 
   def distinctByKey(): Table = {
@@ -371,23 +368,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def collect(): Array[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.TableWrite(tir, path, overwrite, stageLocally, codecSpecJSONStr))
+    ir.Interpret(ir.TableWrite(tir, TableNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
   }
-
-  def cache(): Table = persist("MEMORY_ONLY")
-
-  def persist(storageLevel: String): Table = {
-    val level = try {
-      StorageLevel.fromString(storageLevel)
-    } catch {
-      case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
-    }
-
-    copy2(rvd = rvd.persist(level))
-  }
-
-  def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,

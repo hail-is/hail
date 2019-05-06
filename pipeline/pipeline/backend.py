@@ -55,11 +55,15 @@ class LocalBackend(Backend):
                 if isinstance(r, InputResourceFile):
                     if r not in copied_input_resource_files:
                         copied_input_resource_files.add(r)
-                        absolute_input_path = os.path.realpath(r._input_path)
-                        if task._image is not None:  # pylint: disable-msg=W0640
-                            return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+
+                        if r._input_path.startswith('gs://'):
+                            return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
                         else:
-                            return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
+                            absolute_input_path = escape_string(os.path.realpath(r._input_path))
+                            if task._image is not None:  # pylint: disable-msg=W0640
+                                return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+                            else:
+                                return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
                     else:
                         return []
                 elif isinstance(r, ResourceGroup):
@@ -91,17 +95,22 @@ class LocalBackend(Backend):
                 script += task._command + ['\n']
 
         def write_pipeline_outputs(r, dest):
-            dest = os.path.abspath(dest)
-            directory = os.path.dirname(dest)
-            os.makedirs(directory, exist_ok=True)
+            if not dest.startswith('gs://'):
+                dest = os.path.abspath(dest)
+                directory = os.path.dirname(dest)
+                os.makedirs(directory, exist_ok=True)
+                cp = 'cp'
+            else:
+                cp = 'gsutil cp'
 
             if isinstance(r, InputResourceFile):
-                return [f'cp {r._input_path} {dest}']
+                return [f'{cp} {escape_string(r._input_path)} {escape_string(dest)}']
             elif isinstance(r, TaskResourceFile):
-                return [f'cp {r._get_path(tmpdir)} {dest}']
+                return [f'{cp} {r._get_path(tmpdir)} {escape_string(dest)}']
             else:
                 assert isinstance(r, ResourceGroup)
-                return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
+                return [x for ext, rf in r._resources.items()
+                        for x in write_pipeline_outputs(rf, dest + '.' + ext)]
 
         outputs = [x for _, r in pipeline._resource_map.items()
                    for dest in r._output_paths
@@ -121,7 +130,7 @@ class LocalBackend(Backend):
                 raise e
             finally:
                 if delete_scratch_on_exit:
-                    sp.run(f'rm -r {tmpdir}', shell=True)
+                    sp.run(f'rm -rf {tmpdir}', shell=True)
 
     def _get_scratch_dir(self):
         def _get_random_name():
@@ -188,7 +197,7 @@ class BatchBackend(Backend):
             def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {r._get_path(local_tmpdir)}']
+                        return [f'gsutil cp {escape_string(r._input_path)} {r._get_path(local_tmpdir)}']
                     else:
                         assert isinstance(r, TaskResourceFile)
                         return [f'gsutil cp {r._get_path(remote_tmpdir)} {r._get_path(local_tmpdir)}']
@@ -253,11 +262,11 @@ class BatchBackend(Backend):
         def write_pipeline_outputs(r, dest):
             if isinstance(r, InputResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._input_path} {dest}'
+                              f'gsutil cp {escape_string(r._input_path)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             elif isinstance(r, TaskResourceFile):
                 copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._get_path(remote_tmpdir)} {dest}'
+                              f'gsutil cp {r._get_path(remote_tmpdir)} {escape_string(dest)}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             else:
                 assert isinstance(r, ResourceGroup)
@@ -278,29 +287,36 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {write_cmd}")
 
+        if delete_scratch_on_exit:
+            parent_ids = list(job_id_to_command.keys())
+            rm_cmd = f'gsutil rm -r {remote_tmpdir}'
+            cmd = f'{activate_service_account} && {rm_cmd}'
+            j = batch.create_job(
+                image='google/cloud-sdk:alpine',
+                command=['/bin/bash', '-c', cmd],
+                parent_ids=parent_ids,
+                volumes=volumes,
+                attributes={'label': 'remove_tmpdir'},
+                always_run=True)
+            job_id_to_command[j.id] = cmd
+
         status = batch.wait()
 
-        if delete_scratch_on_exit:
-            rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            j = self._batch_client.create_job(image='google/cloud-sdk:alpine',
-                                              command=['/bin/bash', '-c', activate_service_account + '&&' + rm_cmd],
-                                              volumes=volumes,
-                                              attributes={'label': 'remove_tmpdir'})
-
-        failed_jobs = [(int(jid), ec) for jid, ec in status['exit_codes'].items() if ec is not None and ec > 0]
+        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            jstatus = self._batch_client.get_job(jid).status()
-            log = jstatus['log']
-            label = jstatus['attributes'].get('label', None)
+            job = self._batch_client.get_job(jid)
+            log = job.log()
+            label = job.status()['attributes'].get('label', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
+        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
+        if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
         print("Pipeline completed successfully!")

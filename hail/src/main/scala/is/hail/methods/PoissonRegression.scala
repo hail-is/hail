@@ -15,8 +15,8 @@ case class PoissonRegression(
   test: String,
   yField: String,
   xField: String,
-  covFields: Array[String],
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  covFields: Seq[String],
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val poisRegTest = PoissonRegressionTest.tests(test)
@@ -31,7 +31,7 @@ case class PoissonRegression(
     val poisRegTest = PoissonRegressionTest.tests(test)
     val (tableType, newRVDType) = typeInfo(mv.typ, mv.rvd.typ)
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields.toArray)
 
     if (!y.forall(yi => math.floor(yi) == yi && yi >= 0))
       fatal(s"For poisson regression, y must be numeric with all values non-negative integers")

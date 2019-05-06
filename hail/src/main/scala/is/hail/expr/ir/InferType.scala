@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.Nat
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -16,14 +17,18 @@ object InferType {
       case True() | False() => TBoolean()
       case Void() => TVoid
       case Cast(_, t) => t
+      case CastRename(_, t) => t
       case NA(t) => t
       case IsNA(_) => TBoolean()
+      case Coalesce(values) => values.head.typ
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
-      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TArray].elementType)
+      case MakeStream(_, t) => t
+      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, Nat(nDim))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
+      case _: StreamRange => TStream(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
       case _: ArrayFor => TVoid
       case _: InitOp => TVoid
@@ -59,10 +64,10 @@ object InferType {
       case _: Uniroot => TFloat64()
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
-        coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
+        coerce[TStreamable](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
       case ArraySort(a, _, _, compare) =>
         assert(compare.typ.isOfType(TBoolean()))
-        val et = coerce[TArray](a.typ).elementType
+        val et = coerce[TStreamable](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>
         val et = coerce[TIterable](a.typ).elementType
@@ -77,36 +82,44 @@ object InferType {
         val elt = coerce[TIterable](a.typ).elementType
         TStream(elt, a.typ.required)
       case GroupByKey(collection) =>
-        val elt = coerce[TBaseStruct](coerce[TArray](collection.typ).elementType)
+        val elt = coerce[TBaseStruct](coerce[TStreamable](collection.typ).elementType)
         TDict(elt.types(0), TArray(elt.types(1)), collection.typ.required)
       case ArrayMap(a, name, body) =>
-        TArray(body.typ.setRequired(false), a.typ.required)
+        coerce[TStreamable](a.typ).copyStreamable(body.typ.setRequired(false))
       case ArrayFilter(a, name, cond) =>
-        TArray(coerce[TArray](a.typ).elementType, a.typ.required)
+        a.typ
       case ArrayFlatMap(a, name, body) =>
-        TArray(coerce[TContainer](body.typ).elementType, a.typ.required)
+        coerce[TStreamable](a.typ).copyStreamable(coerce[TIterable](body.typ).elementType)
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
-        TArray(zero.typ)
+        coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
+      case ArrayAggScan(_, _, query) =>
+        TArray(query.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
+      case NDArrayMap(nd, _, body) =>
+        TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
+      case NDArrayMap2(l, _, _, _, body) =>
+        TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
+      case NDArrayReindex(nd, indexExpr) =>
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
       case NDArrayRef(nd, idxs) =>
-        assert(idxs.typ.isOfType(TArray(TInt64())))
-        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
-          idxs.typ.required && 
-          coerce[TArray](idxs.typ).elementType.required)
+        assert(idxs.forall(_.typ.isOfType(TInt64())))
+        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
+      case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ
       case AggExplode(array, name, aggBody, _) =>
         aggBody.typ
       case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
-      case AggArrayPerElement(a, name, aggBody, _) => TArray(aggBody.typ)
+      case AggArrayPerElement(a, _, _, aggBody, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>
@@ -147,14 +160,14 @@ object InferType {
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixWrite => TVoid
-      case _: TableExport => TVoid
+      case _: BlockMatrixMultiWrite => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
-      case ReadPartition(_, _, _, rowType) => TArray(rowType)
+      case ReadPartition(_, _, _, rowType) => TStream(rowType)
     }
   }
 }

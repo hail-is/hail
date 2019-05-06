@@ -5,6 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -15,7 +16,7 @@ import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.{log, _}
-import is.hail.variant.MatrixTable
+import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -43,6 +44,10 @@ object HailContext {
   private val contextLock = new Object()
 
   private var theContext: HailContext = _
+
+  def isInitialized: Boolean = contextLock.synchronized {
+    theContext != null
+  }
 
   def get: HailContext = contextLock.synchronized {
     assert(TaskContext.get() == null, "HailContext not available on worker")
@@ -177,10 +182,11 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
 
-    if (get != null) {
-      val hc = get
+    if (theContext != null) {
+      val hc = theContext
       if (sc == null) {
         warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
           "has already been initialized. Different configuration settings will be ignored.")
@@ -201,7 +207,7 @@ object HailContext {
       hc
     } else {
       apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
-        tmpDir)
+        tmpDir, optimizerIterations)
     }
   }
 
@@ -214,7 +220,8 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -263,7 +270,7 @@ object HailContext {
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -281,10 +288,15 @@ object HailContext {
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
+    // needs to be after `theContext` is set, since this creates broadcasts
+    ReferenceGenome.addDefaultReferences()
+
     hc
   }
 
   def clear() {
+    ReferenceGenome.reset()
+    IRFunctionRegistry.clearUserFunctions()
     theContext = null
   }
 
@@ -376,7 +388,8 @@ class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
   val logFile: String,
   val tmpDir: String,
-  val branchingFactor: Int) {
+  val branchingFactor: Int,
+  val optimizerIterations: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
   val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
   val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
@@ -526,13 +539,11 @@ class HailContext private(val sc: SparkContext,
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    LoadVCF.parseHeaderMetadata(this, reader, file)
+    LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
   }
 
   def pyParseVCFMetadataJSON(file: String): String = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    val metadata = LoadVCF.parseHeaderMetadata(this, reader, file)
+    val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))
   }

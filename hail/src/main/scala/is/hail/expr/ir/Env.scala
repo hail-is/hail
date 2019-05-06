@@ -2,8 +2,11 @@ package is.hail.expr.ir
 
 object Env {
   type K = String
+
   def empty[V]: Env[V] = new Env()
+
   def apply[V](bindings: (String, V)*): Env[V] = fromSeq(bindings)
+
   def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
@@ -20,12 +23,10 @@ case class BindingEnv[V](
   def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty)
 
   def promoteAgg: BindingEnv[V] = {
-    assert(agg.isDefined)
     BindingEnv(agg.get)
   }
 
   def promoteScan: BindingEnv[V] = {
-    assert(scan.isDefined)
     BindingEnv(scan.get)
   }
 
@@ -55,10 +56,52 @@ case class BindingEnv[V](
 
   def pretty(valuePrinter: V => String = _.toString): String = {
     s"""BindingEnv:
-       |  Eval:${eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")}
-       |  Agg: ${agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}
-       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }"}.mkString("")).getOrElse("None")}""".stripMargin
+       |  Eval:${ eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("") }
+       |  Agg: ${ agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }
+       |  Scan: ${ scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }""".stripMargin
   }
+
+  def merge(newBindings: BindingEnv[V]): BindingEnv[V] = {
+    if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
+      throw new RuntimeException(s"found inconsistent agg or scan environments:" +
+        s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
+        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
+    if (allEmpty)
+      newBindings
+    else if (newBindings.allEmpty)
+      this
+    else {
+      copy(eval = eval.bindIterable(newBindings.eval.m),
+        agg = agg.map(a => a.bindIterable(newBindings.agg.get.m)),
+        scan = scan.map(a => a.bindIterable(newBindings.scan.get.m))
+      )
+    }
+  }
+
+  def subtract(newBindings: BindingEnv[_]): BindingEnv[V] = {
+    if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
+      throw new RuntimeException(s"found inconsistent agg or scan environments:" +
+        s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
+        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
+    if (allEmpty || newBindings.allEmpty)
+      this
+    else {
+      copy(eval = eval.delete(newBindings.eval.m.keys),
+        agg = agg.map(a => a.delete(newBindings.agg.get.m.keys)),
+        scan = scan.map(a => a.delete(newBindings.scan.get.m.keys))
+      )
+    }
+  }
+
+  def mapValues[T](f: V => T): BindingEnv[T] = {
+    copy[T](eval = eval.mapValues(f), agg = agg.map(_.mapValues(f)), scan = scan.map(_.mapValues(f)))
+  }
+
+  def mapValuesWithKey[T](f: (Env.K, V) => T): BindingEnv[T] = {
+    copy[T](eval = eval.mapValuesWithKey(f), agg = agg.map(_.mapValuesWithKey(f)), scan = scan.map(_.mapValuesWithKey(f)))
+  }
+
+  def dropBindings[T]: BindingEnv[T] = copy(eval = Env.empty, agg = agg.map(_ => Env.empty), scan = scan.map(_ => Env.empty))
 }
 
 class Env[V] private(val m: Map[Env.K, V]) {
@@ -75,6 +118,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
   def lookupOption(name: String): Option[V] = m.get(name)
 
   def delete(name: String): Env[V] = new Env(m - name)
+
+  def delete(names: Iterable[String]): Env[V] = new Env(m -- names)
 
   def lookup(r: Ref): V =
     lookup(r.name)
@@ -118,8 +163,9 @@ class Env[V] private(val m: Map[Env.K, V]) {
     (names, e)
   }
 
-  def mapValues[U](f: (V) => U): Env[U] =
-    new Env(m.mapValues(f))
+  def mapValues[U](f: (V) => U): Env[U] = new Env(m.mapValues(f))
 
-  override def toString: String = m.map { case (k,v) => s"$k -> $v" }.mkString("(", ",", ")")
+  def mapValuesWithKey[U](f: (Env.K, V) => U): Env[U] = new Env(m.map { case (k, v) => (k, f(k, v)) })
+
+  override def toString: String = m.map { case (k, v) => s"$k -> $v" }.mkString("(", ",", ")")
 }

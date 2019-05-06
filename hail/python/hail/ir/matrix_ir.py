@@ -1,17 +1,14 @@
-import json
 import hail as hl
 from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
 
+
 class MatrixAggregateRowsByKey(MatrixIR):
     def __init__(self, child, entry_expr, row_expr):
-        super().__init__()
+        super().__init__(child, entry_expr, row_expr)
         self.child = child
         self.entry_expr = entry_expr
         self.row_expr = row_expr
-
-    def render(self, r):
-        return f'(MatrixAggregateRowsByKey {r(self.child)} {r(self.entry_expr)} {r(self.row_expr)})'
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -33,8 +30,11 @@ class MatrixRead(MatrixIR):
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
 
-    def render(self, r):
-        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{r(self.reader)}")'
+    def render_head(self, r):
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{self.reader.render(r)}"'
+
+    def _eq(self, other):
+        return self.reader == other.reader and self.drop_cols == other.drop_cols and self.drop_rows == other.drop_rows
 
     def _compute_type(self):
         self._type = Env.backend().matrix_type(self)
@@ -42,41 +42,43 @@ class MatrixRead(MatrixIR):
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
-        super().__init__()
+        super().__init__(child, pred)
         self.child = child
         self.pred = pred
-
-    def render(self, r):
-        return '(MatrixFilterRows {} {})'.format(r(self.child), r(self.pred))
 
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
 
+
 class MatrixChooseCols(MatrixIR):
     def __init__(self, child, old_indices):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.old_indices = old_indices
 
-    def render(self, r):
-        return '(MatrixChooseCols ({}) {})'.format(
-            ' '.join([str(i) for i in self.old_indices]), r(self.child))
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.old_indices])})'
+
+    def _eq(self, other):
+        return self.old_indices == other.old_indices
 
     def _compute_type(self):
         self._type = self.child.typ
 
+
 class MatrixMapCols(MatrixIR):
     def __init__(self, child, new_col, new_key):
-        super().__init__()
+        super().__init__(child, new_col)
         self.child = child
         self.new_col = new_col
         self.new_key = new_key
 
-    def render(self, r):
-        return '(MatrixMapCols {} {} {})'.format(
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
-            r(self.child), r(self.new_col))
+    def head_str(self):
+        return '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None'
+
+    def _eq(self, other):
+        return self.new_key == other.new_key
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -89,27 +91,23 @@ class MatrixMapCols(MatrixIR):
             child_typ.row_key,
             child_typ.entry_type)
 
+
 class MatrixUnionCols(MatrixIR):
     def __init__(self, left, right):
-        super().__init__()
+        super().__init__(left, right)
         self.left = left
         self.right = right
 
-    def render(self, r):
-        return f'(MatrixUnionCols {r(self.left)} {r(self.right)})'
-
     def _compute_type(self):
-        self.right.typ # force
+        self.right.typ  # force
         self._type = self.left.typ
+
 
 class MatrixMapEntries(MatrixIR):
     def __init__(self, child, new_entry):
-        super().__init__()
+        super().__init__(child, new_entry)
         self.child = child
         self.new_entry = new_entry
-
-    def render(self, r):
-        return '(MatrixMapEntries {} {})'.format(r(self.child), r(self.new_entry))
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -125,29 +123,29 @@ class MatrixMapEntries(MatrixIR):
 
 class MatrixFilterEntries(MatrixIR):
     def __init__(self, child, pred):
-        super().__init__()
+        super().__init__(child, pred)
         self.child = child
         self.pred = pred
-
-    def render(self, r):
-        return '(MatrixFilterEntries {} {})'.format(r(self.child), r(self.pred))
 
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.entry_env(), None)
         self._type = self.child.typ
 
+
 class MatrixKeyRowsBy(MatrixIR):
     def __init__(self, child, keys, is_sorted=False):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.keys = keys
         self.is_sorted = is_sorted
 
-    def render(self, r):
-        return '(MatrixKeyRowsBy ({}) {} {})'.format(
+    def head_str(self):
+        return '({}) {}'.format(
             ' '.join([escape_id(x) for x in self.keys]),
-            self.is_sorted,
-            r(self.child))
+            self.is_sorted)
+
+    def _eq(self, other):
+        return self.keys == other.keys and self.is_sorted == other.is_sorted
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -162,12 +160,9 @@ class MatrixKeyRowsBy(MatrixIR):
 
 class MatrixMapRows(MatrixIR):
     def __init__(self, child, new_row):
-        super().__init__()
+        super().__init__(child, new_row)
         self.child = child
         self.new_row = new_row
-
-    def render(self, r):
-        return '(MatrixMapRows {} {})'.format(r(self.child), r(self.new_row))
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -180,14 +175,12 @@ class MatrixMapRows(MatrixIR):
             child_typ.row_key,
             child_typ.entry_type)
 
+
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_global):
-        super().__init__()
+        super().__init__(child, new_global)
         self.child = child
         self.new_global = new_global
-
-    def render(self, r):
-        return f'(MatrixMapGlobals {r(self.child)} {r(self.new_global)})'
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -203,24 +196,19 @@ class MatrixMapGlobals(MatrixIR):
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
-        super().__init__()
+        super().__init__(child, pred)
         self.child = child
         self.pred = pred
-
-    def render(self, r):
-        return f'(MatrixFilterCols {r(self.child)} {r(self.pred)})'
 
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.col_env(), None)
         self._type = self.child.typ
 
+
 class MatrixCollectColsByKey(MatrixIR):
     def __init__(self, child):
-        super().__init__()
+        super().__init__(child)
         self.child = child
-
-    def render(self, r):
-        return f'(MatrixCollectColsByKey {r(self.child)})'
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -233,15 +221,13 @@ class MatrixCollectColsByKey(MatrixIR):
             child_typ.row_key,
             hl.tstruct(**{f: hl.tarray(t) for f, t in child_typ.entry_type.items()}))
 
+
 class MatrixAggregateColsByKey(MatrixIR):
     def __init__(self, child, entry_expr, col_expr):
-        super().__init__()
+        super().__init__(child, entry_expr, col_expr)
         self.child = child
         self.entry_expr = entry_expr
         self.col_expr = col_expr
-
-    def render(self, r):
-        return '(MatrixAggregateColsByKey {} {} {})'.format(r(self.child), r(self.entry_expr), r(self.col_expr))
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -258,14 +244,15 @@ class MatrixAggregateColsByKey(MatrixIR):
 
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.path = path
 
-    def render(self, r):
-        return '(MatrixExplodeRows ({}) {})'.format(
-            ' '.join([escape_id(id) for id in self.path]),
-            r(self.child))
+    def head_str(self):
+        return f"({' '.join([escape_id(id) for id in self.path])})"
+
+    def _eq(self, other):
+        return self.path == other.path
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -282,13 +269,16 @@ class MatrixExplodeRows(MatrixIR):
 
 class MatrixRepartition(MatrixIR):
     def __init__(self, child, n, strategy):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.n = n
         self.strategy = strategy
 
-    def render(self, r):
-        return f'(MatrixRepartition {r(self.child)} {self.n} {self.strategy})'
+    def head_str(self):
+        return f'{self.n} {self.strategy}'
+
+    def _eq(self, other):
+        return self.n == other.n and self.strategy == other.strategy
 
     def _compute_type(self):
         self._type = self.child.typ
@@ -296,24 +286,19 @@ class MatrixRepartition(MatrixIR):
 
 class MatrixUnionRows(MatrixIR):
     def __init__(self, *children):
-        super().__init__()
+        super().__init__(*children)
         self.children = children
-
-    def render(self, r):
-        return '(MatrixUnionRows {})'.format(' '.join(map(r, self.children)))
 
     def _compute_type(self):
         for c in self.children:
-            c.typ # force
+            c.typ  # force
         self._type = self.children[0].typ
+
 
 class MatrixDistinctByRow(MatrixIR):
     def __init__(self, child):
-        super().__init__()
+        super().__init__(child)
         self.child = child
-
-    def render(self, r):
-        return f'(MatrixDistinctByRow {r(self.child)})'
 
     def _compute_type(self):
         self._type = self.child.typ
@@ -321,12 +306,15 @@ class MatrixDistinctByRow(MatrixIR):
 
 class MatrixRowsHead(MatrixIR):
     def __init__(self, child, n):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.n = n
 
-    def render(self, r):
-        return f'(MatrixRowsHead {self.n} {r(self.child)})'
+    def head_str(self):
+        return self.n
+
+    def _eq(self, other):
+        return self.n == other.n
 
     def _compute_type(self):
         self._type = self.child.typ
@@ -334,14 +322,15 @@ class MatrixRowsHead(MatrixIR):
 
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.path = path
 
-    def render(self, r):
-        return '(MatrixExplodeCols ({}) {})'.format(
-            ' '.join([escape_id(id) for id in self.path]),
-            r(self.child))
+    def head_str(self):
+        return f"({' '.join([escape_id(id) for id in self.path])})"
+
+    def _eq(self, other):
+        return self.path == other.path
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -358,18 +347,22 @@ class MatrixExplodeCols(MatrixIR):
 
 class CastTableToMatrix(MatrixIR):
     def __init__(self, child, entries_field_name, cols_field_name, col_key):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.entries_field_name = entries_field_name
         self.cols_field_name = cols_field_name
         self.col_key = col_key
 
-    def render(self, r):
-        return '(CastTableToMatrix {} {} ({}) {})'.format(
-           escape_str(self.entries_field_name),
-           escape_str(self.cols_field_name),
-           ' '.join([escape_id(id) for id in self.col_key]),
-           r(self.child))
+    def head_str(self):
+        return '{} {} ({})'.format(
+            escape_str(self.entries_field_name),
+            escape_str(self.cols_field_name),
+            ' '.join([escape_id(id) for id in self.col_key]))
+
+    def _eq(self, other):
+        return self.entries_field_name == other.entries_field_name and \
+               self.cols_field_name == other.cols_field_name and \
+               self.col_key == other.col_key
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -384,13 +377,16 @@ class CastTableToMatrix(MatrixIR):
 
 class MatrixAnnotateRowsTable(MatrixIR):
     def __init__(self, child, table, root):
-        super().__init__()
+        super().__init__(child, table)
         self.child = child
         self.table = table
         self.root = root
 
-    def render(self, r):
-        return f'(MatrixAnnotateRowsTable "{self.root}" {r(self.child)} {r(self.table)})'
+    def head_str(self):
+        return f'"{escape_str(self.root)}"'
+
+    def _eq(self, other):
+        return self.root == other.root
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -402,15 +398,19 @@ class MatrixAnnotateRowsTable(MatrixIR):
             child_typ.row_key,
             child_typ.entry_type)
 
+
 class MatrixAnnotateColsTable(MatrixIR):
     def __init__(self, child, table, root):
-        super().__init__()
+        super().__init__(child, table)
         self.child = child
         self.table = table
         self.root = root
 
-    def render(self, r):
-        return f'(MatrixAnnotateColsTable "{self.root}" {r(self.child)} {r(self.table)})'
+    def head_str(self):
+        return f'"{escape_str(self.root)}"'
+
+    def _eq(self, other):
+        return self.root == other.root
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -425,18 +425,21 @@ class MatrixAnnotateColsTable(MatrixIR):
 
 class MatrixToMatrixApply(MatrixIR):
     def __init__(self, child, config):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.config = config
 
-    def render(self, r):
-        return f'(MatrixToMatrixApply {dump_json(self.config)} {r(self.child)})'
+    def head_str(self):
+        return dump_json(self.config)
+
+    def _eq(self, other):
+        return self.config == other.config
 
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
         if (name == 'MatrixFilterPartitions'
-            or name == 'MatrixFilterIntervals'):
+                or name == 'MatrixFilterIntervals'):
             self._type = child_typ
         else:
             assert name == 'WindowByLocus', name
@@ -448,26 +451,31 @@ class MatrixToMatrixApply(MatrixIR):
                 child_typ.row_key,
                 child_typ.entry_type._insert_field('prev_entries', hl.tarray(child_typ.entry_type)))
 
+
 class MatrixRename(MatrixIR):
     def __init__(self, child, global_map, col_map, row_map, entry_map):
-        super().__init__()
+        super().__init__(child)
         self.child = child
         self.global_map = global_map
         self.col_map = col_map
         self.row_map = row_map
         self.entry_map = entry_map
 
-    def render(self, r):
-        return f'(MatrixRename ' \
-               f'{parsable_strings(self.global_map.keys())} ' \
+    def head_str(self):
+        return f'{parsable_strings(self.global_map.keys())} ' \
                f'{parsable_strings(self.global_map.values())} ' \
                f'{parsable_strings(self.col_map.keys())} ' \
                f'{parsable_strings(self.col_map.values())} ' \
                f'{parsable_strings(self.row_map.keys())} ' \
                f'{parsable_strings(self.row_map.values())} ' \
                f'{parsable_strings(self.entry_map.keys())} ' \
-               f'{parsable_strings(self.entry_map.values())} ' \
-               f'{r(self.child)})'
+               f'{parsable_strings(self.entry_map.values())} '
+
+    def _eq(self, other):
+        return self.global_map == other.global_map and \
+               self.col_map == other.col_map and \
+               self.row_map == other.row_map and \
+               self.entry_map == other.entry_map
 
     def _compute_type(self):
         self._type = self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
@@ -478,8 +486,8 @@ class JavaMatrix(MatrixIR):
         super().__init__()
         self._jir = jir
 
-    def render(self, r):
-        return f'(JavaMatrix {r.add_jir(self._jir)})'
+    def render_head(self, r):
+        return f'(JavaMatrix {r.add_jir(self._jir)}'
 
     def _compute_type(self):
         self._type = hl.tmatrix._from_java(self._jir.typ())
@@ -490,8 +498,8 @@ class JavaMatrixVectorRef(MatrixIR):
         self.vec_ref = vec_ref
         self.idx = idx
 
-    def render(self, r):
-        return f'(JavaMatrixVectorRef {self.vec_ref.jid} {self.idx})'
+    def head_str(self):
+        return f'{self.vec_ref.jid} {self.idx}'
 
     def _compute_type(self):
         self._type = self.vec_ref.item_type

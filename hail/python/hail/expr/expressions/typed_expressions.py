@@ -12,6 +12,9 @@ from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 from hail.genetics.reference_genome import reference_genome_type
 
+import tempfile
+import numpy as np
+
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.tarray` or :class:`.tset`
@@ -459,6 +462,59 @@ class ArrayExpression(CollectionExpression):
         """
         return self._method("contains", tbool, item)
 
+    def head(self):
+        """Returns the first element of the array, or missing if empty.
+
+        Returns
+        -------
+        :class:`.Expression`
+            Element.
+
+        Examples
+        --------
+        >>> hl.eval(names.head())
+        'Alice'
+
+        If the array has no elements, then the result is missing:
+        >>> hl.eval(names.filter(lambda x: x.startswith('D')).head())
+        None
+        """
+        # FIXME: this should generate short-circuiting IR when that is possible
+        return hl.rbind(self, lambda x: hl.case().when(x.length() > 0, x[0]).or_missing())
+
+    @typecheck_method(x=oneof(func_spec(1, expr_any), expr_any))
+    def index(self, x):
+        """Returns the first index of `x`, or missing.
+
+        Parameters
+        ----------
+        x : :class:`.Expression` or :obj:`Callable`
+            Value to find, or function from element to Boolean expression.
+
+        Returns
+        -------
+        :class:`.Int32Expression`
+
+        Examples
+        --------
+        >>> hl.eval(names.index('Bob'))
+        1
+
+        >>> hl.eval(names.index('Beth'))
+        None
+
+        >>> hl.eval(names.index(lambda x: x.endswith('e')))
+        0
+
+        >>> hl.eval(names.index(lambda x: x.endswith('h')))
+        None
+        """
+        if callable(x):
+            f = lambda elt, x: x(elt)
+        else:
+            f = lambda elt, x: elt == x
+        return hl.bind(lambda a: hl.range(0, a.length()).filter(lambda i: f(a[i], x)).head(), self)
+
     @typecheck_method(item=expr_any)
     def append(self, item):
         """Append an element to the array and return the result.
@@ -709,27 +765,10 @@ class ArrayNumericExpression(ArrayExpression):
         :class:`.ArrayNumericExpression`
             Array of positional quotients.
         """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Positionally divide by an array or a scalar using floor division.
@@ -1464,6 +1503,13 @@ class StructExpression(Mapping[str, Expression], Expression):
         to_keep = [f for f in self.dtype.keys() if f not in to_drop]
         return self.select(*to_keep)
 
+    def flatten(self):
+        def _flatten(prefix, s):
+            if isinstance(s, StructExpression):
+                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
+            else:
+                return [(prefix, s)]
+        return self.select(**{k: v for (f, e) in self.items() for (k, v) in _flatten(f, e)})
 
 class TupleExpression(Expression, Sequence):
     """Expression of type :class:`.ttuple`.
@@ -2074,13 +2120,51 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(s.replace(' ', '_'))
-        'The_quick_brown_fox'
+        Replace spaces with underscores in a Hail string:
+
+        >>> hl.eval(hl.str("The quick  brown fox").replace(' ', '_'))
+        'The_quick__brown_fox'
+
+        Remove the leading zero in contigs in variant strings in a table:
+
+        >>> t = hl.import_table('data/leading-zero-variants.txt')
+        >>> t.show()
+        +----------------+
+        | variant        |
+        +----------------+
+        | str            |
+        +----------------+
+        | "01:1000:A:T"  |
+        | "01:10001:T:G" |
+        | "02:99:A:C"    |
+        | "02:893:G:C"   |
+        | "22:100:A:T"   |
+        | "X:10:C:A"     |
+        +----------------+
+        <BLANKLINE>
+        >>> t = t.annotate(variant = t.variant.replace("^0([0-9])", "$1"))
+        >>> t.show()
+        +---------------+
+        | variant       |
+        +---------------+
+        | str           |
+        +---------------+
+        | "1:1000:A:T"  |
+        | "1:10001:T:G" |
+        | "2:99:A:C"    |
+        | "2:893:G:C"   |
+        | "22:100:A:T"  |
+        | "X:10:C:A"    |
+        +---------------+
+        <BLANKLINE>
 
         Notes
         -----
-        The regex expressions used should follow
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+
+        The regex expressions used should follow `Java regex syntax
+        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_. In
+        the Java regular expression syntax, a dollar sign, ``$1``, refers to the
+        first group, not the canonical ``\\1``.
 
         Parameters
         ----------
@@ -2089,7 +2173,6 @@ class StringExpression(Expression):
 
         Returns
         -------
-
         """
         return self._method("replace", tstr, pattern1, pattern2)
 
@@ -2978,6 +3061,255 @@ class IntervalExpression(Expression):
         return self._method("includesEnd", tbool)
 
 
+class NDArrayExpression(Expression):
+    """Expression of type :class:`.tndarray`.
+
+    >>> nd = hl._ndarray([[1, 2], [3, 4]])
+    """
+
+    @property
+    def ndim(self):
+        """The number of dimensions of this ndarray.
+
+        Examples
+        --------
+
+        >>> nd.ndim
+        2
+
+        Returns
+        -------
+        :obj:`int`
+        """
+        return self._type.ndim
+
+    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
+    def __getitem__(self, item):
+        if not isinstance(item, tuple):
+            item = (item,)
+
+        if len(item) != self.ndim:
+            raise ValueError(f'Must specify one index per dimension. '
+                             f'Expected {self.ndim} dimensions but got {len(item)}')
+
+        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
+
+    @typecheck_method(f=func_spec(1, expr_any))
+    def map(self, f):
+        """Transform each element of an NDArray.
+
+        Parameters
+        ----------
+        f : function ( (arg) -> :class:`.Expression`)
+            Function to transform each element of the NDArray.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+            NDArray where each element has been transformed according to `f`.
+        """
+
+        element_type = self._type.element_type
+        ndarray_map = self._ir_lambda_method(NDArrayMap, f, element_type, lambda t: tndarray(t, self.ndim))
+
+        assert isinstance(self._type, tndarray)
+        return ndarray_map
+
+    def _broadcast_to_same_ndim(self, other):
+        if isinstance(other, NDArrayExpression):
+            if self.ndim < other.ndim:
+                return self._broadcast(other.ndim), other
+            elif self.ndim > other.ndim:
+                return self, other._broadcast(self.ndim)
+
+        return self, other
+
+    def _broadcast(self, n_output_dims):
+        assert self.ndim < n_output_dims
+
+        # Right-align existing dimensions and start prepending new ones
+        # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
+        # Based off numpy broadcasting with the assumption that everything
+        # can be thought to have an infinite number of 1-length dimensions
+        # prepended
+        old_dims = range(self.ndim)
+        new_dims = range(self.ndim, n_output_dims)
+        idx_mapping = list(reversed(new_dims)) + list(old_dims)
+
+        ir = NDArrayReindex(self._ir, idx_mapping)
+        expr_type = tndarray(self._type.element_type, n_output_dims)
+
+        if is_numeric(self._type.element_type):
+            return NDArrayNumericExpression(ir, expr_type)
+
+        return NDArrayExpression(ir, expr_type)
+
+
+class NDArrayNumericExpression(NDArrayExpression):
+    """Expression of type :class:`.tndarray` with a numeric element type.
+
+    Numeric ndarrays support arithmetic both with scalar values and other
+    arrays. Arithmetic between two numeric ndarrays requires that the shapes of
+    each ndarray be either identical or compatible for broadcasting. Operations
+    are applied positionally (``nd1 * nd2`` will multiply the first element of
+    ``nd1`` by the first element of ``nd2``, the second element of ``nd1`` by
+    the second element of ``nd2``, and so on). Arithmetic with a scalar will
+    apply the operation to each element of the ndarray.
+    """
+
+    def _bin_op_numeric(self, name, other, ret_type_f=None):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
+            other = hl._ndarray(other)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
+
+    def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
+            other = hl._ndarray(other)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
+
+    def __neg__(self):
+        """Negate elements of the ndarray.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            Array expression of the same type.
+        """
+        return self * -1
+
+    def __add__(self, other):
+        """Positionally add an array or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to add.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional sums.
+        """
+        return self._bin_op_numeric("+", other)
+
+    def __radd__(self, other):
+        return self._bin_op_numeric_reverse("+", other)
+
+    def __sub__(self, other):
+        """Positionally subtract a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to subtract.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional differences.
+        """
+        return self._bin_op_numeric("-", other)
+
+    def __rsub__(self, other):
+        return self._bin_op_numeric_reverse("-", other)
+
+    def __mul__(self, other):
+        """Positionally multiply by a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to multiply by.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional products.
+        """
+        return self._bin_op_numeric("*", other)
+
+    def __rmul__(self, other):
+        return self._bin_op_numeric_reverse("*", other)
+
+    def __truediv__(self, other):
+        """Positionally divide by a ndarray or a scalar.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+            Value or ndarray to divide by.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+            NDArray of positional quotients.
+        """
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
+
+    def __rtruediv__(self, other):
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
+
+    def __floordiv__(self, other):
+        """Positionally divide by a ndarray or a scalar using floor division.
+
+        Parameters
+        ----------
+        other : :class:`.NumericExpression` or :class:`.NDArrayNumericExpression`
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        return self._bin_op_numeric('//', other)
+
+    def __rfloordiv__(self, other):
+        return self._bin_op_numeric_reverse('//', other)
+
+    @typecheck_method(uri=str)
+    def save(self, uri):
+        """Write out the NDArray to the given path as in .npy format. If the URI does not
+        end with ".npy" the file extension will be appended. This method reflects the numpy
+        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
+        `load`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> nd.save('file://local/file') # doctest: +SKIP
+        >>> np.load('/local/file.npy') # doctest: +SKIP
+        array([[1, 2],
+               [3, 4]], dtype=int32)
+
+        Parameters
+        ----------
+        uri : :obj: `str`
+        """
+        if not uri.endswith('.npy'):
+            uri += '.npy'
+
+        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
+
+    def to_numpy(self):
+        """Execute and convert this NDArray to a `NumPy` ndarray.
+
+        Examples
+        --------
+        >>> a = nd.to_numpy() # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        # FIXME Use filesystem abstraction instead when that is ready
+        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
+        self.save(temp_file)
+        return np.load(temp_file)
+
+
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,
            tint64: Int64Expression,
@@ -2994,7 +3326,8 @@ typ_to_expr = {
     tarray: ArrayExpression,
     tset: SetExpression,
     tstruct: StructExpression,
-    ttuple: TupleExpression
+    ttuple: TupleExpression,
+    tndarray: NDArrayExpression
 }
 
 def apply_expr(f, result_type, *args):
@@ -3011,6 +3344,8 @@ def construct_expr(ir: IR,
         return Expression(ir, None, indices, aggregations)
     if isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
+    if isinstance(type, tndarray) and is_numeric(type.element_type):
+        return NDArrayNumericExpression(ir, type, indices, aggregations)
     elif type in scalars:
         return scalars[type](ir, type, indices, aggregations)
     elif type.__class__ in typ_to_expr:

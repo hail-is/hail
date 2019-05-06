@@ -333,7 +333,7 @@ object IBD {
 
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
+    Table(sc, ktRdd, ibdSignature, FastIndexedSeq("i", "j"))
   }
 
   def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {

@@ -1,0 +1,16 @@
+numpy==1.14.0
+pandas==0.23.0
+matplotlib==2.2.3
+seaborn==0.8.1
+bokeh==0.12.13
+jupyter==1.0.0
+tornado<6
+parsimonious==0.8.0
+ipykernel==4.9.0
+# should go in test image
+pytest==3.10.1
+pytest-html==1.20.0
+pytest-xdist==1.23.2
+sphinx==1.8.3
+nbsphinx==0.3.1
+sphinx_rtd_theme==0.4.2

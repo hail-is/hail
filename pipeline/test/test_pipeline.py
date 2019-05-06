@@ -5,7 +5,6 @@ import tempfile
 
 from pipeline import Pipeline, BatchBackend
 
-
 gcs_input_dir = 'gs://hail-pipeline-test/data'
 gcs_output_dir = 'gs://hail-pipeline-test/output'
 
@@ -54,6 +53,21 @@ class LocalTests(unittest.TestCase):
             self.assert_same_file(input_file1.name, output_file1.name)
             self.assert_same_file(input_file2.name, output_file2.name)
 
+    def test_write_resource_group(self):
+        with tempfile.NamedTemporaryFile('w') as input_file1, \
+                tempfile.NamedTemporaryFile('w') as input_file2, \
+                tempfile.TemporaryDirectory() as output_dir:
+
+            p = Pipeline()
+            input = p.read_input_group(in1=input_file1.name,
+                                       in2=input_file2.name)
+
+            p.write_output(input, output_dir + '/foo')
+            p.run()
+
+            self.assert_same_file(input_file1.name, output_dir + '/foo.in1')
+            self.assert_same_file(input_file2.name, output_dir + '/foo.in2')
+
     def test_single_task(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
@@ -64,7 +78,7 @@ class LocalTests(unittest.TestCase):
             p.write_output(t.ofile, output_file.name)
             p.run()
 
-            assert self.read(output_file.name) ==  msg
+            assert self.read(output_file.name) == msg
 
     def test_single_task_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
@@ -138,7 +152,7 @@ class LocalTests(unittest.TestCase):
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat {t.foo.bed}")
         assert(t.foo.bed in t._mentioned)
-        assert(t.foo.bim not in t._mentioned)
+        assert(t.foo.bim in t._mentioned)
 
     def test_resource_group_get_all_mentioned_dependent_tasks(self):
         p = Pipeline()
@@ -155,15 +169,12 @@ class LocalTests(unittest.TestCase):
         t1.command(f"cat {t1.foo.bed}")
         t2 = p.new_task()
         t2.command(f"cat {t1.foo.bed}")
-        assert(t1.foo.bed in t1._outputs)
-        assert(t1.foo.bed in t2._inputs)
-        assert(t1.foo.bed in t1._mentioned)
-        assert(t1.foo.bed not in t2._mentioned)
 
-        assert(t1.foo.bim in t1._outputs)
-        assert(t1.foo.bim in t2._inputs)
-        assert(t1.foo.bim not in t1._mentioned)
-        assert(t1.foo.bim not in t2._mentioned)
+        for r in [t1.foo.bed, t1.foo.bim]:
+            assert(r in t1._outputs)
+            assert(r in t2._inputs)
+            assert(r in t1._mentioned)
+            assert(r not in t2._mentioned)
 
     def test_multiple_isolated_tasks(self):
         p = Pipeline()
@@ -242,11 +253,37 @@ class LocalTests(unittest.TestCase):
             in1.add_extension('.baz')
         assert in1._value.endswith('.txt.bgz.foo')
 
+    def test_file_name_space(self):
+        with tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file, \
+                tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
+
+            input_file.write('abc')
+            input_file.flush()
+
+            p = Pipeline()
+            input = p.read_input(input_file.name)
+            t = p.new_task()
+            t.command(f'cat {input} > {t.ofile}')
+            p.write_output(t.ofile, output_file.name)
+            p.run()
+
+            self.assert_same_file(input_file.name, output_file.name)
+
+    def test_resource_group_mentioned(self):
+        p = Pipeline()
+        t = p.new_task()
+        t.declare_resource_group(foo={'bed': '{root}.bed'})
+        t.command(f'echo "hello" > {t.foo}')
+
+        t2 = p.new_task()
+        t2.command(f'echo "hello" >> {t.foo.bed}')
+        p.run()
+
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
         return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
-                        default_image='google/cloud-sdk:alpine')
+                        default_image='google/cloud-sdk:237.0.0-alpine')
 
     def test_single_task_no_io(self):
         p = self.pipeline()
@@ -341,3 +378,10 @@ class BatchTests(unittest.TestCase):
 
         p.run(delete_scratch_on_exit=False)
 
+    def test_file_name_space(self):
+        p = self.pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello (foo) spaces.txt')
+        t = p.new_task()
+        t.command(f'cat {input} > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
+        p.run()

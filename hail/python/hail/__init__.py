@@ -22,20 +22,25 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
 from .context import init, stop, spark_context, default_reference, \
-    get_reference, set_global_seed, _set_flags, \
-    _set_upload_url, set_upload_email, enable_pipeline_upload, disable_pipeline_upload, upload_log
+    get_reference, set_global_seed, _set_flags, _get_flags, \
+    _set_upload_url, set_upload_email, enable_pipeline_upload, \
+    disable_pipeline_upload, upload_log, current_backend, debug_info, \
+    cite_hail, cite_hail_bibtex
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
 from .methods import *
-from . import genetics as genetics
-from . import methods as methods
-from . import stats as stats
-from . import linalg as linalg
-from . import plot as plot
-from . import experimental as experimental
-from . import ir as ir
+from . import genetics
+from . import methods
+from . import expr
+from . import stats
+from . import linalg
+from . import plot
+from . import experimental
+from . import ir
+from . import backend
+from . import fs
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
@@ -51,6 +56,7 @@ __all__ = [
     'set_global_seed',
     '_set_upload_url',
     '_set_flags',
+    '_get_flags',
     'set_upload_email',
     'enable_pipeline_upload',
     'disable_pipeline_upload',
@@ -78,7 +84,13 @@ __all__ = [
     'linalg',
     'plot',
     'experimental',
-    'ir'
+    'ir',
+    'backend',
+    'fs',
+    'current_backend',
+    'debug_info',
+    'cite_hail',
+    'cite_hail_bibtex'
 ]
 
 __all__.extend(genetics.__all__)

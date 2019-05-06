@@ -12,7 +12,11 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  val canonicalRVDType = RVDType(rowType.physicalType, key)
+  lazy val canonicalRVDType = RVDType(rowType.physicalType, key)
+  key.foreach {k =>
+    if (!rowType.hasField(k))
+      throw new RuntimeException(s"key field $k not in row type: $rowType")
+  }
 
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
@@ -26,9 +30,9 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     "row" -> rowType)
 
   def keyType: TStruct = canonicalRVDType.kType.virtualType
-  val keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
+  def keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
   def valueType: TStruct = canonicalRVDType.valueType.virtualType
-  val valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
+  def valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0

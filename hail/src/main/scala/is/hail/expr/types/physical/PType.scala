@@ -24,10 +24,6 @@ object PType {
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
-  val optionalComplex: Gen[PType] = genComplexType(false)
-
-  val requiredComplex: Gen[PType] = genComplexType(true)
-
   def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
@@ -119,7 +115,7 @@ object PType {
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case t: TTuple => PTuple(t.types.map(canonical), t.required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: TNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case TVoid => PVoid
     }
   }
@@ -142,7 +138,7 @@ object PType {
       case t: PSet => PSet(canonical(t.elementType), t.required)
       case t: PTuple => PTuple(t.types.map(canonical), t.required)
       case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: PNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
     }

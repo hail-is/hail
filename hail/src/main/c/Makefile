@@ -23,7 +23,7 @@ LIBSIMDPP := libsimdpp-2.1
 CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
-# this list
+# this list. Remember to rerun make prebuilt.
 OBJECTS := \
   davies \
   ibs \
@@ -39,6 +39,7 @@ OBJECTS := \
   PartitionIterators \
   Region \
   Upcalls \
+  Hadoop \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 
@@ -122,7 +123,7 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror -Wextra
+CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default

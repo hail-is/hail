@@ -126,7 +126,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     Remove samples where imputed sex does not equal reported sex:
 
     >>> imputed_sex = hl.impute_sex(dataset.GT)
-    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female)
+    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female,
+    ...                                      keep=False)
 
     Notes
     -----
@@ -1497,14 +1498,13 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         'entryField': field,
         'k': k,
         'computeLoadings': compute_loadings
-    }))
-         .cache())
+    })).persist())
 
     g = t.index_globals()
     scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
     if not compute_loadings:
         t = None
-    return hl.eval(g.eigenvalues), scores, t
+    return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
 @typecheck(call_expr=expr_call,
@@ -1798,7 +1798,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     if n_missing > 0:
         raise ValueError(f'Found {n_missing} columns with missing scores array.')
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.annotate_rows(__mean_gt=agg.mean(mt.__gt))
     mean_imputed_gt = hl.or_else(hl.float64(mt.__gt), mt.__mean_gt)
 
@@ -2264,7 +2264,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('genetic_relatedness_matrix/call_expr', call_expr)
     check_entry_indexed('genetic_relatedness_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.filter_rows((mt.__AC > 0) & (mt.__AC < 2 * mt.__n_called))
@@ -2337,7 +2337,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     mt = matrix_table_source('realized_relationship_matrix/call_expr', call_expr)
     check_entry_indexed('realized_relationship_matrix/call_expr', call_expr)
 
-    mt = mt.select_entries(__gt=call_expr.n_alt_alleles())
+    mt = mt.select_entries(__gt=call_expr.n_alt_alleles()).unfilter_entries()
     mt = mt.select_rows(__AC=agg.sum(mt.__gt),
                         __ACsq=agg.sum(mt.__gt * mt.__gt),
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
@@ -2583,9 +2583,11 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Windowed correlation matrix between variants.
         Row and column indices correspond to matrix table variant index.
     """
-    starts, stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr)
+    starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
     ld = hl.row_correlation(entry_expr, block_size)
-    return ld.sparsify_row_intervals(starts, stops)
+    return BlockMatrix._from_java(ld._jbm.filterRowIntervalsIR(
+        Env.backend()._to_java_ir(starts_and_stops._ir),
+        False))
 
 
 @typecheck(n_populations=int,

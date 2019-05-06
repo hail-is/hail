@@ -1,4 +1,4 @@
-FROM base
+FROM {{ base_image.image }}
 
 COPY scorecard /scorecard
 

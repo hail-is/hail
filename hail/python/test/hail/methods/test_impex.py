@@ -289,6 +289,20 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    def test_vcf_parser_golden_master(self):
+        files = [(resource('ex.vcf'), 'GRCh37'),
+                 (resource('sample.vcf'), 'GRCh37'),
+                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
+        for vcf_path, rg in files:
+            vcf = hl.import_vcf(
+                vcf_path,
+                reference_genome=rg,
+                array_elements_required=False,
+                force_bgz=True)
+            mt = hl.read_matrix_table(vcf_path + '.mt')
+            self.assertTrue(mt._same(vcf))
+
+
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -1183,6 +1197,11 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    def test_import_bed_kwargs_to_import_table(self):
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', find_replace=('gene', ''))
+        self.assertFalse('gene1' in t.aggregate(hl.agg.collect_as_set(t.target)))
+
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
@@ -1221,6 +1240,16 @@ class ImportMatrixTableTests(unittest.TestCase):
                           row_fields=row_fields,
                           no_header=True,
                           row_key=['foo'])
+
+    @skip_unless_spark_backend()
+    def test_import_matrix_table_no_cols(self):
+        fields = {'Chromosome':hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
+        file = resource('sample2_va_nomulti.tsv')
+        mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
+        t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
+
+        self.assertEqual(mt.count_cols(), 0)
+        self.assertTrue(t._same(mt.rows()))
 
 
 class ImportTableTests(unittest.TestCase):

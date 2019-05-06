@@ -31,7 +31,7 @@ def output_notebook():
     """
     bokeh.io.output_notebook()
 
-def show(obj):
+def show(obj, interact=None):
     """Immediately display a Bokeh object or application.  Calls
     :func:`bokeh.io.show`.
 
@@ -39,13 +39,172 @@ def show(obj):
     ----------
     obj
         A Bokeh object to display.
+    interact
+        A handle returned by a plotting method with `interactive=True`.
     """
-    bokeh.io.show(obj)
+    if interact is None:
+        bokeh.io.show(obj)
+    else:
+        handle = bokeh.io.show(obj, notebook_handle=True)
+        interact(handle)
+
+def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
+    """Create a cumulative density plot.
+
+    Parameters
+    ----------
+    data : :class:`.Struct` or :class:`.Float64Expression`
+        Sequence of data to plot.
+    k : int
+        Accuracy parameter.
+    legend : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+    normalize: bool
+        Whether or not the cumulative data should be normalized.
+    log: bool
+        Whether or not the y-axis should be of type log.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    if normalize:
+        y_axis_label = 'Quantile'
+    else:
+        y_axis_label = 'Rank'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        background_fill_color='#EEEEEE',
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom')
+    p.add_tools(HoverTool(tooltips=[("value", "$x"), ("rank", "@top")], mode='vline'))
+
+    ranks = np.array(data.ranks)
+    values = np.array(data.values)
+    if normalize:
+        ranks = ranks / ranks[-1]
+
+    # invisible, there to support tooltips
+    p.quad(top=ranks[1:-1],
+           bottom=ranks[1:-1],
+           left=values[:-1],
+           right=values[1:],
+           fill_alpha=0,
+           line_alpha=0)
+    p.step(x=[*values, values[-1]],
+           y=ranks,
+           line_width=2,
+           line_color='black',
+           legend=legend)
+    return p
+
+
+def pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
+    """Create a density plot.
+
+    Parameters
+    ----------
+    data : :class:`.Struct` or :class:`.Float64Expression`
+        Sequence of data to plot.
+    k : int
+        Accuracy parameter.
+    smoothing : float
+        Degree of smoothing.
+    legend : str
+        Label of data on the x-axis.
+    title : str
+        Title of the histogram.
+    log : bool
+        Plot the log10 of the bin counts.
+    interactive : bool
+        If `True`, return a handle to pass to :func:`.show`.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    y_axis_label = 'Frequency'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom',
+        background_fill_color='#EEEEEE')
+
+    n = data.ranks[-1]
+    weights = np.diff(data.ranks[1:-1])
+    min = data.values[0]
+    max = data.values[-1]
+    values = np.array(data.values[1:-1])
+    slope = 1 / (max - min)
+
+    def f(x, prev, smoothing=smoothing):
+        inv_scale = (np.sqrt(n * slope) / smoothing) * np.sqrt(prev / weights)
+        diff = x[:, np.newaxis] - values
+        grid = (3 / (4 * n)) * weights * np.maximum(0, inv_scale - np.power(diff, 2) * np.power(inv_scale, 3))
+        return np.sum(grid, axis=1)
+
+    round1 = f(values, np.full(len(values), slope))
+    x_d = np.linspace(min, max, 1000)
+    final = f(x_d, round1)
+
+    l = p.line(x_d, final, line_width=2, line_color='black', legend=legend)
+
+    if interactive:
+        def mk_interact(handle):
+            def update(smoothing=smoothing):
+                final = f(x_d, round1, smoothing)
+                l.data_source.data = {'x': x_d, 'y': final}
+                bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
+            interact(update, smoothing=(.02, .8, .005))
+
+        return p, mk_interact
+    else:
+        return p
+
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
-           bins=int, legend=nullable(str), title=nullable(str), log=bool)
-def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
+           bins=int, legend=nullable(str), title=nullable(str), log=bool, interactive=bool)
+def histogram(data, range=None, bins=50, legend=None, title=None, log=False, interactive=False):
     """Create a histogram.
+
+    Notes
+    -----
+    `data` can be a :class:`.Float64Expression`, or the result of the :func:`.agg.hist`
+    or :func:`.agg.approx_cdf` aggregators.
 
     Parameters
     ----------
@@ -68,6 +227,8 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     """
     if isinstance(data, Expression):
         if data._indices.source is not None:
+            if interactive:
+                raise ValueError("'interactive' flag can only be used on data from 'approx_cdf'.")
             agg_f = data._aggregation_method()
             if range is not None:
                 start = range[0]
@@ -81,6 +242,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
+    elif 'values' in data:
+        cdf = data
+        hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
+        data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
+
 
     if log:
         data.bin_freq = [log10(x) for x in data.bin_freq]
@@ -90,8 +256,16 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     else:
         y_axis_label = 'Frequency'
 
-    p = figure(title=title, x_axis_label=legend, y_axis_label=y_axis_label, background_fill_color='#EEEEEE')
-    p.quad(
+    x_span = data.bin_edges[-1] - data.bin_edges[0]
+    x_start = data.bin_edges[0] - .05 * x_span
+    x_end = data.bin_edges[-1] + .05 * x_span
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        background_fill_color='#EEEEEE',
+        x_range=(x_start, x_end))
+    q = p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
         legend=legend, line_color='black')
@@ -105,7 +279,26 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
             bottom=0, top=data.n_smaller,
             left=data.bin_edges[0] - (data.bin_edges[1] - data.bin_edges[0]), right=data.bin_edges[0],
             line_color='black', fill_color='red', legend='Outliers Below')
-    return p
+    if interactive:
+        def mk_interact(handle):
+            def update(bins=bins, phase=0):
+                if phase > 0 and phase < 1:
+                    bins = bins + 1
+                    delta = (cdf.values[-1] - cdf.values[0]) / bins
+                    edges = np.linspace(cdf.values[0] - (1 - phase) * delta, cdf.values[-1] + phase * delta, bins)
+                else:
+                    edges = np.linspace(cdf.values[0], cdf.values[-1], bins)
+                hist, edges = np.histogram(cdf.values, bins=edges, weights=np.diff(cdf.ranks), density=True)
+                new_data = {'top': hist, 'left': edges[:-1], 'right': edges[1:], 'bottom': np.full(len(hist), 0)}
+                q.data_source.data = new_data
+                bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
+            interact(update, bins=(0, 5*bins), phase=(0, 1, .01))
+
+        return p, mk_interact
+    else:
+        return p
 
 
 @typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
@@ -163,14 +356,48 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
+@typecheck(p=bokeh.plotting.Figure, font_size=str)
+def set_font_size(p, font_size: str = '12pt'):
+    """Set most of the font sizes in a bokeh figure
+
+    Parameters
+    ----------
+    p : :class:`bokeh.plotting.figure.Figure`
+        Input figure.
+    font_size : str
+        String of font size in points (e.g. '12pt').
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    p.legend.label_text_font_size = font_size
+    p.xaxis.axis_label_text_font_size = font_size
+    p.yaxis.axis_label_text_font_size = font_size
+    p.xaxis.major_label_text_font_size = font_size
+    p.yaxis.major_label_text_font_size = font_size
+    if hasattr(p.title, 'text_font_size'):
+        p.title.text_font_size = font_size
+    if hasattr(p.xaxis, 'group_text_font_size'):
+        p.xaxis.group_text_font_size = font_size
+    return p
+
+
 @typecheck(x=expr_numeric, y=expr_numeric, bins=oneof(int, sequenceof(int)),
            range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
-           font_size=str, colors=sequenceof(str))
-def histogram2d(x, y, bins=40, range=None,
-                 title=None, width=600, height=600, font_size='7pt',
-                 colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
+           colors=sequenceof(str),
+           log=bool)
+def histogram2d(x: NumericExpression,
+                y: NumericExpression,
+                bins: int = 40,
+                range: Tuple[int, int] = None,
+                title: str = None,
+                width: int = 600,
+                height: int = 600,
+                colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
+                log: bool = False):
     """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
@@ -209,12 +436,12 @@ def histogram2d(x, y, bins=40, range=None,
         Plot height (default 600px).
     title : str
         Title of the plot.
-    font_size : str
-        String of font size in points (default '7pt').
     colors : List[str]
         List of colors (hex codes, or strings as described
         `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
         built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
+    log : bool
+        Plot the log10 of the bin counts.
 
     Returns
     -------
@@ -269,7 +496,14 @@ def histogram2d(x, y, bins=40, range=None,
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
                              hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
 
-    mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    # Use python prettier float -> str function
+    data['x'] = data['x'].apply(lambda e: str(float(e)))
+    data['y'] = data['y'].apply(lambda e: str(float(e)))
+
+    if log:
+        mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    else:
+        mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
     x_axis = sorted(set(data.x), key=lambda z: float(z))
     y_axis = sorted(set(data.y), key=lambda z: float(z))
@@ -282,7 +516,6 @@ def histogram2d(x, y, bins=40, range=None,
     p.axis.axis_line_color = None
     p.axis.major_tick_line_color = None
     p.axis.major_label_standoff = 0
-    p.axis.major_label_text_font_size = font_size
     import math
     p.xaxis.major_label_orientation = math.pi / 3
 
@@ -291,38 +524,12 @@ def histogram2d(x, y, bins=40, range=None,
            fill_color={'field': 'c', 'transform': mapper},
            line_color=None)
 
-    color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size=font_size,
-                         ticker=BasicTicker(desired_num_ticks=6),
-                         label_standoff=6, border_line_color=None, location=(0, 0))
+    color_bar = ColorBar(color_mapper=mapper,
+                         ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
+                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
-    def set_font_size(p, font_size: str = '12pt'):
-        """Set most of the font sizes in a bokeh figure
-
-        Parameters
-        ----------
-        p : :class:`bokeh.plotting.figure.Figure`
-            Input figure.
-        font_size : str
-            String of font size in points (e.g. '12pt').
-
-        Returns
-        -------
-        :class:`bokeh.plotting.figure.Figure`
-        """
-        p.legend.label_text_font_size = font_size
-        p.xaxis.axis_label_text_font_size = font_size
-        p.yaxis.axis_label_text_font_size = font_size
-        p.xaxis.major_label_text_font_size = font_size
-        p.yaxis.major_label_text_font_size = font_size
-        if hasattr(p.title, 'text_font_size'):
-            p.title.text_font_size = font_size
-        if hasattr(p.xaxis, 'group_text_font_size'):
-            p.xaxis.group_text_font_size = font_size
-        return p
-
     p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
-    p = set_font_size(p, font_size)
     return p
 
 
@@ -459,7 +666,7 @@ def _get_scatter_plot_elements(
 
 @typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
-           label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
+           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
@@ -608,7 +815,7 @@ def scatter(
 
 @typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
-           label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
+           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
@@ -742,7 +949,7 @@ def joint_plot(
         for factor_col in factor_cols:
             factor_colors = colors.get(factor_col, _get_categorical_palette(list(set(source_pd[factor_col]))))
             factor_colors = dict(zip(factor_colors.factors, factor_colors.palette))
-            density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df[axis], density=True))
+            density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df['x' if x_axis else 'y'], density=True))
             for factor, (dens, edges) in density_data.iteritems():
                 edges = edges[:-1]
                 xy = (edges, dens) if x_axis else (dens, edges)

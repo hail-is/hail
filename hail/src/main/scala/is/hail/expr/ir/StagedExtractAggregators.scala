@@ -64,20 +64,28 @@ object StagedExtractAggregators {
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(fb, aggIR, ab, newBuilder, ab3, result)
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(fb, aggIR, ab, newBuilder, aggLetAB, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(io,
-          If(cond, Begin(seqOp), Begin(FastIndexedSeq())))
+          If(cond, ExtractAggregators.addLets(Begin(seqOp), aggLetAB.result()), Begin(FastIndexedSeq())))
         transformed
       case AggExplode(array, name, aggBody, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(fb, aggBody, ab, newBuilder, ab3, result)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(fb, aggBody, ab, newBuilder, aggLetAB, result)
+
+        // collect lets that depend on `name`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
+        ab3 ++= independent
+
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(
           io,
-          ArrayFor(array, name, Begin(seqOp)))
+          ArrayFor(array, name, ExtractAggregators.addLets(Begin(seqOp), dependent)))
         transformed
       case AggGroupBy(key, aggIR, _) =>
 
@@ -100,6 +108,73 @@ object StagedExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+
+      case AggArrayPerElement(a, elementName, indexName, aggBody, _) =>
+        val newRVAggBuilder = new ArrayBuilder[IRAgg]()
+        val newBuilder = new ArrayBuilder[AggOps]()
+        val newRef = Ref(genUID(), null)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(fb, aggBody, newRVAggBuilder, newBuilder, aggLetAB, newRef)
+
+        // collect lets that depend on `elementName`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, elementName))
+        ab3 ++= independent
+
+        val nestedAggs = newRVAggBuilder.result()
+        val agg = Code.newInstance[ArrayElementsAggregator, Array[RegionValueAggregator]](newArray(fb, nestedAggs.map(_.rvAgg)))
+        val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
+        newRef._typ = -rt.elementType
+
+        val aggSigCheck = AggSignature(AggElementsLengthCheck(), Seq(), Some(Seq(TVoid)), Seq(TInt32()))
+        val aggSig = AggSignature(AggElements(), Seq(), None, Seq(TInt32(), TVoid))
+
+        val aUID = genUID()
+        val iUID = genUID()
+
+        val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
+        val i = ab.length
+        ab += IRAgg(i, agg, rt)
+        ab2 += AggOps(
+          Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSigCheck)),
+          Let(
+            aUID,
+            a,
+            Begin(FastIndexedSeq(
+              SeqOp(I32(i), FastIndexedSeq(ArrayLen(Ref(aUID, a.typ))), aggSigCheck),
+              ArrayFor(
+                ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
+                iUID,
+                Let(
+                  elementName,
+                  ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
+                  ExtractAggregators.addLets(SeqOp(
+                    I32(i),
+                    FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
+                    aggSig), dependent)
+                ))))))
+        val rUID = genUID()
+        Let(
+          rUID,
+          GetTupleElement(result, i),
+          ArrayMap(
+            ArrayRange(
+              I32(0),
+              ArrayLen(Ref(rUID, rt)),
+              I32(1)),
+            indexName,
+            Let(
+              newRef.name,
+              ArrayRef(
+                Ref(rUID, rt),
+                Ref(indexName, TInt32())
+              ),
+              transformed
+            )
+          ))
+
+      case x: ArrayAgg => x
+      case x: ArrayAggScan => x
       case _ => MapIR(extract)(ir)
     }
   }

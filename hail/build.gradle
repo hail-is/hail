@@ -38,30 +38,36 @@ buildScan {
 //  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
 String MAJOR = 0
 String MINOR = 2
-String PATCH = 11
+String PATCH = 14
 String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
 // By default pip hides versions ending in ".devN". Use these for testing.
 String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
-String sparkVersion = System.getProperty("spark.version", "2.2.0")
+String sparkVersion = System.getProperty("spark.version", "2.4.0")
 String breezeVersion = System.getProperty("breeze.version")
 String py4jVersion = System.getProperty("py4j.version")
 
-if (!(sparkVersion ==~ /^2\..*/))
-    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.2.0.')
+if (!(sparkVersion ==~ /^2\.[2-4].*/))
+    ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.4.0.')
 
 String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
-if (sparkVersion == '2.2.0') {
-    if (py4jVersion == null)
-      py4jVersion = '0.10.4'
-    if (breezeVersion == null)
-      breezeVersion = '0.13.1'
-} else {
-  if (breezeVersion == null || py4jVersion == null)
-    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
+if (py4jVersion == null) {
+  if (sparkVersion == '2.2.0')
+    py4jVersion = '0.10.4'
+  else if (sparkVersion == '2.3.0')
+    py4jVersion = '0.10.6'
+  else
+    py4jVersion = '0.10.7'
+}
+
+if (breezeVersion == null) {
+  if (sparkVersion == '2.2.0')
+    breezeVersion = '0.13.1'
+  else
+    breezeVersion = '0.13.2'
 }
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
@@ -163,13 +169,12 @@ task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
 
 compileScala {
     dependsOn generateBuildInfo
-
     // , "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature"]
+    scalaCompileOptions.additionalParameters = ["-feature", "-Xno-patmat-analysis"]
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
-                   "-Xss2M",
+                   "-Xss4M",
                    "-XX:MaxMetaspaceSize=1024M"]
     }
 }
@@ -201,13 +206,6 @@ dependencies {
     compile 'org.http4s:http4s-blaze-core_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-blaze-client_' + scalaMajorVersion + ':0.12.3'
     compile 'org.http4s:http4s-blaze-server_' + scalaMajorVersion + ':0.12.3'
-    compile 'org.json4s:json4s-core_' + scalaMajorVersion + ':3.2.10'
-    // compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.2.10'
-    compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.2.10'
-    compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.2.10'
-    //compile 'org.json4s:json4s-native_' + scalaMajorVersion + ':3.3.0'
-    //compile 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.3.0'
-    //compile 'org.json4s:json4s-ast_' + scalaMajorVersion + ':3.3.0'
 
     compile 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
 
@@ -270,7 +268,7 @@ test {
 test.dependsOn(checkSettings)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
-    commandLine 'pytest',
+    commandLine('pytest',
             '-v',
             '-n',
             parallelism,
@@ -280,11 +278,14 @@ task testPython(type: Exec, dependsOn: shadowJar) {
             '-r a',
             '--html=build/reports/pytest.html',
             '--self-contained-html',
-            'python/test'
+            *(System.env.PYTEST_ARGS == null ? "" : System.env.PYTEST_ARGS).split(" "),
+            'python/test')
     environment SPARK_HOME: sparkHome
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task doctest(type: Exec, dependsOn: shadowJar) {
@@ -293,6 +294,8 @@ task doctest(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task benchmark(type: Exec, dependsOn: shadowJar) {

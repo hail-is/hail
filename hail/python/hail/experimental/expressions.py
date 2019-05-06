@@ -1,5 +1,6 @@
 import hail as hl
 from hail.expr.expressions.expression_typecheck import *
+from hail.expr.expressions.expression_utils import *
 from hail.typecheck import *
 
 
@@ -34,6 +35,11 @@ def write_expression(expr, path, overwrite=False):
    -------
    None
     """
+    source = expr._indices.source
+    if source is not None:
+        analyze('write_expression.expr', expr, source._global_indices)
+        source = source.select_globals(__expr=expr)
+        expr = source.index_globals().__expr
     hl.utils.range_table(1).filter(False).annotate_globals(expr=expr).write(path, overwrite=overwrite)
 
 

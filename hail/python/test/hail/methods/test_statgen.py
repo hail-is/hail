@@ -1179,6 +1179,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(scores.count(), mt.count_cols())
         self.assertEqual(loadings.count(), n_rows)
 
+        assert len(scores.globals) == 0
+        assert len(loadings.globals) == 0
+
         # compute PCA with numpy
         def normalize(a):
             ms = np.mean(a, axis=0, keepdims=True)
@@ -1203,79 +1206,44 @@ class Tests(unittest.TestCase):
         check(hail_scores, np_scores)
         check(hail_loadings, np_loadings)
 
-    def _R_pc_relate(self, mt, maf):
-        plink_file = utils.uri_path(utils.new_temp_file())
-        hl.export_plink(mt, plink_file, ind_id=hl.str(mt.col_key[0]))
-        utils.run_command(["Rscript",
-                           resource("is/hail/methods/runPcRelate.R"),
-                           plink_file,
-                           str(maf)])
-
-        types = {
-            'ID1': hl.tstr,
-            'ID2': hl.tstr,
-            'nsnp': hl.tfloat64,
-            'kin': hl.tfloat64,
-            'k0': hl.tfloat64,
-            'k1': hl.tfloat64,
-            'k2': hl.tfloat64
-        }
-        plink_kin = hl.import_table(plink_file + '.out',
-                                    delimiter=' +',
-                                    types=types)
-        return plink_kin.select(i=hl.struct(sample_idx=plink_kin.ID1),
-                                j=hl.struct(sample_idx=plink_kin.ID2),
-                                kin=plink_kin.kin,
-                                ibd0=plink_kin.k0,
-                                ibd1=plink_kin.k1,
-                                ibd2=plink_kin.k2).key_by('i', 'j')
-
     @skip_unless_spark_backend()
-    @unittest.skipIf('HAIL_TEST_SKIP_R' in os.environ, 'Skipping tests requiring R')
-    def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
-        mt = hl.balding_nichols_model(3, 100, 1000)
-        mt = mt.key_cols_by(sample_idx=hl.str(mt.sample_idx))
-        hkin = hl.pc_relate(mt.GT, 0.00, k=2).cache()
-        rkin = self._R_pc_relate(mt, 0.00).cache()
+    def test_pc_relate_against_R_truth(self):
+        mt = hl.import_vcf(resource('pc_relate_bn_input.vcf.bgz'))
+        hail_kin = hl.pc_relate(mt.GT, 0.00, k=2).checkpoint(utils.new_temp_file(suffix='ht'))
 
-        self.assertTrue(rkin.select("kin")._same(hkin.select("kin"), tolerance=1e-3, absolute=True))
-        self.assertTrue(rkin.select("ibd0")._same(hkin.select("ibd0"), tolerance=1.3e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2.6e-2, absolute=True))
-        self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1.3e-2, absolute=True))
+        r_kin = hl.import_table(resource('pc_relate_r_truth.tsv.bgz'),
+                                types={'i': 'struct{s:str}',
+                                       'j': 'struct{s:str}',
+                                       'kin': 'float',
+                                       'ibd0': 'float',
+                                       'ibd1': 'float',
+                                       'ibd2': 'float'},
+                                key=['i', 'j'])
+        assert r_kin.select("kin")._same(hail_kin.select("kin"), tolerance=1e-3, absolute=True)
+        assert r_kin.select("ibd0")._same(hail_kin.select("ibd0"), tolerance=1.3e-2, absolute=True)
+        assert r_kin.select("ibd1")._same(hail_kin.select("ibd1"), tolerance=2.6e-2, absolute=True)
+        assert r_kin.select("ibd2")._same(hail_kin.select("ibd2"), tolerance=1.3e-2, absolute=True)
 
     @skip_unless_spark_backend()
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
-        _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
         _, scores3, _ = hl.hwe_normalized_pca(mt.GT, k=3, compute_loadings=False)
 
         kin1 = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin', block_size=64)
-        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores2[mt.col_key].scores,
+        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
+        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
+        kin_s1 = hl.pc_relate(mt.GT, 0.10, scores_expr=scores3[mt.col_key].scores[:2],
                               statistics='kin', block_size=32)
 
-        kin2 = hl.pc_relate(mt.GT, 0.05, k=2, min_kinship=0.01, statistics='kin2', block_size=128).cache()
-        kin_s2 = hl.pc_relate(mt.GT, 0.05, scores_expr=scores2[mt.col_key].scores, min_kinship=0.01,
-                              statistics='kin2', block_size=16)
+        assert kin1._same(kin_s1, tolerance=1e-4)
 
-        kin3 = hl.pc_relate(mt.GT, 0.02, k=3, min_kinship=0.1, statistics='kin20', block_size=64).cache()
-        kin_s3 = hl.pc_relate(mt.GT, 0.02, scores_expr=scores3[mt.col_key].scores, min_kinship=0.1,
-                              statistics='kin20', block_size=32)
+        assert kin1.count() == 50 * 49 / 2
 
-        kin4 = hl.pc_relate(mt.GT, 0.01, k=3, statistics='all', block_size=128)
-        kin_s4 = hl.pc_relate(mt.GT, 0.01, scores_expr=scores3[mt.col_key].scores, statistics='all', block_size=16)
+        assert kin2.count() > 0
+        assert kin2.filter(kin2.kin < 0.01).count() == 0
 
-        self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
-        self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
-        self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
-        self.assertTrue(kin4._same(kin_s4, tolerance=1e-2))
-
-        self.assertTrue(kin1.count() == 50 * 49 / 2)
-
-        self.assertTrue(kin2.count() > 0)
-        self.assertTrue(kin2.filter(kin2.kin < 0.01).count() == 0)
-
-        self.assertTrue(kin3.count() > 0)
-        self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
+        assert kin3.count() > 0
+        assert kin3.filter(kin3.kin < 0.1).count() == 0
 
     @skip_unless_spark_backend()
     def test_pcrelate_issue_5263(self):

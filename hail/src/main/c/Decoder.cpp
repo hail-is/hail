@@ -14,11 +14,15 @@ InputStream::InputStream(UpcallEnv up, jobject jinput_stream) :
   jbuf_size_(-1) { }
 
 int InputStream::read(char * buf, int n) {
+  if (UNLIKELY(n == 0)) {
+    return 0;
+  }
+
   if (jbuf_size_ < n) {
     if (jbuf_ != nullptr) {
       up_.env()->DeleteGlobalRef(jbuf_);
     }
-    auto jbuf = up_.env()->NewByteArray(n);
+    auto jbuf = up_.env()->NewByteArray(std::max(n, 1024));
     jbuf_ = up_.env()->NewGlobalRef(jbuf);
     jbuf_size_ = n;
   }

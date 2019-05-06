@@ -1,31 +1,34 @@
 import hail as hl
-from .ir import register_function, register_seeded_function
+from hail.expr.nat import NatVariable
+from .ir import register_function, register_session_function, register_seeded_function
+
 
 def register_reference_genome_functions(rg):
     from hail.expr.types import dtype
 
     tvariant = dtype(f"struct{{locus:locus<{rg}>,alleles:array<str>}}")
     tinterval = dtype(f"interval<locus<{rg}>>")
-    
-    register_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
-    register_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
-    register_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
-    register_function(f"LocusInterval({rg})", (dtype("str"),), tinterval)
-    register_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
-    register_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
-    register_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
-    register_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
-    register_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+    register_session_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),), tinterval)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
+    register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
+    register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 
-    register_function(f"globalPosToLocus({rg})", (dtype("int64"),), dtype(f"locus<{rg}>"))
-    register_function(f"locusToGlobalPos({rg})", (dtype(f"locus<{rg}>"),), dtype("int64"))
+    register_session_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+    register_session_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
+
+    register_session_function(f"globalPosToLocus({rg})", (dtype("int64"),), dtype(f"locus<{rg}>"))
+    register_session_function(f"locusToGlobalPos({rg})", (dtype(f"locus<{rg}>"),), dtype("int64"))
 
 def register_liftover_functions(rg, dest_rg):
     from hail.expr.types import dtype
-    
-    register_function(f"liftoverLocus({rg})({dest_rg})", (dtype(f"locus<{rg}>"), dtype('float64'),), dtype(f"struct{{result:locus<{dest_rg}>,is_negative_strand:bool}}"))
-    register_function(f"liftoverLocusInterval({rg})({dest_rg})", (dtype(f"interval<locus<{rg}>>"), dtype('float64'),), dtype(f"struct{{result:interval<locus<{dest_rg}>>,is_negative_strand:bool}}"))
+
+    register_session_function(f"liftoverLocus({rg})({dest_rg})", (dtype(f"locus<{rg}>"), dtype('float64'),), dtype(f"struct{{result:locus<{dest_rg}>,is_negative_strand:bool}}"))
+    register_session_function(f"liftoverLocusInterval({rg})({dest_rg})", (dtype(f"interval<locus<{rg}>>"), dtype('float64'),), dtype(f"struct{{result:interval<locus<{dest_rg}>>,is_negative_strand:bool}}"))
+
 
 def register_functions():
     from hail.expr.types import dtype
@@ -41,14 +44,24 @@ def register_functions():
     register_function("uniqueMaxIndex", (dtype("array<?T>"),), dtype("int32"))
     register_function("toSet", (dtype("array<?T>"),), dtype("set<?T>"))
 
-    def floating_point_divide(arg_type, ret_type):
+    def array_floating_point_divide(arg_type, ret_type):
         register_function("/", (arg_type, hl.tarray(arg_type),), hl.tarray(ret_type))
         register_function("/", (hl.tarray(arg_type),arg_type), hl.tarray(ret_type))
         register_function("/", (hl.tarray(arg_type),hl.tarray(arg_type)), hl.tarray(ret_type))
-    floating_point_divide(hl.tint32, hl.tfloat32)
-    floating_point_divide(hl.tint64, hl.tfloat32)
-    floating_point_divide(hl.tfloat32, hl.tfloat32)
-    floating_point_divide(hl.tfloat64, hl.tfloat64)
+    array_floating_point_divide(hl.tint32, hl.tfloat32)
+    array_floating_point_divide(hl.tint64, hl.tfloat32)
+    array_floating_point_divide(hl.tfloat32, hl.tfloat32)
+    array_floating_point_divide(hl.tfloat64, hl.tfloat64)
+
+    def ndarray_floating_point_divide(arg_type, ret_type):
+        register_function("/", (arg_type, hl.tndarray(arg_type, NatVariable()),), hl.tndarray(ret_type, NatVariable()))
+        register_function("/", (hl.tndarray(arg_type, NatVariable()), arg_type), hl.tndarray(ret_type, NatVariable()))
+        register_function("/", (hl.tndarray(arg_type, NatVariable()),
+                                hl.tndarray(arg_type, NatVariable())), hl.tndarray(ret_type, NatVariable()))
+    ndarray_floating_point_divide(hl.tint32, hl.tfloat32)
+    ndarray_floating_point_divide(hl.tint64, hl.tfloat32)
+    ndarray_floating_point_divide(hl.tfloat32, hl.tfloat32)
+    ndarray_floating_point_divide(hl.tfloat64, hl.tfloat64)
 
     register_function("values", (dtype("dict<?key, ?value>"),), dtype("array<?value>"))
     register_function("[*:]", (dtype("array<?T>"),dtype("int32"),), dtype("array<?T>"))
@@ -72,9 +85,15 @@ def register_functions():
     register_function("+", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("+", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))
     register_function("+", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
-    register_function("**", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<float64>"))
+    register_function("+", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("+", (dtype("ndarray<?T:numeric, ?nat>"), dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("+", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("**", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<float64>"))
     register_function("**", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<float64>"))
+    register_function("**", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<float64>"))
+    register_function("**", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("**", (dtype("ndarray<?T:numeric, ?nat>"),dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("**", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("append", (dtype("array<?T>"),dtype("?T"),), dtype("array<?T>"))
     register_function("[:*]", (dtype("str"),dtype("int32"),), dtype("str"))
     register_function("[:*]", (dtype("array<?T>"),dtype("int32"),), dtype("array<?T>"))
@@ -83,9 +102,12 @@ def register_functions():
     register_function("indexArray", (dtype("array<?T>"),dtype("int32"),), dtype("?T"))
     register_function("[]", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("?value"))
     register_function("dictToArray", (dtype("dict<?key, ?value>"),), dtype("array<tuple(?key, ?value)>"))
+    register_function("%", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("%", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))
     register_function("%", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
-    register_function("%", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
+    register_function("%", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("%", (dtype("ndarray<?T:numeric, ?nat>"),dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("%", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("dict", (dtype("array<tuple(?key, ?value)>"),), dtype("dict<?key, ?value>"))
     register_function("dict", (dtype("set<tuple(?key, ?value)>"),), dtype("dict<?key, ?value>"))
     register_function("keys", (dtype("dict<?key, ?value>"),), dtype("array<?key>"))
@@ -98,9 +120,12 @@ def register_functions():
     register_function("contains", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("bool"))
     register_function("contains", (dtype("array<?T>"),dtype("?T"),), dtype("bool"))
     register_function("contains", (dtype("set<?T>"),dtype("?T"),), dtype("bool"))
-    register_function("-", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("-", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))
     register_function("-", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
+    register_function("-", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
+    register_function("-", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("-", (dtype("ndarray<?T:numeric, ?nat>"),dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("-", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("addone", (dtype("int32"),), dtype("int32"))
     register_function("isEmpty", (dtype("dict<?key, ?value>"),), dtype("bool"))
     register_function("isEmpty", (dtype("array<?T>"),), dtype("bool"))
@@ -109,14 +134,20 @@ def register_functions():
     register_function("[:]", (dtype("str"),), dtype("str"))
     register_function("union", (dtype("set<?T>"),dtype("set<?T>"),), dtype("set<?T>"))
     register_function("*", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
-    register_function("*", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("*", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))
+    register_function("*", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
+    register_function("*", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("*", (dtype("ndarray<?T:numeric, ?nat>"),dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("*", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("intersection", (dtype("set<?T>"),dtype("set<?T>"),), dtype("set<?T>"))
     register_function("add", (dtype("set<?T>"),dtype("?T"),), dtype("set<?T>"))
     register_function("argmax", (dtype("array<?T>"),), dtype("int32"))
     register_function("//", (dtype("array<?T:numeric>"),dtype("array<?T>"),), dtype("array<?T>"))
     register_function("//", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))
     register_function("//", (dtype("?T:numeric"),dtype("array<?T>"),), dtype("array<?T>"))
+    register_function("//", (dtype("ndarray<?T:numeric, ?nat>"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
+    register_function("//", (dtype("ndarray<?T:numeric, ?nat>"),dtype("?T"),), dtype("ndarray<?T, ?nat>"))
+    register_function("//", (dtype("?T:numeric"),dtype("ndarray<?T, ?nat>"),), dtype("ndarray<?T, ?nat>"))
     register_function("keySet", (dtype("dict<?key, ?value>"),), dtype("set<?key>"))
     register_function("qnorm", (dtype("float64"),), dtype("float64"))
     register_function("oneHotAlleles", (dtype("call"),dtype("int32"),), dtype("array<int32>"))
@@ -175,6 +206,7 @@ def register_functions():
     register_function("toFloat64", (dtype("bool"),), dtype("float64"))
     register_function("dbeta", (dtype("float64"),dtype("float64"),dtype("float64"),), dtype("float64"))
     register_function("min_rep", (dtype("?T:locus"),dtype("array<str>"),), dtype("struct{locus: ?T, alleles: array<str>}"))
+    register_function("locus_windows_per_contig", (dtype("array<array<float64>>"),dtype("float64"),), dtype("tuple(array<int32>, array<int32>)"))
     register_function("toBoolean", (dtype("str"),), dtype("bool"))
     register_seeded_function("rand_bool", (dtype("float64"),), dtype("bool"))
     register_function("pchisqtail", (dtype("float64"),dtype("float64"),), dtype("float64"))

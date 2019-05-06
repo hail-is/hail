@@ -22,8 +22,12 @@ class TBinary(override val required: Boolean) extends Type {
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
-  val ordering: ExtendedOrdering =
-    ExtendedOrdering.extendToNull(Ordering.Iterable[Byte])
+  val ordering: ExtendedOrdering = ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
+    override def compareNonnull(x: Any, y: Any): Int =
+      java.lang.Integer.compare(
+        java.lang.Byte.toUnsignedInt(x.asInstanceOf[Byte]),
+        java.lang.Byte.toUnsignedInt(y.asInstanceOf[Byte]))
+  })
 }
 
 object TBinary {

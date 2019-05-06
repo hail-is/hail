@@ -1,5 +1,6 @@
 package is.hail.utils.richUtils
 
+import org.apache.hadoop
 import is.hail.HailContext
 import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer}
 import is.hail.utils._
@@ -21,11 +22,11 @@ object RichArray {
     }
   }
 
-  def exportToDoubles(hc: HailContext, path: String, a: Array[Double]): Unit =
-    exportToDoubles(hc, path, a, defaultBufSize)
+  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, a: Array[Double]): Unit =
+    exportToDoubles(hadoopConf, path, a, defaultBufSize)
 
-  def exportToDoubles(hc: HailContext, path: String, a: Array[Double], bufSize: Int): Unit = {
-    hc.hadoopConf.writeFile(path) { os =>
+  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, a: Array[Double], bufSize: Int): Unit = {
+    hadoopConf.writeFile(path) { os =>
       val out = new DoubleOutputBuffer(os, bufSize)
 
       out.writeDoubles(a)

@@ -1,0 +1,16 @@
+/ci.log
+/oauth-token
+/Dockerfile.out
+/Dockerfile.ci-utils.out
+/deployment.yaml.out
+/repos
+/proxy.err
+/proxy.log
+/proxy.pid
+/batch
+*.pyc
+**/__pycache__
+flycheck_*.py
+*_flymake.py
+/flake8-stmp
+/pylint-stmp

@@ -126,7 +126,7 @@ class InputResourceFile(ResourceFile):
 
     def _get_path(self, directory):
         assert self._value is not None
-        return directory + '/inputs/' + self._value
+        return escape_string(directory + '/inputs/' + self._value)
 
 
 class TaskResourceFile(ResourceFile):
@@ -143,7 +143,7 @@ class TaskResourceFile(ResourceFile):
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
-        return directory + '/' + self._source._uid + '/' + self._value
+        return escape_string(directory + '/' + self._source._uid + '/' + self._value)
 
 
 class ResourceGroup(Resource):

@@ -10,7 +10,7 @@ object BGZipBlocks {
   def apply(hadoopConf: hadoop.conf.Configuration, file: String) {
     var buf = new Array[Byte](64 * 1024)
 
-    // position of `buf[0]' in input stream
+    // position of 'buf[0]' in input stream
     var bufPos = 0L
 
     var bufSize = 0

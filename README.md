@@ -2,21 +2,17 @@
 
 [![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data. Hail is used throughout academia and industry as the analytical engine for major studies, projects, and services, including the Genome Aggregation Database ([gnomad.broadinstitute.org](http://gnomad.broadinstitute.org)) and Neale lab mega-GWAS ([nealelab.is/uk-biobank](https://nealelab.is/uk-biobank)).
+[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
 
-Unlike the Python and R scientific computing stacks, Hail:
+Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS).
 
-- scales from laptop to large compute cluster or cloud, with the same code
-- is designed to work with datasets that do not fit in memory
-- has first-class support for multi-dimensional structured data, like genomic data as in this [tutorial](https://hail.is/docs/0.2/tutorials/01-genome-wide-association-study.html)
+Hail is exposed as a Python library, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++.
 
-Hail's methods are primarily written in Python, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++. We welcome the scientific community to leverage Hail to develop, share, and apply new methods at scale!
-
-See the [homepage](https://hail.is) for more info on using Hail.
+See the [documentation](https://hail.is/docs/0.2/) for more info on using Hail.
 
 ### Contribute
 
-Hail is committed to open-source development. If you'd like to contribute to the development of methods or infrastructure, please: 
+If you'd like to discuss or contribute to the development of methods or infrastructure, please: 
 
 - see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
@@ -25,23 +21,69 @@ Hail is committed to open-source development. If you'd like to contribute to the
 
 Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the [Discussion Forum](http://discuss.hail.is). We recommend creating an account on the Discussion Forum so that you can subscribe to these updates as well.
 
-### Hail Team
+### Maintainer
 
-The Hail team is embedded in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
+Hail is maintained by a team in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
 Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
-Follow Hail on Twitter <a href="https://twitter.com/hailgenetics">@hailgenetics</a>.
-
 ### Citing Hail
 
-If you use Hail for published work, please cite the software:
+If you use Hail for published work, please cite the software. You can get a
+citation for the version of hail you installed by executing:
+
+```python
+import hail as hl
+
+print(hl.cite_hail())
+```
+
+Which will look like:
 
 ```
- - Hail, https://github.com/hail-is/hail
+Hail Team. Hail 0.2.13-81ab564db2b4. https://github.com/hail-is/hail/releases/tag/0.2.13.
+```
+
+Or if you need a bibtex entry:
+
+```python
+import hail as hl
+
+print(hl.cite_hail_bibtex())
+```
+
+Which will look like:
+
+```
+@misc{Hail,
+  author = {Hail Team},
+  title = {Hail},
+  howpublished = {\url{https://github.com/hail-is/hail/releases/tag/0.2.13}}
+}
+```
+
+If you simply cannot stomach the idea of citing a GitHub repository (even though
+more than 2,800 people have [cited the Keras GitHub
+repository](https://scholar.google.com/scholar?cluster=17868569268188187229&hl=en&as_sdt=40000005&sciodt=0,22)),
+then please cite this DOI which always points to the latest published version of
+Hail:
+
+```
+Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ```
 
 ##### Acknowledgements
+
+The Hail team has several sources of funding at the Broad Institute:
+- The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
+- Principal Investigators Benjamin Neale and Daniel MacArthur, whose scientific leadership has been essential for solving the right problems.
+- Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
+
+We are grateful for generous support from:
+- The National Institute of Diabetes and Digestive and Kidney Diseases
+- The National Institute of Mental Health
+- The National Human Genome Research Institute
+- The Chan Zuckerburg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
 open-source by providing free hosting, and YourKit, LLC for generously providing

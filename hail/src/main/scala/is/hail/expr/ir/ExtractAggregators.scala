@@ -16,6 +16,12 @@ object ExtractAggregators {
   private case class IRAgg(i: Int, rvAgg: RegionValueAggregator, rt: Type)
   private case class AggOps(initOp: Option[IR], seqOp: IR)
 
+  def addLets(ir: IR, lets: Array[AggLet]): IR = {
+    assert(lets.areDistinct())
+    lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb)}
+
+  }
+
   def apply(ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
     val ab = new ArrayBuilder[IRAgg]()
     val ab2 = new ArrayBuilder[AggOps]()
@@ -26,13 +32,11 @@ object ExtractAggregators {
     val rt = TTuple(aggs.map(_.rt): _*)
     ref._typ = rt
     val ops = ab2.result()
-    val aggLets = ab3.result()
-    assert(aggLets.areDistinct())
     ExtractedAggregators(
       postAgg,
       rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
-      aggLets.foldRight[IR](Begin(ops.map(_.seqOp))) { case (al, comb) => Let(al.name, al.value, comb)},
+      addLets(Begin(ops.map(_.seqOp)), ab3.result()),
       aggs.map(_.rvAgg))
   }
 
@@ -55,20 +59,28 @@ object ExtractAggregators {
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(aggIR, ab, newBuilder, ab3, result)
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(aggIR, ab, newBuilder, aggLetAB, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(io,
-          If(cond, Begin(seqOp), Begin(FastIndexedSeq())))
+          If(cond, addLets(Begin(seqOp), aggLetAB.result()), Begin(FastIndexedSeq())))
         transformed
       case AggExplode(array, name, aggBody, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(aggBody, ab, newBuilder, ab3, result)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(aggBody, ab, newBuilder, aggLetAB, result)
+
+        // collect lets that depend on `name`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, name))
+        ab3 ++= independent
+
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(
           io,
-          ArrayFor(array, name, Begin(seqOp)))
+          ArrayFor(array, name, addLets(Begin(seqOp), dependent)))
         transformed
       case AggGroupBy(key, aggIR, _) =>
 
@@ -92,12 +104,18 @@ object ExtractAggregators {
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
 
-      case AggArrayPerElement(a, name, aggBody, _) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, _) =>
 
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()
         val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggBody, newRVAggBuilder, newBuilder, ab3, newRef)
+
+        val aggLetAB = new ArrayBuilder[AggLet]()
+        val transformed = this.extract(aggBody, newRVAggBuilder, newBuilder, aggLetAB, newRef)
+
+        // collect lets that depend on `elementName`, push the rest up
+        val (dependent, independent) = aggLetAB.result().partition(l => Mentions(l.value, elementName))
+        ab3 ++= independent
 
         val nestedAggs = newRVAggBuilder.result()
         val agg = aggregators.ArrayElementsAggregator(nestedAggs.map(_.rvAgg))
@@ -124,14 +142,35 @@ object ExtractAggregators {
                 ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
                 iUID,
                 Let(
-                  name,
+                  elementName,
                   ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
-                  SeqOp(
+                  addLets(SeqOp(
                     I32(i),
                     FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
-                    aggSig)))))))
-        ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
+                    aggSig), dependent)
+                ))))))
+        val rUID = genUID()
+        Let(
+          rUID,
+          GetTupleElement(result, i),
+          ArrayMap(
+            ArrayRange(
+              I32(0),
+              ArrayLen(Ref(rUID, rt)),
+              I32(1)),
+            indexName,
+            Let(
+              newRef.name,
+              ArrayRef(
+                Ref(rUID, rt),
+                Ref(indexName, TInt32())
+              ),
+              transformed
+            )
+          ))
+
       case x: ArrayAgg => x
+      case x: ArrayAggScan => x
       case _ => MapIR(extract)(ir)
     }
   }

@@ -6,7 +6,7 @@ from ..utils.java import escape_str
 
 class MatrixWriter(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -25,7 +25,7 @@ class MatrixNativeWriter(MatrixWriter):
         self.stage_locally = stage_locally
         self.codec_spec = codec_spec
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
@@ -52,7 +52,7 @@ class MatrixVCFWriter(MatrixWriter):
         self.export_type = export_type
         self.metadata = metadata
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixVCFWriter',
                   'path': self.path,
                   'append': self.append,
@@ -75,7 +75,7 @@ class MatrixGENWriter(MatrixWriter):
         self.path = path
         self.precision = precision
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixGENWriter',
                   'path': self.path,
                   'precision': self.precision}
@@ -92,7 +92,7 @@ class MatrixPLINKWriter(MatrixWriter):
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixPLINKWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
@@ -111,7 +111,7 @@ class MatrixNativeMultiWriter(object):
         self.overwrite = overwrite
         self.stage_locally = stage_locally
 
-    def render(self, r):
+    def render(self):
         writer = {'name': 'MatrixNativeMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite,

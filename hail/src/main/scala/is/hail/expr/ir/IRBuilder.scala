@@ -47,6 +47,13 @@ object IRBuilder {
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
 
+  def concatStructs(struct1: IRProxy, struct2: IRProxy): IRProxy = (env: E) => {
+    val s2Type = struct2(env).typ.asInstanceOf[TStruct]
+    let(__struct2 = struct2) {
+      struct1.insertFields(s2Type.fieldNames.map(f => Symbol(f) -> '__struct2(Symbol(f))): _*)
+    }(env)
+  }
+
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
     MakeTuple(values.map(_ (env)))
 
@@ -80,6 +87,10 @@ object IRBuilder {
     def mapRows(newRow: IRProxy): TableIR =
       TableMapRows(tir, newRow(env))
 
+    def explode(sym: Symbol): TableIR = TableExplode(tir, FastIndexedSeq(sym.name))
+
+    def aggregateByKey(aggIR: IRProxy): TableIR = TableAggregateByKey(tir, aggIR(env))
+
     def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
       TableKeyBy(tir, keys, isSorted)
 
@@ -100,7 +111,8 @@ object IRBuilder {
       val uid = genUID()
       val keyFields = tir.typ.key
       val valueFields = tir.typ.valueType.fieldNames
-      collect()
+      keyBy(FastIndexedSeq())
+        .collect()
         .apply('rows)
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
         .toDict
@@ -194,6 +206,8 @@ object IRBuilder {
       }
     }
 
+    def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
@@ -230,6 +244,11 @@ object IRBuilder {
       ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      AggExplode(array, f.s.name, f.body(env.bind(f.s.name, array.typ.asInstanceOf[TStreamable].elementType)), isScan = false)
+    }
+
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
@@ -242,6 +261,17 @@ object IRBuilder {
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      AggArrayPerElement(
+        array,
+        elementsSym.name,
+        indexSym.name,
+        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        isScan = false)
+    }
+
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
 
     def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
@@ -252,15 +282,17 @@ object IRBuilder {
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 
-    def arrayStructToDict(fields: IndexedSeq[String]): IRProxy = {
+    def arrayStructToDict(keyFields: IndexedSeq[String]): IRProxy = {
       val element = Symbol(genUID())
       ir
         .map(element ~>
           makeTuple(
-            element.selectFields(fields: _*),
-            element.dropFieldList(fields)))
+            element.selectFields(keyFields: _*),
+            element.dropFieldList(keyFields)))
         .toDict
     }
+
+    def tupleElement(i: Int): IRProxy = (env: E) => GetTupleElement(ir(env), i)
 
     private[ir] def apply(env: E): IR = ir(env)
   }
@@ -325,8 +357,10 @@ object IRBuilder {
     }
   }
 
-  def subst(x: IRProxy, env: Env[IRProxy], aggEnv: Env[IRProxy] = Env.empty): IRProxy = (e: E) => {
-    Subst(x(e), env.mapValues(_ (e)), aggEnv.mapValues(_ (e)))
+  def subst(x: IRProxy, env: BindingEnv[IRProxy]): IRProxy = (e: E) => {
+    Subst(x(e), BindingEnv(env.eval.mapValues(_ (e)),
+      agg = env.agg.map(_.mapValues(_ (e))),
+      scan = env.scan.map(_.mapValues(_ (e)))))
   }
 
   def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)

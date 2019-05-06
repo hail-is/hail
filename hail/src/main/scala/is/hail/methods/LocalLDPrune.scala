@@ -299,7 +299,7 @@ case class LocalLDPrune(
 
   def execute(mv: MatrixValue): TableValue = {
     if (maxQueueSize < 1)
-      fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
+      fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
     val nSamples = mv.nCols
     

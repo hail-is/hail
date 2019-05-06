@@ -160,6 +160,8 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
+        self._assert_eq(bm.to_numpy(_force_blocking=True), a)
+
     def test_to_table(self):
         schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
         rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
@@ -182,15 +184,15 @@ class Tests(unittest.TestCase):
         actual = bm.to_matrix_table_row_major(n_partitions)
 
         expected = hl.utils.range_matrix_table(rows, cols)
-        expected = expected.annotate_entries(entry=hl.float64(expected.row_idx * cols + expected.col_idx))
+        expected = expected.annotate_entries(element=hl.float64(expected.row_idx * cols + expected.col_idx))
         expected = expected.key_cols_by(col_idx=hl.int64(expected.col_idx))
         expected = expected.key_rows_by(row_idx=hl.int64(expected.row_idx))
-        self.assertTrue(expected._same(actual))
+        assert expected._same(actual)
 
-        bm = BlockMatrix.random(2000, 2048, block_size=512, seed=0)
+        bm = BlockMatrix.random(50, 100, block_size=25, seed=0)
         mt = bm.to_matrix_table_row_major(n_partitions)
-        mt_round_trip = BlockMatrix.from_entry_expr(mt.entry.entry).to_matrix_table_row_major()
-        self.assertTrue(mt._same(mt_round_trip))
+        mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
+        assert mt._same(mt_round_trip)
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
@@ -199,10 +201,10 @@ class Tests(unittest.TestCase):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
-        x = BlockMatrix.from_numpy(nx)
-        c = BlockMatrix.from_numpy(nc)
-        r = BlockMatrix.from_numpy(nr)
-        m = BlockMatrix.from_numpy(nm)
+        x = BlockMatrix.from_numpy(nx, block_size=8)
+        c = BlockMatrix.from_numpy(nc, block_size=8)
+        r = BlockMatrix.from_numpy(nr, block_size=8)
+        m = BlockMatrix.from_numpy(nm, block_size=8)
 
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))
@@ -379,11 +381,13 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nm, m / m)
 
     def test_special_elementwise_ops(self):
-        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
         m = BlockMatrix.from_numpy(nm)
 
         self._assert_close(m ** 3, nm ** 3)
         self._assert_close(m.sqrt(), np.sqrt(nm))
+        self._assert_close(m.ceil(), np.ceil(nm))
+        self._assert_close(m.floor(), np.floor(nm))
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
@@ -414,6 +418,12 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+
+        self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
+        self._assert_eq(m.sum(axis=1).T, np.array([6.0, 15.0]))
+        self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
+                                                         [14.0, 15.0, 16.0],
+                                                         [16.0, 17.0, 18.0]]))
 
     def test_fill(self):
         nd = np.ones((3, 5))
@@ -758,6 +768,11 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
+    def test_from_entry_expr_filtered(self):
+        mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
+        bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error
+        assert np.isnan(bm.entries().entry.collect()[0])
+
     def test_array_windows(self):
         def assert_eq(a, b):
             self.assertTrue(np.array_equal(a, np.array(b)))
@@ -830,7 +845,7 @@ class Tests(unittest.TestCase):
         assert_eq(starts, [0, 1, 1, 3, 3, 5])
         assert_eq(stops, [1, 3, 3, 5, 5, 6])
 
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
         self.assertTrue('ascending order' in str(cm.exception))
 
@@ -856,30 +871,18 @@ class Tests(unittest.TestCase):
 
         ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
-        with self.assertRaises(ValueError) as cm:
+        with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
-
-    def test_compute_contig_start_idx(self):
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 1, 2, 2, 4, 4, 5, 5],
-            contig_cum_len=[1, 2, 4, 8])
-        self.assertEqual(res, [0, 1, 2, 4])
-
-        res = hl.linalg.utils._compute_contig_start_idx(
-            global_pos=[0, 0, 1, 2, 3, 4, 5, 5],
-            contig_cum_len=[0, 1, 1, 3, 5, 6, 7])
-
-        self.assertEqual(res, [0, 0, 2, 2, 4, 6])
 
     def test_write_overwrite(self):
         path = new_temp_file()

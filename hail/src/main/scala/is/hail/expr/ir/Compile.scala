@@ -22,7 +22,7 @@ object Compile {
     body: IR,
     nSpecialArgs: Int
   ): (PType, Int => F) = {
-    val normalizeNames = new NormalizeNames
+    val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
     val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
@@ -35,14 +35,14 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-    ir = Optimize(ir, noisy = false, canGenerateLiterals = false, context = Some("Compile"))
+    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
 
     val env = args
       .zipWithIndex
       .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
 
-    ir = Subst(ir, env)
+    ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
     Emit(ir, fb, nSpecialArgs)

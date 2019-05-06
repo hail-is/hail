@@ -59,9 +59,9 @@ class SimplifySuite extends SparkSuite {
   }
 
   @Test def testBlockMatrixRewriteRules() {
-    val bmir = ValueToBlockMatrix(MakeArray(IndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64())),
-      IndexedSeq(2, 2), 10)
-    val identityBroadcast = BlockMatrixBroadcast(bmir, IndexedSeq(0, 1), IndexedSeq(2, 2), 10)
+    val bmir = ValueToBlockMatrix(MakeArray(FastIndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64())),
+      FastIndexedSeq(2, 2), 10)
+    val identityBroadcast = BlockMatrixBroadcast(bmir, FastIndexedSeq(0, 1), FastIndexedSeq(2, 2), 10)
 
     assert(Simplify(identityBroadcast) == bmir)
   }
@@ -79,5 +79,12 @@ class SimplifySuite extends SparkSuite {
     assertEvalsTo(invoke("contains", ToArray(In(0, TSet(TString()))), Str("a")),
       FastIndexedSeq(Set("a") -> TSet(TString())),
       true)
+  }
+
+  @Test def testTableCountExplodeSetRewrite() {
+    var ir: TableIR = TableRange(1, 1)
+    ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), Set(1)))))
+    ir = TableExplode(ir, FastIndexedSeq("foo"))
+    assertEvalsTo(TableCount(ir), 1L)
   }
 }

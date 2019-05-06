@@ -161,7 +161,7 @@ case class Skat(
   weightField: String,
   yField: String,
   xField: String,
-  covFields: Array[String],
+  covFields: Seq[String],
   logistic: Boolean,
   maxSize: Int,
   accuracy: Double,
@@ -195,7 +195,7 @@ case class Skat(
     if (iterations <= 0)
       fatal(s"iterations must be positive, default is 10000, got $iterations")
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields.toArray)
 
     val n = y.size
     val k = cov.cols

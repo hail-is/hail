@@ -261,6 +261,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(result.entries()._same(expected))
 
+    def test_aggregate_cols_by_init_op(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        cs = mt.group_cols_by(mt.s).aggregate(cs = hl.agg.call_stats(mt.GT, mt.alleles))
+        cs._force_count_rows() # should run without error
+
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
@@ -395,8 +400,26 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
+
+    def test_globals_lowering(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
+        lit = hl.literal(hl.utils.Struct(x = 0))
+
+        mt.annotate_rows(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.annotate_cols(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.filter_rows(mt.globals == lit)._force_count_rows()
+        mt.filter_cols(mt.globals == lit)._force_count_rows()
+        mt.filter_entries(mt.globals == lit)._force_count_rows()
+        (mt.group_rows_by(mt.row_idx)
+         .aggregate_rows(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
+        (mt.group_cols_by(mt.col_idx)
+         .aggregate_cols(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
 
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
@@ -566,6 +589,22 @@ class Tests(unittest.TestCase):
         et = mt.entries()
         self.assertEqual(et.count(), 100)
         self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
+
+    def test_entries_table_no_keys(self):
+        mt = hl.utils.range_matrix_table(2, 2)
+        mt = mt.annotate_entries(x = (mt.row_idx, mt.col_idx))
+
+        original_order = [
+            hl.utils.Struct(row_idx=0, col_idx=0, x=(0, 0)),
+            hl.utils.Struct(row_idx=0, col_idx=1, x=(0, 1)),
+            hl.utils.Struct(row_idx=1, col_idx=0, x=(1, 0)),
+            hl.utils.Struct(row_idx=1, col_idx=1, x=(1, 1)),
+        ]
+
+        assert mt.entries().collect() == original_order
+        assert mt.key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
@@ -1132,6 +1171,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt2))
         self.assertTrue(mt1._same(mt2))
 
+    def test_matrix_type_equality(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt2 = mt.annotate_entries(foo=1)
+        assert mt._type == mt._type
+        assert mt._type != mt2._type
+
     def test_entry_filtering(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
@@ -1145,3 +1190,28 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_entries(hl.agg.count()) == 100
         assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
         assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+    def test_entry_filter_stats(self):
+        mt = hl.utils.range_matrix_table(40, 20)
+        mt = mt.filter_entries((mt.row_idx % 4 == 0) & (mt.col_idx % 4 == 0), keep=False)
+        mt = mt.compute_entry_filter_stats()
+
+        row_expected = hl.dict({True: hl.struct(n_filtered=5,
+                                                n_remaining=15,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=20,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_rows(hl.agg.all(mt.entry_stats_row == row_expected[mt.row_idx % 4 == 0]))
+
+        col_expected = hl.dict({True: hl.struct(n_filtered=10,
+                                                n_remaining=30,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=40,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_show(self):
+        mt = self.get_vds()
+        mt.show()

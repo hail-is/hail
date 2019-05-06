@@ -32,7 +32,7 @@ object TestUtils {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
-      s"""expected fatal exception with pattern `$regex'
+      s"""expected fatal exception with pattern '$regex'
          |  Found: ${ thrown.getMessage } """
     if (!p)
       println(msg)
@@ -146,7 +146,8 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        val (res, _) = SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        res
       } catch {
         case e: CXXUnsupportedOperation =>
           throw e
@@ -182,7 +183,7 @@ object TestUtils {
         }
       }
 
-      val rewritten = Subst(rewrite(x), substEnv)
+      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
         MakeTuple(FastSeq(rewritten)), false)
@@ -248,7 +249,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -323,7 +324,7 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -406,7 +407,7 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.foreach { strat =>
+    ExecStrategy.values.intersect(execStrats).foreach { strat =>
       try {
         val res = strat match {
           case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
@@ -417,9 +418,10 @@ object TestUtils {
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
+        assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
       } catch {
         case e: Exception =>
+          error(s"error from strategy $strat")
           if (execStrats.contains(strat)) throw e
       }
     }

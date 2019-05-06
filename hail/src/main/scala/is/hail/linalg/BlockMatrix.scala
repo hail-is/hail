@@ -7,7 +7,8 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.expr.ir.TableValue
+import is.hail.expr.Parser
+import is.hail.expr.ir.{CompileAndEvaluate, IR, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
@@ -27,6 +28,57 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
 import scala.collection.immutable.NumericRange
+
+case class CollectMatricesRDDPartition(index: Int, firstPartition: Int, blockPartitions: Array[Partition], blockSize: Int, nRows: Int, nCols: Int) extends Partition {
+  def nBlocks: Int = blockPartitions.length
+}
+
+class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix]) extends RDD[BDM[Double]](HailContext.sc, Nil) {
+  private val nBlocks = bms.map(_.blocks.getNumPartitions)
+  private val firstPartition = nBlocks.scan(0)(_ + _).init
+
+  protected def getPartitions: Array[Partition] = {
+    bms.iterator.zipWithIndex.map { case (bm, i) =>
+      CollectMatricesRDDPartition(i, firstPartition(i), bm.blocks.partitions, bm.blockSize, bm.nRows.toInt, bm.nCols.toInt)
+    }
+      .toArray
+  }
+
+  override def getDependencies: Seq[Dependency[_]] =
+    bms.zipWithIndex.map { case (bm, i) =>
+      val n = nBlocks(i)
+      new NarrowDependency(bm.blocks) {
+        def getParents(j: Int): Seq[Int] =
+          if (j == i)
+            0 until n
+          else
+            FastIndexedSeq.empty
+      }
+    }
+
+  def compute(split: Partition, context: TaskContext): Iterator[BDM[Double]] = {
+    val p = split.asInstanceOf[CollectMatricesRDDPartition]
+    val m = BDM.zeros[Double](p.nRows, p.nCols)
+    val prev = parent[((Int, Int), BDM[Double])](p.index)
+    var k = 0
+    while (k < p.nBlocks) {
+      val it = prev.iterator(p.blockPartitions(k), context)
+      assert(it.hasNext)
+      val ((i, j), b) = it.next()
+
+      m((i * p.blockSize) until (i * p.blockSize + b.rows), (j * p.blockSize) until (j * p.blockSize + b.cols)) := b
+
+      k += 1
+    }
+
+    Iterator.single(m)
+  }
+
+  override def clearDependencies() {
+    super.clearDependencies()
+    bms = null
+  }
+}
 
 object BlockMatrix {
   type M = BlockMatrix
@@ -170,6 +222,94 @@ object BlockMatrix {
       def *(r: M): M = r.scalarMul(l)
       def /(r: M): M = r.reverseScalarDiv(l)
     }
+  }
+
+  def collectMatrices(bms: IndexedSeq[BlockMatrix]): RDD[BDM[Double]] = new CollectMatricesRDD(bms)
+
+  def binaryWriteBlockMatrices(bms: IndexedSeq[BlockMatrix], prefix: String, overwrite: Boolean): Unit = {
+    val hadoopConf = HailContext.hadoopConf
+
+    if (overwrite)
+      hadoopConf.delete(prefix, recursive = true)
+    else if (hadoopConf.exists(prefix))
+      fatal(s"file already exists: $prefix")
+
+    hadoopConf.mkDir(prefix)
+
+    val d = digitsNeeded(bms.length)
+    val hadoopConfBc = HailContext.hadoopConfBc
+    val partitionCounts = collectMatrices(bms)
+      .mapPartitionsWithIndex { case (i, it) =>
+        assert(it.hasNext)
+        val m = it.next()
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0')
+
+        RichDenseMatrixDouble.exportToDoubles(hadoopConfBc.value.value, path, m, forceRowMajor = true)
+
+        Iterator.single(1)
+      }
+      .collect()
+
+    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
+  }
+
+  def exportBlockMatrices(
+    bms: IndexedSeq[BlockMatrix],
+    prefix: String,
+    overwrite: Boolean,
+    delimiter: String,
+    header: Option[String],
+    addIndex: Boolean): Unit = {
+    val hadoopConf = HailContext.hadoopConf
+
+    if (overwrite)
+      hadoopConf.delete(prefix, recursive = true)
+    else if (hadoopConf.exists(prefix))
+      fatal(s"file already exists: $prefix")
+
+    hadoopConf.mkDir(prefix)
+
+    val d = digitsNeeded(bms.length)
+    val hadoopConfBc = HailContext.hadoopConfBc
+    val partitionCounts = collectMatrices(bms)
+      .mapPartitionsWithIndex { case (i, it) =>
+        assert(it.hasNext)
+        val m = it.next()
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv"
+
+        using(
+          new PrintWriter(
+            new BufferedWriter(
+              new OutputStreamWriter(
+                hadoopConfBc.value.value.unsafeWriter(path))))) { f =>
+          header.foreach { h =>
+            f.println(h)
+          }
+
+          var i = 0
+          while (i < m.rows) {
+            if (addIndex) {
+              f.print(i)
+              f.print(delimiter)
+            }
+
+            var j = 0
+            while (j < m.cols) {
+              f.print(m(i, j))
+              if (j < m.cols - 1)
+                f.print(delimiter)
+              j += 1
+            }
+            f.print('\n')
+            i += 1
+          }
+        }
+
+        Iterator.single(1)
+      }
+      .collect()
+
+    hadoopConf.writeTextFile(prefix + "/_SUCCESS")(out => ())
   }
 }
 
@@ -326,6 +466,15 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       filteredBM
     else
       filteredBM.zeroRowIntervals(starts, stops)
+  }
+
+  def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
+    val (Row(starts, stops), _) = CompileAndEvaluate[Row](startsAndStops)
+
+    filterRowIntervals(
+      starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
+      stops.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
+      blocksOnly)
   }
 
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
@@ -550,6 +699,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     "sqrt",
     reqDense = false)
 
+  def ceil(): M = blockMap(breeze.numerics.ceil(_),
+    "ceil",
+    reqDense = false)
+
+  def floor(): M = blockMap(breeze.numerics.floor(_),
+    "floor",
+    reqDense = false)
+
   def pow(exponent: Double): M = blockMap(breezePow(_, exponent),
     s"exponentiation by negative power $exponent",
     reqDense = exponent < 0)
@@ -657,7 +814,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       StorageLevel.fromString(storageLevel)
     } catch {
       case e: IllegalArgumentException =>
-        fatal(s"unknown StorageLevel `$storageLevel'")
+        fatal(s"unknown StorageLevel '$storageLevel'")
     }
     persist(level)
   }
@@ -1637,7 +1794,7 @@ class WriteBlocksRDD(path: String,
                 }
               } else {
                 val rowIdx = blockRow * blockSize + i
-                fatal(s"Cannot create BlockMatrix: missing entry at row $rowIdx and col $colIdx")
+                fatal(s"Cannot create BlockMatrix: filtered entry at row $rowIdx and col $colIdx")
               }
               colIdx += 1
               j += 1

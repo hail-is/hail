@@ -1,13 +1,12 @@
 import abc
 import json
 
+from .utils import make_filter_and_replace
 from ..expr.types import tfloat32, tfloat64
+from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import *
 from ..utils import wrap_to_list
 from ..utils.java import escape_str
-from ..genetics.reference_genome import reference_genome_type
-
-from .utils import make_filter_and_replace
 
 
 class MatrixReader(object):
@@ -107,7 +106,7 @@ class MatrixVCFReader(MatrixReader):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
-                  'entryFloatType': self.entry_float_type,
+                  'entryFloatTypeName': self.entry_float_type,
                   'headerFile': self.header_file,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
@@ -154,7 +153,7 @@ class MatrixBGENReader(MatrixReader):
 
         from hail.table import Table
         if included_variants is not None:
-            assert(isinstance(included_variants, Table))
+            assert (isinstance(included_variants, Table))
         self.included_variants = included_variants
 
     def render(self, r):
@@ -164,6 +163,7 @@ class MatrixBGENReader(MatrixReader):
                   'indexFileMap': self.index_file_map,
                   'nPartitions': self.n_partitions,
                   'blockSizeInMB': self.block_size,
+                   # FIXME: This has to be wrong. The included_variants IR is not included as a child
                   'includedVariants': r(self.included_variants._tir) if self.included_variants else None
                   }
         return escape_str(json.dumps(reader))
@@ -225,6 +225,7 @@ class MatrixPLINKReader(MatrixReader):
                other.contig_recoding == self.contig_recoding and \
                other.skip_invalid_loci == self.skip_invalid_loci
 
+
 class MatrixGENReader(MatrixReader):
     @typecheck_method(files=sequenceof(str), sample_file=str, chromosome=nullable(str),
                       min_partitions=nullable(int), tolerance=float, rg=nullable(str),
@@ -248,4 +249,4 @@ class MatrixGENReader(MatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, MatrixGENReader) and \
-            self.config == other.config
+               self.config == other.config

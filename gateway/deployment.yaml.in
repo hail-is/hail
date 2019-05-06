@@ -17,9 +17,14 @@ spec:
         hail.is/sha: "@sha@"
     spec:
       serviceAccountName: gateway
+      priorityClassName: infrastructure
       containers:
       - name: gateway
         image: @image@
+        resources:
+          requests:
+            memory: "1G"
+            cpu: "1"
         ports:
         - containerPort: 80
         - containerPort: 443

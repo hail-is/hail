@@ -4,6 +4,7 @@ import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual.{TDict, TInt32}
+import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -42,11 +43,11 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "dictToArray")
   def dictToArrayData(): Array[Array[Any]] = Array(
-    Array(Seq(1 -> 3, 2 -> 7), IndexedSeq(Row(1, 3), Row(2, 7))),
-    Array(Seq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      IndexedSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1))),
-    Array(Seq(), IndexedSeq()),
-    Array(Seq(null), IndexedSeq()),
+    Array(FastIndexedSeq(1 -> 3, 2 -> 7), FastIndexedSeq(Row(1, 3), Row(2, 7))),
+    Array(FastIndexedSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastIndexedSeq(Row(1, 3), Row(2, null), Row(3, 7), Row(null, 1))),
+    Array(FastIndexedSeq(), FastIndexedSeq()),
+    Array(FastIndexedSeq(null), FastIndexedSeq()),
     Array(null, null))
 
   @Test(dataProvider = "dictToArray")
@@ -56,11 +57,11 @@ class DictFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "keysAndValues")
   def keysAndValuesData(): Array[Array[Any]] = Array(
-    Array(Seq(1 -> 3, 2 -> 7), IndexedSeq(1, 2), IndexedSeq(3, 7)),
-    Array(Seq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
-      IndexedSeq(1, 2, 3, null), IndexedSeq(3, null, 7, 1)),
-    Array(Seq(), IndexedSeq(), IndexedSeq()),
-    Array(Seq(null), IndexedSeq(), IndexedSeq()),
+    Array(FastIndexedSeq(1 -> 3, 2 -> 7), FastIndexedSeq(1, 2), FastIndexedSeq(3, 7)),
+    Array(FastIndexedSeq(1 -> 3, 2 -> null, null, (null, 1), 3 -> 7),
+      FastIndexedSeq(1, 2, 3, null), FastIndexedSeq(3, null, 7, 1)),
+    Array(FastIndexedSeq(), FastIndexedSeq(), FastIndexedSeq()),
+    Array(FastIndexedSeq(null), FastIndexedSeq(), FastIndexedSeq()),
     Array(null, null, null))
 
   @Test(dataProvider = "keysAndValues")

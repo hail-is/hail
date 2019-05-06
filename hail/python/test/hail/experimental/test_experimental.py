@@ -1,7 +1,8 @@
+import numpy as np
 import hail as hl
 import unittest
 from ..helpers import *
-from hail.utils import new_temp_file
+from hail.utils import new_temp_file, new_local_temp_dir
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -39,57 +40,50 @@ class Tests(unittest.TestCase):
             annotation_exprs=[mt.binary,
                               mt.continuous])
 
-        chr20_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.filter(
-              (ht_univariate.locus.contig == '20') &
-              (ht_univariate.locus.position == 82079),
-              hl.agg.collect(ht_univariate.univariate))[0]))
+        univariate = ht_univariate.aggregate(hl.struct(
+            chr20=hl.agg.filter(
+                (ht_univariate.locus.contig == '20') &
+                (ht_univariate.locus.position == 82079),
+                hl.agg.collect(ht_univariate.univariate))[0],
+            chr22 =hl.agg.filter(
+                (ht_univariate.locus.contig == '22') &
+                (ht_univariate.locus.position == 16894090),
+                hl.agg.collect(ht_univariate.univariate))[0],
+            mean=hl.agg.mean(ht_univariate.univariate)))
 
-        chr20_annotated = ht_annotated.aggregate(
-            hl.struct(binary=hl.agg.filter(
-                (ht_annotated.locus.contig == '20') &
-                (ht_annotated.locus.position == 82079),
-                hl.agg.collect(ht_annotated.binary))[0],
-                      continuous=hl.agg.filter(
-                          (ht_annotated.locus.contig == '20') &
-                          (ht_annotated.locus.position == 82079),
-                          hl.agg.collect(ht_annotated.continuous))[0]))
+        self.assertAlmostEqual(univariate.chr20, 1.601, places=3)
+        self.assertAlmostEqual(univariate.chr22, 1.140, places=3)
+        self.assertAlmostEqual(univariate.mean, 3.507, places=3)
 
-        self.assertAlmostEqual(chr20_univariate.univariate, 1.601, places=3)
-        self.assertAlmostEqual(chr20_annotated.binary, 1.152, places=3)
-        self.assertAlmostEqual(chr20_annotated.continuous, 73.014, places=3)
-
-        chr22_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.filter(
-              (ht_univariate.locus.contig == '22') &
-              (ht_univariate.locus.position == 16894090),
-              hl.agg.collect(ht_univariate.univariate))[0]))
-
-        chr22_annotated = ht_annotated.aggregate(
+        annotated = ht_annotated.aggregate(
             hl.struct(
-                binary=hl.agg.filter(
-                    (ht_annotated.locus.contig == '22') &
-                    (ht_annotated.locus.position == 16894090),
+                chr20=hl.struct(binary=hl.agg.filter(
+                    (ht_annotated.locus.contig == '20') &
+                    (ht_annotated.locus.position == 82079),
                     hl.agg.collect(ht_annotated.binary))[0],
-                continuous=hl.agg.filter(
-                    (ht_annotated.locus.contig == '22') &
-                    (ht_annotated.locus.position == 16894090),
-                    hl.agg.collect(ht_annotated.continuous))[0]))
+                                continuous=hl.agg.filter(
+                                    (ht_annotated.locus.contig == '20') &
+                                    (ht_annotated.locus.position == 82079),
+                                    hl.agg.collect(ht_annotated.continuous))[0]),
+                chr22=hl.struct(
+                    binary=hl.agg.filter(
+                        (ht_annotated.locus.contig == '22') &
+                        (ht_annotated.locus.position == 16894090),
+                        hl.agg.collect(ht_annotated.binary))[0],
+                    continuous=hl.agg.filter(
+                        (ht_annotated.locus.contig == '22') &
+                        (ht_annotated.locus.position == 16894090),
+                        hl.agg.collect(ht_annotated.continuous))[0]),
+                mean_stats=hl.struct(binary=hl.agg.mean(ht_annotated.binary),
+                                     continuous=hl.agg.mean(ht_annotated.continuous))))
 
-        self.assertAlmostEqual(chr22_univariate.univariate, 1.140, places=3)
-        self.assertAlmostEqual(chr22_annotated.binary, 1.107, places=3)
-        self.assertAlmostEqual(chr22_annotated.continuous, 102.174, places=3)
+        self.assertAlmostEqual(annotated.chr20.binary, 1.152, places=3)
+        self.assertAlmostEqual(annotated.chr20.continuous, 73.014, places=3)
+        self.assertAlmostEqual(annotated.chr22.binary, 1.107, places=3)
+        self.assertAlmostEqual(annotated.chr22.continuous, 102.174, places=3)
+        self.assertAlmostEqual(annotated.mean_stats.binary, 0.965, places=3)
+        self.assertAlmostEqual(annotated.mean_stats.continuous, 176.528, places=3)
 
-        mean_univariate = ht_univariate.aggregate(
-            hl.struct(univariate=hl.agg.mean(ht_univariate.univariate)))
-
-        mean_annotated = ht_annotated.aggregate(
-            hl.struct(binary=hl.agg.mean(ht_annotated.binary),
-                      continuous=hl.agg.mean(ht_annotated.continuous)))
-
-        self.assertAlmostEqual(mean_univariate.univariate, 3.507, places=3)
-        self.assertAlmostEqual(mean_annotated.binary, 0.965, places=3)
-        self.assertAlmostEqual(mean_annotated.continuous, 176.528, places=3)
 
     @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
@@ -298,3 +292,43 @@ class Tests(unittest.TestCase):
         mtj = hl.experimental.full_outer_join_mt(mt1, mt2)
 
         assert(mtj.count() == (15, 15))
+
+    def test_block_matrices_tofiles(self):
+        data = [
+            np.random.rand(11*12),
+            np.random.rand(5*17)
+        ]
+        arrs = [
+            data[0].reshape((11, 12)),
+            data[1].reshape((5, 17))
+        ]
+        bms = [
+            hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
+            hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
+        ]
+        prefix = new_local_temp_dir()
+        hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
+        for i in range(len(bms)):
+            a = data[i]
+            a2 = np.fromfile(f'{prefix}/files/{i}')
+            self.assertTrue(np.array_equal(a, a2))
+
+    def test_export_block_matrices(self):
+        data = [
+            np.random.rand(11*12),
+            np.random.rand(5*17)
+        ]
+        arrs = [
+            data[0].reshape((11, 12)),
+            data[1].reshape((5, 17))
+        ]
+        bms = [
+            hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
+            hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
+        ]
+        prefix = new_local_temp_dir()
+        hl.experimental.export_block_matrices(bms, f'{prefix}/files')
+        for i in range(len(bms)):
+            a = arrs[i]
+            a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
+            self.assertTrue(np.array_equal(a, a2))

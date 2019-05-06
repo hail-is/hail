@@ -111,7 +111,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -156,7 +156,7 @@ class GroupedMatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = hl.agg.fraction(hl.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -224,7 +224,7 @@ class GroupedMatrixTable(ExprContainer):
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
         ...                          .partition_hint(5)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -261,7 +261,7 @@ class GroupedMatrixTable(ExprContainer):
         per cohort as a new column field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate_cols(mean_height = agg.mean(dataset.pheno.height))
+        ...                          .aggregate_cols(mean_height = hl.agg.mean(dataset.pheno.height))
         ...                          .result())
 
         Notes
@@ -302,7 +302,7 @@ class GroupedMatrixTable(ExprContainer):
         consequences per gene as a set as a new row field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
+        ...                          .aggregate_rows(consequences = hl.agg.collect_as_set(dataset.consequence))
         ...                          .result())
 
         Notes
@@ -343,7 +343,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         See Also
@@ -379,8 +379,8 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate_rows(consequences = agg.collect_as_set(dataset.consequence))
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_rows(consequences = hl.agg.collect_as_set(dataset.consequence))
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         Aggregate to a matrix with cohort as column keys, computing the mean height
@@ -388,8 +388,8 @@ class GroupedMatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate_cols(mean_height = agg.stats(dataset.pheno.height).mean)
-        ...                          .aggregate_entries(n_non_ref = agg.count_where(dataset.GT.is_non_ref()))
+        ...                          .aggregate_cols(mean_height = hl.agg.stats(dataset.pheno.height).mean)
+        ...                          .aggregate_entries(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref()))
         ...                          .result())
 
         See Also
@@ -460,7 +460,7 @@ class GroupedMatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -502,12 +502,12 @@ class MatrixTable(ExprContainer):
     ...                                    populations = ['AFR', 'EAS', 'EUR', 'SAS', 'AMR', 'HIS'])
 
     >>> dataset = dataset.annotate_cols(pop = dataset.populations[hl.int(hl.rand_unif(0, 6))],
-    ...                                 sample_gq = agg.mean(dataset.GQ),
-    ...                                 sample_dp = agg.mean(dataset.DP))
+    ...                                 sample_gq = hl.agg.mean(dataset.GQ),
+    ...                                 sample_dp = hl.agg.mean(dataset.DP))
 
-    >>> dataset = dataset.annotate_rows(variant_gq = agg.mean(dataset.GQ),
-    ...                                 variant_dp = agg.mean(dataset.GQ),
-    ...                                 sas_hets = agg.count_where(dataset.GT.is_het()))
+    >>> dataset = dataset.annotate_rows(variant_gq = hl.agg.mean(dataset.GQ),
+    ...                                 variant_dp = hl.agg.mean(dataset.GQ),
+    ...                                 sas_hets = hl.agg.count_where(dataset.GT.is_het()))
 
     >>> dataset = dataset.annotate_entries(gq_by_dp = dataset.GQ / dataset.DP)
 
@@ -521,16 +521,16 @@ class MatrixTable(ExprContainer):
 
     Query:
 
-    >>> col_stats = dataset.aggregate_cols(hl.struct(pop_counts=agg.counter(dataset.pop),
-    ...                                              high_quality=agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
+    >>> col_stats = dataset.aggregate_cols(hl.struct(pop_counts=hl.agg.counter(dataset.pop),
+    ...                                              high_quality=hl.agg.fraction((dataset.sample_gq > 10) & (dataset.sample_dp > 5))))
     >>> print(col_stats.pop_counts)
     >>> print(col_stats.high_quality)
 
-    >>> het_dist = dataset.aggregate_rows(agg.stats(dataset.sas_hets))
+    >>> het_dist = dataset.aggregate_rows(hl.agg.stats(dataset.sas_hets))
     >>> print(het_dist)
 
-    >>> entry_stats = dataset.aggregate_entries(hl.struct(call_rate=agg.fraction(hl.is_defined(dataset.GT)),
-    ...                                                   global_gq_mean=agg.mean(dataset.GQ)))
+    >>> entry_stats = dataset.aggregate_entries(hl.struct(call_rate=hl.agg.fraction(hl.is_defined(dataset.GT)),
+    ...                                                   global_gq_mean=hl.agg.mean(dataset.GQ)))
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
@@ -905,8 +905,8 @@ class MatrixTable(ExprContainer):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_stats.mean > 20,
-        ...                                 agg.call_stats(dataset.GT, dataset.alleles))
+        >>> high_quality_calls = hl.agg.filter(dataset.sample_qc.gq_stats.mean > 20,
+        ...                                    hl.agg.call_stats(dataset.GT, dataset.alleles))
         >>> dataset_result = dataset.annotate_rows(call_stats = high_quality_calls)
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
@@ -919,7 +919,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_rows(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_rows(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -957,7 +957,7 @@ class MatrixTable(ExprContainer):
         --------
         Compute statistics about the GQ distribution per sample:
 
-        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = agg.stats(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(sample_gq_stats = hl.agg.stats(dataset.GQ))
 
         Add sample metadata from a :class:`.hail.Table`.
 
@@ -967,7 +967,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.annotate_cols(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.annotate_cols(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -1101,7 +1101,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset_result = dataset.select_rows(
         ...    dataset.variant_qc.gq_stats.mean,
-        ...    high_quality_cases = agg.count_where((dataset.GQ > 20) &
+        ...    high_quality_cases = hl.agg.count_where((dataset.GQ > 20) &
         ...                                         dataset.is_case))
 
         Notes
@@ -1122,7 +1122,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance, the usage:
 
-        >>> dataset_result = dataset.select_rows(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_rows(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per row.
 
@@ -1172,7 +1172,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance, the usage:
 
-        >>> dataset_result = dataset.select_cols(mean_GQ = agg.mean(dataset.GQ))
+        >>> dataset_result = dataset.select_cols(mean_GQ = hl.agg.mean(dataset.GQ))
 
         will compute the mean per column.
 
@@ -1516,7 +1516,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over columns. For instance,
 
-        >>> dataset_result = dataset.filter_rows(agg.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_rows(hl.agg.mean(dataset.GQ) > 20.0)
 
         will remove rows where the mean GQ of all entries in the row is smaller than
         20.
@@ -1588,7 +1588,7 @@ class MatrixTable(ExprContainer):
         ----
         This method supports aggregation over rows. For instance,
 
-        >>> dataset_result = dataset.filter_cols(agg.mean(dataset.GQ) > 20.0)
+        >>> dataset_result = dataset.filter_cols(hl.agg.mean(dataset.GQ) > 20.0)
 
         will remove columns where the mean GQ of all entries in the column is smaller
         than 20.
@@ -1713,7 +1713,7 @@ class MatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`unfilter_entries`
+        :meth:`unfilter_entries`, :meth:`compute_entry_filter_stats`
         """
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
@@ -1738,13 +1738,57 @@ class MatrixTable(ExprContainer):
 
         See Also
         --------
-        :meth:`filter_entries`
+        :meth:`filter_entries`, :meth:`compute_entry_filter_stats`
         """
         entry_ir = hl.cond(
             hl.is_defined(self.entry),
             self.entry,
             hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
+
+    @typecheck_method(row_field=str, col_field=str)
+    def compute_entry_filter_stats(self, row_field='entry_stats_row', col_field='entry_stats_col') -> 'MatrixTable':
+        """Compute statistics about the number and fraction of filtered entries.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        row_field : :obj:`str`
+            Name for computed row field (default: ``entry_stats_row``.
+        col_field : :obj:`str`
+            Name for computed column field (default: ``entry_stats_col``.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        Adds a new row field, `row_field`, and a new column field, `col_field`,
+        each of which are structs with the following fields:
+
+         - *n_filtered* (:data:`.int64`) - Number of filtered entries per row
+           or column.
+         - *n_remaining* (:data:`.int64`) - Number of entries not filtered per
+           row or column.
+         - *fraction_filtered* (:data:`.float32`) - Number of filtered entries
+           divided by the total number of filtered and remaining entries.
+
+        See Also
+        --------
+        :meth:`filter_entries`, :meth:`unfilter_entries`
+        """
+        def result(count):
+            return hl.rbind(count,
+                            hl.agg.count(),
+                            lambda n_tot, n_def: hl.struct(n_filtered=n_tot - n_def,
+                                                           n_remaining=n_def,
+                                                           fraction_filtered=(n_tot - n_def) / n_tot))
+        mt = self
+        mt = mt.annotate_cols(**{col_field: result(mt.count_rows(_localize=False))})
+        mt = mt.annotate_rows(**{row_field: result(mt.count_cols(_localize=False))})
+        return mt
 
     @typecheck_method(named_exprs=expr_any)
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
@@ -1898,8 +1942,8 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
-        ...                                  mean_qual=agg.mean(dataset.qual)))
+        >>> dataset.aggregate_rows(hl.struct(n_high_quality=hl.agg.count_where(dataset.qual > 40),
+        ...                                  mean_qual=hl.agg.mean(dataset.qual)))
         Struct(n_high_quality=13, mean_qual=544323.8915384616)
 
         Notes
@@ -1911,8 +1955,8 @@ class MatrixTable(ExprContainer):
         the following:
 
         >>> rows_table = dataset.rows()
-        >>> rows_table.aggregate(hl.struct(n_high_quality=agg.count_where(rows_table.qual > 40),
-        ...                                mean_qual=agg.mean(rows_table.qual)))
+        >>> rows_table.aggregate(hl.struct(n_high_quality=hl.agg.count_where(rows_table.qual > 40),
+        ...                                mean_qual=hl.agg.mean(rows_table.qual)))
 
         Note
         ----
@@ -1947,8 +1991,8 @@ class MatrixTable(ExprContainer):
         Aggregate over columns:
 
         >>> dataset.aggregate_cols(
-        ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
-        ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
+        ...    hl.struct(fraction_female=hl.agg.fraction(dataset.pheno.is_female),
+        ...              case_ratio=hl.agg.count_where(dataset.is_case) / hl.agg.count()))
         Struct(fraction_female=0.48, case_ratio=1.0)
 
         Notes
@@ -1961,8 +2005,8 @@ class MatrixTable(ExprContainer):
 
         >>> cols_table = dataset.cols()
         >>> cols_table.aggregate(
-        ...     hl.struct(fraction_female=agg.fraction(cols_table.pheno.is_female),
-        ...               case_ratio=agg.count_where(cols_table.is_case) / agg.count()))
+        ...     hl.struct(fraction_female=hl.agg.fraction(cols_table.pheno.is_female),
+        ...               case_ratio=hl.agg.count_where(cols_table.is_case) / hl.agg.count()))
 
         Note
         ----
@@ -1996,8 +2040,8 @@ class MatrixTable(ExprContainer):
         --------
         Aggregate over entries:
 
-        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
-        ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
+        >>> dataset.aggregate_entries(hl.struct(global_gq_mean=hl.agg.mean(dataset.GQ),
+        ...                                     call_rate=hl.agg.fraction(hl.is_defined(dataset.GT))))
         Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
 
         Notes
@@ -2006,8 +2050,8 @@ class MatrixTable(ExprContainer):
         the following:
 
         >>> entries_table = dataset.entries()
-        >>> entries_table.aggregate(hl.struct(global_gq_mean=agg.mean(entries_table.GQ),
-        ...                                   call_rate=agg.fraction(hl.is_defined(entries_table.GT))))
+        >>> entries_table.aggregate(hl.struct(global_gq_mean=hl.agg.mean(entries_table.GQ),
+        ...                                   call_rate=hl.agg.fraction(hl.is_defined(entries_table.GT))))
 
         Note
         ----
@@ -2167,7 +2211,7 @@ class MatrixTable(ExprContainer):
         non-reference calls as an entry field:
 
         >>> dataset_result = (dataset.group_rows_by(dataset.gene)
-        ...                          .aggregate(n_non_ref = agg.count_where(dataset.GT.is_non_ref())))
+        ...                          .aggregate(n_non_ref = hl.agg.count_where(dataset.GT.is_non_ref())))
 
         Notes
         -----
@@ -2198,7 +2242,7 @@ class MatrixTable(ExprContainer):
         as an entry field:
 
         >>> dataset_result = (dataset.group_cols_by(dataset.cohort)
-        ...                          .aggregate(call_rate = agg.fraction(hl.is_defined(dataset.GT))))
+        ...                          .aggregate(call_rate = hl.agg.fraction(hl.is_defined(dataset.GT))))
 
         Notes
         -----
@@ -2311,7 +2355,8 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(MatrixCollectColsByKey(self._mir))
 
-    def count_rows(self) -> int:
+    @typecheck_method(_localize=bool)
+    def count_rows(self, _localize=True) -> int:
         """Count the number of rows in the matrix.
 
         Examples
@@ -2326,9 +2371,11 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of rows in the matrix.
         """
-
-        return Env.backend().execute(
-            TableCount(MatrixRowsTable(self._mir)))
+        ir = TableCount(MatrixRowsTable(self._mir))
+        if _localize:
+            return Env.backend().execute(ir)
+        else:
+            return construct_expr(ir, hl.tint64)
 
     def _force_count_rows(self):
         return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
@@ -2336,7 +2383,8 @@ class MatrixTable(ExprContainer):
     def _force_count_cols(self):
         return self.cols()._force_count()
 
-    def count_cols(self) -> int:
+    @typecheck_method(_localize=bool)
+    def count_cols(self, _localize=True) -> int:
         """Count the number of columns in the matrix.
 
         Examples
@@ -2351,9 +2399,11 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of columns in the matrix.
         """
-
-        return Env.backend().execute(
-            TableCount(MatrixColsTable(self._mir)))
+        ir = TableCount(MatrixColsTable(self._mir))
+        if _localize:
+            return Env.backend().execute(ir)
+        else:
+            return construct_expr(ir, hl.tint64)
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
@@ -2442,6 +2492,96 @@ class MatrixTable(ExprContainer):
 
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
         Env.backend().execute(MatrixWrite(self._mir, writer))
+
+    class _Show:
+        def __init__(self, table, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types):
+            self.table_show = table._show(n_rows, width, truncate, types)
+            self.actual_n_cols = actual_n_cols
+            self.displayed_n_cols = displayed_n_cols
+
+        def __str__(self):
+            s = self.table_show.__str__()
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
+            return s
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            s = self.table_show._repr_html_()
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += '<p>'
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
+                s += '</p>\n'
+            return s
+
+    @typecheck_method(n_rows=nullable(int),
+                      n_cols=nullable(int),
+                      include_row_fields=bool,
+                      width=nullable(int),
+                      truncate=nullable(int),
+                      types=bool,
+                      handler=nullable(anyfunc))
+    def show(self,
+             n_rows=None,
+             n_cols=None,
+             include_row_fields=False,
+             width=None,
+             truncate=None,
+             types=True,
+             handler=None):
+        """Print the first few rows of the table to the console.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        n_rows : :obj:`int`
+            Maximum number of rows to show.
+        n_cols : :obj:`int`
+            Maximum number of rows to show.
+        width : :obj:`int`
+            Horizontal width at which to break fields.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
+            Print an extra header line with the type of each field.
+        handler : Callable[[str], Any]
+            Handler function for data string.
+        """
+
+        def estimate_size(struct_expression):
+            return sum(max(len(f), len(str(x.dtype))) + 3
+                       for f, x in struct_expression.flatten().items())
+
+        if n_cols is None:
+            import shutil
+            (characters, _) = shutil.get_terminal_size((80, 10))
+            characters -= 6 # borders
+            key_characters = estimate_size(self.row_key)
+            characters -= key_characters
+            if include_row_fields:
+                characters -= estimate_size(self.row_value)
+            characters = max(characters, 0)
+            n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
+        actual_n_cols = self.count_cols()
+        displayed_n_cols = min(actual_n_cols, n_cols)
+
+        t = self.localize_entries('entries', 'cols')
+        t = t.key_by()
+        t = t.select(
+            **{f: t[f] for f in self.row_key},
+            **{f: t[f] for f in self.row_value if include_row_fields},
+            **{str(i): t.entries[i] for i in range(0, displayed_n_cols)})
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
+        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
@@ -2534,6 +2674,12 @@ class MatrixTable(ExprContainer):
         the compound (row key, column key) which becomes the table key.
         To preserve the original row-major entry order as the table row order,
         first unkey the columns using :meth:`key_cols_by` with no arguments.
+
+        Warning
+        -------
+        If the matrix table has no row key, but has a column key, this operation
+        may require a full shuffle to sort by the column key, depending on the
+        pipeline.
 
         Returns
         -------
