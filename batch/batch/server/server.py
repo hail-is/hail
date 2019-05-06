@@ -281,15 +281,17 @@ class Job:
         return None
 
     @staticmethod
-    async def from_db(ids, user):
-        records = await db.jobs.get_undeleted_records(ids)
-        jobs = [Job.from_record(record) for record in records if user == record['user']]
-        if len(jobs) == 0:
-            return None
-        elif isinstance(ids, list):
-            return jobs
-        else:
+    async def from_db(id, user):
+        jobs = await Job.from_db_multiple(id, user)
+        if len(jobs) == 1:
             return jobs[0]
+        return None
+
+    @staticmethod
+    async def from_db_multiple(ids, user):
+        records = await db.jobs.get_undeleted_records(ids, user)
+        jobs = [Job.from_record(record) for record in records]
+        return jobs
 
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
@@ -624,7 +626,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
-    parents = {job.id: job for job in await Job.from_db(parent_ids, user)}
+    parents = {job.id: job for job in await Job.from_db_multiple(parent_ids, user)}
     for parent_id in parent_ids:
         parent_job = parents.get(parent_id)
         if parent_job is None:
@@ -733,14 +735,16 @@ class Batch:
 
     @staticmethod
     async def from_db(ids, user):
-        records = await db.batch.get_records(ids)
-        batches = [Batch.from_record(record) for record in records if user == record['user'] and not record['deleted']]
-        if len(batches) == 0:
-            return None
-        elif isinstance(ids, list):
-            return batches
-        else:
+        batches = await Batch.from_db_multiple(ids, user)
+        if len(batches) == 1:
             return batches[0]
+        return None
+
+    @staticmethod
+    async def from_db_multiple(ids, user):
+        records = await db.batch.get_undeleted_records(ids, user)
+        batches = [Batch.from_record(record) for record in records]
+        return batches
 
     @staticmethod
     async def create_batch(attributes, callback, ttl, userdata):
