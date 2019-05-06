@@ -3271,6 +3271,17 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):
+        """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
+        be summed to a single `NumericExpression`.
+
+        Parameters
+        ----------
+        axis : :obj: `int` or :obj: `list` of :obj: `int:, optional
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
         if axis is None:
             axes = list(range(self.ndim))
         else:
