@@ -3147,6 +3147,18 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
     def reshape(self, shape):
+        """Reshape this ndarray to a new shape.
+
+        Examples
+        --------
+
+        >>> v = hl._ndarray([1, 2, 3, 4]) # doctest: +SKIP
+        >>> m = v.reshape((2, 2)) # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
         shape = wrap_to_list(shape)
         if len(shape) == 0:
             if self.ndim == 0:

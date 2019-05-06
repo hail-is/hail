@@ -968,6 +968,17 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
+  @Test def testNDArrayReshape() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+    val v = NDArrayReshape(matrixRowMajor, IndexedSeq(I64(4)))
+    val mat2 = NDArrayReshape(v, IndexedSeq(I64(2), I64(2)))
+
+    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(2)), 3.0)
+    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(1, 0)), 3.0)
+    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(0, 0)), 1.0)
+  }
+
   @Test def testNDArrayMap() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
