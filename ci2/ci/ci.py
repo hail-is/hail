@@ -40,7 +40,7 @@ async def index(request):  # pylint: disable=unused-argument
     for i, wb in enumerate(watched_branches):
         if wb.prs:
             pr_configs = []
-            for pr in wb.prs:
+            for pr in wb.prs.values():
                 pr_config = {
                     'number': pr.number,
                     'title': pr.title,
