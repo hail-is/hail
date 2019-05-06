@@ -1535,25 +1535,27 @@ class Table(ExprContainer):
             # FIXME: this should be OK: table[m.global_index_into_table]
             raise ExpressionException('Cannot index with a scalar expression')
 
-        if (len(exprs) == 1
-                and isinstance(exprs[0], TupleExpression)):
-            return self._index(*exprs[0], all_matches=all_matches)
-
-        if (len(exprs) == 1
-                and isinstance(exprs[0], StructExpression)):
-            return self._index(*exprs[0].values(), all_matches=all_matches)
-
         is_interval = (len(exprs) == 1
                        and isinstance(self.key[0].dtype, hl.tinterval)
                        and exprs[0].dtype == self.key[0].dtype.point_type)
 
+        if not types_match(list(self.key.values()), list(exprs)):
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], TupleExpression)):
+                return self._index(*exprs[0], all_matches=all_matches)
+
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], StructExpression)):
+                return self._index(*exprs[0].values(), all_matches=all_matches)
+
+            if not is_interval:
+                if all_matches:
+                    uid = Env.get_uid()
+                    return self.collect_by_key(uid).index(*exprs)[uid]
+                else:
+                    raise TableIndexKeyError(self.key.dtype, exprs)
+
         uid = Env.get_uid()
-
-        if all_matches and not is_interval:
-            return self.collect_by_key(uid).index(*exprs)[uid]
-
-        if not (is_interval or types_match(list(self.key.values()), list(exprs))):
-            raise TableIndexKeyError(self.key.dtype, exprs)
 
         new_schema = self.row_value.dtype
         if all_matches:
