@@ -24,8 +24,9 @@
       <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
       {% endif %}
     </p>
-    {% if wb.prs is not none %}
+
     <h3>PRs</h3>
+    {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
     <table>
       <thead>
@@ -74,8 +75,9 @@
     {% else %}
     No PRs.
     {% endif %}
+    {% else %}
+    Unknown.
     {% endif %}
-    
     {% endfor %}
   </body>
 </html>
