@@ -30,7 +30,15 @@
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
             {% if 'exit_code' in job %}
-            {{ job['exit_code'] }}
+            {% if job['exit_code'] == 0 %}
+            <span style="color: #55aa33;">
+            Success 🎉
+            {% else %}
+            <span style="color: #a93333;">
+            Failure 🤷‍♀️
+            {% endif %}
+            ({{ job['exit_code'] }})
+            </span>
             {% endif %}
           </td>
           <td align="right">
