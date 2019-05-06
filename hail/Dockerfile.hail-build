@@ -6,5 +6,5 @@ RUN apt-get update && \
     maven
 
 COPY pom.xml test-jar-with-dependencies.xml ./
-RUN mvn dependency:resolve && \
+RUN mvn -B dependency:resolve && \
   rm pom.xml test-jar-with-dependencies.xml

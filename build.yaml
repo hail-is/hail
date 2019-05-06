@@ -141,7 +141,7 @@ steps:
    outputs:
      - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
        to: /hail.jar
-     - from: /io/repo/hail/target/hail-0.2-sha-test-jar-with-dependencies.jar
+     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
        to: /testng.xml
