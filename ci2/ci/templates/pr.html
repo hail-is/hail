@@ -23,33 +23,41 @@
         </tr>
       </thead>
       <tbody>
-	{% for job in batch['jobs'] %}
+        {% for job in batch['jobs'] %}
         <tr>
           <td align="right">{{ job['id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-	    {% if 'exit_code' in job %}
-	    {{ job['exit_code'] }}
-	    {% endif %}
-	  </td>
+            {% if 'exit_code' in job %}
+            {% if job['exit_code'] == 0 %}
+            <span style="color: #55aa33;">
+            Success 🎉
+            {% else %}
+            <span style="color: #a93333;">
+            Failure 🤷‍♀️
+            {% endif %}
+            ({{ job['exit_code'] }})
+            </span>
+            {% endif %}
+          </td>
           <td align="right">
             {% if 'duration' in job and job['duration'] %}
             {{ job['duration'] }}
             {% endif %}
           </td>
           <td align="left">
-	    <a href="/jobs/{{ job['id'] }}/log">log</a>
-	  </td>
+            <a href="/jobs/{{ job['id'] }}/log">log</a>
+          </td>
           <td>
             {% if 'link' in job['attributes'] %}
             {% for name in job['attributes']['link'] %}
             <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
-	    {% endfor %}
+            {% endfor %}
             {% endif %}
           </td>
         </tr>
-	{% endfor %}
+        {% endfor %}
       </tbody>
     </table>
     {% else %}
