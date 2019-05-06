@@ -130,7 +130,7 @@ class BatchTable(Table):
         return await super().get_all_records()
 
     async def get_records(self, ids, fields=None):
-        return await super().get_record({'id': ids}, fields)
+        return await super().get_records({'id': ids}, fields)
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
