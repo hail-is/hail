@@ -3085,10 +3085,31 @@ class NDArrayExpression(Expression):
 
     @property
     def T(self):
+        """Reverse the dimensions of this ndarray. For an n-dimensional array `a`,
+        a[i_0, ..., i_n-1, i_n] = a.T[i_n, i_n-1, ..., i_0].
+        Same as `self.transpose()`.
+
+        See also :func:`.transpose`.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
         return self.transpose()
 
     @typecheck_method(axes=nullable(tupleof(int)))
     def transpose(self, axes=None):
+        """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
+        `axes` maps the `j`th index of the ndarray to the `i`th index of the output ndarray.
+
+        Notes
+        -----
+        Does nothing on ndarrays of dimensionality 0 or 1.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
         if axes is None:
             axes = list(reversed(range(self.ndim)))
         else:
