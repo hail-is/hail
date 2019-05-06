@@ -596,7 +596,7 @@ class WatchedBranch(Code):
             # merge candidate if up-to-date build passing, or
             # pending but haven't failed
             if (pr.review_state == 'approved' and
-                    (pr.build_state == 'success' or pr.source_sha_failed != True)):
+                    (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
                 if not merge_candidate or pri > merge_candidate_pri:
                     merge_candidate = pr
