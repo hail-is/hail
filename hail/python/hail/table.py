@@ -1549,13 +1549,12 @@ class Table(ExprContainer):
                 return self._index(*exprs[0].values(), all_matches=all_matches)
 
             if not is_interval:
-                if all_matches:
-                    uid = Env.get_uid()
-                    return self.collect_by_key(uid).index(*exprs)[uid]
-                else:
-                    raise TableIndexKeyError(self.key.dtype, exprs)
+                raise TableIndexKeyError(self.key.dtype, exprs)
 
         uid = Env.get_uid()
+
+        if all_matches and not is_interval:
+            return self.collect_by_key(uid).index(*exprs)[uid]
 
         new_schema = self.row_value.dtype
         if all_matches:
