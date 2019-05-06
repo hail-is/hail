@@ -40,7 +40,7 @@ async def index(request):  # pylint: disable=unused-argument
     for i, wb in enumerate(watched_branches):
         if wb.prs:
             pr_configs = []
-            for pr in wb.prs:
+            for pr in wb.prs.values():
                 pr_config = {
                     'number': pr.number,
                     'title': pr.title,
@@ -54,7 +54,7 @@ async def index(request):  # pylint: disable=unused-argument
         else:
             pr_configs = None
         # FIXME recent deploy history
-        config = {
+        wb_config = {
             'index': i,
             'branch': wb.branch.short_str(),
             'sha': wb.sha,
@@ -64,9 +64,11 @@ async def index(request):  # pylint: disable=unused-argument
             'repo': wb.branch.repo.short_str(),
             'prs': pr_configs
         }
-        wb_configs.append(config)
+        wb_configs.append(wb_config)
 
-    return wb_configs
+    return {
+        'watched_branches': wb_configs
+    }
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
@@ -76,10 +78,10 @@ async def get_pr(request):
     pr_number = int(request.match_info['pr_number'])
 
     if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
-            raise web.HTTPNotFound()
+        raise web.HTTPNotFound()
     wb = watched_branches[watched_branch_index]
-    
-    if wb.prs or pr_number not in wb.prs:
+
+    if not wb.prs or pr_number not in wb.prs:
         raise web.HTTPNotFound()
     pr = wb.prs[pr_number]
 
@@ -195,7 +197,7 @@ async def github_callback_handler(request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app
     await gh_router.dispatch(event)
-    
+
 
 @routes.post('/callback')
 async def callback(request):
