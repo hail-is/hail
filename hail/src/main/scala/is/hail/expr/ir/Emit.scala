@@ -22,10 +22,6 @@ object Emit {
     emit(ir, fb, Env.empty, nSpecialArguments)
   }
 
-  def apply(ir: IR, fb: EmitFunctionBuilder[_]) {
-    apply(ir, fb, 1)
-  }
-
   def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int) {
     val triplet = emit(ir, fb, Env.empty, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
