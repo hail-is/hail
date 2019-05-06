@@ -376,25 +376,30 @@ class CastTableToMatrix(MatrixIR):
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
-    def __init__(self, child, table, root):
+    def __init__(self, child, table, root, product=False):
         super().__init__(child, table)
         self.child = child
         self.table = table
         self.root = root
+        self.product = product
 
     def head_str(self):
-        return f'"{escape_str(self.root)}"'
+        return f'"{escape_str(self.root)}" {self.product}'
 
     def _eq(self, other):
-        return self.root == other.root
+        return self.root == other.root and self.product == other.product
 
     def _compute_type(self):
         child_typ = self.child.typ
+        if self.product:
+            value_type = hl.tarray(self.table.typ.value_type)
+        else:
+            value_type = self.table.typ.value_type
         self._type = hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
-            child_typ.row_type._insert_field(self.root, self.table.typ.value_type),
+            child_typ.row_type._insert_field(self.root, value_type),
             child_typ.row_key,
             child_typ.entry_type)
 

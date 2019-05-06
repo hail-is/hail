@@ -777,6 +777,20 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
 
+  def orderedLeftIntervalJoin(
+    right: RVD,
+    joiner: (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoin(right.keyBy(1), joiner, joinedType)
+
+  def orderedLeftIntervalJoinDistinct(
+    right: RVD,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoinDistinct(right.keyBy(1), joiner, joinedType)
+
   def orderedZipJoin(right: RVD): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
     orderedZipJoin(right, typ.key.length)
 
