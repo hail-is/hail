@@ -327,7 +327,7 @@ def test_input_dependency_directory(client):
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
                             input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
-
+    tail.wait()
     assert head.status()['exit_code'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
 
