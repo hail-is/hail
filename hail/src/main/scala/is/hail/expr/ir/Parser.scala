@@ -985,9 +985,10 @@ object IRParser {
         TableLeftJoinRightDistinct(left, right, root)
       case "TableIntervalJoin" =>
         val root = identifier(it)
+        val product = boolean_literal(it)
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
-        TableIntervalJoin(left, right, root)
+        TableIntervalJoin(left, right, root, product)
       case "TableZipUnchecked" =>
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
@@ -1133,9 +1134,10 @@ object IRParser {
         MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
+        val product = boolean_literal(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
-        MatrixAnnotateRowsTable(child, table, root)
+        MatrixAnnotateRowsTable(child, table, root, product)
       case "MatrixAnnotateColsTable" =>
         val root = string_literal(it)
         val child = matrix_ir(env)(it)
