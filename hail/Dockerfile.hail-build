@@ -5,6 +5,6 @@ RUN apt-get update && \
     liblz4-dev \
     maven
 
-COPY pom.xml test-jar-with-dependencies.xml
+COPY pom.xml test-jar-with-dependencies.xml .
 RUN mvn dependency:resolve && \
   rm pom.xml test-jar-with-dependencies.xml
