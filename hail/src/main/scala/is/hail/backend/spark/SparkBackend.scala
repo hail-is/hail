@@ -45,13 +45,27 @@ object SparkBackend {
         context)
     }
 
+    try {
+      ir = LowerTableIR.lower(ir)
+    } catch {
+      case e: SparkBackendUnsupportedOperation =>
+        throw new CXXUnsupportedOperation(s"Failed lowering step:\n${e.getMessage}")
+    }
+
+    if (optimize) {
+      val context = "after TableIR lowering"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
+        context)
+    }
+
     val value = ir.typ match {
       case TVoid =>
         val f = timer.time(cxx.Compile(ir, optimize), "SparkBackend.execute - CXX compile")
         timer.time(Region.scoped { region => f(region.get()) }, "SparkBackend.execute - Runtime")
         Unit
       case _ =>
-        val pipeline = MakeTuple(FastIndexedSeq(LowerTableIR.lower(ir)))
+        val pipeline = MakeTuple(FastIndexedSeq(ir))
         val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "SparkBackend.execute - CXX compile")
         timer.time(
           Region.scoped { region =>
@@ -60,7 +74,7 @@ object SparkBackend {
           },
           "SparkBackend.execute - Runtime")
     }
-    
+
     (value, timer.timings)
   }
 
