@@ -951,21 +951,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val setup = Code(ndt.setup, nd.define, Code.sequence(shapeBuilder))
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
-          override def outputElement(idxVars: Seq[Variable]): Code = {
+          override def outputElement(resultIdxVars: Seq[Variable]): Code = {
             val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
-            val resultDimsIter = idxVars.iterator
+            val resultIdxVarsIter = resultIdxVars.iterator
             val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
               if (aggIdxVars.contains(dim)) {
                 aggIdxVars(dim)
               } else {
-                assert(resultDimsIter.hasNext)
-                resultDimsIter.next()
+                assert(resultIdxVarsIter.hasNext)
+                resultIdxVarsIter.next()
               }
             }
-            assert(!resultDimsIter.hasNext)
+            assert(!resultIdxVarsIter.hasNext)
+            val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
 
             val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
-            val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
             val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, childTyp.elementType) }"
             val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
               s"""
