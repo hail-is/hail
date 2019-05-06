@@ -580,7 +580,7 @@ class NDArrayAgg(IR):
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        assert len(self.axes.distinct) == len(self.axes)
+        assert len(set(self.axes)) == len(self.axes)
         assert all([axis < self.nd.typ.ndim for axis in self.axes])
 
         self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))

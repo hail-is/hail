@@ -1081,8 +1081,10 @@ class IRSuite extends SparkSuite {
 
     val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val ten = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(0))
-    assertEvalsTo(ten, 4.0)
+    val four = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(0))
+    assertEvalsTo(four, 4.0)
+    val six = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(1))
+    assertEvalsTo(six, 6.0)
 
     val twentySeven = makeNDArrayRef(NDArrayAgg(cubeRowMajor, IndexedSeq(2)), IndexedSeq(0, 0))
     assertEvalsTo(twentySeven, 3.0)

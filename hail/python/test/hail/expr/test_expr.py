@@ -2790,12 +2790,9 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_sum(self):
-        nd = hl._ndarray([[1, 2], [3, 4]])
+        np_m = np.array([[1, 2], [3, 4]])
+        m = hl._ndarray(np_m)
 
-        row = nd.sum(axis=[0])
-        col = nd.sum(axis=[1])
-        scalar = nd.sum()
-
-        hl.eval(row[0])
-        hl.eval(col[0])
-        hl.eval(scalar[()])
+        self.ndarray_eq(m.sum(axis=0), np_m.sum(axis=0))
+        self.ndarray_eq(m.sum(axis=1), np_m.sum(axis=1))
+        self.ndarray_eq(m.sum(), np_m.sum())

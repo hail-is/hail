@@ -3269,7 +3269,7 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
-    @typecheck_method(axis=sequenceof(int))
+    @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):
         if axis is None:
             axes = list(range(self.ndim))
@@ -3280,8 +3280,8 @@ class NDArrayNumericExpression(NDArrayExpression):
             if not 0 <= axis <= self.ndim:
                 raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
 
-        if len(axes.distinct) != len(axes):
-            raise ValueError(f'Axes should not be repeated')
+        if len(set(axes)) != len(axes):
+            raise ValueError(f'Axes should not be repeated: {axes}')
 
         return NDArrayNumericExpression(NDArrayAgg(self._ir, axes),
                                         tndarray(self._type.element_type, self.ndim - len(axes)))
