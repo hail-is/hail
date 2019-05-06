@@ -129,47 +129,6 @@
             </execution>
           </executions>
         </plugin>
-        <plugin>
-          <groupId>org.apache.maven.plugins</groupId>
-          <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.0.0-M3</version>
-          <configuration>
-            <testSourceDirectory>src/test/scala</testSourceDirectory>
-            <systemPropertyVariables>
-              <file.encoding>utf-8</file.encoding>
-            </systemPropertyVariables>
-            <jvmArgs>
-              <jvmArg>-Xss4M</jvmArg>
-            </jvmArgs>
-          </configuration>
-          <executions>
-            <execution>
-              <id>default-test</id> <!-- If this is not default-test, then runs Test* tests twice -->
-              <goals>
-                <goal>test</goal>
-              </goals>
-              <configuration>
-                <suiteXmlFiles>
-                  <suiteXmlFile>testng.xml</suiteXmlFile>
-                </suiteXmlFiles>
-              </configuration>
-            </execution>
-            <execution>
-              <id>cpp-codegen-test</id>
-              <goals>
-                <goal>test</goal>
-              </goals>
-              <configuration>
-                <environmentVariables>
-                  <HAIL_ENABLE_CPP_CODEGEN>1</HAIL_ENABLE_CPP_CODEGEN>
-                </environmentVariables>
-                <suiteXmlFiles>
-                  <suiteXmlFile>testng-cpp-codegen.xml</suiteXmlFile>
-                </suiteXmlFiles>
-              </configuration>
-            </execution>
-          </executions>
-        </plugin>
       </plugins>
     </pluginManagement>
     <resources>
@@ -181,38 +140,6 @@
       </resource>
     </resources>
     <plugins>
-      <plugin>
-        <artifactId>exec-maven-plugin</artifactId>
-        <groupId>org.codehaus.mojo</groupId>
-        <version>1.6.0</version>
-        <executions>
-          <execution>
-            <id>nativeLib</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <workingDirectory>src/main/c</workingDirectory>
-              <executable>make</executable>
-            </configuration>
-          </execution>
-          <execution>
-            <id>nativeLibClean</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>exec</goal>
-            </goals>
-            <configuration>
-              <workingDirectory>src/main/c</workingDirectory>
-              <executable>make</executable>
-              <arguments>
-                <argument>clean</argument>
-              </arguments>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>

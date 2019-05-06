@@ -131,7 +131,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     ./gradlew shadowJar
+     make jars
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
@@ -139,8 +139,14 @@ steps:
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
    outputs:
-     - from: /io/repo/hail/build/libs/hail-all-spark.jar
-       to: /hail-all-spark.jar
+     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+       to: /hail.jar
+     - from: /io/repo/hail/target/hail-0.2-sha-test-jar-with-dependencies.jar
+       to: /hail-test.jar
+     - from: /io/repo/hail/testng.xml
+       to: /testng.xml
+     - from: /io/repo/hail/testng-cpp-codegen.xml
+       to: /testng-cpp-codegen.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
@@ -155,6 +161,22 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: runImage
+   name: test_hail_java
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     cd /io
+     java -cp hail-test.jar org.testng.TestNG testng.xml
+     java -cp hail-test.jar org.testng.TestNG testng-cpp-codegen.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng.xml
+      to: /io/testng.xml
+    - from: /testng-cpp-codegen.xml
+      to: /io/testng-cpp-codegen.xml
  - kind: buildImage
    name: hail_base_image
    dockerFile: apiserver/Dockerfile.hail-base
@@ -164,8 +186,8 @@ steps:
     - hail_run_image
     - build_hail
    inputs:
-    - from: /hail-all-spark.jar
-      to: /hail-all-spark.jar
+    - from: /hail.jar
+      to: /hail.jar
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
@@ -230,12 +252,12 @@ steps:
      tar xzf data.tar.gz
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail-all-spark.jar --conf spark.executor.extraClassPath=./hail-all-spark.jar pyspark-shell"
+     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
      python3 -m pytest test
    inputs:
-     - from: /hail-all-spark.jar
-       to: /io/hail-all-spark.jar
+     - from: /hail.jar
+       to: /io/hail.jar
      - from: /hail.zip
        to: /io/hail.zip
      - from: /test.tar.gz
@@ -273,7 +295,7 @@ steps:
      gcloud config set project broad-ctsa
      SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
      time gsutil cp \
-       /io/hail-all-spark.jar \
+       /io/hail.jar \
        $SCRATCH/hail.jar
      time gsutil cp \
        /io/hail.zip \
@@ -306,8 +328,8 @@ steps:
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
-    - from: /hail-all-spark.jar
-      to: /io/hail-all-spark.jar
+    - from: /hail.jar
+      to: /io/hail.jar
     - from: /cluster-tests.tar.gz
       to: /io/cluster-tests.tar.gz
    dependsOn:
