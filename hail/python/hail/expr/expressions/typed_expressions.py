@@ -3100,7 +3100,7 @@ class NDArrayExpression(Expression):
     @typecheck_method(axes=nullable(tupleof(int)))
     def transpose(self, axes=None):
         """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
-        `axes` maps the `j`th index of the ndarray to the `i`th index of the output ndarray.
+        `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
 
         Notes
         -----
