@@ -74,7 +74,7 @@ class Batch:
     def wait(self):
         def update_and_is_complete():
             status = self.status()
-            if not any(j['state'] == 'Created' or j['state'] == 'Ready' for j in status['jobs']):
+            if status['complete']:
                 return status
             return False
         return poll_until(update_and_is_complete)

@@ -81,8 +81,9 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
 
-        b2.wait()
+        s = b2.wait()
         print(b1.status())
+        print(s)
         assert_batch_ids({b1.id}, complete=False, attributes={'tag': tag})
         assert_batch_ids({b2.id}, complete=True, attributes={'tag': tag})
 
