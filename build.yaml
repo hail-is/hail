@@ -488,6 +488,7 @@ steps:
       for: alive
    alwaysRun: true
    dependsOn:
+    - default_ns
     - test_batch
  - kind: deploy
    name: deploy_apiserver
