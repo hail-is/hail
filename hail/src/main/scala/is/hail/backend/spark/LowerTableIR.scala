@@ -1,7 +1,6 @@
 package is.hail.backend.spark
 
 import is.hail.annotations._
-import is.hail.cxx
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -10,6 +9,8 @@ import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+
+class SparkBackendUnsupportedOperation(msg: String = null) extends Exception(msg)
 
 case class SparkShuffle(child: SparkStage)
 
@@ -55,13 +56,13 @@ object LowerTableIR {
         "global" -> lowered.globals.value))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
-      throw new cxx.CXXUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
+      throw new SparkBackendUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
-      throw new cxx.CXXUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
+      throw new SparkBackendUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
     case _: In =>
-      throw new cxx.CXXUnsupportedOperation(s"`In` value IR node cannot be lowered in Spark backend.")
+      throw new SparkBackendUnsupportedOperation(s"`In` value IR node cannot be lowered in Spark backend.")
 
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })
@@ -141,6 +142,6 @@ object LowerTableIR {
       loweredChild.copy(body = ArrayFlatMap(loweredChild.body, row.name, ArrayMap(fieldRef, elt.name, newRow)))
 
     case node =>
-      throw new cxx.CXXUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
+      throw new SparkBackendUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
   }
 }
