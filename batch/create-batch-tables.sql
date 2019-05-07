@@ -90,9 +90,9 @@ DELIMITER ;
 
 CREATE TABLE IF NOT EXISTS `batch-attributes` (
   `batch_id` BIGINT NOT NULL,
-  `key` TEXT(65535) NOT NULL,
-  `value` TEXT(65535),
+  `key` TEXT(256) NOT NULL,
+  `value` TEXT(256),
   PRIMARY KEY (`batch_id`)
 ) ENGINE = InnoDB;
-CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`);
+CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`(256), `value`(256));
 
