@@ -164,13 +164,16 @@ steps:
  - kind: runImage
    name: test_hail_java
    image:
-     valueFrom: base_image.image
+     valueFrom: hail_run_image.image
    script: |
      set -ex
      cd /io
+     tar xzvf resources.tar.gz
      java -cp hail-test.jar org.testng.TestNG testng.xml
      java -cp hail-test.jar org.testng.TestNG testng-cpp-codegen.xml
    inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
     - from: /hail-test.jar
       to: /io/hail-test.jar
     - from: /testng.xml
@@ -178,7 +181,7 @@ steps:
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
    dependsOn:
-    - base_image
+    - hail_run_image
     - build_hail
  - kind: buildImage
    name: hail_base_image
