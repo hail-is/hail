@@ -2,12 +2,13 @@ import secrets
 from shlex import quote as shq
 import json
 import asyncio
+import concurrent.futures
 import aiohttp
 import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
 from .environment import SELF_HOSTNAME
-from .utils import CalledProcessError, check_shell, check_shell_output, update_batch_status
+from .utils import check_shell, check_shell_output, update_batch_status
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
@@ -113,7 +114,8 @@ class FQBranch:
 
 # record the context for a merge failure
 class MergeFailureBatch:
-    def __init__(self, attributes=None):
+    def __init__(self, exception, attributes=None):
+        self.exception = exception
         self.attributes = attributes
 
 
@@ -212,28 +214,30 @@ class PR(Code):
     def build_is_complete(self):
         return build_state_is_complete(self.build_state)
 
-    async def post_github_status(self, gh):
+    def github_status(self):
+        if self.build_state == 'failure' or self.build_state == 'merge_failure':
+            return 'failure'
+        if (self.build_state == 'success' and
+                self.batch.attributes['target_sha'] == self.target_branch.sha):
+            return 'success'
+        return 'pending'
+
+    async def post_github_status(self, gh_client, gh_status):
         assert self.source_sha is not None
 
-        log.info(f'{self.short_str()}: notify github of build state: {self.build_state}')
-        if self.build_state is None:
-            gh_state = 'pending'
-        elif self.build_state == 'success':
-            gh_state = 'success'
-        else:
-            assert self.build_state == 'failure' or self.build_state == 'merge_failure'
-            gh_state = 'failure'
+        log.info(f'{self.short_str()}: notify github state: {gh_status}')
         data = {
-            'state': gh_state,
+            'state': gh_status,
             # FIXME should be this build, not the pr
             'target_url': f'https://ci2.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
-            'description': self.build_state,
+            # FIXME improve
+            'description': gh_status,
             'context': 'ci-test'
         }
         try:
-            url = f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}'
-            log.info(f'notify github url: {url} {data}')
-            await gh.post(f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data)
+            await gh_client.post(
+                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
+                data=data)
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
 
@@ -265,6 +269,7 @@ class PR(Code):
         self.batch = None
         self.build_state = None
 
+        batch = None
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
@@ -280,24 +285,7 @@ mkdir -p {shq(repo_dir)}
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), deploy=False)
-        except (CalledProcessError, FileNotFoundError) as e:
-            log.exception(f'could not open build.yaml due to {e}')
-            # FIXME save merge failure output for UI
-            self.batch = MergeFailureBatch(
-                attributes={
-                    'test': '1',
-                    'target_branch': self.target_branch.branch.short_str(),
-                    'pr': str(self.number),
-                    'source_sha': self.source_sha,
-                    'target_sha': self.target_branch.sha
-                })
-            self.build_state = 'merge_failure'
-            self.source_sha_failed = True
-            self.target_branch.state_changed = True
-            return
 
-        batch = None
-        try:
             log.info(f'creating test batch for {self.number}')
             batch = await batch_client.create_batch(
                 attributes={
@@ -312,8 +300,24 @@ mkdir -p {shq(repo_dir)}
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
+        except concurrent.futures.CancelledError:
+            raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception(f'could not build {self.number} due to exception {e}')
+            log.exception(f'could not start build due to {e}')
+
+            # FIXME save merge failure output for UI
+            self.batch = MergeFailureBatch(
+                e,
+                attributes={
+                    'test': '1',
+                    'target_branch': self.target_branch.branch.short_str(),
+                    'pr': str(self.number),
+                    'source_sha': self.source_sha,
+                    'target_sha': self.target_branch.sha,
+                })
+            self.build_state = 'merge_failure'
+            self.source_sha_failed = True
+            self.target_branch.state_changed = True
         finally:
             if batch and not self.batch:
                 log.info(f'cancelling partial test batch {batch.id}')
@@ -361,6 +365,10 @@ mkdir -p {shq(repo_dir)}
                 self.target_branch.state_changed = True
 
     async def _heal(self, batch_client, on_deck):
+        # can't merge target if we don't know what it is
+        if self.target_branch.sha is None:
+            return
+
         if (not self.batch or
                 (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
@@ -488,9 +496,10 @@ class WatchedBranch(Code):
             new_statuses = {}
             for pr in self.prs.values():
                 if pr.source_sha:
-                    if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != pr.build_state:
-                        await pr.post_github_status(gh)
-                    new_statuses[pr.source_sha] = pr.build_state
+                    gh_status = pr.github_status()
+                    if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
+                        await pr.post_github_status(gh, gh_status)
+                    new_statuses[pr.source_sha] = gh_status
             self.statuses = new_statuses
         finally:
             log.info(f'update done {self.short_str()}')
@@ -570,6 +579,9 @@ class WatchedBranch(Code):
     async def _heal_deploy(self, batch_client):
         assert self.deployable
 
+        if not self.sha:
+            return
+
         if (self.deploy_batch is None or
                 (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
             async with repos_lock:
@@ -630,6 +642,7 @@ class WatchedBranch(Code):
         self.deploy_batch = None
         self.deploy_state = None
 
+        deploy_batch = None
         try:
             repo_dir = self.repo_dir()
             await check_shell(f'''
@@ -638,19 +651,7 @@ mkdir -p {shq(repo_dir)}
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), deploy=True)
-        except (CalledProcessError, FileNotFoundError) as e:
-            log.exception(f'could not open build.yaml due to {e}')
-            self.deploy_batch = MergeFailureBatch(
-                attributes={
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str(),
-                    'sha': self.sha
-                })
-            self.deploy_state = 'checkout_failure'
-            return
 
-        deploy_batch = None
-        try:
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = await batch_client.create_batch(
                 attributes={
@@ -664,6 +665,18 @@ mkdir -p {shq(repo_dir)}
             await config.build(deploy_batch, self, deploy=True)
             await deploy_batch.close()
             self.deploy_batch = deploy_batch
+        except concurrent.futures.CancelledError:
+            raise
+        except Exception as e:  # pylint: disable=broad-except
+            log.exception(f'could not start deploy due to {e}')
+            self.deploy_batch = MergeFailureBatch(
+                e,
+                attributes={
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha
+                })
+            self.deploy_state = 'checkout_failure'
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
