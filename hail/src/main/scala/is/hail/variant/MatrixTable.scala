@@ -188,7 +188,6 @@ object MatrixTable {
             rv
           }
         }))
-    ds.typecheck()
     ds
   }
 
@@ -433,8 +432,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  def count(): (Long, Long) = (countRows(), countCols())
-
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
 
   def countCols(): Long = ast.columnCount.map(_.toLong).getOrElse(Interpret[Long](TableCount(MatrixColsTable(ast))))
@@ -442,20 +439,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
 
-  def dropCols(): MatrixTable =
-    copyAST(ast = MatrixFilterCols(ast, ir.False()))
-
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
   def sparkContext: SparkContext = hc.sc
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
-
-  def head(n: Long): MatrixTable = {
-    if (n < 0)
-      fatal(s"n must be non-negative! Found '$n'.")
-    copy2(rvd = rvd.head(n, None))
-  }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true
@@ -583,73 +571,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def copy2(rvd: RVD = rvd,
-    colValues: BroadcastIndexedSeq = colValues,
-    colKey: IndexedSeq[String] = colKey,
-    globals: BroadcastRow = globals,
-    colType: TStruct = colType,
-    rvRowType: TStruct = rvRowType,
-    rowKey: IndexedSeq[String] = rowKey,
-    globalType: TStruct = globalType,
-    entryType: TStruct = entryType): MatrixTable = {
-    val newMatrixType = matrixType.copy(
-      globalType = globalType,
-      colKey = colKey,
-      colType = colType,
-      rowKey = rowKey,
-      rvRowType = rvRowType)
-    new MatrixTable(hc,
-      newMatrixType,
-      globals, colValues, rvd)
-  }
-
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
-  def storageLevel: String = rvd.storageLevel.toReadableString()
-
   def numCols: Int = colValues.value.length
-
-  def typecheck() {
-    var foundError = false
-    if (!globalType.typeCheck(globals.value)) {
-      foundError = true
-      warn(
-        s"""found violation in global annotation
-           |Schema: $globalType
-           |Annotation: ${ Annotation.printAnnotation(globals.value) }""".stripMargin)
-    }
-
-    colValues.value.zipWithIndex.find { case (sa, i) => !colType.typeCheck(sa) }
-      .foreach { case (sa, i) =>
-        foundError = true
-        warn(
-          s"""found violation in sample annotations for col $i
-             |Schema: $colType
-             |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
-      }
-
-    val localRVRowType = rvRowType
-
-    val predicate = { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRVRowType.physicalType, rv)
-      !localRVRowType.typeCheck(ur)
-    }
-
-    Region.scoped { region =>
-      rvd.find(region)(predicate).foreach { rv =>
-        val ur = new UnsafeRow(localRVRowType.physicalType, rv)
-        foundError = true
-        warn(
-          s"""found violation in row
-             |Schema: $localRVRowType
-             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
-      }
-    }
-
-    if (foundError)
-      fatal("found one or more type check errors")
-  }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
