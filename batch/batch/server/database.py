@@ -126,27 +126,35 @@ class BatchTable(Table):
 
     async def find_records(self, user, complete=None, success=None):
         values = []
-        sql = "select batch.* from {self.name} as batch"
+        selects = ["batch.*"]
         joins = []
         wheres = []
+        groups = []
         if complete or success:
             joins += "inner join {self._db.jobs.name} as job on batch.id == job.batch_id"
+            selects += "sum(*) as n_jobs"
+            groups += "batch.id"
             if complete is not None:
                 values += "Complete"
+                selects += "sum(job.state = %s) as completes"
                 if complete:
-                    wheres += "job.state = %s"
+                    wheres += "completes = n_jobs"
                 else:
-                    wheres += "job.state != %s"
+                    wheres += "completes != n_jobs"
             if success:
                 values += 0
+                selects += "sum(job.exit_code = %s) as successes"
                 if success:
-                    wheres += "job.exit_code = %s"
+                    wheres += "successes = n_jobs"
                 else:
-                    wheres += "job.exit_code != %s"
+                    wheres += "successes != n_jobs"
         if user:
             values += user
             wheres += "job.user = %s"
-        sql += " ".join(joins) + " " + " and ".join(wheres)
+        sql = "select " + ", ".join(selects) + "from {self.name} as batch"
+        sql += " ".join(joins)
+        sql += " where " + " and ".join(wheres)
+        sql += " group by " + ", ".join(groups)
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(sql, tuple(values))

@@ -870,7 +870,7 @@ async def get_batches_list(request, userdata):
     success = params.get('success')
     if success:
         del params['success']
-        success = success = '1'
+        success = success == '1'
     batches = [Batch.from_record(r)
                for r in await db.batch.find_records(
                        user=user, complete=complete, success=success)]
