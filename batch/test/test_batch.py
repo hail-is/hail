@@ -72,7 +72,8 @@ class Test(unittest.TestCase):
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
-            actual = set([batch.id for batch in batches])
+            # list_batches returns all batches for all prev run tests
+            actual = set([batch.id for batch in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
@@ -194,31 +195,29 @@ class Test(unittest.TestCase):
         b1 = self.batch.create_batch()
         b1.create_job('alpine', ['true'])
         b1.close()
+        b1.wait()
+        b1s = b1.status()
+        assert b1s['complete'] and b1s['state'] == 'success'
 
         b2 = self.batch.create_batch()
         b2.create_job('alpine', ['false'])
         b2.create_job('alpine', ['true'])
         b2.close()
+        b2.wait()
+        b2s = b2.status()
+        assert b2s['complete'] and b2s['state'] == 'failure'
 
         b3 = self.batch.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
         b3.close()
+        b3s = b3.status()
+        assert not b3s['complete'] and b3s['state'] == 'running'
 
         b4 = self.batch.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
         b4.cancel()
-
-        batches = self.batch.list_batches()
-        statuses = {b.id: b.status() for b in batches}
-        print(statuses)
-
-        b1s = statuses[b1.id]
-        assert b1s['complete'] and b1s['state'] == 'success'
-        b2s = statuses[b2.id]
-        assert b2s['complete'] and b2s['state'] == 'failure'
-        b3s = statuses[b3.id]
-        assert not b3s['complete'] and b3s['state'] == 'running'
-        b4s = statuses[b4.id]
+        b4.wait()
+        b4s = b4.status()
         assert b4s['complete'] and b4s['state'] == 'cancelled'
 
     def test_callback(self):
