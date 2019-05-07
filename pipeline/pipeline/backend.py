@@ -178,6 +178,7 @@ class BatchBackend(Backend):
 
         batch = self._batch_client.create_batch()
         n_jobs_submitted = 0
+        used_remote_tmpdir = False
 
         task_to_job_mapping = {}
         job_id_to_command = {}
@@ -228,6 +229,8 @@ class BatchBackend(Backend):
         for task in pipeline._tasks:
             copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
             copy_task_outputs = [x for r in task._internal_outputs for x in copy_internal_output(r)]
+            if copy_task_outputs:
+                used_remote_tmpdir = True
             copy_task_outputs += [x for r in task._external_outputs for x in copy_external_output(r)]
 
             local_dirs_needed = [local_tmpdir,
@@ -273,7 +276,7 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
-        if delete_scratch_on_exit:
+        if delete_scratch_on_exit and used_remote_tmpdir:
             parent_ids = list(job_id_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
             cmd = f'{activate_service_account} && {rm_cmd}'
