@@ -58,7 +58,6 @@ apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
   name: site
-  namespace: default
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
