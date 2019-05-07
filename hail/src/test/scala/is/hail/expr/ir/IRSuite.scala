@@ -1891,8 +1891,8 @@ class IRSuite extends SparkSuite {
       "x", Cast(Ref("x", TInt32()), TInt64()))
 
     val env = Env.empty[(Any, Type)]
-      .bind("flag" -> (true, TBoolean()))
-      .bind("array" -> (FastIndexedSeq(0), TArray(TInt32())))
+      .bind("flag" -> ((true, TBoolean())))
+      .bind("array" -> ((FastIndexedSeq(0), TArray(TInt32()))))
 
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
   }
