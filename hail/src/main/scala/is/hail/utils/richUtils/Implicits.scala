@@ -39,8 +39,6 @@ trait Implicits {
   implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
     new RichHadoopConfiguration(hConf)
 
-  implicit def toRichInt(i: Int): RichInt = new RichInt(i)
-
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
@@ -55,8 +53,6 @@ trait Implicits {
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)
-
-  implicit def toRichLong(l: Long): RichLong = new RichLong(l)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -81,8 +77,6 @@ trait Implicits {
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RVDContext, RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
 
-  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
@@ -92,8 +86,6 @@ trait Implicits {
   implicit def toRichString(str: String): RichString = new RichString(str)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
-
-  implicit def toRichStorageLevel(sl: StorageLevel): RichStorageLevel = new RichStorageLevel(sl)
 
   implicit def toTruncatable(s: String): Truncatable = s.truncatable()
 
