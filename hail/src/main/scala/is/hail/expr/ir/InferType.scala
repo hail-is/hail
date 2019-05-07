@@ -109,6 +109,9 @@ object InferType {
         TNDArray(body.typ, coerce[TNDArray](l.typ).nDimsBase, l.typ.required)
       case NDArrayReindex(nd, indexExpr) =>
         TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(indexExpr.length), nd.typ.required)
+      case NDArrayAgg(nd, axes) =>
+        val childType = coerce[TNDArray](nd.typ)
+        TNDArray(childType.elementType, Nat(childType.nDims - axes.length), childType.required)
       case NDArrayRef(nd, idxs) =>
         assert(idxs.forall(_.typ.isOfType(TInt64())))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
