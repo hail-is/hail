@@ -170,8 +170,9 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzvf resources.tar.gz -C src/test
-     java -cp hail-test.jar org.testng.TestNG testng.xml
-     java -cp hail-test.jar org.testng.TestNG testng-cpp-codegen.xml
+     export HAIL_TEST_SKIP_R=1
+     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
+     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
