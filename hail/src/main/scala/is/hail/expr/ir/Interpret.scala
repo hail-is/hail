@@ -717,7 +717,7 @@ object Interpret {
           }.toFastIndexedSeq
           val wrappedIR = Copy(ir, wrappedArgs).asInstanceOf[IR]
 
-          val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)))
+          val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)), optimize = false)
           makeFunction(0)
         })
         Region.scoped { region =>

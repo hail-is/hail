@@ -20,7 +20,8 @@ object Compile {
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
-    nSpecialArgs: Int
+    nSpecialArgs: Int,
+    optimize: Boolean
   ): (PType, Int => F) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
@@ -55,7 +56,8 @@ object Compile {
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
-    nSpecialArgs: Int
+    nSpecialArgs: Int,
+    optimize: Boolean = true
   ): (PType, Int => F) = {
     assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
@@ -70,7 +72,7 @@ object Compile {
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
-    Compile[F, R](args, argTypeInfo, body, nSpecialArgs)
+    Compile[F, R](args, argTypeInfo, body, nSpecialArgs, optimize)
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (PType, Int => AsmFunction1[Region, R]) = {
@@ -80,9 +82,10 @@ object Compile {
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
     name0: String,
     typ0: PType,
-    body: IR): (PType, Int => AsmFunction3[Region, T0, Boolean, R]) = {
+    body: IR,
+    optimize: Boolean = true): (PType, Int => AsmFunction3[Region, T0, Boolean, R]) = {
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1)
+    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = optimize)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
