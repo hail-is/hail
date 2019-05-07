@@ -47,6 +47,9 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     Notes
     -----
+    
+    The dataset must have a column field named `s` which is a :class:`.StringExpression`
+    and which uniquely identifies a column.
 
     The implementation is based on the IBD algorithm described in the `PLINK
     paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
