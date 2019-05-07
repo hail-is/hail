@@ -299,6 +299,7 @@ class BatchBackend(Backend):
                 attributes={'label': 'remove_tmpdir'},
                 always_run=True)
             job_id_to_command[j.id] = cmd
+            n_jobs_submitted += 1
 
         status = batch.wait()
 
