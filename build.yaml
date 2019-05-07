@@ -591,6 +591,19 @@ steps:
    dependsOn:
     - test_pipeline_image
  - kind: deploy
+   name: batch_logs
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/deployment.yaml
+   wait:
+    - kind: Service
+      name: batch
+      for: alive
+   alwaysRun: true
+   dependsOn:
+     - default_ns
+     - test_batch
+ - kind: deploy
    name: test_pipeline
    namespace:
      valueFrom: batch_pods_ns.name
