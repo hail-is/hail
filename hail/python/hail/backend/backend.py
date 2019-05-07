@@ -87,9 +87,12 @@ class Backend(abc.ABC):
 
 
 class SparkBackend(Backend):
+    def __init__(self):
+        self._fs = None
+
     @property
     def fs(self):
-        if not hasattr(self, '_fs'):
+        if self._fs is None:
             from hail.fs.hadoop_fs import HadoopFS
             self._fs = HadoopFS()
         return self._fs
@@ -220,9 +223,11 @@ class ServiceBackend(Backend):
                 token = f.read()
         self.cookies = {'user': token}
 
+        self._fs = None
+
     @property
     def fs(self):
-        if not hasattr(self, '_fs'):
+        if self._fs is None:
             from hail.fs.google_fs import GoogleCloudStorageFS
             self._fs = GoogleCloudStorageFS()
         return self._fs
