@@ -192,17 +192,20 @@ class Test(unittest.TestCase):
     def test_batch_status(self):
         b1 = self.batch.create_batch()
         b1.create_job('alpine', ['true'])
+        b1.close()
 
         b2 = self.batch.create_batch()
         b2.create_job('alpine', ['false'])
         b2.create_job('alpine', ['true'])
+        b2.close()
 
         b3 = self.batch.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
+        b3.close()
 
         b4 = self.batch.create_batch()
-        j1 = b4.create_job('alpine', ['sleep', '30'])
-        j1.cancel()
+        b4.create_job('alpine', ['sleep', '30'])
+        b4.cancel()
 
         batches = self.batch.list_batches()
         statuses = {b.id: b.status() for b in batches}
@@ -215,8 +218,6 @@ class Test(unittest.TestCase):
         assert not b3s['complete'] and b3s['state'] == 'running'
         b4s = statuses[b4.id]
         assert b4s['complete'] and b4s['state'] == 'cancelled'
-
-        b3.cancel()
 
     def test_callback(self):
         app = Flask('test-client')

@@ -241,6 +241,7 @@ def test_always_run_cancel(client):
                             command=['echo', 'tail'],
                             parent_ids=[left.id, right.id],
                             always_run=True)
+    right.wait()
     batch.cancel()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 3
