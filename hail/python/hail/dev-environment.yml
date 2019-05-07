@@ -20,3 +20,5 @@ dependencies:
     - pytest-xdist==1.22.2
     - decorator==4.3.0
     - pyspark==2.4.0
+    - gcsfs==0.2.1
+    - hurry.filesize==0.9

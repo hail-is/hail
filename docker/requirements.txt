@@ -26,3 +26,5 @@ uvloop>=0.12
 werkzeug
 parsimonious
 kubernetes_asyncio
+gcsfs==0.2.1
+hurry.filesize==0.9
