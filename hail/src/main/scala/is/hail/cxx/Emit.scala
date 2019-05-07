@@ -827,7 +827,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         assert(st.ok, st.toString())
 
         val modString = ir.genUID()
-        modules += modString -> (lits(spec), mod)
+        modules += ((modString, (lits(spec), mod)))
 
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
         val ctxs = fb.variable("ctxs", "char *")

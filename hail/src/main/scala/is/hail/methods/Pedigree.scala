@@ -2,12 +2,11 @@ package is.hail.methods
 
 import is.hail.check.Gen
 import is.hail.utils._
-import is.hail.variant.Sex.{Female, Male, Sex}
 import is.hail.variant.Sex
+import is.hail.variant.Sex.{Female, Male, Sex}
 import org.apache.hadoop
 
 import scala.collection.mutable
-import scala.io.Source
 
 object Role extends Enumeration {
   type Role = Value

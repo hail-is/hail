@@ -6,8 +6,8 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._
@@ -17,7 +17,6 @@ import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 import org.apache.hadoop
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._

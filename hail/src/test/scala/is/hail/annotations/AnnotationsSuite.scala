@@ -1,10 +1,9 @@
 package is.hail.annotations
 
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.utils._
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions

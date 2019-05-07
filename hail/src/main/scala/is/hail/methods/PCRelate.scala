@@ -30,8 +30,8 @@ object PCRelate {
   val PhiK2K0: StatisticSubset = 2
   val PhiK2K0K1: StatisticSubset = 3
 
-  case class Result[M](phiHat: M, k0: M, k1: M, k2: M) {
-    def map[N](f: M => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
+  case class Result[MM](phiHat: MM, k0: MM, k1: MM, k2: MM) {
+    def map[N](f: MM => N): Result[N] = Result(f(phiHat), f(k0), f(k1), f(k2))
   }
 
   val defaultMinKinship: Double = Double.NegativeInfinity

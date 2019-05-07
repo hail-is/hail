@@ -1,8 +1,8 @@
 package is.hail.methods
 
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{IRParser, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, TableToTableFunction}
+import is.hail.expr.ir.{IRParser, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.{RVDPartitioner, RVDType}

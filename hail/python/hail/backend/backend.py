@@ -144,13 +144,13 @@ class SparkBackend(Backend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.sql_context())
+        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
 
     def from_pandas(self, df, key):
-        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
 
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))

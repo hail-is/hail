@@ -1,10 +1,9 @@
 package is.hail.stats
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
-import is.hail.variant.{Call, Genotype}
+import is.hail.variant.Call
 
 object InbreedingCombiner {
   def signature = TStruct(

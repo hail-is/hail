@@ -10,7 +10,6 @@ import is.hail.io._
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

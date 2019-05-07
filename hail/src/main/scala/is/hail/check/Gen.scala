@@ -2,10 +2,8 @@ package is.hail.check
 
 import breeze.linalg.DenseMatrix
 import breeze.storage.Zero
-import is.hail.utils.roundWithConstantSum
-import is.hail.utils.UInt
-import is.hail.utils.roundWithConstantSum
 import is.hail.check.Arbitrary.arbitrary
+import is.hail.utils.{UInt, roundWithConstantSum}
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom

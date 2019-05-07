@@ -10,8 +10,8 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
-import is.hail.utils.{SerializableHadoopConfiguration, fatal}
 import is.hail.utils.richUtils.RichHadoopConfiguration
+import is.hail.utils.{SerializableHadoopConfiguration, fatal}
 
 import scala.reflect.classTag
 

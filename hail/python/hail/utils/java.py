@@ -82,8 +82,8 @@ class Env:
         return Env.backend().fs
 
     @staticmethod
-    def sql_context():
-        return Env.hc()._sql_context
+    def spark_session():
+        return Env.hc()._spark_session
 
     _dummy_table = None
 

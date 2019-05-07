@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.expr.types.virtual._
 import is.hail.utils.ArrayBuilder
 import org.apache.spark.sql.Row
-import net.sourceforge.jdistlib.rng.MersenneTwister
 
 import scala.reflect.ClassTag
 import scala.math.Ordering
@@ -434,7 +433,7 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
       val weight: Long = 1 << level
       var i = levels(level)
       while (i < levels(level + 1)) {
-        builder += (weight, items(i))
+        builder += (weight -> items(i))
         i += 1
       }
       level += 1
@@ -668,7 +667,7 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
     n = finalN
   }
 
-  private def computeTotalCapacity(numLevels: Int = numLevels): Int =
+  private def computeTotalCapacity(numLevels: Int): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
 }
 

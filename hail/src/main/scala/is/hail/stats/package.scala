@@ -1,15 +1,10 @@
 package is.hail
 
-import breeze.linalg.Matrix
-import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import is.hail.variant._
 import net.sourceforge.jdistlib.disttest.{DistributionTest, TestKind}
 import net.sourceforge.jdistlib.{Beta, ChiSquare, Normal, Poisson}
 import org.apache.commons.math3.distribution.HypergeometricDistribution
-import org.apache.spark.sql.Row
 
 package object stats {
 

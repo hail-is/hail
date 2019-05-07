@@ -361,7 +361,7 @@ case class Skat(
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
-        Some(key -> (BDV(data), weight))
+        Some(key -> (BDV(data) -> weight))
       } else None
     }
     }.groupByKey(), keyType.virtualType)

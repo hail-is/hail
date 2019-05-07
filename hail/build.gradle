@@ -72,19 +72,22 @@ if (breezeVersion == null) {
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
+String parallelism = System.getProperty("test.parallelism", "2")
+
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 sourceSets.test.runtimeClasspath += files("prebuilt/lib")
 
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
+    args('-j'+parallelism)
     executable 'make'
     outputs.upToDateWhen { false }
 }
 
 task nativeLibTest(type: Exec) {
     workingDir 'src/main/c'
-    args('test')
+    args('-j'+parallelism, 'test')
     executable 'make'
     outputs.upToDateWhen { false }
 }
@@ -149,8 +152,12 @@ task testCppCodegen(type: Test) {
 testCppCodegen.reports.html.destination = file("$buildDir/reports/codegen-tests")
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror"
+    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl"
 }
+tasks.withType(JavaCompile) {
+    options.fork = true // necessary to make -XDenableSunApiLintControl work
+}
+
 
 task generateBuildInfo(type: Exec) {
     commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailPipVersion
@@ -169,8 +176,16 @@ task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
 
 compileScala {
     dependsOn generateBuildInfo
-    // , "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature", "-Xno-patmat-analysis"]
+    scalaCompileOptions.additionalParameters = [
+        "-feature",
+        "-Xno-patmat-analysis",
+        "-Xfatal-warnings",
+        "-Xlint:_",
+        "-deprecation",
+        "-unchecked",
+        "-Xlint:-infer-any",
+        "-Xlint:-unsound-match"
+    ]
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
@@ -239,8 +254,6 @@ task(checkSettings) << {
     System.setProperty("check.size", checkSize)
     System.setProperty("check.count", checkCount)
 }
-
-String parallelism = System.getProperty("test.parallelism", "2")
 
 test {
     useTestNG {}

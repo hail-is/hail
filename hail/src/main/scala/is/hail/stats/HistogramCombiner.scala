@@ -4,7 +4,6 @@ import java.util
 import java.util.Arrays.binarySearch
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt64, TStruct}
 import is.hail.utils.fatal
 

@@ -4,14 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.check.Arbitrary._
-import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
-import is.hail.utils._
-import org.apache.spark.SparkEnv
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
