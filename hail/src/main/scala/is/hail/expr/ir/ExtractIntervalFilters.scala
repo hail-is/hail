@@ -66,7 +66,7 @@ object ExtractIntervalFilters {
         else {
           val (ands, other) = xs.map(simplifyPredicates).partition(_.isInstanceOf[Conjunction])
           val elts = ands.flatMap(o => o.asInstanceOf[Conjunction].xs) ++ other.filter(_ != Unknown)
-          if (elts.size == 1)
+          if (elts.length == 1)
             elts.head
           else
             Conjunction(elts)
@@ -81,8 +81,6 @@ object ExtractIntervalFilters {
       case _: TInt64 => endpoint(Long.MinValue, -1)
       case _: TFloat32 => endpoint(Float.MinValue, -1)
       case _: TFloat64 => endpoint(Double.MinValue, -1)
-      //      case TLocus(rgBase, _) => Some(IntervalEndpoint(Locus(rgBase.value.asInstanceOf[ReferenceGenome].contigs(0), 1), -1))
-      //      case _ => None
     }
   }
 
@@ -92,11 +90,6 @@ object ExtractIntervalFilters {
       case _: TInt64 => endpoint(Long.MaxValue, 1)
       case _: TFloat32 => endpoint(Float.MaxValue, 1)
       case _: TFloat64 => endpoint(Double.MaxValue, 1)
-      //      case TLocus(rgBase, _) =>
-      //        val rg = rgBase.value.asInstanceOf[ReferenceGenome]
-      //        val lastContig = rg.contigs.last
-      //        Some(IntervalEndpoint(Locus(lastContig, rg.contigLength(lastContig)), 1))
-      //      case _ => None
     }
   }
 
@@ -173,7 +166,7 @@ object ExtractIntervalFilters {
         Set[IR](comp) -> Array(openInterval(constValue(v), v.typ, comp.op, isFlipped))
 
       case LiteralContains(comp: IR) =>
-        val Apply(_, Seq(Literal(_, lit), _)) = comp
+        val ApplyIR(_, Seq(Literal(_, lit), _)) = comp
         val intervals = (lit: @unchecked) match {
           case x: IndexedSeq[_] => x.map(elt => Interval(endpoint(elt, -1), endpoint(elt, 1))).toArray
           case x: Set[_] => x.map(elt => Interval(endpoint(elt, -1), endpoint(elt, 1))).toArray
@@ -300,7 +293,7 @@ object ExtractIntervalFilters {
         case ApplySpecial("&&", Seq(l, r)) =>
           Conjunction(Array(recur(l), recur(r)))
         case Coalesce(Seq(x, False())) => recur(x)
-        case x@ApplyIR("contains", Seq(_: Literal, `k1`)) => LiteralContains(x) // string contains shouldn't match
+        case x@ApplyIR("contains", Seq(_: Literal, `k1`)) => LiteralContains(x) // don't match string contains
         case x@ApplySpecial("contains", Seq(_: Literal, `k1`)) => IntervalContains(x)
         case x@ApplyIR("contains", Seq(_: Literal, Apply("contig", Seq(`k1`)))) => LocusContigContains(x)
         case x@ApplyComparisonOp(op, l, r) if !op.isInstanceOf[Compare] && !op.isInstanceOf[EQWithNA] =>

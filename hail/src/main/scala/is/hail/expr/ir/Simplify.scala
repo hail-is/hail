@@ -457,12 +457,6 @@ object Simplify {
         mct,
         Subst(newRow, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
 
-    case MatrixColsTable(MatrixFilterCols(child, pred)) =>
-      val mct = MatrixColsTable(child)
-      TableFilter(
-        mct,
-        Subst(pred, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
-
     case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
