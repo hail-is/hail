@@ -148,10 +148,12 @@ class BatchTable(Table):
         return await super().get_records(condition)
 
     async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
-        values = []
         sql = "select batch.* from {self.name} as batch"
+        values = []
         joins = []
         wheres = []
+        havings = []
+        groups = []
 
         values += user
         wheres += "job.user = %s"
@@ -174,10 +176,14 @@ class BatchTable(Table):
                 wheres += f"not ({condition})"
         if attributes:
             joins += "inner join {self._db.batch_attributes.name} as attr using (batch_id)"
+            groups += "batch.id"
             for k, v in attributes.items():
                 values += v
-                wheres += f"attr.`{k}` = %s"
-        sql += joins.join(" ") + " " + wheres.join(" and ")
+                values += len(attributes)
+                havings += f"sum(attr.`{k}` = %s) = %s"
+        sql += " ".join(joins)
+        sql += " where " + " and ".join(wheres)
+        sql += " group by " + ", ".join(groups)
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute(sql, tuple(values))
