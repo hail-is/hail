@@ -261,7 +261,7 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    val sFS = new HadoopFS(sc.hadoopConfiguration)
+    val sFS: FS = new HadoopFS(sc.hadoopConfiguration)
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)

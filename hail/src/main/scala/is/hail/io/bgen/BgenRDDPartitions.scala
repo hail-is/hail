@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.io.fs.FS
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
+import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
@@ -27,7 +28,7 @@ trait BgenPartition extends Partition {
 
   def makeInputStream: HadoopFSDataBinaryReader = {
     val fs = bcFS.value.fileSystem(path)
-    new HadoopFSDataBinaryReader(fs.open())
+    new HadoopFSDataBinaryReader(fs.open(path))
   }
 
   def recodeContig(contig: String): String =

@@ -2,8 +2,7 @@ package is.hail.utils
 
 import java.io.IOException
 
-import is.hail.io.fs.FS
-import org.apache.hadoop
+import is.hail.io.fs.{FS, FilePath}
 
 import scala.util.Random
 
@@ -19,7 +18,7 @@ object TempDir {
           sfs.mkDir(dir)
 
           val fs = sfs.fileSystem(tmpdir)
-          val qDir = fs.makeQualified(dir)
+          val qDir = fs.makeQualified(fs.getPath(dir))
           fs.deleteOnExit(qDir)
 
           return qDir.toString

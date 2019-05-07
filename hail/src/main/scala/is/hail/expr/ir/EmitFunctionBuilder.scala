@@ -144,25 +144,25 @@ class EmitFunctionBuilder[F >: Null](
   }
 
   private[this] var _fs: FS = _
-  private[this] var _hfield: ClassFieldRef[FS] = _
+  private[this] var _fsField: ClassFieldRef[FS] = _
 
   def addFS(fs: FS): Unit = {
     assert(fs != null)
     if (_fs == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
-      val confField = newField[FS]
+      val fsField = newField[FS]
       val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(confField := mb.getArg[FS](1))
+      mb.emit(fsField := mb.getArg[FS](1))
       _fs = fs
-      _hfield = confField
+      _fsField = fsField
     }
-    assert(_fs == fs && _hfield != null)
+    assert(_fs == fs && _fsField != null)
   }
 
   def getFS: Code[FS] = {
-    assert(_fs != null && _hfield != null, s"${_hfield == null}")
-    _hfield.load()
+    assert(_fs != null && _fsField != null, s"${_fsField == null}")
+    _fsField.load()
   }
 
   def getPType(t: PType): Code[PType] = {

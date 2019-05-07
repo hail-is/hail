@@ -533,7 +533,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.getFS(HailContext.sFS)
       rg = rg.invoke[FS, String, String, ReferenceGenome](
         "addLiftoverFromFS",
         fb.getFS,
@@ -684,8 +683,8 @@ object ReferenceGenome {
   def importReferences(fs: FS, path: String) {
     if (fs.exists(path)) {
       val refs = fs.listStatus(path)
-      refs.foreach { fs =>
-        val rgPath = fs.getPath.toString
+      refs.foreach { fileSystem =>
+        val rgPath = fileSystem.getPath.toString
         val rg = fs.readFile(rgPath)(read)
         val name = rg.name
         if (!ReferenceGenome.hasReference(name))

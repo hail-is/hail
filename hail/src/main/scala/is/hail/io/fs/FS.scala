@@ -15,21 +15,24 @@ trait HailInputStream extends DataInputStream {
 }
 
 trait FileSystem {
-  type FsPath = Path
+  type FsPath = FilePath
   protected val defaultPath: FsPath
 
-  def open(): HailInputStream
+  def open: HailInputStream
   def open(path: FsPath = defaultPath): HailInputStream
   def open(path: String = defaultPath.toString()): HailInputStream
 
-  def makeQualified(path: String): FsPath
+  def getPath(path: String): FsPath
+  def makeQualified(path: FilePath): FilePath
   def deleteOnExit(path: FsPath): Boolean
 }
 
-trait Path {
+trait FilePath {
+  type Configuration
+
   def toString: String
   def getName: String
-  def getFileSystem: FileSystem
+  def getFileSystem(conf: Configuration): FileSystem
 }
 
 trait Configuration extends Iterable[Map.Entry[String,String]] with Writable {
@@ -38,15 +41,19 @@ trait Configuration extends Iterable[Map.Entry[String,String]] with Writable {
 }
 
 trait FileStatus {
-  def getPath: Path
+  def getPath: FilePath
   def getModificationTime: Long
   def getLen: Long
   def isDirectory: Boolean
   def isFile: Boolean
   def getOwner: String
 }
+//
+//trait SerializableFS extends Serializable {
+//
+//}
 
-abstract class FS extends Serializable {
+trait FS extends Serializable {
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit

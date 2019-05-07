@@ -2,26 +2,29 @@ package is.hail.io.fs
 
 import is.hail.utils.{fatal, formatTime, getPartNumber, info, time, using, warn}
 import java.io._
-import java.util
 import java.util.Map
+import scala.collection.JavaConverters._
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{Context, TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
+import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.hadoop.io.IOUtils.copyBytes
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import scala.io.Source
 
-class HadoopInputStream(val is: hadoop.fs.FSDataInputStream) extends HailInputStream {
+class HadoopInputStream(is: FSDataInputStream) extends HailInputStream {
   override def seek(pos: Long): Unit = {
     is.seek(pos)
   }
 }
 
-class HadoopPath(path: hadoop.fs.Path) extends Path {
+class HadoopFilePath(path: hadoop.fs.Path) extends FilePath {
+  type Configuration = hadoop.conf.Configuration
+
   override def toString: String = {
     path.toString()
   }
@@ -30,27 +33,41 @@ class HadoopPath(path: hadoop.fs.Path) extends Path {
     path.getName()
   }
 
-  override def getFileSystem(conf: hadoop.conf.Configuration): HadoopFileSystem = {
-
+  def getFileSystem(conf: Configuration): HadoopFileSystem = {
+    new HadoopFileSystem(path.toString, conf)
   }
 }
 
+
 class HadoopFileSystem(val filename: String, conf: hadoop.conf.Configuration) extends FileSystem  {
-  protected val defaultPath = new HadoopPath(new hadoop.fs.Path(filename))
+  override type FsPath = hadoop.fs.Path
+  override protected val defaultPath = new hadoop.fs.Path(filename)
   private val hfs = defaultPath.getFileSystem(conf)
 
-  def open(fPath: FilePath = defaultPath): HailInputStream = {
+  def open(fPath: FsPath): HailInputStream = {
     new HadoopInputStream(hfs.open(fPath))
   }
 
-  def open(fPath: String = defaultPath.toString()): HailInputStream = {
+  def open(fPath: String): HailInputStream = {
     new HadoopInputStream(hfs.open(new hadoop.fs.Path(fPath)))
+  }
+
+  def open: HailInputStream = {
+    new HadoopInputStream(hfs.open(defaultPath))
+  }
+
+  def deleteOnExit(fPath: FsPath): Boolean = {
+    hfs.deleteOnExit(fPath)
+  }
+
+  def makeQualified(fPath: FsPath): FsPath = {
+    hfs.makeQualified(fPath)
   }
 }
 
 class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
-  def getPath: HadoopPath = {
-    new HadoopPath(fs.getPath())
+  def getPath: HadoopFilePath = {
+    new HadoopFilePath(fs.getPath())
   }
 
   def getModificationTime: Long = fs.getModificationTime
@@ -64,16 +81,30 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   def getOwner: String = fs.getOwner
 }
 
-class HadoopFS(@transient override var conf: hadoop.conf.Configuration) extends FS {
-  private def writeObject(out: ObjectOutputStream) {
-    out.defaultWriteObject()
-    conf.write(out)
-  }
+//class SerializableHadoopFS(@transient var conf: hadoop.conf.Configuration) extends Serializable {
+//  private def writeObject(out: ObjectOutputStream) {
+//    out.defaultWriteObject()
+//    conf.write(out)
+//  }
+//
+//  private def readObject(in: ObjectInputStream) {
+//    conf = new hadoop.conf.Configuration(false)
+//    conf.readFields(in)
+//
+//  }
+//}
 
-  private def readObject(in: ObjectInputStream) {
-    conf = new hadoop.conf.Configuration(false)
-    conf.readFields(in)
-  }
+
+class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
+    private def writeObject(out: ObjectOutputStream) {
+      out.defaultWriteObject()
+      conf.write(out)
+    }
+
+    private def readObject(in: ObjectInputStream) {
+      conf = new hadoop.conf.Configuration(false)
+      conf.readFields(in)
+    }
 
   private def create(filename: String): OutputStream = {
     val hPath = new hadoop.fs.Path(filename)
@@ -121,8 +152,8 @@ class HadoopFS(@transient override var conf: hadoop.conf.Configuration) extends 
     conf.set(name, value)
   }
 
-  def getProperties: util.Iterator[Map.Entry[String, String]] = {
-    conf.iterator()
+  def getProperties: Iterator[Map.Entry[String, String]] = {
+    conf.iterator().asScala
   }
 
   private def _fileSystem(filename: String): hadoop.fs.FileSystem = {
