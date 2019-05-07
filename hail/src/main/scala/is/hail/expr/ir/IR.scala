@@ -16,7 +16,7 @@ sealed trait IR extends BaseIR {
 
   def pType: PType = {
     if (_ptype == null)
-      _ptype = InferPType(this)
+      _ptype = PType.canonical(typ)
     _ptype
   }
 
@@ -86,9 +86,27 @@ final case class False() extends IR
 final case class Void() extends IR
 
 final case class Cast(v: IR, _typ: Type) extends IR
+final case class CastRename(v: IR, _typ: Type) extends IR
 
 final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
 final case class IsNA(value: IR) extends IR
+
+object Coalesce {
+  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
+    require(values.nonEmpty)
+    val t1 = values.head.typ
+    if (values.forall(_.typ == t1))
+      Coalesce(values)
+    else {
+      val t = unifyType.getOrElse(t1.deepOptional())
+      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
+    }
+  }
+}
+
+final case class Coalesce(values: Seq[IR]) extends IR {
+  require(values.nonEmpty)
+}
 
 object If {
   def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
@@ -196,6 +214,7 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 

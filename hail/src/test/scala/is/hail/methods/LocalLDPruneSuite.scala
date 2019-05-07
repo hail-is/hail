@@ -62,7 +62,7 @@ object LocalLDPruneSuite {
     rvb.start(rvRowType.physicalType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -95,7 +95,7 @@ object LocalLDPruneSuite {
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
     val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {

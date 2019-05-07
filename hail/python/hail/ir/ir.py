@@ -236,6 +236,25 @@ class If(IR):
         self._type = self.cnsq.typ
 
 
+class Coalesce(IR):
+    @typecheck_method(values=IR)
+    def __init__(self, *values):
+        super().__init__(*values)
+        self.values = values
+
+    @typecheck_method(values=IR)
+    def copy(self, *values):
+        return Coalesce(*values)
+
+    def _compute_type(self, env, agg_env):
+        first, *rest = self.values
+        first._compute_type(env, agg_env)
+        for x in rest:
+            x._compute_type(env, agg_env)
+            assert x.typ == first.typ
+        self._type = first.typ
+
+
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
     def __init__(self, name, value, body):
@@ -518,6 +537,48 @@ class NDArrayRef(IR):
         self.nd._compute_type(env, agg_env)
         [idx._compute_type(env, agg_env) for idx in self.idxs]
         self._type = self.nd.typ.element_type
+
+
+class NDArrayReindex(IR):
+    @typecheck_method(nd=IR, idx_expr=sequenceof(int))
+    def __init__(self, nd, idx_expr):
+        super().__init__(nd)
+        self.nd = nd
+        self.idx_expr = idx_expr
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayReindex(nd, self.idx_expr)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.idx_expr])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        n_input_dims = self.nd.typ.ndim
+        n_output_dims = len(self.idx_expr)
+        assert n_input_dims <= n_output_dims
+        assert all([i < n_output_dims for i in self.idx_expr])
+        assert all([i in self.idx_expr for i in range(n_output_dims)])
+
+        self._type = tndarray(self.nd.typ.element_type, n_output_dims)
+
+
+class NDArrayWrite(IR):
+    @typecheck_method(nd=IR, path=IR)
+    def __init__(self, nd, path):
+        super().__init__(nd, path)
+        self.nd = nd
+        self.path = path
+
+    @typecheck_method(nd=IR, path=IR)
+    def copy(self, nd, path):
+        return NDArrayWrite(nd, path)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.path._compute_type(env, agg_env)
+        self._type = tvoid
 
 
 class ArraySort(IR):

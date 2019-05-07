@@ -153,6 +153,7 @@ object Pretty {
             case F64(x) => x.toString
             case Str(x) => prettyStringLiteral(x)
             case Cast(_, typ) => typ.parsableString()
+            case CastRename(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
             case Literal(typ, value) =>
               s"${ typ.parsableString() } " + (
@@ -179,6 +180,7 @@ object Pretty {
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
+            case ArrayAggScan(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case AggFilter(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
@@ -231,8 +233,8 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case MatrixRowsHead(_, n) => n.toString
-            case MatrixAnnotateRowsTable(_, _, uid) =>
-              prettyStringLiteral(uid) + " "
+            case MatrixAnnotateRowsTable(_, _, uid, product) =>
+              prettyStringLiteral(uid) + " " + prettyBooleanLiteral(product)
             case MatrixAnnotateColsTable(_, _, uid) =>
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
@@ -257,7 +259,8 @@ object Pretty {
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
-            case TableIntervalJoin(_, _, root) => prettyIdentifier(root)
+            case TableIntervalJoin(_, _, root, product) =>
+              prettyIdentifier(root) + " " + prettyBooleanLiteral(product)
             case TableMultiWayZipJoin(_, dataName, globalName) =>
               s"${ prettyStringLiteral(dataName) } ${ prettyStringLiteral(globalName) }"
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>

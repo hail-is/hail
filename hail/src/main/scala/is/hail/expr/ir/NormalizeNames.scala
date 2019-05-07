@@ -116,11 +116,24 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+      case ArrayAggScan(a, name, body) =>
+        // FIXME: Uncomment when bindings are threaded through test suites
+        // assert(env.scan.isEmpty)
+        val newName = gen()
+        val newEnv = env.eval.bind(name, newName)
+        ArrayAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
       case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
         val newL = gen()
         val newR = gen()
         val newEnv = env.bindEval(l -> newL, r -> newR)
         ArrayLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
+      case NDArrayMap(nd, name, body) =>
+        val newName = gen()
+        NDArrayMap(normalize(nd), newName, normalize(body, env.bindEval(name -> newName)))
+      case NDArrayMap2(l, r, lName, rName, body) =>
+        val newLName = gen()
+        val newRName = gen()
+        NDArrayMap2(normalize(l), normalize(r), newLName, newRName, normalize(body, env.bindEval(lName -> newLName, rName -> newRName)))
       case AggExplode(a, name, aggBody, isScan) =>
         val newName = gen()
         val (aEnv, bodyEnv) = if (isScan)

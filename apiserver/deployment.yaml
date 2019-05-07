@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-master
+spec:
+  selector:
+    matchLabels:
+      app: spark-master
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: spark-master
+          image: "{{ spark_master_image.image }}"
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 7077
+          - containerPort: 8080
+          volumeMounts:
+          - mountPath: /hail-vdc-sa-key
+            name: hail-vdc-sa-key
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "0.9"
+      volumes:
+        - name: hail-vdc-sa-key
+          secret:
+            secretName: hail-vdc-sa-key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spark-worker
+spec:
+  selector:
+    matchLabels:
+      app: spark-worker
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      tolerations:
+      - key: preemptible
+        value: "true"
+      containers:
+        - name: spark-worker
+          image: "{{ spark_worker_image.image }}"
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8081
+          - containerPort: 9000
+          - containerPort: 9002
+          volumeMounts:
+          - mountPath: /hail-vdc-sa-key
+            name: hail-vdc-sa-key
+          resources:
+            requests:
+              memory: "7.5G"
+              cpu: "1.8"
+      volumes:
+        - name: hail-vdc-sa-key
+          secret:
+            secretName: hail-vdc-sa-key
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apiserver
+spec:
+  selector:
+    matchLabels:
+      app: apiserver
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: apiserver
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: apiserver
+          image: "{{ apiserver_image.image }}"
+          env:
+          - name: HAIL_APISERVER_SPARK_MASTER
+            value: spark://spark-master:7077
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 5000
+          - containerPort: 9001
+          - containerPort: 9002
+          volumeMounts:
+          - mountPath: /hail-vdc-sa-key
+            name: hail-vdc-sa-key
+          - name: jwt-secret
+            mountPath: /jwt-secret
+            readOnly: true
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "0.9"
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: hail-vdc-sa-key
+          secret:
+            secretName: hail-vdc-sa-key
+        - name: jwt-secret
+          secret:
+            secretName: notebook-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+  labels:
+    app: spark-master
+spec:
+  ports:
+  - name: web-ui
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  - name: spark
+    port: 7077
+    protocol: TCP
+    targetPort: 7077
+  selector:
+    app: spark-master
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apiserver
+  labels:
+    app: apiserver
+spec:
+  ports:
+  - name: hail
+    port: 5000
+    protocol: TCP
+    targetPort: 5000
+  - name: spark-driver
+    port: 9001
+    protocol: TCP
+    targetPort: 9001
+  - name: spark-block-manager
+    port: 9002
+    protocol: TCP
+    targetPort: 9002
+  selector:
+    app: apiserver

@@ -15,10 +15,15 @@ object Copy {
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
         Cast(v, typ)
+      case CastRename(_, typ) =>
+        val IndexedSeq(v: IR) = newChildren
+        CastRename(v, typ)
       case NA(t) => NA(t)
       case IsNA(value) =>
         val IndexedSeq(value: IR) = newChildren
         IsNA(value)
+      case Coalesce(_) =>
+        Coalesce(newChildren.map(_.asInstanceOf[IR]))
       case If(_, _, _) =>
         val IndexedSeq(cond: IR, cnsq: IR, altr: IR) = newChildren
         If(cond, cnsq, altr)
@@ -119,6 +124,9 @@ object Copy {
       case ArrayAgg(_, name, _) =>
         val IndexedSeq(a: IR, query: IR) = newChildren
         ArrayAgg(a, name, query)
+      case ArrayAggScan(_, name, _) =>
+        val IndexedSeq(a: IR, query: IR) = newChildren
+        ArrayAggScan(a, name, query)
       case AggFilter(_, _, isScan) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
         AggFilter(cond, aggIR, isScan)

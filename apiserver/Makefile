@@ -5,7 +5,7 @@ REPO := gcr.io/$(PROJECT)
 GSA_KEY_FILE := /gsa-key/privateKeyData
 PY_FILES := $(shell find apiserver -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := ../hail/python:../hailjwt:$(shell ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:$${PYTHONPATH:+:$$PYTHONPATH}
+PYTHONPATH := $${PYTHONPATH:+:$$PYTHONPATH}../hail/python:../hailjwt:$(shell ls $$SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 flake8-stmp: $(PY_FILES)
@@ -35,8 +35,11 @@ jupyter_notebook_config.py:
 	    -e "s,@keyfile@,$(GSA_KEY_FILE),g" \
             < jupyter_notebook_config.py.in > $@
 
+# FIXME rsync not in pr-builder
+# rsync --delete --recursive ../hailjwt hailjwt
 hailjwt:
-	rsync --delete --recursive ../hailjwt hailjwt
+	rm -rf hailjwt
+	cp -a ../hailjwt hailjwt
 
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy build-hail-base build-spark-master build-spark-worker build-apiserver
@@ -65,7 +68,7 @@ build-apiserver: build-hail-base hailjwt
 build-hail-jupyter: build-hail-base jupyter_notebook_config.py
 	-docker pull $(REPO)/hail-base:latest
 	-docker pull $(REPO)/hail-jupyter:latest
-	docker build -t hail-jupyter -f Dockerfile.hail-jupyter . --cache-from hail-jupyter,$(REPO)/hail-jupyter:latest,hail-base
+	docker build -t hail-jupyter -f Dockerfile.hail-jupyter --cache-from hail-jupyter,$(REPO)/hail-jupyter:latest,hail-base ..
 
 build: build-spark-master build-spark-worker build-apiserver build-hail-jupyter
 

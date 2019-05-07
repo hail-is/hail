@@ -17,8 +17,10 @@ object InferType {
       case True() | False() => TBoolean()
       case Void() => TVoid
       case Cast(_, t) => t
+      case CastRename(_, t) => t
       case NA(t) => t
       case IsNA(_) => TBoolean()
+      case Coalesce(values) => values.head.typ
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
@@ -96,6 +98,8 @@ object InferType {
         coerce[TStreamable](a.typ).copyStreamable(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
+      case ArrayAggScan(_, _, query) =>
+        TArray(query.typ)
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)

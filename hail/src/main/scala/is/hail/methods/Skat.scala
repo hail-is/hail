@@ -161,7 +161,7 @@ case class Skat(
   weightField: String,
   yField: String,
   xField: String,
-  covFields: IndexedSeq[String],
+  covFields: Seq[String],
   logistic: Boolean,
   maxSize: Int,
   accuracy: Double,

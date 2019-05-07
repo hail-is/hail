@@ -551,16 +551,22 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
-case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extends TableIR {
+case class TableIntervalJoin(
+  left: TableIR,
+  right: TableIR,
+  root: String,
+  product: Boolean
+) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
-  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(right.typ.valueType.physicalType, List(root))
+  val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
+  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(rightType.physicalType, List(root))
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
 
   override def rvdType: RVDType = RVDType(newRowPType, typ.key)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
-    TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root)
+    TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
@@ -568,32 +574,61 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
     val leftValue = left.execute(hc)
     val rightValue = right.execute(hc)
 
-    val leftRVDType = leftValue.rvd.typ
     val rightRVDType = rightValue.rvd.typ
 
     val localNewRowPType = newRowPType
     val localIns = ins
 
-    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightRVDType, intervals, ctx))
-        .map { case Muple(rv, i) =>
-          rvb.set(rv.region)
-          rvb.start(localNewRowPType)
-          localIns(
-            rv.region,
-            rv.offset,
-            rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-          rv2.set(rv.region, rvb.end())
+    val joinedType = RVDType(newRowPType, typ.key)
+    val newRVD =
+      if (product) {
+        val joiner = (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
+          val rvb = new RegionValueBuilder()
+          val rv2 = RegionValue()
+          it.map { case Muple(rv, is) =>
+            rvb.set(rv.region)
+            rvb.start(localNewRowPType)
+            localIns(
+              rv.region,
+              rv.offset,
+              rvb,
+              () => {
+                rvb.startArray(is.size)
+                is.foreach(i => rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
+                rvb.endArray()
+              })
+            rv2.set(rv.region, rvb.end())
 
-          rv2
+            rv2
+          }
         }
-    }
 
-    val newRVD = leftValue.rvd.intervalAlignAndZipPartitions(RVDType(newRowPType, typ.key), rightValue.rvd)(zipper)
+        leftValue.rvd.orderedLeftIntervalJoin(rightValue.rvd, joiner, joinedType)
+      } else {
+        val joiner = (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
+          val rvb = new RegionValueBuilder()
+          val rv2 = RegionValue()
+          it.map { case Muple(rv, i) =>
+            rvb.set(rv.region)
+            rvb.start(localNewRowPType)
+            localIns(
+              rv.region,
+              rv.offset,
+              rvb,
+              () =>
+                if (i == null)
+                  rvb.setMissing()
+                else
+                  rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
+            rv2.set(rv.region, rvb.end())
+
+            rv2
+          }
+        }
+
+        leftValue.rvd.orderedLeftIntervalJoinDistinct(rightValue.rvd, joiner, joinedType)
+      }
+
     TableValue(typ, leftValue.globals, newRVD)
   }
 }
@@ -662,11 +697,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val first = children.head
   private val rest = children.tail
 
-  require(
-    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
-    "all keys must be the same type"
-  )
   require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 

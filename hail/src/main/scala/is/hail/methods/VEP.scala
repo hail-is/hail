@@ -83,7 +83,7 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())

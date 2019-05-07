@@ -12,6 +12,9 @@ from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 from hail.genetics.reference_genome import reference_genome_type
 
+import tempfile
+import numpy as np
+
 
 class CollectionExpression(Expression):
     """Expression of type :class:`.tarray` or :class:`.tset`
@@ -3112,6 +3115,35 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
+    def _broadcast_to_same_ndim(self, other):
+        if isinstance(other, NDArrayExpression):
+            if self.ndim < other.ndim:
+                return self._broadcast(other.ndim), other
+            elif self.ndim > other.ndim:
+                return self, other._broadcast(self.ndim)
+
+        return self, other
+
+    def _broadcast(self, n_output_dims):
+        assert self.ndim < n_output_dims
+
+        # Right-align existing dimensions and start prepending new ones
+        # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
+        # Based off numpy broadcasting with the assumption that everything
+        # can be thought to have an infinite number of 1-length dimensions
+        # prepended
+        old_dims = range(self.ndim)
+        new_dims = range(self.ndim, n_output_dims)
+        idx_mapping = list(reversed(new_dims)) + list(old_dims)
+
+        ir = NDArrayReindex(self._ir, idx_mapping)
+        expr_type = tndarray(self._type.element_type, n_output_dims)
+
+        if is_numeric(self._type.element_type):
+            return NDArrayNumericExpression(ir, expr_type)
+
+        return NDArrayExpression(ir, expr_type)
+
 
 class NDArrayNumericExpression(NDArrayExpression):
     """Expression of type :class:`.tndarray` with a numeric element type.
@@ -3126,14 +3158,18 @@ class NDArrayNumericExpression(NDArrayExpression):
     """
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric(name, other, ret_type_f)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric_reverse(name, other, ret_type_f)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
 
     def __neg__(self):
         """Negate elements of the ndarray.
@@ -3232,6 +3268,46 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
+
+    @typecheck_method(uri=str)
+    def save(self, uri):
+        """Write out the NDArray to the given path as in .npy format. If the URI does not
+        end with ".npy" the file extension will be appended. This method reflects the numpy
+        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
+        `load`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> nd.save('file://local/file') # doctest: +SKIP
+        >>> np.load('/local/file.npy') # doctest: +SKIP
+        array([[1, 2],
+               [3, 4]], dtype=int32)
+
+        Parameters
+        ----------
+        uri : :obj: `str`
+        """
+        if not uri.endswith('.npy'):
+            uri += '.npy'
+
+        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
+
+    def to_numpy(self):
+        """Execute and convert this NDArray to a `NumPy` ndarray.
+
+        Examples
+        --------
+        >>> a = nd.to_numpy() # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        # FIXME Use filesystem abstraction instead when that is ready
+        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
+        self.save(temp_file)
+        return np.load(temp_file)
 
 
 scalars = {tbool: BooleanExpression,

@@ -99,6 +99,8 @@ auth0 = oauth.register(
 
 user_table = Table()
 
+WORKER_IMAGE = os.environ['HAIL_NOTEBOOK2_WORKER_IMAGE']
+
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
@@ -107,17 +109,6 @@ k8s = kube.client.CoreV1Api()
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
-
-try:
-    with open('notebook-worker-images', 'r') as f:
-        def get_name(line):
-            return re.search("/([^/:]+):", line).group(1)
-        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
-except FileNotFoundError as e:
-    raise ValueError(
-        "working directory must contain a file called `notebook-worker-images' "
-        "containing the name of the docker image to use for worker pods.") from e
-
 
 jwtclient = JWTClient(SECRET_KEY)
 
@@ -359,7 +350,6 @@ def notebook_page():
     if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
-                               images=list(WORKER_IMAGES),
                                default='hail-jupyter')
 
     session['notebook'] = notebooks[0]
@@ -382,16 +372,11 @@ def notebook_delete():
 @app.route('/notebook', methods=['POST'])
 @requires_auth()
 def notebook_post():
-    image = request.form['image']
-
-    if image not in WORKER_IMAGES:
-        return '', 404
-
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
     safe_id = user_id_transform(g.user['auth0_id'])
 
-    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_id, g.user)
+    pod = start_pod(jupyter_token, WORKER_IMAGE, name, safe_id, g.user)
     session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
@@ -483,7 +468,7 @@ def admin_login_post():
 
 @app.route('/worker-image')
 def worker_image():
-    return '\n'.join(WORKER_IMAGES.values()), 200
+    return WORKER_IMAGE, 200
 
 
 @sockets.route('/wait')

@@ -1,3 +1,4 @@
+
 import collections
 import batch
 import json
@@ -20,13 +21,13 @@ class Test(unittest.TestCase):
         self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
 
     def test_job(self):
-        j = self.batch.create_job('alpine', ['echo', 'test'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['echo', 'test'])
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 0)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
@@ -56,14 +57,16 @@ class Test(unittest.TestCase):
             'name': 'test_attributes',
             'foo': 'bar'
         }
-        j = self.batch.create_job('alpine', ['true'], attributes=a)
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['true'], attributes=a)
         status = j.status()
         assert(status['attributes'] == a)
 
     def test_list_jobs(self):
         tag = secrets.token_urlsafe(64)
-        j1 = self.batch.create_job('alpine', ['sleep', '30'], attributes={'tag': tag, 'name': 'j1'})
-        j2 = self.batch.create_job('alpine', ['echo', 'test'], attributes={'tag': tag, 'name': 'j2'})
+        b = self.batch.create_batch()
+        j1 = b.create_job('alpine', ['sleep', '30'], attributes={'tag': tag, 'name': 'j1'})
+        j2 = b.create_job('alpine', ['echo', 'test'], attributes={'tag': tag, 'name': 'j2'})
 
         def assert_job_ids(expected, complete=None, success=None, attributes=None):
             jobs = self.batch.list_jobs(complete=complete, success=success, attributes=attributes)
@@ -123,26 +126,30 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
-    def test_scratch_folder(self):
-        sb = 'gs://test-bucket/folder'
-        j = self.batch.create_job('alpine', ['true'], scratch_folder=sb)
-        status = j.status()
-        assert(status['scratch_folder'] == sb)
-
     def test_fail(self):
-        j = self.batch.create_job('alpine', ['false'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['false'])
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
 
     def test_deleted_job_log(self):
-        j = self.batch.create_job('alpine', ['echo', 'test'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['echo', 'test'])
         id = j.id
         j.wait()
         j.delete()
-        self.assertEqual(self.batch._get_job_log(id), {'main': 'test\n'})
+
+        try:
+            self.batch._get_job_log(id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                self.assertTrue(False, f"batch should not have deleted log {e}")
 
     def test_delete_job(self):
-        j = self.batch.create_job('alpine', ['sleep', '30'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['sleep', '30'])
         id = j.id
         j.delete()
 
@@ -156,7 +163,8 @@ class Test(unittest.TestCase):
                 raise
 
     def test_cancel_job(self):
-        j = self.batch.create_job('alpine', ['sleep', '30'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['sleep', '30'])
         status = j.status()
         self.assertTrue(status['state'], 'Ready')
 
@@ -194,7 +202,8 @@ class Test(unittest.TestCase):
                 raise
 
     def test_get_job(self):
-        j = self.batch.create_job('alpine', ['true'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['true'])
         j2 = self.batch.get_job(j.id)
         status2 = j2.status()
         assert(status2['id'] == j.id)
@@ -237,7 +246,8 @@ class Test(unittest.TestCase):
         server = ServerThread(app)
         try:
             server.start()
-            j = self.batch.create_job(
+            b = self.batch.create_batch()
+            j = b.create_job(
                 'alpine',
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
@@ -253,13 +263,13 @@ class Test(unittest.TestCase):
             server.join()
 
     def test_log_after_failing_job(self):
-        j = self.batch.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 127)
 
-        self.assertEqual(status['log']['main'], 'test\n')
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
@@ -270,13 +280,12 @@ class Test(unittest.TestCase):
             (requests.get, '/jobs'),
             (requests.get, '/jobs/0'),
             (requests.get, '/jobs/0/log'),
-            (requests.delete, '/jobs/0/delete'),
+            (requests.delete, '/jobs/0'),
             (requests.patch, '/jobs/0/cancel'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
-            (requests.delete, '/batches/0/delete'),
-            (requests.patch, '/batches/0/close'),
-            (requests.get, '/recent')]
+            (requests.delete, '/batches/0'),
+            (requests.patch, '/batches/0/close')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
@@ -290,7 +299,8 @@ class Test(unittest.TestCase):
         token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata).decode('ascii')
         bc = batch.client.BatchClient(url=os.environ.get('BATCH_URL'), token=token)
         try:
-            j = bc.create_job('alpine', ['false'])
+            b = bc.create_batch()
+            j = b.create_job('alpine', ['false'])
             assert False, j
         except requests.HTTPError as e:
             if e.response.status_code == 401:

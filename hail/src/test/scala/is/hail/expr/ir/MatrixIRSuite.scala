@@ -157,7 +157,7 @@ class MatrixIRSuite extends SparkSuite {
       "animal" -> TString(),
       "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
     )
-    val keyNames = IndexedSeq("row_idx")
+    val keyNames = FastIndexedSeq("row_idx")
 
     val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
 
@@ -166,9 +166,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testCastTableToMatrix() {
     val rdata = Array(
-      Row(1, "fish", IndexedSeq(Row("a", 1.0), Row("x", 2.0))),
-      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(1, "fish", FastIndexedSeq(Row("a", 1.0), Row("x", 2.0))),
+      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val cdata = Array(
       Row(1, "atag"),
@@ -195,9 +195,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testCastTableToMatrixErrors() {
     val rdata = Array(
-      Row(1, "fish", IndexedSeq(Row("x", 2.0))),
-      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(1, "fish", FastIndexedSeq(Row("x", 2.0))),
+      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val cdata = Array(
       Row(1, "atag"),
@@ -219,8 +219,8 @@ class MatrixIRSuite extends SparkSuite {
 
     val rdata2 = Array(
       Row(1, "fish", null),
-      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
-      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
+      Row(2, "cat", FastIndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", FastIndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
     val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
@@ -297,7 +297,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testMatrixMultiWrite() {
     // partitioning must be the same
-    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
+    val ranges = FastIndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
     val read0 = MatrixTable.read(hc, path + "0.mt")
@@ -316,7 +316,7 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 10, 2, None)
     val path = tmpDir.createLocalTempFile()
     intercept[java.lang.IllegalArgumentException] {
-      val ir = MatrixMultiWrite(IndexedSeq(vcf.ast, range.ast), MatrixNativeMultiWriter(path))
+      val ir = MatrixMultiWrite(FastIndexedSeq(vcf.ast, range.ast), MatrixNativeMultiWriter(path))
     }
   }
 }

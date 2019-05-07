@@ -47,6 +47,9 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
 
     Notes
     -----
+    
+    The dataset must have a column field named `s` which is a :class:`.StringExpression`
+    and which uniquely identifies a column.
 
     The implementation is based on the IBD algorithm described in the `PLINK
     paper <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC1950838>`__.
@@ -126,7 +129,8 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     Remove samples where imputed sex does not equal reported sex:
 
     >>> imputed_sex = hl.impute_sex(dataset.GT)
-    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female)
+    >>> dataset_result = dataset.filter_cols(imputed_sex[dataset.s].is_female != dataset.pheno.is_female,
+    ...                                      keep=False)
 
     Notes
     -----

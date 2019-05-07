@@ -24,7 +24,6 @@ class Test(unittest.TestCase):
             self.assertEqual(status['state'], 'Complete')
             self.assertEqual(status['exit_code'], 0)
 
-            self.assertEqual(status['log']['main'], 'test\n')
             self.assertEqual(await j.log(), {'main': 'test\n'})
 
             self.assertTrue(await j.is_complete())

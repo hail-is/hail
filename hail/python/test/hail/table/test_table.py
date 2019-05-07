@@ -395,6 +395,17 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    def test_interval_product_join(self):
+        left = hl.utils.range_table(50, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        left = left.annotate(interval_matches=intervals.index(left.key, all_matches=True))
+        self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
+
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
         kt2 = kt.head(0)
@@ -404,6 +415,14 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
+
+    def test_product_join(self):
+        left = hl.utils.range_table(5)
+        right = hl.utils.range_table(5)
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate(matches=right.index(left.key, all_matches=True))
+        self.assertTrue(left.all(left.matches.length() == left.idx))
+        self.assertTrue(left.all(left.matches.map(lambda x: x.idx) == hl.range(0, left.idx)))
 
     def test_multiple_entry_joins(self):
         mt = hl.utils.range_matrix_table(4, 4)

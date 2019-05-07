@@ -57,6 +57,16 @@ object TypeCheck {
     }
 
   private def check(ir: IR, env: BindingEnv[Type]): Unit = {
+    ir.children
+      .iterator
+      .zipWithIndex
+      .foreach {
+        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
+      }
+
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -68,10 +78,20 @@ object TypeCheck {
       case Literal(_, _) =>
       case Void() =>
       case Cast(v, typ) => assert(Casts.valid(v.typ, typ))
+      case CastRename(v, typ) =>
+        if (!v.typ.canCastTo(typ))
+          throw new RuntimeException(s"invalid cast:\n  " +
+            s"child type: ${ v.typ.parsableString() }\n  " +
+            s"cast type:  ${ typ.parsableString() }")
       case NA(t) =>
         assert(t != null)
         assert(!t.required)
       case IsNA(v) =>
+      case Coalesce(values) =>
+        val t1 = values.head.typ
+        if (!values.tail.forall(_.typ == t1))
+          throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
+            s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
       case x@If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
@@ -192,6 +212,9 @@ object TypeCheck {
       case x@ArrayAgg(a, name, query) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(env.agg.isEmpty)
+      case x@ArrayAggScan(a, name, query) =>
+        assert(a.typ.isInstanceOf[TStreamable])
+        assert(env.scan.isEmpty)
       case x@AggFilter(cond, aggIR, _) =>
         assert(cond.typ isOfType TBoolean())
         assert(x.typ == aggIR.typ)
@@ -279,15 +302,5 @@ object TypeCheck {
         assert(path.typ == TString())
         assert(x.typ == TStream(rowType))
     }
-
-    ir.children
-      .iterator
-      .zipWithIndex
-      .foreach {
-        case (child: IR, i) => check(child, ChildBindings(ir, i, env))
-        case (tir: TableIR, _) => check(tir)
-        case (mir: MatrixIR, _) => check(mir)
-        case (bmir: BlockMatrixIR, _) => check(bmir)
-      }
   }
 }

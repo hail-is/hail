@@ -100,6 +100,29 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
     }
   }
 
+  def reverse(buf: Array[T], start: Int, end: Int): Unit = {
+    var left = start
+    var right = end
+    while (true) {
+      if (left == right) return
+      right -= 1
+      if (left == right) return
+      val temp = buf(left)
+      buf(left) = buf(right)
+      buf(right) = temp
+      left += 1
+    }
+  }
+
+  def rotate(buf: Array[T], start: Int, mid: Int, end: Int): Int = {
+    if (start == mid) return end
+    if (mid == end) return start
+    reverse(buf, start, mid)
+    reverse(buf, mid, end)
+    reverse(buf, start, end)
+    start + (end - mid)
+  }
+
   def compactBuffer(
     buf: Array[T], inStart: Int, inEnd: Int,
     out: Array[T], outStart: Int,
@@ -144,8 +167,6 @@ object ApproxCDFCombiner {
     Array.fill[Int](numLevels + 1)(capacity),
     Array.ofDim[T](capacity),
     1,
-    dummy,
-    dummy,
     rand)
 
   def apply[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering : ApproxCDFHelper](
@@ -170,14 +191,12 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
   val levels: Array[Int],
   val items: Array[T],
   var numLevels: Int,
-  var minValue: T,
-  var maxValue: T,
   val rand: java.util.Random
 )(implicit helper: ApproxCDFHelper[T]
 ) extends Serializable {
 
   def copy(): ApproxCDFCombiner[T] =
-    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels, minValue, maxValue, rand)
+    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels, rand)
 
   def maxNumLevels = levels.length - 1
   def capacity = items.length
@@ -192,15 +211,6 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
 
   def push(t: T) {
     val bot = levels(0)
-
-    if (bot == capacity) {
-      minValue = t
-      maxValue = t
-    } else if (helper.lt(t, minValue)) {
-      minValue = t
-    } else if (helper.lt(maxValue, t)) {
-      maxValue = t
-    }
 
     val newBot = bot - 1
     items(newBot) = t
@@ -223,12 +233,10 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
     System.arraycopy(items, levels(0), newItems, newLevels(0), size)
 
-    new ApproxCDFCombiner[T](newLevels, newItems, numLevels, minValue, maxValue, rand)
+    new ApproxCDFCombiner[T](newLevels, newItems, numLevels, rand)
   }
 
   def clear() {
-    minValue = helper.dummyValue
-    maxValue = helper.dummyValue
     numLevels = 1
     var i = 0
     while (i < levels.length) {
@@ -240,26 +248,49 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
   /* Compact level `level`, merging the compacted results into level `level+1`.
    * Shift lower levels up to keep items contiguous.
    */
-  def compactLevel(level: Int, shiftLowerLevels: Boolean = true) {
+  def compactLevel(level: Int) {
+    compactLevel(level, true)
+  }
+
+  def compactLevel(level: Int, shiftLowerLevels: Boolean) {
+    val keep = if (level == 0) 1 else 0
+    compactLevel(level, shiftLowerLevels, keep)
+  }
+
+  def compactLevel(level: Int, shiftLowerLevels: Boolean, keep: Int) {
     assert(level <= numLevels - 1)
     if (level == numLevels - 1) numLevels += 1
+
+    // before rotate:
+    // | lvls 0...level - 1 |         level         | level + 1 |
+    // |                    | keep | compact | keep |           |
+    // bot                  a0                      c           d
+
+    // after rotate:
+    // | lvls 0...level - 1 |        level          | level + 1 |
+    // |                    | keep | keep | compact |           |
+    // bot                  a0            a    b    c           d
+
+    // after compact:
+    // | lvls 0...level - 1 |    level    |    |   level + 1    |
+    // bot                  a0            a    b    c           d
 
     val bot = levels(0)
     val a0 = levels(level)
     val c = levels(level + 1)
     val d = levels(level + 2)
 
-    val size = c - a0
-    val halfSize = size / 2
-    val adj = size % 2
+    val adj = (c - a0) % 2
 
-    val a = a0 + adj
+    val levelAboveSize = d - c
+
+    if (level == 0) helper.sort(items, a0, c)
+    val a = helper.rotate(items, a0 + keep + adj, c - keep, c)
+    val halfSize = (c - a) / 2
     val b = a + halfSize
 
     val sizeBelow = a - bot
-    val levelAboveSize = d - c
 
-    if (level == 0) helper.sort(items, a, c)
     if (levelAboveSize == 0) {
       helper.compactBufferBackwards(items, a, c, items, c, rand.nextBoolean())
     } else {
@@ -285,9 +316,6 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
   }
 
   def merge(other: ApproxCDFCombiner[T], ubOnNumLevels: Int): ApproxCDFCombiner[T] = {
-    minValue = helper.min(minValue, other.minValue)
-    maxValue = helper.max(maxValue, other.maxValue)
-
     val mergedLevels = Array.ofDim[Int](ubOnNumLevels + 1)
     val mergedItems = Array.ofDim[T](size + other.size)
 
@@ -322,8 +350,6 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
       mergedLevels,
       mergedItems,
       math.max(numLevels, other.numLevels),
-      helper.min(minValue, other.minValue),
-      helper.max(maxValue, other.maxValue),
       rand)
   }
 
@@ -360,7 +386,7 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
         // but never hurts.
         items(endOfCompacted) = items(start)
 
-        compactLevel(curLevel, false)
+        compactLevel(curLevel, shiftLowerLevels = false)
         levels(curLevel) = endOfCompacted
         endOfCompacted = levels(curLevel) + adj
 
@@ -398,14 +424,11 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
 
     numLevels = other.numLevels
-    minValue = other.minValue
-    maxValue = other.maxValue
   }
 
   def cdf: (Array[T], Array[Long]) = {
     val builder: ArrayBuilder[(Long, T)] = new ArrayBuilder(size)
 
-    builder += (0, minValue)
     var level = 0
     while (level < numLevels) {
       val weight: Long = 1 << level
@@ -416,7 +439,6 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
       }
       level += 1
     }
-    builder += (0, maxValue)
 
     val sorted = builder.result().sortBy(_._2)
 
@@ -515,8 +537,6 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
   def numLevels = combiner.numLevels
   def levelsCapacity = combiner.maxNumLevels
 
-  private def size: Int = combiner.size
-
   private[aggregators] def capacity: Int = combiner.capacity
 
   def seqOp(region: Region, x: T, missing: Boolean) {
@@ -547,8 +567,6 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
         _seqOp(other.items(i))
         i += 1
       }
-      combiner.minValue = helper.min(combiner.minValue, other.combiner.minValue)
-      combiner.maxValue = helper.max(combiner.maxValue, other.combiner.maxValue)
     } else {
       merge(other)
     }

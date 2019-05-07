@@ -883,7 +883,12 @@ case class MatrixAnnotateColsTable(
 case class MatrixAnnotateRowsTable(
   child: MatrixIR,
   table: TableIR,
-  root: String) extends MatrixIR {
+  root: String,
+  product: Boolean
+) extends MatrixIR {
+  require((!product && table.typ.keyType.isPrefixOf(child.typ.rowKeyStruct)) ||
+    (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))),
+    s"\n  L: ${ child.typ }\n  R: ${ table.typ }")
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
 
@@ -891,16 +896,26 @@ case class MatrixAnnotateRowsTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
+  val annotationType =
+    if (product)
+      TArray(table.typ.valueType)
+    else
+      table.typ.valueType
 
+  val typ: MatrixType =
+    child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> annotationType))
+
+  val annotationRVDType =
+    if (product)
+      PArray(table.rvdType.rowType.dropFields(table.typ.key.toSet))
+    else
+      table.rvdType.rowType.dropFields(table.typ.key.toSet)
   override lazy val rvdType: RVDType = child.rvdType.copy(
-    rowType = child.rvdType.rowType.appendKey(
-      root,
-      table.rvdType.rowType.dropFields(table.typ.key.toSet)))
+    rowType = child.rvdType.rowType.appendKey(root, annotationRVDType))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
-    MatrixAnnotateRowsTable(child, table, root)
+    MatrixAnnotateRowsTable(child, table, root, product)
   }
 }
 
@@ -1137,11 +1152,5 @@ case class MatrixRename(child: MatrixIR,
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRename = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
     MatrixRename(newChild, globalMap, colMap, rowMap, entryMap)
-  }
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-
-    MatrixValue(typ, prev.globals, prev.colValues, prev.rvd.cast(rvdType.rowType))
   }
 }

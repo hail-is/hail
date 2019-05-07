@@ -158,17 +158,30 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
 }
 
 object RVDType {
-  def selectUnsafeOrdering(t1: PStruct, fields1: Array[Int],
-    t2: PStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
+  def selectUnsafeOrdering(
+    t1: PStruct, fields1: Array[Int],
+    t2: PStruct, fields2: Array[Int],
+    missingEqual: Boolean=true
+  ): UnsafeOrdering = {
+    val fieldOrderings = Range(0, fields1.length).map { i =>
+      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)))
+    }.toArray
+
+    selectUnsafeOrdering(t1, fields1, t2, fields2, fieldOrderings, missingEqual)
+  }
+
+  def selectUnsafeOrdering(
+    t1: PStruct, fields1: Array[Int],
+    t2: PStruct, fields2: Array[Int],
+    fieldOrderings: Array[UnsafeOrdering],
+    missingEqual: Boolean
+  ): UnsafeOrdering = {
     require(fields1.length == fields2.length)
     require((fields1, fields2).zipped.forall { case (f1, f2) =>
       t1.types(f1) isOfType t2.types(f2)
     })
 
     val nFields = fields1.length
-    val fieldOrderings = Range(0, nFields).map { i =>
-      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)))
-    }.toArray
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
