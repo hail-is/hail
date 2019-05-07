@@ -181,6 +181,9 @@ steps:
       to: /io/testng.xml
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
    dependsOn:
     - hail_run_image
     - build_hail
