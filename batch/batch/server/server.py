@@ -852,7 +852,7 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_all_records({'user': user})]
+    batches = [Batch.from_record(record) for record in await db.batch.get_records_where({'user': user})]
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
@@ -1047,11 +1047,13 @@ async def refresh_k8s_pvc():
     log.info(f'k8s had {len(pvcs.items)} pvcs')
 
     seen_pvcs = set()
+
     for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
         job = Job.from_record(record)
         assert job._pvc
         seen_pvcs.add(job._pvc.metadata.name)
 
+    print(seen_pvcs)
     for pvc in pvcs.items:
         if pvc.metadata.name not in seen_pvcs:
             log.info(f'deleting orphaned pvc {pvc.metadata.name}')
