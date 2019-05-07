@@ -647,6 +647,10 @@ object IRParser {
         val indexExpr = int32_literals(it)
         val nd = ir_value_expr(env)(it)
         NDArrayReindex(nd, indexExpr)
+      case "NDArrayAgg" =>
+        val axes = int32_literals(it)
+        val nd = ir_value_expr(env)(it)
+        NDArrayAgg(nd, axes)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_children(env)(it)

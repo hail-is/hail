@@ -10,6 +10,7 @@ import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 object Emit {
 
@@ -916,7 +917,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  $strides.push_back(0);
              | }
            """.stripMargin
-        }.mkString("\n")
+        }
+
         present(
           s"""
              |({
@@ -925,10 +927,66 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${ shape.define }
              |  ${ strides.define }
              |
-             |  ${ reindexShapeAndStrides }
+             |  ${ Code.sequence(reindexShapeAndStrides) }
              |  make_ndarray($nd.flags, $nd.offset, $nd.elem_size, $shape, $strides, $nd.data);
              |})
            """.stripMargin)
+
+      case ir.NDArrayAgg(child, axes) =>
+        val childTyp = child.pType.asInstanceOf[PNDArray]
+        val resTyp = x.pType.asInstanceOf[PNDArray]
+
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+        val shape = fb.variable("shape", "std::vector<long>")
+
+        var shapeBuilder = new ListBuffer[String]() :+ shape.define
+        var dim = 0
+        while (dim < childTyp.nDims) {
+          if (!axes.contains(dim)) {
+            shapeBuilder += s"$shape.push_back($nd.shape[$dim]);"
+          }
+          dim += 1
+        }
+
+        val setup = Code(ndt.setup, nd.define, Code.sequence(shapeBuilder))
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
+          override def outputElement(resultIdxVars: Seq[Variable]): Code = {
+            val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
+            val resultIdxVarsIter = resultIdxVars.iterator
+            val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
+              if (aggIdxVars.contains(dim)) {
+                aggIdxVars(dim)
+              } else {
+                assert(resultIdxVarsIter.hasNext)
+                resultIdxVarsIter.next()
+              }
+            }
+            assert(!resultIdxVarsIter.hasNext)
+            val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
+
+            val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
+            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, childTyp.elementType) }"
+            val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
+              s"""
+                 |${ dimVar.define }
+                 |for ($dimVar = 0; $dimVar < $nd.shape[$axis]; ++$dimVar) {
+                 |  $innerLoops
+                 |}
+                 |""".stripMargin
+            }
+
+            s"""
+               |({
+               |  ${ acc.define }
+               |  ${ aggLoops }
+               |  $acc;
+               |})
+             """.stripMargin
+          }
+        }
+
+        present(emitter.emit(resTyp.elementType))
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
@@ -944,13 +1002,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         triplet(
           s"""
              | ${ ndt.setup }
-             | ${ idxst.map(_.setup).mkString("\n") }
+             | ${ Code.sequence(idxst.map(_.setup)) }
            """.stripMargin,
           idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           s"""
              |({
              | ${ nd.define }
-             | ${ idxVars.map(_.define).mkString("\n") }
+             | ${ Code.sequence(idxVars.map(_.define)) }
              | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) }
              |})
            """.stripMargin)
