@@ -290,6 +290,8 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
 
+    .. include:: ../_templates/req_tstring.rst
+
     .. include:: ../_templates/req_tvariant.rst
 
     .. include:: ../_templates/req_biallelic.rst
