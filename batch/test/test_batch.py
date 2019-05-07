@@ -65,7 +65,7 @@ class Test(unittest.TestCase):
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
         b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
-        b1.create_job('alpine', ['sleep', '30'])
+        b1.create_job('alpine', ['sleep', '300'])
 
         b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
@@ -86,6 +86,7 @@ class Test(unittest.TestCase):
         assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
 
         b1.cancel()
+        b1.wait()
 
         assert_batch_ids({b1.id}, success=False, attributes={'tag': tag})
         assert_batch_ids({b2.id}, success=True, attributes={'tag': tag})
@@ -209,6 +210,7 @@ class Test(unittest.TestCase):
 
         batches = self.batch.list_batches()
         statuses = {b.id: b.status() for b in batches}
+        print(statuses)
 
         b1s = statuses[b1.id]
         assert b1s['complete'] and b1s['state'] == 'success'
