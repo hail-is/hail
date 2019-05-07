@@ -3102,6 +3102,11 @@ class NDArrayExpression(Expression):
         """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
         `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
 
+        Parameters
+        ----------
+        axes : :obj:`tuple` of :obj:`int`, optional
+            The new ordering of the ndarray's dimensions.
+
         Notes
         -----
         Does nothing on ndarrays of dimensionality 0 or 1.
@@ -3127,7 +3132,7 @@ class NDArrayExpression(Expression):
         if self.ndim < 2:
             return self
 
-        return type(self)(NDArrayReindex(self._ir, axes), self._type)
+        return construct_expr(ir.NDArrayReindex(self._ir, axes), self._type, self._indices, self._aggregations)
 
     @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
@@ -3182,8 +3187,9 @@ class NDArrayExpression(Expression):
         new_dims = range(self.ndim, n_output_dims)
         idx_mapping = list(reversed(new_dims)) + list(old_dims)
 
-        return type(self)(NDArrayReindex(self._ir, idx_mapping),
-                          tndarray(self._type.element_type, n_output_dims))
+        return construct_expr(NDArrayReindex(self._ir, idx_mapping),
+                              tndarray(self._type.element_type, n_output_dims),
+                              self._indices, self._aggregations)
 
 
 class NDArrayNumericExpression(NDArrayExpression):
