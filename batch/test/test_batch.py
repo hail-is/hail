@@ -66,20 +66,23 @@ class Test(unittest.TestCase):
         tag = secrets.token_urlsafe(64)
         b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
         b1.create_job('alpine', ['sleep', '300'])
+        print(b1.id)
 
         b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
+        print(b2.id)
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
             # list_batches returns all batches for all prev run tests
             actual = set([batch.id for batch in batches]).intersection({b1.id, b2.id})
+            print(actual, expected)
             self.assertEqual(actual, expected)
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
 
         b2.wait()
-
+        print(b1.status())
         assert_batch_ids({b1.id}, complete=False, attributes={'tag': tag})
         assert_batch_ids({b2.id}, complete=True, attributes={'tag': tag})
 
@@ -197,7 +200,7 @@ class Test(unittest.TestCase):
         b1.close()
         b1.wait()
         b1s = b1.status()
-        assert b1s['complete'] and b1s['state'] == 'success'
+        assert b1s['complete'] and b1s['state'] == 'success', b1s
 
         b2 = self.batch.create_batch()
         b2.create_job('alpine', ['false'])
@@ -205,20 +208,20 @@ class Test(unittest.TestCase):
         b2.close()
         b2.wait()
         b2s = b2.status()
-        assert b2s['complete'] and b2s['state'] == 'failure'
+        assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
         b3 = self.batch.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
         b3.close()
         b3s = b3.status()
-        assert not b3s['complete'] and b3s['state'] == 'running'
+        assert not b3s['complete'] and b3s['state'] == 'running', b3s
 
         b4 = self.batch.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
         b4.cancel()
         b4.wait()
         b4s = b4.status()
-        assert b4s['complete'] and b4s['state'] == 'cancelled'
+        assert b4s['complete'] and b4s['state'] == 'cancelled', b4s
 
     def test_callback(self):
         app = Flask('test-client')
