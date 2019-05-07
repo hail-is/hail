@@ -136,7 +136,7 @@ class PR(Code):
         self.batch = None
         self.source_sha_failed = None
 
-        # merge_failure, success, failure
+        # error, success, failure
         self.build_state = None
 
         # don't need to set github_changed because we are refreshing github
@@ -215,7 +215,7 @@ class PR(Code):
         return build_state_is_complete(self.build_state)
 
     def github_status(self):
-        if self.build_state == 'failure' or self.build_state == 'merge_failure':
+        if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
         if (self.build_state == 'success' and
                 self.batch.attributes['target_sha'] == self.target_branch.sha):
@@ -315,7 +315,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
                 })
-            self.build_state = 'merge_failure'
+            self.build_state = 'error'
             self.source_sha_failed = True
             self.target_branch.state_changed = True
         finally:
