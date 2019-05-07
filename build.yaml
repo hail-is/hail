@@ -168,7 +168,8 @@ steps:
    script: |
      set -ex
      cd /io
-     tar xzvf resources.tar.gz
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
      java -cp hail-test.jar org.testng.TestNG testng.xml
      java -cp hail-test.jar org.testng.TestNG testng-cpp-codegen.xml
    inputs:
