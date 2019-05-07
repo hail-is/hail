@@ -65,12 +65,10 @@ class Test(unittest.TestCase):
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
         b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
-        b1.create_job('alpine', ['sleep', '300'])
-        print(b1.id)
+        b1.create_job('alpine', ['sleep', '30'])
 
         b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
-        print(b2.id)
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
