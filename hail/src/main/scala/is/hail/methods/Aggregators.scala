@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.stats._
@@ -11,11 +10,11 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
-import scala.collection.JavaConverters._
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 object Aggregators {
 
@@ -324,6 +323,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
 class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero
@@ -352,6 +352,7 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero

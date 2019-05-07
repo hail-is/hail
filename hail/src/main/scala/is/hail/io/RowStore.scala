@@ -1,12 +1,10 @@
 package is.hail.io
 
 import java.io._
-import java.nio.ByteBuffer
 import java.util
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
@@ -16,6 +14,7 @@ import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner,
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.{HailContext, cxx}
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -1779,7 +1778,7 @@ object RichContextRDDRegionValue {
       if (stageLocally) {
         val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
         val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
-        context.addTaskCompletionListener { context =>
+        context.addTaskCompletionListener { (context: TaskContext) =>
           hConf.delete(rowsPartPath, recursive = false)
           hConf.delete(entriesPartPath, recursive = false)
         }

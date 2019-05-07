@@ -593,7 +593,7 @@ object IRParser {
         val opName = identifier(it)
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val op = ComparisonOp.fromStringAndTypes(opName, l.typ, r.typ)
+        val op = ComparisonOp.fromStringAndTypes((opName, l.typ, r.typ))
         ApplyComparisonOp(op, l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr).map(_.asInstanceOf[TArray]).orNull
@@ -711,17 +711,17 @@ object IRParser {
       case "ArrayFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFor(a, name, body)
       case "ArrayAgg" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAgg(a, name, query)
       case "ArrayAggScan" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAggScan(a, name, query)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
@@ -888,7 +888,7 @@ object IRParser {
         val gname = identifier(it)
         val ctxs = ir_value_expr(env)(it)
         val globals = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (cname, coerce[TStreamable](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        val body = ir_value_expr(env + (cname -> coerce[TStreamable](ctxs.typ).elementType) + (gname -> globals.typ))(it)
         CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)

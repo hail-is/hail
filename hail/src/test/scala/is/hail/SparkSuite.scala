@@ -34,8 +34,6 @@ class SparkSuite extends TestNGSuite {
     hc
   }
 
-  def sqlContext: SQLContext = hc.sqlContext
-
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   lazy val tmpDir: TempDir = TempDir(hadoopConf)

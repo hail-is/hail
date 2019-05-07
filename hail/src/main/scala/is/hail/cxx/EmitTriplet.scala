@@ -1,9 +1,6 @@
 package is.hail.cxx
 
 import is.hail.expr.types.physical._
-import is.hail.utils.ArrayBuilder
-
-import scala.collection.mutable
 
 object EmitTriplet {
   def apply(pType: PType, setup: Code, m: Code, v: Code, region: EmitRegion): EmitTriplet =

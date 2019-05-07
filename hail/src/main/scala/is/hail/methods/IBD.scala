@@ -1,16 +1,16 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr.ir._
-import is.hail.table.Table
 import is.hail.annotations._
+import is.hail.expr.ir._
 import is.hail.expr.types.physical.PString
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
-import org.apache.spark.rdd.RDD
+import is.hail.table.Table
 import is.hail.utils._
+import is.hail.variant.{Call, Genotype, HardCallView}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
 import scala.language.higherKinds

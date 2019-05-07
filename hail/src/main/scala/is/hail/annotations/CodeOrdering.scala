@@ -205,7 +205,6 @@ object CodeOrdering {
 
   def intervalOrdering(t1: PInterval, t2: PInterval, mb: EmitMethodBuilder): CodeOrdering = new CodeOrdering {
     type T = Long
-    val pti = ir.typeToTypeInfo(t1.pointType)
     val mp1: LocalRef[Boolean] = mb.newLocal[Boolean]
     val mp2: LocalRef[Boolean] = mb.newLocal[Boolean]
     val p1: LocalRef[_] = mb.newLocal(ir.typeToTypeInfo(t1.pointType))

@@ -99,7 +99,7 @@ object PruneDeadFields {
     val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
       upcast(Ref("values", TArray(oldColType)), newColsType),
       Env.empty[(Any, Type)]
-        .bind("values" -> (mv.colValues.value, TArray(oldColType))),
+        .bind("values", (mv.colValues.value, TArray(oldColType))),
       FastIndexedSeq(),
       None,
       optimize = false)

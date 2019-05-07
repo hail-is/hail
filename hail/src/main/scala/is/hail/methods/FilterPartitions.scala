@@ -1,7 +1,7 @@
 package is.hail.methods
 
-import is.hail.expr.ir.{MatrixToMatrixApply, MatrixValue, TableToTableApply, TableValue}
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, TableToTableFunction}
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 

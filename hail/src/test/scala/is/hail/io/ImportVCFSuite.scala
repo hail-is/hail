@@ -1,15 +1,10 @@
 package is.hail.io
 
 import is.hail.check.Prop._
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations.Annotation
-import is.hail.io.vcf.{ExportVCF, LoadVCF}
+import is.hail.io.vcf.ExportVCF
 import is.hail.variant._
-import org.apache.spark.SparkException
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
-import is.hail.utils._
-import is.hail.testUtils._
-import org.apache.spark.sql.Row
 
 class ImportVCFSuite extends SparkSuite {
   @Test def randomExportImportIsIdentity() {

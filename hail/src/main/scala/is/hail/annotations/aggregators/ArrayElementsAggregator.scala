@@ -3,8 +3,6 @@ package is.hail.annotations.aggregators
 import is.hail.annotations.RegionValueBuilder
 import is.hail.utils._
 
-import scala.language.implicitConversions
-
 final case class ArrayElementsAggregator(rvAggs: Array[RegionValueAggregator]) extends RegionValueAggregator {
 
   // this can't be private for reflection to work

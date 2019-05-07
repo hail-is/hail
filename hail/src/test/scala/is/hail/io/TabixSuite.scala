@@ -1,14 +1,10 @@
 package is.hail.io
 
-import is.hail.{SparkSuite, TestUtils}
-import is.hail.io.tabix._
-import is.hail.testUtils._
-import is.hail.utils._
-
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
-
-import org.testng.asserts.SoftAssert
+import is.hail.SparkSuite
+import is.hail.io.tabix._
 import org.testng.annotations.{BeforeTest, Test}
+import org.testng.asserts.SoftAssert
 
 class TabixSuite extends SparkSuite {
   // use .gz for several tests and .bgz for another to test handling of both

@@ -9,7 +9,6 @@ import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._
-import org.apache.spark.storage.StorageLevel
 
 case class LogisticRegression(
   test: String,

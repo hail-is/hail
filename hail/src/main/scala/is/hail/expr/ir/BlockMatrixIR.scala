@@ -234,7 +234,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
       case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](child) match {
           case scalar: Double => scalar
-          case oneElementArray: IndexedSeq[Double] => oneElementArray.head
+          case oneElementArray: IndexedSeq[_] => oneElementArray.head.asInstanceOf[Double]
         }
       case _ => ir.execute(hc).getElement(row = 0, col = 0)
     }
@@ -244,7 +244,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
     ir match {
       case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](child) match {
-          case vector: IndexedSeq[Double] => vector.toArray
+          case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
         }
       case _ => ir.execute(hc).toBreezeMatrix().data
     }
@@ -479,8 +479,8 @@ case class ValueToBlockMatrix(
       case scalar: Double =>
         assert(shape == FastIndexedSeq(1, 1))
         BlockMatrix.fill(hc, nRows = 1, nCols = 1, scalar, blockSize)
-      case data: IndexedSeq[Double] =>
-        BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)
+      case data: IndexedSeq[_] =>
+        BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

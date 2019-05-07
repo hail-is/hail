@@ -555,8 +555,8 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_from_spark_works(self):
-        sql_context = Env.sql_context()
-        df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
+        spark_session = Env.spark_session()
+        df = spark_session.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
         t = hl.Table.from_spark(df)
         rows = t.collect()
         self.assertEqual(len(rows), 1)

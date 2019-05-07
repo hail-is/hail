@@ -1,8 +1,8 @@
 package is.hail.linalg
 
-import org.apache.spark.Partitioner
 import breeze.linalg.{DenseVector => BDV}
 import is.hail.utils._
+import org.apache.spark.Partitioner
 
 import scala.collection.mutable
 
