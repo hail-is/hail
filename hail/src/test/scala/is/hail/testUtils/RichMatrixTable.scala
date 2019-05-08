@@ -22,7 +22,7 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def variantRDD: RDD[(Variant, (Annotation, Iterable[Annotation]))] =
     rdd.map { case (v, (va, gs)) =>
-      Variant.fromLocusAlleles(v) -> (va, gs)
+      Variant.fromLocusAlleles(v) -> ((va, gs))
     }
 
   def typedRDD[RK](implicit rkct: ClassTag[RK]): RDD[(RK, (Annotation, Iterable[Annotation]))] =

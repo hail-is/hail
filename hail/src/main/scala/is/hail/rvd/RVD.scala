@@ -4,9 +4,8 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.fs.HadoopFS
@@ -14,10 +13,10 @@ import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.{Partitioner, SparkContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag

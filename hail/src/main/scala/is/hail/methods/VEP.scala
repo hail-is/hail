@@ -6,8 +6,8 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._

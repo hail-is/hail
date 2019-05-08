@@ -3083,6 +3083,57 @@ class NDArrayExpression(Expression):
         """
         return self._type.ndim
 
+    @property
+    def T(self):
+        """Reverse the dimensions of this ndarray. For an n-dimensional array `a`,
+        a[i_0, ..., i_n-1, i_n] = a.T[i_n, i_n-1, ..., i_0].
+        Same as `self.transpose()`.
+
+        See also :func:`.transpose`.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        return self.transpose()
+
+    @typecheck_method(axes=nullable(tupleof(int)))
+    def transpose(self, axes=None):
+        """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
+        `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
+
+        Parameters
+        ----------
+        axes : :obj:`tuple` of :obj:`int`, optional
+            The new ordering of the ndarray's dimensions.
+
+        Notes
+        -----
+        Does nothing on ndarrays of dimensionality 0 or 1.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        if axes is None:
+            axes = list(reversed(range(self.ndim)))
+        else:
+            if len(axes) != self.ndim:
+                raise ValueError(f'Must specify a complete permutation of the dimensions.'
+                                 f'Expected {self.ndim} axes, got {len(axes)}')
+
+            if len(set(axes)) != len(axes):
+                raise ValueError(f'Axes cannot contain duplicates: {axes}')
+
+            for axis in axes:
+                if not 0 <= axis < self.ndim:
+                    raise ValueError(f'Invalid axis: {axis}')
+
+        if self.ndim < 2:
+            return self
+
+        return construct_expr(ir.NDArrayReindex(self._ir, axes), self._type, self._indices, self._aggregations)
+
     @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
@@ -3136,13 +3187,9 @@ class NDArrayExpression(Expression):
         new_dims = range(self.ndim, n_output_dims)
         idx_mapping = list(reversed(new_dims)) + list(old_dims)
 
-        ir = NDArrayReindex(self._ir, idx_mapping)
-        expr_type = tndarray(self._type.element_type, n_output_dims)
-
-        if is_numeric(self._type.element_type):
-            return NDArrayNumericExpression(ir, expr_type)
-
-        return NDArrayExpression(ir, expr_type)
+        return construct_expr(NDArrayReindex(self._ir, idx_mapping),
+                              tndarray(self._type.element_type, n_output_dims),
+                              self._indices, self._aggregations)
 
 
 class NDArrayNumericExpression(NDArrayExpression):
@@ -3268,6 +3315,36 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
+
+    @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
+    def sum(self, axis=None):
+        """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
+        be summed to a single `NumericExpression`.
+
+        Parameters
+        ----------
+        axis : :obj: `int` or :obj: `list` of :obj: `int:, optional
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        if axis is None:
+            axes = list(range(self.ndim))
+        else:
+            axes = wrap_to_list(axis)
+
+        for axis in axes:
+            if not 0 <= axis <= self.ndim:
+                raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
+
+        if len(set(axes)) != len(axes):
+            raise ValueError(f'Axes should not be repeated: {axes}')
+
+        return construct_expr(NDArrayAgg(self._ir, axes),
+                              tndarray(self._type.element_type, self.ndim - len(axes)),
+                              self._indices,
+                              self._aggregations)
 
     @typecheck_method(uri=str)
     def save(self, uri):

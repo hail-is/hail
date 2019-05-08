@@ -6,9 +6,9 @@ import is.hail.expr.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
-import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
 
 object RowMatrix {
   def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =

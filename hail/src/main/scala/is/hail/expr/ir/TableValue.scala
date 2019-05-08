@@ -154,7 +154,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def unpersist(): TableValue = copy(rvd = rvd.unpersist())
 
   def toDF(): DataFrame = {
-    HailContext.get.sqlContext.createDataFrame(
+    HailContext.get.sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType])
   }

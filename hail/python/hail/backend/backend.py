@@ -9,7 +9,6 @@ from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
-from hail.fs import HadoopFS
 
 import requests
 
@@ -89,10 +88,13 @@ class Backend(abc.ABC):
 
 class SparkBackend(Backend):
     def __init__(self):
-        self._fs = HadoopFS()
+        self._fs = None
 
     @property
     def fs(self):
+        if self._fs is None:
+            from hail.fs.hadoop_fs import HadoopFS
+            self._fs = HadoopFS()
         return self._fs
 
     def _to_java_ir(self, ir):
@@ -144,13 +146,13 @@ class SparkBackend(Backend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.sql_context())
+        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
 
     def from_pandas(self, df, key):
-        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
 
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
@@ -208,7 +210,7 @@ class ServiceBackend(Backend):
         if token_file is not None and token is not None:
             raise ValueError('set only one of token_file and token')
         self.url = url
-        self._fs = HadoopFS()
+
         if token is None:
             token_file = (token_file or
                           os.environ.get('HAIL_TOKEN_FILE') or
@@ -221,9 +223,13 @@ class ServiceBackend(Backend):
                 token = f.read()
         self.cookies = {'user': token}
 
+        self._fs = None
 
     @property
     def fs(self):
+        if self._fs is None:
+            from hail.fs.google_fs import GoogleCloudStorageFS
+            self._fs = GoogleCloudStorageFS()
         return self._fs
 
     def _render(self, ir):
@@ -334,7 +340,8 @@ class ServiceBackend(Backend):
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         resp = requests.post(f'{self.url}/references/liftover/add',
-                             json={'name': name, 'chain_file': chain_file, 'dest_reference_genome': dest_reference_genome},
+                             json={'name': name, 'chain_file': chain_file,
+                                   'dest_reference_genome': dest_reference_genome},
                              cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()

@@ -34,11 +34,6 @@ case class MatrixValue(
 
   def nCols: Int = colValues.value.length
 
-  def sampleIds: IndexedSeq[Row] = {
-    val queriers = typ.colKey.map(field => typ.colType.query(field))
-    colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
-  }
-
   def stringSampleIds: IndexedSeq[String] = {
     val colKeyTypes = typ.colKeyStruct.types
     assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
@@ -56,8 +51,6 @@ case class MatrixValue(
   def referenceGenome: ReferenceGenome = typ.referenceGenome
 
   def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
-
-  def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
 
   private def writeCols(fs: FS, path: String, codecSpec: CodecSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
@@ -207,32 +200,6 @@ case class MatrixValue(
     }
   }
 
-  def rowsRVD(): RVD = {
-    val localRowType = typ.rowType
-    val fullRowType = typ.rvRowType
-    val localEntriesIndex = typ.entriesIdx
-    rvd.mapPartitions(
-      RVDType(typ.rowType.physicalType, typ.rowKey)
-    ) { it =>
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      it.map { rv =>
-        rv2b.set(rv.region)
-        rv2b.start(localRowType.physicalType)
-        rv2b.startStruct()
-        var i = 0
-        while (i < fullRowType.size) {
-          if (i != localEntriesIndex)
-            rv2b.addField(fullRowType.physicalType, rv, i)
-          i += 1
-        }
-        rv2b.endStruct()
-        rv2.set(rv.region, rv2b.end())
-        rv2
-      }
-    }
-  }
-
   def colsRVD(): RVD = {
     val hc = HailContext.get
     val colPType = typ.colType.physicalType
@@ -242,57 +209,6 @@ case class MatrixValue(
       ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
         .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
     )
-  }
-
-  def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-    newColKey: IndexedSeq[String] = typ.colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = typ.globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
-    insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-      PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
-  }
-
-  def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-    newColKey: IndexedSeq[String] = typ.colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = typ.globalType,
-    newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
-    assert(!typ.rowKey.contains(path))
-
-    val fullRowType = rvd.rowPType
-    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
-
-    val (newRVPType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
-
-
-    val newMatrixType = typ.copy(rvRowType = newRVPType.virtualType, colType = newColType,
-      colKey = newColKey, globalType = newGlobalType)
-
-    MatrixValue(
-      newMatrixType,
-      newGlobals,
-      newColValues,
-      rvd.mapPartitions(newMatrixType.canonicalRVDType) { it =>
-
-        val pc = makePartitionContext()
-
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newRVPType)
-
-          ins(rv.region, rv.offset, rvb,
-            () => inserter(pc, rv, rvb)
-          )
-
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
   }
 
   def toRowMatrix(entryField: String): RowMatrix = {

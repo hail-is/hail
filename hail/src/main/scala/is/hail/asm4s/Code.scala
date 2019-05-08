@@ -1,7 +1,6 @@
 package is.hail.asm4s
 
 import java.io.PrintStream
-
 import java.lang.reflect.{Constructor, Field, Method, Modifier}
 import java.util
 
@@ -118,7 +117,7 @@ object Code {
       }
     }
 
-  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] = {
+  def newInstance[T](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] = {
     new Code[T] {
       def emit(il: Growable[AbstractInsnNode]): Unit = {
         il += new TypeInsnNode(NEW, Type.getInternalName(tct.runtimeClass))
@@ -874,7 +873,7 @@ class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
       }
     }
 
-  def ifNull[T](cnullcase: Code[T], cnonnullcase: Code[T]): Code[T] =
+  def ifNull[U](cnullcase: Code[U], cnonnullcase: Code[U]): Code[U] =
     isNull.mux(cnullcase, cnonnullcase)
 
   def mapNull[U >: Null](cnonnullcase: Code[U]): Code[U] =

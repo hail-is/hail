@@ -175,7 +175,7 @@ object BlockMatrix {
       val block = RichDenseMatrixDouble.read(is, bufferSpec)
       is.close()
 
-      Iterator.single(gp.partCoordinates(pi), block)
+      Iterator.single(gp.partCoordinates(pi) -> block)
     }
 
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
@@ -1318,7 +1318,7 @@ object BlockMatrixFilterRDD {
             endIndices += ((endCol - 1) % blockSize + 1).toInt // end index in blockCol
             j = k
           }
-          ab += (blockCol, startIndices.result(), endIndices.result())
+          ab += ((blockCol, startIndices.result(), endIndices.result()))
         }
         ab.result()
       }.toArray
@@ -1533,7 +1533,7 @@ private class BlockMatrixUnionOpRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (i, j) = gp.partCoordinates(split.index)
-    val lm = op(block(l, lParts, lGP, context, i, j), block(r, rParts, rGP, context, i, j))
+    val lm = op(block(l, lParts, lGP, context, i, j) -> block(r, rParts, rGP, context, i, j))
     
     Iterator.single(((i, j), lm))
   }

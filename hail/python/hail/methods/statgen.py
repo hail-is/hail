@@ -11,7 +11,7 @@ from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.stats import LinearMixedModel
 from hail.table import Table
 from hail.typecheck import *
@@ -26,6 +26,8 @@ from hail.utils.java import *
            max=nullable(numeric))
 def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> Table:
     """Compute matrix of identity-by-descent estimates.
+
+    .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -77,7 +79,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     Parameters
     ----------
     dataset : :class:`.MatrixTable`
-        Variant-keyed :class:`.MatrixTable` containing genotype information.
+        Variant-keyed and sample-keyed :class:`.MatrixTable` containing genotype information.
     maf : :class:`.Float64Expression`, optional
         Row-indexed expression for the minor allele frequency.
     bounded : :obj:`bool`
@@ -94,6 +96,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     -------
     :class:`.Table`
     """
+
+    require_col_key_str(dataset, 'identity_by_descent')
 
     if maf is not None:
         analyze('identity_by_descent/maf', maf, dataset._row_indices)

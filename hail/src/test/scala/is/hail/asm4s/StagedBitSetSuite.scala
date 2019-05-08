@@ -1,11 +1,8 @@
 package is.hail.asm4s
 
-import is.hail.asm4s._
-import is.hail.asm4s.Code._
-import is.hail.check.{Gen, Prop}
+import is.hail.asm4s.FunctionBuilder._
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
-import is.hail.asm4s.FunctionBuilder._
 
 class StagedBitSetSuite extends TestNGSuite {
   def withOneBit(f : SettableBit => Code[Boolean]): Boolean = {

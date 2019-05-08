@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
-import is.hail.expr.types._
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.types.physical.{PArray, PType}
 

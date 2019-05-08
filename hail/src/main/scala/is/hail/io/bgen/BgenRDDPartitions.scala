@@ -65,7 +65,7 @@ object BgenRDDPartitions extends Logging {
         val b1 = bounds(i)
         val b2 = bounds(j)
         if (!b1._2.isDisjointFrom(pord, b2._2))
-          overlappingBounds += (b1._1, b1._2, b2._1, b2._2)
+          overlappingBounds += ((b1._1, b1._2, b2._1, b2._2))
         j += 1
       }
       i += 1

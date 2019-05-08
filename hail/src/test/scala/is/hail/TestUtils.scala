@@ -10,7 +10,6 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
@@ -495,28 +494,6 @@ object TestUtils {
     )
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
-
-  def importPlink(hc: HailContext,
-    bed: String,
-    bim: String,
-    fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    val reader = MatrixPLINKReader(bed, bim, fam,
-      nPartitions, delimiter, missing, quantPheno,
-      a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
-      skipInvalidLoci)
-
-    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropCols = false, dropRows = false, reader))
-  }
-
 
   def vdsFromCallMatrix(hc: HailContext)(
     callMat: Matrix[BoxedCall],

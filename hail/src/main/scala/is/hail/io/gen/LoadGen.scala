@@ -98,7 +98,7 @@ object LoadGen {
 
       val annotations = Annotation(locus, alleles, rsid, varid)
 
-      Some(annotations, gsb.result().toIterable)
+      Some(annotations -> gsb.result().toIterable)
     }
   }
 }

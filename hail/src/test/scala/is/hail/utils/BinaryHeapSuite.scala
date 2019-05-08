@@ -245,7 +245,7 @@ class BinaryHeapSuite {
     assert(bh.max() === 2)
     assert(bh.extractMax() === 2)
 
-    (bh.extractMax(), bh.extractMax()) should (equal(1, 3) or equal(3, 1))
+    (bh.extractMax(), bh.extractMax()) should (equal((1, 3)) or equal((3, 1)))
   }
 
   @Test

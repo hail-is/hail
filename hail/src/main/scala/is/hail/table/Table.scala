@@ -2,10 +2,10 @@ package is.hail.table
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.{ir, _}
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
+import is.hail.expr.{ir, _}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -13,8 +13,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import org.apache.spark.storage.StorageLevel
+import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -352,9 +351,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   // expandTypes must be called before toDF
-  def toDF(sqlContext: SQLContext): DataFrame = {
+  def toDF(ss: SparkSession): DataFrame = {
     val localSignature = signature.physicalType
-    sqlContext.createDataFrame(
+    ss.createDataFrame(
       rvd.map { rv => SafeRow(localSignature, rv) },
       signature.schema.asInstanceOf[StructType])
   }

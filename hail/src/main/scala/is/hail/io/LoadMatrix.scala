@@ -11,9 +11,8 @@ import is.hail.utils._
 import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
 
-import scala.language.implicitConversions
-import scala.language.existentials
 import scala.io.Source
+import scala.language.{existentials, implicitConversions}
 
 class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String, sep: Char) {
 

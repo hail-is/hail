@@ -2,8 +2,8 @@ package is.hail.methods
 
 import is.hail.check.Gen
 import is.hail.utils._
-import is.hail.variant.Sex.{Female, Male, Sex}
 import is.hail.variant.Sex
+import is.hail.variant.Sex.{Female, Male, Sex}
 import is.hail.io.fs.FS
 
 import scala.collection.mutable

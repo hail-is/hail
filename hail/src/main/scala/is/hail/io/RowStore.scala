@@ -5,7 +5,6 @@ import java.util
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
@@ -16,6 +15,7 @@ import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner,
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.{HailContext, cxx}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -1776,11 +1776,19 @@ object RichContextRDDRegionValue {
     val finalEntriesPartPath = path + "/entries/rows/parts/" + f
     val (rowsPartPath, entriesPartPath) =
       if (stageLocally) {
+<<<<<<< HEAD
         val rowsPartPath = fs.getTemporaryFile("file:///tmp")
         val entriesPartPath = fs.getTemporaryFile("file:///tmp")
         context.addTaskCompletionListener { context =>
           fs.delete(rowsPartPath, recursive = false)
           fs.delete(entriesPartPath, recursive = false)
+=======
+        val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
+        val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
+        context.addTaskCompletionListener { (context: TaskContext) =>
+          hConf.delete(rowsPartPath, recursive = false)
+          hConf.delete(entriesPartPath, recursive = false)
+>>>>>>> 58f4221666fd8065b21d02e9f6c483e12b15dfae
         }
         (rowsPartPath, entriesPartPath)
       } else

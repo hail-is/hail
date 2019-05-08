@@ -450,7 +450,7 @@ class StagedRegionValueSuite extends SparkSuite {
         region.loadDouble(t.loadField(region, off, 2)))
     }
 
-    assert(run(3, true, 42.0) == (3, true, 42.0))
-    assert(run(42, false, -1.0) == (42, false, -1.0))
+    assert(run(3, true, 42.0) == ((3, true, 42.0)))
+    assert(run(42, false, -1.0) == ((42, false, -1.0)))
   }
 }

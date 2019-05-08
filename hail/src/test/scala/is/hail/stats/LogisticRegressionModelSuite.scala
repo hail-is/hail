@@ -3,8 +3,8 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.SparkSuite
 import is.hail.utils._
-import org.testng.annotations.Test
 import org.testng.SkipException
+import org.testng.annotations.Test
 
 import scala.language.postfixOps
 import scala.sys.process._

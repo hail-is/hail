@@ -4,7 +4,7 @@ import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.text.SimpleDateFormat
-import java.util.{Date}
+import java.util.Date
 import java.util.zip.Inflater
 
 import is.hail.check.Gen
@@ -26,6 +26,51 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 
+package utils {
+  trait Truncatable {
+    def truncate: String
+
+    def strings: (String, String)
+  }
+
+  sealed trait FlattenOrNull[C[_] >: Null] {
+    def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
+      for (elt <- it) {
+        if (elt == null)
+          return null
+        b ++= elt
+      }
+      b.result()
+    }
+  }
+
+  sealed trait AnyFailAllFail[C[_]] {
+    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
+      val b = cbf()
+      for (t <- ts) {
+        if (t.isEmpty)
+          return None
+        else
+          b += t.get
+      }
+      Some(b.result())
+    }
+  }
+
+  sealed trait MapAccumulate[C[_], U] {
+    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
+      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+      val b = cbf()
+      var acc = z
+      for ((x, i) <- a.zipWithIndex) {
+        val (y, newAcc) = f(x, acc)
+        b += y
+        acc = newAcc
+      }
+      b.result()
+    }
+  }
+}
 package object utils extends Logging
   with richUtils.Implicits
   with NumericPairImplicits
@@ -35,12 +80,6 @@ package object utils extends Logging
 
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
     new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
-
-  trait Truncatable {
-    def truncate: String
-
-    def strings: (String, String)
-  }
 
   def format(s: String, substitutions: Any*): String = {
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
@@ -252,35 +291,11 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  sealed trait FlattenOrNull[C[_] >: Null] {
-    def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
-      for (elt <- it) {
-        if (elt == null)
-          return null
-        b ++= elt
-      }
-      b.result()
-    }
-  }
-
   // NB: can't use Nothing here because it is not a super type of Null
   private object flattenOrNullInstance extends FlattenOrNull[Array]
 
   def flattenOrNull[C[_] >: Null] =
     flattenOrNullInstance.asInstanceOf[FlattenOrNull[C]]
-
-  sealed trait AnyFailAllFail[C[_]] {
-    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
-      val b = cbf()
-      for (t <- ts) {
-        if (t.isEmpty)
-          return None
-        else
-          b += t.get
-      }
-      Some(b.result())
-    }
-  }
 
   private object anyFailAllFailInstance extends AnyFailAllFail[Nothing]
 
@@ -288,20 +303,6 @@ package object utils extends Logging
     anyFailAllFailInstance.asInstanceOf[AnyFailAllFail[C]]
 
   def uninitialized[T]: T = null.asInstanceOf[T]
-
-  sealed trait MapAccumulate[C[_], U] {
-    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
-      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
-      val b = cbf()
-      var acc = z
-      for ((x, i) <- a.zipWithIndex) {
-        val (y, newAcc) = f(x, acc)
-        b += y
-        acc = newAcc
-      }
-      b.result()
-    }
-  }
 
   private object mapAccumulateInstance extends MapAccumulate[Nothing, Nothing]
 

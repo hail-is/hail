@@ -210,7 +210,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val (Row(rows: IndexedSeq[Row], globals: Row), _) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    val (Row(_rows: IndexedSeq[_], globals: Row), _) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    val rows = _rows.asInstanceOf[IndexedSeq[Row]]
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
@@ -981,7 +982,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
     val tv = child.execute(hc)
 
     val (newGlobalValue, _) = CompileAndEvaluate[Row](newGlobals,
-      Env("global" -> (tv.globals.value, tv.globals.t)),
+      Env("global" -> (tv.globals.value -> tv.globals.t)),
       FastIndexedSeq(),
       optimize = false)
     tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
@@ -1054,7 +1055,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
           new Iterator[RegionValue] {
             private[this] var i = 0
 
-            def hasNext(): Boolean = i < len
+            def hasNext: Boolean = i < len
 
             def next(): RegionValue = {
               rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))

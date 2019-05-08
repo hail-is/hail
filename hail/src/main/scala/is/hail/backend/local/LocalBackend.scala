@@ -20,7 +20,7 @@ object LocalBackend {
     val timer = new ExecutionTimer("Just Interpret")
     var ir = ir0
 
-    println("LocalBackend.execute got", Pretty(ir))
+    println(("LocalBackend.execute got", Pretty(ir)))
 
     ir = ir.unwrap
     ir = timer.time(
@@ -32,17 +32,17 @@ object LocalBackend {
       Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after MatrixIR lowering")),
       "optimize after matrix lowering")
 
-    println("LocalBackend.execute to lower", Pretty(ir))
+    println(("LocalBackend.execute to lower", Pretty(ir)))
 
     ir = timer.time(LowerTableIR.lower(ir), "lowering TableIR")
 
-    println("LocalBackend.execute lowered", Pretty(ir))
+    println(("LocalBackend.execute lowered", Pretty(ir)))
 
     ir = timer.time(
       Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after TableIR lowering")),
       "optimize after table lowering")
 
-    println("LocalBackend.execute", Pretty(ir))
+    println(("LocalBackend.execute", Pretty(ir)))
 
     val value = timer.time(Interpret[Any](ir), "runtime")
     (value, timer.timings)

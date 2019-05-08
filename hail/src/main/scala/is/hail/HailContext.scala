@@ -23,14 +23,13 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
@@ -266,11 +265,9 @@ object HailContext {
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-    val hailTempDir = TempDir.createTempDir(tmpDir, sFS)
-
+    val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sqlContext, sFS, logFile, hailTempDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(sparkContext, sFS, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -385,14 +382,13 @@ object HailContext {
 }
 
 class HailContext private(val sc: SparkContext,
-  val sqlContext: SQLContext,
-  val sFS: FS,
   val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-
+  val sFS: FS = new HadoopFS(sc.hadoopConfiguration)
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)
+  val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 

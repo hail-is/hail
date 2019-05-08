@@ -40,8 +40,8 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       val filename =
         if (stageLocally) {
           val context = TaskContext.get
-          val partPath = fs.getTemporaryFile("file:///tmp")
-          context.addTaskCompletionListener { context =>
+          val partPath = hConf.getTemporaryFile("file:///tmp")
+          context.addTaskCompletionListener { (context: TaskContext) =>
             fs.delete(partPath, recursive = false)
           }
           partPath

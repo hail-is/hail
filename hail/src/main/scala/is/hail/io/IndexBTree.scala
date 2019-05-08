@@ -2,6 +2,7 @@ package is.hail.io
 
 import java.io.Closeable
 import java.util.Arrays
+
 import is.hail.utils._
 import is.hail.io.fs.FS
 

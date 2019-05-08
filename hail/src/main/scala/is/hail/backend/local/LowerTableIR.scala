@@ -1,12 +1,9 @@
 package is.hail.backend.local
 
 import is.hail.expr.ir._
-import is.hail.{HailContext, cxx}
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.cxx
 import is.hail.expr.types.virtual._
-import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
-import is.hail.variant.RVDComponentSpec
 import org.json4s.jackson.JsonMethods
 
 case class LocalBinding(name: String, value: IR)

@@ -34,8 +34,6 @@ class SparkSuite extends TestNGSuite {
     hc
   }
 
-  def sqlContext: SQLContext = hc.sqlContext
-
   def fs: FS = hc.sFS
 
   lazy val tmpDir: TempDir = TempDir(fs)

@@ -656,7 +656,7 @@ object ReferenceGenome {
       val contig = entry.getContig
       val length = entry.getSize
       contigs += contig
-      lengths += (contig, length.toInt)
+      lengths += (contig -> length.toInt)
     }
 
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)

@@ -3,17 +3,16 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
-import scala.collection.JavaConverters._
-import scala.collection.generic.Growable
-import scala.collection.mutable
-import scala.language.{higherKinds, implicitConversions}
 import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 
+import scala.collection.JavaConverters._
+import scala.collection.generic.Growable
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object FunctionBuilder {

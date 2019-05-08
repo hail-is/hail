@@ -2719,7 +2719,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.locus, dataset.alleles).qual)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.row_key).qual)
 
         Parameters
@@ -2759,7 +2759,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.s).pheno)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.col_key).pheno)
 
         Parameters
@@ -2799,7 +2799,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2.index_entries(dataset.row_key, dataset.col_key).GQ)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
 
         Parameters
@@ -2923,22 +2923,16 @@ class MatrixTable(ExprContainer):
 
         >>> mt = hl.utils.range_matrix_table(3,3)
         >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
-        >>> mt.x.show()
-        +---------+---------+-------+
-        | row_idx | col_idx |     x |
-        +---------+---------+-------+
-        |   int32 |   int32 | int32 |
-        +---------+---------+-------+
-        |       0 |       0 |     0 |
-        |       0 |       1 |     0 |
-        |       0 |       2 |     0 |
-        |       1 |       0 |     0 |
-        |       1 |       1 |     1 |
-        |       1 |       2 |     2 |
-        |       2 |       0 |     0 |
-        |       2 |       1 |     2 |
-        |       2 |       2 |     4 |
-        +---------+---------+-------+
+        >>> mt.show()
+        +---------+-------+-------+-------+
+        | row_idx |   0.x |   1.x |   2.x |
+        +---------+-------+-------+-------+
+        |   int32 | int32 | int32 | int32 |
+        +---------+-------+-------+-------+
+        |       0 |     0 |     0 |     0 |
+        |       1 |     0 |     1 |     2 |
+        |       2 |     0 |     2 |     4 |
+        +---------+-------+-------+-------+
 
         >>> t = mt.localize_entries('entry_structs', 'columns')
         >>> t.describe()
@@ -2946,13 +2940,13 @@ class MatrixTable(ExprContainer):
         Global fields:
             'columns': array<struct {
                 col_idx: int32
-            }> 
+            }>
         ----------------------------------------
         Row fields:
-            'row_idx': int32 
+            'row_idx': int32
             'entry_structs': array<struct {
                 x: int32
-            }> 
+            }>
         ----------------------------------------
         Key: ['row_idx']
         ----------------------------------------
@@ -3218,7 +3212,7 @@ class MatrixTable(ExprContainer):
         can allow one to take advantage of more cores. Partitions are a core
         concept of distributed computation in Spark, see `their documentation
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
-        for details. 
+        for details.
 
         When ``shuffle=True``, Hail does a full shuffle of the data
         and creates equal sized partitions.  When ``shuffle=False``,
@@ -3274,7 +3268,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
-        
+
         return MatrixTable(MatrixRepartition(
             self._mir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
@@ -3589,7 +3583,7 @@ class MatrixTable(ExprContainer):
             raise ValueError(f'row key types differ:\n'
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
-        
+
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
     @typecheck_method(n=nullable(int), n_cols=nullable(int))
@@ -3850,19 +3844,19 @@ class MatrixTable(ExprContainer):
         .. code-block:: text
 
           Global fields:
-              'batch': str 
+              'batch': str
           Column fields:
-              's': str 
+              's': str
           Row fields:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
           Entry fields:
-              'GT': call 
-              'GQ': int32 
+              'GT': call
+              'GQ': int32
           Column key:
-              's': str 
+              's': str
           Row key:
-              'locus': locus<GRCh37> 
+              'locus': locus<GRCh37>
               'alleles': array<str>
 
         and three sample IDs: `A`, `B` and `C`.  Then the result of
@@ -3876,19 +3870,19 @@ class MatrixTable(ExprContainer):
         .. code-block:: text
 
           Global fields:
-              'batch': str 
+              'batch': str
           Row fields:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
-              'A.GT': call 
-              'A.GQ': int32 
-              'B.GT': call 
-              'B.GQ': int32 
-              'C.GT': call 
-              'C.GQ': int32 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
+              'A.GT': call
+              'A.GQ': int32
+              'B.GT': call
+              'B.GQ': int32
+              'C.GT': call
+              'C.GQ': int32
           Key:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
 
         Notes
         -----
@@ -3915,14 +3909,14 @@ class MatrixTable(ExprContainer):
 
         col_key_field = list(self.col_key)[0]
         col_keys = [k[col_key_field] for k in self.col_key.collect()]
-        
+
         duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
         if duplicates:
             raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
-        
+
         entries_uid = Env.get_uid()
         cols_uid = Env.get_uid()
-        
+
         t = self
         t = t._localize_entries(entries_uid, cols_uid)
 
