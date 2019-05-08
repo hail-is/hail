@@ -99,7 +99,7 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def from_dict(d):
         name = d['name']
-        pod_spec = v1.api_client._ApiClient__deserialize(d['pod_spec'], kube.client.V1PodSpec)
+        pod_spec = d['pod_spec']
         return JobTask(name, pod_spec)
 
     @staticmethod
@@ -198,7 +198,7 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
-        pod_spec = self._current_task.pod_spec.copy()
+        pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec, kube.client.V1PodSpec)
         if pod_spec.volumes is None:
             pod_spec.volumes = []
         pod_spec.volumes.extend(volumes)
