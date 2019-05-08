@@ -2666,7 +2666,13 @@ class Tests(unittest.TestCase):
         a_three = a[2]
         fat_three = fat[0, 2]
         skinny_three = skinny[1, 0]
-        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three))
+        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three) == 3)
+
+        nums = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7])
+        cube = nums.reshape((2, 2, 2))
+        rect = cube.reshape((2, 4))
+        cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
+        self.assertTrue(hl.eval(cube[0, 1, 1]) == hl.eval(rect[0, 3]) == hl.eval(cube_t_to_rect[1, 1]) == 3)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

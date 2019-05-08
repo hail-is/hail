@@ -3149,6 +3149,11 @@ class NDArrayExpression(Expression):
     def reshape(self, shape):
         """Reshape this ndarray to a new shape.
 
+        Parameters
+        ----------
+        shape : :class:`.Expression` of type :py:data:`.tint64` or
+                :obj: `tuple` of :class:`.Expression` of type :py:data:`.tint64`
+
         Examples
         --------
 
