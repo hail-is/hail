@@ -227,18 +227,17 @@ object Interval {
     }
   }
 
-  def sortAndReduce(xs: Array[Interval], o: ExtendedOrdering): Array[Interval] = {
+  def union(xs: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
 
-    val iOrd = o.intervalEndpointOrdering
-    val sorted = xs.sortBy(_.left: Any)(iOrd.toOrdering)
+    val sorted = xs.sortBy(_.left: Any)(ord.toOrdering)
 
     val ab = new ArrayBuilder[Interval]()
     var i = 0
     while (i < sorted.length) {
       var interval = sorted(i)
       i += 1
-      while (i < sorted.length && iOrd.gteq(interval.right, sorted(i).left)) {
-        interval = Interval(interval.left, ordMax(interval.right, sorted(i).right, iOrd))
+      while (i < sorted.length && ord.gteq(interval.right, sorted(i).left)) {
+        interval = Interval(interval.left, ordMax(interval.right, sorted(i).right, ord))
         i += 1
       }
 
@@ -247,9 +246,8 @@ object Interval {
     ab.result()
   }
 
-  // assumes that both `x1` and `x2` are sorted and fully reduced.
-  def intersection(x1: Array[Interval], x2: Array[Interval], o: ExtendedOrdering): Array[Interval] = {
-    val iOrd = o.intervalEndpointOrdering
+  // assumes that both `x1` and `x2` are both sorted, non-overlapping interval sequences.
+  def intersection(x1: Array[Interval], x2: Array[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
 
     var i = 0
     var j = 0
@@ -259,14 +257,14 @@ object Interval {
       val l = x1(i)
       val r = x2(j)
 
-      if (iOrd.gteq(l.left, r.right))
+      if (ord.gteq(l.left, r.right))
         j += 1
-      else if (iOrd.gteq(r.left, l.right))
+      else if (ord.gteq(r.left, l.right))
         i += 1
       else {
-        val overlap = Interval(ordMax(l.left, r.left, iOrd), ordMin(l.right, r.right, iOrd))
+        val overlap = Interval(ordMax(l.left, r.left, ord), ordMin(l.right, r.right, ord))
         ab += overlap
-        if (iOrd.lt(l.right, r.right))
+        if (ord.lt(l.right, r.right))
           i += 1
         else
           j += 1

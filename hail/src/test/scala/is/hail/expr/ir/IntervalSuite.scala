@@ -109,13 +109,13 @@ class IntervalSuite extends TestNGSuite {
     Interval(start, end, includesStart, includesEnd)
 
   @Test def testIntervalSortAndReduce() {
-    val ord = TInt32().ordering
+    val ord = TInt32().ordering.intervalEndpointOrdering
 
-    assert(Interval.sortAndReduce(Array[Interval](), ord).sameElements(Array[Interval]()))
-    assert(Interval.sortAndReduce(Array(intInterval(0, 10)), ord)
+    assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
+    assert(Interval.union(Array(intInterval(0, 10)), ord)
       .sameElements(Array(intInterval(0, 10))))
 
-    assert(Interval.sortAndReduce(Array(
+    assert(Interval.union(Array(
       intInterval(0, 10),
       intInterval(0, 20, includesEnd = true),
       intInterval(20, 30),
@@ -127,7 +127,7 @@ class IntervalSuite extends TestNGSuite {
   }
 
   @Test def testIntervalIntersection() {
-    val ord = TInt32().ordering
+    val ord = TInt32().ordering.intervalEndpointOrdering
 
     val x1 = Array[Interval](
       intInterval(5, 10),
