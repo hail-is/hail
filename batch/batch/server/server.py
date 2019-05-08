@@ -458,13 +458,6 @@ class Job:
         # Job deleted from database when batch is deleted with delete cascade
         # Can only be called via Batch.delete()
 
-        children = [Job.from_record(record) for record in await db.jobs.get_children(self.id)]
-        for child in children:
-            await child.delete()
-
-        for child in children:
-            await child.create_if_ready()
-
         await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
         await self._delete_k8s_resources()
 
@@ -513,8 +506,8 @@ class Job:
                     pod.metadata.name,
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kubernetes.client.rest.ApiException as exc:
-                if e.status == 400:
+            except kube.client.rest.ApiException as exc:
+                if exc.status == 400:
                     log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                     pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
                 else:
@@ -794,10 +787,11 @@ class Batch:
         # Batch is deleted from db in polling loop once all jobs are complete
         self.is_open = False
         self.deleted = True
+        jobs = await self.get_jobs()
+
         await db.batch.update_record(self.id,
                                      deleted=True,
                                      is_open=False)
-        jobs = await self.get_jobs()
         for j in jobs:
             await j.delete()
 
