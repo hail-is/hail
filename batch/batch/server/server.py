@@ -824,10 +824,10 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
-    async def is_complete(self):
+    def is_complete(self):
         return self.complete
 
-    async def is_successful(self):
+    def is_successful(self):
         return self.state == 'success'
 
     async def to_dict(self, include_jobs=False):
@@ -862,12 +862,12 @@ async def get_batches_list(request, userdata):
             if value not in ('0', '1'):
                 abort(400, f'invalid complete value, expected 0 or 1, got {value}')
             c = value == '1'
-            batches = [batch for batch in batches if await batch.is_complete() == c]
+            batches = [batch for batch in batches if batch.is_complete() == c]
         elif name == 'success':
             if value not in ('0', '1'):
                 abort(400, f'invalid success value, expected 0 or 1, got {value}')
             s = value == '1'
-            batches = [batch for batch in batches if await batch.is_successful() == s]
+            batches = [batch for batch in batches if batch.is_successful() == s]
         else:
             if not name.startswith('a:'):
                 abort(400, f'unknown query parameter {name}')
