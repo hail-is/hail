@@ -108,11 +108,7 @@ async def get_pr(request):
             'pr': pr_number
         })
     batches = sorted(batches, key=lambda b: b.id, reverse=True)
-    # FIXME performance
-    statuses = [await b.status() for b in batches]
-    for status in statuses:
-        update_batch_status(status)
-    config['history'] = statuses
+    config['history'] = [await b.status() for b in batches]
 
     return config
 
