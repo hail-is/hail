@@ -3187,7 +3187,7 @@ class NDArrayExpression(Expression):
             else:
                 raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
 
-        return construct_expr(NDArrayReshape(self._ir, [dim._ir for dim in shape]),
+        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
                               tndarray(self._type.element_type, len(shape)),
                               self._indices,
                               self._aggregations)

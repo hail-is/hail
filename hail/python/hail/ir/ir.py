@@ -507,19 +507,19 @@ class NDArrayShape(IR):
 
 
 class NDArrayReshape(IR):
-    @typecheck_method(nd=IR, shape=sequenceof(IR))
+    @typecheck_method(nd=IR, shape=IR)
     def __init__(self, nd, shape):
-        super().__init__(nd, *shape)
+        super().__init__(nd, shape)
         self.nd = nd
         self.shape = shape
 
-    def copy(self, *args):
-        return NDArrayReshape(args[0], args[1:])
+    def copy(self, nd, shape):
+        return NDArrayReshape(nd, shape)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        [dim_length._compute_type(env, agg_env) for dim_length in self.shape]
-        self._type = tndarray(self.nd.typ.element_type, len(self.shape))
+        self.shape._compute_type(env, agg_env)
+        self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
 class NDArrayMap(IR):

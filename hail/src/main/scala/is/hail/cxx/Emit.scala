@@ -923,35 +923,35 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
-      case ir.NDArrayReshape(child, shapeIRs) =>
+      case ir.NDArrayReshape(child, shapeIR) =>
         // Force copy of new array that is row major
         val childRowMajor = emitDeforestedNDArray(resultRegion, child, env)
         val nd = fb.variable("nd", "NDArray", childRowMajor.emit(child.pType.asInstanceOf[PNDArray].elementType))
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
 
-        val shapet = shapeIRs.map(emit(_))
-        val shapeVars = shapet.zipWithIndex.map { case (lent, dim) => fb.variable(s"dim_${dim}_len", "long", lent.v) }
+        val shapet = emit(shapeIR)
+        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
         val shape = fb.variable("shape", "std::vector<long>")
-        val buildShape = shapet.zip(shapeVars).map { case (lent, lenVar) =>
+        val buildShape = Seq.tabulate(shapePType.size) { dim =>
           s"""
-             | if (${ lent.m }) {
+             | if (${ shapePType.cxxIsFieldMissing(shapeTup.toString, dim) }) {
              |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
              | }
-             | $shape.push_back($lenVar);
+             | $shape.push_back(${ shapePType.cxxLoadField(shapeTup.toString, dim) });
            """.stripMargin
         }
 
-        val totalExpectedElements = shapeVars.foldRight("1") { (dimLen, nElements) => s"($dimLen * $nElements)" }
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
         present(
           s"""
              |({
              | ${ nd.define }
-             | ${ Code.sequence(shapeVars.map(_.define)) }
+             | ${ shapeTup.define }
              | ${ shape.define }
              | ${ Code.sequence(buildShape) }
              | ${ strides.define }
              |
-             | if ($totalExpectedElements != n_elements($nd.shape)) {
+             | if (n_elements($shape) != n_elements($nd.shape)) {
              |  ${ fb.nativeError("Initial shape and new shape have differing number of elements") }
              | }
              |

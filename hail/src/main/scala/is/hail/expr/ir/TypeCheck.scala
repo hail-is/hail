@@ -146,7 +146,7 @@ object TypeCheck {
         assert(nd.typ.isInstanceOf[TNDArray])
       case x@NDArrayReshape(nd, shape) =>
         assert(nd.typ.isInstanceOf[TNDArray])
-        assert(shape.forall(_.typ.isOfType(TInt64())))
+        assert(shape.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)

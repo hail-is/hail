@@ -54,7 +54,7 @@ object Children {
     case NDArrayShape(nd) =>
       Array(nd)
     case NDArrayReshape(nd, shape) =>
-      nd +: shape
+      Array(nd, shape)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>

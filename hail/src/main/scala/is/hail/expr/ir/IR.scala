@@ -222,8 +222,8 @@ final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
 
 final case class NDArrayShape(nd: IR) extends IR
 
-final case class NDArrayReshape(nd: IR, shape: IndexedSeq[IR]) extends IR {
-  require(shape.nonEmpty)
+final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
+  require(shape.typ.asInstanceOf[TTuple].size > 0)
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR

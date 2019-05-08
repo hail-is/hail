@@ -635,7 +635,7 @@ object IRParser {
         NDArrayShape(nd)
       case "NDArrayReshape" =>
         val nd = ir_value_expr(env)(it)
-        val shape = ir_value_children(env)(it)
+        val shape = ir_value_expr(env)(it)
         NDArrayReshape(nd, shape)
       case "NDArrayMap" =>
         val name = identifier(it)

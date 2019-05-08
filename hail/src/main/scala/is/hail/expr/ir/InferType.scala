@@ -107,7 +107,7 @@ object InferType {
       case NDArrayShape(nd) =>
         TTuple(nd.typ.required, List.tabulate(nd.typ.asInstanceOf[TNDArray].nDims)(_ => TInt64()):_*)
       case NDArrayReshape(nd, shape) =>
-        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.length), nd.typ.required)
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
