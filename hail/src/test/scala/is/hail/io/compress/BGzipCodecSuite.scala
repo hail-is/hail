@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
-import is.hail.io.fs.{HadoopFilePath, HadoopFileSystem}
+import is.hail.io.fs.HadoopFilePath
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.commons.io.IOUtils
 import org.apache.{hadoop => hd}

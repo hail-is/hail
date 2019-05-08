@@ -265,9 +265,9 @@ object HailContext {
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
+    val hailTempDir = TempDir.createTempDir(tmpDir, sFS)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, sFS, logFile, hailTempDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(sparkContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
