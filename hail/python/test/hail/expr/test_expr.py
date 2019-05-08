@@ -2899,9 +2899,16 @@ class Tests(unittest.TestCase):
                              [3, 4]],
                             [[5, 6],
                              [7, 8]]])
+        np_rect_prism = np.array([[[1, 2],
+                                   [3, 4]],
+                                  [[5, 6],
+                                   [7, 8]],
+                                  [[9, 10],
+                                   [11, 12]]])
         v = hl._ndarray(np_v)
         m = hl._ndarray(np_m)
         cube = hl._ndarray(np_cube)
+        rect_prism = hl._ndarray(np_rect_prism)
 
         self.assertEqual(hl.eval(v @ v), np_v @ np_v)
         self.ndarray_eq(m @ m, np_m @ np_m)
@@ -2912,9 +2919,12 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(v @ cube, np_v @ np_cube)
         self.ndarray_eq(cube @ m, np_cube @ np_m)
         self.ndarray_eq(m @ cube, np_m @ np_cube)
-        
+        self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
+        self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
+
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
+        self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
 
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]

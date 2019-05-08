@@ -3497,8 +3497,8 @@ class NDArrayNumericExpression(NDArrayExpression):
         Notes
         -----
         The last dimension of `a` and the second to last dimension of `b` (or only dimension if `b` is a vector)
-        must have the same length. The dimensions to the left of the last two dimensions of `a` and `b` (for NDArrays of
-        dimensionality > 2) must be equal or be compatible for broadcasting.
+        must have the same length. The dimensions to the left of the last two dimensions of `a` and `b` (for NDArrays
+        of dimensionality > 2) must be equal or be compatible for broadcasting.
         Number of dimensions of both NDArrays must be at least 1.
 
         Parameters
@@ -3534,7 +3534,7 @@ class NDArrayNumericExpression(NDArrayExpression):
         left = left._promote_numeric(ret_type)
         right = right._promote_numeric(ret_type)
 
-        res = NDArrayNumericExpression(NDArrayMatMul(left._ir, right._ir), ret_type)
+        res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if ndim > 0 else res[()]
 
