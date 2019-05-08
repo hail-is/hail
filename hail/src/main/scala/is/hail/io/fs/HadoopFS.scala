@@ -124,7 +124,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
       os
   }
 
-  protected def open(filename: String, checkCodec: Boolean = true): InputStream = {
+  def open(filename: String, checkCodec: Boolean = true): InputStream = {
     val hPath = new hadoop.fs.Path(filename)
     val fs = hPath.getFileSystem(conf)
 

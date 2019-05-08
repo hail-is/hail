@@ -45,7 +45,7 @@ trait FileStatus {
   def getOwner: String
 }
 
-trait FS extends Serializable {
+abstract class FS extends Serializable {
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit

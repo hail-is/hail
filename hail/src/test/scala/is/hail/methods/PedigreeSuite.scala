@@ -8,10 +8,10 @@ import org.testng.annotations.Test
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/pedigree.vcf")
-    val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration).filterTo(vds.stringSampleIdSet)
+    val ped = Pedigree.read("src/test/resources/pedigree.fam", fs).filterTo(vds.stringSampleIdSet)
     val f = tmpDir.createTempFile("pedigree", ".fam")
-    ped.write(f, sc.hadoopConfiguration)
-    val pedwr = Pedigree.read(f, sc.hadoopConfiguration).filterTo(vds.stringSampleIdSet)
+    ped.write(f, fs)
+    val pedwr = Pedigree.read(f, fs).filterTo(vds.stringSampleIdSet)
     assert(ped.trios == pedwr.trios) // this passes because all samples in .fam are in pedigree.vcf
 
     val nuclearFams = Pedigree.nuclearFams(ped.completeTrios)
@@ -24,7 +24,7 @@ class PedigreeSuite extends SparkSuite {
 
     assert(ped.nSatisfying(_.isMale) == 6 && ped.nSatisfying(_.isFemale) == 5)
 
-    val ped2 = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", sc.hadoopConfiguration)
+    val ped2 = Pedigree.read("src/test/resources/pedigreeWithExtraSample.fam", fs)
       .filterTo(vds.stringSampleIdSet)
 
     assert(ped.trios.toSet == ped2.trios.toSet)
@@ -34,8 +34,8 @@ class PedigreeSuite extends SparkSuite {
 
     val p = forAll(Pedigree.genWithIds()) { case (ids: IndexedSeq[String], ped: Pedigree) =>
       val f = tmpDir.createTempFile("pedigree", ".fam")
-      ped.write(f, hadoopConf)
-      val ped2 = Pedigree.read(f, hadoopConf)
+      ped.write(f, fs)
+      val ped2 = Pedigree.read(f, fs)
       (ped.trios: IndexedSeq[Trio]) == (ped2.trios: IndexedSeq[Trio])
     }
 

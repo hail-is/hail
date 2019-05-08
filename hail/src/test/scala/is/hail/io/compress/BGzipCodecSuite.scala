@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
+import is.hail.io.fs.{HadoopFilePath, HadoopFileSystem}
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.commons.io.IOUtils
 import org.apache.{hadoop => hd}
@@ -59,10 +60,10 @@ class BGzipCodecSuite extends SparkSuite {
      */
     val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
 
-    val uncompHPath = new hd.fs.Path(uncompPath)
-    val compHPath = new hd.fs.Path(compPath)
+    val uncompHPath = new HadoopFilePath(new hd.fs.Path(uncompPath))
+    val compHPath = new HadoopFilePath(new hd.fs.Path(compPath))
 
-    val fs = uncompHPath.getFileSystem(fs)
+    val fs = uncompHPath.getFileSystem(hc.sc.hadoopConfiguration)
 
     val uncompIS = fs.open(uncompHPath)
     val uncomp = IOUtils.toByteArray(uncompIS)
@@ -101,8 +102,8 @@ class BGzipCodecSuite extends SparkSuite {
 
     val p = forAll(g) { splits =>
 
-      val jobConf = new hd.conf.Configuration(hadoopConf)
-      fs.set("bgz.test.splits", splits.mkString(","))
+      val jobConf = new hd.conf.Configuration(hc.sc.hadoopConfiguration)
+      jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
         compPath,
         classOf[TestFileInputFormat],
@@ -129,11 +130,11 @@ class BGzipCodecSuite extends SparkSuite {
     val uncompPath = "src/test/resources/sample.vcf"
     val compPath = "src/test/resources/sample.vcf.gz"
 
-    val uncompHPath = new hd.fs.Path(uncompPath)
-    val compHPath = new hd.fs.Path(compPath)
+    val uncompHPath = new HadoopFilePath(new hd.fs.Path(uncompPath))
+    val compHPath = new HadoopFilePath(new hd.fs.Path(compPath))
 
-    val fs = uncompHPath.getFileSystem(hadoopConf)
-    val compIS = fs.open(compHPath)
+    val fs = uncompHPath.getFileSystem(hc.sc.hadoopConfiguration)
+    val compIS = compHPath.getFileSystem(hc.sc.hadoopConfiguration).open
 
     using (fs.open(uncompHPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
       val fromEnd = 48 // arbitrary number of bytes from the end of block to attempt to seek to

@@ -4,10 +4,9 @@ import is.hail.check.Gen
 import is.hail.utils._
 import is.hail.variant.Sex.{Female, Male, Sex}
 import is.hail.variant.Sex
-import org.apache.hadoop
+import is.hail.io.fs.FS
 
 import scala.collection.mutable
-import scala.io.Source
 
 object Role extends Enumeration {
   type Role = Value
@@ -70,8 +69,8 @@ case class CompleteTrio(kid: String, fam: Option[String], knownDad: String, know
 
 object Pedigree {
 
-  def read(filename: String, hConf: hadoop.conf.Configuration, delimiter: String = "\\s+"): Pedigree = {
-    hConf.readLines(filename) { lines =>
+  def read(filename: String, fs: FS, delimiter: String = "\\s+"): Pedigree = {
+    fs.readLines(filename) { lines =>
 
       val invalidSex = mutable.Set.empty[String]
       var filteredSex = 0
@@ -159,7 +158,7 @@ case class Pedigree(trios: IndexedSeq[Trio]) {
   def nSatisfying(filters: (Trio => Boolean)*): Int = trios.count(t => filters.forall(_ (t)))
 
   // plink does not print a header in .mendelf, but "FID\tKID\tPAT\tMAT\tSEX\tPHENO" seems appropriate
-  def write(filename: String, hConf: hadoop.conf.Configuration) {
+  def write(filename: String, fs: FS) {
     def sampleIdOrElse(s: Option[String]) = s.getOrElse("0")
 
     def toLine(t: Trio): String =
@@ -167,6 +166,6 @@ case class Pedigree(trios: IndexedSeq[Trio]) {
         sampleIdOrElse(t.mom) + "\t" + t.sex.getOrElse("0") + "\t0"
 
     val lines = trios.map(toLine)
-    hConf.writeTable(filename, lines)
+    fs.writeTable(filename, lines)
   }
 }
