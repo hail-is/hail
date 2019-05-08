@@ -60,6 +60,11 @@
         {% endfor %}
       </tbody>
     </table>
+    {% elif exception is defined %}
+    <p>Build error:</p>
+    <pre>
+      {{ exception }}
+    </pre>
     {% else %}
     No build running.
     {% endif %}
