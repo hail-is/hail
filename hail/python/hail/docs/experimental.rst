@@ -40,6 +40,9 @@ Genetics Methods
     get_gene_intervals
     export_entries_by_col
     sparse_split_multi
+    gather
+    separate
+    spread
 
 
 .. autofunction:: ld_score
@@ -57,3 +60,6 @@ Genetics Methods
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
 .. autofunction:: sparse_split_multi
+.. autofunction:: gather
+.. autofunction:: separate
+.. autofunction:: spread
