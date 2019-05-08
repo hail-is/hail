@@ -2634,8 +2634,8 @@ class Tests(unittest.TestCase):
         np_scalar = np.array(scalar)
         h_scalar = hl._ndarray(scalar)
         h_np_scalar = hl._ndarray(np_scalar)
-        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
-        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
+        self.assert_evals_to(h_scalar[()], 5.0)
+        self.assert_evals_to(h_np_scalar[()], 5.0)
 
         cube = [[[0, 1],
                  [2, 3]],
@@ -2643,10 +2643,10 @@ class Tests(unittest.TestCase):
                  [6, 7]]]
         h_cube = hl._ndarray(cube)
         h_np_cube = hl._ndarray(np.array(cube))
-        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
-        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+        self.assert_evals_to(h_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_cube[1, 1, 0], 6)
+        self.assert_evals_to(h_np_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_np_cube[1, 1, 0], 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2670,12 +2670,12 @@ class Tests(unittest.TestCase):
         col = hl._ndarray(np_col)
         m = hl._ndarray(np_m)
         nd = hl._ndarray(np_nd)
-        self.assertEqual(hl.eval(e.shape), np_e.shape)
-        self.assertEqual(hl.eval(row.shape), np_row.shape)
-        self.assertEqual(hl.eval(m.shape), np_m.shape)
-        self.assertEqual(hl.eval(nd.shape), np_nd.shape)
-        self.assertEqual(hl.eval((row + nd).shape), (2, 5, 3))
-        self.assertEqual(hl.eval((row + col).shape), (np_row + np_col).shape)
+        self.assert_evals_to(e.shape, np_e.shape)
+        self.assert_evals_to(row.shape, np_row.shape)
+        self.assert_evals_to(m.shape, np_m.shape)
+        self.assert_evals_to(nd.shape, np_nd.shape)
+        self.assert_evals_to((row + nd).shape, (np_row + np_nd).shape)
+        self.assert_evals_to((row + col).shape, (np_row + np_col).shape)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
