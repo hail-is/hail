@@ -88,7 +88,7 @@ object SparkFunctionContext {
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class SparkFunctionContext(sparkEnv: Code, hadoopConfig: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, fs: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code

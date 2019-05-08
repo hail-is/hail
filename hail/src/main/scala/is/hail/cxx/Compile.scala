@@ -27,7 +27,7 @@ object Compile {
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
     tub.include("hail/Upcalls.h")
-    tub.include("hail/Hadoop.h")
+    tub.include("hail/FS.h")
     tub.include("hail/SparkUtils.h")
     tub.include("hail/ObjectArray.h")
 
@@ -94,7 +94,7 @@ object Compile {
     tub += new Definition {
       def name: String = "entrypoint"
 
-      val funcCall = s"$fname(SparkFunctionContext(region, sparkUtils, hadoopConfig, lit_ptr) $castArgs)"
+      val funcCall = s"$fname(SparkFunctionContext(region, sparkUtils, fs, lit_ptr) $castArgs)"
       def define: String =
         s"""
            |long entrypoint(NativeStatus *st, long obj, long jregion $rawArgs) {
@@ -102,7 +102,7 @@ object Compile {
            |    UpcallEnv up;
            |    RegionPtr region = ((ScalaRegion *)jregion)->region_;
            |    jobject sparkUtils = ((ObjectArray *) obj)->at(0);
-           |    jobject hadoopConfig = ((ObjectArray *) obj)->at(1);
+           |    jobject fs = ((ObjectArray *) obj)->at(1);
            |    jobject jlit_in = ((ObjectArray *) obj)->at(2);
            |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());

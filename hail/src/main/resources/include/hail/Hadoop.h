@@ -1,23 +1,23 @@
-#ifndef HAIL_HADOOP_H
-#define HAIL_HADOOP_H 1
+#ifndef HAIL_FS_H
+#define HAIL_FS_H 1
 
 #include "hail/Upcalls.h"
 #include "hail/Encoder.h"
 
 namespace hail {
 
-class HadoopConfig {
+class FS {
   private:
     UpcallEnv up_;
-    jobject jhadoop_config_;
+    jobject jfs_;
 
-    jclass rich_hadoop_conf_class_ = up_.env()->FindClass("is/hail/utils/richUtils/RichHadoopConfiguration");
-    jmethodID unsafe_writer_method_id_ = up_.env()->GetMethodID(rich_hadoop_conf_class_, "unsafeWriter",
+    jclass fs_class_ = up_.env()->FindClass("is/hail/io/fs/FS");
+    jmethodID unsafe_writer_method_id_ = up_.env()->GetMethodID(fs_class_, "unsafeWriter",
         "(Ljava/lang/String;)Ljava/io/OutputStream;");
 
   public:
-    HadoopConfig(jobject jhadoop_config);
-    ~HadoopConfig();
+    FS(jobject jfs);
+    ~FS();
     std::shared_ptr<OutputStream> unsafe_writer(std::string path);
 };
 
