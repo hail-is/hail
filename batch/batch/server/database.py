@@ -33,7 +33,7 @@ class JobsTable(Table):
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement({'id': ids, 'user': user})
                 sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS 
-                (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = 0)"""
+                (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted)"""
                 await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
         return result

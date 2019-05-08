@@ -710,13 +710,6 @@ class Batch:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
-            print("\n")
-            print("is_open", record['is_open'])
-            print("n_completed", record['n_completed'])
-            print("n_jobs", record['n_jobs'])
-            print("n_failed", record['n_failed'])
-            print('n_cancelled', record['n_cancelled'])
-
             if record['n_failed'] > 0:
                 state = 'failure'
             elif record['n_cancelled'] > 0:
@@ -799,6 +792,8 @@ class Batch:
 
     async def delete(self):
         # Batch is deleted from db in polling loop once all jobs are complete
+        self.is_open = False
+        self.deleted = True
         await db.batch.update_record(self.id,
                                      deleted=True,
                                      is_open=False)
@@ -1068,7 +1063,6 @@ async def refresh_k8s_pvc():
         assert job._pvc
         seen_pvcs.add(job._pvc.metadata.name)
 
-    print(seen_pvcs)
     for pvc in pvcs.items:
         if pvc.metadata.name not in seen_pvcs:
             log.info(f'deleting orphaned pvc {pvc.metadata.name}')
