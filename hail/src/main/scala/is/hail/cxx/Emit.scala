@@ -966,7 +966,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
 
             val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
-            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, childTyp.elementType) }"
+            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, childTyp.elementType) };"
             val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
               s"""
                  |${ dimVar.define }
