@@ -1,5 +1,6 @@
 import warnings
-from math import log, isnan, log10
+from math import log, isnan, log10, sqrt
+import math
 
 import collections
 import numpy as np
@@ -9,8 +10,7 @@ import bokeh.io
 from bokeh.models import *
 from bokeh.plotting import figure
 from bokeh.transform import transform
-from bokeh.layouts import row, column, gridplot
-from itertools import cycle
+from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
 from hail.expr.expressions import *
@@ -117,7 +117,137 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     return p
 
 
-def pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
+def pdf(data, k=350, confidence=3.5, legend=None, title=None, log=False, interactive=False):
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    y_axis_label = 'Frequency'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom',
+        background_fill_color='#EEEEEE')
+
+    y = np.array(data.ranks[1:-1]) / data.ranks[-1]
+    x = np.array(data.values[1:-1])
+    min_x = data.values[0]
+    max_x = data.values[-1]
+    s = 0
+    for i in range(len(data._compaction_counts)):
+        s += data._compaction_counts[i] << (2*i)
+    err = sqrt(math.log(2) * s / 2) / data.ranks[-1]
+    log_2_10 = math.log2(10)
+
+    new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, sqrt(confidence) * err)
+    slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
+    q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend=legend)
+
+    if interactive:
+        def mk_interact(handle):
+            def update(confidence=confidence):
+                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, sqrt(1 + log_2_10 * confidence) * err)
+                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
+                new_data = {'left': [data.values[0], *x[keep]], 'right': [*x[keep], data.values[-1]], 'bottom': np.full(len(slopes), 0), 'top': slopes}
+                q.data_source.data = new_data
+                bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
+            interact(update, confidence=(1, 10, .01))
+
+        return p, mk_interact
+    else:
+        return p
+
+
+def _max_entropy_cdf(min_x, max_x, x, y, e):
+    def compare(x1, y1, x2, y2):
+        return x1*y2 - x2*y1
+
+    new_y = np.full_like(x, 0)
+    keep = np.full_like(x, False, dtype=np.bool_)
+
+    fx = min_x # fixed x
+    fy = 0 # fixed y
+    li = 0 # index of lower slope
+    ui = 0 # index of upper slope
+    ldx = x[li] - fx
+    udx = x[ui] - fx
+    ldy = y[li+1] - e - fy
+    udy = y[ui] + e - fy
+    j = 1
+    while ui < len(x) and li < len(x):
+        if j == len(x):
+            ub = 1
+            lb = 1
+            xj = max_x
+        else:
+            ub = y[j] + e
+            lb = y[j+1] - e
+            xj = x[j]
+        dx = xj - fx
+        judy = ub - fy
+        jldy = lb - fy
+        if compare(ldx, ldy, dx, judy) < 0:
+            # line must bend down at j
+            fx = x[li]
+            fy = y[li+1] - e
+            new_y[li] = fy
+            keep[li] = True
+            j = li + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        elif compare(udx, udy, dx, jldy) > 0:
+            # line must bend up at j
+            fx = x[ui]
+            fy = y[ui] + e
+            new_y[ui] = fy
+            keep[ui] = True
+            j = ui + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        if j >= len(x):
+            break
+        if compare(udx, udy, dx, judy) < 0:
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+        if compare(ldx, ldy, dx, jldy) > 0:
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+        j += 1
+    return new_y, keep
+
+
+def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
     """Create a density plot.
 
     Parameters
