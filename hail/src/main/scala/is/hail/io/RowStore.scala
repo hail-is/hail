@@ -9,6 +9,7 @@ import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.io.compress.LZ4Utils
+import is.hail.io.index.IndexWriter
 import is.hail.nativecode._
 import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
@@ -16,6 +17,7 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.{HailContext, cxx}
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
+import org.apache.hadoop.fs.FSDataOutputStream
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -43,6 +45,8 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
+  require((blockSize & (blockSize - 1)) == 0)
+
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
@@ -63,6 +67,8 @@ trait BlockBufferSpec extends Serializable {
 }
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+  require((blockSize & (blockSize - 1)) == 0)
+
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
@@ -434,6 +440,8 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 
   def close() {}
 
+  def indexOffset(): Long = 0
+
   def writeByte(b: Byte): Unit = mb.writeByte(b)
 
   def writeInt(i: Int): Unit = mb.writeInt(i)
@@ -453,6 +461,8 @@ trait OutputBuffer extends Closeable {
   def flush(): Unit
 
   def close(): Unit
+
+  def indexOffset(): Long
 
   def writeByte(b: Byte): Unit
 
@@ -481,6 +491,8 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
   override def flush(): Unit = out.flush()
 
   override def close(): Unit = out.close()
+
+  def indexOffset(): Long = out.asInstanceOf[FSDataOutputStream].getPos()
 
   override def writeByte(b: Byte): Unit = out.write(Array(b))
 
@@ -521,6 +533,8 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def close() {
     out.close()
   }
+
+  def indexOffset(): Long = out.indexOffset()
 
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
@@ -572,6 +586,8 @@ final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
+
+  def indexOffset(): Long = ???
 
   private def writeBlock() {
     out.writeBlock(buf, off)
@@ -1398,6 +1414,8 @@ trait Encoder extends Closeable {
   def writeRegionValue(region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
+
+  def indexOffset(): Long
 }
 
 object EmitPackEncoder { self =>
@@ -1572,6 +1590,8 @@ final class CompiledPackEncoder(out: OutputBuffer, f: () => AsmFunction3[Region,
   def writeByte(b: Byte) {
     out.writeByte(b)
   }
+
+  def indexOffset(): Long = out.indexOffset()
 }
 
 final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
@@ -1665,6 +1685,8 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
         writeArray(t, region, offset)
     }
   }
+
+  def indexOffset(): Long = out.indexOffset()
 }
 
 case class NativeEncoderModule(
@@ -1719,6 +1741,8 @@ final class NativePackEncoder(out: OutputStream, module: NativeEncoderModule) ex
     encodeByteF(st, buf.get(), b)
     assert(st.ok, st.toString())
   }
+
+  def indexOffset(): Long = ???
 }
 
 object RichContextRDDRegionValue {

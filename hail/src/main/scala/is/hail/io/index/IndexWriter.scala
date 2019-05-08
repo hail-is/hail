@@ -34,6 +34,17 @@ case class IndexNodeInfo(
 
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
+
+  def builder(
+    keyType: Type,
+    annotationType: Type,
+    makeLeafEncoder: (OutputStream) => Encoder,
+    makeInternalEncoder: (OutputStream) => Encoder,
+    branchingFactor: Int = 4096,
+    attributes: Map[String, Any] = Map.empty[String, Any]
+  ): (Configuration, String) => IndexWriter = { (conf, path) =>
+    new IndexWriter(conf, path, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
+  }
 }
 
 class IndexWriter(
@@ -150,7 +161,7 @@ class IndexWriter(
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
-        height, 
+        height,
         keyType.parsableString(),
         annotationType.parsableString(),
         elementIdx,

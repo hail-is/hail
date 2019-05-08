@@ -3,10 +3,11 @@ package is.hail.utils.richUtils
 import java.io._
 
 import is.hail.HailContext
+import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVDContext
-import org.apache.spark.TaskContext
 import is.hail.utils._
 import is.hail.sparkextras._
+import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
