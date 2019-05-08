@@ -112,10 +112,6 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 jwtclient = JWTClient(SECRET_KEY)
 
 
-def unauthorized_redirect():
-    return redirect(external_url_for(f"error?err=Unauthorized"))
-
-
 def jwt_decode(token):
     if token is None:
         return None
@@ -148,7 +144,7 @@ def requires_auth(for_page = True):
             if g.user is None:
                 if for_page:
                     session['referrer'] = request.url
-                    return unauthorized_redirect()
+                    return redirect(external_url_for('login'))
 
                 return '', 401
 
@@ -525,7 +521,7 @@ def auth0_callback():
     email = userinfo['email']
 
     if AUTHORIZED_USERS.get(email) is None:
-        return unauthorized_redirect()
+        return redirect(external_url_for(f"error?err=Unauthorized"))
 
     g.user = {
         'auth0_id': userinfo['sub'],
