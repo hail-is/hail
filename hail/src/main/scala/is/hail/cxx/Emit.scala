@@ -1037,6 +1037,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |  ${ acc.define }
                |  ${ aggLoops }
                |  $acc;
+               |})
              """.stripMargin
           }
         }
