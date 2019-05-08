@@ -99,8 +99,8 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def from_dict(d):
         name = d['name']
-        pod_spec = d['pod_spec']
-        return JobTask(name, pod_spec)
+        pod_spec_dict = d['pod_spec_dict']
+        return JobTask(name, pod_spec_dict)
 
     @staticmethod
     def copy_task(task_name, files):
@@ -126,14 +126,18 @@ class JobTask:  # pylint: disable=R0903
             return JobTask(task_name, spec)
         return None
 
-    def __init__(self, name, pod_spec):
+    @staticmethod
+    def from_spec(name, pod_spec):
         assert pod_spec is not None
-        self.pod_spec = pod_spec
+        return JobTask(name, v1.api_client.sanitize_for_serialization(pod_spec))
+
+    def __init__(self, name, pod_spec_dict):
+        self.pod_spec_dict = pod_spec_dict
         self.name = name
 
     def to_dict(self):
         return {'name': self.name,
-                'pod_spec': v1.api_client.sanitize_for_serialization(self.pod_spec)}
+                'pod_spec_dict': self.pod_spec_dict}
 
 
 class Job:
@@ -198,7 +202,7 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
-        pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec, kube.client.V1PodSpec)
+        pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec_dict, kube.client.V1PodSpec)
         if pod_spec.volumes is None:
             pod_spec.volumes = []
         pod_spec.volumes.extend(volumes)
@@ -334,7 +338,7 @@ class Job:
         user = userdata['ksa_name']
 
         tasks = [JobTask.copy_task('input', input_files),
-                 JobTask('main', pod_spec),
+                 JobTask.from_spec('main', pod_spec),
                  JobTask.copy_task('output', output_files)]
 
         tasks = [t for t in tasks if t is not None]
