@@ -631,7 +631,7 @@ set -e
                     assert w['for'] == 'completed', w['for']
                     script += f'''
 set +e
-python3 wait-for.py 300 {self.namespace} Pod {name}
+python3 wait-for.py 400 {self.namespace} Pod {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e

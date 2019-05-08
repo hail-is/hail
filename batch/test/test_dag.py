@@ -7,6 +7,8 @@ import re
 import requests
 from flask import Response
 
+import hailjwt as hj
+
 from batch.client import BatchClient
 
 from .serverthread import ServerThread
@@ -17,13 +19,10 @@ def client():
     return BatchClient(url=os.environ.get('BATCH_URL'))
 
 
-@pytest.fixture
 def test_user():
-    fname = pkg_resources.resource_filename(
-        __name__,
-        'jwt-test-user.json')
+    fname = os.environ.get("HAIL_TOKEN_FILE")
     with open(fname) as f:
-        return json.loads(f.read())
+        return hj.JWTClient.unsafe_decode(f.read())
 
 
 def batch_status_job_counter(batch_status, job_state):
@@ -303,42 +302,34 @@ def test_no_parents_allowed_in_other_batches(client):
     assert False
 
 
-def test_no_parents_allowed_without_batches(client):
-    head = client.create_job('alpine:3.8', command=['echo', 'head'])
-    try:
-        client.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid parent batch: .*', err.response.text)
-        return
-    assert False
-
-
-def test_input_dependency(client, test_user):
+def test_input_dependency(client):
+    user = test_user()
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{test_user["bucket_name"]}')])
+                            output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{test_user["bucket_name"]}/data\\*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/data\\*', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
     assert head.status()['exit_code'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
-def test_input_dependency_directory(client, test_user):
+def test_input_dependency_directory(client):
+    user = test_user()
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{test_user["bucket_name"]}')])
+                            output_files=[('/io/test/', f'gs://{user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
-                            input_files=[(f'gs://{test_user["bucket_name"]}/test', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
                             parent_ids=[head.id])
     tail.wait()
-    assert tail.log()['main'] == 'head1\nhead2\n'
+    assert head.status()['exit_code'] == 0, head.cached_status()
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
 
 
 def test_always_run_delete(client):

@@ -80,8 +80,7 @@ v1 = kube.client.CoreV1Api()
 app = web.Application()
 routes = web.RouteTableDef()
 
-db = BatchDatabase.create_synchronous(os.environ.get('CLOUD_SQL_CONFIG_PATH',
-                                                     '/batch-user-secret/sql-config.json'))
+db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 
 def abort(code, reason=None):

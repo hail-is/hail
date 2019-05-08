@@ -143,7 +143,7 @@ class Batch:
 
         j = await self.client._post('/jobs/create', json=doc)
 
-        return Job(self,
+        return Job(self.client,
                    j['id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
