@@ -101,7 +101,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)
     assert(i < layout.length)
-    new LocalRef[T](argIndex(iFun))
+    new LocalRef[T](argIndex(i))
   }
 
   val l = new mutable.ArrayBuffer[AbstractInsnNode]()
