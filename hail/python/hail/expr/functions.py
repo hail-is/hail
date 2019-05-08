@@ -1,5 +1,6 @@
 import builtins
 import functools
+from math import sqrt
 from typing import *
 
 import hail as hl
@@ -39,13 +40,28 @@ def _lower_bound(a, x):
 
 @typecheck(cdf=expr_struct(), q=expr_oneof(expr_float32, expr_float64))
 def _quantile_from_cdf(cdf, q):
-    n = cdf.ranks[cdf.ranks.length() - 1]
-    pos = int64(q*n) + 1
-    idx = (switch(q)
-            .when(0.0, 0)
-            .when(1.0, cdf.values.length() - 1)
-            .default(_lower_bound(cdf.ranks, pos) - 1))
-    return cdf.values[idx]
+    def compute(cdf):
+        n = cdf.ranks[cdf.ranks.length() - 1]
+        pos = hl.int64(q*n) + 1
+        idx = (hl.switch(q)
+                .when(0.0, 0)
+                .when(1.0, cdf.values.length() - 1)
+                .default(_lower_bound(cdf.ranks, pos) - 1))
+        return cdf.values[idx]
+    return hl.rbind(cdf, compute)
+
+
+@typecheck(cdf=expr_struct(), confidence=expr_oneof(expr_float32, expr_float64))
+def _error_from_cdf(cdf, confidence):
+    """Estimates error of approx_cdf aggregator, using Hoeffding's inequality.
+
+    Error of any one quantile estimation is less than returned bound with
+    probability 1-'confidence'.
+    """
+    def compute(cdf):
+        s = hl.sum(hl.range(0, hl.len(cdf._compaction_counts)).map(lambda i: cdf._compaction_counts[i] * (2 ** (2*i))))
+        return sqrt(-log(confidence / 2) * s / 2) / cdf.ranks[-1]
+    return hl.rbind(cdf, compute)
 
 
 @typecheck(t=hail_type)
