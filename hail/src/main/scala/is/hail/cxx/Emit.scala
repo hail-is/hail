@@ -897,6 +897,27 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
+      case ir.NDArrayShape(ndIR) =>
+        fb.translationUnitBuilder().include("hail/NDArray.h")
+
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+        val shape = fb.variable("shape", "std::vector<long>", childEmitter.shape.toString)
+        val sb = resultRegion.structBuilder(fb, pType.asInstanceOf[PTuple])
+        var dim = 0
+        while (dim < ndIR.pType.asInstanceOf[PNDArray].nDims) {
+          sb.add(present(s"$shape[$dim]"))
+          dim += 1
+        }
+        present(
+          s"""
+             |({
+             |  ${ childEmitter.setup }
+             |  ${ shape.define }
+             |  ${ sb.body() }
+             |  ${ sb.end() };
+             |})
+           """.stripMargin)
+
       case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))

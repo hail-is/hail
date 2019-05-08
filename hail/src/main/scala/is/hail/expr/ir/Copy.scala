@@ -64,6 +64,8 @@ object Copy {
       case MakeNDArray(nDim, _, _, _) =>
         val IndexedSeq(data: IR, shape: IR, rowMajor: IR) = newChildren
         MakeNDArray(nDim, data, shape, rowMajor)
+      case NDArrayShape(_) =>
+        NDArrayShape(newChildren(0).asInstanceOf[IR])
       case NDArrayReshape(_, _) =>
         val nd +: shape = newChildren
         NDArrayReshape(nd.asInstanceOf[IR], shape.map(ir => ir.asInstanceOf[IR]))

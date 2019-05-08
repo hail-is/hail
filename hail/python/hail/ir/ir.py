@@ -495,6 +495,21 @@ class MakeNDArray(IR):
         self._type = tndarray(self.data.typ.element_type, self.ndim)
 
 
+class NDArrayShape(IR):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
+        super().__init__(nd)
+        self.nd = nd
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayShape(nd)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self._type = ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
+
+
 class NDArrayReshape(IR):
     @typecheck_method(nd=IR, shape=sequenceof(IR))
     def __init__(self, nd, shape):

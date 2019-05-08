@@ -223,6 +223,8 @@ final case class NDArrayReshape(nd: IR, shape: IndexedSeq[IR]) extends IR {
   require(shape.nonEmpty)
 }
 
+final case class NDArrayShape(nd: IR) extends IR
+
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {

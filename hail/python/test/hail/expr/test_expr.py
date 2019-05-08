@@ -2658,6 +2658,24 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
+    def test_ndarray_shape(self):
+        np_e = np.array(3)
+        np_v = np.array([1, 2, 3])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_nd = np.arange(30).reshape((2, 5, 3))
+
+        e = hl._ndarray(np_e)
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        nd = hl._ndarray(np_nd)
+        self.assertEqual(hl.eval(e.shape), np_e.shape)
+        self.assertEqual(hl.eval(v.shape), np_v.shape)
+        self.assertEqual(hl.eval(m.shape), np_m.shape)
+        self.assertEqual(hl.eval(nd.shape), np_nd.shape)
+        self.assertEqual(hl.eval((v + nd).shape), (2, 5, 3))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
     def test_ndarray_reshape(self):
         a = hl._ndarray([1, 2, 3, 4, 5, 6])
         fat = a.reshape((2, 3))
