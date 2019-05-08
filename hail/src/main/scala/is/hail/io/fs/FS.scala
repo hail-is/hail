@@ -31,11 +31,6 @@ trait FilePath {
   def getFileSystem(conf: Configuration): FileSystem
 }
 
-trait Configuration extends Iterable[Map.Entry[String,String]] {
-  @throws(classOf[IOException])
-  def write(out: DataOutput): Unit
-}
-
 trait FileStatus {
   def getPath: FilePath
   def getModificationTime: Long

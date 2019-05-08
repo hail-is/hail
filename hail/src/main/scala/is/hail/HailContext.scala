@@ -365,16 +365,16 @@ object HailContext {
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
 
   def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    val hadoopFS = HailContext.get.sFS
+    val fs = HailContext.get.sFS
     if (!force)
       body
     else {
-      val defaultCodecs = hadoopFS.getProperty(codecsKey)
-      hadoopFS.setProperty(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+      val defaultCodecs = fs.getProperty(codecsKey)
+      fs.setProperty(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
       try {
         body
       } finally {
-        hadoopFS.setProperty(codecsKey, defaultCodecs)
+        fs.setProperty(codecsKey, defaultCodecs)
       }
     }
   }
