@@ -88,16 +88,19 @@ async def get_pr(request):
     config = {}
     config['number'] = pr.number
     # FIXME
-    if pr.batch and hasattr(pr.batch, 'id'):
-        status = await pr.batch.status()
-        for j in status['jobs']:
-            if 'duration' in j and j['duration'] is not None:
-                j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-            attrs = j['attributes']
-            if 'link' in attrs:
-                attrs['link'] = attrs['link'].split(',')
-        config['batch'] = status
-        config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+    if pr.batch:
+        if hasattr(pr.batch, 'id'):
+            status = await pr.batch.status()
+            for j in status['jobs']:
+                if 'duration' in j and j['duration'] is not None:
+                    j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+                attrs = j['attributes']
+                if 'link' in attrs:
+                    attrs['link'] = attrs['link'].split(',')
+            config['batch'] = status
+            config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+        else:
+            config['exception'] = str(pr.batch.exception)
 
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches(
