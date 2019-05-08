@@ -124,13 +124,6 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
       os
   }
 
-  override def equals(obj: Any): Boolean = {
-    if(!obj.isInstanceOf[HadoopFS])
-      false
-    else
-      conf == obj.asInstanceOf[HadoopFS].conf
-  }
-
   def open(filename: String, checkCodec: Boolean = true): InputStream = {
     val hPath = new hadoop.fs.Path(filename)
     val fs = hPath.getFileSystem(conf)
