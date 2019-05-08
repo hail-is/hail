@@ -3145,6 +3145,37 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    def reshape(self, shape):
+        """Reshape this ndarray to a new shape.
+
+        Parameters
+        ----------
+        shape : :class:`.Expression` of type :py:data:`.tint64` or
+                :obj: `tuple` of :class:`.Expression` of type :py:data:`.tint64`
+
+        Examples
+        --------
+
+        >>> v = hl._ndarray([1, 2, 3, 4]) # doctest: +SKIP
+        >>> m = v.reshape((2, 2)) # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        shape = wrap_to_list(shape)
+        if len(shape) == 0:
+            if self.ndim == 0:
+                return self
+            else:
+                raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
+
+        return construct_expr(NDArrayReshape(self._ir, [dim._ir for dim in shape]),
+                              tndarray(self._type.element_type, len(shape)),
+                              self._indices,
+                              self._aggregations)
+
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
         """Transform each element of an NDArray.

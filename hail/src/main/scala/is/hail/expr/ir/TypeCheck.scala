@@ -143,6 +143,9 @@ object TypeCheck {
         assert(data.typ.isInstanceOf[TStreamable])
         assert(shape.typ.isOfType(TArray(TInt64())))
         assert(rowMajor.typ.isOfType(TBoolean()))
+      case x@NDArrayReshape(nd, shape) =>
+        assert(nd.typ.isInstanceOf[TNDArray])
+        assert(shape.forall(_.typ.isOfType(TInt64())))
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
