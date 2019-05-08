@@ -626,11 +626,10 @@ object IRParser {
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
-        val nDim = int32_literal(it)
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         val rowMajor = ir_value_expr(env)(it)
-        MakeNDArray(nDim, data, shape, rowMajor)
+        MakeNDArray(data, shape, rowMajor)
       case "NDArrayShape" =>
         val nd = ir_value_expr(env)(it)
         NDArrayShape(nd)

@@ -855,17 +855,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(nDim, dataIR, shapeIR, rowMajorIR) =>
+      case ir.MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val dataContainer = dataIR.pType.asInstanceOf[PStreamable].asPArray
-        val elemPType = dataContainer.elementType
-        val shapeContainer = shapeIR.pType.asInstanceOf[PStreamable].asPArray
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val elemSize = elemPType.byteSize
-        val shape = fb.variable("shape", "std::vector<long>",
-          s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
+        val shape = fb.variable("shape", "std::vector<long>")
+        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
+        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
+        val buildShape = Seq.tabulate(shapePType.size) { dim =>
+          s"$shape.push_back(${ shapePType.cxxLoadField(shapeTup.toString, dim) });"
+        }
+
+        val elemSize = dataContainer.elementType.byteSize
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(${rowMajort.v}, $shape)")
         val data = fb.variable("data", "const char *", datat.v)
 
@@ -876,24 +880,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ rowMajort.setup }
              | ${ shapet.setup }
              | ${ datat.setup }
-             | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
+             | ${ shapeTup.define }
+             | if (${ datat.m } || ${ rowMajort.m } || ${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
              |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ shape.define }
+             | ${ Code.sequence(buildShape) }
              | ${ strides.define }
              |
-             | if ($nDim != $shape.size()) {
-             |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
-             | }
-             |
              | ${ data.define }
-             |
              | if (n_elements($shape) != load_length($data)) {
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
              |
-             | make_ndarray(0, 0, $elemSize, $shape, $strides, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             | make_ndarray(0, 0, $elemSize, $shape, $strides, ${dataContainer.cxxImpl}::elements_address($data));
              |})
              |""".stripMargin)
 

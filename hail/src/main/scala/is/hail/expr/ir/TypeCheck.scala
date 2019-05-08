@@ -138,10 +138,9 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@MakeNDArray(nDim, data, shape, rowMajor) =>
-        assert(nDim >= 0)
+      case x@MakeNDArray(data, shape, rowMajor) =>
         assert(data.typ.isInstanceOf[TStreamable])
-        assert(shape.typ.isOfType(TArray(TInt64())))
+        assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t.isInstanceOf[TInt64]))
         assert(rowMajor.typ.isOfType(TBoolean()))
       case x@NDArrayShape(nd) =>
         assert(nd.typ.isInstanceOf[TNDArray])

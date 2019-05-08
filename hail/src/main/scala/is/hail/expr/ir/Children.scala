@@ -49,7 +49,7 @@ object Children {
       Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
-    case MakeNDArray(_, data, shape, rowMajor) =>
+    case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
       Array(nd)

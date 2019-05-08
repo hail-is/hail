@@ -924,10 +924,7 @@ class IRSuite extends SparkSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(shape.length,
-      MakeArray(data.map(F64), TArray(TFloat64())),
-      MakeArray(shape.map(I64), TArray(TInt64())),
-      rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple(shape.map(I64)), rowMajor)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
@@ -994,18 +991,17 @@ class IRSuite extends SparkSuite {
     val shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
     val nDim = 2
 
-    val positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    val positives = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
     val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
     assertEvalsTo(NDArrayRef(positives, FastSeq(1L, 0L).map(I64)), 5.0)
     assertEvalsTo(NDArrayRef(negatives, FastSeq(1L, 0L).map(I64)), -5.0)
 
-    val trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
     val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
     assertEvalsTo(NDArrayRef(trues, FastSeq(1L, 0L).map(I64)), true)
     assertEvalsTo(NDArrayRef(falses, FastSeq(1L, 0L).map(I64)), false)
 
-    val bools = MakeNDArray(nDim,
-      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
+    val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
       shape, False())
     val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
     val one = NDArrayRef(boolsToBinary, FastSeq(0L, 0L).map(I64))
@@ -1018,12 +1014,8 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val shape = MakeArray(FastSeq(2L, 2L).map(I64), TArray(TInt64()))
-    val numbers = MakeNDArray(2,
-      MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())),
-      shape, True())
-    val bools = MakeNDArray(2,
-      MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())),
-      shape, True())
+    val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())), shape, True())
+    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())), shape, True())
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
       ApplyBinaryPrimOp(Add(), Ref("n", TFloat64()), If(Ref("b", TBoolean()), F64(10), F64(20))))
@@ -1036,7 +1028,7 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayReindex() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
+    val mat = MakeNDArray(MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
     val transpose = NDArrayReindex(mat, FastIndexedSeq(1, 0))
     val identity = NDArrayReindex(mat, FastIndexedSeq(0, 1))
@@ -1098,7 +1090,7 @@ class IRSuite extends SparkSuite {
     val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
     assertEvalsTo(zero, 0.0)
 
-    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
+    val mat = MakeNDArray(MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
       MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
     val four = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(0))
     assertEvalsTo(four, 4.0)
@@ -1503,8 +1495,7 @@ class IRSuite extends SparkSuite {
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
     val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter(tmpDir.createLocalTempFile(), false)
-    val nd = MakeNDArray(2,
-      MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
+    val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
       MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
       True())
 
