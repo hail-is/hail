@@ -300,6 +300,7 @@ class BatchBackend(Backend):
                 always_run=True)
             job_id_to_command[j.id] = cmd
 
+        batch.close()
         status = batch.wait()
 
         failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
