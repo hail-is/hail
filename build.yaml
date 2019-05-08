@@ -422,6 +422,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
+      timeout: 120
    dependsOn:
      - default_ns
      - create_batch_tables_image
@@ -435,6 +436,7 @@ steps:
     - kind: Pod
       name: create-batch-tables
       for: completed
+      timeout: 120
    dependsOn:
      - default_ns
      - create_batch_tables_image
@@ -479,6 +481,7 @@ steps:
     - kind: Pod
       name: test-batch
       for: completed
+      timeout: 480
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -516,6 +519,7 @@ steps:
     - kind: Pod
       name: test-apiserver
       for: completed
+      timeout: 180
    dependsOn:
     - default_ns
     - batch_pods_ns
