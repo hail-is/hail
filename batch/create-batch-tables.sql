@@ -57,7 +57,7 @@ DELIMITER $$
 CREATE TRIGGER trigger_jobs_insert AFTER INSERT ON jobs
     FOR EACH ROW BEGIN
         UPDATE batch SET n_jobs = n_jobs + 1 WHERE id = new.batch_id;
-        IF (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled') THEN
+        IF (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled')) THEN
             UPDATE batch SET n_completed = n_completed + 1 WHERE id = NEW.batch_id;
             IF (NEW.state LIKE 'Complete' AND NEW.exit_code > 0) THEN
 	        UPDATE batch SET n_failed = n_failed + 1 WHERE id = NEW.batch_id;
@@ -72,7 +72,7 @@ $$
 
 CREATE TRIGGER trigger_jobs_update AFTER UPDATE ON jobs
     FOR EACH ROW BEGIN
-        IF (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled') THEN
+        IF (OLD.state NOT LIKE NEW.state AND (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled')) THEN
             UPDATE batch SET n_completed = n_completed + 1 WHERE id = NEW.batch_id;
             IF (NEW.state LIKE 'Complete' AND NEW.exit_code > 0) THEN
 	        UPDATE batch SET n_failed = n_failed + 1 WHERE id = NEW.batch_id;

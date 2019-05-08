@@ -710,6 +710,7 @@ class Batch:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
+            print("\n")
             print("is_open", record['is_open'])
             print("n_completed", record['n_completed'])
             print("n_jobs", record['n_jobs'])
