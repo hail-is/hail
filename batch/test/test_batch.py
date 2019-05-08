@@ -23,6 +23,7 @@ class Test(unittest.TestCase):
     def test_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
+        b.close()
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
@@ -66,9 +67,11 @@ class Test(unittest.TestCase):
         tag = secrets.token_urlsafe(64)
         b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
         b1.create_job('alpine', ['sleep', '30'])
+        b1.close()
 
         b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
+        b2.close()
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
@@ -102,12 +105,14 @@ class Test(unittest.TestCase):
     def test_fail(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['false'])
+        b.close()
         status = j.wait()
         self.assertEqual(status['exit_code'], 1)
 
     def test_deleted_job_log(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
+        b.close()
         id = j.id
         j.wait()
         b.delete()
@@ -123,6 +128,7 @@ class Test(unittest.TestCase):
     def test_delete_batch(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
+        b.close()
         id = j.id
         b.delete()
 
@@ -138,6 +144,8 @@ class Test(unittest.TestCase):
     def test_cancel_batch(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
+        b.close()
+
         status = j.status()
         self.assertTrue(status['state'], 'Ready')
 
@@ -168,6 +176,8 @@ class Test(unittest.TestCase):
     def test_get_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['true'])
+        b.close()
+
         j2 = self.batch.get_job(j.id)
         status2 = j2.status()
         assert(status2['id'] == j.id)
@@ -177,6 +187,7 @@ class Test(unittest.TestCase):
         j1 = b.create_job('alpine', ['false'])
         j2 = b.create_job('alpine', ['sleep', '1'])
         j3 = b.create_job('alpine', ['sleep', '30'])
+        b.close()
 
         j1.wait()
         j2.wait()
@@ -217,6 +228,7 @@ class Test(unittest.TestCase):
 
         b4 = self.batch.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
+        b4.close()
         b4.cancel()
         b4.wait()
         b4s = b4.status()
@@ -241,6 +253,7 @@ class Test(unittest.TestCase):
                 ['echo', 'test'],
                 attributes={'foo': 'bar'},
                 callback=server.url_for('/test'))
+            b.close()
             j.wait()
 
             batch.poll_until(lambda: 'status' in d)
@@ -254,6 +267,7 @@ class Test(unittest.TestCase):
     def test_log_after_failing_job(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        b.close()
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
@@ -288,6 +302,7 @@ class Test(unittest.TestCase):
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
+            b.close()
             assert False, j
         except requests.HTTPError as e:
             if e.response.status_code == 401:

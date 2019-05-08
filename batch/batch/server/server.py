@@ -709,7 +709,13 @@ class Batch:
         if record is not None and not record['deleted']:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
-            print(record['is_open'], record['n_completed'], record['n_jobs'])
+
+            print("is_open", record['is_open'])
+            print("n_completed", record['n_completed'])
+            print("n_jobs", record['n_jobs'])
+            print("n_failed", record['n_failed'])
+            print('n_cancelled', record['n_cancelled'])
+
             if record['n_failed'] > 0:
                 state = 'failure'
             elif record['n_cancelled'] > 0:
