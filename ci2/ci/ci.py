@@ -36,28 +36,39 @@ routes = web.RouteTableDef()
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
+    wb_configs = []
+    for i, wb in enumerate(watched_branches):
+        if wb.prs:
+            pr_configs = []
+            for pr in wb.prs.values():
+                pr_config = {
+                    'number': pr.number,
+                    'title': pr.title,
+                    # FIXME generate links to the merge log
+                    'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
+                    'build_state': pr.build_state,
+                    'review_state': pr.review_state,
+                    'author': pr.author
+                }
+                pr_configs.append(pr_config)
+        else:
+            pr_configs = None
+        # FIXME recent deploy history
+        wb_config = {
+            'index': i,
+            'branch': wb.branch.short_str(),
+            'sha': wb.sha,
+            # FIXME generate links to the merge log
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+            'deploy_state': wb.deploy_state,
+            'repo': wb.branch.repo.short_str(),
+            'prs': pr_configs
+        }
+        wb_configs.append(wb_config)
+
     return {
-        'watched_branches': [
-            {
-                'index': i,
-                'branch': wb.branch.short_str(),
-                'sha': wb.sha,
-                'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch else None,
-                'deploy_state': wb.deploy_state,
-                'repo': wb.branch.repo.short_str(),
-                'prs': [
-                    {
-                        'number': pr.number,
-                        'title': pr.title,
-                        'batch_id': pr.batch.id if pr.batch else None,
-                        'build_state': pr.build_state,
-                        'review_state': pr.review_state,
-                        'author': pr.author
-                    }
-                    for pr in wb.prs.values()
-                ] if wb.prs else None}
-            for i, wb in enumerate(watched_branches)
-        ]}
+        'watched_branches': wb_configs
+    }
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
@@ -65,17 +76,19 @@ async def index(request):  # pylint: disable=unused-argument
 async def get_pr(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
-    try:
-        wb = watched_branches[watched_branch_index]
-        if not wb.prs:
-            raise web.HTTPNotFound()
-        pr = wb.prs[pr_number]
-    except IndexError:
+
+    if watched_branch_index < 0 or watched_branch_index >= len(watched_branches):
         raise web.HTTPNotFound()
+    wb = watched_branches[watched_branch_index]
+
+    if not wb.prs or pr_number not in wb.prs:
+        raise web.HTTPNotFound()
+    pr = wb.prs[pr_number]
 
     config = {}
     config['number'] = pr.number
-    if pr.batch:
+    # FIXME
+    if pr.batch and hasattr(pr.batch, 'id'):
         status = await pr.batch.status()
         for j in status['jobs']:
             if 'duration' in j and j['duration'] is not None:
@@ -85,6 +98,19 @@ async def get_pr(request):
                 attrs['link'] = attrs['link'].split(',')
         config['batch'] = status
         config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
+
+    batch_client = request.app['batch_client']
+    batches = await batch_client.list_batches(
+        attributes={
+            'test': '1',
+            'pr': pr_number
+        })
+    batches = sorted(batches, key=lambda b: b.id, reverse=True)
+    # FIXME performance
+    statuses = [await b.status() for b in batches]
+    for status in statuses:
+        update_batch_status(status)
+    config['history'] = statuses
 
     return config
 
@@ -142,7 +168,7 @@ async def pull_request_callback(event):
     number = gh_pr['number']
     target_branch = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
-        if (number in wb.prs) or (wb.branch == target_branch):
+        if (wb.prs and number in wb.prs) or (wb.branch == target_branch):
             await wb.notify_github_changed(event.app)
 
 
@@ -167,16 +193,19 @@ async def pull_request_review_callback(event):
             await wb.notify_github_changed(event.app)
 
 
-@routes.post('/callback')
-async def callback(request):
+async def github_callback_handler(request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app
     await gh_router.dispatch(event)
+
+
+@routes.post('/callback')
+async def callback(request):
+    await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
 
 
-@routes.post('/batch_callack')
-async def batch_callback(request):
+async def batch_callback_handler(request):
     params = await request.json()
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -187,6 +216,12 @@ async def batch_callback(request):
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     wb.notify_batch_changed()
+
+
+@routes.post('/batch_callack')
+async def batch_callback(request):
+    await asyncio.shield(batch_callback_handler(request))
+    return web.Response(status=200)
 
 
 async def update_loop(app):

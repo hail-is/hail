@@ -57,11 +57,11 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(hadoopConf.stripCodec("file.tsv") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.gz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.bgz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.lz4") == "file.tsv")
-    assert(hadoopConf.stripCodec("file") == "file")
+    assert(fs.stripCodec("file.tsv") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(fs.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(fs.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {
@@ -85,9 +85,7 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
-
-    val partFileNames = rhc.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
+    val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

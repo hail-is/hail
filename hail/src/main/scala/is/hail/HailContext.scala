@@ -431,7 +431,7 @@ class HailContext private(val sc: SparkContext,
   }
 
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
-    sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
+    sFS.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
   def indexBgen(files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],

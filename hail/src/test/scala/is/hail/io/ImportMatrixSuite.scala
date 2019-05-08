@@ -19,7 +19,7 @@ import org.apache.spark.sql.Row
 class ImportMatrixSuite extends SparkSuite {
 
   @Test def testHeadersNotIdentical() {
-    val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
+    val files = hc.sFS.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
       val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
     }
@@ -27,7 +27,7 @@ class ImportMatrixSuite extends SparkSuite {
   }
 
   @Test def testMissingVals() {
-    val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
+    val files = hc.sFS.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
       val vsm = new MatrixTable(HailContext.get, LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0")))
       vsm.rvd.count()

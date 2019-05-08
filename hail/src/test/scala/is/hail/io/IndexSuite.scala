@@ -43,7 +43,7 @@ class IndexSuite extends SparkSuite {
     val codecSpec = CodecSpec.default
     val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
     val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
-    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
+    val iw = new IndexWriter(hc.sFS, file, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
@@ -72,9 +72,9 @@ class IndexSuite extends SparkSuite {
         TStruct("a" -> TBoolean()),
         branchingFactor,
         attributes)
-      assert(hc.hadoopConf.getFileSize(file) != 0)
+      assert(hc.sFS.getFileSize(file) != 0)
 
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       assert(index.attributes == attributes)
 
@@ -92,8 +92,8 @@ class IndexSuite extends SparkSuite {
   @Test def testEmptyKeys() {
     val file = tmpDir.createTempFile("empty", "idx")
     writeIndex(file, Array.empty[String], Array.empty[Annotation], TStruct("a" -> TBoolean()), 2)
-    assert(hc.hadoopConf.getFileSize(file) != 0)
-    val index = IndexReader(hc.hadoopConf, file)
+    assert(hc.sFS.getFileSize(file) != 0)
+    val index = IndexReader(hc.sFS, file)
     intercept[IllegalArgumentException](index.queryByIndex(0L))
     assert(index.queryByKey("moo").isEmpty)
     assert(index.queryByInterval("bear", "cat", includesStart = true, includesEnd = true).isEmpty)
@@ -104,7 +104,7 @@ class IndexSuite extends SparkSuite {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("lowerBound", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       val n = stringsWithDups.length
       val f = { i: Int => stringsWithDups(i) }
@@ -126,7 +126,7 @@ class IndexSuite extends SparkSuite {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("upperBound", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor = 2)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       val n = stringsWithDups.length
       val f = { i: Int => stringsWithDups(i) }
@@ -150,7 +150,7 @@ class IndexSuite extends SparkSuite {
       val file = tmpDir.createTempFile("range", "idx")
       val a = { (i: Int) => Row() }
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(a).toArray, TStruct(required = true), branchingFactor)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       val bounds = stringsWithDups.indices.toArray.combinations(2).toArray
       bounds.foreach(b => index.iterator(b(0), b(1)).toArray sameElements leafsWithDups.slice(b(0), b(1)))
@@ -163,7 +163,7 @@ class IndexSuite extends SparkSuite {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("key", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       val stringsNotInList = Array("aardvark", "crow", "elk", "otter", "zoo")
       assert(stringsNotInList.forall(s => index.queryByKey(s).isEmpty))
@@ -177,7 +177,7 @@ class IndexSuite extends SparkSuite {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("interval", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       // intervals with endpoint in list
       assert(index.queryByInterval("bear", "bear", includesStart = true, includesEnd = true).toFastIndexedSeq == index.iterator(0, 2).toFastIndexedSeq)
@@ -253,7 +253,7 @@ class IndexSuite extends SparkSuite {
 
       val leafChildren = stringsWithDups.zipWithIndex.map { case (s, i) => LeafChild(Row(s, i), i, Row()) }.toFastIndexedSeq
 
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
       assert(index.queryByInterval(Row("cat", 3), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
         leafChildren.slice(3, 5))
       assert(index.queryByInterval(Row("cat"), Row("cat", 5), includesStart = true, includesEnd = false).toFastIndexedSeq ==
@@ -271,7 +271,7 @@ class IndexSuite extends SparkSuite {
     for (branchingFactor <- 2 to 5) {
       val file = tmpDir.createTempFile("from", "idx")
       writeIndex(file, stringsWithDups, stringsWithDups.indices.map(i => Row()).toArray, TStruct(required = true), branchingFactor)
-      val index = IndexReader(hc.hadoopConf, file)
+      val index = IndexReader(hc.sFS, file)
 
       val uniqueStrings = stringsWithDups.distinct ++ Array("aardvark", "crow", "elk", "otter", "zoo")
       uniqueStrings.foreach { s =>

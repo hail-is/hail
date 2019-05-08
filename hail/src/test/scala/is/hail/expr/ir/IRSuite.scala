@@ -16,7 +16,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
-import is.hail.utils._
+import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call, Call2, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
@@ -34,7 +34,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[EmitTriplet]) => EmitTriplet) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[EmitTriplet]) => EmitTriplet) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -44,13 +44,13 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        def applySeeded(seed: Long, mb: EmitMethodBuilder, args: EmitTriplet*): EmitTriplet =
-          impl(mb, seed, args.toArray)
+        def applySeeded(seed: Long, r: EmitRegion, args: EmitTriplet*): EmitTriplet =
+          impl(r, seed, args.toArray)
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitMethodBuilder, Long, EmitTriplet) => EmitTriplet): Unit =
-      registerSeededWithMissingness(mname, Array(mt1), rType) { case (mb, seed, Array(a1)) => impl(mb, seed, a1) }
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, EmitTriplet) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType) { case (r, seed, Array(a1)) => impl(r, seed, a1) }
 
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
@@ -108,7 +108,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(False(), false)
   }
 
-  // FIXME Void() doesn't work becuase we can't handle a void type in a tuple
+  // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
     assertEvalsTo(Cast(I32(5), TInt32()), 5)
@@ -135,6 +135,13 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Cast(F64(3.14), TFloat64()), 3.14)
   }
 
+  @Test def testCastRename() {
+    assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32())), Row(1))
+    assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
+      TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32()))),
+      FastIndexedSeq(Row(1)))
+  }
+
   @Test def testNA() {
     assertEvalsTo(NA(TInt32()), null)
   }
@@ -142,6 +149,16 @@ class IRSuite extends SparkSuite {
   @Test def testIsNA() {
     assertEvalsTo(IsNA(NA(TInt32())), true)
     assertEvalsTo(IsNA(I32(5)), false)
+  }
+
+  @Test def testCoalesce() {
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((null, TInt32())), null)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), In(0, TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
+    assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
   }
 
   val i32na = NA(TInt32())
@@ -1456,8 +1473,10 @@ class IRSuite extends SparkSuite {
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
+      CastRename(NA(TStruct("a" -> TInt32())), TStruct("b" -> TInt32())),
       NA(TInt32()), IsNA(i),
       If(b, i, j),
+      Coalesce(FastSeq(In(0, TInt32()), I32(1))),
       Let("v", i, v),
       AggLet("v", i, v, false),
       Ref("x", TInt32()),
@@ -1671,7 +1690,7 @@ class IRSuite extends SparkSuite {
           " # cols",
           read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
-        MatrixAnnotateRowsTable(read, tableRead, "uid_123"),
+        MatrixAnnotateRowsTable(read, tableRead, "uid_123", product=false),
         MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam"))
       )
 
@@ -2014,5 +2033,13 @@ class IRSuite extends SparkSuite {
       case x: TableToValueFunction => assert(RelationalFunctions.lookupTableToValue(Serialization.write(x)) == x)
       case x: BlockMatrixToValueFunction => assert(RelationalFunctions.lookupBlockMatrixToValue(Serialization.write(x)) == x)
     }
+  }
+
+  @Test def testFoldWithSetup() {
+    val v = In(0, TInt32())
+    val cond1 = If(v.ceq(I32(3)),
+      MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3)), TArray(TInt32())),
+      MakeArray(FastIndexedSeq(I32(4), I32(5), I32(6)), TArray(TInt32())))
+    assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
   }
 }

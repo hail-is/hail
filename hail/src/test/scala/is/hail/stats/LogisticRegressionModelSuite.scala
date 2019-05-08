@@ -153,7 +153,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     }
 
     def readResults(file: String) = {
-      hadoopConf.readLines(file) {
+      fs.readLines(file) {
         _.map {
           _.map { _.split("""\t""").map(_.toDouble) }.value
         }.toArray
@@ -181,7 +181,7 @@ class LogisticRegressionModelSuite extends SparkSuite {
     val firthFitFile = tmpDir.createLocalTempFile("firthfit", ".tsv")
     val firthLrtFile = tmpDir.createLocalTempFile("firthlrt", ".tsv")
 
-    hadoopConf.writeTextFile(inputFile) { _.write(jsonString) }
+    fs.writeTextFile(inputFile) { _.write(jsonString) }
 
     val rScript = s"Rscript src/test/resources/regressionLogistic.R " +
       s"${ uriPath(inputFile) } " + s"${ uriPath(waldFile) } ${ uriPath(lrtFile) } " +

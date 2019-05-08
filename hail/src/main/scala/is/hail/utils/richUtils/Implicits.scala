@@ -8,7 +8,6 @@ import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueB
 import is.hail.asm4s.Code
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
-import is.hail.io.fs.HadoopFS
 import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
@@ -37,8 +36,8 @@ trait Implicits {
 
   implicit def toRichEnumeration[T <: Enumeration](e: T): RichEnumeration[T] = new RichEnumeration(e)
 
-  implicit def toRichHadoopFS(hConf: hadoop.conf.Configuration): HadoopFS =
-    new HadoopFS(hConf)
+ implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
+   new RichHadoopConfiguration(hConf)
 
   implicit def toRichInt(i: Int): RichInt = new RichInt(i)
 

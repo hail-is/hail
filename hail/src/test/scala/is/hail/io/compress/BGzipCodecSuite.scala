@@ -62,7 +62,7 @@ class BGzipCodecSuite extends SparkSuite {
     val uncompHPath = new hd.fs.Path(uncompPath)
     val compHPath = new hd.fs.Path(compPath)
 
-    val fs = uncompHPath.getFileSystem(hadoopConf)
+    val fs = uncompHPath.getFileSystem(fs)
 
     val uncompIS = fs.open(uncompHPath)
     val uncomp = IOUtils.toByteArray(uncompIS)
@@ -102,7 +102,7 @@ class BGzipCodecSuite extends SparkSuite {
     val p = forAll(g) { splits =>
 
       val jobConf = new hd.conf.Configuration(hadoopConf)
-      jobConf.set("bgz.test.splits", splits.mkString(","))
+      fs.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
         compPath,
         classOf[TestFileInputFormat],

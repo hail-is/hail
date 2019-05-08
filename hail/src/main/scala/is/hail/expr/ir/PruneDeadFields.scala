@@ -318,8 +318,13 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
-      case TableIntervalJoin(left, right, root) =>
-        val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+      case TableIntervalJoin(left, right, root, product) =>
+        val fieldDep = requestedType.rowType.fieldOption(root).map { field =>
+          if (product)
+            field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+          else
+            field.typ.asInstanceOf[TStruct]
+        }
         fieldDep match {
           case Some(struct) =>
             val rightDep = TableType(
@@ -624,8 +629,13 @@ object PruneDeadFields {
           globalType = unify(child.typ.globalType, requestedType.globalType, irDepEntry.globalType, irDepCol.globalType),
           rvRowType = unify(child.typ.rvRowType, irDepEntry.rvRowType, irDepCol.rvRowType, requestedType.rowType))
         memoizeMatrixIR(child, childDep, memo)
-      case MatrixAnnotateRowsTable(child, table, root) =>
-        val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+      case MatrixAnnotateRowsTable(child, table, root, product) =>
+        val fieldDep = requestedType.rvRowType.fieldOption(root).map { field =>
+          if (product)
+            field.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+          else
+            field.typ.asInstanceOf[TStruct]
+        }
         fieldDep match {
           case Some(struct) =>
             val tk = table.typ.key
@@ -830,12 +840,37 @@ object PruneDeadFields {
     memo.bind(ir, requestedType)
     ir match {
       case IsNA(value) => memoizeValueIR(value, minimal(value.typ), memo)
+      case CastRename(v, _typ) =>
+        def recur(reqType: Type, castType: Type, baseType: Type): Type = {
+          ((reqType, castType, baseType): @unchecked) match {
+            case (TStruct(reqFields, _), cast: TStruct, base: TStruct) =>
+              TStruct(reqFields.map { f =>
+                val idx = cast.fieldIdx(f.name)
+                Field(base.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
+              }, base.required)
+            case (TTuple(req, _), TTuple(cast, _), TTuple(base, r)) =>
+              assert(req.length == cast.length && req.length == base.length)
+              TTuple(req.indices.map { i => recur(req(i), cast(i), base(i)) }, r)
+            case (TArray(req, _), TArray(cast, _), TArray(base, r)) =>
+              TArray(recur(req, cast, base), r)
+            case (TSet(req, _), TSet(cast, _), TSet(base, r)) =>
+              TSet(recur(req, cast, base), r)
+            case (TDict(reqK, reqV, _), TDict(castK, castV, _), TDict(baseK, baseV, r)) =>
+              TDict(recur(reqK, castK, baseK), recur(reqV, castV, baseV), r)
+            case (TInterval(req, _), TInterval(cast, _), TInterval(base, r)) =>
+              TInterval(recur(req, cast, base), r)
+            case _ => reqType
+          }
+        }
+
+        memoizeValueIR(v, recur(requestedType, _typ, v.typ), memo)
       case If(cond, cnsq, alt) =>
         unifyEnvs(
           memoizeValueIR(cond, cond.typ, memo),
           memoizeValueIR(cnsq, requestedType, memo),
           memoizeValueIR(alt, requestedType, memo)
         )
+      case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(_, requestedType, memo)))
       case Let(name, value, body) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.eval.lookupOption(name) match {
@@ -1251,9 +1286,9 @@ object PruneDeadFields {
           TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
         else
           rebuild(left, memo)
-      case TableIntervalJoin(left, right, root) =>
+      case TableIntervalJoin(left, right, root, product) =>
         if (requestedType.rowType.hasField(root))
-          TableIntervalJoin(rebuild(left, memo), rebuild(right, memo), root)
+          TableIntervalJoin(rebuild(left, memo), rebuild(right, memo), root, product)
         else
           rebuild(left, memo)
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
@@ -1368,14 +1403,14 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         })
-      case MatrixAnnotateRowsTable(child, table, root) =>
+      case MatrixAnnotateRowsTable(child, table, root, product) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rvRowType.hasField(root))
           rebuild(child, memo)
         else {
           val child2 = rebuild(child, memo)
           val table2 = rebuild(table, memo)
-          MatrixAnnotateRowsTable(child2, table2, root)
+          MatrixAnnotateRowsTable(child2, table2, root, product)
         }
       case MatrixAnnotateColsTable(child, table, uid) =>
         // if the field is not used, this node can be elided entirely
@@ -1417,11 +1452,39 @@ object PruneDeadFields {
     val requestedType = memo.lookup(ir).asInstanceOf[Type]
     ir match {
       case NA(_) => NA(requestedType)
+      case CastRename(v, _typ) =>
+        val v2 = rebuildIR(v, env, memo)
+
+        def recur(rebuildType: Type, castType: Type, baseType: Type): Type = {
+          ((rebuildType, castType, baseType): @unchecked) match {
+            case (TStruct(rebFields, _), cast: TStruct, base: TStruct) =>
+              TStruct(rebFields.map { f =>
+                val idx = base.fieldIdx(f.name)
+                Field(cast.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
+              }, base.required)
+            case (TTuple(reb, _), TTuple(cast, _), TTuple(base, r)) =>
+              assert(reb.length == cast.length && reb.length == base.length)
+              TTuple(reb.indices.map { i => recur(reb(i), cast(i), base(i)) }, r)
+            case (TArray(reb, _), TArray(cast, _), TArray(base, r)) =>
+              TArray(recur(reb, cast, base), r)
+            case (TSet(reb, _), TSet(cast, _), TSet(base, r)) =>
+              TSet(recur(reb, cast, base), r)
+            case (TDict(rebK, rebV, _), TDict(castK, castV, _), TDict(baseK, baseV, r)) =>
+              TDict(recur(rebK, castK, baseK), recur(rebV, castV, baseV), r)
+            case (TInterval(reb, _), TInterval(cast, _), TInterval(base, r)) =>
+              TInterval(recur(reb, cast, base), r)
+            case _ => rebuildType
+          }
+        }
+
+        CastRename(v2, recur(v2.typ, _typ, v.typ))
       case If(cond, cnsq, alt) =>
         val cond2 = rebuildIR(cond, env, memo)
         val cnsq2 = rebuildIR(cnsq, env, memo)
         val alt2 = rebuildIR(alt, env, memo)
         If.unify(cond2, cnsq2, alt2, unifyType = Some(requestedType))
+      case Coalesce(values) =>
+        Coalesce.unify(values.map(rebuildIR(_, env, memo)), unifyType = Some(requestedType))
       case Let(name, value, body) =>
         val value2 = rebuildIR(value, env, memo)
         Let(

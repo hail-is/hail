@@ -103,6 +103,8 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
   def toFastSeq(implicit tct: ClassTag[T]): Seq[T] = toFastIndexedSeq
 
   def toFastIndexedSeq(implicit tct: ClassTag[T]): IndexedSeq[T] = it.toArray[T]
+
+  def headOption: Option[T] = if (it.isEmpty) None else Some(it.next())
 }
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {

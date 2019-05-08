@@ -12,6 +12,9 @@ spec:
       labels:
         app: spark-master
     spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
         - name: spark-master
           image: "{{ spark_master_image.image }}"
@@ -82,6 +85,9 @@ spec:
       labels:
         app: apiserver
     spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
         - name: apiserver
           image: "{{ apiserver_image.image }}"

@@ -78,10 +78,20 @@ object TypeCheck {
       case Literal(_, _) =>
       case Void() =>
       case Cast(v, typ) => assert(Casts.valid(v.typ, typ))
+      case CastRename(v, typ) =>
+        if (!v.typ.canCastTo(typ))
+          throw new RuntimeException(s"invalid cast:\n  " +
+            s"child type: ${ v.typ.parsableString() }\n  " +
+            s"cast type:  ${ typ.parsableString() }")
       case NA(t) =>
         assert(t != null)
         assert(!t.required)
       case IsNA(v) =>
+      case Coalesce(values) =>
+        val t1 = values.head.typ
+        if (!values.tail.forall(_.typ == t1))
+          throw new RuntimeException(s"Coalesce expects all children to have the same type:" +
+            s"${ values.map(v => s"\n  ${ v.typ.parsableString() }").mkString }")
       case x@If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")

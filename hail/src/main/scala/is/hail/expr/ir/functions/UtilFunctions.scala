@@ -38,12 +38,12 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) { case (mb, l, r, tolerance, absolute) =>
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) { case (er, l, r, tolerance, absolute) =>
       val t = tv("T").subst()
       val u = tv("U").subst()
-      val lb = boxArg(mb, t)(l)
-      val rb = boxArg(mb, u)(r)
-      mb.getType(t).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
+      val lb = boxArg(er, t)(l)
+      val rb = boxArg(er, u)(r)
+      er.mb.getType(t).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
 
     registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
@@ -52,46 +52,46 @@ object UtilFunctions extends RegistryFunctions {
     registerCode("toInt64", TBoolean(), TInt64()) { (_, x: Code[Boolean]) => x.toI.toL }
     registerCode("toFloat32", TBoolean(), TFloat32()) { (_, x: Code[Boolean]) => x.toI.toF }
     registerCode("toFloat64", TBoolean(), TFloat64()) { (_, x: Code[Boolean]) => x.toI.toD }
-    registerCode("toInt32", TString(), TInt32()) { (mb, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+    registerCode("toInt32", TString(), TInt32()) { (r, x: Code[Long]) =>
+      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
       Code.invokeScalaObject[String, Int](thisClass, "parseInt32", s)
     }
-    registerCode("toInt64", TString(), TInt64()) { (mb, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+    registerCode("toInt64", TString(), TInt64()) { (r, x: Code[Long]) =>
+      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
       Code.invokeScalaObject[String, Long](thisClass, "parseInt64", s)
     }
-    registerCode("toFloat32", TString(), TFloat32()) { (mb, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+    registerCode("toFloat32", TString(), TFloat32()) { (r, x: Code[Long]) =>
+      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
       Code.invokeScalaObject[String, Float](thisClass, "parseFloat32", s)
     }
-    registerCode("toFloat64", TString(), TFloat64()) { (mb, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+    registerCode("toFloat64", TString(), TFloat64()) { (r, x: Code[Long]) =>
+      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
       Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
     }
-    registerCode("toBoolean", TString(), TBoolean()) { (mb, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(mb, TString())(x))
+    registerCode("toBoolean", TString(), TBoolean()) { (r, x: Code[Long]) =>
+      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
     registerIR("min", tv("T"), tv("T"), tv("T"))(min)
     registerIR("max", tv("T"), tv("T"), tv("T"))(max)
 
-    registerCode("format", TString(), tv("T", "tuple"), TString()) { (mb, format: Code[Long], args: Code[Long]) =>
+    registerCode("format", TString(), tv("T", "tuple"), TString()) { (r, format: Code[Long], args: Code[Long]) =>
       val typ = tv("T").subst()
-      getRegion(mb).appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
-        asm4s.coerce[String](wrapArg(mb, TString())(format)),
-        Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(mb, typ)(args)))))
+      r.region.appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
+        asm4s.coerce[String](wrapArg(r, TString())(format)),
+        Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, typ)(args)))))
     }
 
-    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (mb, l, r) =>
+    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (er, l, r) =>
       val lm = Code(l.setup, l.m)
       val rm = Code(r.setup, r.m)
 
       val lv = l.value[Boolean]
       val rv = r.value[Boolean]
 
-      val m = mb.newLocal[Boolean]
-      val v = mb.newLocal[Boolean]
+      val m = er.mb.newLocal[Boolean]
+      val v = er.mb.newLocal[Boolean]
       val setup = Code(m := lm, v := !m && lv)
       val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
       val value = v
@@ -99,15 +99,15 @@ object UtilFunctions extends RegistryFunctions {
       EmitTriplet(setup, missing, value)
     }
 
-    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (mb, l, r) =>
+    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (er, l, r) =>
       val lm = Code(l.setup, l.m)
       val rm = Code(r.setup, r.m)
 
       val lv = l.value[Boolean]
       val rv = r.value[Boolean]
 
-      val m = mb.newLocal[Boolean]
-      val v = mb.newLocal[Boolean]
+      val m = er.mb.newLocal[Boolean]
+      val v = er.mb.newLocal[Boolean]
       val setup = Code(m := lm, v := m || lv)
       val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
       val value = v

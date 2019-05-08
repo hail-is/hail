@@ -2,14 +2,12 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.check.Gen._
-import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.utils._
+import is.hail.io.fs.HadoopFS
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
-import scala.math.Numeric.Implicits._
 
 class IndexBTreeSuite extends SparkSuite {
 
@@ -40,11 +38,11 @@ class IndexBTreeSuite extends SparkSuite {
         val maxLong = arrayRandomStarts.takeRight(1)(0)
         val index = tmpDir.createTempFile(prefix = "testBtree", extension = ".idx")
 
-        hadoopConf.delete(index, true)
-        IndexBTree.write(arrayRandomStarts, index, sc.hadoopConfiguration)
-        val btree = new IndexBTree(index, sc.hadoopConfiguration)
+        fs.delete(index, true)
+        IndexBTree.write(arrayRandomStarts, index, fs)
+        val btree = new IndexBTree(index, fs)
 
-        val indexSize = hadoopConf.getFileSize(index)
+        val indexSize = fs.getFileSize(index)
         val padding = 1024 - (arraySize % 1024)
         val numEntries = arraySize + padding + (1 until depth).map {
           math.pow(1024, _).toInt
@@ -81,11 +79,11 @@ class IndexBTreeSuite extends SparkSuite {
     val index = Array(24.toLong)
     val fileSize = 30 //made-up value greater than index
     val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
-    val hConf = sc.hadoopConfiguration
+    val fs = new HadoopFS(sc.hadoopConfiguration)
 
-    hadoopConf.delete(idxFile, recursive = true)
-    IndexBTree.write(index, idxFile, hConf)
-    val btree = new IndexBTree(idxFile, sc.hadoopConfiguration)
+    fs.delete(idxFile, recursive = true)
+    IndexBTree.write(index, idxFile, fs)
+    val btree = new IndexBTree(idxFile, fs)
 
 
     intercept[IllegalArgumentException] {
@@ -104,8 +102,8 @@ class IndexBTreeSuite extends SparkSuite {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val idxFile = tmpDir.createTempFile(prefix = "testBtree_0variant", extension = ".idx")
-      hadoopConf.delete(idxFile, recursive = true)
-      IndexBTree.write(index, idxFile, sc.hadoopConfiguration)
+      fs.delete(idxFile, recursive = true)
+      IndexBTree.write(index, idxFile, fs)
     }
   }
 
@@ -129,8 +127,8 @@ class IndexBTreeSuite extends SparkSuite {
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
       idxFile,
-      hadoopConf)
-    val index = new IndexBTree(idxFile, hadoopConf)
+      fs)
+    val index = new IndexBTree(idxFile, fs)
     assert(index.queryIndex(33).contains(33L))
   }
 
@@ -138,8 +136,8 @@ class IndexBTreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
-    IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(1) == Some(0, 1))
     assert(bt.queryArrayPositionAndFileOffset(2) == Some(1, 2))
     assert(bt.queryArrayPositionAndFileOffset(3) == Some(2, 3))
@@ -157,8 +155,8 @@ class IndexBTreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array.tabulate(1025)(x => sqr(x))
     val branchingFactor = 1024
-    IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022)) == Some(1022, sqr(1022)))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022) + 1) == Some(1023, sqr(1023)))
@@ -184,8 +182,8 @@ class IndexBTreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile(prefix = "btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
     val branchingFactor = 1024
-    IndexBTree.write(v, f, hadoopConf, branchingFactor = branchingFactor)
-    val bt = new IndexBTree(f, hadoopConf, branchingFactor = branchingFactor)
+    IndexBTree.write(v, f, fs, branchingFactor = branchingFactor)
+    val bt = new IndexBTree(f, fs, branchingFactor = branchingFactor)
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022)) == Some(1022, sqr(1022)))
 
     assert(bt.queryArrayPositionAndFileOffset(sqr(1022) + 1) == Some(1023, sqr(1023)))
@@ -219,8 +217,8 @@ class IndexBTreeSuite extends SparkSuite {
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
     try {
-      IndexBTree.write(v, f, hadoopConf, branchingFactor)
-      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
+      IndexBTree.write(v, f, fs, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
       assert(bt.positionOfVariants(Array()) sameElements Array[Long]())
       assert(bt.positionOfVariants(Array(5)) sameElements Array(6L))
 
@@ -246,8 +244,8 @@ class IndexBTreeSuite extends SparkSuite {
     forAll(g) { case (indices, longs, branchingFactor) =>
       val f = tmpDir.createTempFile()
       try {
-        IndexBTree.write(longs, f, hadoopConf, branchingFactor)
-        val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
+        IndexBTree.write(longs, f, fs, branchingFactor)
+        val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
         val actual = bt.positionOfVariants(indices.toArray)
         val expected = indices.sorted.map(longs)
         assert(actual sameElements expected,
@@ -268,8 +266,8 @@ class IndexBTreeSuite extends SparkSuite {
     val f = tmpDir.createTempFile()
     val branchingFactor = 3
     try {
-      IndexBTree.write(longs, f, hadoopConf, branchingFactor)
-      val bt = new OnDiskBTreeIndexToValue(f, hadoopConf, branchingFactor)
+      IndexBTree.write(longs, f, fs, branchingFactor)
+      val bt = new OnDiskBTreeIndexToValue(f, fs, branchingFactor)
       val expected = indices.sorted.map(longs)
       val actual = bt.positionOfVariants(indices.toArray)
       assert(actual sameElements expected,

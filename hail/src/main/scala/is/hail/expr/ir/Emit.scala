@@ -22,10 +22,6 @@ object Emit {
     emit(ir, fb, Env.empty, nSpecialArguments)
   }
 
-  def apply(ir: IR, fb: EmitFunctionBuilder[_]) {
-    apply(ir, fb, 1)
-  }
-
   def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int) {
     val triplet = emit(ir, fb, Env.empty, nSpecialArguments)
     typeToTypeInfo(ir.typ) match {
@@ -42,9 +38,15 @@ object Emit {
     env: E,
     nSpecialArguments: Int): EmitTriplet = {
     TypeCheck(ir)
-    new Emit(fb.apply_method, nSpecialArguments).emit(ir, env)
+    new Emit(fb.apply_method, nSpecialArguments).emit(ir, env, EmitRegion.default(fb.apply_method))
   }
 }
+
+object EmitRegion {
+  def default(mb: EmitMethodBuilder): EmitRegion = EmitRegion(mb, mb.getArg[Region](1))
+}
+
+case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region])
 
 case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def value[T]: Code[T] = coerce[T](v)
@@ -170,6 +172,7 @@ private class Emit(
   val mb: EmitMethodBuilder,
   val nSpecialArguments: Int) {
 
+  val resultRegion: EmitRegion = EmitRegion.default(mb)
   val region: Code[Region] = mb.getArg[Region](1)
   val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
@@ -194,7 +197,7 @@ private class Emit(
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, rvas))
+          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, rvas, EmitRegion.default(mbLike.emit.mb)))
       }
     }
 
@@ -240,23 +243,23 @@ private class Emit(
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private def emit(ir: IR, env: E): EmitTriplet = {
+  private def emit(ir: IR, env: E, region: EmitRegion): EmitTriplet = {
     emit(ir, env,
       // FIXME hasAggreagtors
       if (nSpecialArguments == 2)
         Some(mb.fb.getArg[Array[RegionValueAggregator]](2))
       else
-        None)
+        None, region)
   }
 
-  private def emit(ir: IR, env: E, rvas: Emit.RVAS): EmitTriplet = {
+  private def emit(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion): EmitTriplet = {
 
-    def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas): EmitTriplet =
-      this.emit(ir, env, rvas)
+    def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas, er: EmitRegion = er): EmitTriplet =
+      this.emit(ir, env, rvas, er)
 
-    def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas) = this.emitArrayIterator(ir, env, rvas)
+    def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas) = this.emitArrayIterator(ir, env, rvas, er)
 
-    val region = mb.getArg[Region](1).load()
+    val region = er.region
 
     lazy val aggregator = {
       assert(nSpecialArguments >= 2)
@@ -286,11 +289,45 @@ private class Emit(
         val cast = Casts.get(v.typ, typ)
         EmitTriplet(codeV.setup, codeV.m, cast(codeV.v))
 
+      case CastRename(v, _typ) =>
+        emit(v)
+
       case NA(typ) =>
         EmitTriplet(Code._empty, const(true), defaultValue(typ))
       case IsNA(v) =>
         val codeV = emit(v)
         EmitTriplet(codeV.setup, const(false), codeV.m)
+
+      case Coalesce(values) =>
+        val va = values.toArray.map(emit(_))
+        val mbs = Array.fill(va.length - 1)(mb.newLocal[Boolean])
+
+        val outType = values.head.typ
+        val mout = mb.newLocal[Boolean]()
+        val out = coerce[Any](mb.newLocal()(typeToTypeInfo(outType)))
+
+        val setup = va.indices
+          .init
+          .foldRight(Code(
+            mout := va.last.m,
+            out := defaultValue(outType),
+            mout.mux(Code._empty, out := va.last.v))) { case (i, comb) =>
+            Code(
+              mbs(i) := va(i).m,
+              mbs(i).mux(
+                comb,
+                Code(
+                  mout := false,
+                  out := va(i).v)))
+          }
+
+        EmitTriplet(
+          setup = Code(
+            Code(va.map(_.setup): _*),
+            setup),
+          m = mout,
+          v = out
+        )
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
@@ -438,13 +475,13 @@ private class Emit(
         val atyp = coerce[PIterable](x.pType)
         val eltType = -atyp.elementType.virtualType
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
-        val sorter = new ArraySorter(mb, vab)
+        val sorter = new ArraySorter(er, vab)
 
         val (array, compare, distinct) = (x: @unchecked) match {
           case ArraySort(a, l, r, comp) => (a, Subst(comp, BindingEnv(Env[IR](l -> In(0, eltType), r -> In(1, eltType)))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty, er)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             (a, ApplyComparisonOp(Compare(eltType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
           case ToDict(a) =>
@@ -452,7 +489,7 @@ private class Emit(
             val k0 = GetField(In(0, dType.elementType), "key")
             val k1 = GetField(In(1, dType.elementType), "key")
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
-            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(dType.keyType), k0, k1), Env.empty)
+            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(dType.keyType), k0, k1), Env.empty, er)
             discardNext.emit(Code(s, m || coerce[Boolean](v)))
             (a, ApplyComparisonOp(Compare(dType.keyType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
         }
@@ -515,7 +552,7 @@ private class Emit(
         val aout = emitArrayIterator(collection)
 
         val eab = new StagedArrayBuilder(etyp, mb, 16)
-        val sorter = new ArraySorter(mb, eab)
+        val sorter = new ArraySorter(er, eab)
 
         val (k1, k2) = etyp match {
           case t: PStruct => GetField(In(0, t.virtualType), "key") -> GetField(In(1, t.virtualType), "key")
@@ -639,18 +676,18 @@ private class Emit(
         val marray = processAElts.m.getOrElse(const(false))
 
         EmitTriplet(Code(
+          codeZ.setup,
+          xmaccum := codeZ.m,
+          xvaccum := xmaccum.mux(defaultValue(typ), codeZ.v),
           processAElts.setup,
           marray.mux(
             Code(
               xmaccum := true,
               xvaccum := defaultValue(typ)),
             Code(
-              codeZ.setup,
-              xmaccum := codeZ.m,
-              xvaccum := xmaccum.mux(defaultValue(typ), codeZ.v),
               aBase.calcLength,
-              processAElts.addElements))
-        ), xmaccum, xvaccum)
+              processAElts.addElements))),
+          xmaccum, xvaccum)
 
       case ArrayFor(a, valueName, body) =>
         val tarray = coerce[TStreamable](a.typ)
@@ -976,7 +1013,7 @@ private class Emit(
                       def estimatedSize: Int = vir.size * opSize
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-                        addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env))
+                        addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env, EmitRegion.default(mbLike.mb)))
                     }
                   case None =>
                     val oldField = oldtype.field(f.name)
@@ -987,8 +1024,7 @@ private class Emit(
                         Code(
                           oldtype.isFieldMissing(region, xo, oldField.index).mux(
                             srvb.setMissing(),
-                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))
-                          ),
+                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
                           srvb.advance())
                     }
                 }
@@ -1054,7 +1090,7 @@ private class Emit(
             Code._throw(Code.newInstance[HailException, String](
               cm.m.mux[String](
                 "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v)))))))
+                coerce[String](StringFunctions.wrapArg(er, m.typ)(cm.v)))))))
       case ir@ApplyIR(fn, args) =>
         val mfield = mb.newField[Boolean]
         val vfield = mb.newField()(typeToTypeInfo(ir.typ))
@@ -1097,12 +1133,12 @@ private class Emit(
         assert(unified)
         impl.setSeed(seed)
         val codeArgs = args.map(emit(_))
-        impl.apply(mb, codeArgs: _*)
+        impl.apply(er, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
         x.implementation.argTypes.foreach(_.clear())
         val unified = x.implementation.unify(args.map(_.typ))
         assert(unified)
-        x.implementation.apply(mb, args.map(emit(_)): _*)
+        x.implementation.apply(er, args.map(emit(_)): _*)
       case x@Uniroot(argname, fn, min, max) =>
         val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
         val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, TFloat64())), env, missingError)
@@ -1159,7 +1195,7 @@ private class Emit(
     val newEnv = getEnv(env, f)
 
     val sort = f.newMethod[Region, T, Boolean, T, Boolean, Boolean]
-    val EmitTriplet(setup, m, v) = new Emit(sort, 1).emit(newIR, newEnv)
+    val EmitTriplet(setup, m, v) = new Emit(sort, 1).emit(newIR, newEnv, EmitRegion.default(sort))
 
     sort.emit(Code(setup, m.mux(Code._fatal("Result of sorting function cannot be missing."), v)))
     f.apply_method.emit(Code(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false)))
@@ -1175,7 +1211,7 @@ private class Emit(
     val newEnv = getEnv(env, f)
 
     val foo = new Emit(f.apply_method, 1)
-    val EmitTriplet(setup, m, v) = foo.emit(newIR, newEnv)
+    val EmitTriplet(setup, m, v) = foo.emit(newIR, newEnv, EmitRegion.default(f.apply_method))
 
     val call = Code(
       setup,
@@ -1184,11 +1220,11 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS): ArrayIteratorTriplet = {
+  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, er: EmitRegion): ArrayIteratorTriplet = {
 
-    def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas)
+    def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas, er)
 
-    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas)
+    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas, er)
 
     ir match {
       case x@ArrayRange(startir, stopir, stepir) =>
@@ -1392,10 +1428,10 @@ private class Emit(
           r -> (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(region, rv, ri)))
 
         val compKeyF = mb.fb.newMethod(typeInfo[Region], typeInfo[Int])
-        val et = new Emit(compKeyF, 1).emit(compKey, fenv)
+        val et = new Emit(compKeyF, 1).emit(compKey, fenv, er)
         compKeyF.emit(Code(et.setup, et.m.mux(Code._fatal("ArrayLeftJoinDistinct: comp can't be missing"), et.value[Int])))
         val joinF = mb.fb.newMethod(typeInfo[Region], typeToTypeInfo(relt), typeInfo[Boolean], typeToTypeInfo(join.typ))
-        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, relt)))), fenv)
+        val jet = new Emit(joinF, 1).emit(Subst(join, BindingEnv(Env[IR](r -> In(0, relt)))), fenv, er)
         joinF.emit(Code(jet.setup, jet.m.mux(Code._fatal("ArrayLeftJoinDistinct: joined can't be missing"), jet.v)))
 
         val ae = { cont: Emit.F =>
@@ -1437,14 +1473,14 @@ private class Emit(
           context = Some("ArrayAggScan/StagedExtractAggregators/perElt"))
 
         val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
-        val aggInit = this.emit(init, env, Some(rvas))
+        val aggInit = this.emit(init, env, Some(rvas), er)
 
         val elt = coerce[TStreamable](a.typ).elementType
         val elementTypeInfoA = coerce[Any](typeToTypeInfo(elt))
         val xmv = mb.newField[Boolean]()
         val xvv = mb.newField(name)(elementTypeInfoA)
         val bodyEnv = env.bind(name -> (elementTypeInfoA, xmv.load(), xvv.load()))
-        val accumulate = this.emit(perElt, bodyEnv, Some(rvas))
+        val accumulate = this.emit(perElt, bodyEnv, Some(rvas), er)
 
         val aggr = mb.newField[Long]("AGGR")
         val rvb = mb.newField[RegionValueBuilder]("rvb")

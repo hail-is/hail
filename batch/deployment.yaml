@@ -17,9 +17,16 @@ spec:
         hail.is/sha: "{{ code.sha }}"
     spec:
       serviceAccountName: batch
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
       - name: batch
         image: "{{ batch_image.image }}"
+        resources:
+          requests:
+            memory: "1G"
+            cpu: "1"
         env:
          - name: HAIL_POD_NAMESPACE
            value: "{{ batch_pods_ns.name }}"

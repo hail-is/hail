@@ -17,8 +17,10 @@ object InferType {
       case True() | False() => TBoolean()
       case Void() => TVoid
       case Cast(_, t) => t
+      case CastRename(_, t) => t
       case NA(t) => t
       case IsNA(_) => TBoolean()
+      case Coalesce(values) => values.head.typ
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t

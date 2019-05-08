@@ -104,6 +104,21 @@ object LowerMatrixIR {
           entriesFieldName, entriesFieldName,
           child.typ.colKey)))
 
+    case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+      var t = lower(child).rename(rowMap, globalMap)
+
+      if (colMap.nonEmpty) {
+        val newColsType = TArray(child.typ.colType.rename(colMap))
+        t = t.mapGlobals('global.castRename(t.typ.globalType.insertFields(FastSeq((colsFieldName, newColsType)))))
+      }
+
+      if (entryMap.nonEmpty) {
+        val newEntriesType = child.typ.entryArrayType.copy(elementType = child.typ.entryType.rename(entryMap))
+        t = t.mapRows('row.castRename(t.typ.rowType.insertFields(FastSeq((entriesFieldName, newEntriesType)))))
+      }
+
+      t
+
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       lower(child).keyBy(keys, isSorted)
 
@@ -129,10 +144,10 @@ object LowerMatrixIR {
             'global('newColIdx).map('i ~> 'global(colsField)('i)))
           .dropFields('newColIdx))
 
-    case MatrixAnnotateRowsTable(child, table, root) =>
+    case MatrixAnnotateRowsTable(child, table, root, product) =>
       val kt = table.typ.keyType
-      if (kt.size == 1 && kt.types(0).isInstanceOf[TInterval] && !child.typ.rowKeyStruct.types(0).isInstanceOf[TInterval])
-        TableIntervalJoin(lower(child), lower(table), root)
+      if (kt.size == 1 && kt.types(0) == TInterval(child.typ.rowKeyStruct.types(0)))
+        TableIntervalJoin(lower(child), lower(table), root, product)
       else
         TableLeftJoinRightDistinct(lower(child), lower(table), root)
 

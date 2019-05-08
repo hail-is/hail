@@ -397,8 +397,7 @@ class Job:
         self._state = state
         self._cancelled = cancelled
 
-    # pylint incorrect error: https://github.com/PyCQA/pylint/issues/2047
-    async def refresh_parents_and_maybe_create(self):  # pylint: disable=invalid-name
+    async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(self.id):
             parent_job = Job.from_record(record)
             await self.parent_new_state(parent_job._state, parent_job.id)
@@ -507,11 +506,17 @@ class Job:
                                         duration=self.duration,
                                         pod_name=None)
 
-            pod_log = v1.read_namespaced_pod_log(
-                pod.metadata.name,
-                HAIL_POD_NAMESPACE,
-                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
+            try:
+                pod_log = v1.read_namespaced_pod_log(
+                    pod.metadata.name,
+                    HAIL_POD_NAMESPACE,
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kubernetes.client.rest.ApiException as exc:
+                if e.status == 400:
+                    log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
+                    pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
+                else:
+                    raise
             await self._write_log(task_name, pod_log)
 
         if self._pod_name:
@@ -637,6 +642,15 @@ async def create_job(request, userdata):  # pylint: disable=R0912
 
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
+
+    if not pod_spec.containers[0].resources:
+        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
+    if not pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests = {}
+    if 'cpu' not in pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests['cpu'] = '100m'
+    if 'memory' not in pod_spec.containers[0].resources.requests:
+        pod_spec.containers[0].resources.requests['memory'] = '500M'
 
     job = await Job.create_job(
         pod_spec=pod_spec,
@@ -1002,17 +1016,20 @@ async def pod_changed(pod):
 
 
 async def kube_event_loop():
-    stream = kube.watch.Watch().stream(
-        v1.list_namespaced_pod,
-        HAIL_POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
-    async for event in DeblockedIterator(stream):
-        await pod_changed(event['object'])
+    while True:
+        try:
+            stream = kube.watch.Watch().stream(
+                v1.list_namespaced_pod,
+                HAIL_POD_NAMESPACE,
+                label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
+            async for event in DeblockedIterator(stream):
+                await pod_changed(event['object'])
+        except Exception as exc:  # pylint: disable=W0703
+            log.exception(f'k8s event stream failed due to: {exc}')
+        await asyncio.sleep(5)
 
 
-async def refresh_k8s_state():  # pylint: disable=W0613
-    log.info('started k8s state refresh')
-
+async def refresh_k8s_pods():
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
@@ -1043,6 +1060,45 @@ async def refresh_k8s_state():  # pylint: disable=W0613
             log.info(f'restarting job {job.id}')
             await update_job_with_pod(job, None)
 
+
+async def refresh_k8s_pvc():
+    pvcs = await blocking_to_async(
+        app['blocking_pool'],
+        v1.list_namespaced_persistent_volume_claim,
+        HAIL_POD_NAMESPACE,
+        label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}',
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+    log.info(f'k8s had {len(pvcs.items)} pvcs')
+
+    seen_pvcs = set()
+    for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
+        job = Job.from_record(record)
+        assert job._pvc
+        seen_pvcs.add(job._pvc.metadata.name)
+
+    for pvc in pvcs.items:
+        if pvc.metadata.name not in seen_pvcs:
+            log.info(f'deleting orphaned pvc {pvc.metadata.name}')
+            try:
+                v1.delete_namespaced_persistent_volume_claim(
+                    pvc.metadata.name,
+                    HAIL_POD_NAMESPACE,
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kube.client.rest.ApiException as e:
+                if e.status == 404:
+                    return
+                log.exception(f'Delete pvc {pvc.metadata.name} failed due to exception: {e}')
+            except concurrent.futures.CancelledError:
+                raise
+            except Exception as e:  # pylint: disable=broad-except
+                log.exception(f'Delete pvc {pvc.metadata.name} failed due to exception: {e}')
+
+
+async def refresh_k8s_state():  # pylint: disable=W0613
+    log.info('started k8s state refresh')
+    await refresh_k8s_pods()
+    await refresh_k8s_pvc()
     log.info('k8s state refresh complete')
 
 
@@ -1057,13 +1113,6 @@ async def polling_event_loop():
 
 
 def serve(port=5000):
-    def if_anyone_dies_we_all_die(loop, context):
-        try:
-            loop.default_exception_handler(context)
-        finally:
-            loop.stop()
-    asyncio.get_event_loop().set_exception_handler(
-        if_anyone_dies_we_all_die)
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
         app['blocking_pool'] = pool

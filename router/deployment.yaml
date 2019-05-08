@@ -117,6 +117,9 @@ spec:
         app: router
         hail.is/sha: "{{ code.sha }}"
     spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
       containers:
        - name: router
          image: {{ router_image.image }}

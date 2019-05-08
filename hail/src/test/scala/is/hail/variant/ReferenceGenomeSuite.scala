@@ -9,7 +9,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
-import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}
+import is.hail.utils.{HailException, Interval}
 import is.hail.testUtils._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.spark.SparkException
@@ -95,7 +95,7 @@ class ReferenceGenomeSuite extends SparkSuite {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val rg = ReferenceGenome.GRCh37
-    rg.copy(name = "GRCh37_2").write(hc.hadoopConf, tmpFile)
+    rg.copy(name = "GRCh37_2").write(hc.sFS, tmpFile)
     val gr2 = ReferenceGenome.fromFile(hc, tmpFile)
 
     assert((rg.contigs sameElements gr2.contigs) &&

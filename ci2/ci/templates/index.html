@@ -24,8 +24,9 @@
       <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
       {% endif %}
     </p>
-    {% if wb.prs is not none %}
+
     <h3>PRs</h3>
+    {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
     <table>
       <thead>
@@ -49,22 +50,14 @@
             {{ pr.title }}
           </td>
           <td align="left">
-            {% if pr.build_state == 'merge_failure' %}
-            failed merge
-            {% else %}
-            {% if pr.batch_id is not none %}
+            {% if pr.build_state is not none %}
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
-              {% if pr.build_state is not none %}
-              {% if pr.build_state == 'success' %}
-              successful build
-              {% elif pr.build_state == 'failure' %}
-              failed build
-              {% endif %}
-              {% else %}
-              building
-              {% endif %}
+              {{ pr.build_state }}
             </a>
-            {% endif %}
+            {% elif pr.batch_id is not none %}
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
+              building
+            </a>
             {% endif %}
           </td>
           <td align="left">
@@ -82,8 +75,9 @@
     {% else %}
     No PRs.
     {% endif %}
+    {% else %}
+    Unknown.
     {% endif %}
-    
     {% endfor %}
   </body>
 </html>

@@ -39,6 +39,7 @@ class ValueIRTests(unittest.TestCase):
             ir.NA(hl.tint32),
             ir.IsNA(i),
             ir.If(b, i, j),
+            ir.Coalesce(i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
             ir.ApplyBinaryPrimOp('+', i, j),

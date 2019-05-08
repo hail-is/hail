@@ -22,8 +22,6 @@ trait BgenPartition extends Partition {
 
   def contigRecoding: Map[String, String]
 
-  def fs: FS
-
   def bcFS: Broadcast[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {

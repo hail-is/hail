@@ -111,27 +111,47 @@ class FQBranch:
         return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
+# record the context for a merge failure
+class MergeFailureBatch:
+    def __init__(self, attributes=None):
+        self.attributes = attributes
+
+
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch, author):
+    def __init__(self, number, title, source_repo, source_sha, target_branch, author, high_prio):
         self.number = number
         self.title = title
         self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
+        self.high_prio = high_prio
 
         # pending, changes_requested, approve
         self.review_state = None
 
         self.sha = None
         self.batch = None
+        self.source_sha_failed = None
 
         # merge_failure, success, failure
         self.build_state = None
-        self.most_recent_build_state = None
-        self.most_recent_batch = None
 
+        # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
+        self.target_branch.state_changed = True
+
+    def merge_priority(self):
+        # passed > unknown > failed
+        if self.source_sha_failed is None:
+            source_sha_failed_prio = 1
+        else:
+            source_sha_failed_prio = 0 if self.source_sha_failed else 2
+
+        return (self.high_prio,
+                source_sha_failed_prio,
+                # oldest first
+                - self.number)
 
     def short_str(self):
         return f'pr-{self.number}'
@@ -141,13 +161,22 @@ class PR(Code):
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
 
+        new_high_prio = any(l['name'] == 'prio:high' for l in gh_json['labels'])
+        if new_high_prio != self.high_prio:
+            self.high_prio = new_high_prio
+            self.target_branch.state_changed = True
+
         head = gh_json['head']
         new_source_sha = head['sha']
         if self.source_sha != new_source_sha:
             log.info(f'{self.short_str()} source sha changed: {self.source_sha} => {new_source_sha}')
             self.source_sha = new_source_sha
-            self.clear_build()
+            self.sha = None
+            self.batch = None
+            self.source_sha_failed = None
+            self.build_state = None
             self.target_branch.batch_changed = True
+            self.target_branch.state_changed = True
 
         self.source_repo = Repo.from_gh_json(head['repo'])
 
@@ -159,7 +188,8 @@ class PR(Code):
                   Repo.from_gh_json(head['repo']),
                   head['sha'],
                   target_branch,
-                  gh_json['user']['login'])
+                  gh_json['user']['login'],
+                  any(l['name'] == 'prio:high' for l in gh_json['labels']))
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -179,26 +209,8 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def most_recent_build_has_out_of_date_source(self):
-        assert self.batch is None
-        return self.most_recent_batch is None or self.source_sha != self.most_recent_batch.attributes['source_sha']
-
     def build_is_complete(self):
         return build_state_is_complete(self.build_state)
-
-    def should_update_most_recent_batch(self):
-        return self.batch is not None and (
-            self.most_recent_batch is None or
-            self.build_is_complete() or
-            self.most_recent_batch.attributes['source_sha'] != self.source_sha)
-
-    def clear_build(self):
-        if self.should_update_most_recent_batch():
-            self.most_recent_batch = self.batch
-            self.most_recent_build_state = self.build_state
-        self.sha = None
-        self.batch = None
-        self.build_state = None
 
     async def post_github_status(self, gh):
         assert self.source_sha is not None
@@ -225,7 +237,7 @@ class PR(Code):
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
 
-    async def _refresh_review_state(self, gh):
+    async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
         async for review in gh.getiter(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'):
             login = review['user']['login']
@@ -244,10 +256,14 @@ class PR(Code):
             else:
                 assert state in ('DISMISSED', 'COMMENTED'), state
 
-        self.review_state = review_state
+        if review_state != self.review_state:
+            self.review_state = review_state
+            self.target_branch.state_changed = True
 
     async def _start_build(self, batch_client):
-        assert not self.batch
+        # clear current batch
+        self.batch = None
+        self.build_state = None
 
         try:
             log.info(f'merging for {self.number}')
@@ -267,8 +283,17 @@ mkdir -p {shq(repo_dir)}
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
             # FIXME save merge failure output for UI
+            self.batch = MergeFailureBatch(
+                attributes={
+                    'test': '1',
+                    'target_branch': self.target_branch.branch.short_str(),
+                    'pr': str(self.number),
+                    'source_sha': self.source_sha,
+                    'target_sha': self.target_branch.sha
+                })
             self.build_state = 'merge_failure'
-            self.target_branch.batch_changed = True
+            self.source_sha_failed = True
+            self.target_branch.state_changed = True
             return
 
         batch = None
@@ -287,47 +312,44 @@ mkdir -p {shq(repo_dir)}
             await config.build(batch, self, deploy=False)
             await batch.close()
             self.batch = batch
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log.exception(f'could not build {self.number} due to exception {e}')
         finally:
             if batch and not self.batch:
                 log.info(f'cancelling partial test batch {batch.id}')
                 await batch.cancel()
 
-    async def _heal(self, batch_client, on_deck, seen_batch_ids):
-        if self.build_state is not None:
-            if self.batch:
-                seen_batch_ids.add(self.batch.id)
-            if self.most_recent_batch:
-                seen_batch_ids.add(self.most_recent_batch.id)
+    async def _update_batch(self, batch_client):
+        if self.build_state:
+            assert self.batch
             return
 
         if self.batch is None:
-            batches = await batch_client.list_batches(
-                attributes={
-                    'test': '1',
-                    'source_sha': self.source_sha,
-                    'target_sha': self.target_branch.sha
-                })
+            # find the latest non-cancelled batch for source
+            attrs = {
+                'test': '1',
+                'target_branch': self.target_branch.branch.short_str(),
+                'source_sha': self.source_sha
+            }
+            batches = await batch_client.list_batches(attributes=attrs)
 
-            # FIXME
-            async def batch_was_cancelled(batch):
-                status = await batch.status()
-                update_batch_status(status)
-                return status['state'] == 'cancelled'
+            min_batch = None
+            failed = None
+            for b in batches:
+                s = await b.status()
+                update_batch_status(s)
+                if s['state'] != 'cancelled':
+                    if min_batch is None or b.id > min_batch.id:
+                        min_batch = b
 
-            # we might be returning to a commit that was only partially tested
-            batches = [b for b in batches if not await batch_was_cancelled(b)]
-
-            # should be at most one batch
-            if len(batches) > 0:
-                self.batch = min(batches, key=lambda b: b.id)
-            elif on_deck or self.most_recent_build_has_out_of_date_source():
-                async with repos_lock:
-                    await self._start_build(batch_client)
+                    if s['state'] == 'failure':
+                        failed = True
+                    elif failed is None:
+                        failed = False
+            self.batch = min_batch
+            self.source_sha_failed = failed
 
         if self.batch:
-            seen_batch_ids.add(self.batch.id)
             status = await self.batch.status()
             update_batch_status(status)
             if status['complete']:
@@ -335,22 +357,22 @@ mkdir -p {shq(repo_dir)}
                     self.build_state = 'success'
                 else:
                     self.build_state = 'failure'
-                self.most_recent_build_state = None
-                self.most_recent_batch = None
-                self.target_branch.batch_changed = True
+                    self.source_sha_failed = True
+                self.target_branch.state_changed = True
 
-        if self.most_recent_batch:
-            seen_batch_ids.add(self.most_recent_batch.id)
-            status = await self.most_recent_batch.status()
-            update_batch_status(status)
-            if status['complete']:
-                if status['state'] == 'success':
-                    self.most_recent_build_state = 'success'
-                else:
-                    self.most_recent_build_state = 'failure'
+    async def _heal(self, batch_client, on_deck):
+        if (not self.batch or
+                (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
+
+            if on_deck or self.target_branch.n_running_batches < 4:
+                self.target_branch.n_running_batches += 1
+                async with repos_lock:
+                    await self._start_build(batch_client)
 
     def is_mergeable(self):
-        return self.review_state == 'approved' and self.build_state == 'success'
+        return (self.review_state == 'approved' and
+                self.build_state == 'success' and
+                self.target_branch.sha == self.batch.attributes['target_sha'])
 
     async def merge(self, gh):
         try:
@@ -400,8 +422,10 @@ class WatchedBranch(Code):
         self.updating = False
         self.github_changed = True
         self.batch_changed = True
+        self.state_changed = True
 
         self.statuses = {}
+        self.n_running_batches = None
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
@@ -431,28 +455,34 @@ class WatchedBranch(Code):
         # update everything
         self.github_changed = True
         self.batch_changed = True
+        self.state_changed = True
         await self._update(app)
 
     async def _update(self, app):
         if self.updating:
-            log.info('already updating')
+            log.info(f'already updating {self.short_str()}')
             return
 
         try:
+            log.info(f'start update {self.short_str()}')
             self.updating = True
             gh = app['github_client']
             batch_client = app['batch_client']
 
-            while self.github_changed or self.batch_changed:
+            while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
                     self.github_changed = False
-                    await self._refresh(gh)
-                    await self.merge_if_possible(gh)
+                    await self._update_github(gh)
+                    await self.try_to_merge(gh)
 
                 if self.batch_changed:
                     self.batch_changed = False
+                    await self._update_batch(batch_client)
+                    await self.try_to_merge(gh)
+
+                if self.state_changed:
+                    self.state_changed = False
                     await self._heal(batch_client)
-                    await self.merge_if_possible(gh)
 
             # update statuses
             new_statuses = {}
@@ -463,17 +493,20 @@ class WatchedBranch(Code):
                     new_statuses[pr.source_sha] = pr.build_state
             self.statuses = new_statuses
         finally:
+            log.info(f'update done {self.short_str()}')
             self.updating = False
 
-    async def merge_if_possible(self, gh):
+    async def try_to_merge(self, gh):
         for pr in self.prs.values():
             if pr.is_mergeable():
                 if await pr.merge(gh):
                     self.github_changed = True
+                    self.sha = None
+                    self.state_changed = True
                     return
 
-    async def _refresh(self, gh):
-        log.info(f'refresh {self.short_str()}')
+    async def _update_github(self, gh):
+        log.info(f'update github {self.short_str()}')
 
         repo_ss = self.branch.repo.short_str()
 
@@ -482,12 +515,7 @@ class WatchedBranch(Code):
         if new_sha != self.sha:
             log.info(f'{self.branch.short_str()} sha changed: {self.sha} => {new_sha}')
             self.sha = new_sha
-            self.deploy_batch = None
-            self.deploy_state = None
-            if self.prs:
-                for pr in self.prs.values():
-                    pr.clear_build()
-            self.batch_changed = True
+            self.state_changed = True
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
@@ -501,53 +529,94 @@ class WatchedBranch(Code):
         self.prs = new_prs
 
         for pr in new_prs.values():
-            await pr._refresh_review_state(gh)
+            await pr._update_github_review_state(gh)
+
+    async def _update_deploy(self, batch_client):
+        assert self.deployable
+
+        if self.deploy_state:
+            assert self.deploy_batch
+            return
+
+        if self.deploy_batch is None:
+            running_deploy_batches = await batch_client.list_batches(
+                complete=False,
+                attributes={
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str()
+                })
+            if running_deploy_batches:
+                self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
+            else:
+                deploy_batches = await batch_client.list_batches(
+                    attributes={
+                        'deploy': '1',
+                        'target_branch': self.branch.short_str(),
+                        'sha': self.sha
+                    })
+                if deploy_batches:
+                    self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
+
+        if self.deploy_batch:
+            status = await self.deploy_batch.status()
+            update_batch_status(status)
+            if status['complete']:
+                if status['state'] == 'success':
+                    self.deploy_state = 'success'
+                else:
+                    self.deploy_state = 'failure'
+                self.state_changed = True
+
+    async def _heal_deploy(self, batch_client):
+        assert self.deployable
+
+        if (self.deploy_batch is None or
+                (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
+            async with repos_lock:
+                await self._start_deploy(batch_client)
+
+    async def _update_batch(self, batch_client):
+        log.info(f'update batch {self.short_str()}')
+
+        if self.deployable:
+            await self._update_deploy(batch_client)
+
+        for pr in self.prs.values():
+            await pr._update_batch(batch_client)
 
     async def _heal(self, batch_client):
         log.info(f'heal {self.short_str()}')
 
-        if self.deployable and self.sha and not self.deploy_state:
-            if not self.deploy_batch:
-                # FIXME we should wait on any depending deploy
-                deploy_batches = await batch_client.list_batches(
-                    attributes={
-                        'deploy': '1',
-                        'sha': self.sha
-                    })
-                if deploy_batches:
-                    self.deploy_batch = min(deploy_batches, key=lambda b: b.id)
-                else:
-                    async with repos_lock:
-                        self.deploy_batch = await self._start_deploy(batch_client)
-
-            if self.deploy_batch:
-                status = await self.deploy_batch.status()
-                update_batch_status(status)
-                if status['complete']:
-                    if status['state'] == 'success':
-                        self.deploy_state = 'success'
-                    else:
-                        self.deploy_state = 'failure'
+        if self.deployable:
+            await self._heal_deploy(batch_client)
 
         merge_candidate = None
+        merge_candidate_pri = None
         for pr in self.prs.values():
-            if pr.review_state == 'approved' and pr.build_state is None:
-                merge_candidate = pr
-                break
+            # merge candidate if up-to-date build passing, or
+            # pending but haven't failed
+            if (pr.review_state == 'approved' and
+                    (pr.build_state == 'success' or not pr.source_sha_failed)):
+                pri = pr.merge_priority()
+                if not merge_candidate or pri > merge_candidate_pri:
+                    merge_candidate = pr
+                    merge_candidate_pri = pri
         if merge_candidate:
             log.info(f'merge candidate {merge_candidate.number}')
 
+        self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
+
+        for pr in self.prs.values():
+            await pr._heal(batch_client, pr == merge_candidate)
+
+        # cancel orphan builds
         running_batches = await batch_client.list_batches(
             complete=False,
             attributes={
                 'test': '1',
                 'target_branch': self.branch.short_str()
             })
-
-        seen_batch_ids = set()
-        for pr in self.prs.values():
-            await pr._heal(batch_client, merge_candidate is None or self == merge_candidate, seen_batch_ids)
-
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
@@ -555,7 +624,11 @@ class WatchedBranch(Code):
                 await batch.cancel()
 
     async def _start_deploy(self, batch_client):
-        assert not self.deploy_batch
+        # not deploying
+        assert not self.deploy_batch or self.deploy_state
+
+        self.deploy_batch = None
+        self.deploy_state = None
 
         try:
             repo_dir = self.repo_dir()
@@ -567,6 +640,12 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(self, f.read(), deploy=True)
         except (CalledProcessError, FileNotFoundError) as e:
             log.exception(f'could not open build.yaml due to {e}')
+            self.deploy_batch = MergeFailureBatch(
+                attributes={
+                    'deploy': '1',
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha
+                })
             self.deploy_state = 'checkout_failure'
             return
 
@@ -588,7 +667,7 @@ mkdir -p {shq(repo_dir)}
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
-                deploy_batch.cancel()
+                await deploy_batch.cancel()
 
     def checkout_script(self):
         return f'''

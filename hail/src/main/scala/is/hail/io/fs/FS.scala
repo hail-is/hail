@@ -7,24 +7,20 @@ import java.util
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
 import com.esotericsoftware.kryo.io.{Input, Output}
-import org.apache.hadoop.io.Writable
 
-trait HailInputStream extends DataInputStream {
+abstract class HailInputStream(val is: InputStream) extends DataInputStream(is) {
   @throws(classOf[IOException])
   def seek(pos: Long): Unit
 }
 
 trait FileSystem {
-  type FsPath = FilePath
-  protected val defaultPath: FsPath
-
   def open: HailInputStream
-  def open(path: FsPath = defaultPath): HailInputStream
-  def open(path: String = defaultPath.toString()): HailInputStream
+  def open(path: FilePath): HailInputStream
+  def open(path: String): HailInputStream
 
-  def getPath(path: String): FsPath
+  def getPath(path: String): FilePath
   def makeQualified(path: FilePath): FilePath
-  def deleteOnExit(path: FsPath): Boolean
+  def deleteOnExit(path: FilePath): Boolean
 }
 
 trait FilePath {
@@ -35,7 +31,7 @@ trait FilePath {
   def getFileSystem(conf: Configuration): FileSystem
 }
 
-trait Configuration extends Iterable[Map.Entry[String,String]] with Writable {
+trait Configuration extends Iterable[Map.Entry[String,String]] {
   @throws(classOf[IOException])
   def write(out: DataOutput): Unit
 }
@@ -48,10 +44,6 @@ trait FileStatus {
   def isFile: Boolean
   def getOwner: String
 }
-//
-//trait SerializableFS extends Serializable {
-//
-//}
 
 trait FS extends Serializable {
   def getProperty(name: String): String

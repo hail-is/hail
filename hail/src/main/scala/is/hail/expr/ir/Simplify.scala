@@ -131,6 +131,14 @@ object Simplify {
 
     case x@If(NA(_), _, _) => NA(x.typ)
 
+    case Coalesce(values) if isDefinitelyDefined(values.head) => values.head
+
+    case Coalesce(values) if values.zipWithIndex.exists { case (ir, i) => isDefinitelyDefined(ir) && i != values.size - 1 } =>
+      val idx = values.indexWhere(isDefinitelyDefined)
+      Coalesce(values.take(idx + 1))
+
+    case Coalesce(values) if values.size == 1 => values.head
+
     case x@ArrayMap(NA(_), _, _) => NA(x.typ)
 
     case x@ArrayFlatMap(NA(_), _, _) => NA(x.typ)
@@ -154,6 +162,8 @@ object Simplify {
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
     case Cast(x, t) if x.typ == t => x
+
+    case CastRename(x, t) if x.typ == t => x
 
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
@@ -270,7 +280,7 @@ object Simplify {
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
-    case TableCount(TableIntervalJoin(child, _, _)) => TableCount(child)
+    case TableCount(TableIntervalJoin(child, _, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
     case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)

@@ -282,7 +282,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableIntervalJoinMemo() {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
-    val tj = TableIntervalJoin(tk1, tk2, "foo")
+    val tj = TableIntervalJoin(tk1, tk2, "foo", product=false)
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
       Array(
@@ -437,7 +437,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixAnnotateRowsTableMemo() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
-    val mart = MatrixAnnotateRowsTable(mat, tl, "foo")
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
   }
@@ -528,6 +528,12 @@ class PruneSuite extends SparkSuite {
     checkMemo(If(True(), ref, ref),
       justA,
       Array(TBoolean(), justA, justA))
+  }
+
+  @Test def testCoalesceMemo() {
+    checkMemo(Coalesce(FastSeq(ref, ref)),
+      justA,
+      Array(justA, justA))
   }
 
   @Test def testLetMemo() {
@@ -631,6 +637,16 @@ class PruneSuite extends SparkSuite {
 
   @Test def testGetTupleElementMemo() {
     checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
+  }
+
+  @Test def testCastRenameMemo() {
+    checkMemo(
+      CastRename(
+        Ref("x", TArray(TStruct("x" -> TInt32(), "y" -> TString()))),
+        TArray(TStruct("y" -> TInt32(), "z" -> TString()))),
+      TArray(TStruct("z" -> TString())),
+      Array(TArray(TStruct("y" -> TString())))
+    )
   }
 
   @Test def testAggFilterMemo(): Unit = {
@@ -767,7 +783,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableIntervalJoinRebuild() {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
-    val tj = TableIntervalJoin(tk1, tk2, "foo")
+    val tj = TableIntervalJoin(tk1, tk2, "foo", product=false)
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
       (_: BaseIR, r: BaseIR) => {
@@ -901,7 +917,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
-    val mart = MatrixAnnotateRowsTable(mat, tl, "foo")
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {
         r.isInstanceOf[MatrixLiteral]
@@ -929,6 +945,13 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[If]
         ir.cnsq.typ == subsetTS("b") && ir.altr.typ == subsetTS("b")
+      })
+  }
+
+  @Test def testCoalesceRebuild() {
+    checkRebuild(Coalesce(FastSeq(NA(ts), NA(ts))), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        r.children.forall(_.typ == subsetTS("b"))
       })
   }
 
@@ -1000,6 +1023,18 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[SelectFields]
         ir.fields == Seq("b")
+      })
+  }
+
+  @Test def testCastRenameRebuild() {
+    checkRebuild(
+      CastRename(
+        NA(TArray(TStruct("x" -> TInt32(), "y" -> TString()))),
+        TArray(TStruct("y" -> TInt32(), "z" -> TString()))),
+      TArray(TStruct("z" -> TString())),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[CastRename]
+        ir._typ == TArray(TStruct("z" -> TString()))
       })
   }
 

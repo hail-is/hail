@@ -17,9 +17,12 @@ object Children {
     case Void() => none
     case Cast(v, typ) =>
       Array(v)
+    case CastRename(v, typ) =>
+      Array(v)
     case NA(typ) => none
     case IsNA(value) =>
       Array(value)
+    case Coalesce(values) => values.toFastIndexedSeq
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>
