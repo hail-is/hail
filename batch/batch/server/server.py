@@ -786,14 +786,14 @@ class Batch:
 
     async def delete(self):
         # Batch is deleted from db in polling loop once all jobs are complete
+        await self.close()
         jobs = await self.get_jobs()
 
         await db.batch.update_record(self.id,
-                                     deleted=True,
-                                     is_open=False)
+                                     deleted=True)
         self.is_open = False
         self.deleted = True
-        
+
         for j in jobs:
             await j.delete()
 
