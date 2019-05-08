@@ -2912,6 +2912,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval(v @ v), np_v @ np_v)
         self.ndarray_eq(m @ m, np_m @ np_m)
+        self.ndarray_eq(m @ m.T, np_m @ np_m.T)
         self.ndarray_eq(v @ m, np_v @ np_m)
         self.ndarray_eq(m @ v, np_m @ np_v)
         self.ndarray_eq(cube @ cube, np_cube @ np_cube)
@@ -2921,6 +2922,7 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(m @ cube, np_m @ np_cube)
         self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
         self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
+        self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
 
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
