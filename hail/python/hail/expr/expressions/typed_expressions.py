@@ -3341,8 +3341,10 @@ class NDArrayNumericExpression(NDArrayExpression):
         if len(set(axes)) != len(axes):
             raise ValueError(f'Axes should not be repeated: {axes}')
 
-        return NDArrayNumericExpression(NDArrayAgg(self._ir, axes),
-                                        tndarray(self._type.element_type, self.ndim - len(axes)))
+        return construct_expr(NDArrayAgg(self._ir, axes),
+                              tndarray(self._type.element_type, self.ndim - len(axes)),
+                              self._indices,
+                              self._aggregations)
 
     @typecheck_method(uri=str)
     def save(self, uri):
