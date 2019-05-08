@@ -1035,8 +1035,7 @@ async def refresh_k8s_pvc():
     log.info(f'k8s had {len(pvcs.items)} pvcs')
 
     seen_pvcs = set()
-
-    for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
+    for record in await db.jobs.get_records_where({'pvc_name': 'NOT NULL'}):
         job = Job.from_record(record)
         assert job._pvc_name
         seen_pvcs.add(job._pvc_name)
