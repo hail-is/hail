@@ -608,7 +608,7 @@ echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
                     # FIXME what if the cluster isn't big enough?
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=300s deployment --for=condition=available {name}
+kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
 set -e
@@ -617,10 +617,11 @@ set -e
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
                     port = w.get('port', 80)
+                    timeout = w.get('timeout', 60)
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=240s deployment --for=condition=available {name} && \
-  python3 wait-for.py 60 {self.namespace} Service -p {port} {name}
+kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name} && \
+  python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
 set -e
@@ -629,9 +630,11 @@ set -e
                 else:
                     assert w['kind'] == 'Pod', w['kind']
                     assert w['for'] == 'completed', w['for']
+                    timeout = w.get('timeout', 300)
                     script += f'''
 set +e
-python3 wait-for.py 300 {self.namespace} Pod {name}
+kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
+  && python3 wait-for.py {timeout} {self.namespace} Pod {name}
 EC=$?
 kubectl -n {self.namespace} logs {name}
 set -e

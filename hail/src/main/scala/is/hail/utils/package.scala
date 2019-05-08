@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.zip.Inflater
 
+import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.io.fs.FS
 import org.apache.commons.io.output.TeeOutputStream
@@ -656,6 +657,20 @@ package object utils extends Logging
       "\\" + s
     else
       s
+  }
+
+  def ordMax[T](left: T, right: T, ord: ExtendedOrdering): T = {
+    if (ord.gt(left, right))
+      left
+    else
+      right
+  }
+
+  def ordMin[T](left: T, right: T, ord: ExtendedOrdering): T = {
+    if (ord.lt(left, right))
+      left
+    else
+      right
   }
 
   def toMapFast[T, K, V](

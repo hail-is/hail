@@ -102,7 +102,7 @@ object NDArrayLoopEmitter {
   }
 
   def loadElement(nd: Variable, index: Code, elemType: PType): Code = {
-    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index));"
+    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
   }
 }
 

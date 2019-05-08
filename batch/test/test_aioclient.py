@@ -18,7 +18,8 @@ class Test(unittest.TestCase):
 
     def test_job(self):
         async def f():
-            j = await self.client.create_job('alpine', ['echo', 'test'])
+            b = await self.client.create_batch()
+            j = await b.create_job('alpine', ['echo', 'test'])
             status = await j.wait()
             self.assertTrue('attributes' not in status)
             self.assertEqual(status['state'], 'Complete')

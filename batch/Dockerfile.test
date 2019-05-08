@@ -12,4 +12,4 @@ RUN pip3 install --no-cache-dir /batch && \
 
 COPY batch/test/ /test/
 
-CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]
+CMD ["python3", "-m", "pytest", "-v", "-s", "/test/"]
