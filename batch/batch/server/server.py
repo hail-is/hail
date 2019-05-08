@@ -198,6 +198,15 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
+        pod_spec = self._current_task.pod_spec
+        if pod_spec.volumes is None:
+            pod_spec.volumes = []
+        pod_spec.volumes.extend(volumes)
+        for container in pod_spec.containers:
+            if container.volume_mounts is None:
+                container.volume_mounts = []
+            container.volume_mounts.extend(volume_mounts)
+
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
                 generate_name='job-{}-{}-'.format(self.id, self._current_task.name),
@@ -205,15 +214,7 @@ class Job:
                         'hail.is/batch-instance': INSTANCE_ID,
                         'uuid': uuid.uuid4().hex
                         }),
-            spec=self._current_task.pod_spec)
-
-        if pod_template.volumes is None:
-            pod_template.volumes = []
-        pod_template.volumes.extend(volumes)
-        for container in pod_template.spec.containers:
-            if container.volume_mounts is None:
-                container.volume_mounts = []
-            container.volume_mounts.extend(volume_mounts)
+            spec=pod_spec)
 
         pod = v1.create_namespaced_pod(
             HAIL_POD_NAMESPACE,
