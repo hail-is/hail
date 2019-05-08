@@ -18,5 +18,6 @@ object FoldConstants {
         } catch {
           case _: HailException => None
         }
+      case _ => None
     })
 }
