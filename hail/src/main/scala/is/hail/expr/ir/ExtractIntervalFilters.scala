@@ -16,9 +16,9 @@ case class IntervalContains(comp: IR) extends KeyFilterPredicate
 
 case class LocusContigComparison(comp: ApplyComparisonOp) extends KeyFilterPredicate
 
-case class LocusContigContains(comp: IR) extends KeyFilterPredicate
+case class LocusPositionComparison(comp: ApplyComparisonOp) extends KeyFilterPredicate
 
-case class LocusPositionComparison(comp: IR) extends KeyFilterPredicate
+case class LocusContigContains(comp: IR) extends KeyFilterPredicate
 
 case class Disjunction(xs: Array[KeyFilterPredicate]) extends KeyFilterPredicate
 
@@ -27,28 +27,11 @@ case class Conjunction(xs: Array[KeyFilterPredicate]) extends KeyFilterPredicate
 case object Unknown extends KeyFilterPredicate
 
 object ExtractIntervalFilters {
-
-  def getIntervalIntersection(intervals: Iterable[Interval], t: Type): Option[Interval] = {
-    if (intervals.isEmpty)
-      return Some(Interval(minimumValueByType(t), maximumValueByType(t)))
-    val tOrd = t.ordering
-    val iOrd = tOrd.intervalEndpointOrdering
-    val ord = iOrd.toOrdering
-    val minValue = intervals.map(_.left).min(ord)
-    val maxValue = intervals.map(_.right).max(ord)
-    tOrd.compare(minValue.point, maxValue.point) match {
-      case x if x < 0 => Some(Interval(minValue, maxValue))
-      case x if x == 0 => if (minValue.sign < 0 && maxValue.sign > 0) Some(Interval(minValue, maxValue)) else None
-      case _ => None
+  def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
+    intervals.map { interval =>
+      Interval(IntervalEndpoint(Row(interval.left.point), interval.left.sign),
+        IntervalEndpoint(Row(interval.right.point), interval.right.sign))
     }
-  }
-
-  def intersectIntervalLists(i1: Array[Interval], i2: Array[Interval], t: Type): Array[Interval] = {
-    // FIXME: this is quadratic
-    log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
-    val r = i1.flatMap(i => i2.foldLeft(Option(i)) { case (comb, ii) => comb.flatMap(c => getIntervalIntersection(Array(c, ii), t)) })
-    log.info(s"intersect generated ${ r.length } intersected intervals")
-    r
   }
 
   def simplifyPredicates(p: KeyFilterPredicate): KeyFilterPredicate = {
@@ -103,7 +86,7 @@ object ExtractIntervalFilters {
   }
 
   def endpoint(value: Any, inclusivity: Int): IntervalEndpoint = {
-    IntervalEndpoint(Row(value), inclusivity)
+    IntervalEndpoint(value, inclusivity)
   }
 
   def getIntervalFromContig(c: String, rg: ReferenceGenome): Interval = {
@@ -189,7 +172,23 @@ object ExtractIntervalFilters {
         }
         Set[IR](comp) -> Array(interval)
 
-      case LocusPositionComparison(_) => Set[IR]() -> Array() // don't generate intervals per contig due to number of GRCh38 contigs?
+      case LocusPositionComparison(comp) =>
+        val (v, isFlipped) = if (IsConstant(comp.l)) (comp.l, false) else (comp.r, true)
+        val pos = constValue(v).asInstanceOf[Int]
+        val rg = kType.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+        val intOrd = TInt32().ordering.intervalEndpointOrdering
+        val intervals = rg.contigs.indices
+          .flatMap { i =>
+            Interval.intersection(Array(openInterval(pos, TInt32(), comp.op, isFlipped)),
+              Array(Interval(endpoint(0, -1), endpoint(rg.contigLength(i), -1))),
+              intOrd)
+              .map { interval =>
+                Interval(endpoint(Locus(rg.contigs(i), interval.left.point.asInstanceOf[Int]), interval.left.sign),
+                  endpoint(Locus(rg.contigs(i), interval.right.point.asInstanceOf[Int]), interval.right.sign))
+              }
+          }.toArray
+
+        Set[IR](comp) -> intervals
 
 
       case LocusContigContains(comp) =>
@@ -209,74 +208,16 @@ object ExtractIntervalFilters {
         val (nodes, intervals) = xs.map(processPredicates(_, kType)).unzip
         nodes.fold(Set())(_.union(_)) -> intervals.flatten
 
-      case x@Conjunction(xs) =>
-        // search for contig and position combination filters
-        val (extractedLocusFilters, other) = xs.partition {
-          case _: LocusPositionComparison | _: LocusContigComparison => true
-          case _ => false
+      case Conjunction(xs) =>
+        xs.map(processPredicates(_, kType)).reduce[(Set[IR], Array[Interval])] {
+          case ((s1, i1), (s2, i2)) =>
+            log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
+            val intersection = Interval.intersection(i1, i2, kType.ordering.intervalEndpointOrdering)
+            log.info(s"intersect generated ${ intersection.length } intersected intervals")
+            (s1.union(s2), intersection)
         }
 
-        val (contigComparisons, positionComparisons) = extractedLocusFilters.partition(_.isInstanceOf[LocusContigComparison])
-
-        val base: (Set[IR], Array[Interval]) = if (contigComparisons.isEmpty && positionComparisons.nonEmpty)
-          noData // could generate intervals per contig, but potentially bad with GRCh38?
-        else {
-          val cc = contigComparisons.map {
-            case LocusContigComparison(ApplyComparisonOp(_, l, r)) =>
-              if (IsConstant(l))
-                constValue(l)
-              else
-                constValue(r)
-          }.toSet
-
-          if (cc.size > 2)
-          // rewrite all pieces of the conjunction, since we have proven it will return no rows
-            transitiveComparisonNodes(x) -> Array()
-          else if (cc.size == 1) {
-            val pc = positionComparisons.map {
-              case LocusPositionComparison(ApplyComparisonOp(op, l, r)) =>
-                if (IsConstant(l))
-                  (op, constValue(l), true)
-                else
-                  (op, constValue(r), false)
-            }.map { case (op, v, isFlipped) => openInterval(v, TInt32(), op, isFlipped) }
-            getIntervalIntersection(pc, TTuple(TInt32())) match {
-              case Some(i) =>
-                val start = i.start.asInstanceOf[Row].getAs[Int](0)
-                val end = i.end.asInstanceOf[Row].getAs[Int](0)
-                val ccHead = contigComparisons.head.asInstanceOf[LocusContigComparison].comp
-                val Apply(_, Seq(k)) = if (IsConstant(ccHead.l)) ccHead.r else ccHead.l
-                val rg = k.typ.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
-                val contig = cc.head.asInstanceOf[String]
-                val contigLength = rg.contigLength(contig)
-
-                val intervals = if (end < 1 || start > contigLength)
-                  Array[Interval]()
-                else {
-                  val start2 = if (start < 1)
-                    endpoint(Locus(contig, 1), -1)
-                  else
-                    endpoint(Locus(contig, start), i.left.sign)
-                  val end2 = if (end > contigLength)
-                    endpoint(Locus(contig, contigLength), 1)
-                  else
-                    endpoint(Locus(contig, end), i.right.sign)
-                  Array(Interval(start2, end2))
-                }
-                (contigComparisons.map(_.asInstanceOf[LocusContigComparison].comp).toSet[IR]
-                  .union(positionComparisons.map(_.asInstanceOf[LocusPositionComparison].comp).toSet[IR]),
-                  intervals)
-              case None => transitiveComparisonNodes(x) -> Array()
-            }
-          } else {
-            noData
-          }
-        }
-        other.foldLeft(base) { case ((s, i), f) =>
-          val (s2, i2) = processPredicates(f, kType)
-          (s2.union(s), intersectIntervalLists(i, i2, kType))
-        }
-      case _ => noData
+      case Unknown => noData
     }
   }
 
@@ -338,7 +279,7 @@ object ExtractIntervalFilters {
             TableFilter(
               TableToTableApply(
                 child,
-                TableFilterIntervals(child.typ.keyType, intervals, keep = true)),
+                TableFilterIntervals(child.typ.keyType, wrapInRow(intervals), keep = true)),
               newCond)
           }
       case MatrixFilterRows(child, pred) =>
@@ -350,7 +291,7 @@ object ExtractIntervalFilters {
             MatrixFilterRows(
               MatrixToMatrixApply(
                 child,
-                MatrixFilterIntervals(child.typ.rowKeyStruct, intervals, keep = true)),
+                MatrixFilterIntervals(child.typ.rowKeyStruct, wrapInRow(intervals), keep = true)),
               newCond)
           }
 
