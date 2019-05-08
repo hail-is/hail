@@ -158,7 +158,7 @@ class OrderingSuite extends SparkSuite {
       val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       assertEvalsTo(
         ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
-        "x", GetField(Ref("x", tdict.elementType), "key")),
+        "x", GetField(Ref("x", -tdict.elementType), "key")),
         FastIndexedSeq(array -> TArray(telt)),
         expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering))
       true
