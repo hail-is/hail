@@ -28,7 +28,7 @@ case class MatrixValue(
   require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${ typ.rowType }\nrvd rowType: ${ rvd.rowType }")
   require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${ typ.rowKey }\nrvd key: ${ rvd.typ.key }")
 
-  def sparkContext: SparkContext = rvd.sparkContext
+  def hc: HailContext = HailContext.get
 
   def nPartitions: Int = rvd.getNumPartitions
 
@@ -215,7 +215,7 @@ case class MatrixValue(
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = sparkContext.broadcast(partStarts)
+    val partStartsBc = hc.sc.broadcast(partStarts)
 
     val rvRowType = typ.rvRowType.physicalType
     val entryArrayType = typ.entryArrayType.physicalType
@@ -253,7 +253,7 @@ case class MatrixValue(
       }
     }
 
-    new RowMatrix(HailContext.get, rows, nCols, Some(partStarts.last), Some(partCounts))
+    new RowMatrix(hc, rows, nCols, Some(partStarts.last), Some(partCounts))
   }
 
   def typeCheck(): Unit = {

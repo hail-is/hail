@@ -57,7 +57,7 @@ case class PoissonRegression(
         else
           "Newton iteration failed to converge"))
 
-    val sc = mv.sparkContext
+    val sc = mv.hc.sc
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
     val yBc = sc.broadcast(y)

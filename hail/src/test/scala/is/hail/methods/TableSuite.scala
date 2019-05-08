@@ -54,8 +54,8 @@ class TableSuite extends SparkSuite {
     val kt = hc.importTable(inputFile).keyBy(Array("Sample", "Status"))
     kt.export(outputFile)
 
-    val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
-    val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
+    val importedData = fs.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
+    val exportedData = fs.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
 
     intercept[AssertionError] {
       hc.importTable(inputFile).keyBy(Array("Sample", "Status", "BadKeyName"))

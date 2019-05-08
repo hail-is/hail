@@ -8,6 +8,7 @@ import org.apache.spark.TaskContext
 import is.hail.utils._
 import is.hail.sparkextras._
 import org.apache.spark.rdd.RDD
+import is.hail.io.fs.HadoopFS
 
 import scala.reflect.ClassTag
 
@@ -23,9 +24,9 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
     stageLocally: Boolean,
     write: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
     val sc = crdd.sparkContext
-    val hadoopConf = sc.hadoopConfiguration
+    val fs = new HadoopFS(sc.hadoopConfiguration)
 
-    hadoopConf.mkDir(path + "/parts")
+    fs.mkDir(path + "/parts")
 
     val bcFS = HailContext.bcFS
 

@@ -312,7 +312,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        mv.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        mv.hc.sFS.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)

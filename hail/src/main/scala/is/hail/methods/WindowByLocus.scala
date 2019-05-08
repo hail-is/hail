@@ -46,7 +46,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
     val entryType = entryArrayType.elementType.asInstanceOf[PStruct]
     val rg = localRVRowType.types(locusIndex).asInstanceOf[PLocus].rg
 
-    val rangeBoundsBc = mv.sparkContext.broadcast(oldBounds)
+    val rangeBoundsBc = mv.hc.sc.broadcast(oldBounds)
 
     val nCols = mv.nCols
 

@@ -62,7 +62,7 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val sc = mv.sparkContext
+    val sc = mv.hc.sc
     val completeColIdxBc = sc.broadcast(completeColIdx)
     val yBc = sc.broadcast(y)
     val QtBc = sc.broadcast(Qt)
@@ -222,7 +222,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val sc = mv.sparkContext
+    val sc = mv.hc.sc
     val bc = sc.broadcast(bcData)
     val nGroups = bcData.length
 

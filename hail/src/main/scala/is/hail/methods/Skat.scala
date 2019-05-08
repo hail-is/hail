@@ -334,7 +334,7 @@ case class Skat(
     val weightIndex = weightStructField.index
     assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
 
-    val sc = mv.sparkContext
+    val sc = mv.hc.sc
 
     val entryArrayType = mv.typ.entryArrayType.physicalType
     val entryType = mv.typ.entryType.physicalType

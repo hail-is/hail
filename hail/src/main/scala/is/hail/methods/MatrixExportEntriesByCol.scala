@@ -18,9 +18,9 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
   def execute(mv: MatrixValue): Any = {
 
-    val hConf = mv.sparkContext.hadoopConfiguration
+    val fs = mv.hc.sFS
 
-    hConf.delete(path, recursive = true) // overwrite by default
+    fs.delete(path, recursive = true) // overwrite by default
 
     val allColValuesJSON = mv.colValues.value.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
@@ -46,7 +46,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
-      val colValuesJSON = mv.sparkContext.broadcast(
+      val colValuesJSON = mv.hc.sc.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray)
@@ -115,7 +115,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       }.collect()
 
       val ns = endIdx - startIdx
-      val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
+      val newFiles = mv.hc.sc.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
           val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))
@@ -132,11 +132,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     def finalPath(idx: Int): String = path + "/" + partFile(padding, idx) + extension
 
     resultFiles.zipWithIndex.foreach { case (filePath, i) =>
-      hConf.copy(filePath, finalPath(i), deleteSource = true)
+      fs.copy(filePath, finalPath(i), deleteSource = true)
     }
-    hConf.delete(path + "/tmp", recursive = true)
+    fs.delete(path + "/tmp", recursive = true)
 
-    hConf.writeTable(path + "/index.tsv", allColValuesJSON.zipWithIndex.map { case (json, i) =>
+    fs.writeTable(path + "/index.tsv", allColValuesJSON.zipWithIndex.map { case (json, i) =>
       s"${ finalPath(i) }\t$json"
     })
 
