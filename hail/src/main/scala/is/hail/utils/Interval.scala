@@ -226,4 +226,52 @@ object Interval {
       }
     }
   }
+
+  def sortAndReduce(xs: Array[Interval], o: ExtendedOrdering): Array[Interval] = {
+
+    val iOrd = o.intervalEndpointOrdering
+    val sorted = xs.sortBy(_.left: Any)(iOrd.toOrdering)
+
+    val ab = new ArrayBuilder[Interval]()
+    var i = 0
+    while (i < sorted.length) {
+      var interval = sorted(i)
+      i += 1
+      while (i < sorted.length && iOrd.gteq(interval.right, sorted(i).left)) {
+        interval = Interval(interval.left, ordMax(interval.right, sorted(i).right, iOrd))
+        i += 1
+      }
+
+      ab += interval
+    }
+    ab.result()
+  }
+
+  // assumes that both `x1` and `x2` are sorted and fully reduced.
+  def intersection(x1: Array[Interval], x2: Array[Interval], o: ExtendedOrdering): Array[Interval] = {
+    val iOrd = o.intervalEndpointOrdering
+
+    var i = 0
+    var j = 0
+    val ab = new ArrayBuilder[Interval]()
+
+    while (!(i >= x1.length || j >= x2.length)) {
+      val l = x1(i)
+      val r = x2(j)
+
+      if (iOrd.gteq(l.left, r.right))
+        j += 1
+      else if (iOrd.gteq(r.left, l.right))
+        i += 1
+      else {
+        val overlap = Interval(ordMax(l.left, r.left, iOrd), ordMin(l.right, r.right, iOrd))
+        ab += overlap
+        if (iOrd.lt(l.right, r.right))
+          i += 1
+        else
+          j += 1
+      }
+    }
+    ab.result()
+  }
 }
