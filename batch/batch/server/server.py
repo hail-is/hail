@@ -699,7 +699,8 @@ class Batch:
 
     @staticmethod
     def from_record(record):
-        if record is not None and not record['deleted']:
+        if record is not None:
+            assert not record['deleted']
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
@@ -785,13 +786,14 @@ class Batch:
 
     async def delete(self):
         # Batch is deleted from db in polling loop once all jobs are complete
-        self.is_open = False
-        self.deleted = True
         jobs = await self.get_jobs()
 
         await db.batch.update_record(self.id,
                                      deleted=True,
                                      is_open=False)
+        self.is_open = False
+        self.deleted = True
+        
         for j in jobs:
             await j.delete()
 
@@ -851,11 +853,8 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = []
-    for record in await db.batch.get_records_where({'user': user}):
-        batch = Batch.from_record(record)
-        if batch is not None:
-            batches.append(batch)
+    batches = [Batch.from_record(record)
+               for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
 
     for name, value in params.items():
         if name == 'complete':
