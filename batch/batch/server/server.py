@@ -123,7 +123,7 @@ class JobTask:  # pylint: disable=R0903
             spec = kube.client.V1PodSpec(
                 containers=[container],
                 restart_policy='Never')
-            return JobTask(task_name, spec)
+            return JobTask.from_spec(task_name, spec)
         return None
 
     @staticmethod
