@@ -901,6 +901,42 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
+      case ir.NDArrayReshape(child, shapeIRs) =>
+        // Force copy of new array that is row major
+        val childRowMajor = emitDeforestedNDArray(resultRegion, child, env)
+        val nd = fb.variable("nd", "NDArray", childRowMajor.emit(child.pType.asInstanceOf[PNDArray].elementType))
+
+        val shapet = shapeIRs.map(emit(_))
+        val shapeVars = shapet.zipWithIndex.map { case (lent, dim) => fb.variable(s"dim_${dim}_len", "long", lent.v) }
+        val shape = fb.variable("shape", "std::vector<long>")
+        val buildShape = shapet.zip(shapeVars).map { case (lent, lenVar) =>
+          s"""
+             | if (${ lent.m }) {
+             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
+             | }
+             | $shape.push_back($lenVar);
+           """.stripMargin
+        }
+
+        val totalExpectedElements = shapeVars.foldRight("1") { (dimLen, nElements) => s"($dimLen * $nElements)" }
+        val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
+        present(
+          s"""
+             |({
+             | ${ nd.define }
+             | ${ Code.sequence(shapeVars.map(_.define)) }
+             | ${ shape.define }
+             | ${ Code.sequence(buildShape) }
+             | ${ strides.define }
+             |
+             | if ($totalExpectedElements != n_elements($nd.shape)) {
+             |  ${ fb.nativeError("Initial shape and new shape have differing number of elements") }
+             | }
+             |
+             | make_ndarray(0, 0, $nd.elem_size, $shape, $strides, $nd.data);
+             |})
+           """.stripMargin)
+
       case ir.NDArrayReindex(child, indexExpr) =>
         val ndt = emit(child)
         val nd = fb.variable("nd", "NDArray", ndt.v)
@@ -1009,7 +1045,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ nd.define }
              | ${ Code.sequence(idxVars.map(_.define)) }
-             | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) }
+             | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) };
              |})
            """.stripMargin)
 

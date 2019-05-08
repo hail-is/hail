@@ -219,6 +219,9 @@ final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
 final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
+final case class NDArrayReshape(nd: IR, shape: IndexedSeq[IR]) extends IR {
+  require(shape.nonEmpty)
+}
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 
