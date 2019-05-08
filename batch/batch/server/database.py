@@ -33,7 +33,7 @@ class JobsTable(Table):
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement({'id': ids, 'user': user})
                 sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS 
-                (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted)"""
+                (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
                 await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
         return result
@@ -138,11 +138,16 @@ class BatchTable(Table):
     async def has_record(self, id):
         return await super().has_record({'id': id})
 
-    async def purge_finished_deleted_records(self):
+    async def delete_record(self, id):
+        return await super().delete_record({'id': id})
+
+    async def get_finished_deleted_records(self):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                sql = f"DELETE FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
+                sql = f"SELECT * FROM `{self.name}` WHERE `deleted` = TRUE AND `n_completed` = `n_jobs`"
                 await cursor.execute(sql)
+                result = await cursor.fetchall()
+        return result
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})

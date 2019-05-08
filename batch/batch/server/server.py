@@ -259,6 +259,11 @@ class Job:
         uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
         await db.jobs.update_log_uri(self.id, task_name, uri)
 
+    async def _delete_logs(self):
+        for idx, jt in enumerate(self._tasks):
+            if idx < self._task_idx:
+                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
+
     @staticmethod
     def from_record(record):
         if record is not None:
@@ -453,19 +458,6 @@ class Job:
             assert self._state == 'Ready', self._state
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
-
-    async def delete(self):
-        # Job deleted from database when batch is deleted with delete cascade
-        # Can only be called via Batch.delete()
-
-        await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-        await self._delete_k8s_resources()
-
-        for idx, jt in enumerate(self._tasks):
-            if idx < self._task_idx:
-                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
-
-        log.info(f'job {self.id} deleted')
 
     def is_complete(self):
         return self._state in ('Complete', 'Cancelled')
@@ -784,18 +776,23 @@ class Batch:
         for j in jobs:
             await j.cancel()
 
-    async def delete(self):
-        # Batch is deleted from db in polling loop once all jobs are complete
+    async def mark_deleted(self):
         await self.close()
-        jobs = await self.get_jobs()
-
         await db.batch.update_record(self.id,
                                      deleted=True)
         self.is_open = False
         self.deleted = True
 
-        for j in jobs:
-            await j.delete()
+        for j in await self.get_jobs():
+            await j.cancel()
+        log.info(f'batch {self.id} marked for deletion')
+
+    async def delete(self):
+        for j in await self.get_jobs():
+            # Job deleted from database when batch is deleted with delete cascade
+            await j._delete_logs()
+        await db.batch.delete_record(self.id)
+        log.info(f'batch {self.id} deleted')
 
     async def mark_job_complete(self, job):
         if self.callback:
@@ -936,7 +933,7 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.delete()
+    await batch.mark_deleted()
     return jsonify({})
 
 
@@ -1095,9 +1092,10 @@ async def db_cleanup_event_loop():
     await asyncio.sleep(60)
     while True:
         try:
-            await db.batch.purge_finished_deleted_records()
+            batches = [Batch.from_record(record) for record in await db.batch.get_finished_deleted_records()]
+            await asyncio.gather(*[batch.delete() for batch in batches])
         except Exception as exc:  # pylint: disable=W0703
-            log.exception(f'Could not purge finished deleted records due to exception: {exc}')
+            log.exception(f'Could not delete batches due to exception: {exc}')
         await asyncio.sleep(60)
 
 
