@@ -198,7 +198,7 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
-        pod_spec = self._current_task.pod_spec
+        pod_spec = self._current_task.pod_spec.copy()
         if pod_spec.volumes is None:
             pod_spec.volumes = []
         pod_spec.volumes.extend(volumes)
