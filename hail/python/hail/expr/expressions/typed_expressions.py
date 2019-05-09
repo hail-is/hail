@@ -423,11 +423,13 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
+        elif isinstance(item, str):
+            return CollectionExpression.__getitem__(self, item)
+        item = to_expr(item)
+        if not item.dtype == tint32:
+            raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
+                            "found expression of type '{}'".format(item._type))
         else:
-            item = to_expr(item)
-            if not item.dtype == tint32:
-                raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
-                                "found expression of type '{}'".format(item._type))
             return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
@@ -627,6 +629,71 @@ class ArrayExpression(CollectionExpression):
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, tarray(body.dtype), indices, aggregations)
+
+
+class ArrayStructExpression(ArrayExpression):
+    """Expression of type :class:`.tarray` that eventually contains structs.
+
+    >>> people = hl.literal([hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)])
+
+    Nested collections that contain structs are also
+    :class:`.ArrayStructExpressions`s
+
+    >>> people = hl.literal([[hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)],
+    ...                      [hl.struct(name='Charlie', age=34)]])
+
+    See Also
+    --------
+    :class:`.ArrayExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return ArrayStructExpression.__getitem__(self, item)
+
+    def __getitem__(self, item):
+        """If a string, get a field from each struct in this array. If an integer, get
+        the item at that index.
+
+        Examples
+        --------
+
+        >>> x = hl.array([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
+        >>> hl.eval(x.a)
+        ['foo', 'bar']
+
+        >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
+        ...                            hl.struct(inner=2)]),
+        ...               hl.struct(b=[hl.struct(inner=3)])])
+        >>> hl.eval(a.b)
+        [[Struct(inner=1), Struct(inner=2)], [Struct(inner=3)]]
+        >>> hl.eval(a.b.inner)
+        [[1, 2], [3]]
+        >>> hl.eval(hl.flatten(a.b).inner)
+        [1, 2, 3]
+        >>> hl.eval(hl.flatten(a.b.inner))
+        [1, 2, 3]
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            An array formed by getting the given field for each struct in
+            this array
+
+        See Also
+        --------
+        :meth:`.ArrayExpression.__getitem__`
+        """
+
+        if isinstance(item, str):
+            return self.map(lambda x: x[item])
+        return super().__getitem__(item)
 
 
 class ArrayNumericExpression(ArrayExpression):
@@ -1047,6 +1114,61 @@ class SetExpression(CollectionExpression):
                             "    set type:    '{}'\n"
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
+
+
+class SetStructExpression(SetExpression):
+    """Expression of type :class:`.tset` that eventually contains structs.
+
+    >>> people = hl.literal({hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)})
+
+    Nested collections that contain structs are also
+    :class:`.SetStructExpressions`s
+
+    >>> people = hl.set([hl.set([hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)]),
+    ...                  hl.set([hl.struct(name='Charlie', age=34)])])
+
+    See Also
+    --------
+    :class:`.SetExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return SetStructExpression.__getitem__(self, item)
+
+    @typecheck_method(item=oneof(str))
+    def __getitem__(self, item):
+        """Get a field from each struct in this set.
+
+        Examples
+        --------
+
+        >>> x = hl.set({hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)})
+        >>> hl.eval(x.a)
+        {'foo', 'bar'}
+
+        >>> a = hl.set({hl.struct(b={hl.struct(inner=1),
+        ...                          hl.struct(inner=2)}),
+        ...             hl.struct(b={hl.struct(inner=3)})})
+        >>> hl.eval(hl.flatten(a.b).inner)
+        {1, 2, 3}
+        >>> hl.eval(hl.flatten(a.b.inner))
+        {1, 2, 3}
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            A set formed by getting the given field for each struct in
+            this set
+        """
+
+        return self.map(lambda x: x[item])
 
 
 class DictExpression(Expression):
@@ -3450,9 +3572,27 @@ def construct_expr(ir: IR,
                    aggregations: LinkedList = LinkedList(Aggregation)):
     if type is None:
         return Expression(ir, None, indices, aggregations)
-    if isinstance(type, tarray) and is_numeric(type.element_type):
+    elif isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
-    if isinstance(type, tndarray) and is_numeric(type.element_type):
+    elif isinstance(type, tarray):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return ArrayStructExpression(ir, type, indices, aggregations)
+        else:
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+    elif isinstance(type, tset):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return SetStructExpression(ir, type, indices, aggregations)
+        else:
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+    elif isinstance(type, tndarray) and is_numeric(type.element_type):
         return NDArrayNumericExpression(ir, type, indices, aggregations)
     elif type in scalars:
         return scalars[type](ir, type, indices, aggregations)
