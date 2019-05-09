@@ -662,7 +662,7 @@ class Expression(object):
                                                     f'  Should be: {to_return[name].dtype}'
         return to_return
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=nullable(anyfunc))
     def show(self, n=10, width=90, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
@@ -706,7 +706,8 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        self._to_relational_preserving_rows_and_cols()._show(n, width, truncate, types, handler)
+        self._to_relational_preserving_rows_and_cols()._show(
+            n_rows=n, width=width, truncate=truncate, types=types, handler=handler)
 
     def _to_relational_preserving_rows_and_cols(self):
         name = '<expr>'
