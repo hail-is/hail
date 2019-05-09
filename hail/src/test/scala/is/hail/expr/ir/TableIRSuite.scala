@@ -28,6 +28,7 @@ class TableIRSuite extends SparkSuite {
   implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
 
   @Test def testRangeCount() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.LoweredJVMCompile)
     val node1 = TableCount(TableRange(10, 2))
     val node2 = TableCount(TableRange(15, 5))
     val node = ApplyBinaryPrimOp(Add(), node1, node2)
