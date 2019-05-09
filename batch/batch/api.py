@@ -74,21 +74,11 @@ class API():
         params = filter_params(complete, success, attributes)
         return self.get(f'{url}/batches', params=params)
 
-    def list_jobs(self, url, complete, success, attributes):
-        params = filter_params(complete, success, attributes)
-        return self.get(f'{url}/jobs', params=params)
-
     def get_job(self, url, job_id):
         return self.get(f'{url}/jobs/{job_id}')
 
     def get_job_log(self, url, job_id):
         return self.get(f'{url}/jobs/{job_id}/log')
-
-    def delete_job(self, url, job_id):
-        return self.delete(f'{url}/jobs/{job_id}', json_response=False)
-
-    def cancel_job(self, url, job_id):
-        return self.patch(f'{url}/jobs/{job_id}/cancel', json_response=False)
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}

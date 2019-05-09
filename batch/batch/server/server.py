@@ -259,6 +259,11 @@ class Job:
         uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
         await db.jobs.update_log_uri(self.id, task_name, uri)
 
+    async def _delete_logs(self):
+        for idx, jt in enumerate(self._tasks):
+            if idx < self._task_idx:
+                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
+
     @staticmethod
     def from_record(record):
         if record is not None:
@@ -282,12 +287,16 @@ class Job:
 
     @staticmethod
     async def from_db(id, user):
-        records = await db.jobs.get_records(id)
-        if len(records) == 1:
-            job = Job.from_record(records[0])
-            if user == job.user:
-                return job
+        jobs = await Job.from_db_multiple(id, user)
+        if len(jobs) == 1:
+            return jobs[0]
         return None
+
+    @staticmethod
+    async def from_db_multiple(ids, user):
+        records = await db.jobs.get_undeleted_records(ids, user)
+        jobs = [Job.from_record(record) for record in records]
+        return jobs
 
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
@@ -450,27 +459,6 @@ class Job:
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
 
-    async def delete(self):
-        children = [Job.from_record(record) for record in await db.jobs.get_children(self.id)]
-        for child in children:
-            await child.cancel()
-
-        await db.jobs.delete_record(self.id)
-        await db.jobs_parents.delete_records_where({'job_id': self.id})
-        await db.jobs_parents.delete_records_where({'parent_id': self.id})
-
-        for child in children:
-            await child.create_if_ready()
-
-        await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-        await self._delete_k8s_resources()
-
-        for idx, jt in enumerate(self._tasks):
-            if idx < self._task_idx:
-                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
-
-        log.info(f'job {self.id} deleted')
-
     def is_complete(self):
         return self._state in ('Complete', 'Cancelled')
 
@@ -510,8 +498,8 @@ class Job:
                     pod.metadata.name,
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kubernetes.client.rest.ApiException as exc:
-                if e.status == 400:
+            except kube.client.rest.ApiException as exc:
+                if exc.status == 400:
                     log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                     pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
                 else:
@@ -543,13 +531,13 @@ class Job:
                         f'callback for job {id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, await self.to_dict())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
 
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
             await batch.mark_job_complete(self)
 
-    async def to_dict(self):
+    def to_dict(self):
         result = {
             'id': self.id,
             'state': self._state
@@ -623,8 +611,9 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
+    parents = {job.id: job for job in await Job.from_db_multiple(parent_ids, user)}
     for parent_id in parent_ids:
-        parent_job = await Job.from_db(parent_id, user)
+        parent_job = parents.get(parent_id)
         if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
         if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
@@ -661,41 +650,12 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         output_files=output_files,
         userdata=userdata,
         always_run=always_run)
-    return jsonify(await job.to_dict())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
-
-
-@routes.get('/jobs')
-@authenticated_users_only
-async def get_job_list(request, userdata):
-    params = request.query
-    user = userdata['ksa_name']
-
-    jobs = [Job.from_record(record) for record in await db.jobs.get_record({'user': user})]
-
-    for name, value in params.items():
-        if name == 'complete':
-            if value not in ('0', '1'):
-                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
-            c = value == '1'
-            jobs = [job for job in jobs if job.is_complete() == c]
-        elif name == 'success':
-            if value not in ('0', '1'):
-                abort(400, f'invalid success value, expected 0 or 1, got {value}')
-            s = value == '1'
-            jobs = [job for job in jobs if (job._state == 'Complete' and job.exit_code == 0) == s]
-        else:
-            if not name.startswith('a:'):
-                abort(400, f'unknown query parameter {name}')
-            k = name[2:]
-            jobs = [job for job in jobs
-                    if job.attributes and k in job.attributes and job.attributes[k] == value]
-
-    return jsonify([await job.to_dict() for job in jobs])
 
 
 @routes.get('/jobs/{job_id}')
@@ -707,7 +667,7 @@ async def get_job(request, userdata):
     job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
-    return jsonify(await job.to_dict())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/jobs/{job_id}/log')
@@ -726,57 +686,51 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     abort(404)
 
 
-@routes.delete('/jobs/{job_id}')
-@authenticated_users_only
-async def delete_job(request, userdata):
-    job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
-
-    job = await Job.from_db(job_id, user)
-    if not job:
-        abort(404)
-    await job.delete()
-    return jsonify({})
-
-
-@routes.patch('/jobs/{job_id}/cancel')
-@authenticated_users_only
-async def cancel_job(request, userdata):
-    job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
-
-    job = await Job.from_db(job_id, user)
-    if not job:
-        abort(404)
-    await job.cancel()
-    return jsonify({})
-
-
 class Batch:
     MAX_TTL = 30 * 60
 
     @staticmethod
     def from_record(record):
         if record is not None:
+            assert not record['deleted']
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
+
+            if record['n_failed'] > 0:
+                state = 'failure'
+            elif record['n_cancelled'] > 0:
+                state = 'cancelled'
+            elif not record['is_open'] and (record['n_succeeded'] == record['n_jobs']):
+                state = 'success'
+            else:
+                state = 'running'
+
+            complete = not record['is_open'] and (record['n_completed'] == record['n_jobs'])
+
             return Batch(id=record['id'],
                          attributes=attributes,
                          callback=record['callback'],
                          ttl=record['ttl'],
                          is_open=record['is_open'],
                          userdata=userdata,
-                         user=record['user'])
+                         user=record['user'],
+                         state=state,
+                         complete=complete,
+                         deleted=record['deleted'])
         return None
 
     @staticmethod
-    async def from_db(id, user):
-        records = await db.batch.get_records(id)
-        if len(records) == 1:
-            batch = Batch.from_record(records[0])
-            if user == batch.user:
-                return batch
+    async def from_db(ids, user):
+        batches = await Batch.from_db_multiple(ids, user)
+        if len(batches) == 1:
+            return batches[0]
         return None
+
+    @staticmethod
+    async def from_db_multiple(ids, user):
+        records = await db.batch.get_undeleted_records(ids, user)
+        batches = [Batch.from_record(record) for record in records]
+        return batches
 
     @staticmethod
     async def create_batch(attributes, callback, ttl, userdata):
@@ -791,14 +745,17 @@ class Batch:
                                        ttl=ttl,
                                        is_open=is_open,
                                        userdata=json.dumps(userdata),
-                                       user=user)
+                                       user=user,
+                                       deleted=False)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
-                      ttl=ttl, is_open=is_open, userdata=userdata, user=user)
+                      ttl=ttl, is_open=is_open, userdata=userdata, user=user,
+                      state='running', complete=False, deleted=False)
         batch.close_ttl()
         return batch
 
-    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user):
+    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user,
+                 state, complete, deleted):
         self.id = id
         self.attributes = attributes
         self.callback = callback
@@ -806,20 +763,33 @@ class Batch:
         self.is_open = is_open
         self.userdata = userdata
         self.user = user
+        self.state = state
+        self.complete = complete
+        self.deleted = deleted
 
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
+        await self.close()
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()
+        log.info(f'batch {self.id} cancelled')
+
+    async def mark_deleted(self):
+        await self.cancel()
+        await db.batch.update_record(self.id,
+                                     deleted=True)
+        self.deleted = True
+        log.info(f'batch {self.id} marked for deletion')
 
     async def delete(self):
-        jobs = await self.get_jobs()
-        for j in jobs:
-            assert j.batch_id == self.id
-            await db.jobs.update_record(j.id, batch_id=None)
+        for j in await self.get_jobs():
+            # Job deleted from database when batch is deleted with delete cascade
+            await j._delete_logs()
+        await db.batch.delete_record(self.id)
+        log.info(f'batch {self.id} deleted')
 
     async def mark_job_complete(self, job):
         if self.callback:
@@ -833,7 +803,7 @@ class Batch:
 
             threading.Thread(
                 target=handler,
-                args=(self.id, job.id, self.callback, await job.to_dict())
+                args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
     def close_ttl(self):
@@ -850,23 +820,24 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
-    async def is_complete(self):
-        jobs = await self.get_jobs()
-        return all(j.is_complete() for j in jobs)
+    def is_complete(self):
+        return self.complete
 
-    async def is_successful(self):
-        jobs = await self.get_jobs()
-        return all(j.is_successful() for j in jobs)
+    def is_successful(self):
+        return self.state == 'success'
 
-    async def to_dict(self):
-        jobs = await self.get_jobs()
+    async def to_dict(self, include_jobs=False):
         result = {
             'id': self.id,
-            'jobs': sorted([await j.to_dict() for j in jobs], key=lambda j: j['id']),
-            'is_open': self.is_open
+            'is_open': self.is_open,
+            'state': self.state,
+            'complete': self.complete
         }
         if self.attributes:
             result['attributes'] = self.attributes
+        if include_jobs:
+            jobs = await self.get_jobs()
+            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['id'])
         return result
 
 
@@ -876,18 +847,20 @@ async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['ksa_name']
 
-    batches = [Batch.from_record(record) for record in await db.batch.get_record({'user': user})]
+    batches = [Batch.from_record(record)
+               for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
+
     for name, value in params.items():
         if name == 'complete':
             if value not in ('0', '1'):
                 abort(400, f'invalid complete value, expected 0 or 1, got {value}')
             c = value == '1'
-            batches = [batch for batch in batches if await batch.is_complete() == c]
+            batches = [batch for batch in batches if batch.is_complete() == c]
         elif name == 'success':
             if value not in ('0', '1'):
                 abort(400, f'invalid success value, expected 0 or 1, got {value}')
             s = value == '1'
-            batches = [batch for batch in batches if await batch.is_successful() == s]
+            batches = [batch for batch in batches if batch.is_successful() == s]
         else:
             if not name.startswith('a:'):
                 abort(400, f'unknown query parameter {name}')
@@ -895,7 +868,7 @@ async def get_batches_list(request, userdata):
             batches = [batch for batch in batches
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
-    return jsonify([await batch.to_dict() for batch in batches])
+    return jsonify([await batch.to_dict(include_jobs=False) for batch in batches])
 
 
 @routes.post('/batches/create')
@@ -920,7 +893,7 @@ async def create_batch(request, userdata):
                                      callback=parameters.get('callback'),
                                      ttl=parameters.get('ttl'),
                                      userdata=userdata)
-    return jsonify(await batch.to_dict())
+    return jsonify(await batch.to_dict(include_jobs=False))
 
 
 @routes.get('/batches/{batch_id}')
@@ -932,7 +905,7 @@ async def get_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return jsonify(await batch.to_dict())
+    return jsonify(await batch.to_dict(include_jobs=True))
 
 
 @routes.patch('/batches/{batch_id}/cancel')
@@ -957,7 +930,7 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.delete()
+    await batch.mark_deleted()
     return jsonify({})
 
 
@@ -1071,6 +1044,7 @@ async def refresh_k8s_pvc():
     log.info(f'k8s had {len(pvcs.items)} pvcs')
 
     seen_pvcs = set()
+
     for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
         job = Job.from_record(record)
         assert job._pvc
@@ -1111,10 +1085,23 @@ async def polling_event_loop():
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+async def db_cleanup_event_loop():
+    await asyncio.sleep(60)
+    while True:
+        try:
+            for record in await db.batch.get_finished_deleted_records():
+                batch = Batch.from_record(record)
+                await batch.delete()
+        except Exception as exc:  # pylint: disable=W0703
+            log.exception(f'Could not delete batches due to exception: {exc}')
+        await asyncio.sleep(60)
+
+
 def serve(port=5000):
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
         app['blocking_pool'] = pool
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())
+        asyncio.ensure_future(db_cleanup_event_loop())
         web.run_app(app, host='0.0.0.0', port=port)
