@@ -39,7 +39,7 @@ OBJECTS := \
   PartitionIterators \
   Region \
   Upcalls \
-  Hadoop \
+  FS \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 
