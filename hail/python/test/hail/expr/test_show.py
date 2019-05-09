@@ -1,3 +1,6 @@
+from ..helpers import startTestHailContext, stopTestHailContext
+import unittest.TestCase
+
 import hail as hl
 
 setUpModule = startTestHailContext
