@@ -13,6 +13,7 @@ object Env {
 
 object BindingEnv {
   def empty[T]: BindingEnv[T] = BindingEnv(Env.empty[T], None, None)
+  def eval[T](bindings: (String, T)*): BindingEnv[T] = BindingEnv(Env.fromSeq[T](bindings), None, None)
 }
 
 case class BindingEnv[V](

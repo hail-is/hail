@@ -185,7 +185,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         val newC = gen()
         val newG = gen()
-        CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.empty.bindEval(cname -> newC, gname -> newG)))
+        CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.eval(cname -> newC, gname -> newG)))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

@@ -3,7 +3,8 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.backend.spark.{LowerTableIR, SparkBackend}
+import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
+import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
@@ -203,6 +204,12 @@ object TestUtils {
         SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }
+  }
+
+  def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    if (agg.isDefined || !env.isEmpty || !args.isEmpty)
+      throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
+    SparkBackend.jvmExecute(HailContext.get.sc, x, optimize = false)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -415,8 +422,7 @@ object TestUtils {
             assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
             eval(x, env, args, agg)
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
-          case ExecStrategy.LoweredJVMCompile =>
-            eval(LowerTableIR(x, new ExecutionTimer("JVMLowerer"), false), env, args, agg)
+          case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
         assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
