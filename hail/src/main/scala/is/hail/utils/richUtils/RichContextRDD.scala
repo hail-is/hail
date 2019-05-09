@@ -53,10 +53,11 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       val os = hConf.unsafeWriter(filename)
       val iw = mkIdxWriter(hConf, filename + ".idx")
       val count = write(ctx, it, os, iw)
+      if (iw != null)
+        iw.close()
       if (stageLocally) {
         hConf.copy(filename, finalFilename)
         if (iw != null) {
-          iw.close()
           hConf.copy(filename + ".idx/index", finalFilename + ".idx/index")
           hConf.copy(filename + ".idx/metadata.json.gz", finalFilename + ".idx/metadata.json.gz")
         }

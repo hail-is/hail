@@ -253,7 +253,7 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
   }
 
   // FIXME this fails
-  def getPos(): Long = out.asInstanceOf[FSDataOutputStream].getPos()
+  def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
@@ -500,7 +500,7 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   override def close(): Unit = out.close()
 
-  def indexOffset(): Long = out.asInstanceOf[FSDataOutputStream].getPos()
+  def indexOffset(): Long = ??? // out.asInstanceOf[FSDataOutputStream].getPos() // FIXME generic way of getting bytes written
 
   override def writeByte(b: Byte): Unit = out.write(Array(b))
 
@@ -1929,7 +1929,10 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       path,
       stageLocally,
       IndexWriter.builder(t.kType.virtualType, +TStruct(), codecSpec),
-      RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t.rowType)))
+      RichContextRDDRegionValue.writeRowsPartition(
+        codecSpec.buildEncoder(t.rowType),
+        t.kFieldIdx,
+        t.rowType))
   }
 
   def writeRowsSplit(
