@@ -593,7 +593,7 @@ class Expression(object):
         return self._compare_op("!=", other)
 
     def _to_table(self, name):
-        return self._to_relational(self, name, force_table=True)
+        return self._to_relational(name, force_table=True)
 
     def _to_relational(self, name, force_table=False):
         source = self._indices.source
