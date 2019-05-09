@@ -6,7 +6,7 @@ tearDownModule = stopTestHailContext
 class Tests(unittest.TestCase):
     def test():
         mt = hl.balding_nichols_model(3, 10, 10)
-        t = hl.utils.range_table(10)
+        t = mt.rows()
         mt.GT.show()
         mt.locus.show()
         mt.af.show()
