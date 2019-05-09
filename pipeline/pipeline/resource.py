@@ -60,7 +60,7 @@ class ResourceFile(Resource, str):
     def _add_output_path(self, path):
         self._output_paths.add(path)
         if self._source is not None:
-            self._source._add_outputs(self)
+            self._source._external_outputs.add(self)
 
     def _add_resource_group(self, rg):
         self._resource_group = rg
@@ -202,7 +202,6 @@ class ResourceGroup(Resource):
         self._resources = {}  # dict of name to resource uid
         self._root = root
         self._uid = ResourceGroup._new_uid()
-        self._output_paths = set()
 
         for name, resource_file in values.items():
             assert isinstance(resource_file, ResourceFile)
@@ -214,9 +213,8 @@ class ResourceGroup(Resource):
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path):
-        self._output_paths.add(path)
-        if self._source is not None:
-            self._source._add_outputs(self)
+        for name, rf in self._resources.items():
+            rf._add_output_path(path + '.' + name)
 
     def _get_resource(self, item):
         if item not in self._resources:

@@ -7,7 +7,7 @@
 # R0903 Too few public methods, R0401 Cyclic import, R0801 Similar lines,
 # R0912 Too many branches, R1720 no-else-raise
 
-disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R1705,W0511,R0903,R0401,R0801,R0912,R1720
+disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R1705,W0511,R0903,R0401,R0801,R0912,R1720,invalid-name
 
 [FORMAT]
 # String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
