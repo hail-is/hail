@@ -166,14 +166,13 @@ class Job:
                             requests={'storage': POD_VOLUME_SIZE}),
                         storage_class_name=STORAGE_CLASS_NAME)),
                 _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            pvc_name = pvc.metadata.name
+            await db.jobs.update_record(self.id, pvc_name=pvc_name)
+            log.info(f'created pvc name: {pvc_name} for job {self.id}')
+            return pvc_name
         except kube.client.rest.ApiException as err:
             log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
-            raise
-
-        pvc_name = pvc.metadata.name
-        await db.jobs.update_record(self.id, pvc_name=pvc_name)
-        log.info(f'created pvc name: {pvc_name} for job {self.id}')
-        return pvc_name
+            return None
 
     # may be called twice with the same _current_task
     async def _create_pod(self):
@@ -194,6 +193,9 @@ class Job:
         if len(self._tasks) > 1:
             if self._pvc_name is None:
                 self._pvc_name = await self._create_pvc()
+                if self._pvc_name is None:
+                    log.info(f'could not create pod for job {self.id} due to pvc creation failure')
+                    return
             volumes.append(kube.client.V1Volume(
                 persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
                     claim_name=self._pvc_name),
@@ -220,18 +222,22 @@ class Job:
                         }),
             spec=pod_spec)
 
-        pod = v1.create_namespaced_pod(
-            HAIL_POD_NAMESPACE,
-            pod_template,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        self._pod_name = pod.metadata.name
+        try:
+            pod = v1.create_namespaced_pod(
+                HAIL_POD_NAMESPACE,
+                pod_template,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            self._pod_name = pod.metadata.name
 
-        await db.jobs.update_record(self.id,
-                                    pod_name=self._pod_name)
+            await db.jobs.update_record(self.id,
+                                        pod_name=self._pod_name)
 
-        log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
-                                                                   self.id,
-                                                                   self._current_task.name))
+            log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
+                                                                       self.id,
+                                                                       self._current_task.name))
+        except kube.client.rest.ApiException as err:
+            await self.mark_complete(None, failed=True)
+            log.info(f'pod creation failed for job {self.id} with the following error: {err}')
 
     async def _delete_pvc(self):
         if self._pvc_name is not None:
@@ -248,9 +254,12 @@ class Job:
                 raise
             finally:
                 await db.jobs.update_record(self.id, pvc_name=None)
+                self._pvc_name = None
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
+        await db.jobs.update_record(self.id, pod_name=None)
+
         if self._pod_name is not None:
             try:
                 v1.delete_namespaced_pod(
@@ -261,8 +270,8 @@ class Job:
                 if err.status == 404:
                     pass
                 raise
-            await db.jobs.update_record(self.id, pod_name=None)
-            self._pod_name = None
+            finally:
+                self._pod_name = None
 
     async def _read_logs(self):
         async def _read_log(jt):
@@ -1063,6 +1072,19 @@ async def refresh_k8s_pvc():
                 log.exception(f'Delete pvc {pvc.metadata.name} failed due to exception: {e}')
 
 
+async def create_pods_if_ready():
+    await asyncio.sleep(30)
+    while True:
+        try:
+            for record in await db.jobs.get_records_where({'state': 'Ready',
+                                                           'pod_name': None}):
+                job = Job.from_record(record)
+                await job._create_pod()
+        except Exception as exc:  # pylint: disable=W0703
+            log.exception(f'Could not create pods due to exception: {exc}')
+        await asyncio.sleep(30)
+
+
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
     await refresh_k8s_pods()
@@ -1099,4 +1121,5 @@ def serve(port=5000):
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())
         asyncio.ensure_future(db_cleanup_event_loop())
+        asyncio.ensure_future(create_pods_if_ready())
         web.run_app(app, host='0.0.0.0', port=port)
