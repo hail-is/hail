@@ -359,9 +359,20 @@ object Interpret {
         }
 
       case GroupByKey(collection) =>
+        val keyType = coerce[TBaseStruct](coerce[TIterable](collection.typ).elementType).types(0)
+        val kord = keyType.ordering.toTotalOrdering
+        var m = new TreeMap[Any, ArrayBuilder[Any]]()(kord)
         interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
-          .groupBy { case Row(k, _) => k }
-          .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
+          .foreach { case Row(k, v) =>
+              m.get(k) match {
+                case Some(b) =>
+                  b += v
+                case None =>
+                  val b = new ArrayBuilder[Any]()
+                  m += (k -> b)
+              }
+          }
+        m.mapValues(b => b.result().toFastIndexedSeq: Any)
 
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)

@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.TreeSet
+import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -132,19 +132,28 @@ class StatAggregator() extends TypedAggregator[Annotation] {
 }
 
 class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] {
-  var m = new mutable.HashMap[Any, Long]
+  var m = new TreeMap[Any, Long]()(t.ordering.toTotalOrdering)
 
-  def result: Map[Annotation, Long] = m.toMap
+  def result: TreeMap[Any, Long] = m
+
+  def _seqOp(k: Any, w: Long) {
+    m.get(k) match {
+      case Some(v) =>
+        m += k -> v + w
+      case None =>
+        m += k -> w
+    }
+  }
 
   def seqOp(x: Any) {
     // FIXME only need to copy on the first one
     val cx = Annotation.copy(t, x)
-    m.updateValue(cx, 0L, _ + 1)
+    _seqOp(cx, 1)
   }
 
   def combOp(agg2: this.type) {
     agg2.m.foreach { case (k, v) =>
-      m.updateValue(k, 0L, _ + v)
+      _seqOp(k, v)
     }
   }
 
