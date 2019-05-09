@@ -20,9 +20,9 @@ case class LocusPositionComparison(comp: ApplyComparisonOp) extends KeyFilterPre
 
 case class LocusContigContains(comp: IR) extends KeyFilterPredicate
 
-case class Disjunction(xs: Array[KeyFilterPredicate]) extends KeyFilterPredicate
+case class Disjunction(l: KeyFilterPredicate, r: KeyFilterPredicate) extends KeyFilterPredicate
 
-case class Conjunction(xs: Array[KeyFilterPredicate]) extends KeyFilterPredicate
+case class Conjunction(l: KeyFilterPredicate, r: KeyFilterPredicate) extends KeyFilterPredicate
 
 case object Unknown extends KeyFilterPredicate
 
@@ -34,36 +34,12 @@ object ExtractIntervalFilters {
     }
   }
 
-  def simplifyPredicates(p: KeyFilterPredicate): KeyFilterPredicate = {
-    p match {
-      case Disjunction(xs) =>
-        if (xs.contains(Unknown))
-          Unknown
-        else {
-          val (ors, other) = xs.map(simplifyPredicates).partition(_.isInstanceOf[Disjunction])
-          Disjunction(ors.flatMap(o => o.asInstanceOf[Disjunction].xs) ++ other)
-        }
-      case Conjunction(xs) =>
-        if (xs.forall(_ == Unknown))
-          Unknown
-        else {
-          val (ands, other) = xs.map(simplifyPredicates).partition(_.isInstanceOf[Conjunction])
-          val elts = ands.flatMap(o => o.asInstanceOf[Conjunction].xs) ++ other.filter(_ != Unknown)
-          if (elts.length == 1)
-            elts.head
-          else
-            Conjunction(elts)
-        }
-      case _ => p
-    }
-  }
-
   def minimumValueByType(t: Type): IntervalEndpoint = {
     t match {
       case _: TInt32 => endpoint(Int.MinValue, -1)
       case _: TInt64 => endpoint(Long.MinValue, -1)
-      case _: TFloat32 => endpoint(Float.MinValue, -1)
-      case _: TFloat64 => endpoint(Double.MinValue, -1)
+      case _: TFloat32 => endpoint(Float.NegativeInfinity, -1)
+      case _: TFloat64 => endpoint(Double.PositiveInfinity, -1)
     }
   }
 
@@ -71,8 +47,8 @@ object ExtractIntervalFilters {
     t match {
       case _: TInt32 => endpoint(Int.MaxValue, 1)
       case _: TInt64 => endpoint(Long.MaxValue, 1)
-      case _: TFloat32 => endpoint(Float.MaxValue, 1)
-      case _: TFloat64 => endpoint(Double.MaxValue, 1)
+      case _: TFloat32 => endpoint(Float.PositiveInfinity, 1)
+      case _: TFloat64 => endpoint(Double.PositiveInfinity, 1)
     }
   }
 
@@ -92,7 +68,7 @@ object ExtractIntervalFilters {
   def getIntervalFromContig(c: String, rg: ReferenceGenome): Interval = {
     Interval(
       endpoint(Locus(c, 1), -1),
-      endpoint(Locus(c, rg.contigLength(c)), 1))
+      endpoint(Locus(c, rg.contigLength(c)), -1))
   }
 
   def openInterval(v: Any, typ: Type, op: ComparisonOp[_], flipped: Boolean = false): Interval = {
@@ -101,43 +77,25 @@ object ExtractIntervalFilters {
         Interval(endpoint(v, -1), endpoint(v, 1))
       case GT(_, _) =>
         if (flipped)
-        // key > value
-          Interval(endpoint(v, 1), maximumValueByType(typ))
+          Interval(endpoint(v, 1), maximumValueByType(typ)) // key > value
         else
-        // value > key
-          Interval(minimumValueByType(typ), endpoint(v, -1))
+          Interval(minimumValueByType(typ), endpoint(v, -1)) // value > key
       case GTEQ(_, _) =>
         if (flipped)
-        // key >= value
-          Interval(endpoint(v, -1), maximumValueByType(typ))
+          Interval(endpoint(v, -1), maximumValueByType(typ)) // key >= value
         else
-        // value >= key
-          Interval(minimumValueByType(typ), endpoint(v, 1))
+          Interval(minimumValueByType(typ), endpoint(v, 1)) // value >= key
       case LT(_, _) =>
         if (flipped)
-        // key < value
-          Interval(minimumValueByType(typ), endpoint(v, -1))
+          Interval(minimumValueByType(typ), endpoint(v, -1)) // key < value
         else
-        // value < key
-          Interval(endpoint(v, 1), maximumValueByType(typ))
+          Interval(endpoint(v, 1), maximumValueByType(typ)) // value < key
       case LTEQ(_, _) =>
         if (flipped)
-        // key <= value
-          Interval(minimumValueByType(typ), endpoint(v, 1))
+          Interval(minimumValueByType(typ), endpoint(v, 1)) // key <= value
         else
-        // value <= key
-          Interval(endpoint(v, -1), maximumValueByType(typ))
+          Interval(endpoint(v, -1), maximumValueByType(typ)) // value <= key
     }
-  }
-
-  def transitiveComparisonNodes(f: KeyFilterPredicate): Set[IR] = f match {
-    case KeyComparison(x) => Set(x)
-    case LiteralContains(x) => Set(x)
-    case LocusContigContains(x) => Set(x)
-    case LocusPositionComparison(x) => Set(x)
-    case LocusContigComparison(x) => Set(x)
-    case Disjunction(xs) => xs.map(transitiveComparisonNodes).fold(Set())(_.union(_))
-    case Conjunction(xs) => xs.map(transitiveComparisonNodes).fold(Set())(_.union(_))
   }
 
   private val noData: (Set[IR], Array[Interval]) = (Set(), Array())
@@ -180,7 +138,7 @@ object ExtractIntervalFilters {
         val intervals = rg.contigs.indices
           .flatMap { i =>
             Interval.intersection(Array(openInterval(pos, TInt32(), comp.op, isFlipped)),
-              Array(Interval(endpoint(0, -1), endpoint(rg.contigLength(i), -1))),
+              Array(Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1))),
               intOrd)
               .map { interval =>
                 Interval(endpoint(Locus(rg.contigs(i), interval.left.point.asInstanceOf[Int]), interval.left.sign),
@@ -204,20 +162,65 @@ object ExtractIntervalFilters {
 
         Set(comp) -> intervals
 
-      case Disjunction(xs) =>
-        val (nodes, intervals) = xs.map(processPredicates(_, kType)).unzip
-        nodes.fold(Set())(_.union(_)) -> intervals.flatten
+      case Disjunction(x1, x2) =>
+        val (s1, i1) = processPredicates(x1, kType)
+        val (s2, i2) = processPredicates(x2, kType)
+        (s1.union(s2), Interval.union(i1 ++ i2, kType.ordering.intervalEndpointOrdering))
 
-      case Conjunction(xs) =>
-        xs.map(processPredicates(_, kType)).reduce[(Set[IR], Array[Interval])] {
-          case ((s1, i1), (s2, i2)) =>
-            log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
-            val intersection = Interval.intersection(i1, i2, kType.ordering.intervalEndpointOrdering)
-            log.info(s"intersect generated ${ intersection.length } intersected intervals")
-            (s1.union(s2), intersection)
-        }
+      case Conjunction(x1, x2) =>
+        val (s1, i1) = processPredicates(x1, kType)
+        val (s2, i2) = processPredicates(x2, kType)
+        log.info(s"intersecting list of ${ i1.length } intervals with list of ${ i2.length } intervals")
+        val intersection = Interval.intersection(i1, i2, kType.ordering.intervalEndpointOrdering)
+        log.info(s"intersect generated ${ intersection.length } intersected intervals")
+        (s1.union(s2), intersection)
 
-      case Unknown => noData
+      case Unknown => noData // should only be found in a conjunction
+    }
+  }
+
+  def opIsSupported(op: ComparisonOp[_]): Boolean = {
+    op match {
+      case _: Compare => false
+      case _: NEQ => false
+      case _: NEQWithNA => false
+      case _: EQWithNA => false
+      case _ => true
+    }
+  }
+
+  def extract(cond1: IR, ref: Ref, k: IR): KeyFilterPredicate = {
+    cond1 match {
+      case ApplySpecial("||", Seq(l, r)) =>
+        val ll = extract(l, ref, k)
+        val rr = extract(r, ref, k)
+        if (ll == Unknown || rr == Unknown)
+          Unknown
+        else
+          Disjunction(ll, rr)
+      case ApplySpecial("&&", Seq(l, r)) =>
+        Conjunction(extract(l, ref, k), extract(r, ref, k))
+      case Coalesce(Seq(x, False())) => extract(x, ref, k)
+      case x@ApplyIR("contains", Seq(_: Literal, `k`)) => LiteralContains(x) // don't match string contains
+      case x@ApplySpecial("contains", Seq(_: Literal, `k`)) => IntervalContains(x)
+      case x@ApplyIR("contains", Seq(_: Literal, Apply("contig", Seq(`k`)))) => LocusContigContains(x)
+      case x@ApplyComparisonOp(op, l, r) if opIsSupported(op) =>
+        if (IsConstant(l) && r == k || l == k && IsConstant(r))
+          // TODO: need to look for casts, since patterns like [ `k` > 1.5 ] will not match if `k` is an integer
+          KeyComparison(x)
+        else if ((IsConstant(l) && r == Apply("contig", FastSeq(k))
+          || l == Apply("contig", FastSeq(k)) && IsConstant(r)) && op.isInstanceOf[EQ])
+          LocusContigComparison(x)
+        else if (IsConstant(l) && r == Apply("position", FastSeq(k))
+          || l == Apply("position", FastSeq(k)) && IsConstant(r))
+          LocusPositionComparison(x)
+        else
+          Unknown
+      case Let(name, _, body) if name != ref.name =>
+        // TODO: thread key identity through values, since this will break when CSE arrives
+        // TODO: thread predicates in `value` through `body` as a ref
+        extract(body, ref, k)
+      case _ => Unknown
     }
   }
 
@@ -227,44 +230,17 @@ object ExtractIntervalFilters {
 
     val k1 = GetField(ref, key.head)
 
-    def recur[T](cond1: IR): KeyFilterPredicate = {
-      cond1 match {
-        case ApplySpecial("||", Seq(l, r)) =>
-          Disjunction(Array(recur(l), recur(r)))
-        case ApplySpecial("&&", Seq(l, r)) =>
-          Conjunction(Array(recur(l), recur(r)))
-        case Coalesce(Seq(x, False())) => recur(x)
-        case x@ApplyIR("contains", Seq(_: Literal, `k1`)) => LiteralContains(x) // don't match string contains
-        case x@ApplySpecial("contains", Seq(_: Literal, `k1`)) => IntervalContains(x)
-        case x@ApplyIR("contains", Seq(_: Literal, Apply("contig", Seq(`k1`)))) => LocusContigContains(x)
-        case x@ApplyComparisonOp(op, l, r) if !op.isInstanceOf[Compare] && !op.isInstanceOf[EQWithNA] =>
-          if ((IsConstant(l) && r == k1 || l == k1 && IsConstant(r)) && !op.t1.isInstanceOf[TString])
-            KeyComparison(x)
-          else if ((IsConstant(l) && r == Apply("contig", FastSeq(k1))
-            || l == Apply("contig", FastSeq(k1)) && IsConstant(r)) && op.isInstanceOf[EQ])
-            LocusContigComparison(x)
-          else if (IsConstant(l) && r == Apply("position", FastSeq(k1))
-            || l == Apply("position", FastSeq(k1)) && IsConstant(r))
-            LocusPositionComparison(x)
-          else
-            Unknown
-        case Let(name, _, body) if name != ref.name =>
-          // TODO: thread key identity through values, since this will break when CSE arrives
-          // TODO: thread predicates in `value` through `body` as a ref
-          recur(body)
-        case _ => Unknown
-      }
-    }
-
-    val predicates = recur(cond)
-    val (nodes, intervals) = processPredicates(simplifyPredicates(predicates), k1.typ)
+    val (nodes, intervals) = processPredicates(extract(cond, ref, k1), k1.typ)
     if (nodes.nonEmpty) {
       val refSet = nodes.map(RefEquality(_))
 
       def rewrite(ir: IR): IR = if (refSet.contains(RefEquality(ir))) True() else MapIR(rewrite)(ir)
 
       Some(intervals -> rewrite(cond))
-    } else None
+    } else {
+      assert(intervals.isEmpty)
+      None
+    }
   }
 
   def apply(ir0: BaseIR): BaseIR = {
@@ -273,7 +249,7 @@ object ExtractIntervalFilters {
       case TableFilter(child, pred) =>
         extractPartitionFilters(pred, Ref("row", child.typ.rowType), child.typ.key)
           .map { case (intervals, newCond) =>
-            log.info(s"generated TableFilterIntervals node:\n  " +
+            log.info(s"generated TableFilterIntervals node with ${ intervals.length } intervals:\n  " +
               s"Intervals: ${ intervals.mkString(", ") }\n  " +
               s"Predicate: ${ Pretty(pred) }")
             TableFilter(
@@ -285,7 +261,7 @@ object ExtractIntervalFilters {
       case MatrixFilterRows(child, pred) =>
         extractPartitionFilters(pred, Ref("va", child.typ.rvRowType), child.typ.rowKey)
           .map { case (intervals, newCond) =>
-            log.info(s"generated MatrixFilterIntervals node:\n  " +
+            log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
               s"Intervals: ${ intervals.mkString(", ") }\n  " +
               s"Predicate: ${ Pretty(pred) }")
             MatrixFilterRows(
