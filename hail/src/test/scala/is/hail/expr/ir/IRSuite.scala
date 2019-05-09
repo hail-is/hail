@@ -688,14 +688,14 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ToSet(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
-    assertEvalsTo(ToSet(a), Set(-7, 2, null))
+    assertEvalsTo(ToSet(a), TSet(TInt32()).literal(-7, 2, null))
   }
 
   @Test def testToArrayFromSet() {
     val t = TSet(TInt32())
     assertEvalsTo(ToArray(NA(t)), null)
     assertEvalsTo(ToArray(In(0, t)),
-      FastIndexedSeq((Set(-7, 2, null), t)),
+      FastIndexedSeq((TSet(TInt32()).literal(-7, 2, null), t)),
       FastIndexedSeq(-7, 2, null))
   }
 
@@ -1417,7 +1417,7 @@ class IRSuite extends SparkSuite {
 
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
 
-    assertEvalsTo(collection1, TDict(TInt32(), TArray(TInt32())).literal("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
+    assertEvalsTo(collection1, TDict(TString(), TArray(TInt32())).literal("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
   }
 
   @DataProvider(name = "compareDifferentTypes")

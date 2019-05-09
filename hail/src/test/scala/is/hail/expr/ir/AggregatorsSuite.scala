@@ -115,7 +115,7 @@ class AggregatorsSuite extends SparkSuite {
     runAggregator(Counter(),
       TArray(TInt32()),
       FastIndexedSeq(FastIndexedSeq(), FastIndexedSeq(1, 2, 3), null, FastIndexedSeq(), FastIndexedSeq(1), null),
-      Map(FastIndexedSeq() -> 2L, FastIndexedSeq(1, 2, 3) -> 1L, FastIndexedSeq(1) -> 1L, (null, 2L)))
+      TDict(TArray(TInt32()), TInt32()).literal(FastIndexedSeq() -> 2L, FastIndexedSeq(1, 2, 3) -> 1L, FastIndexedSeq(1) -> 1L, (null, 2L)))
   }
 
   @Test def counterBoolean() {

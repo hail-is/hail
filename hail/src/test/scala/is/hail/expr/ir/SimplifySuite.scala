@@ -77,13 +77,13 @@ class SimplifySuite extends SparkSuite {
 
 
     assertEvalsTo(invoke("contains", ToArray(In(0, TSet(TString()))), Str("a")),
-      FastIndexedSeq(Set("a") -> TSet(TString())),
+      FastIndexedSeq(TSet(TString()).literal("a") -> TSet(TString())),
       true)
   }
 
   @Test def testTableCountExplodeSetRewrite() {
     var ir: TableIR = TableRange(1, 1)
-    ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), Set(1)))))
+    ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), TSet(TInt32()).literal(1)))))
     ir = TableExplode(ir, FastIndexedSeq("foo"))
     assertEvalsTo(TableCount(ir), 1L)
   }
