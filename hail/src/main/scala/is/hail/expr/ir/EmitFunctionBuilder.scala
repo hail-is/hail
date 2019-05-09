@@ -1,15 +1,16 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
+import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -47,6 +48,10 @@ object EmitFunctionBuilder {
 
 trait FunctionWithHadoopConfiguration {
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
+}
+
+trait FunctionWithLiterals {
+  def addLiterals(lit: Array[Byte]): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -147,6 +152,58 @@ class EmitFunctionBuilder[F >: Null](
     val rgExists = Code.invokeScalaObject[String, Boolean](ReferenceGenome.getClass, "hasReference", const(rg.name))
     val addRG = Code.invokeScalaObject[ReferenceGenome, Unit](ReferenceGenome.getClass, "addReference", getReferenceGenome(rg))
     rgExists.mux(Code._empty, addRG)
+  }
+
+  private[this] val literalsMap: mutable.Map[Any, (Type, ClassFieldRef[_])] =
+    mutable.Map[Any, (Type, ClassFieldRef[_])]()
+  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
+  private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
+  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Unit]
+
+  def addLiteral(v: Any, t: Type): Code[_] = {
+    assert(v != null)
+    val f = literalsMap.getOrElseUpdate(v, t -> newField("literal")(typeToTypeInfo(t)))._2
+    Code(
+      litDecoded.mux(
+        Code._empty,
+        decodeLiterals.invoke()),
+      f.load())
+  }
+
+  private[this] def encodeLiterals(): Array[Byte] = {
+    val spec = CodecSpec.defaultUncompressed
+    val literals = literalsMap.toArray
+    val litType = TTuple(literals.map { case (_, (t, _)) => t }: _*)
+
+    val dec = spec.buildEmitDecoderMethod(litType.physicalType, litType.physicalType, this)
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
+    mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
+    methods.append(mb2)
+
+    val ib = spec.child.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))
+    val off = decodeLiterals.newLocal[Long]
+    val storeFields = literals.zipWithIndex.map { case ((_, (_, f)), i) =>
+      f.storeAny(baseRegion.load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+    }
+
+    decodeLiterals.emit(Code(
+      off := dec.invoke(baseRegion, ib),
+      Code(storeFields: _*)))
+
+    val baos = new ByteArrayOutputStream()
+    val enc = spec.buildEncoder(litType.physicalType, litType.physicalType)(baos)
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(litType.physicalType)
+      rvb.startTuple()
+      literals.foreach { case (a, (typ, _)) => rvb.addAnnotation(typ, a) }
+      rvb.endTuple()
+      enc.writeRegionValue(region, rvb.end())
+    }
+    enc.flush()
+    enc.close()
+    baos.toByteArray
   }
 
   private[this] var _hconf: SerializableHadoopConfiguration = _
@@ -266,6 +323,8 @@ class EmitFunctionBuilder[F >: Null](
   def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     getCodeOrdering[T](t, t, op, ignoreMissingness)
 
+  val baseRegion: ClassFieldRef[Region] = newField[Region]
+
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
@@ -284,6 +343,7 @@ class EmitFunctionBuilder[F >: Null](
     }
     m
   }
+  apply_method.emit(baseRegion := apply_method.getArg[Region](1))
 
   override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
@@ -358,6 +418,9 @@ class EmitFunctionBuilder[F >: Null](
     makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
+    val hasLiterals: Boolean = literalsMap.nonEmpty
+    val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
+
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
     val localHConf = _hconf
@@ -386,6 +449,8 @@ class EmitFunctionBuilder[F >: Null](
             f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
           if (useSpark)
             f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literals)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

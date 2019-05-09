@@ -279,7 +279,12 @@ private class Emit(
       case F64(x) =>
         present(const(x))
       case Str(x) =>
-        present(region.appendString(const(x)))
+        present(mb.fb.addLiteral(x, TString()))
+      case Literal(t, v) =>
+        if (v == null)
+          emit(NA(t))
+        else
+          present(mb.fb.addLiteral(v, t))
       case True() =>
         present(const(true))
       case False() =>

@@ -1382,7 +1382,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
