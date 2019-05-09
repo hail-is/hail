@@ -25,7 +25,8 @@ object InferType {
       case In(_, t) => t
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t
-      case MakeNDArray(nDim, data, _, _) => TNDArray(coerce[TArray](data.typ).elementType, Nat(nDim))
+      case MakeNDArray(data, shape, _) =>
+        TNDArray(coerce[TArray](data.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size))
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: StreamRange => TStream(TInt32())
@@ -103,8 +104,10 @@ object InferType {
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         coerce[TStreamable](left.typ).copyStreamable(join.typ)
         TArray(join.typ)
+      case NDArrayShape(nd) =>
+        TTuple(nd.typ.required, List.tabulate(nd.typ.asInstanceOf[TNDArray].nDims)(_ => TInt64()):_*)
       case NDArrayReshape(nd, shape) =>
-        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.length), nd.typ.required)
+        TNDArray(coerce[TNDArray](nd.typ).elementType, Nat(shape.typ.asInstanceOf[TTuple].size), nd.typ.required)
       case NDArrayMap(nd, _, body) =>
         TNDArray(body.typ, coerce[TNDArray](nd.typ).nDimsBase, nd.typ.required)
       case NDArrayMap2(l, _, _, _, body) =>
