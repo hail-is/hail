@@ -706,7 +706,7 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        self._to_relational_preserving_rows_and_cols()._show(
+        self._to_relational_preserving_rows_and_cols().show(
             n_rows=n, width=width, truncate=truncate, types=types, handler=handler)
 
     def _to_relational_preserving_rows_and_cols(self):
