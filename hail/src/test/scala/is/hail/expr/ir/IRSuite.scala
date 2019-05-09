@@ -1492,7 +1492,7 @@ class IRSuite extends SparkSuite {
     val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter(tmpDir.createLocalTempFile(), false)
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
-      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+      MakeTuple(FastSeq(I64(1), I64(2))),
       True())
 
 
