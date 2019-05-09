@@ -44,7 +44,10 @@ async def read_gs_log_file(thread_pool, uri):
 
 async def delete_gs_log_file(thread_pool, instance_id, job_id, task_name):
     path = _gs_log_path(instance_id, job_id, task_name)
-    await blocking_to_async(thread_pool, delete_gs_file, gcs_client, batch_bucket_name, path)
+    try:
+        await blocking_to_async(thread_pool, delete_gs_file, gcs_client, batch_bucket_name, path)
+    except google.api_core.exceptions.NotFound:
+        pass
 
 
 async def blocking_to_async(thread_pool, f, *args, **kwargs):

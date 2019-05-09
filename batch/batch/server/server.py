@@ -775,16 +775,13 @@ class Batch:
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()
+        log.info(f'batch {self.id} cancelled')
 
     async def mark_deleted(self):
-        await self.close()
+        await self.cancel()
         await db.batch.update_record(self.id,
                                      deleted=True)
-        self.is_open = False
         self.deleted = True
-
-        for j in await self.get_jobs():
-            await j.cancel()
         log.info(f'batch {self.id} marked for deletion')
 
     async def delete(self):
@@ -1092,8 +1089,9 @@ async def db_cleanup_event_loop():
     await asyncio.sleep(60)
     while True:
         try:
-            batches = [Batch.from_record(record) for record in await db.batch.get_finished_deleted_records()]
-            await asyncio.gather(*[batch.delete() for batch in batches])
+            for record in await db.batch.get_finished_deleted_records():
+                batch = Batch.from_record(record)
+                await batch.delete()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not delete batches due to exception: {exc}')
         await asyncio.sleep(60)
