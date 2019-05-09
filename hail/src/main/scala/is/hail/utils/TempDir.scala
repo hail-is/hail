@@ -7,19 +7,19 @@ import is.hail.io.fs.{FS, FilePath}
 import scala.util.Random
 
 object TempDir {
-  def createTempDir(tmpdir: String, sfs: is.hail.io.fs.FS): String = {
+  def createTempDir(tmpdir: String, fs: is.hail.io.fs.FS): String = {
     while (true) {
       try {
         val dir = tmpdir + "/hail." + Random.alphanumeric.take(12).mkString
 
-        if (sfs.exists(dir)) {
+        if (fs.exists(dir)) {
           // try again
         } else {
-          sfs.mkDir(dir)
+          fs.mkDir(dir)
 
-          val fs = sfs.fileSystem(tmpdir)
-          val qDir = fs.makeQualified(fs.getPath(dir))
-          fs.deleteOnExit(qDir)
+          val fileSystem = fs.fileSystem(tmpdir)
+          val qDir = fileSystem.makeQualified(fileSystem.getPath(dir))
+          fileSystem.deleteOnExit(qDir)
 
           return qDir.toString
         }

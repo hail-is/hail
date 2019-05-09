@@ -9,13 +9,13 @@ import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.io.compress.LZ4Utils
-import is.hail.io.fs.FS
 import is.hail.nativecode._
 import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.{HailContext, cxx}
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}

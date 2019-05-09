@@ -251,7 +251,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
     if (files == null)
       return Array.empty[FileStatus]
 
-    files.map(fs => new HadoopFileStatus(fs))
+    files.map(fileStatus => new HadoopFileStatus(fileStatus))
   }
 
   def copy(src: String, dst: String, deleteSource: Boolean = false) {
@@ -262,13 +262,13 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def copyMerge(
-                 sourceFolder: String,
-                 destinationFile: String,
-                 numPartFilesExpected: Int,
-                 deleteSource: Boolean = true,
-                 header: Boolean = true,
-                 partFilesOpt: Option[IndexedSeq[String]] = None
-               ) {
+     sourceFolder: String,
+     destinationFile: String,
+     numPartFilesExpected: Int,
+     deleteSource: Boolean = true,
+     header: Boolean = true,
+     partFilesOpt: Option[IndexedSeq[String]] = None
+   ) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -285,8 +285,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
       case None => glob(sourceFolder + "/part-*")
       case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName)
-    )
+    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName))
     if (sortedPartFileStatuses.length != numPartFilesExpected)
       fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
 
@@ -378,47 +377,6 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
     new HadoopFileStatus(p.getFileSystem(conf).getFileStatus(p))
   }
 
-  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
-    readFile[T](filename) {
-      is =>
-        val lines = Source.fromInputStream(is)
-          .getLines()
-          .zipWithIndex
-          .map {
-            case (value, position) =>
-              val source = Context(value, filename, Some(position))
-              WithContext(value, source)
-          }
-        reader(filtAndReplace(lines))
-    }
-  }
-
-  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None) {
-    writeTextFile(filename) {
-      fw =>
-        header.foreach { h =>
-          fw.write(h)
-          fw.write('\n')
-        }
-        lines.foreach { line =>
-          fw.write(line)
-          fw.write('\n')
-        }
-    }
-  }
-
-  def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {
-    val oos = create(path)
-    val comp = new LZ4BlockOutputStream(oos, blockSize, compressor)
-    val dos = new DataOutputStream(comp)
-    try {
-      writer(dos)
-    } finally {
-      dos.flush()
-      dos.close()
-    }
-  }
-
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
     using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
 
@@ -449,7 +407,48 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   def writeFile[T](filename: String)(f: (OutputStream) => T): T =
     using(create(filename))(f)
 
+  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
+    readFile[T](filename) {
+      is =>
+        val lines = Source.fromInputStream(is)
+          .getLines()
+          .zipWithIndex
+          .map {
+            case (value, position) =>
+              val source = Context(value, filename, Some(position))
+              WithContext(value, source)
+          }
+        reader(filtAndReplace(lines))
+    }
+  }
+
   def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
 
   def unsafeWriter(filename: String): OutputStream = create(filename)
+
+  def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None) {
+    writeTextFile(filename) {
+      fw =>
+        header.foreach { h =>
+          fw.write(h)
+          fw.write('\n')
+        }
+        lines.foreach { line =>
+          fw.write(line)
+          fw.write('\n')
+        }
+    }
+  }
+
+  def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {
+    val oos = create(path)
+    val comp = new LZ4BlockOutputStream(oos, blockSize, compressor)
+    val dos = new DataOutputStream(comp)
+    try {
+      writer(dos)
+    } finally {
+      dos.flush()
+      dos.close()
+    }
+  }
 }

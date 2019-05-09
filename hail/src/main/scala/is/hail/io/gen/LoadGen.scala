@@ -12,8 +12,8 @@ import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
+import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.broadcast.Broadcast
 
@@ -21,16 +21,16 @@ case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Anno
 
 object LoadGen {
   def apply(
-             genFile: String,
-             sampleFile: String,
-             sc: SparkContext,
-             fs: FS,
-             rgBc: Option[Broadcast[ReferenceGenome]],
-             nPartitions: Option[Int] = None,
-             tolerance: Double = 0.02,
-             chromosome: Option[String] = None,
-             contigRecoding: Map[String, String] = Map.empty[String, String],
-             skipInvalidLoci: Boolean = false): GenResult = {
+   genFile: String,
+   sampleFile: String,
+   sc: SparkContext,
+   fs: FS,
+   rgBc: Option[Broadcast[ReferenceGenome]],
+   nPartitions: Option[Int] = None,
+   tolerance: Double = 0.02,
+   chromosome: Option[String] = None,
+   contigRecoding: Map[String, String] = Map.empty[String, String],
+   skipInvalidLoci: Boolean = false): GenResult = {
 
     val sampleIds = LoadBgen.readSampleFile(fs, sampleFile)
 

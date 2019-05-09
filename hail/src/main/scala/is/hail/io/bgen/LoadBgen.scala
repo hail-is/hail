@@ -6,13 +6,13 @@ import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, LowerMatrixIR,
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io._
-import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
+import is.hail.io.fs.{FS, FileStatus}
 import org.apache.spark.Partition
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
@@ -228,7 +228,6 @@ object LoadBgen {
 
     files.map(absolutePath).map(f => fileMapping.getOrElse(f, f + ".idx2"))
   }
-
 
   def getIndexFiles(fs: FS, files: Array[String], indexFileMap: Map[String, String]): Array[String] = {
     val indexFiles = getIndexFileNames(fs, files, indexFileMap)

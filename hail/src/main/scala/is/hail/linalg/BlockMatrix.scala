@@ -761,7 +761,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def write(uri: String, overwrite: Boolean = false, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
-    // TODO: more efficient way?
     val fs = new HadoopFS(blocks.sparkContext.hadoopConfiguration)
 
     if (overwrite)

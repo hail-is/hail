@@ -5,9 +5,9 @@ import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types.virtual.Type
 import is.hail.io.Encoder
-import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.io.fs.FS
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
 

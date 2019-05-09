@@ -6,12 +6,12 @@ import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixRea
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
-import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.{Locus, _}
+import is.hail.io.fs.FS
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.sql.Row
 

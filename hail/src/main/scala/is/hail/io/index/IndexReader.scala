@@ -8,9 +8,9 @@ import is.hail.annotations._
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.ir.IRParser
 import is.hail.io._
-import is.hail.io.fs.FS
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
 import org.json4s.Formats
