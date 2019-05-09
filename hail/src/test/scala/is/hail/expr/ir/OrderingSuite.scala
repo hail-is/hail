@@ -128,7 +128,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testToSetOnRandomDuplicatedArray() {
+  def testToSetOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -144,7 +144,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testToDictOnRandomDuplicatedArray() {
+  def testToDictOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       kt <- Type.genArb
