@@ -8,6 +8,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.io.compress.LZ4Utils
 import is.hail.io.index.IndexWriter
 import is.hail.nativecode._
@@ -251,6 +252,7 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
     out.write(buf, 0, len)
   }
 
+  // FIXME this fails
   def getPos(): Long = out.asInstanceOf[FSDataOutputStream].getPos()
 }
 
@@ -1754,7 +1756,11 @@ final class NativePackEncoder(out: OutputStream, module: NativeEncoderModule) ex
 }
 
 object RichContextRDDRegionValue {
-  def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
+  def writeRowsPartition(
+    makeEnc: (OutputStream) => Encoder,
+    indexKeyFieldIndices: Array[Int] = null,
+    rowType: PStruct = null
+  )(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream, iw: IndexWriter): Long = {
     val context = TaskContext.get
     val outputMetrics =
       if (context != null)
@@ -1766,6 +1772,11 @@ object RichContextRDDRegionValue {
     var rowCount = 0L
 
     it.foreach { rv =>
+      if (iw != null) {
+        val off = en.indexOffset()
+        val key = SafeRow.selectFields(rowType, rv)(indexKeyFieldIndices)
+        iw += (key, off, null)
+      }
       en.writeByte(1)
       en.writeRegionValue(rv.region, rv.offset)
       ctx.region.clear()
@@ -1908,8 +1919,17 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       }
     }
 
-  def writeRows(path: String, t: PStruct, stageLocally: Boolean, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
-    crdd.writePartitions(path, stageLocally, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
+  def writeRows(
+    path: String,
+    t: RVDType,
+    stageLocally: Boolean,
+    codecSpec: CodecSpec
+  ): (Array[String], Array[Long]) = {
+    crdd.writePartitions(
+      path,
+      stageLocally,
+      IndexWriter.builder(t.kType.virtualType, +TStruct(), codecSpec),
+      RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t.rowType)))
   }
 
   def writeRowsSplit(

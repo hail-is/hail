@@ -80,7 +80,7 @@ object AbstractRVDSpec {
               rvb.start(rowType)
               rvb.addAnnotation(rowType.virtualType, a)
               RegionValue(region, rvb.end())
-            }, os)
+            }, os, null)
         }
       }
 

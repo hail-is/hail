@@ -7,6 +7,7 @@ import is.hail.io.index.IndexWriter
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.sparkextras._
+import org.apache.hadoop.conf.{Configuration => HadoopConf}
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 
@@ -22,7 +23,8 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
 
   def writePartitions(path: String,
     stageLocally: Boolean,
-    write: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
+    mkIdxWriter: (HadoopConf, String) => IndexWriter,
+    write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => Long): (Array[String], Array[Long]) = {
     val sc = crdd.sparkContext
     val hadoopConf = sc.hadoopConfiguration
 
@@ -49,9 +51,16 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
         } else
           finalFilename
       val os = hConf.unsafeWriter(filename)
-      val count = write(ctx, it, os)
-      if (stageLocally)
+      val iw = mkIdxWriter(hConf, filename + ".idx")
+      val count = write(ctx, it, os, iw)
+      if (stageLocally) {
         hConf.copy(filename, finalFilename)
+        if (iw != null) {
+          iw.close()
+          hConf.copy(filename + ".idx/index", finalFilename + ".idx/index")
+          hConf.copy(filename + ".idx/metadata.json.gz", finalFilename + ".idx/metadata.json.gz")
+        }
+      }
       ctx.region.clear()
       Iterator.single(f -> count)
     }
