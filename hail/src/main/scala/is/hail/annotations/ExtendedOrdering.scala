@@ -400,6 +400,10 @@ abstract class ExtendedOrdering extends Serializable {
     override def equiv(x: T, y: T): Boolean = outer.equiv(x, y)
   }
 
+  def toTotalOrdering: Ordering[T] = new Ordering[T] {
+    def compare(x: T, y: T): Int = outer.compare(x, y)
+  }
+
   lazy val intervalEndpointOrdering: IntervalEndpointOrdering =
     new IntervalEndpointOrdering {
       override def compareIntervalEndpoints(xp: Any, xs: Int, yp: Any, ys: Int): Int = {

@@ -17,7 +17,7 @@ import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils.{FastIndexedSeq, _}
-import is.hail.variant.{Call, Call2, MatrixTable}
+import is.hail.variant.{Call2, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -712,14 +712,14 @@ class IRSuite extends SparkSuite {
       NA(TTuple(FastIndexedSeq(TInt32(), TString()))) // missing value
     ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))
 
-    assertEvalsTo(ToDict(a), Map(5 -> "a", (null, "b"), 3 -> null))
+    assertEvalsTo(ToDict(a), TDict(TInt32(), TString()).literal(5 -> "a", (null, "b"), 3 -> null))
   }
 
   @Test def testToArrayFromDict() {
     val t = TDict(TInt32(), TString())
     assertEvalsTo(ToArray(NA(t)), null)
 
-    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    val d = t.literal(1 -> "a", 2 -> null, (null, "c"))
     assertEvalsTo(ToArray(In(0, t)),
       // wtf you can't do null -> ...
       FastIndexedSeq((d, t)),
@@ -741,16 +741,16 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
     assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
-      FastIndexedSeq((Set(-7, 2, null), t)),
+      FastIndexedSeq((t.literal(-7, 2, null), t)),
       true)
     assertEvalsTo(invoke("contains", In(0, t), I32(2)),
-      FastIndexedSeq((Set(-7, 2, null), t)),
+      FastIndexedSeq((t.literal(-7, 2, null), t)),
       true)
     assertEvalsTo(invoke("contains", In(0, t), I32(0)),
-      FastIndexedSeq((Set(-7, 2, null), t)),
+      FastIndexedSeq((t.literal(-7, 2, null), t)),
       false)
     assertEvalsTo(invoke("contains", In(0, t), I32(7)),
-      FastIndexedSeq((Set(-7, 2), t)),
+      FastIndexedSeq((t.literal(-7, 2), t)),
       false)
   }
 
@@ -760,7 +760,7 @@ class IRSuite extends SparkSuite {
     val t = TDict(TInt32(), TString())
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
-    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    val d = t.literal(1 -> "a", 2 -> null, (null, "c"))
     assertEvalsTo(invoke("contains", In(0, t), NA(TInt32())),
       FastIndexedSeq((d, t)),
       true)
@@ -771,7 +771,7 @@ class IRSuite extends SparkSuite {
       FastIndexedSeq((d, t)),
       false)
     assertEvalsTo(invoke("contains", In(0, t), I32(3)),
-      FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
+      FastIndexedSeq((t.literal(1 -> "a", 2 -> null), t)),
       false)
   }
 
@@ -1371,7 +1371,7 @@ class IRSuite extends SparkSuite {
     val values = Array(
       Row(400, "foo"+poopEmoji, FastIndexedSeq(4, 6, 8)),
       FastIndexedSeq(poopEmoji, "", "foo"),
-      Map[Int, String](1 -> "", 5 -> "foo", -4 -> poopEmoji)
+      TDict(TInt32(), TString()).literal(1 -> "", 5 -> "foo", -4 -> poopEmoji)
     )
 
     assertEvalsTo(Literal(types(0), values(0)), values(0))
@@ -1417,14 +1417,14 @@ class IRSuite extends SparkSuite {
 
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
 
-    assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
+    assertEvalsTo(collection1, TDict(TInt32(), TArray(TInt32())).literal("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
   }
 
   @DataProvider(name = "compareDifferentTypes")
   def compareDifferentTypesData(): Array[Array[Any]] = Array(
     Array(FastIndexedSeq(0.0, 0.0), TArray(+TFloat64()), TArray(TFloat64())),
-    Array(Set(0, 1), TSet(+TInt32()), TSet(TInt32())),
-    Array(Map(0L -> 5, 3L -> 20), TDict(+TInt64(), TInt32()), TDict(TInt64(), +TInt32())),
+    Array(TSet(TInt32()).literal(0, 1), TSet(+TInt32()), TSet(TInt32())),
+    Array(TDict(TInt64(), TInt32()).literal(0L -> 5, 3L -> 20), TDict(+TInt64(), TInt32()), TDict(TInt64(), +TInt32())),
     Array(Interval(1, 2, includesStart = false, includesEnd = true), TInterval(+TInt32()), TInterval(TInt32())),
     Array(Row("foo", 0.0), TStruct("a" -> +TString(), "b" -> +TFloat64()), TStruct("a" -> TString(), "b" -> TFloat64())),
     Array(Row("foo", 0.0), TTuple(TString(), +TFloat64()), TTuple(+TString(), +TFloat64())),
@@ -1787,7 +1787,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testCachedIR() {
-    val cached = Literal(TSet(TInt32()), Set(1))
+    val cached = Literal(TSet(TInt32()), TSet(TInt32()).literal(1))
     val s = s"(JavaIR __uid1)"
     val x2 = IRParser.parse_value_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)

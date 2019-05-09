@@ -3,9 +3,9 @@ package is.hail.expr.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
 import is.hail.expr.types.physical.PSet
-import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.immutable.TreeSet
 import scala.reflect.{ClassTag, classTag}
 
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TContainer {
@@ -34,7 +34,7 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
   override def subst() = TSet(elementType.subst())
 
   def _typeCheck(a: Any): Boolean =
-    a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
+    a.isInstanceOf[TreeSet[_]] && a.asInstanceOf[TreeSet[_]].forall(elementType.typeCheck)
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Set[")
@@ -44,9 +44,13 @@ final case class TSet(elementType: Type, override val required: Boolean = false)
 
   lazy val ordering: ExtendedOrdering = ExtendedOrdering.setOrdering(elementType.ordering)
 
+  def literal(elems: Any*): TreeSet[Any] = TreeSet(elems: _*)(elementType.ordering.toTotalOrdering)
+
+  def toLiteral(elems: IndexedSeq[Any]): TreeSet[Any] = literal(elems: _*)
+
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue)
+  override def genNonmissingValue: Gen[Annotation] = Gen.treeSetOf[Any](elementType.genValue)(elementType.ordering.toTotalOrdering)
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }

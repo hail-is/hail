@@ -6,6 +6,7 @@ import is.hail.expr.types.physical.PDict
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.immutable.TreeMap
 import scala.reflect.{ClassTag, classTag}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
@@ -53,12 +54,17 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
   }
 
   def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[Map[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
+    a.asInstanceOf[TreeMap[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
+  def literal(elems: (Any, Any)*): TreeMap[Any, Any] =
+    TreeMap(elems: _*)(keyType.ordering.toTotalOrdering)
+
+  def toLiteral(elems: IndexedSeq[(Any, Any)]): TreeMap[Any, Any] = literal(elems: _*)
+
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf2[Map](Gen.zip(keyType.genValue, valueType.genValue))
+    Gen.treeMapOf[Any, Any](Gen.zip(keyType.genValue, valueType.genValue))(keyType.ordering.toTotalOrdering)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
     a1 == a2 || (a1 != null && a2 != null &&

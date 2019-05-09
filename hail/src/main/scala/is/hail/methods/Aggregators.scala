@@ -11,6 +11,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
 import scala.collection.JavaConverters._
+import scala.collection.immutable.TreeSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.implicitConversions
@@ -169,11 +170,11 @@ class HistAggregator(indices: Array[Double])
   def copy() = new HistAggregator(indices)
 }
 
-class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
+class CollectSetAggregator(t: Type) extends TypedAggregator[TreeSet[Any]] {
 
-  var _state = new mutable.HashSet[Any]
+  var _state = new TreeSet[Any]()(t.ordering.toTotalOrdering)
 
-  def result = _state.toSet
+  def result: TreeSet[Any] = _state
 
   def seqOp(x: Any) {
     _state += Annotation.copy(t, x)

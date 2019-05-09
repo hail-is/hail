@@ -166,32 +166,34 @@ class AggregatorsSuite extends SparkSuite {
   }
 
   @Test def collectAsSetBoolean() {
-    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, false, null, true, false), Set(true, false, null))
-    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, null, true), Set(true, null))
+    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, false, null, true, false), TSet(TBoolean()).literal(true, false, null))
+    runAggregator(CollectAsSet(), TBoolean(), FastIndexedSeq(true, null, true), TSet(TBoolean()).literal(true, null))
   }
 
   @Test def collectAsSetNumeric() {
-    runAggregator(CollectAsSet(), TInt32(), FastIndexedSeq(10, null, 5, 5, null), Set(10, null, 5))
-    runAggregator(CollectAsSet(), TInt64(), FastIndexedSeq(10L, null, 5L, 5L, null), Set(10L, null, 5L))
-    runAggregator(CollectAsSet(), TFloat32(), FastIndexedSeq(10f, null, 5f, 5f, null), Set(10f, null, 5f))
-    runAggregator(CollectAsSet(), TFloat64(), FastIndexedSeq(10d, null, 5d, 5d, null), Set(10d, null, 5d))
+    runAggregator(CollectAsSet(), TInt32(), FastIndexedSeq(10, null, 5, 5, null), TSet(TInt32()).literal(10, null, 5))
+    runAggregator(CollectAsSet(), TInt64(), FastIndexedSeq(10L, null, 5L, 5L, null), TSet(TInt64()).literal(10L, null, 5L))
+    runAggregator(CollectAsSet(), TFloat32(), FastIndexedSeq(10f, null, 5f, 5f, null), TSet(TFloat32()).literal(10f, null, 5f))
+    runAggregator(CollectAsSet(), TFloat64(), FastIndexedSeq(10d, null, 5d, 5d, null), TSet(TFloat64()).literal(10d, null, 5d))
   }
 
   @Test def collectAsSetString() {
-    runAggregator(CollectAsSet(), TString(), FastIndexedSeq("hello", null, "foo", null, "foo"), Set("hello", null, "foo"))
+    runAggregator(CollectAsSet(), TString(), FastIndexedSeq("hello", null, "foo", null, "foo"), TSet(TString()).literal("hello", null, "foo"))
   }
 
   @Test def collectAsSetArray() {
     val inputCollection = FastIndexedSeq(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq(), null, FastIndexedSeq(1, 2, 3))
-    val expected = Set(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq())
-    runAggregator(CollectAsSet(), TArray(TInt32()), inputCollection, expected)
+    val t = TArray(TInt32())
+    val expected = TSet(t).literal(FastIndexedSeq(1, 2, 3), null, FastIndexedSeq())
+    runAggregator(CollectAsSet(), t, inputCollection, expected)
   }
 
   @Test def collectAsSetStruct(): Unit = {
+    val t = TStruct("a" -> TInt32(), "b" -> TBoolean())
     runAggregator(CollectAsSet(),
-      TStruct("a" -> TInt32(), "b" -> TBoolean()),
+      t,
       FastIndexedSeq(Row(5, true), Row(3, false), null, Row(0, false), null, Row(5, true)),
-      Set(Row(5, true), Row(3, false), null, Row(0, false)))
+      TSet(t).literal(Row(5, true), Row(3, false), null, Row(0, false)))
   }
 
   @Test def callStats() {

@@ -10,6 +10,8 @@ import org.apache.spark.sql.types._
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
+import scala.collection.immutable.{TreeMap, TreeSet}
+
 object SparkAnnotationImpex {
   val invalidCharacters: Set[Char] = " ,;{}()\n\t=".toSet
 
@@ -159,13 +161,15 @@ object JSONAnnotationImpex {
 
       // back compatibility
       case (JObject(a), TDict(TString(_), valueType, _)) =>
-        a.map { case (key, value) =>
-          (key, importAnnotation(value, valueType, parent, padNulls))
-        }
-          .toMap
+        val ktord = TString().ordering.toTotalOrdering
+        TreeMap(
+          a.map { case (key, value) =>
+            (key: Any, importAnnotation(value, valueType, parent, padNulls))
+          }: _*)(ktord)
 
       case (JArray(arr), TDict(keyType, valueType, _)) =>
-        arr.map { case JObject(a) =>
+        val tkord = keyType.ordering.toTotalOrdering
+        TreeMap(arr.map { case JObject(a) =>
           a match {
             case List(k, v) =>
               (k, v) match {
@@ -180,7 +184,7 @@ object JSONAnnotationImpex {
         case _ =>
           warn(s"Can't convert JSON value $jv to type $t at $parent.")
           null
-        }.toMap
+        }: _*)(tkord)
 
       case (JObject(jfields), t: TStruct) =>
         if (t.size == 0)
@@ -246,7 +250,9 @@ object JSONAnnotationImpex {
         a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toArray[Any]: IndexedSeq[Any]
 
       case (JArray(a), TSet(elementType, _)) =>
-        a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toSet[Any]
+        val tord = elementType.ordering.toTotalOrdering
+        TreeSet(
+          a.iterator.map(jv2 => importAnnotation(jv2, elementType, parent + ".<array>", padNulls)).toFastIndexedSeq: _*)(tord)
 
       case _ =>
         warn(s"Can't convert JSON value $jv to type $t at $parent.")

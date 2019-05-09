@@ -7,6 +7,7 @@ import is.hail.utils.roundWithConstantSum
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
+import scala.collection.immutable.{TreeMap, TreeSet}
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.math.Numeric.Implicits._
@@ -316,6 +317,40 @@ object Gen {
         b.result()
       }
     }
+
+  def treeSetOf[T](g: Gen[T])(ord: Ordering[T]): Gen[TreeSet[T]] = {
+    Gen { (p: Parameters) =>
+      var r = new TreeSet[T]()(ord)
+      if (p.size == 0)
+        r
+      else {
+        // scale up a bit by log, so that we can spread out a bit more with
+        // higher sizes
+        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+        val s = part.length
+        for (i <- 0 until s)
+          r += g(p.copy(size = part(i)))
+        r
+      }
+    }
+  }
+
+  def treeMapOf[K, V](tg: Gen[(K, V)])(ord: Ordering[K]): Gen[TreeMap[K, V]] = {
+    Gen { (p: Parameters) =>
+      var r = new TreeMap[K, V]()(ord)
+      if (p.size == 0)
+        r
+      else {
+        // scale up a bit by log, so that we can spread out a bit more with
+        // higher sizes
+        val part = partitionBetaDirichlet(p.rng, p.size, buildableOfAlpha, buildableOfBeta * math.log(p.size + 0.01))
+        val s = part.length
+        for (i <- 0 until s)
+          r += tg(p.copy(size = part(i)))
+        r
+      }
+    }
+  }
 
   sealed trait DistinctBuildableOf[C[_]] {
     def apply[T](g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =

@@ -15,17 +15,19 @@ class SetFunctionsSuite extends TestNGSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
+  val t = TSet(TInt32())
+
   @Test def toSet() {
-    assertEvalsTo(IRSet(3, 7), Set(3, 7))
-    assertEvalsTo(IRSet(3, null, 7), Set(null, 3, 7))
+    assertEvalsTo(IRSet(3, 7), t.literal(3, 7))
+    assertEvalsTo(IRSet(3, null, 7), t.literal(null, 3, 7))
     assertEvalsTo(nas, null)
     assertEvalsTo(ToSet(naa), null)
-    assertEvalsTo(invoke("toSet", IRArray(3, 7)), Set(3, 7))
-    assertEvalsTo(invoke("toSet", IRArray(3, null, 7)), Set(null, 3, 7))
+    assertEvalsTo(invoke("toSet", IRArray(3, 7)), t.literal(3, 7))
+    assertEvalsTo(invoke("toSet", IRArray(3, null, 7)), t.literal(null, 3, 7))
     assertEvalsTo(invoke("toSet", naa), null)
   }
 
-  @Test def isEmpty() {
+  @Test def testIsEmpty() {
     assertEvalsTo(invoke("isEmpty", IRSet(3, 7)), false)
     assertEvalsTo(invoke("isEmpty", IRSet(3, null, 7)), false)
     assertEvalsTo(invoke("isEmpty", IRSet()), true)
@@ -49,19 +51,19 @@ class SetFunctionsSuite extends TestNGSuite {
 
   @Test def remove() {
     val s = IRSet(3, null, 7)
-    assertEvalsTo(invoke("remove", s, I32(3)), Set(null, 7))
-    assertEvalsTo(invoke("remove", s, I32(4)), Set(null, 3, 7))
-    assertEvalsTo(invoke("remove", s, NA(TInt32())), Set(3, 7))
-    assertEvalsTo(invoke("remove", IRSet(3, 7), NA(TInt32())), Set(3, 7))
+    assertEvalsTo(invoke("remove", s, I32(3)), t.literal(null, 7))
+    assertEvalsTo(invoke("remove", s, I32(4)), t.literal(null, 3, 7))
+    assertEvalsTo(invoke("remove", s, NA(TInt32())), t.literal(3, 7))
+    assertEvalsTo(invoke("remove", IRSet(3, 7), NA(TInt32())), t.literal(3, 7))
   }
 
   @Test def add() {
     val s = IRSet(3, null, 7)
-    assertEvalsTo(invoke("add", s, I32(3)), Set(null, 3, 7))
-    assertEvalsTo(invoke("add", s, I32(4)), Set(null, 3, 4, 7))
-    assertEvalsTo(invoke("add", s, I32(4)), Set(null, 3, 4, 7))
-    assertEvalsTo(invoke("add", s, NA(TInt32())), Set(null, 3, 7))
-    assertEvalsTo(invoke("add", IRSet(3, 7), NA(TInt32())), Set(null, 3, 7))
+    assertEvalsTo(invoke("add", s, I32(3)), t.literal(null, 3, 7))
+    assertEvalsTo(invoke("add", s, I32(4)), t.literal(null, 3, 4, 7))
+    assertEvalsTo(invoke("add", s, I32(4)), t.literal(null, 3, 4, 7))
+    assertEvalsTo(invoke("add", s, NA(TInt32())), t.literal(null, 3, 7))
+    assertEvalsTo(invoke("add", IRSet(3, 7), NA(TInt32())), t.literal(null, 3, 7))
   }
 
   @Test def isSubset() {
@@ -73,18 +75,18 @@ class SetFunctionsSuite extends TestNGSuite {
   }
 
   @Test def union() {
-    assertEvalsTo(invoke("union", IRSet(3, null, 7), IRSet(3, 8)), Set(null, 3, 7, 8))
-    assertEvalsTo(invoke("union", IRSet(3, 7), IRSet(3, 8, null)), Set(null, 3, 7, 8))
+    assertEvalsTo(invoke("union", IRSet(3, null, 7), IRSet(3, 8)), t.literal(null, 3, 7, 8))
+    assertEvalsTo(invoke("union", IRSet(3, 7), IRSet(3, 8, null)), t.literal(null, 3, 7, 8))
   }
 
   @Test def intersection() {
-    assertEvalsTo(invoke("intersection", IRSet(3, null, 7), IRSet(3, 8)), Set(3))
-    assertEvalsTo(invoke("intersection", IRSet(3, null, 7), IRSet(3, 8, null)), Set(null, 3))
+    assertEvalsTo(invoke("intersection", IRSet(3, null, 7), IRSet(3, 8)), t.literal(3))
+    assertEvalsTo(invoke("intersection", IRSet(3, null, 7), IRSet(3, 8, null)), t.literal(null, 3))
   }
 
   @Test def difference() {
-    assertEvalsTo(invoke("difference", IRSet(3, null, 7), IRSet(3, 8)), Set(null, 7))
-    assertEvalsTo(invoke("difference", IRSet(3, null, 7), IRSet(3, 8, null)), Set(7))
+    assertEvalsTo(invoke("difference", IRSet(3, null, 7), IRSet(3, 8)), t.literal(null, 7))
+    assertEvalsTo(invoke("difference", IRSet(3, null, 7), IRSet(3, 8, null)), t.literal(7))
   }
 
   @Test def sum() {

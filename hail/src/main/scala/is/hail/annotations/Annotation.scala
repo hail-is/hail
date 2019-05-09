@@ -4,6 +4,8 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
+import scala.collection.immutable.{TreeMap, TreeSet}
+
 object Annotation {
 
   final val COL_HEAD = "sa"
@@ -50,11 +52,13 @@ object Annotation {
         Array.tabulate(arr.length)(i => Annotation.copy(t.elementType, arr(i))).toFastIndexedSeq
 
       case t: TSet =>
-        a.asInstanceOf[Set[Annotation]].map(Annotation.copy(t.elementType, _))
+        val s = a.asInstanceOf[TreeSet[Any]]
+        TreeSet(s.iterator.map(a => Annotation.copy(t.elementType, a)).toFastIndexedSeq: _*)(s.ordering)
 
       case t: TDict =>
-        a.asInstanceOf[Map[Annotation, Annotation]]
-          .map { case (k, v) => (Annotation.copy(t.keyType, k), Annotation.copy(t.valueType, v)) }
+        val m = a.asInstanceOf[TreeMap[Any, Any]]
+        TreeMap(
+          m.iterator.map { case (k, v) => (Annotation.copy(t.keyType, k), Annotation.copy(t.valueType, v)) }.toFastIndexedSeq: _*)(m.ordering)
 
       case t: TInterval =>
         val i = a.asInstanceOf[Interval]

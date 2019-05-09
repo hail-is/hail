@@ -10,6 +10,8 @@ import is.hail.variant.{Locus, RGBase}
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
+import scala.collection.immutable.TreeMap
+
 trait UnKryoSerializable extends KryoSerializable {
   def write(kryo: Kryo, output: Output): Unit = {
     throw new NotImplementedException()
@@ -71,12 +73,13 @@ object UnsafeRow {
       case t: PArray =>
         readArray(t, region, offset)
       case t: PSet =>
-        readArray(t, region, offset).toSet
+        t.virtualType.toLiteral(readArray(t, region, offset))
       case _: PString => readString(region, offset)
       case _: PBinary => readBinary(region, offset)
       case td: PDict =>
         val a = readArray(td, region, offset)
-        a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))).toMap
+        TreeMap(
+          a.asInstanceOf[IndexedSeq[Row]].map(r => (r.get(0), r.get(1))): _*)(td.keyType.virtualType.ordering.toTotalOrdering)
       case t: PBaseStruct => readBaseStruct(t, region, offset)
       case x: PLocus => readLocus(region, offset, x.rg)
       case x: PInterval =>

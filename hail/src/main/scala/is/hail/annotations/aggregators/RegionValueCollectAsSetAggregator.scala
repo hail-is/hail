@@ -1,9 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.types.virtual.{TSet, Type}
-
-import scala.collection.mutable
+import is.hail.expr.types.virtual._
 
 class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
   private var hasTrue = false
@@ -57,14 +55,14 @@ class RegionValueCollectAsSetBooleanAggregator extends RegionValueAggregator {
 }
 
 class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
-  private var values = mutable.Set[Int]()
+  private var values = TSet(TInt32()).literal()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Int, missing: Boolean) {
     if (missing)
       hasMissing = true
     else
-      values.add(x)
+      values += x
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -75,8 +73,8 @@ class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
 
   def result(rvb: RegionValueBuilder) {
     rvb.startArray(if (hasMissing) values.size + 1 else values.size)
-    values.toArray.sorted.foreach { i =>
-      rvb.addInt(i)
+    values.foreach { i =>
+      rvb.addInt(i.asInstanceOf[Int])
     }
     if (hasMissing)
       rvb.setMissing()
@@ -87,25 +85,25 @@ class RegionValueCollectAsSetIntAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueCollectAsSetIntAggregator = {
     val rva = new RegionValueCollectAsSetIntAggregator()
-    rva.values = values.clone()
+    rva.values = values
     rva
   }
 
   def clear() {
-    values.clear()
+    values = TSet(TInt32()).literal()
     hasMissing = false
   }
 }
 
 class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
-  private var values = mutable.Set[Long]()
+  private var values = TSet(TInt64()).literal()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (missing)
       hasMissing = true
     else
-      values.add(x)
+      values += x
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -116,8 +114,8 @@ class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
 
   def result(rvb: RegionValueBuilder) {
     rvb.startArray(if (hasMissing) values.size + 1 else values.size)
-    values.toArray.sorted.foreach { i =>
-      rvb.addLong(i)
+    values.foreach { i =>
+      rvb.addLong(i.asInstanceOf[Long])
     }
     if (hasMissing)
       rvb.setMissing()
@@ -128,25 +126,25 @@ class RegionValueCollectAsSetLongAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueCollectAsSetLongAggregator = {
     val rva = new RegionValueCollectAsSetLongAggregator()
-    rva.values = values.clone()
+    rva.values = values
     rva
   }
 
   def clear() {
-    values.clear()
+    values = TSet(TInt64()).literal()
     hasMissing = false
   }
 }
 
 class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
-  private var values = mutable.Set[Float]()
+  private var values = TSet(TFloat64()).literal()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Float, missing: Boolean) {
     if (missing)
       hasMissing = true
     else
-      values.add(x)
+      values += x
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -157,8 +155,8 @@ class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
 
   def result(rvb: RegionValueBuilder) {
     rvb.startArray(if (hasMissing) values.size + 1 else values.size)
-    values.toArray.sorted.foreach { i =>
-      rvb.addFloat(i)
+    values.foreach { i =>
+      rvb.addFloat(i.asInstanceOf[Float])
     }
     if (hasMissing)
       rvb.setMissing()
@@ -169,25 +167,25 @@ class RegionValueCollectAsSetFloatAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueCollectAsSetFloatAggregator = {
     val rva = new RegionValueCollectAsSetFloatAggregator()
-    rva.values = values.clone()
+    rva.values = values
     rva
   }
 
   def clear() {
-    values.clear()
+    values = TSet(TFloat32()).literal()
     hasMissing = false
   }
 }
 
 class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
-  private var values = mutable.Set[Double]()
+  private var values = TSet(TFloat64()).literal()
   private var hasMissing = false
 
   def seqOp(region: Region, x: Double, missing: Boolean) {
     if (missing)
       hasMissing = true
     else
-      values.add(x)
+      values += x
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -198,8 +196,8 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
 
   def result(rvb: RegionValueBuilder) {
     rvb.startArray(if (hasMissing) values.size + 1 else values.size)
-    values.toArray.sorted.foreach { i =>
-      rvb.addDouble(i)
+    values.foreach { i =>
+      rvb.addDouble(i.asInstanceOf[Double])
     }
     if (hasMissing)
       rvb.setMissing()
@@ -210,24 +208,24 @@ class RegionValueCollectAsSetDoubleAggregator extends RegionValueAggregator {
 
   override def copy(): RegionValueCollectAsSetDoubleAggregator = {
     val rva = new RegionValueCollectAsSetDoubleAggregator()
-    rva.values = values.clone()
+    rva.values = values
     rva
   }
 
   def clear() {
-    values.clear()
+    values = TSet(TFloat64()).literal()
     hasMissing = false
   }
 }
 
 class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionValueAggregator {
-  private var values = mutable.Set[Any]()
+  private var values = TSet(typ).literal()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)
-      values.add(null)
+      values += null
     else
-      values.add(SafeRow.read(typ.physicalType, region, offset))
+      values += SafeRow.read(typ.physicalType, region, offset)
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -236,19 +234,18 @@ class RegionValueCollectAsSetAnnotationAggregator(val typ: Type) extends RegionV
   }
 
   def result(rvb: RegionValueBuilder) {
-    rvb.addAnnotation(TSet(typ), values.toSet)
+    rvb.addAnnotation(TSet(typ), values)
   }
 
   def newInstance(): RegionValueCollectAsSetAnnotationAggregator = new RegionValueCollectAsSetAnnotationAggregator(typ)
 
   override def copy(): RegionValueCollectAsSetAnnotationAggregator = {
     val rva = new RegionValueCollectAsSetAnnotationAggregator(typ)
-    rva.values = values.clone()
+    rva.values = values
     rva
   }
 
   def clear() {
-    values.clear()
+    values = TSet(typ).literal()
   }
 }
-

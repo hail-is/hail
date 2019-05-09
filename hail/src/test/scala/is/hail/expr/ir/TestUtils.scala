@@ -6,11 +6,11 @@ import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call
 
 object TestUtils {
-  def toIRInt(i: Integer): IR =
+  def toIRInt(i: Any): IR =
     if (i == null)
       NA(TInt32())
     else
-      I32(i)
+      I32(i.asInstanceOf[Int])
 
   def toIRDouble(d: java.lang.Double): IR =
     if (d == null)
@@ -18,19 +18,19 @@ object TestUtils {
     else
       F64(d)
 
-  def toIRPair(p: (Integer, Integer)): IR =
+  def toIRPair(p: (Any, Any)): IR =
     if (p == null)
       NA(TTuple(TInt32(), TInt32()))
     else
       MakeTuple(Seq(toIRInt(p._1), toIRInt(p._2)))
 
-  def toIRArray(a: Seq[Integer]): IR =
+  def toIRArray(a: Seq[Any]): IR =
     if (a == null)
       NA(TArray(TInt32()))
     else
       MakeArray(a.map(toIRInt), TArray(TInt32()))
 
-  def IRArray(a: Integer*): IR = toIRArray(a)
+  def IRArray(a: Any*): IR = toIRArray(a)
 
   def toIRStringArray(a: Seq[String]): IR =
     if (a == null)
@@ -50,27 +50,27 @@ object TestUtils {
 
   def IRDoubleArray(a: java.lang.Double*): IR = toIRDoubleArray(a)
 
-  def toIRPairArray(a: Seq[(Integer, Integer)]): IR =
+  def toIRPairArray(a: Seq[(Any, Any)]): IR =
     if (a == null)
       NA(TArray(TTuple(TInt32(), TInt32())))
     else
       MakeArray(a.map(toIRPair), TArray(TTuple(TInt32(), TInt32())))
 
-  def toIRDict(a: Seq[(Integer, Integer)]): IR =
+  def toIRDict(a: Seq[(Any, Any)]): IR =
     if (a == null)
       NA(TDict(TInt32(), TInt32()))
     else
       ToDict(MakeArray(a.map(toIRPair), TArray(TTuple(TInt32(), TInt32()))))
 
-  def IRDict(a: (Integer, Integer)*): IR = toIRDict(a)
+  def IRDict(a: (Any, Any)*): IR = toIRDict(a)
 
-  def toIRSet(a: Seq[Integer]): IR =
+  def toIRSet(a: Seq[Any]): IR =
     if (a == null)
       NA(TSet(TInt32()))
   else
       ToSet(toIRArray(a))
 
-  def IRSet(a: Integer*): IR = toIRSet(a)
+  def IRSet(a: Any*): IR = toIRSet(a)
 
   def IRCall(c: Call): IR = Cast(I32(c), TCall())
 

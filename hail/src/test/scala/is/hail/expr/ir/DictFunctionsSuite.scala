@@ -3,15 +3,21 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual.{TDict, TInt32}
-import is.hail.utils.FastIndexedSeq
+import is.hail.expr.types.virtual.{TDict, TInt32, TSet}
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
+import scala.collection.immutable.TreeMap
+
 class DictFunctionsSuite extends TestNGSuite {
-  def tuplesToMap(a: Seq[(Integer, Integer)]): Map[Integer, Integer] =
-    Option(a).map(_.filter(_ != null).toMap).orNull
+  def tuplesToMap(a: Seq[(Any, Any)]): TreeMap[Any, Any] = {
+    if (a != null)
+      TreeMap(a.filter(_ != null): _*)(TInt32().ordering.toTotalOrdering)
+    else
+      null
+  }
 
   implicit val execStrats = ExecStrategy.javaOnly
 
@@ -25,20 +31,23 @@ class DictFunctionsSuite extends TestNGSuite {
   )
 
   @Test(dataProvider = "basic")
-  def dictFromArray(a: Seq[(Integer, Integer)]) {
+  def dictFromArray(a: Seq[(Any, Any)]) {
     assertEvalsTo(invoke("dict", toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def dictFromSet(a: Seq[(Integer, Integer)]) {
+  def dictFromSet(a: Seq[(Any, Any)]) {
     assertEvalsTo(invoke("dict", ToSet(toIRPairArray(a))), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: Seq[(Integer, Integer)]) {
+  def isEmpty(a: Seq[(Any, Any)]) {
     assertEvalsTo(invoke("isEmpty", toIRDict(a)),
-      Option(a).map(_.forall(_ == null)).orNull)
+      if (a == null)
+        null
+      else
+        tuplesToMap(a).isEmpty)
   }
 
   @DataProvider(name = "dictToArray")
@@ -65,11 +74,15 @@ class DictFunctionsSuite extends TestNGSuite {
     Array(null, null, null))
 
   @Test(dataProvider = "keysAndValues")
-  def keySet(a: Seq[(Integer, Integer)],
-    keys: IndexedSeq[Integer],
-    values: IndexedSeq[Integer]) {
+  def keySet(a: Seq[(Any, Any)],
+    keys: IndexedSeq[Any],
+    values: IndexedSeq[Any]) {
     assertEvalsTo(invoke("keySet", toIRDict(a)),
-      Option(keys).map(_.toSet).orNull)
+      if (a != null)
+        TSet(TInt32()).toLiteral(
+          tuplesToMap(a).map { case (k, v) => k }.toFastIndexedSeq)
+      else
+        null)
   }
 
   @Test(dataProvider = "keysAndValues")

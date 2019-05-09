@@ -155,12 +155,12 @@ class OrderingSuite extends SparkSuite {
     val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]@unchecked) =>
       val tdict = TDict(telt.types(0), telt.types(1))
       val array: IndexedSeq[Row] = a ++ a
-      val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
+      val expectedKeys = TSet(telt.types(0)).toLiteral(array.filter(_ != null).map { case Row(k, v) => k })
       assertEvalsTo(
         ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
         "x", GetField(Ref("x", -tdict.elementType), "key")),
         FastIndexedSeq(array -> TArray(telt)),
-        expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering))
+        expected = expectedKeys)
       true
     }
     p.check()
@@ -359,8 +359,8 @@ class OrderingSuite extends SparkSuite {
     a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
     val t = TSet(TFloat64())
 
-    val s = if (a != null) a.toSet else null
-    val s2 = if (a2 != null) a2.toSet else null
+    val s = if (a != null) t.toLiteral(a) else null
+    val s2 = if (a2 != null) t.toLiteral(a2) else null
     val args = FastIndexedSeq(s -> t, s2 -> t)
 
     assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)

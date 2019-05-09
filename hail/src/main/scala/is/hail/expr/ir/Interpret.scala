@@ -14,6 +14,8 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.immutable.{TreeMap, TreeSet}
+
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
@@ -307,27 +309,35 @@ object Interpret {
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null
-        else
-          aValue.asInstanceOf[IndexedSeq[Any]].toSet
+        else {
+          val eord = coerce[TIterable](a.typ).elementType.ordering
+          val tord = eord.toTotalOrdering
+          TreeSet(aValue.asInstanceOf[IndexedSeq[Any]]: _*)(tord)
+        }
       case ToDict(a) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue == null)
           null
-        else
-          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
+        else {
+          val ekord = coerce[TBaseStruct](coerce[TIterable](a.typ).elementType).types(0).ordering
+          val tkord = ekord.toTotalOrdering
+          TreeMap(
+            aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }: _*)(tkord)
+        }
 
       case ToArray(c) =>
-        val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
         val cValue = interpret(c, env, args, agg)
         if (cValue == null)
           null
-        else
+        else {
           cValue match {
-            case s: Set[_] =>
-              s.asInstanceOf[Set[Any]].toFastIndexedSeq.sorted(ordering)
-            case d: Map[_, _] => d.iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq.sorted(ordering)
+            case s: TreeSet[_] =>
+              s.asInstanceOf[TreeSet[Any]].toFastIndexedSeq
+            case d: TreeMap[_, _] =>
+              d.asInstanceOf[TreeMap[Any, Any]].iterator.map { case (k, v) => Row(k, v) }.toFastIndexedSeq
             case a => a
           }
+        }
 
       case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         val cValue = interpret(orderedCollection, env, args, agg)

@@ -747,6 +747,32 @@ package object utils extends Logging
            |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
     }
   }
+
+  def distinctOrd[T](a: IndexedSeq[T])(ord: Ordering[T])(implicit tct: ClassTag[T]): IndexedSeq[T] = {
+    val b = new ArrayBuilder[T]()
+    var i = 0
+    while (i < a.length) {
+      if (i == 0 || !ord.equiv(a(i - 1), a(i)))
+        b += a(i)
+      i += 1
+    }
+    b.result()
+  }
+
+  def mapOrdering[T, U](f: (U) => T, ord: Ordering[T]): Ordering[U] = new Ordering[U] {
+    def compare(x: U, y: U): Int = ord.compare(f(x), f(y))
+
+    override def lt(x: U, y: U): Boolean = ord.lt(f(x), f(y))
+
+    override def lteq(x: U, y: U): Boolean = ord.lteq(f(x), f(y))
+
+    override def equiv(x: U, y: U): Boolean = ord.equiv(f(x), f(y))
+
+    override def gt(x: U, y: U): Boolean = ord.gt(f(x), f(y))
+
+    override def gteq(x: U, y: U): Boolean = ord.gteq(f(x), f(y))
+
+  }
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
