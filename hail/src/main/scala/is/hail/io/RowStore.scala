@@ -46,6 +46,7 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
   require((blockSize & (blockSize - 1)) == 0)
+  require(blockSize <= (1 << 16))
 
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
@@ -68,6 +69,7 @@ trait BlockBufferSpec extends Serializable {
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
   require((blockSize & (blockSize - 1)) == 0)
+  require(blockSize <= (1 << 16))
 
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
@@ -226,6 +228,8 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
 trait OutputBlockBuffer extends Closeable {
   def writeBlock(buf: Array[Byte], len: Int): Unit
+
+  def getPos(): Long
 }
 
 trait InputBlockBuffer extends Closeable {
@@ -246,6 +250,8 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
     out.write(lenBuf, 0, 4)
     out.write(buf, 0, len)
   }
+
+  def getPos(): Long = out.asInstanceOf[FSDataOutputStream].getPos()
 }
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
@@ -581,13 +587,15 @@ final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     Memory.storeInt(comp, 0, decompLen) // decompLen
     out.writeBlock(comp, compLen + 4)
   }
+
+  def getPos(): Long = out.getPos()
 }
 
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
 
-  def indexOffset(): Long = ???
+  def indexOffset(): Long = (out.getPos() << 16) | off
 
   private def writeBlock() {
     out.writeBlock(buf, off)
