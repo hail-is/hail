@@ -2634,8 +2634,8 @@ class Tests(unittest.TestCase):
         np_scalar = np.array(scalar)
         h_scalar = hl._ndarray(scalar)
         h_np_scalar = hl._ndarray(np_scalar)
-        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
-        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
+        self.assert_evals_to(h_scalar[()], 5.0)
+        self.assert_evals_to(h_np_scalar[()], 5.0)
 
         cube = [[[0, 1],
                  [2, 3]],
@@ -2643,10 +2643,10 @@ class Tests(unittest.TestCase):
                  [6, 7]]]
         h_cube = hl._ndarray(cube)
         h_np_cube = hl._ndarray(np.array(cube))
-        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
-        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+        self.assert_evals_to(h_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_cube[1, 1, 0], 6)
+        self.assert_evals_to(h_np_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_np_cube[1, 1, 0], 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2655,6 +2655,27 @@ class Tests(unittest.TestCase):
 
     def ndarray_almost_eq(self, expr, expected):
         self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_shape(self):
+        np_e = np.array(3)
+        np_row = np.array([1, 2, 3])
+        np_col = np.array([[1], [2], [3]])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_nd = np.arange(30).reshape((2, 5, 3))
+
+        e = hl._ndarray(np_e)
+        row = hl._ndarray(np_row)
+        col = hl._ndarray(np_col)
+        m = hl._ndarray(np_m)
+        nd = hl._ndarray(np_nd)
+        self.assert_evals_to(e.shape, np_e.shape)
+        self.assert_evals_to(row.shape, np_row.shape)
+        self.assert_evals_to(m.shape, np_m.shape)
+        self.assert_evals_to(nd.shape, np_nd.shape)
+        self.assert_evals_to((row + nd).shape, (np_row + np_nd).shape)
+        self.assert_evals_to((row + col).shape, (np_row + np_col).shape)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

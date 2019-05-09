@@ -61,12 +61,14 @@ object Copy {
       case StreamRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         StreamRange(start, stop, step)
-      case MakeNDArray(nDim, _, _, _) =>
+      case MakeNDArray(_, _, _) =>
         val IndexedSeq(data: IR, shape: IR, rowMajor: IR) = newChildren
-        MakeNDArray(nDim, data, shape, rowMajor)
+        MakeNDArray(data, shape, rowMajor)
+      case NDArrayShape(_) =>
+        NDArrayShape(newChildren(0).asInstanceOf[IR])
       case NDArrayReshape(_, _) =>
-        val nd +: shape = newChildren
-        NDArrayReshape(nd.asInstanceOf[IR], shape.map(ir => ir.asInstanceOf[IR]))
+        val IndexedSeq(nd: IR, shape: IR) = newChildren
+        NDArrayReshape(nd, shape)
       case NDArrayRef(_, _) =>
         val (nd: IR) +: (idxs: IndexedSeq[_]) = newChildren
         NDArrayRef(nd, idxs.asInstanceOf[IndexedSeq[IR]])

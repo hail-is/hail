@@ -3256,6 +3256,22 @@ class NDArrayExpression(Expression):
 
         return construct_expr(ir.NDArrayReindex(self._ir, axes), self._type, self._indices, self._aggregations)
 
+    @property
+    def shape(self):
+        """The shape of this ndarray.
+
+        Examples
+        --------
+        >>> hl.eval(nd.shape)
+        (2, 2)
+
+        Returns
+        -------
+        :class:`.TupleExpression`
+        """
+        shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
+        return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
+
     @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
@@ -3293,7 +3309,7 @@ class NDArrayExpression(Expression):
             else:
                 raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
 
-        return construct_expr(NDArrayReshape(self._ir, [dim._ir for dim in shape]),
+        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
                               tndarray(self._type.element_type, len(shape)),
                               self._indices,
                               self._aggregations)

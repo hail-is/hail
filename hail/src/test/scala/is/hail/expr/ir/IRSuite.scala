@@ -924,10 +924,7 @@ class IRSuite extends SparkSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(shape.length,
-      MakeArray(data.map(F64), TArray(TFloat64())),
-      MakeArray(shape.map(I64), TArray(TInt64())),
-      rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple(shape.map(I64)), rowMajor)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64))
@@ -941,6 +938,14 @@ class IRSuite extends SparkSuite {
   val threeTensorColMajor = makeNDArray((0 until 30).map(_.toDouble), FastSeq(2, 3, 5), False())
   val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
+
+  @Test def testNDArrayShape() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
+    assertEvalsTo(NDArrayShape(vectorRowMajor), Row(2L))
+    assertEvalsTo(NDArrayShape(cubeRowMajor), Row(3L, 3L, 3L))
+  }
 
   @Test def testNDArrayRef() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
@@ -970,8 +975,8 @@ class IRSuite extends SparkSuite {
 
   @Test def testNDArrayReshape() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
-    val v = NDArrayReshape(matrixRowMajor, IndexedSeq(I64(4)))
-    val mat2 = NDArrayReshape(v, IndexedSeq(I64(2), I64(2)))
+    val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
+    val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
 
     assertEvalsTo(makeNDArrayRef(v, IndexedSeq(2)), 3.0)
     assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(1, 0)), 3.0)
@@ -983,25 +988,24 @@ class IRSuite extends SparkSuite {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
     val data = 0 until 10
-    val shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
+    val shape = FastSeq(2L, 5L)
     val nDim = 2
 
-    val positives = MakeNDArray(nDim, MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+    val positives = makeNDArray(data.map(_.toDouble), shape, True())
     val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
-    assertEvalsTo(NDArrayRef(positives, FastSeq(1L, 0L).map(I64)), 5.0)
-    assertEvalsTo(NDArrayRef(negatives, FastSeq(1L, 0L).map(I64)), -5.0)
+    assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
+    assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
-    val trues = MakeNDArray(nDim, MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), MakeTuple(shape.map(I64)), True())
     val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
-    assertEvalsTo(NDArrayRef(trues, FastSeq(1L, 0L).map(I64)), true)
-    assertEvalsTo(NDArrayRef(falses, FastSeq(1L, 0L).map(I64)), false)
+    assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
+    assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
-    val bools = MakeNDArray(nDim,
-      MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
-      shape, False())
+    val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean())),
+      MakeTuple(shape.map(I64)), False())
     val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean()), I64(1L), I64(0L)))
-    val one = NDArrayRef(boolsToBinary, FastSeq(0L, 0L).map(I64))
-    val zero = NDArrayRef(boolsToBinary, FastSeq(1L, 1L).map(I64))
+    val one = makeNDArrayRef(boolsToBinary, FastSeq(0L, 0L))
+    val zero = makeNDArrayRef(boolsToBinary, FastSeq(1L, 1L))
     assertEvalsTo(one, 1L)
     assertEvalsTo(zero, 0L)
   }
@@ -1009,18 +1013,14 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayMap2() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val shape = MakeArray(FastSeq(2L, 2L).map(I64), TArray(TInt64()))
-    val numbers = MakeNDArray(2,
-      MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())),
-      shape, True())
-    val bools = MakeNDArray(2,
-      MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())),
-      shape, True())
+    val shape = MakeTuple(FastSeq(2L, 2L).map(I64))
+    val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64())), shape, True())
+    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean())), shape, True())
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
       ApplyBinaryPrimOp(Add(), Ref("n", TFloat64()), If(Ref("b", TBoolean()), F64(10), F64(20))))
-    val ten = NDArrayRef(actual, FastSeq(0L, 0L).map(I64))
-    val twentyTwo = NDArrayRef(actual, FastSeq(1L, 0L).map(I64))
+    val ten = makeNDArrayRef(actual, FastSeq(0L, 0L))
+    val twentyTwo = makeNDArrayRef(actual, FastSeq(1L, 0L))
     assertEvalsTo(ten, 10.0)
     assertEvalsTo(twentyTwo, 22.0)
   }
@@ -1028,26 +1028,24 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayReindex() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
-      MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val transpose = NDArrayReindex(mat, FastIndexedSeq(1, 0))
-    val identity = NDArrayReindex(mat, FastIndexedSeq(0, 1))
+    val transpose = NDArrayReindex(matrixRowMajor, FastIndexedSeq(1, 0))
+    val identity = NDArrayReindex(matrixRowMajor, FastIndexedSeq(0, 1))
 
-    val topLeftIndex = FastSeq(0L, 0L).map(I64)
-    val bottomLeftIndex = FastSeq(1L, 0L).map(I64)
+    val topLeftIndex = FastSeq(0L, 0L)
+    val bottomLeftIndex = FastSeq(1L, 0L)
 
-    assertEvalsTo(NDArrayRef(matrixRowMajor, topLeftIndex), 1.0)
-    assertEvalsTo(NDArrayRef(identity, topLeftIndex), 1.0)
-    assertEvalsTo(NDArrayRef(transpose, topLeftIndex), 1.0)
-    assertEvalsTo(NDArrayRef(matrixRowMajor, bottomLeftIndex), 3.0)
-    assertEvalsTo(NDArrayRef(identity, bottomLeftIndex), 3.0)
-    assertEvalsTo(NDArrayRef(transpose, bottomLeftIndex), 2.0)
+    assertEvalsTo(makeNDArrayRef(matrixRowMajor, topLeftIndex), 1.0)
+    assertEvalsTo(makeNDArrayRef(identity, topLeftIndex), 1.0)
+    assertEvalsTo(makeNDArrayRef(transpose, topLeftIndex), 1.0)
+    assertEvalsTo(makeNDArrayRef(matrixRowMajor, bottomLeftIndex), 3.0)
+    assertEvalsTo(makeNDArrayRef(identity, bottomLeftIndex), 3.0)
+    assertEvalsTo(makeNDArrayRef(transpose, bottomLeftIndex), 2.0)
 
     val partialTranspose = NDArrayReindex(cubeRowMajor, FastIndexedSeq(0, 2, 1))
-    val idx = FastIndexedSeq(0L, 1L, 0L).map(I64)
-    val partialTranposeIdx = FastIndexedSeq(0L, 0L, 1L).map(I64)
-    assertEvalsTo(NDArrayRef(cubeRowMajor, idx), 3.0)
-    assertEvalsTo(NDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
+    val idx = FastIndexedSeq(0L, 1L, 0L)
+    val partialTranposeIdx = FastIndexedSeq(0L, 0L, 1L)
+    assertEvalsTo(makeNDArrayRef(cubeRowMajor, idx), 3.0)
+    assertEvalsTo(makeNDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
 
   @Test def testNDArrayBroadcasting() {
@@ -1090,11 +1088,9 @@ class IRSuite extends SparkSuite {
     val zero = makeNDArrayRef(NDArrayAgg(vectorRowMajor, IndexedSeq(0)), IndexedSeq.empty)
     assertEvalsTo(zero, 0.0)
 
-    val mat = MakeNDArray(2, MakeArray(Seq(F64(1.0), F64(2.0), F64(3.0), F64(4.0)), TArray(TFloat64())),
-      MakeArray(Seq(I64(2L), I64(2L)), TArray(TInt64())), True())
-    val four = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(0))
+    val four = makeNDArrayRef(NDArrayAgg(matrixRowMajor, IndexedSeq(0)), IndexedSeq(0))
     assertEvalsTo(four, 4.0)
-    val six = makeNDArrayRef(NDArrayAgg(mat, IndexedSeq(0)), IndexedSeq(1))
+    val six = makeNDArrayRef(NDArrayAgg(matrixRowMajor, IndexedSeq(0)), IndexedSeq(1))
     assertEvalsTo(six, 6.0)
 
     val twentySeven = makeNDArrayRef(NDArrayAgg(cubeRowMajor, IndexedSeq(2)), IndexedSeq(0, 0))
@@ -1495,9 +1491,8 @@ class IRSuite extends SparkSuite {
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
     val blockMatrixWriter = BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter(tmpDir.createLocalTempFile(), false)
-    val nd = MakeNDArray(2,
-      MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
-      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+    val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32())),
+      MakeTuple(FastSeq(I64(1), I64(2))),
       True())
 
 
@@ -1517,7 +1512,7 @@ class IRSuite extends SparkSuite {
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
       MakeStream(FastSeq(i, NA(TInt32()), I32(-3)), TStream(TInt32())),
       nd,
-      NDArrayReshape(nd, IndexedSeq(4)),
+      NDArrayReshape(nd, MakeTuple(Seq(I64(4)))),
       NDArrayRef(nd, FastSeq(I64(1), I64(2))),
       NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       NDArrayMap2(nd, nd, "l", "r", ApplyBinaryPrimOp(Add(), l, r)),

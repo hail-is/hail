@@ -855,17 +855,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(nDim, dataIR, shapeIR, rowMajorIR) =>
+      case ir.MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val dataContainer = dataIR.pType.asInstanceOf[PStreamable].asPArray
-        val elemPType = dataContainer.elementType
-        val shapeContainer = shapeIR.pType.asInstanceOf[PStreamable].asPArray
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
         val datat = emit(dataIR)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val elemSize = elemPType.byteSize
-        val shape = fb.variable("shape", "std::vector<long>",
-          s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
+        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
+        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
+        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
+        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
+
+        val elemSize = dataContainer.elementType.byteSize
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(${rowMajort.v}, $shape)")
         val data = fb.variable("data", "const char *", datat.v)
 
@@ -876,60 +878,75 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ rowMajort.setup }
              | ${ shapet.setup }
              | ${ datat.setup }
-             | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
+             | ${ shapeTup.define }
+             | if (${ datat.m } || ${ rowMajort.m } || ${ shapet.m } ||
+             |     ${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
              |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ shape.define }
              | ${ strides.define }
              |
-             | if ($nDim != $shape.size()) {
-             |   ${ fb.nativeError("Shape size does not match expected number of dimensions") }
-             | }
-             |
              | ${ data.define }
-             |
              | if (n_elements($shape) != load_length($data)) {
              |   ${ fb.nativeError("Number of elements does not match NDArray shape") }
              | }
              |
-             | make_ndarray(0, 0, $elemSize, $shape, $strides, ${dataContainer.cxxImpl}::elements_address(${ datat.v }));
+             | make_ndarray(0, 0, $elemSize, $shape, $strides, ${dataContainer.cxxImpl}::elements_address($data));
              |})
              |""".stripMargin)
+
+      case ir.NDArrayShape(ndIR) =>
+        fb.translationUnitBuilder().include("hail/NDArray.h")
+
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+        val shape = fb.variable("shape", "std::vector<long>", childEmitter.shape.toString)
+        val sb = resultRegion.structBuilder(fb, pType.asInstanceOf[PTuple])
+        var dim = 0
+        while (dim < ndIR.pType.asInstanceOf[PNDArray].nDims) {
+          sb.add(present(s"$shape[$dim]"))
+          dim += 1
+        }
+        present(
+          s"""
+             |({
+             |  ${ childEmitter.setup }
+             |  ${ shape.define }
+             |  ${ sb.body() }
+             |  ${ sb.end() };
+             |})
+           """.stripMargin)
 
       case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
-      case ir.NDArrayReshape(child, shapeIRs) =>
+      case ir.NDArrayReshape(child, shapeIR) =>
         // Force copy of new array that is row major
         val childRowMajor = emitDeforestedNDArray(resultRegion, child, env)
         val nd = fb.variable("nd", "NDArray", childRowMajor.emit(child.pType.asInstanceOf[PNDArray].elementType))
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
 
-        val shapet = shapeIRs.map(emit(_))
-        val shapeVars = shapet.zipWithIndex.map { case (lent, dim) => fb.variable(s"dim_${dim}_len", "long", lent.v) }
-        val shape = fb.variable("shape", "std::vector<long>")
-        val buildShape = shapet.zip(shapeVars).map { case (lent, lenVar) =>
-          s"""
-             | if (${ lent.m }) {
-             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
-             | }
-             | $shape.push_back($lenVar);
-           """.stripMargin
-        }
+        val shapet = emit(shapeIR)
+        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
+        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
+        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
+        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
 
-        val totalExpectedElements = shapeVars.foldRight("1") { (dimLen, nElements) => s"($dimLen * $nElements)" }
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
         present(
           s"""
              |({
+             | ${ shapeTup.define }
+             | if (${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
+             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
+             | }
+             |
              | ${ nd.define }
-             | ${ Code.sequence(shapeVars.map(_.define)) }
              | ${ shape.define }
-             | ${ Code.sequence(buildShape) }
              | ${ strides.define }
              |
-             | if ($totalExpectedElements != n_elements($nd.shape)) {
+             | if (n_elements($shape) != n_elements($nd.shape)) {
              |  ${ fb.nativeError("Initial shape and new shape have differing number of elements") }
              | }
              |

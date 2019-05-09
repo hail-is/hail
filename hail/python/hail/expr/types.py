@@ -1063,6 +1063,9 @@ class ttuple(HailType):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
 
+    def __len__(self):
+        return len(self._types)
+
     def __str__(self):
         return "tuple({})".format(", ".join([str(t) for t in self.types]))
 
