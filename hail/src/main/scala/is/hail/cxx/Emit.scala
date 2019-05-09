@@ -862,12 +862,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shapet = emit(shapeIR)
         val rowMajort = emit(rowMajorIR)
 
-        val shape = fb.variable("shape", "std::vector<long>")
         val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
         val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
-        val buildShape = Seq.tabulate(shapePType.size) { dim =>
-          s"$shape.push_back(${ shapePType.cxxLoadField(shapeTup.toString, dim) });"
-        }
+        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
+        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
 
         val elemSize = dataContainer.elementType.byteSize
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(${rowMajort.v}, $shape)")
@@ -881,12 +879,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shapet.setup }
              | ${ datat.setup }
              | ${ shapeTup.define }
-             | if (${ datat.m } || ${ rowMajort.m } || ${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
+             | if (${ datat.m } || ${ rowMajort.m } || ${ shapet.m } ||
+             |     ${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
              |   ${ fb.nativeError("NDArray does not support missingness. IR: %s".format(s)) }
              | }
              |
              | ${ shape.define }
-             | ${ Code.sequence(buildShape) }
              | ${ strides.define }
              |
              | ${ data.define }
@@ -931,24 +929,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val shapet = emit(shapeIR)
         val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
-        val shape = fb.variable("shape", "std::vector<long>")
-        val buildShape = Seq.tabulate(shapePType.size) { dim =>
-          s"""
-             | if (${ shapePType.cxxIsFieldMissing(shapeTup.toString, dim) }) {
-             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
-             | }
-             | $shape.push_back(${ shapePType.cxxLoadField(shapeTup.toString, dim) });
-           """.stripMargin
-        }
+        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
+        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
+        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
 
         val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
         present(
           s"""
              |({
-             | ${ nd.define }
              | ${ shapeTup.define }
+             | if (${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
+             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
+             | }
+             |
+             | ${ nd.define }
              | ${ shape.define }
-             | ${ Code.sequence(buildShape) }
              | ${ strides.define }
              |
              | if (n_elements($shape) != n_elements($nd.shape)) {
