@@ -9,9 +9,9 @@ import is.hail.expr.ir.BindingEnv
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
-import is.hail.io.fs.HadoopFS
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.fatal
+import is.hail.io.fs.HadoopFS
 
 import scala.reflect.classTag
 
