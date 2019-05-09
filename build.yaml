@@ -481,7 +481,7 @@ steps:
     - kind: Pod
       name: test-batch
       for: completed
-      timeout: 480
+      timeout: 900
    dependsOn:
     - default_ns
     - batch_pods_ns

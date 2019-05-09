@@ -1145,16 +1145,16 @@ class SetStructExpression(SetExpression):
         --------
 
         >>> x = hl.set({hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)})
-        >>> hl.eval(x.a)
-        {'foo', 'bar'}
+        >>> hl.eval(x.a) == {'foo', 'bar'}
+        True
 
         >>> a = hl.set({hl.struct(b={hl.struct(inner=1),
         ...                          hl.struct(inner=2)}),
         ...             hl.struct(b={hl.struct(inner=3)})})
-        >>> hl.eval(hl.flatten(a.b).inner)
-        {1, 2, 3}
-        >>> hl.eval(hl.flatten(a.b.inner))
-        {1, 2, 3}
+        >>> hl.eval(hl.flatten(a.b).inner) == {1, 2, 3}
+        True
+        >>> hl.eval(hl.flatten(a.b.inner)) == {1, 2, 3}
+        True
 
         Parameters
         ----------

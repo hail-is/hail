@@ -85,7 +85,7 @@ class Table:  # pylint: disable=R0903
                     sql = f"UPDATE `{self.name}` SET {set_template} WHERE {where_template}"
                     await cursor.execute(sql, (*set_values, *where_values))
 
-    async def get_record(self, where_items, select_fields=None):
+    async def get_records(self, where_items, select_fields=None):
         assert select_fields is None or len(select_fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
