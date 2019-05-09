@@ -139,7 +139,7 @@ class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] 
   def _seqOp(k: Any, w: Long) {
     m.get(k) match {
       case Some(v) =>
-        m += k -> v + w
+        m += k -> (v + w)
       case None =>
         m += k -> w
     }
