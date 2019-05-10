@@ -937,6 +937,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present(
           s"""
              |({
+             | ${ shapet.setup }
+             | if (${ shapet.m }) {
+             |  ${ fb.nativeError("NDArray does not support missing shape") }
+             | }
              | ${ shapeTup.define }
              | if (${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
              |  ${ fb.nativeError("Cannot reshape with missing dimension length") }

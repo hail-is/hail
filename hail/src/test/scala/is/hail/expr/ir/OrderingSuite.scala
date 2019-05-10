@@ -197,7 +197,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testDictGetOnRandomDict() {
+  def testDictGetOnRandomDict() {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
