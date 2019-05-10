@@ -435,10 +435,12 @@ abstract class IntervalEndpointOrdering extends ExtendedOrdering {
   def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean
 
   override def compareNonnull(x: Any, y: Any): Int = {
+    println((x, y))
     val xp = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].point else x
     val xs = if (x.isInstanceOf[IntervalEndpoint]) x.asInstanceOf[IntervalEndpoint].sign else 0
     val yp = if (y.isInstanceOf[IntervalEndpoint]) y.asInstanceOf[IntervalEndpoint].point else y
     val ys = if (y.isInstanceOf[IntervalEndpoint]) y.asInstanceOf[IntervalEndpoint].sign else 0
+    println((xp, xs, yp, ys))
     compareIntervalEndpoints(xp, xs, yp, ys)
   }
 }

@@ -12,6 +12,8 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
+import scala.collection.immutable.TreeSet
+
 class OrderingSuite extends SparkSuite {
 
   implicit val execStrats = ExecStrategy.values
@@ -138,7 +140,7 @@ class OrderingSuite extends SparkSuite {
       val array = a ++ a
       assertEvalsTo(ToArray(ToSet(In(0, TArray(t)))),
         FastIndexedSeq(array -> TArray(t)),
-        expected = array.sorted(t.ordering.toOrdering).distinct)
+        TSet(t).toLiteral(array).toFastIndexedSeq)
       true
     }
     p.check()
@@ -211,7 +213,7 @@ class OrderingSuite extends SparkSuite {
         dict.getOrElse(testKey1, null))
 
       if (dict.nonEmpty) {
-        val testKey2 = dict.keys.toSeq.head
+        val testKey2 = dict.keys.head
         val expected2 = dict(testKey2)
         assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
           FastIndexedSeq(dict -> tdict,

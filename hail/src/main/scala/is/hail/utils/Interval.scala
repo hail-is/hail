@@ -153,7 +153,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def coarsen(newKeyLen: Int): Interval =
     Interval(left.coarsenLeft(newKeyLen), right.coarsenRight(newKeyLen))
 
-  override def toString: String = (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
+  override def toString: String = left.sign + "/" + (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")") + "/" + right.sign
 
   override def equals(other: Any): Boolean = other match {
     case that: Interval => left == that.left && right == that.right
@@ -216,9 +216,10 @@ object Interval {
     override def compareNonnull(x: Any, y: Any): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]
-
+      println(("c", xi, yi))
       if (startPrimary) {
         val c = pord.intervalEndpointOrdering.compare(xi.left, yi.left)
+        println(c)
         if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.right, yi.right)
       } else {
         val c = pord.intervalEndpointOrdering.compare(xi.right, yi.right)
