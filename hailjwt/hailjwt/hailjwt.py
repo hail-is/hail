@@ -42,17 +42,20 @@ def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
 
-with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
-    global jwtclient
-
-    jwtclient = JWTClient(f.read())
+jwtclient = None
 
 
 def authenticated_users_only(fun):
+    global jwtclient
+
     def wrapped(request, *args, **kwargs):
         encoded_token = request.cookies.get('user')
         if encoded_token is not None:
             try:
+                if not jwtclient:
+                    with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
+                        jwtclient = JWTClient(f.read())
+
                 userdata = jwtclient.decode(encoded_token)
                 if 'userdata' in fun.__code__.co_varnames:
                     return fun(request, *args, userdata=userdata, **kwargs)
