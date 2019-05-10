@@ -669,7 +669,7 @@ date
                                           attributes={'name': self.name + '_logs'},
                                           # FIXME configuration
                                           service_account_name='ci2-agent',
-                                          parent_ids=self.deps_parent_ids(),
+                                          parent_ids=[sink.id],
                                           always_run=True)
 
 
