@@ -6,6 +6,7 @@ import is.hail.expr.types.physical.PDict
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
+import scala.collection.SortedMap
 import scala.collection.immutable.TreeMap
 import scala.reflect.{ClassTag, classTag}
 
@@ -54,14 +55,14 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
   }
 
   def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&
-    a.asInstanceOf[TreeMap[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
+    a.asInstanceOf[SortedMap[_, _]].forall { case (k, v) => keyType.typeCheck(k) && valueType.typeCheck(v) })
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  def literal(elems: (Any, Any)*): TreeMap[Any, Any] =
+  def literal(elems: (Any, Any)*): SortedMap[Any, Any] =
     TreeMap(elems: _*)(keyType.ordering.toTotalOrdering)
 
-  def toLiteral(elems: IndexedSeq[(Any, Any)]): TreeMap[Any, Any] = literal(elems: _*)
+  def toLiteral(elems: IndexedSeq[(Any, Any)]): SortedMap[Any, Any] = literal(elems: _*)
 
   override def genNonmissingValue: Gen[Annotation] =
     Gen.treeMapOf[Any, Any](Gen.zip(keyType.genValue, valueType.genValue))(keyType.ordering.toTotalOrdering)

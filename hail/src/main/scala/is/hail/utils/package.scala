@@ -22,7 +22,8 @@ import org.json4s.reflect.TypeInfo
 import org.json4s.{Extraction, Formats, NoTypeHints, Serializer}
 
 import scala.collection.generic.CanBuildFrom
-import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
+import scala.collection.immutable.TreeMap
+import scala.collection.{GenTraversableOnce, SortedMap, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 
@@ -771,7 +772,25 @@ package object utils extends Logging
     override def gt(x: U, y: U): Boolean = ord.gt(f(x), f(y))
 
     override def gteq(x: U, y: U): Boolean = ord.gteq(f(x), f(y))
+  }
 
+  def treeMapGroupBy[T, K](f: T => K, xs: IndexedSeq[T])(ord: Ordering[K])(implicit tct: ClassTag[T]): SortedMap[K, IndexedSeq[T]] = {
+    var m = new TreeMap[K, ArrayBuilder[T]]()(ord)
+    var i = 0
+    while (i < xs.length) {
+      val x = xs(i)
+      val k = f(x)
+      m.get(k) match {
+        case Some(b) =>
+          b += x
+        case None =>
+          val b = new ArrayBuilder[T]()
+          b += x
+          m += k -> b
+      }
+      i += 1
+    }
+    m.mapValues(_.result())
   }
 }
 

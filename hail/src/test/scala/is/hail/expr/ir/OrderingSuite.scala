@@ -155,7 +155,7 @@ class OrderingSuite extends SparkSuite {
     val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]@unchecked) =>
       val tdict = TDict(telt.types(0), telt.types(1))
       val array: IndexedSeq[Row] = a ++ a
-      val expectedKeys = array.filter(_ != null).map { case Row(k, v) => k }
+      val expectedKeys = TSet(telt.types(0)).toLiteral(array.filter(_ != null).map { case Row(k, v) => k }).toFastIndexedSeq
       assertEvalsTo(
         ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
         "x", GetField(Ref("x", -tdict.elementType), "key")),

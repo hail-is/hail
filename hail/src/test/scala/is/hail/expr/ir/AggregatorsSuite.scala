@@ -7,7 +7,7 @@ import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types.virtual._
-import is.hail.stats.PearsonCorrelationCombiner
+import is.hail.stats.{InbreedingCombiner, PearsonCorrelationCombiner}
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
@@ -108,7 +108,7 @@ class AggregatorsSuite extends SparkSuite {
     runAggregator(Counter(),
       TString(),
       FastIndexedSeq("rabbit", "rabbit", null, "cat", "dog", null),
-      Map("rabbit" -> 2L, "cat" -> 1L, "dog" -> 1L, (null, 2L)))
+      TDict(TString(), TInt64()).literal("rabbit" -> 2L, "cat" -> 1L, "dog" -> 1L, (null, 2L)))
   }
 
   @Test def counterArray() {
@@ -122,47 +122,47 @@ class AggregatorsSuite extends SparkSuite {
     runAggregator(Counter(),
       TBoolean(),
       FastIndexedSeq(true, true, null, false, false, false, null),
-      Map(true -> 2L, false -> 3L, (null, 2L)))
+      TDict(TBoolean(), TInt64()).literal(true -> 2L, false -> 3L, (null, 2L)))
 
     runAggregator(Counter(),
       TBoolean(),
       FastIndexedSeq(true, true, false, false, false),
-      Map(true -> 2L, false -> 3L))
+      TDict(TBoolean(), TInt64()).literal(true -> 2L, false -> 3L))
   }
 
   @Test def counterInt() {
     runAggregator(Counter(),
       TInt32(),
       FastIndexedSeq(1, 3, null, 1, 4, 3, null),
-      Map(1 -> 2L, 3 -> 2L, 4 -> 1L, (null, 2L)))
+      TDict(TInt32(), TInt64()).literal(1 -> 2L, 3 -> 2L, 4 -> 1L, (null, 2L)))
   }
 
   @Test def counterLong() {
     runAggregator(Counter(),
       TInt64(),
       FastIndexedSeq(1L, 3L, null, 1L, 4L, 3L, null),
-      Map(1L -> 2L, 3L -> 2L, 4L -> 1L, (null, 2L)))
+      TDict(TInt64(), TInt64()).literal(1L -> 2L, 3L -> 2L, 4L -> 1L, (null, 2L)))
   }
 
   @Test def counterFloat() {
     runAggregator(Counter(),
       TFloat32(),
       FastIndexedSeq(1f, 3f, null, 1f, 4f, 3f, null),
-      Map(1f -> 2L, 3f -> 2L, 4f -> 1L, (null, 2L)))
+      TDict(TFloat32(), TInt64()).literal(1f -> 2L, 3f -> 2L, 4f -> 1L, (null, 2L)))
   }
 
   @Test def counterDouble() {
     runAggregator(Counter(),
       TFloat64(),
       FastIndexedSeq(1D, 3D, null, 1D, 4D, 3D, null),
-      Map(1D -> 2L, 3D -> 2L, 4D -> 1L, (null, 2L)))
+      TDict(TFloat64(), TInt64()).literal(1D -> 2L, 3D -> 2L, 4D -> 1L, (null, 2L)))
   }
 
   @Test def counterCall() {
     runAggregator(Counter(),
       TCall(),
       FastIndexedSeq(Call2(0, 0), Call2(0, 0), null, Call2(0, 1), Call2(1, 1), Call2(0, 0), null),
-      Map(Call2(0, 0) -> 3L, Call2(0, 1) -> 1L, Call2(1, 1) -> 1L, (null, 2L)))
+      TDict(TCall(), TInt64()).literal(Call2(0, 0) -> 3L, Call2(0, 1) -> 1L, Call2(1, 1) -> 1L, (null, 2L)))
   }
 
   @Test def collectAsSetBoolean() {
@@ -779,7 +779,7 @@ class AggregatorsSuite extends SparkSuite {
       Ref("k", TBoolean()),
       TStruct("k" -> TBoolean()),
       FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
-      Map(true -> 3L, false -> 2L, (null, 2L)),
+      TDict(TBoolean(), TInt64()).literal(true -> 3L, false -> 2L, (null, 2L)),
       constrArgs = FastIndexedSeq(),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq())
@@ -789,7 +789,7 @@ class AggregatorsSuite extends SparkSuite {
       Ref("k", TStruct("a" -> TBoolean())),
       TStruct("k" -> TStruct("a" -> TBoolean())),
       FastIndexedSeq(Row(Row(true)), Row(Row(true)), Row(Row(true)), Row(Row(false)), Row(Row(false)), Row(Row(null)), Row(Row(null))),
-      Map(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
+      TDict(TStruct("a" -> TBoolean()), TInt64()).literal(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
       constrArgs = FastIndexedSeq(),
       initOpArgs = None,
       seqOpArgs = FastIndexedSeq())
@@ -802,7 +802,7 @@ class AggregatorsSuite extends SparkSuite {
       Ref("k", TBoolean()),
       TStruct("k" -> TBoolean(), "v" -> TInt32()),
       FastIndexedSeq(Row(true, 5), Row(true, 3), Row(true, null), Row(false, 0), Row(false, null), Row(null, null), Row(null, 2)),
-      Map(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))),
+      TDict(TBoolean(), TInt64()).literal(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))),
       FastIndexedSeq(),
       None,
       FastIndexedSeq(Ref("v", TInt32())))
@@ -816,7 +816,7 @@ class AggregatorsSuite extends SparkSuite {
       TStruct("k" -> TBoolean(), "v" ->TCall()),
       FastIndexedSeq(Row(true, null), Row(true, Call2(0, 1)), Row(true, Call2(0, 1)),
         Row(false, null), Row(false, Call2(0, 0)), Row(false, Call2(1, 1))),
-      Map(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
+      TDict(TBoolean(), TCall()).literal(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
         false -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(1, 1))),
       FastIndexedSeq(),
       Some(FastSeq(I32(2))),
@@ -829,7 +829,8 @@ class AggregatorsSuite extends SparkSuite {
       Ref("k", TString()),
       TStruct("k" -> TString(), "x" -> TFloat64(), "y" -> TInt32()),
       FastIndexedSeq(Row("case", 0.2, 5), Row("control", 0.4, 0), Row(null, 1.0, 3), Row("control", 0.0, 2), Row("case", 0.3, 6), Row("control", 0.5, 1)),
-      Map("case" -> FastIndexedSeq(0.2, 0.3),
+      TDict(TString(), TStruct("x" -> TFloat64(), "y" -> TInt32())).literal(
+        "case" -> FastIndexedSeq(0.2, 0.3),
         "control" -> FastIndexedSeq(0.4, 0.5),
         (null, FastIndexedSeq(1.0))),
       FastIndexedSeq(I32(2)),
@@ -843,7 +844,7 @@ class AggregatorsSuite extends SparkSuite {
       Ref("k", TString()),
       TStruct("k" -> TString(), "x" -> TCall(), "y" -> TFloat64()),
       FastIndexedSeq(Row("case", Call2(0, 0), 0d), Row("case", Call2(0, 1), 0.1), Row("case", Call2(0, 1), 0.2), Row("case", null, 0.3), Row("case", Call2(1, 1), 0.4), Row("case", Call2(0, 0), null)),
-      Map("case" -> Row(-1.040816, 4L, 3.02, 2L)),
+      TDict(TString(), InbreedingCombiner.signature).literal("case" -> Row(-1.040816, 4L, 3.02, 2L)),
       constrArgs = FastIndexedSeq(),
       None,
       seqOpArgs = FastIndexedSeq(Ref("x", TCall()), Ref("y", TFloat64())))
@@ -853,7 +854,11 @@ class AggregatorsSuite extends SparkSuite {
   def keyedKeyedCollect() {
     val agg = FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TBoolean(), "x" -> TInt32())
-    val expected = Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
+    val t1 = TDict(TBoolean(), TArray(TInt32()))
+    val t2 = TDict(TString(), t1)
+    val expected = t2.literal(
+      "EUR" -> t1.literal(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)),
+      "AFR" -> t1.literal(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
     val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
@@ -878,11 +883,13 @@ class AggregatorsSuite extends SparkSuite {
       Row("AFR", "CASE", Call2(1, 1)),
       Row("AFR", "CONTROL", null))
     val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "g" -> TCall())
-    val expected = Map(
-      "EUR" -> Map(
+    val t1 = TDict(TString(), TCall())
+    val t2 = TDict(TString(), t1)
+    val expected = t2.literal(
+      "EUR" -> t1.literal(
         "CONTROL" -> Row(FastIndexedSeq(1, 1), FastIndexedSeq(0.5, 0.5), 2, FastIndexedSeq(0, 0)),
         "CASE" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))),
-      "AFR" -> Map(
+      "AFR" -> t1.literal(
         "CASE" -> Row(FastIndexedSeq(0, 2), FastIndexedSeq(0.0, 1.0), 2, FastIndexedSeq(0, 1)),
         "CONTROL" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))))
     val aggSig = AggSignature(CallStats(), FastIndexedSeq(), Some(FastIndexedSeq(TInt32())), FastIndexedSeq(TCall()))
@@ -906,10 +913,12 @@ class AggregatorsSuite extends SparkSuite {
       Row(null, "c", 1.0, 3), Row("control", "b", 0.0, 2),
       Row("case", "a", 0.3, 6), Row("control", "b", 0.5, 1))
     val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "x" -> TFloat64(), "y" -> TInt32())
-    val expected = Map(
-      "case" -> Map("a" -> FastIndexedSeq(0.2, 0.3)),
-      "control" -> Map("b" -> FastIndexedSeq(0.4, 0.5)),
-      (null, Map("c" -> FastIndexedSeq(1.0))))
+    val t1 = TDict(TString(), TArray(TFloat64()))
+    val t2 = TDict(TString(), t1)
+    val expected = t2.literal(
+      "case" -> t1.literal("a" -> FastIndexedSeq(0.2, 0.3)),
+      "control" -> t1.literal("b" -> FastIndexedSeq(0.4, 0.5)),
+      (null, t1.literal("c" -> FastIndexedSeq(1.0))))
     val aggSig = AggSignature(TakeBy(), FastIndexedSeq(TInt32()), None, FastIndexedSeq(TFloat64(), TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
@@ -928,7 +937,12 @@ class AggregatorsSuite extends SparkSuite {
   def keyedKeyedKeyedCollect() {
     val agg = FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "k3" -> TBoolean(), "x" -> TInt32())
-    val expected = Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4))))
+    val t1 = TDict(TBoolean(), TArray(TInt32()))
+    val t2 = TDict(TString(), t1)
+    val t3 = TDict(TString(), t2)
+    val expected = t3.literal(
+      "EUR" -> t2.literal("CASE" -> t1.literal(true -> FastIndexedSeq(1)), "CONTROL" -> t1.literal(true -> FastIndexedSeq(2))),
+      "AFR" -> t2.literal("CASE" -> t1.literal(false -> FastIndexedSeq(3)), "CONTROL" -> t1.literal(false -> FastIndexedSeq(4))))
     val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),

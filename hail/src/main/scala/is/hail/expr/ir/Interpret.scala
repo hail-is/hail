@@ -361,18 +361,22 @@ object Interpret {
       case GroupByKey(collection) =>
         val keyType = coerce[TBaseStruct](coerce[TIterable](collection.typ).elementType).types(0)
         val kord = keyType.ordering.toTotalOrdering
+        val elems = interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
         var m = new TreeMap[Any, ArrayBuilder[Any]]()(kord)
-        interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
-          .foreach { case Row(k, v) =>
-              m.get(k) match {
-                case Some(b) =>
-                  b += v
-                case None =>
-                  val b = new ArrayBuilder[Any]()
-                  m += (k -> b)
-              }
+        var i = 0
+        while (i < elems.length) {
+          val Row(k, v) = elems(i)
+          m.get(k) match {
+            case Some(b) =>
+              b += v
+            case None =>
+              val b = new ArrayBuilder[Any]()
+              b += v
+              m += k -> b
           }
-        m.mapValues(b => b.result().toFastIndexedSeq: Any)
+          i += 1
+        }
+        m.mapValues(_.result().toFastIndexedSeq)
 
       case ArrayMap(a, name, body) =>
         val aValue = interpret(a, env, args, agg)
@@ -524,13 +528,14 @@ object Interpret {
         assert(!isScan)
         // evaluates one aggregation per key in aggregation environment
         val Some((aggElements, aggElementType)) = agg
-        val groupedAgg = aggElements.groupBy { row =>
+        val kord = key.typ.ordering.toTotalOrdering
+        val groupedAgg = treeMapGroupBy({ row: Row =>
           val env = (row.toSeq, aggElementType.fieldNames).zipped
             .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
               e.bind(n, v)
             }
           interpret(key, env)
-        }
+        }, aggElements)(kord)
         groupedAgg.mapValues { row =>
           interpret(aggIR, agg=Some((row, aggElementType)))
         }
