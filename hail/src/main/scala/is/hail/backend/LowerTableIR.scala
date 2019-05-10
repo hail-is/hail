@@ -1,5 +1,6 @@
 package is.hail.backend
 
+import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -91,6 +92,50 @@ object LowerTableIR {
   // table globals should be stored in the first element of `globals` in TableStage;
   // globals in TableStage should have unique identifiers.
   def lower(tir: TableIR): TableStage = tir match {
+    case TableRead(typ, dropRows, reader) =>
+      val gType = typ.globalType
+      val rowType = typ.rowType
+      val rvdType = typ.canonicalRVDType
+      val globalRef = genUID()
+
+      reader match {
+        case r@TableNativeReader(path, _) =>
+          val globalsSpec = r.spec.globalsComponent.rvdSpec(HailContext.get.hadoopConf, path)
+          val gPath = globalsSpec.partFiles.head
+          val gSpec = globalsSpec.codecSpec
+          val gEncType = globalsSpec.encodedType.virtualType
+
+          if (dropRows) {
+            TableStage(
+              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gEncType, gType), 0))),
+              globalRef,
+              rvdType,
+              RVDPartitioner.empty(rvdType),
+              TStruct(),
+              MakeArray(FastIndexedSeq(), TArray(TStruct())),
+              MakeArray(FastIndexedSeq(), TArray(rvdType.rowType.virtualType)))
+          } else {
+            val rowsSpec = r.spec.rowsComponent.rvdSpec(HailContext.get.hadoopConf, path)
+            val partitioner = rowsSpec.partitioner
+            val rSpec = rowsSpec.codecSpec
+            val rowEncType = rowsSpec.encodedType.virtualType
+            val ctxType = TStruct("path" -> TString())
+
+            if (rowsSpec.key startsWith typ.key) {
+              TableStage(
+                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gEncType, gType), 0))),
+                globalRef,
+                rvdType,
+                partitioner,
+                ctxType,
+                MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(f)))), TArray(ctxType)),
+                ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowEncType, rowType))
+            } else {
+              throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
+            }
+          }
+      }
+
     case TableRange(n, nPartitions) =>
       val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
       val partCounts = partition(n, nPartitionsAdj)
