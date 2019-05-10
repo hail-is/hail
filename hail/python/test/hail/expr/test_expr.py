@@ -1024,6 +1024,38 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(d.get('missing_values', hl.null(hl.tint32))), None)
         self.assertEqual(hl.eval(d.get('missing_values', 5)), 5)
 
+    def test_functions_any_and_all(self):
+        x1 = hl.literal([], dtype='array<bool>')
+        x2 = hl.literal([True], dtype='array<bool>')
+        x3 = hl.literal([False], dtype='array<bool>')
+        x4 = hl.literal([None], dtype='array<bool>')
+        x5 = hl.literal([True, False], dtype='array<bool>')
+        x6 = hl.literal([True, None], dtype='array<bool>')
+        x7 = hl.literal([False, None], dtype='array<bool>')
+        x8 = hl.literal([True, False, None], dtype='array<bool>')
+
+        assert hl.eval(
+            (
+                (x1.any(lambda x: x), x1.all(lambda x: x)),
+                (x2.any(lambda x: x), x2.all(lambda x: x)),
+                (x3.any(lambda x: x), x3.all(lambda x: x)),
+                (x4.any(lambda x: x), x4.all(lambda x: x)),
+                (x5.any(lambda x: x), x5.all(lambda x: x)),
+                (x6.any(lambda x: x), x6.all(lambda x: x)),
+                (x7.any(lambda x: x), x7.all(lambda x: x)),
+                (x8.any(lambda x: x), x8.all(lambda x: x)),
+            )
+        ) == (
+                   (False, True),
+                   (True, True),
+                   (False, False),
+                   (None, None),
+                   (True, False),
+                   (True, None),
+                   (None, False),
+                   (True, False)
+               )
+
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
