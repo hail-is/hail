@@ -1396,8 +1396,8 @@ class Table(ExprContainer):
 
         return s
 
-    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc))
-    def show(self, n=None, width=None, truncate=None, types=True, handler=None):
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1418,7 +1418,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        n : :obj:`int`
+        n or n_rows : :obj:`int`
             Maximum number of rows to show.
         width : :obj:`int`
             Horizontal width at which to break fields.
@@ -1430,6 +1430,11 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n_rows is not None and n is not None:
+            raise ValueError(f'specify one of n_rows or n, recieved {n_rows} and {n}')
+        if n_rows is not None:
+            n = n_rows
+        del n_rows
         if handler is None:
             try:
                 from IPython.display import display
