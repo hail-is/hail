@@ -401,12 +401,12 @@ if [ ! -d .git ]; then
   git config user.name ci
 else
   git reset --merge
-  time git fetch origin
+  time git fetch -q origin
 fi
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-time git fetch {shq(self.source_repo.short_str())}
+time git fetch -q {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -688,7 +688,7 @@ if [ ! -d .git ]; then
   git config user.name ci
 else
   git reset --merge
-  time git fetch origin
+  time git fetch -q origin
 fi
 
 git checkout {shq(self.sha)}
