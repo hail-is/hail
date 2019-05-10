@@ -61,8 +61,8 @@ def authenticated_users_only(fun):
                 if 'userdata' in fun.__code__.co_varnames:
                     return fun(request, *args, userdata=userdata, **kwargs)
                 return fun(request, *args, **kwargs)
-            except jwt.exceptions.DecodeError as de:
-                log.info(f'could not decode token: {de}')
+            except jwt.exceptions.InvalidTokenError as exc:
+                log.info(f'could not decode token: {exc}')
         raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
     wrapped.__name__ = fun.__name__
     return wrapped
