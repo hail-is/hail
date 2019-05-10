@@ -117,7 +117,31 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     return p
 
 
-def pdf(data, k=350, confidence=3.5, legend=None, title=None, log=False, interactive=False):
+def _cdf_single_error(cdf, failure_prob):
+    s = 0
+    for i in range(len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2*i)
+    s = s / (cdf.ranks[-1] ** 2)
+    return sqrt(math.log(2 / failure_prob) * s / 2)
+
+
+def _cdf_error(cdf, failure_prob):
+    s = 0
+    for i in range(len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2*i)
+    s = s / (cdf.ranks[-1] ** 2)
+
+    def update_grid_size(p):
+        return 4 * sqrt(math.log(2 * p / failure_prob) / (2 * s))
+
+    p = 1 / failure_prob
+    for i in range(5):
+        p = update_grid_size(p)
+
+    return 1 / p + sqrt(math.log(2 * p / failure_prob) * s / 2)
+
+
+def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False):
     if isinstance(data, Expression):
         if data._indices is None:
             return ValueError('Invalid input')
@@ -144,20 +168,17 @@ def pdf(data, k=350, confidence=3.5, legend=None, title=None, log=False, interac
     x = np.array(data.values[1:-1])
     min_x = data.values[0]
     max_x = data.values[-1]
-    s = 0
-    for i in range(len(data._compaction_counts)):
-        s += data._compaction_counts[i] << (2*i)
-    err = sqrt(math.log(2) * s / 2) / data.ranks[-1]
-    log_2_10 = math.log2(10)
+    err = _cdf_error(data, 10 ** (-confidence))
 
-    new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, sqrt(confidence) * err)
+    new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
     slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
     q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend=legend)
 
     if interactive:
         def mk_interact(handle):
             def update(confidence=confidence):
-                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, sqrt(1 + log_2_10 * confidence) * err)
+                err = _cdf_error(data, 10 ** (-confidence)) / 1.8
+                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
                 slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
                 new_data = {'left': [data.values[0], *x[keep]], 'right': [*x[keep], data.values[-1]], 'bottom': np.full(len(slopes), 0), 'top': slopes}
                 q.data_source.data = new_data
