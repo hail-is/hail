@@ -85,8 +85,10 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
+  def absolutePath(path: String): String = path + "/" + rel_path
+
   def rvdSpec(hadoopConf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(hadoopConf, path + "/" + rel_path)
+    AbstractRVDSpec.read(hadoopConf, absolutePath(path))
 
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path

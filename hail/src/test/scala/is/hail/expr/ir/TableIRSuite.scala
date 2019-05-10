@@ -36,6 +36,23 @@ class TableIRSuite extends SparkSuite {
     assertEvalsTo(node, 25L)
   }
 
+  @Test def testRangeRead() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
+    val original = TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57))))
+
+    val path = tmpDir.createTempFile()
+    new Table(hc, original).write(path, overwrite = true)
+
+    val read = TableIR.read(hc, path, false, None)
+    val droppedRows = TableIR.read(hc, path, true, None)
+
+    val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
+    val expectedGlobals = Row(57)
+
+    assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
+    assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
+  }
+
   @Test def testRangeCollect() {
     val t = TableRange(10, 2)
     val row = Ref("row", t.typ.rowType)

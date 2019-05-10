@@ -13,6 +13,8 @@ class SparkBackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[B
   def getModule(id: String): Int => F = loadedModules(id)
 
   def collectDArray(modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
+    if (contexts.isEmpty)
+      return Array()
     val backend = HailContext.backend
     val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)

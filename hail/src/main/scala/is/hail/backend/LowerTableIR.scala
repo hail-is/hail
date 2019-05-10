@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -70,7 +70,7 @@ object LowerTableIR {
 
     case TableCollect(child) =>
       val lowered = lower(child)
-      assert(lowered.body.typ.isInstanceOf[TContainer])
+      assert(lowered.body.typ.isInstanceOf[TContainer], s"${ lowered.body.typ }")
       val elt = genUID()
       MakeStruct(FastIndexedSeq(
         "rows" -> ArrayFlatMap(lowered.toIR(x => x), elt, Ref(elt, lowered.body.typ)),
@@ -100,8 +100,9 @@ object LowerTableIR {
 
       reader match {
         case r@TableNativeReader(path, _) =>
-          val globalsSpec = r.spec.globalsComponent.rvdSpec(HailContext.get.hadoopConf, path)
-          val gPath = globalsSpec.partFiles.head
+          val globalsPath = r.spec.globalsComponent.absolutePath(path)
+          val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
+          val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
           val gSpec = globalsSpec.codecSpec
           val gEncType = globalsSpec.encodedType.virtualType
 
@@ -115,7 +116,8 @@ object LowerTableIR {
               MakeArray(FastIndexedSeq(), TArray(TStruct())),
               MakeArray(FastIndexedSeq(), TArray(rvdType.rowType.virtualType)))
           } else {
-            val rowsSpec = r.spec.rowsComponent.rvdSpec(HailContext.get.hadoopConf, path)
+            val rowsPath = r.spec.rowsComponent.absolutePath(path)
+            val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
             val partitioner = rowsSpec.partitioner
             val rSpec = rowsSpec.codecSpec
             val rowEncType = rowsSpec.encodedType.virtualType
@@ -123,13 +125,13 @@ object LowerTableIR {
 
             if (rowsSpec.key startsWith typ.key) {
               TableStage(
-                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gEncType, gType), 0))),
+                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gEncType, gType)), 0))),
                 globalRef,
                 rvdType,
                 partitioner,
                 ctxType,
-                MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(f)))), TArray(ctxType)),
-                ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowEncType, rowType))
+                MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TArray(ctxType)),
+                ToArray(ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowEncType, rowType)))
             } else {
               throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
             }

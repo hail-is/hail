@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
 
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
-import is.hail.asm4s
+import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackendUtils
 import is.hail.expr.Parser
@@ -12,7 +12,9 @@ import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
 import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
+import is.hail.utils.richUtils.RichHadoopConfiguration
 import is.hail.variant.ReferenceGenome
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -187,20 +189,20 @@ class EmitFunctionBuilder[F >: Null](
     val literals = literalsMap.toArray
     val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
 
-    val dec = spec.buildEmitDecoderMethod(litType.physicalType, litType.physicalType, this)
+    val dec = spec.buildEmitDecoderF[Long](litType.physicalType, litType.physicalType, this)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
     mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
     methods.append(mb2)
 
-    val ib = spec.child.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))
     val off = decodeLiterals.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
       f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
     }
 
     decodeLiterals.emit(Code(
-      off := dec.invoke(decodeLiterals.getArg[Region](1), ib),
+      off := dec(decodeLiterals.getArg[Region](1),
+        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
       Code(storeFields: _*)))
 
     val baos = new ByteArrayOutputStream()
@@ -240,24 +242,24 @@ class EmitFunctionBuilder[F >: Null](
     _mods += name -> mod
   }
 
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    assert(hConf != null)
+  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
     if (_hconf == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
       val confField = newField[SerializableHadoopConfiguration]
       val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
       methods.append(mb)
       mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-      _hconf = hConf
+      _hconf = HailContext.sHadoopConf
       _hfield = confField
     }
-    assert(_hconf.value == hConf.value && _hfield != null)
-  }
-
-  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+    assert(_hconf.value == HailContext.sHadoopConf.value && _hfield != null)
     _hfield.load()
   }
+
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+    Code.invokeStatic[RichHadoopConfiguration, Configuration, String, Boolean, InputStream](
+      "unsafeReader$extension",
+      getHadoopConfiguration.invoke[Configuration]("value"), path, checkCodec)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
