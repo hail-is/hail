@@ -46,9 +46,9 @@ jwtclient = None
 
 
 def authenticated_users_only(fun):
-    global jwtclient
-
     def wrapped(request, *args, **kwargs):
+        global jwtclient
+
         encoded_token = request.cookies.get('user')
         if encoded_token is not None:
             try:
