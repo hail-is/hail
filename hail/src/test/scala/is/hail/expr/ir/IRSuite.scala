@@ -973,7 +973,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
-  @Test def testNDArrayReshape() {
+  def testNDArrayReshape() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
     val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
