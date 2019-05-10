@@ -124,11 +124,11 @@ std::vector<long> unify_shapes(std::vector<long> &left, std::vector<long> &right
   return result;
 }
 
-// Assumption: left and right are of dimension 1 or more
 std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right) {
-  std::vector<long> result;
   int l_size = left.size();
   int r_size = right.size();
+  assert(l_size >= 1);
+  assert(r_size >= 1);
 
   int left_inner_dim = l_size - 1;
   int right_inner_dim = std::max(0, r_size - 2);
@@ -136,6 +136,7 @@ std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right
     throw new FatalError("Invalid shapes for matrix multiplication");
   }
 
+  std::vector<long> result;
   if (l_size == 1 && r_size == 1) {
     return result;
   } else if (l_size == 1) {
@@ -146,7 +147,7 @@ std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right
   } else {
     assert(l_size == r_size);
 
-    for (int i = 0; i < l_size - 2; i++) {
+    for (int i = 0; i < l_size - 2; ++i) {
       if (left[i] != right[i] && left[i] != 1 && right[i] != 1) {
         throw new FatalError("Invalid shapes for matrix multiplication");
       }

@@ -627,17 +627,8 @@ class NDArrayMatMul(IR):
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-        l_ndim = self.l.typ.ndim
-        r_ndim = self.r.typ.ndim
 
-        if l_ndim == 1 and r_ndim == 1:
-            ndim = 0
-        elif l_ndim == 1 or r_ndim == 1:
-            ndim = 1
-        else:
-            assert l_ndim == r_ndim
-            ndim = l_ndim
-
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
         from hail.expr.expressions import unify_types
         self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
 

@@ -3515,28 +3515,21 @@ class NDArrayNumericExpression(NDArrayExpression):
         if self.ndim == 0 or other.ndim == 0:
             raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
 
-        l_ndim = self.ndim
-        r_ndim = other.ndim
-        left, right = self, other
-        if l_ndim == 1 and r_ndim == 1:
-            ndim = 0
-        elif l_ndim == 1:
-            ndim = r_ndim - 1
-        elif r_ndim == 1:
-            ndim = l_ndim - 1
-        else:
+        if self.ndim > 1 and other.ndim > 1:
             left, right = self._broadcast_to_same_ndim(other)
-            assert left.ndim == right.ndim
-            ndim = left.ndim
+        else:
+            left, right = self, other
 
+        from hail.linalg.utils.misc import _ndarray_matmul_ndim
+        result_ndim = _ndarray_matmul_ndim(left.ndim, right.ndim)
         elem_type = unify_types(self._type.element_type, other._type.element_type)
-        ret_type = tndarray(elem_type, ndim)
+        ret_type = tndarray(elem_type, result_ndim)
         left = left._promote_numeric(ret_type)
         right = right._promote_numeric(ret_type)
 
         res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
-        return res if ndim > 0 else res[()]
+        return res if result_ndim > 0 else res[()]
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):
