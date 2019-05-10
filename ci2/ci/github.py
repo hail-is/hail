@@ -6,7 +6,7 @@ import concurrent.futures
 import aiohttp
 import gidgethub
 from .log import log
-from .constants import GITHUB_CLONE_URL
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .environment import SELF_HOSTNAME
 from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
@@ -526,6 +526,8 @@ class WatchedBranch(Code):
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
+            if gh_json_pr['user']['login'] not in AUTHORIZED_USERS:
+                continue
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]

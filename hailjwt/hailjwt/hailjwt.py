@@ -41,3 +41,24 @@ class JWTClient:
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
+with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
+    global jwtclient
+
+    jwtclient = JWTClient(f.read())
+
+
+def authenticated_users_only(fun):
+    def wrapped(request, *args, **kwargs):
+        encoded_token = request.cookies.get('user')
+        if encoded_token is not None:
+            try:
+                userdata = jwtclient.decode(encoded_token)
+                if 'userdata' in fun.__code__.co_varnames:
+                    return fun(request, *args, userdata=userdata, **kwargs)
+                return fun(request, *args, **kwargs)
+            except jwt.exceptions.DecodeError as de:
+                log.info(f'could not decode token: {de}')
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+    wrapped.__name__ = fun.__name__
+    return wrapped
