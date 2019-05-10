@@ -183,6 +183,7 @@ class BatchTable(Table):
                 havings += f"sum(attr.`{k}` = %s) = %s"
         sql += " ".join(joins)
         sql += " where " + " and ".join(wheres)
+        sql += " having " + " and ".join(havings)
         sql += " group by " + ", ".join(groups)
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
