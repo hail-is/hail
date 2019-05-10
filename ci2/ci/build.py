@@ -671,7 +671,6 @@ date
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids(),
                                           always_run=True)
-        pass
 
 
 class CreateDatabaseStep(Step):
