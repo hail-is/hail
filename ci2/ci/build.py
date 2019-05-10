@@ -553,13 +553,14 @@ true
 
 
 class DeployStep(Step):
-    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
+    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait, log):  # pylint: disable=unused-argument
         super().__init__(name, deps)
         self.namespace = get_namespace(namespace, self.input_config(code, deploy))
         self.config_file = config_file
         self.link = link
         self.wait = wait
         self.job = None
+        self.log = log
 
     def self_ids(self):
         if self.job:
@@ -573,7 +574,8 @@ class DeployStep(Step):
                           # FIXME config_file
                           json['config'],
                           json.get('link'),
-                          json.get('wait'))
+                          json.get('wait'),
+                          json.get('log', []))
 
     def config(self, deploy):  # pylint: disable=unused-argument
         return {
@@ -658,7 +660,17 @@ date
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):
-        # namespace cleanup will handle deployments
+        script = ''
+        for tag in self.log:
+            script += f'kubectl -n {self.namespace} logs -l app={tag}\n'
+        script += 'date\n'
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
+                                          command=['bash', '-c', script],
+                                          attributes={'name': self.name + '_logs'},
+                                          # FIXME configuration
+                                          service_account_name='ci2-agent',
+                                          parent_ids=self.deps_parent_ids(),
+                                          always_run=True)
         pass
 
 

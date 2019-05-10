@@ -383,6 +383,8 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: site/deployment.yaml
+   log:
+     - site
    dependsOn:
     - default_ns
     - site_image
@@ -392,6 +394,8 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: scorecard/deployment.yaml
+   log:
+     - scorecard
    dependsOn:
     - default_ns
     - scorecard_image
@@ -405,6 +409,8 @@ steps:
     - kind: Service
       name: ci2
       for: alive
+   log:
+     - ci2
    dependsOn:
     - default_ns
     - ci_image
@@ -460,6 +466,8 @@ steps:
     - kind: Service
       name: batch
       for: alive
+   log:
+     - batch
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -478,6 +486,8 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: image-fetcher/deployment.yaml
+   log:
+     - image-fetcher
    dependsOn:
     - default_ns
     - image_fetcher_image
@@ -528,6 +538,10 @@ steps:
       name: apiserver
       port: 5000
       for: alive
+   log:
+     - spark-master
+     - spark-worker
+     - apiserver
    dependsOn:
     - default_ns
     - test_batch_image
@@ -554,6 +568,8 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: notebook2/deployment.yaml
+   log:
+     - notebook2
    dependsOn:
     - default_ns
     - notebook2_image
