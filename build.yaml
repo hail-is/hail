@@ -601,8 +601,12 @@ steps:
       for: alive
    alwaysRun: true
    dependsOn:
-     - default_ns
-     - test_batch
+    - default_ns
+    - batch_pods_ns
+    - batch_image
+    - batch_database
+    - create_batch_tables
+    - test_batch
  - kind: deploy
    name: test_pipeline
    namespace:
