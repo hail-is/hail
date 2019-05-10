@@ -1,7 +1,8 @@
+import os
 import re
 import uuid
 
-from .backend import LocalBackend
+from .backend import LocalBackend, BatchBackend
 from .task import Task
 from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
 
@@ -62,11 +63,17 @@ class Pipeline:
         self._resource_map = {}
         self._allocated_files = set()
         self._input_resources = set()
-        self._backend = backend if backend else LocalBackend()
         self._uid = Pipeline._get_uid()
         self._default_image = default_image
         self._default_memory = default_memory
         self._default_cpu = default_cpu
+
+        if backend:
+            self._backend = backend
+        elif os.environ.get('BATCH_URL') is not None:
+            self._backend = BatchBackend(os.environ.get('BATCH_URL'))
+        else:
+            self._backend = backend if backend else LocalBackend()
 
     def new_task(self):
         """

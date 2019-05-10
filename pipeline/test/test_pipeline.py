@@ -5,8 +5,8 @@ import tempfile
 
 from pipeline import Pipeline, BatchBackend
 
-gcs_input_dir = 'gs://hail-pipeline-test/data'
-gcs_output_dir = 'gs://hail-pipeline-test/output'
+gcs_input_dir = os.environ.get('SCRATCH') + '/input'
+gcs_output_dir = os.environ.get('SCRATCH') + '/output'
 
 
 class LocalTests(unittest.TestCase):
@@ -382,7 +382,7 @@ class BatchTests(unittest.TestCase):
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
-        p.run(delete_scratch_on_exit=False)
+        p.run()
 
     def test_file_name_space(self):
         p = self.pipeline()
