@@ -38,11 +38,11 @@ object IndexWriter {
   def builder(
     keyType: Type,
     annotationType: Type,
-    codecSpec: CodecSpec,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   ): (Configuration, String) => IndexWriter = {
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType);
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
     val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType);
     { (conf, path) =>
       new IndexWriter(

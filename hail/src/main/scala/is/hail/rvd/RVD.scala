@@ -667,8 +667,8 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(path, typ, stageLocally, codecSpec)
+  def write(path: String, idxPath: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, idxPath, typ, stageLocally, codecSpec)
     rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
     partitionCounts
   }

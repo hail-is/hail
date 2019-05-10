@@ -92,7 +92,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     hadoopConf.mkDir(globalsPath)
     AbstractRVDSpec.writeSingle(hadoopConf, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
+    val partitionCounts = rvd.write(path + "/rows", path + "/index", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
     hadoopConf.mkDir(referencesPath)

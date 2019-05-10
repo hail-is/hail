@@ -1775,7 +1775,7 @@ object RichContextRDDRegionValue {
       if (iw != null) {
         val off = en.indexOffset()
         val key = SafeRow.selectFields(rowType, rv)(indexKeyFieldIndices)
-        iw += (key, off, null)
+        iw += (key, off, Row())
       }
       en.writeByte(1)
       en.writeRegionValue(rv.region, rv.offset)
@@ -1921,14 +1921,16 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
   def writeRows(
     path: String,
+    idxPath: String,
     t: RVDType,
     stageLocally: Boolean,
     codecSpec: CodecSpec
   ): (Array[String], Array[Long]) = {
     crdd.writePartitions(
       path,
+      idxPath,
       stageLocally,
-      IndexWriter.builder(t.kType.virtualType, +TStruct(), codecSpec),
+      IndexWriter.builder(t.kType.virtualType, +TStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
         codecSpec.buildEncoder(t.rowType),
         t.kFieldIdx,

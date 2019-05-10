@@ -21,7 +21,10 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       v
     }.run
 
-  def writePartitions(path: String,
+  // If idxPath is null, then mkIdxWriter should return null and not read its string argument
+  def writePartitions(
+    path: String,
+    idxPath: String,
     stageLocally: Boolean,
     mkIdxWriter: (HadoopConf, String) => IndexWriter,
     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => Long): (Array[String], Array[Long]) = {
@@ -29,6 +32,8 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
     val hadoopConf = sc.hadoopConfiguration
 
     hadoopConf.mkDir(path + "/parts")
+    if (idxPath != null)
+      hadoopConf.mkDir(idxPath)
 
     val sHadoopConfBc = HailContext.hadoopConfBc
 
@@ -40,26 +45,29 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       val hConf = sHadoopConfBc.value.value
       val f = partFile(d, i, TaskContext.get)
       val finalFilename = path + "/parts/" + f
-      val filename =
+      val finalIdxFilename = if (idxPath != null) idxPath + "/" + f + ".idx" else null
+      val (filename, idxFilename) =
         if (stageLocally) {
           val context = TaskContext.get
           val partPath = hConf.getTemporaryFile("file:///tmp")
+          val idxPath = partPath + ".idx"
           context.addTaskCompletionListener { (context: TaskContext) =>
             hConf.delete(partPath, recursive = false)
+            hConf.delete(idxPath, recursive = true)
           }
-          partPath
+          partPath -> idxPath
         } else
-          finalFilename
+          finalFilename -> finalIdxFilename
       val os = hConf.unsafeWriter(filename)
-      val iw = mkIdxWriter(hConf, filename + ".idx")
+      val iw = mkIdxWriter(hConf, idxFilename)
       val count = write(ctx, it, os, iw)
       if (iw != null)
         iw.close()
       if (stageLocally) {
         hConf.copy(filename, finalFilename)
         if (iw != null) {
-          hConf.copy(filename + ".idx/index", finalFilename + ".idx/index")
-          hConf.copy(filename + ".idx/metadata.json.gz", finalFilename + ".idx/metadata.json.gz")
+          hConf.copy(idxFilename + "/index", finalIdxFilename + "/index")
+          hConf.copy(idxFilename + "/metadata.json.gz", finalIdxFilename + "/metadata.json.gz")
         }
       }
       ctx.region.clear()
