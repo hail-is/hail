@@ -223,7 +223,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testBinarySearchOnSet() {
+  def testBinarySearchOnSet() {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
