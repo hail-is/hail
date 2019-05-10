@@ -506,6 +506,7 @@ steps:
     - kind: Pod
       name: test-pipeline
       for: completed
+      timeout: 900
    dependsOn:
     - default_ns
     - batch_pods_ns
