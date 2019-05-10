@@ -424,6 +424,9 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
                                                          [14.0, 15.0, 16.0],
                                                          [16.0, 17.0, 18.0]]))
+        self._assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
+                                                         [13.0, 15.0, 17.0],
+                                                         [14.0, 16.0, 18.0]]))
 
     def test_fill(self):
         nd = np.ones((3, 5))
