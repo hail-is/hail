@@ -553,14 +553,13 @@ true
 
 
 class DeployStep(Step):
-    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait, log):  # pylint: disable=unused-argument
+    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(name, deps)
         self.namespace = get_namespace(namespace, self.input_config(code, deploy))
         self.config_file = config_file
         self.link = link
         self.wait = wait
         self.job = None
-        self.log = log
 
     def self_ids(self):
         if self.job:
@@ -574,8 +573,7 @@ class DeployStep(Step):
                           # FIXME config_file
                           json['config'],
                           json.get('link'),
-                          json.get('wait'),
-                          json.get('log', []))
+                          json.get('wait'))
 
     def config(self, deploy):  # pylint: disable=unused-argument
         return {
@@ -661,8 +659,16 @@ date
 
     async def cleanup(self, batch, deploy, sink):
         script = ''
-        for tag in self.log:
-            script += f'kubectl -n {self.namespace} logs -l app={tag}\n'
+        for w in self.wait:
+            name = w['name']
+            if w['kind'] == 'Deployment':
+                script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+            elif w['kind'] == 'Service':
+                assert w['for'] == 'alive', w['for']
+                script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+            else:
+                assert w['kind'] == 'Pod', w['kind']
+                script += f'kubectl -n {self.namespace} logs {name}\n'
         script += 'date\n'
         self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
