@@ -6,8 +6,8 @@ RUN unzip -q hail.zip && \
   mkdir -p /hail/python && \
   mv inner /hail/python/hail
 
-COPY hail-all-spark.jar /hail/jars/hail-all-spark.jar
-RUN cp /hail/jars/hail-all-spark.jar $SPARK_HOME/jars/hail-all-spark.jar
+COPY hail.jar /hail/jars/hail.jar
+RUN cp /hail/jars/hail.jar $SPARK_HOME/jars/hail.jar
 
 ENV HAIL_HOME /hail
 ENV PYTHONPATH "${PYTHONPATH:+${PYTHONPATH}:}$HAIL_HOME/python"
