@@ -1044,27 +1044,18 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
 
-        val ndt = emit(ndIR)
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
         val idxst = idxs.map(emit(_))
-
-        val nd = fb.variable("nd", "NDArray", ndt.v)
-
         val idxVars = idxst.map(i => fb.variable("idx", "int", i.v))
-        val index = NDArrayLoopEmitter.linearizeIndices(idxVars, s"$nd.strides")
 
         triplet(
           s"""
-             | ${ ndt.setup }
+             | ${ childEmitter.setup }
              | ${ Code.sequence(idxst.map(_.setup)) }
+             | ${ Code.sequence(idxVars.map(_.define)) }
            """.stripMargin,
           idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
-          s"""
-             |({
-             | ${ nd.define }
-             | ${ Code.sequence(idxVars.map(_.define)) }
-             | ${ NDArrayLoopEmitter.loadElement(nd, index, x.pType) };
-             |})
-           """.stripMargin)
+          childEmitter.outputElement(idxVars))
 
       case ir.NDArrayWrite(nd, path) =>
         val tub = fb.translationUnitBuilder()
