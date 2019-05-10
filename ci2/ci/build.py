@@ -608,7 +608,8 @@ echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
                     # FIXME what if the cluster isn't big enough?
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name}
+kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
+  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
 set -e
@@ -620,7 +621,8 @@ set -e
                     timeout = w.get('timeout', 60)
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name} && \
+kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
+  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
   python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
