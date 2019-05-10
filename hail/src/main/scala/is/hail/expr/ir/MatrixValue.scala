@@ -58,6 +58,7 @@ case class MatrixValue(
     val colsSpec = TableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      None,  // cols are not indexed
       "../references",
       typ.colsTableType,
       Map("globals" -> RVDComponentSpec("../globals/rows"),
@@ -76,6 +77,7 @@ case class MatrixValue(
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      None,  // globals are not indexed
       "../references",
       TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),
       Map("globals" -> RVDComponentSpec("globals"),
@@ -99,6 +101,7 @@ case class MatrixValue(
     val rowsSpec = TableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      None, // FIXME rows should be indexed
       "../references",
       typ.rowsTableType,
       Map("globals" -> RVDComponentSpec("../globals/rows"),
@@ -111,6 +114,7 @@ case class MatrixValue(
     val entriesSpec = TableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      None, // FIXME entries should be indexed
       "../references",
       TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
@@ -132,6 +136,7 @@ case class MatrixValue(
     val spec = MatrixTableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      None,
       "references",
       typ,
       Map("globals" -> RVDComponentSpec("globals/rows"),

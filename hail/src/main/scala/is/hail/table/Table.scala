@@ -40,6 +40,7 @@ abstract class AbstractTableSpec extends RelationalSpec {
 case class TableSpec(
   file_version: Int,
   hail_version: String,
+  index_path: Option[String],
   references_rel_path: String,
   table_type: TableType,
   components: Map[String, ComponentSpec]) extends AbstractTableSpec

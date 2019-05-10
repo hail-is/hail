@@ -102,6 +102,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val spec = TableSpec(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
+      Some("index"),
       "references",
       typ,
       Map("globals" -> RVDComponentSpec("globals"),

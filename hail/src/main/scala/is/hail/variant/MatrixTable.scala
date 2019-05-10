@@ -67,6 +67,8 @@ abstract class RelationalSpec {
 
   def hail_version: String
 
+  def index_path: Option[String]
+
   def components: Map[String, ComponentSpec]
 
   def getComponent[T <: ComponentSpec](name: String): T = components(name).asInstanceOf[T]
@@ -128,6 +130,7 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
 case class MatrixTableSpec(
   file_version: Int,
   hail_version: String,
+  index_path: Option[String],
   references_rel_path: String,
   matrix_type: MatrixType,
   components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec {
