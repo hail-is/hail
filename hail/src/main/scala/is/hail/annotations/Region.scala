@@ -43,10 +43,15 @@ final class Region() extends NativeBase() {
   @native def nativeAlign(alignment: Long): Unit
   @native def nativeAlignAllocate(alignment: Long, n: Long): Long
   @native def nativeAllocate(n: Long): Long
+  @native def nativeReference(r2: Region): Unit
+  @native def nativeRefreshRegion(): Unit
   
   final def align(a: Long) = nativeAlign(a)
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
   final def allocate(n: Long): Long = nativeAllocate(n)
+
+  final def reference(other: Region): Unit = nativeReference(other)
+  final def refreshRegion(): Unit = nativeRefreshRegion()
   
   final def loadInt(addr: Long): Int = Memory.loadInt(addr)
   final def loadLong(addr: Long): Long = Memory.loadLong(addr)
@@ -271,7 +276,12 @@ object RegionPool {
 }
 
 class RegionPool private() extends NativeBase() {
-  var i = 0
   @native def nativeCtor(): Unit
   nativeCtor()
+
+  @native def numRegions(): Int
+  @native def numFreeRegions(): Int
+  @native def numFreeBlocks(): Int
+
+
 }
