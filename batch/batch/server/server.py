@@ -690,9 +690,10 @@ class Batch:
     MAX_TTL = 30 * 60
 
     @staticmethod
-    def from_record(record):
+    def from_record(record, deleted=False):
         if record is not None:
-            assert not record['deleted']
+            if not deleted:
+                assert not record['deleted']
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
@@ -1090,7 +1091,7 @@ async def db_cleanup_event_loop():
     while True:
         try:
             for record in await db.batch.get_finished_deleted_records():
-                batch = Batch.from_record(record)
+                batch = Batch.from_record(record, deleted=True)
                 await batch.delete()
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'Could not delete batches due to exception: {exc}')
