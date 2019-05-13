@@ -14,10 +14,9 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
 
   @Test def testKeyComparison() {
     def check(node: ApplyComparisonOp, expectedInterval: Interval) {
-      assert(ExtractIntervalFilters.extract(node, ref1, k1) == KeyComparison(node))
-      val (s, i) = ExtractIntervalFilters.processPredicates(KeyComparison(node), TInt32())
-      assert(s == Set(node))
-      assert(i.toSeq == FastSeq(expectedInterval))
+      val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(node, ref1, k1).get
+      assert(rw == True())
+      assert(intervals.toSeq == FastSeq(expectedInterval))
     }
 
     check(ApplyComparisonOp(GT(TInt32()), k1, I32(0)),
@@ -45,10 +44,10 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     check(ApplyComparisonOp(EQ(TInt32()), I32(0), k1),
       Interval(IntervalEndpoint(0, -1), IntervalEndpoint(0, 1)))
 
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(NEQ(TInt32()), I32(0), k1), ref1, k1) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(EQWithNA(TInt32()), I32(0), k1), ref1, k1) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(NEQWithNA(TInt32()), I32(0), k1), ref1, k1) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(Compare(TInt32()), I32(0), k1), ref1, k1) == Unknown)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(NEQ(TInt32()), I32(0), k1), ref1, k1).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(EQWithNA(TInt32()), I32(0), k1), ref1, k1).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(NEQWithNA(TInt32()), I32(0), k1), ref1, k1).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(Compare(TInt32()), I32(0), k1), ref1, k1).isEmpty)
   }
 
   @Test def testLiteralContains() {
@@ -58,9 +57,8 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
       Literal(TDict(TInt32(), TString()), Map(1 -> "foo", 10 -> "bar")))) {
       val ir = invoke("contains", lit, k1)
 
-      assert(ExtractIntervalFilters.extract(ir, ref1, k1) == LiteralContains(ir))
-      val (s, i) = ExtractIntervalFilters.processPredicates(LiteralContains(ir), TInt32())
-      assert(s == Set(ir))
+      val (rw, i) = ExtractIntervalFilters.extractAndRewrite(ir, ref1, k1).get
+      assert(rw == True())
       assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(1, -1), IntervalEndpoint(1, 1)),
         Interval(IntervalEndpoint(10, -1), IntervalEndpoint(10, 1))))
     }
@@ -69,9 +67,8 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
   @Test def testIntervalContains() {
     val interval = Interval(IntervalEndpoint(1, 1), IntervalEndpoint(5, 1))
     val ir = invoke("contains", Literal(TInterval(TInt32()), interval), k1)
-    assert(ExtractIntervalFilters.extract(ir, ref1, k1) == IntervalContains(ir))
-    val (s, i) = ExtractIntervalFilters.processPredicates(IntervalContains(ir), TInt32())
-    assert(s == Set(ir))
+    val (rw, i) = ExtractIntervalFilters.extractAndRewrite(ir, ref1, k1).get
+    assert(rw == True())
     assert(i.toSeq == FastSeq(interval))
   }
 
@@ -83,12 +80,14 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     val ir1 = ApplyComparisonOp(EQ(TString()), Str("chr2"), invoke("contig", k))
     val ir2 = ApplyComparisonOp(EQ(TString()), invoke("contig", k), Str("chr2"))
 
-    assert(ExtractIntervalFilters.extract(ir1, ref, k) == LocusContigComparison(ir1))
-    assert(ExtractIntervalFilters.extract(ir2, ref, k) == LocusContigComparison(ir2))
+    val (rw1, i1) = ExtractIntervalFilters.extractAndRewrite(ir1, ref, k).get
+    assert(rw1 == True())
+    assert(i1.toSeq == FastSeq(Interval(IntervalEndpoint(Locus("chr2", 1), -1),
+      IntervalEndpoint(Locus("chr2", ReferenceGenome.GRCh38.contigLength("chr2")), -1))))
 
-    val (s, i) = ExtractIntervalFilters.processPredicates(LocusContigComparison(ir1), k.typ)
-    assert(s == Set(ir1))
-    assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(Locus("chr2", 1), -1),
+    val (rw2, i2) = ExtractIntervalFilters.extractAndRewrite(ir2, ref, k).get
+    assert(rw2 == True())
+    assert(i2.toSeq == FastSeq(Interval(IntervalEndpoint(Locus("chr2", 1), -1),
       IntervalEndpoint(Locus("chr2", ReferenceGenome.GRCh38.contigLength("chr2")), -1))))
   }
 
@@ -99,10 +98,9 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     val pos = invoke("position", k)
 
     def check(node: ApplyComparisonOp, expectedInterval: (String, Int) => Interval) {
-      assert(ExtractIntervalFilters.extract(node, ref, k) == LocusPositionComparison(node))
-      val (s, i) = ExtractIntervalFilters.processPredicates(LocusPositionComparison(node), k.typ)
-      assert(s == Set(node))
-      assert(i.toSeq == ReferenceGenome.GRCh38.contigs
+      val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(node, ref, k).get
+      assert(rw == True())
+      assert(intervals.toSeq == ReferenceGenome.GRCh38.contigs
         .map { c => expectedInterval(c, ReferenceGenome.GRCh38.contigLength(c)) }
         .filter(_ != null)
         .toFastSeq)
@@ -161,10 +159,10 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
       else
         Interval(IntervalEndpoint(Locus(c, 100), -1), IntervalEndpoint(Locus(c, 100), 1)))
 
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(NEQ(TInt32()), I32(0), pos), ref, k) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(EQWithNA(TInt32()), I32(0), pos), ref, k) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(NEQWithNA(TInt32()), I32(0), pos), ref, k) == Unknown)
-    assert(ExtractIntervalFilters.extract(ApplyComparisonOp(Compare(TInt32()), I32(0), pos), ref, k) == Unknown)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(NEQ(TInt32()), I32(0), pos), ref, k).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(EQWithNA(TInt32()), I32(0), pos), ref, k).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(NEQWithNA(TInt32()), I32(0), pos), ref, k).isEmpty)
+    assert(ExtractIntervalFilters.extractAndRewrite(ApplyComparisonOp(Compare(TInt32()), I32(0), pos), ref, k).isEmpty)
   }
 
   @Test def testLocusContigContains() {
@@ -180,10 +178,9 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
 
       val ir = invoke("contains", lit, contig)
 
-      assert(ExtractIntervalFilters.extract(ir, ref, k) == LocusContigContains(ir))
-      val (s, i) = ExtractIntervalFilters.processPredicates(LocusContigContains(ir), k.typ)
-      assert(s == Set(ir))
-      assert(i.toSeq == FastSeq(
+      val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(ir, ref, k).get
+      assert(rw == True())
+      assert(intervals.toSeq == FastSeq(
         Interval(
           IntervalEndpoint(Locus("chr1", 1), -1),
           IntervalEndpoint(Locus("chr1", ReferenceGenome.GRCh38.contigLength("chr1")), -1)),
@@ -197,26 +194,27 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     val ir1 = ApplyComparisonOp(GT(TInt32()), k1, I32(0))
     val ir2 = ApplyComparisonOp(GT(TInt32()), k1, I32(10))
 
-    assert(ExtractIntervalFilters.extract(invoke("||", ir1, ir2), ref1, k1) == Disjunction(KeyComparison(ir1), KeyComparison(ir2)))
+    val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(invoke("||", ir1, ir2), ref1, k1).get
+    assert(rw == True())
+    assert(intervals.toSeq == FastSeq(Interval(IntervalEndpoint(0, 1), IntervalEndpoint(Int.MaxValue, 1))))
 
-    val (s, i) = ExtractIntervalFilters.processPredicates(Disjunction(KeyComparison(ir1), KeyComparison(ir2)), TInt32())
-    assert(s == Set(ir1, ir2))
-    assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(0, 1), IntervalEndpoint(Int.MaxValue, 1))))
-
-    assert(ExtractIntervalFilters.extract(invoke("||", ir1, Ref("foo", TBoolean())), ref1, k1) == Unknown)
+    assert(ExtractIntervalFilters.extractAndRewrite(invoke("||", ir1, Ref("foo", TBoolean())), ref1, k1).isEmpty)
   }
 
   @Test def testConjunction() {
     val ir1 = ApplyComparisonOp(GT(TInt32()), k1, I32(0))
     val ir2 = ApplyComparisonOp(GT(TInt32()), k1, I32(10))
+    val ir3 = In(0, TBoolean())
 
-    assert(ExtractIntervalFilters.extract(invoke("&&", ir1, ir2), ref1, k1) == Conjunction(KeyComparison(ir1), KeyComparison(ir2)))
+    val (rw1, intervals1) = ExtractIntervalFilters.extractAndRewrite(invoke("&&", ir1, ir2), ref1, k1).get
+    assert(rw1 == invoke("&&", True(), True()))
+    assert(intervals1.toSeq == FastSeq(Interval(IntervalEndpoint(10, 1), IntervalEndpoint(Int.MaxValue, 1))))
 
-    val (s, i) = ExtractIntervalFilters.processPredicates(Conjunction(KeyComparison(ir1), KeyComparison(ir2)), TInt32())
-    assert(s == Set(ir1, ir2))
-    assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(10, 1), IntervalEndpoint(Int.MaxValue, 1))))
+    val (rw2, intervals2) = ExtractIntervalFilters.extractAndRewrite(invoke("&&", ir3, ir2), ref1, k1).get
+    assert(rw2 == invoke("&&", ir3, True()))
+    assert(intervals2.toSeq == FastSeq(Interval(IntervalEndpoint(10, 1), IntervalEndpoint(Int.MaxValue, 1))))
 
-    assert(ExtractIntervalFilters.extract(invoke("&&", ir1, Ref("foo", TBoolean())), ref1, k1) == Conjunction(KeyComparison(ir1), Unknown))
+    assert(ExtractIntervalFilters.extractAndRewrite(invoke("&&", ir3, ir3), ref1, k1).isEmpty)
   }
 
   @Test def testIntegration() {
