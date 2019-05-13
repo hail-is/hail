@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, TableToTableFunction}
-import is.hail.expr.ir.{IRParser, MatrixValue, TableValue}
+import is.hail.expr.ir.{IRParser, MatrixValue, PruneDeadFields, TableValue}
 import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.{RVDPartitioner, RVDType}
@@ -41,6 +41,13 @@ case class MatrixFilterIntervals(
   override def lower(): Option[TableToTableFunction] = Some(TableFilterIntervals(keyType, intervals, keep))
 
   def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
+
+  override def requestType(requestedType: MatrixType, childBaseType: MatrixType): MatrixType = {
+    requestedType.copy(rowKey = childBaseType.rowKey,
+      rvRowType = PruneDeadFields.unify(childBaseType.rvRowType,
+        requestedType.rvRowType,
+        PruneDeadFields.selectKey(childBaseType.rowType, childBaseType.rowKey)))
+  }
 }
 
 class TableFilterIntervalsSerializer extends CustomSerializer[TableFilterIntervals](format => (
@@ -77,5 +84,12 @@ case class TableFilterIntervals(
       intervals,
       tv.rvd.typ.key.length - 1)
     TableValue(tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
+  }
+
+  override def requestType(requestedType: TableType, childBaseType: TableType): TableType = {
+    requestedType.copy(key = childBaseType.key,
+      rowType = PruneDeadFields.unify(childBaseType.rowType,
+        requestedType.rowType,
+        PruneDeadFields.selectKey(childBaseType.rowType, childBaseType.key)))
   }
 }
