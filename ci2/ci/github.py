@@ -565,7 +565,12 @@ class WatchedBranch(Code):
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
         if self.deploy_batch:
-            status = await self.deploy_batch.status()
+            try:
+                status = await self.deploy_batch.status()
+            except aiohttp.client_exceptions.ClientResponseError as exc:
+                log.info(f'Could not update deploy_batch status due to exception {exc}, setting deploy_batch to None')
+                self.deploy_batch = None
+                return
             if status['complete']:
                 if status['state'] == 'success':
                     self.deploy_state = 'success'
