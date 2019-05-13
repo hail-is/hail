@@ -16,7 +16,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
   @Test
   def testCompactLevelZero() {
     val rand = new java.util.Random(1) // first Boolean is `true`
-    val levels: Array[Int] = Array(0,3,7,10)
+    val levels: Array[Int] = Array(0,4,7,10)
     val items: Array[Int] = Array(7,2,6,4, 1,3,8, 0,5,9)
     val compactionCounts: Array[Int] = Array(0, 0, 0)
     val combiner = new ApproxCDFCombiner(levels, items, compactionCounts, 3, Double.NaN, rand)
