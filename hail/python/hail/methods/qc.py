@@ -7,6 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+from hail.ir import TableToTableApply
 from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
 
 
@@ -45,9 +46,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     :py:data:`.tcall`, then an error is raised. The following fields are always
     computed from `GT`:
 
-    - `call_rate` (``float64``) -- Fraction of calls non-missing.
+    - `call_rate` (``float64``) -- Fraction of calls not missing or filtered.
+       Equivalent to `n_called` divided by :meth:`.count_rows`.
     - `n_called` (``int64``) -- Number of non-missing calls.
     - `n_not_called` (``int64``) -- Number of missing calls.
+    - `n_filtered` (``int64``) -- Number of filtered entries.
     - `n_hom_ref` (``int64``) -- Number of homozygous reference calls.
     - `n_het` (``int64``) -- Number of heterozygous calls.
     - `n_hom_var` (``int64``) -- Number of homozygous alternate calls.
@@ -100,70 +103,65 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     mt = mt.annotate_rows(**{variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
                              variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt))})
 
-    exprs = {}
+    bound_exprs = {}
+    gq_dp_exprs = {}
 
     def has_field_of_type(name, dtype):
         return name in mt.entry and mt[name].dtype == dtype
 
     if has_field_of_type('DP', hl.tint32):
-        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
 
     if has_field_of_type('GQ', hl.tint32):
-        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT',  hl.tcall):
         raise ValueError(f"'sample_qc': expect an entry field 'GT' of type 'call'")
 
-    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-    exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
-    exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
-    exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
-    exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
+    bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    bound_exprs['n_filtered'] = mt.count_rows(_localize=False) - hl.agg.count()
+    bound_exprs['n_hom_ref'] = hl.agg.count_where(mt['GT'].is_hom_ref())
+    bound_exprs['n_het'] = hl.agg.count_where(mt['GT'].is_het())
+    bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
     def get_allele_type(allele_idx):
         return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
-    exprs['allele_type_counts'] = hl.agg.explode(
+    bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda elt: hl.agg.counter(elt),
         hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
 
-    mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
-
     zero = hl.int64(0)
 
-    select_exprs = {}
-    if 'dp_stats' in exprs:
-        select_exprs['dp_stats'] = mt[name].dp_stats
-    if 'gq_stats' in exprs:
-        select_exprs['gq_stats'] = mt[name].gq_stats
+    result_struct = hl.rbind(hl.struct(**bound_exprs),
+        lambda x: hl.rbind(
+            hl.struct(**{
+                **gq_dp_exprs,
+                'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
+                'n_called': x.n_called,
+                'n_not_called': x.n_not_called,
+                'n_filtered': x.n_filtered,
+                'n_hom_ref': x.n_hom_ref,
+                'n_het': x.n_het,
+                'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
+                'n_non_ref': x.n_called - x.n_hom_ref,
+                'n_singleton': x.n_singleton,
+                'n_snp': x.allele_type_counts.get(allele_ints["Transition"], zero) + \
+                         x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                'n_insertion': x.allele_type_counts.get(allele_ints["Insertion"], zero),
+                'n_deletion': x.allele_type_counts.get(allele_ints["Deletion"], zero),
+                'n_transition': x.allele_type_counts.get(allele_ints["Transition"], zero),
+                'n_transversion': x.allele_type_counts.get(allele_ints["Transversion"], zero),
+                'n_star': x.allele_type_counts.get(allele_ints["Star"], zero)
+            }),
+            lambda s: s.annotate(
+                r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
+                r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
+                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion)
+            )))
 
-    select_exprs = {
-        **select_exprs,
-        'call_rate': hl.float64(mt[name].n_called) / (mt[name].n_called + mt[name].n_not_called),
-        'n_called': mt[name].n_called,
-        'n_not_called': mt[name].n_not_called,
-        'n_hom_ref': mt[name].n_hom_ref,
-        'n_het': mt[name].n_het,
-        'n_hom_var': mt[name].n_called - mt[name].n_hom_ref - mt[name].n_het,
-        'n_non_ref': mt[name].n_called - mt[name].n_hom_ref,
-        'n_singleton': mt[name].n_singleton,
-        'n_snp': mt[name].allele_type_counts.get(allele_ints["Transition"], zero) + \
-                 mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
-        'n_insertion': mt[name].allele_type_counts.get(allele_ints["Insertion"], zero),
-        'n_deletion': mt[name].allele_type_counts.get(allele_ints["Deletion"], zero),
-        'n_transition': mt[name].allele_type_counts.get(allele_ints["Transition"], zero),
-        'n_transversion': mt[name].allele_type_counts.get(allele_ints["Transversion"], zero),
-        'n_star': mt[name].allele_type_counts.get(allele_ints["Star"], zero)
-    }
-
-    mt = mt.annotate_cols(**{name: mt[name].select(**select_exprs)})
-
-    mt = mt.annotate_cols(**{name: mt[name].annotate(
-        r_ti_tv=divide_null(hl.float64(mt[name].n_transition), mt[name].n_transversion),
-        r_het_hom_var=divide_null(hl.float64(mt[name].n_het), mt[name].n_hom_var),
-        r_insertion_deletion=divide_null(hl.float64(mt[name].n_insertion), mt[name].n_deletion)
-    )})        
-
+    mt = mt.annotate_cols(**{name: result_struct})
     mt = mt.drop(variant_ac, variant_atypes)
 
     return mt
@@ -208,10 +206,11 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     - `AN` (``int32``) -- Total number of called alleles.
     - `homozygote_count` (``array<int32>``) -- Number of homozygotes per
       allele. One element per allele, including the reference.
+    - `call_rate` (``float64``) -- Fraction of calls neither missing nor filtered.
+       Equivalent to `n_called` / :meth:`.count_cols`.
     - `n_called` (``int64``) -- Number of samples with a defined `GT`.
     - `n_not_called` (``int64``) -- Number of samples with a missing `GT`.
-    - `call_rate` (``float32``) -- Fraction of samples with a defined `GT`.
-      Equivalent to `n_called` / :meth:`.count_cols`.
+    - `n_filtered` (``int64``) -- Number of filtered entries.
     - `n_het` (``int64``) -- Number of heterozygous samples.
     - `n_non_ref` (``int64``) -- Number of samples with at least one called
       non-reference allele.
@@ -243,57 +242,55 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     """
     require_row_key_variant(mt, 'variant_qc')
 
-    exprs = {}
-    struct_exprs = []
+    bound_exprs = {}
+    gq_dp_exprs = {}
 
     def has_field_of_type(name, dtype):
         return name in mt.entry and mt[name].dtype == dtype
 
-    n_samples = mt.count_cols()
-
     if has_field_of_type('DP', hl.tint32):
-        exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['dp_stats'] = hl.agg.stats(mt.DP).select('mean', 'stdev', 'min', 'max')
 
     if has_field_of_type('GQ', hl.tint32):
-        exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
+        gq_dp_exprs['gq_stats'] = hl.agg.stats(mt.GQ).select('mean', 'stdev', 'min', 'max')
 
     if not has_field_of_type('GT',  hl.tcall):
         raise ValueError(f"'variant_qc': expect an entry field 'GT' of type 'call'")
-    exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
-    struct_exprs.append(hl.agg.call_stats(mt.GT, mt.alleles))
 
+    bound_exprs['n_called'] = hl.agg.count_where(hl.is_defined(mt['GT']))
+    bound_exprs['n_not_called'] = hl.agg.count_where(hl.is_missing(mt['GT']))
+    bound_exprs['n_filtered'] = mt.count_cols(_localize=False) - hl.agg.count()
+    bound_exprs['call_stats'] = hl.agg.call_stats(mt.GT, mt.alleles)
 
-    # the structure of this function makes it easy to add new nested computations
-    def flatten_struct(*struct_exprs):
-        flat = {}
-        for struct in struct_exprs:
-            for k, v in struct.items():
-                flat[k] = v
-        return hl.struct(
-            **flat,
-            **exprs,
-        )
+    result = hl.rbind(hl.struct(**bound_exprs),
+                      lambda e1: hl.rbind(
+                          hl.case().when(hl.len(mt.alleles) == 2,
+                                         hl.hardy_weinberg_test(e1.call_stats.homozygote_count[0],
+                                                                e1.call_stats.AC[1] - 2 *
+                                                                e1.call_stats.homozygote_count[1],
+                                                                e1.call_stats.homozygote_count[1])
+                                         ).or_missing(),
+                          lambda hwe: hl.struct(**{
+                              **gq_dp_exprs,
+                              **e1.call_stats,
+                              'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
+                              'n_called': e1.n_called,
+                              'n_not_called': e1.n_not_called,
+                              'n_filtered': e1.n_filtered,
+                              'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
+                              'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
+                              'het_freq_hwe': hwe.het_freq_hwe,
+                              'p_value_hwe': hwe.p_value})))
 
-    mt = mt.annotate_rows(**{name: hl.bind(flatten_struct, *struct_exprs)})
-
-    hwe = hl.hardy_weinberg_test(mt[name].homozygote_count[0],
-                                 mt[name].AC[1] - 2 * mt[name].homozygote_count[1],
-                                 mt[name].homozygote_count[1])
-    hwe = hwe.select(het_freq_hwe=hwe.het_freq_hwe, p_value_hwe=hwe.p_value)
-    mt = mt.annotate_rows(**{name: mt[name].annotate(n_not_called=n_samples - mt[name].n_called,
-                                                     call_rate=mt[name].n_called / n_samples,
-                                                     n_het=mt[name].n_called - hl.sum(mt[name].homozygote_count),
-                                                     n_non_ref=mt[name].n_called - mt[name].homozygote_count[0],
-                                                     **hl.cond(hl.len(mt.alleles) == 2,
-                                                               hwe,
-                                                               hl.null(hwe.dtype)))})
-    return mt
+    return mt.annotate_rows(**{name: result})
 
 
 @typecheck(left=MatrixTable,
            right=MatrixTable)
 def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
+
+    .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -410,7 +407,9 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.apply(left._jmt, right._jmt)
+    r = Env.hail().methods.CalculateConcordance.pyApply(
+        Env.spark_backend('concordance')._to_java_ir(left._mir),
+        Env.spark_backend('concordance')._to_java_ir(right._mir))
     j_global_conc = r._1()
     col_conc = Table._from_java(r._2())
     row_conc = Table._from_java(r._3())
@@ -459,23 +458,23 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     .. code-block:: text
 
         {
-        	"command": [
-        		"/vep",
-        		"--format", "vcf",
-        		"__OUTPUT_FORMAT_FLAG__",
-        		"--everything",
-        		"--allele_number",
-        		"--no_stats",
-        		"--cache", "--offline",
-        		"--minimal",
-        		"--assembly", "GRCh37",
-        		"--plugin", "LoF,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz",
-        		"-o", "STDOUT"
-        	],
-        	"env": {
-        		"PERL5LIB": "/vep_data/loftee"
-        	},
-        	"vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
+            "command": [
+                "/vep",
+                "--format", "vcf",
+                "__OUTPUT_FORMAT_FLAG__",
+                "--everything",
+                "--allele_number",
+                "--no_stats",
+                "--cache", "--offline",
+                "--minimal",
+                "--assembly", "GRCh37",
+                "--plugin", "LoF,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz",
+                "-o", "STDOUT"
+            ],
+            "env": {
+                "PERL5LIB": "/vep_data/loftee"
+            },
+            "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
         }
 
     **Annotations**
@@ -514,7 +513,11 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+    annotations = Table(TableToTableApply(ht._tir,
+                                          {'name': 'VEP',
+                                           'config': config,
+                                           'csq': csq,
+                                           'blockSize': block_size})).persist()
 
     if csq:
         dataset = dataset.annotate_globals(
@@ -857,7 +860,11 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+    annotations = Table(TableToTableApply(ht._tir,
+                                          {'name': 'Nirvana',
+                                           'config': config,
+                                           'blockSize': block_size}
+                                          )).persist()
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})

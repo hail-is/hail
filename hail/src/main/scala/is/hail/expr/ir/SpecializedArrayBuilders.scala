@@ -94,7 +94,7 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
   def ensureCapacity(n: Int): Unit
 
   def setMissing(i: Int, m: Boolean): Unit = {
-    require(i >= 0 && i < size)
+    require(i >= 0 && i < size, i)
     missing(i) = m
   }
 

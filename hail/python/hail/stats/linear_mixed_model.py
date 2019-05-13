@@ -830,8 +830,7 @@ class LinearMixedModel(object):
         if not self._fitted:
             raise Exception("null model is not fit. Run 'fit' first.")
 
-        self._scala_model = Env.hail().stats.LinearMixedModel.apply(
-            Env.hc()._jhc,
+        self._scala_model = Env.hail().stats.LinearMixedModel.pyApply(
             self.gamma,
             self._residual_sq,
             _jarray_from_ndarray(self.py),

@@ -130,13 +130,13 @@ class ModuleConfig {
     ext_mak_(".mak"),
     module_dir_(get_module_dir()) {
   }
-  
+
   std::string get_lib_name(const std::string& key) {
     std:: stringstream ss;
     ss << module_dir_ << "/hm_" << key << ext_lib_;
     return ss.str();
   }
-  
+
   void ensure_module_dir_exists() {
     int rc = ::access(module_dir_.c_str(), R_OK);
     if (rc < 0) { // create it
@@ -200,7 +200,7 @@ class ModuleBuilder {
   std::string hm_mak_;
   std::string hm_cpp_;
   std::string hm_lib_;
-  
+
 public:
   ModuleBuilder(
     const std::string& options,
@@ -219,9 +219,9 @@ public:
     hm_cpp_ = (base + config.ext_cpp_);
     hm_lib_ = (base + config.ext_lib_);
   }
-  
+
   virtual ~ModuleBuilder() { }
-  
+
 private:
   void write_cpp() {
     FILE* f = fopen(hm_cpp_.c_str(), "w");
@@ -229,7 +229,7 @@ private:
     fwrite(source_.data(), 1, source_.length(), f);
     fclose(f);
   }
-  
+
   void write_mak() {
     FILE* f = fopen(hm_mak_.c_str(), "w");
     if (!f) { perror("fopen"); return; }
@@ -394,7 +394,7 @@ static std::string to_qualified_name(
   jstring nameJ,
   int numArgs,
   bool is_global,
-  bool is_longfunc
+  bool
 ) {
   JString name(env, nameJ);
   std::string result;
@@ -405,7 +405,7 @@ static std::string to_qualified_name(
     // Mangled name for hail::hm_<key>::funcname(NativeStatus* st, some number of longs)
     std::stringstream ss;
     auto mod_name = std::string("hm_") + key;
-    ss << "_ZN4hail" 
+    ss << "_ZN4hail"
        << mod_name.length() << mod_name
        << strlen(name) << (const char*)name
        << "E"

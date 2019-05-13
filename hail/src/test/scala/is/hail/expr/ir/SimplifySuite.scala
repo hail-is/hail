@@ -1,15 +1,17 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
-import is.hail.expr.types.virtual.{TInt32, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, SortField}
 import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class SimplifySuite extends SparkSuite {
+  implicit val execStrats = ExecStrategy.interpretOnly
+
   @Test def testTableMultiWayZipJoinGlobalsRewrite() {
     hc
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
@@ -54,5 +56,35 @@ class SimplifySuite extends SparkSuite {
 
     val ir2 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("3", "1"))
     assert(Simplify(ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
+  }
+
+  @Test def testBlockMatrixRewriteRules() {
+    val bmir = ValueToBlockMatrix(MakeArray(FastIndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64())),
+      FastIndexedSeq(2, 2), 10)
+    val identityBroadcast = BlockMatrixBroadcast(bmir, FastIndexedSeq(0, 1), FastIndexedSeq(2, 2), 10)
+
+    assert(Simplify(identityBroadcast) == bmir)
+  }
+
+  @Test def testContainsRewrites() {
+    assertEvalsTo(invoke("contains", Literal(TArray(TString()), FastIndexedSeq("a")), In(0, TString())),
+      FastIndexedSeq("a" -> TString()),
+      true)
+
+    assertEvalsTo(invoke("contains", ToSet(In(0, TArray(TString()))), Str("a")),
+      FastIndexedSeq(FastIndexedSeq("a") -> TArray(TString())),
+      true)
+
+
+    assertEvalsTo(invoke("contains", ToArray(In(0, TSet(TString()))), Str("a")),
+      FastIndexedSeq(Set("a") -> TSet(TString())),
+      true)
+  }
+
+  @Test def testTableCountExplodeSetRewrite() {
+    var ir: TableIR = TableRange(1, 1)
+    ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), Set(1)))))
+    ir = TableExplode(ir, FastIndexedSeq("foo"))
+    assertEvalsTo(TableCount(ir), 1L)
   }
 }

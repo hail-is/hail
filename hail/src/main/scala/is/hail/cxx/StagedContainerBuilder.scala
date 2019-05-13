@@ -1,56 +1,40 @@
 package is.hail.cxx
 
-import is.hail.annotations.UnsafeUtils
-import is.hail.cxx
-import is.hail.expr.types.physical.PContainer
+import is.hail.expr.types.physical.{PBaseStruct, PContainer}
+
+object StagedContainerBuilder {
+  def builderType(containerPType: PContainer): Type = {
+    val eltType = containerPType.elementType.fundamentalType
+    val params = s"${ eltType.required }, ${ eltType.byteSize }, ${ eltType.alignment }, ${ containerPType.contentsAlignment }"
+    eltType match {
+      case _: PBaseStruct => s"ArrayAddrBuilder<$params>"
+      case t => s"ArrayLoadBuilder<${ typeToCXXType(t) }, $params>"
+    }
+  }
+}
 
 class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: PContainer) {
-  private[this] val aoff = fb.variable("aoff", "char *")
-  private[this] val eltOff = fb.variable("eltOff", "char *")
+  fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+  private[this] val builder = fb.variable("builder", StagedContainerBuilder.builderType(containerPType))
   private[this] val i = fb.variable("i", "int", "0")
-  private[this] val eltRequired = containerPType.elementType.required
 
   def start(len: Code, clearMissing: Boolean = true): Code = {
-    val __len = fb.variable("len", "int", len)
-    s"""${ __len.define }
-       |${ start(__len, clearMissing) }
-     """.stripMargin
-  }
-
-  def start(len: Variable, clearMissing: Boolean): Code = {
-    val nMissingBytes = containerPType.cxxNMissingBytes(len.toString)
-    val elementsOffset = containerPType.cxxElementsOffset(len.toString)
-    val allocate = s"${ region }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(len.toString) })"
-
-    s"""${ aoff.defineWith(allocate) }
-       |${ eltOff.defineWith(s"$aoff + $elementsOffset") }
+    s"""
+       |${ builder.defineWith(s"{ (int)$len, $region }") }
        |${ i.define }
-       |store_int($aoff, ${ len });
-       |${ if (!eltRequired && clearMissing) s"memset($aoff + 4, 0, $nMissingBytes);" else "" }
+       |${ if (clearMissing) s"$builder.clear_missing_bits();" else "" }
      """.stripMargin
-
   }
 
-  def add(x: Code): Code = {
-    s"${
-      storeIRIntermediate(containerPType.elementType,
-        eltOffset,
-        x)
-    };"
-  }
+  def add(x: Code): Code = s"$builder.set_element($i, $x);"
 
-  def setMissing(): Code = {
-    if (eltRequired)
-      fb.nativeError("Required array element cannot be missing.")
-    else
-      s"set_bit($aoff + 4, $i);"
-  }
+  def setMissing(): Code = s"$builder.set_missing($i);"
 
   def advance(): Code = s"++$i;"
 
   def idx: Code = i.toString
 
-  def eltOffset: Code = s"$eltOff + $i * ${ UnsafeUtils.arrayElementSize(containerPType.elementType) }"
+  def eltOffset: Code = s"$builder.element_address($i)"
 
-  def end(): Code = aoff.toString
+  def end(): Code = s"$builder.offset()"
 }

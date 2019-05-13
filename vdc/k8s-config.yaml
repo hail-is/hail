@@ -57,30 +57,6 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default
-  name: create-services
-rules:
-- apiGroups: [""]
-  resources: ["services"]
-  verbs: ["*"]
----
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  namespace: default
-  name: notebook-create-services
-subjects:
-- kind: ServiceAccount
-  name: notebook
-  namespace: default
-roleRef:
-  kind: Role
-  name: create-services
-  apiGroup: ""
----
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  namespace: default
   name: create-services-and-pods
 rules:
 - apiGroups: [""]
@@ -101,7 +77,32 @@ subjects:
   namespace: default
 roleRef:
   kind: Role
-  name: create-services
+  name: create-services-and-pods
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: read-get-user-secret
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["get-users"]
+  verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-read-get-users-secret
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: read-get-user-secret
   apiGroup: ""
 ---
 kind: Role
@@ -144,6 +145,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["*"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["*"]
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -184,6 +188,18 @@ kind: ServiceAccount
 metadata:
   name: test-svc
   namespace: batch-pods
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-svc
+  namespace: test
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-svc
+  namespace: test
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -271,3 +287,95 @@ spec:
   resources:
     requests:
       storage: 10Mi
+---
+apiVersion: v1
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: test
+  name: delete-test-pvc
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["list", "delete"]
+---
+apiVersion: v1
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: deploy-svc-delete-test-pvc
+  namespace: test
+subjects:
+- kind: ServiceAccount
+  name: deploy-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: delete-test-pvc
+  apiGroup: "rbac.authorization.k8s.io"
+---
+apiVersion: v1
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: batch-pods
+  name: delete-batch-pods-pvc
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["list", "delete"]
+---
+apiVersion: v1
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: deploy-svc-delete-batch-pods-pvc
+  namespace: batch-pods
+subjects:
+- kind: ServiceAccount
+  name: deploy-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: delete-batch-pods-pvc
+  apiGroup: "rbac.authorization.k8s.io"
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: batch-pods
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: batch-pods
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: test
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: test
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100

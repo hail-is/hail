@@ -1,5 +1,6 @@
 package is.hail.io.bgen
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
@@ -67,7 +68,7 @@ object BgenRDDPartitions extends Logging {
         val b1 = bounds(i)
         val b2 = bounds(j)
         if (!b1._2.isDisjointFrom(pord, b2._2))
-          overlappingBounds += (b1._1, b1._2, b2._1, b2._2)
+          overlappingBounds += ((b1._1, b1._2, b2._1, b2._2))
         j += 1
       }
       i += 1
@@ -91,7 +92,7 @@ object BgenRDDPartitions extends Logging {
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
     val hConf = sc.hadoopConfiguration
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val sHadoopConfBc = HailContext.hadoopConfBc
 
     val fileRangeBounds = checkFilesDisjoint(hConf, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering
@@ -226,7 +227,7 @@ object CompileDecoder {
       cp.invoke[Boolean]("skipInvalidLoci").mux(
         Code(
           invalidLocus :=
-            (if (settings.rg.nonEmpty) {
+            (if (settings.rgBc.nonEmpty) {
               !csettings.invoke[Option[ReferenceGenome]]("rg")
                 .invoke[ReferenceGenome]("get")
                 .invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position)
@@ -245,7 +246,7 @@ object CompileDecoder {
             ),
             Code._empty // if locus is valid, continue
           )),
-        if (settings.rg.nonEmpty) {
+        if (settings.rgBc.nonEmpty) {
           // verify the locus is valid before continuing
           csettings.invoke[Option[ReferenceGenome]]("rg")
             .invoke[ReferenceGenome]("get")
@@ -297,12 +298,7 @@ object CompileDecoder {
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
         case EntriesWithFields(_, _, _) if settings.dropCols =>
-          Code(
-            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
-              srvb.start(0)
-            }),
-            srvb.advance(),
-            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
+          Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.physicalType.byteSize == 0)
@@ -339,7 +335,7 @@ object CompileDecoder {
             nAlleles2 := reader.invoke[Int]("readShort"),
             (nAlleles.cne(nAlleles2)).mux(
               Code._fatal(
-                const("""Value for `nAlleles' in genotype probability data storage is
+                const("""Value for 'nAlleles' in genotype probability data storage is
                         |not equal to value in variant identifying data. Expected""".stripMargin)
                   .concat(nAlleles.toS)
                   .concat(" but found ")
@@ -354,9 +350,9 @@ object CompileDecoder {
             maxPloidy := reader.invoke[Int]("read"),
             (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
               Code._fatal(
-                const("Hail only supports diploid genotypes. Found min ploidy `")
+                const("Hail only supports diploid genotypes. Found min ploidy '")
                   .concat(minPloidy.toS)
-                  .concat("' and max ploidy `")
+                  .concat("' and max ploidy '")
                   .concat(maxPloidy.toS)
                   .concat("'.")),
               Code._empty),
@@ -397,9 +393,9 @@ object CompileDecoder {
             nExpectedBytesProbs := settings.nSamples * 2,
             (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
               Code._fatal(
-                const("Number of uncompressed bytes `")
+                const("Number of uncompressed bytes '")
                   .concat(reader.invoke[Int]("length").toS)
-                  .concat("' does not match the expected size `")
+                  .concat("' does not match the expected size '")
                   .concat(nExpectedBytesProbs.toS)
                   .concat("'.")),
               Code._empty),

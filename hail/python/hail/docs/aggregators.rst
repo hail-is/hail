@@ -25,6 +25,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     sum
     array_sum
     mean
+    approx_quantiles
     stats
     product
     fraction
@@ -38,7 +39,9 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
     linreg
     corr
     group_by
+    array_agg
     downsample
+    approx_cdf
 
 .. autofunction:: collect
 .. autofunction:: collect_as_set
@@ -66,4 +69,5 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: linreg
 .. autofunction:: corr
 .. autofunction:: group_by
+.. autofunction:: array_agg
 .. autofunction:: downsample

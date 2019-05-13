@@ -9,12 +9,15 @@ object Compilable {
       case _: TableAggregate => false
       case _: MatrixAggregate => false
       case _: TableWrite => false
-      case _: TableExport  => false
       case _: MatrixWrite => false
       case _: BlockMatrixWrite => false
+      case _: BlockMatrixMultiWrite => false
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
+      case _: BlockMatrixToValueApply => false
       case _: Literal => false
+      case _: CollectDistributedArray => false
+      case _: ReadPartition => false
 
       case _ => true
     }

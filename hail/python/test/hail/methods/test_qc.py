@@ -108,6 +108,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
+    @skip_unless_spark_backend()
     def test_concordance(self):
         dataset = get_dataset()
         glob_conc, cols_conc, rows_conc = hl.concordance(dataset, dataset)
@@ -167,9 +168,18 @@ class Tests(unittest.TestCase):
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele1_downcode.vcf')))
         )
 
-        (hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)).old_to_new.show()
         self.assertTrue(
             hl.filter_alleles_hts(ds, lambda a, i: a == 'G', subset=False)
                 .drop('old_alleles', 'old_locus', 'new_to_old', 'old_to_new')
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
         )
+
+    def test_sample_and_variant_qc_call_rate(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+
+        n_rows, n_cols = mt.count()
+        mt = mt.filter_entries(mt.GQ > 5)
+        mt = hl.variant_qc(hl.sample_qc(mt))
+
+        assert mt.aggregate_cols(hl.agg.all(hl.approx_equal(mt.sample_qc.call_rate, mt.sample_qc.n_called / n_rows)))
+        assert mt.aggregate_rows(hl.agg.all(hl.approx_equal(mt.variant_qc.call_rate, mt.variant_qc.n_called / n_cols)))

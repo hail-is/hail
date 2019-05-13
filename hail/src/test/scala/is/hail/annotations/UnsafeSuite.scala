@@ -4,14 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.check.Arbitrary._
-import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
-import is.hail.utils._
-import org.apache.spark.SparkEnv
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -54,6 +49,7 @@ class UnsafeSuite extends SparkSuite {
     val region = Region()
     val region2 = Region()
     val region3 = Region()
+    val region4 = Region()
     val rvb = new RegionValueBuilder(region)
 
     val path = tmpDir.createTempFile(extension = "ser")
@@ -95,6 +91,25 @@ class UnsafeSuite extends SparkSuite {
         val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
+
+        val aos2 = new ByteArrayOutputStream()
+        val en2 = codecSpec.buildEncoder(t.physicalType, requestedType.physicalType)(aos2)
+        en2.writeRegionValue(region, offset)
+        en2.flush()
+
+        region4.clear()
+        val ais4 = new ByteArrayInputStream(aos2.toByteArray)
+        val dec4 = codecSpec.buildDecoder(requestedType.physicalType, requestedType.physicalType)(ais4)
+        val offset4 = dec4.readRegionValue(region4)
+        val ur4 = new UnsafeRow(requestedType.physicalType, region4, offset4)
+        assert(requestedType.typeCheck(ur4))
+        if (!requestedType.valuesSimilar(a2, ur4)) {
+          println(t)
+          println(requestedType)
+          println(a2)
+          println(ur4)
+        }
+        assert(requestedType.valuesSimilar(a2, ur4))
       }
 
       true
@@ -329,7 +344,55 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
-  
+
+  @Test def testRegionAllocation() {
+    val pool = RegionPool.get
+
+    case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
+      def allocateRegion(): Counts =
+        if (freeRegions == 0)
+          copy(regions = regions + 1)
+        else copy(freeRegions = freeRegions - 1)
+
+      def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
+        if (freeRegions == 0)
+          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks)
+        else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
+    }
+    def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+
+    var counts = getCurrentCounts
+
+    val region = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    val region2 = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.reference(region2)
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(1))
+
+    val region3 = Region()
+    region3.reference(region)
+    region3.reference(region2)
+
+    counts = getCurrentCounts
+    region.refreshRegion()
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion().allocateRegion())
+
+    counts = getCurrentCounts
+    region3.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(2))
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.

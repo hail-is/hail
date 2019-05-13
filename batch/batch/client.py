@@ -1,10 +1,12 @@
-import time
-import random
+import os
 import yaml
 
 import cerberus
 
+import hailjwt as hj
+
 from . import api, schemas
+from .poll_until import poll_until
 
 
 class Job:
@@ -36,69 +38,79 @@ class Job:
         return self._status
 
     def wait(self):
-        i = 0
-        while True:
-            self.status()  # update
-            if self.is_complete():
-                return self._status
-            j = random.randrange(2 ** i)
-            time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
-                i = i + 1
-
-    def cancel(self):
-        self.client._cancel_job(self.id)
-
-    def delete(self):
-        self.client._delete_job(self.id)
-
-        self.id = None
-        self.attributes = None
-        self._status = None
+        def update_and_is_complete():
+            self.status()
+            return self.is_complete()
+        poll_until(update_and_is_complete)
+        return self._status
 
     def log(self):
         return self.client._get_job_log(self.id)
 
 
 class Batch:
-    def __init__(self, client, id):
+    def __init__(self, client, id, attributes):
         self.client = client
         self.id = id
+        self.attributes = attributes
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parent_ids=None):
+                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                   input_files=None, output_files=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids)
+            service_account_name, attributes, self.id, callback, parent_ids, input_files,
+            output_files, always_run)
+
+    def close(self):
+        self.client._close_batch(self.id)
 
     def status(self):
         return self.client._get_batch(self.id)
 
     def wait(self):
-        i = 0
-        while True:
+        def update_and_is_complete():
             status = self.status()
-            if status['jobs']['Created'] == 0:
+            if status['complete']:
                 return status
-            j = random.randrange(2 ** i)
-            time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
-                i = i + 1
+            return False
+        return poll_until(update_and_is_complete)
+
+    def cancel(self):
+        self.client._cancel_batch(self.id)
+
+    def delete(self):
+        self.client._delete_batch(self.id)
 
 
 class BatchClient:
-    def __init__(self, url=None, api=api.DEFAULT_API):
+    def __init__(self, url=None, timeout=None, token_file=None, token=None, headers=None):
+        if token_file is not None and token is not None:
+            raise ValueError('set only one of token_file and token')
         if not url:
             url = 'http://batch.default'
         self.url = url
-        self.api = api
+        if token is None:
+            token_file = (token_file or
+                          os.environ.get('HAIL_TOKEN_FILE') or
+                          os.path.expanduser('~/.hail/token'))
+            if not os.path.exists(token_file):
+                raise ValueError(
+                    f'cannot create a client without a token. no file was '
+                    f'found at {token_file}')
+            with open(token_file) as f:
+                token = f.read()
+        userdata = hj.JWTClient.unsafe_decode(token)
+        assert "bucket_name" in userdata, userdata
+        self.bucket = userdata["bucket_name"]
+        self.api = api.API(timeout=timeout,
+                           cookies={'user': token},
+                           headers=headers)
 
-    def _create_job(self,
+    def _create_job(self,  # pylint: disable=R0912
                     image,
                     command,
                     args,
@@ -112,7 +124,10 @@ class BatchClient:
                     attributes,
                     batch_id,
                     callback,
-                    parent_ids):
+                    parent_ids,
+                    input_files,
+                    output_files,
+                    always_run):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -131,7 +146,7 @@ class BatchClient:
 
         container = {
             'image': image,
-            'name': 'default'
+            'name': 'main'
         }
         if command:
             container['command'] = command
@@ -161,8 +176,12 @@ class BatchClient:
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback, parent_ids)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []))
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
+                                parent_ids, input_files, output_files, always_run)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []))
 
     def _get_job(self, id):
         return self.api.get_job(self.url, id)
@@ -170,50 +189,43 @@ class BatchClient:
     def _get_job_log(self, id):
         return self.api.get_job_log(self.url, id)
 
-    def _delete_job(self, id):
-        self.api.delete_job(self.url, id)
-
-    def _cancel_job(self, id):
-        self.api.cancel_job(self.url, id)
-
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
 
-    def _refresh_k8s_state(self):
-        self.api.refresh_k8s_state(self.url)
+    def _cancel_batch(self, batch_id):
+        self.api.cancel_batch(self.url, batch_id)
 
-    def list_jobs(self):
-        jobs = self.api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j) for j in jobs]
+    def _delete_batch(self, batch_id):
+        self.api.delete_batch(self.url, batch_id)
+
+    def _close_batch(self, batch_id):
+        return self.api.close_batch(self.url, batch_id)
+
+    def list_batches(self, complete=None, success=None, attributes=None):
+        batches = self.api.list_batches(self.url, complete=complete, success=success, attributes=attributes)
+        return [Batch(self,
+                      j['id'],
+                      attributes=j.get('attributes'))
+                for j in batches]
 
     def get_job(self, id):
         # make sure job exists
-        j = self.api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j)
+        j = self._get_job(id)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []),
+                   _status=j)
 
-    def create_job(self,
-                   image,
-                   command=None,
-                   args=None,
-                   env=None,
-                   ports=None,
-                   resources=None,
-                   tolerations=None,
-                   volumes=None,
-                   security_context=None,
-                   service_account_name=None,
-                   attributes=None,
-                   callback=None,
-                   parent_ids=None):
-        if parent_ids is None:
-            parent_ids = []
-        return self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids)
+    def get_batch(self, id):
+        j = self._get_batch(id)
+        return Batch(self,
+                     j['id'],
+                     j.get('attributes'))
 
-    def create_batch(self, attributes=None, callback=None):
-        batch = self.api.create_batch(self.url, attributes, callback)
-        return Batch(self, batch['id'])
+    def create_batch(self, attributes=None, callback=None, ttl=None):
+        batch = self.api.create_batch(self.url, attributes, callback, ttl)
+        return Batch(self, batch['id'], batch.get('attribute'))
 
     job_yaml_schema = {
         'spec': schemas.pod_spec,
@@ -226,7 +238,8 @@ class BatchClient:
     def create_batch_from_file(self, file):
         job_id_by_name = {}
 
-        def job_id_by_name_or_error(id, self_id):
+        # pylint confused by f-strings
+        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
             job = job_id_by_name.get(id)
             if job:
                 return job
@@ -234,7 +247,7 @@ class BatchClient:
                 '"{self_id}" must appear in the file after its dependency "{id}"')
 
         batch = self.create_batch()
-        for doc in yaml.load(file):
+        for doc in yaml.safe_load(file):
             if not BatchClient.job_yaml_validator.validate(doc):
                 raise BatchClient.job_yaml_validator.errors
             spec = doc['spec']

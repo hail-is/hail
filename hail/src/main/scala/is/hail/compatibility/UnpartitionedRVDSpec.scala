@@ -1,10 +1,9 @@
 package is.hail.compatibility
 
-import is.hail.{HailContext, cxx}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.TStruct
 import is.hail.io.CodecSpec
-import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils.FastIndexedSeq
 
 
@@ -18,8 +17,4 @@ case class UnpartitionedRVDSpec(
   def key: IndexedSeq[String] = FastIndexedSeq()
 
   def encodedType: PStruct = rowType.physicalType
-
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
-    cxx.RVDEmitTriplet.read(path, encodedType, codecSpec, partFiles, RVDType(requestedType.physicalType, FastIndexedSeq()), null, tub)
-  }
 }

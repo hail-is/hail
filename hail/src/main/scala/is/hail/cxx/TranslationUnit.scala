@@ -128,7 +128,7 @@ class TranslationUnitBuilder() extends ScopeBuilder {
   def end(): TranslationUnit = {
 
     new TranslationUnit(
-      includes.result().mkString("\n"),
+      includes.result().distinct.mkString("\n"),
       definitions.result())
   }
 }

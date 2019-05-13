@@ -1,4 +1,5 @@
 import builtins
+import functools
 from typing import *
 
 import hail as hl
@@ -9,6 +10,9 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
+from hail.utils.misc import plural
+
+import numpy as np
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -23,6 +27,25 @@ def _seeded_func(name, ret_type, seed, *args):
     seed = seed if seed is not None else Env.next_seed()
     indices, aggregations = unify_all(*args)
     return construct_expr(ApplySeeded(name, seed, *(a._ir for a in args)), ret_type, indices, aggregations)
+
+
+@typecheck(a=expr_array(), x=expr_any)
+def _lower_bound(a, x):
+    if a.dtype.element_type != x.dtype:
+        raise TypeError(f"_lower_bound: incompatible types: {a.dtype}, {x.dtype}")
+    indices, aggregations = unify_all(a, x)
+    return construct_expr(LowerBoundOnOrderedCollection(a._ir, x._ir, on_key=False), tint32, indices, aggregations)
+
+
+@typecheck(cdf=expr_struct(), q=expr_oneof(expr_float32, expr_float64))
+def _quantile_from_cdf(cdf, q):
+    n = cdf.ranks[cdf.ranks.length() - 1]
+    pos = int64(q*n) + 1
+    idx = (switch(q)
+            .when(0.0, 0)
+            .when(1.0, cdf.values.length() - 1)
+            .default(_lower_bound(cdf.ranks, pos) - 1))
+    return cdf.values[idx]
 
 
 @typecheck(t=hail_type)
@@ -709,7 +732,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     Examples
     --------
 
-    >>> hl.eval(hl.locus("1", 10000))
+    >>> hl.eval(hl.locus("1", 10000, reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Parameters
@@ -744,7 +767,7 @@ def locus_from_global_position(global_pos,
     >>> hl.eval(hl.locus_from_global_position(2824183054))
     Locus(contig=21, position=42584230, reference_genome=GRCh37)
 
-    >>> hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'))
+    >>> hl.eval(hl.locus_from_global_position(2824183054, reference_genome='GRCh38'))
     Locus(contig=chr22, position=1, reference_genome=GRCh38)
 
     Parameters
@@ -770,7 +793,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus("1:10000"))
+    >>> hl.eval(hl.parse_locus('1:10000', reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Notes
@@ -800,7 +823,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     Examples
     --------
 
-    >>> hl.eval(hl.parse_variant('1:100000:A:T,C'))
+    >>> hl.eval(hl.parse_variant('1:100000:A:T,C', reference_genome='GRCh37'))
     Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['A', 'T', 'C'])
 
     Notes
@@ -826,6 +849,63 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     t = tstruct(locus=tlocus(reference_genome),
                 alleles=tarray(tstr))
     return _func('LocusAlleles({})'.format(reference_genome.name), t, s)
+
+
+def variant_str(*args) -> 'StringExpression':
+    """Create a variant colon-delimited string.
+
+    Parameters
+    ----------
+    args
+        Arguments (see notes).
+
+    Returns
+    -------
+    :class:`.StringExpression`
+
+    Notes
+    -----
+    Expects either one argument of type
+    ``struct{locus: locus<RG>, alleles: array<str>``, or two arguments of type
+    ``locus<RG>`` and ``array<str>``. The function returns a string of the form
+
+    .. code-block:: text
+
+        CHR:POS:REF:ALT1,ALT2,...ALTN
+        e.g.
+        1:1:A:T
+        16:250125:AAA:A,CAA
+
+    Examples
+    --------
+    >>> hl.eval(hl.variant_str(hl.locus('1', 10000), ['A', 'T', 'C']))
+    '1:10000:A:T,C'
+    """
+    args = [to_expr(arg) for arg in args]
+
+    def type_error():
+        raise ValueError(f"'variant_str' expects arguments of the following types:\n"
+                         f"  Option 1: 1 argument of type 'struct{{locus: locus<RG>, alleles: array<str>}}\n"
+                         f"  Option 2: 2 arguments of type 'locus<RG>', 'array<str>'\n"
+                         f"  Found: {builtins.len(args)} {plural('argument', builtins.len(args))} "
+                         f"of type {', '.join(builtins.str(x.dtype) for x in args)}")
+
+    if builtins.len(args) == 1:
+        [s] = args
+        t = s.dtype
+        if not isinstance(t, tstruct) \
+                or not builtins.len(t) == 2 \
+                or not isinstance(t[0], tlocus) \
+                or not t[1] == tarray(tstr):
+            type_error()
+        return hl.rbind(s, lambda x: hl.str(x[0]) + ":" + x[1][0] + ":" + hl.delimit(x[1][1:]))
+    elif builtins.len(args) == 2:
+        [locus, alleles] = args
+        if not isinstance(locus.dtype, tlocus) or not alleles.dtype == tarray(tstr):
+            type_error()
+        return hl.str(locus) + ":" + hl.rbind(alleles, lambda x: x[0] + ":" + hl.delimit(x[1:]))
+    else:
+        type_error()
 
 
 @typecheck(gp=expr_array(expr_float64))
@@ -982,7 +1062,7 @@ def locus_interval(contig,
     Examples
     --------
 
-    >>> hl.eval(hl.locus_interval("1", 100, 1000))
+    >>> hl.eval(hl.locus_interval("1", 100, 1000, reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
              end=Locus(contig=1, position=1000, reference_genome=GRCh37),
              includes_start=True,
@@ -1020,13 +1100,13 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus_interval('1:1000-2000'))
+    >>> hl.eval(hl.parse_locus_interval('1:1000-2000', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
              end=Locus(contig=1, position=2000, reference_genome=GRCh37),
              includes_start=True,
              includes_end=False)
 
-    >>> hl.eval(hl.parse_locus_interval('1:start-10M'))
+    >>> hl.eval(hl.parse_locus_interval('1:start-10M', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1, reference_genome=GRCh37),
              end=Locus(contig=1, position=10000000, reference_genome=GRCh37),
              includes_start=True,
@@ -1453,12 +1533,8 @@ def coalesce(*args):
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
-    def make_case(*expr_args):
-        c = case()
-        for e in expr_args:
-            c = c.when(hl.is_defined(e), e)
-        return c.or_missing()
-    return bind(make_case, *exprs)
+    indices, aggregations = unify_all(*exprs)
+    return construct_expr(Coalesce(*(e._ir for e in exprs)), exprs[0].dtype, indices, aggregations)
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
@@ -1492,7 +1568,8 @@ def or_else(a, b):
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
     assert a.dtype == b.dtype
-    return hl.cond(hl.is_defined(a), a, b)
+    indices, aggregations = unify_all(a, b)
+    return construct_expr(Coalesce(a._ir, b._ir), a.dtype, indices, aggregations)
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
@@ -1829,6 +1906,64 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     :class:`.Float64Expression`
     """
     return _seeded_func("rand_norm", tfloat64, seed, mean, sd)
+
+
+@typecheck(mean=nullable(expr_array(expr_float64)), cov=nullable(expr_array(expr_float64)), seed=nullable(int))
+def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
+    """Samples from a normal distribution with mean `mean` and covariance matrix `cov`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [0.5515477294463427, -1.1782691532205807]
+
+    >>> hl.eval(hl.rand_norm2d())  # doctest: +NOTEST
+    [-1.127240906867922, 1.4495317887283203]
+
+    Notes
+    -----
+    The covariance of a 2d normal distribution is a 2x2 symmetric matrix
+    [[a, b], [b, c]]. This is specified in `cov` as a length 3 array [a, b, c].
+    The covariance matrix must be positive semi-definite, i.e. a>0, c>0, and
+    a*c - b^2 > 0.
+
+    If `mean` and `cov` are both None, draws from the standard 2d normal
+    distribution.
+
+    Parameters
+    ----------
+    mean : :class:`.ArrayNumericExpression`, optional
+        Mean of normal distribution. Array of length 2.
+    cov : :class:`.ArrayNumericExpression`, optional
+        Covariance of normal distribution. Array of length 3.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.ArrayFloat64Expression`
+    """
+    if mean is None:
+        mean = [0, 0]
+    if cov is None:
+        cov = [1, 0, 1]
+
+    def f(mean, cov):
+        m1 = mean[0]
+        m2 = mean[1]
+        s11 = cov[0]
+        s12 = cov[1]
+        s22 = cov[2]
+
+        x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
+        return hl.rbind(hl.sqrt(s11), (lambda root_s11:
+            hl.array([
+               m1 + root_s11 * x[0],
+               m2 + (s12 / root_s11) * x[0]
+                  + hl.sqrt(s22 - s12 * s12 / s11) * x[1]])))
+
+    return hl.rbind(mean, cov, f)
 
 
 @typecheck(lamb=expr_float64, seed=nullable(int))
@@ -2799,7 +2934,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -2927,8 +3062,9 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 
         return bind(_, [hl.len(a) for a in arrays])
 
-@typecheck(a=expr_array())
-def zip_with_index(a):
+
+@typecheck(a=expr_array(), index_first=bool)
+def zip_with_index(a, index_first=True):
     """Returns an array of (index, element) tuples.
 
     Examples
@@ -2937,19 +3073,27 @@ def zip_with_index(a):
     >>> hl.eval(hl.zip_with_index(['A', 'B', 'C']))
     [(0, 'A'), (1, 'B'), (2, 'C')]
 
+    >>> hl.eval(hl.zip_with_index(['A', 'B', 'C'], index_first=False))
+    [('A', 0), ('B', 1), ('C', 2)]
+
+
     Parameters
     ----------
     a : :class:`.ArrayExpression`
+    index_first: :obj:`bool`
+        If ``True``, the index is the first value of the element tuples. If
+        ``False``, the index is the second value.
 
     Returns
     -------
     :class:`.ArrayExpression`
-        Array of (index, element) tuples.
+        Array of (index, element) or (element, index) tuples.
     """
-    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i])), a)
+    return bind(lambda aa: range(0, len(aa)).map(lambda i: (i, aa[i]) if index_first else (aa[i], i)), a)
+
 
 @typecheck(f=func_spec(1, expr_any),
-           collection=expr_oneof(expr_set(), expr_array()))
+           collection=expr_oneof(expr_set(), expr_array(), expr_ndarray()))
 def map(f: Callable, collection):
     """Transform each element of a collection.
 
@@ -3007,7 +3151,7 @@ def len(x) -> Int32Expression:
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
-        return apply_expr(lambda x: StringLength(x), tint32, x)
+        return apply_expr(lambda x: Apply("length", x), tint32, x)
     else:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
@@ -3153,9 +3297,9 @@ def min(*exprs, filter_missing: bool = True) -> NumericExpression:
         return min(hl.array(list(exprs)), filter_missing=filter_missing)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def abs(x):
-    """Take the absolute value of a numeric value or array.
+    """Take the absolute value of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3168,21 +3312,21 @@ def abs(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
 
 
-@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric)))
+@typecheck(x=expr_oneof(expr_numeric, expr_array(expr_numeric), expr_ndarray(expr_numeric)))
 def sign(x):
-    """Returns the sign of a numeric value or array.
+    """Returns the sign of a numeric value, array or ndarray.
 
     Examples
     --------
@@ -3205,13 +3349,13 @@ def sign(x):
 
     Parameters
     ----------
-    x : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+    x : :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`
 
     Returns
     -------
-    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`.
+    :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray):
+    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)
@@ -3514,6 +3658,48 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     return construct_expr(ir, array_t)
 
 
+def _ndarray(collection, row_major=True):
+    def list_shape(x):
+        if isinstance(x, list):
+            dim_len = builtins.len(x)
+            first, rest = x[0], x[1:]
+            inner_shape = list_shape(first)
+            for e in rest:
+                other_inner_shape = list_shape(e)
+                if inner_shape != other_inner_shape:
+                    raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
+            return [dim_len] + inner_shape
+        else:
+            return []
+
+    def deep_flatten(l):
+        result = []
+        for e in l:
+            if isinstance(e, list):
+                result.extend(deep_flatten(e))
+            else:
+                result.append(e)
+
+        return result
+
+    if isinstance(collection, np.ndarray):
+        nd = collection.astype(np.float64)
+        data = list(nd.flat)
+        shape = nd.shape
+    elif isinstance(collection, list):
+        shape = list_shape(collection)
+        data = deep_flatten(collection)
+    else:
+        shape = []
+        data = hl.array([collection])
+
+    shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+    data_expr = hl.array(data)
+
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+    return construct_expr(ndir, ndir.typ)
+
+
 @typecheck(key_type=hail_type, value_type=hail_type)
 def empty_dict(key_type: Union[HailType, str], value_type: Union[HailType, str]) -> DictExpression:
     """Returns an empty dictionary with key type `key_type` and value type
@@ -3598,6 +3784,28 @@ def delimit(collection, delimiter=',') -> StringExpression:
     return collection._method("mkString", tstr, delimiter)
 
 
+@typecheck(left=expr_any, right=expr_any)
+def _compare(left, right):
+    if left.dtype != right.dtype:
+        raise TypeError(f"'compare' expected 'left' and 'right' to have the same type: found {left.dtype} vs {right.dtype}")
+    indices, aggregations = unify_all(left, right)
+    return construct_expr(ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
+
+
+@typecheck(collection=expr_array(),
+           less_than=nullable(func_spec(2, expr_bool)))
+def _sort_by(collection, less_than):
+    l = Env.get_uid()
+    r = Env.get_uid()
+    left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
+    right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
+    return construct_expr(
+        ArraySort(collection._ir, l, r, less_than(left, right)._ir),
+        collection.dtype,
+        collection._indices,
+        collection._aggregations)
+
+
 @typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
@@ -3638,16 +3846,19 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
-    ascending = ~reverse
+
+    def comp(l, r):
+        return (hl.case()
+                .when(hl.is_missing(l), False)
+                .when(hl.is_missing(r), True)
+                .when(reverse, hl._compare(r, l) < 0)
+                .default(hl._compare(l, r) < 0))
 
     if key is None:
-        return collection._method("sort", collection.dtype, ascending)
+        return _sort_by(collection, comp)
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
-
-        indices, aggregations = unify_all(with_key, ascending)
-        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
+        return _sort_by(with_key, lambda l, r: comp(l[0], r[0])).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
@@ -4014,10 +4225,10 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.is_valid_contig('1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('1', reference_genome='GRCh37'))
     True
 
-    >>> hl.eval(hl.is_valid_contig('chr1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('chr1', reference_genome='GRCh37'))
     False
 
     Parameters
@@ -4228,6 +4439,9 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
              True,
              True)
 
+    See :ref:`liftover_howto` for more instructions on lifting over a Table
+    or MatrixTable.
+
     Notes
     -----
     This function requires the reference genome of `x` has a chain file loaded
@@ -4407,7 +4621,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
             .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .when(y > 0, construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
             .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 def _bit_op(x, y, op):
@@ -4420,7 +4634,7 @@ def _bit_op(x, y, op):
     y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
-    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+    return construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
@@ -4615,7 +4829,7 @@ def bit_not(x):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
 @typecheck(s=expr_str)
@@ -4627,3 +4841,9 @@ def _values_similar(l, r, tolerance=1e-6, absolute=False):
     assert l.dtype == r.dtype
     return ((is_missing(l) & is_missing(r))
             | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))
+
+
+@typecheck(coords=expr_array(expr_array(expr_float64)), radius=expr_float64)
+def _locus_windows_per_contig(coords, radius):
+    rt = hl.ttuple(hl.tarray(hl.tint32), hl.tarray(hl.tint32))
+    return _func("locus_windows_per_contig", rt, coords, radius)

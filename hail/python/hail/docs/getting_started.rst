@@ -17,8 +17,8 @@ Regardless of installation method, you will need:
   <https://www.anaconda.com/download/>`_
 
 For all methods *other than using pip*, you will additionally need `Spark
-2.2.x
-<https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
+2.4.x
+<https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_.
 
 
 Installation
@@ -51,25 +51,30 @@ To try Hail out, open iPython or a Jupyter notebook and run:
 You're now all set to run the
 `tutorials <https://hail.is/docs/devel/tutorials-landing.html>`__ locally!
 
-Building your own Jar
+Building your own JAR
 ~~~~~~~~~~~~~~~~~~~~~
 
-To use Hail with other Hail versions of Spark 2, you'll need to build your own JAR instead of using a pre-compiled
-distribution. To build against a different version, such as Spark 2.3.0, run the following command inside the directory
-where Hail is located::
+To build your own JAR, you will need a C++ compiler and lz4. Debian users might
+try::
+
+    sudo apt-get install g++ liblz4-dev
+
+On Mac OS X, you might try::
+
+    xcode-select --install
+    brew install lz4
+
+To build the Hail JAR compatible with Spark 2.3.0, execute this::
 
     ./gradlew -Dspark.version=2.3.0 shadowJar
 
-The Spark version in this command should match whichever version of Spark you would like to build against.
-
-The ``SPARK_HOME`` environment variable should point to an installation of the desired version of Spark, such as *spark-2.3.0-bin-hadoop2.7*
-
-The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
+The Spark version in this command should match whichever version of Spark you
+would like to build against.
 
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.2 cluster. For example, Google and Amazon offer
+Hail can run on any Spark 2.4 cluster. For example, Google and Amazon offer
 optimized Spark performance and exceptional scalability to thousands of cores
 without the overhead of installing and managing an on-premesis cluster.
 
@@ -88,11 +93,10 @@ For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
 For all other Spark clusters, you will need to build Hail from the source code.
 
-Hail should be built on the master node of the Spark cluster with the following
-command, replacing ``2.2.0`` with the version of Spark available on your
-cluster::
+Hail should be built on the master node of the Spark cluster. Follow the
+instructions in the "Building your own JAR" section and then additionally run::
 
-    ./gradlew -Dspark.version=2.2.0 shadowJar archiveZip
+    ./gradlew archiveZip
 
 Python and IPython need a few environment variables to correctly find Spark and
 the Hail jar. We recommend you set these environment variables in the relevant
@@ -100,7 +104,7 @@ profile file for your shell (e.g. ``~/.bash_profile``).
 
 .. code-block:: sh
 
-    export SPARK_HOME=/path/to/spark-2.2.0/
+    export SPARK_HOME=/path/to/spark-2.4.0/
     export HAIL_HOME=/path/to/hail/
     export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$HAIL_HOME/build/distributions/hail-python.zip"
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python"
@@ -182,10 +186,11 @@ Once Spark is installed, building and running Hail on a Cloudera cluster is exac
 the same as above, except:
 
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
-   version of Spark. The following example builds a Hail JAR for Cloudera's
-   2.2.0 version of Spark::
+   version of Spark and the associated py4j version. The following example
+   builds a Hail JAR for Cloudera's
+   2.4.0 version of Spark::
 
-    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera
+    ./gradlew shadowJar -Dspark.version=2.4.0.cloudera -Dpy4j.version=0.10.7
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,

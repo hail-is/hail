@@ -1,16 +1,15 @@
 package is.hail.io
 
-import is.hail.HailContext
-import is.hail.table.Table
+import org.apache.spark
 import org.elasticsearch.spark.sql._
-import collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.collection.Map
 
 object ElasticsearchConnector {
 
   def export(
-    t: Table,
+    df: spark.sql.DataFrame,
     host: String,
     port: Int,
     index: String,
@@ -18,11 +17,11 @@ object ElasticsearchConnector {
     blockSize: Int,
     config: java.util.HashMap[String, String],
     verbose: Boolean) {
-    export(t, host, port, index, indexType, blockSize,
+    export(df, host, port, index, indexType, blockSize,
       Option(config).map(_.asScala.toMap).getOrElse(Map.empty[String, String]), verbose)
   }
 
-  def export(t: Table, host: String = "localhost", port: Int = 9200,
+  def export(df: spark.sql.DataFrame, host: String = "localhost", port: Int = 9200,
     index: String, indexType: String, blockSize: Int = 1000,
     config: Map[String, String], verbose: Boolean = true) {
 
@@ -42,8 +41,6 @@ object ElasticsearchConnector {
     if (verbose)
       println(s"Config ${ mergedConfig }")
 
-    val df = t
-      .toDF(HailContext.get.sqlContext)
-      .saveToEs(s"${ index }/${ indexType }", mergedConfig)
+    df.saveToEs(s"${ index }/${ indexType }", mergedConfig)
   }
 }

@@ -31,10 +31,12 @@ setup(
         'matplotlib<3',
         'seaborn<0.9',
         'bokeh<0.14',
-        'pyspark>=2.2,<2.3',
+        'pyspark>=2.4,<2.4.2',
         'parsimonious<0.9',
         'ipykernel<5',
         'decorator<5',
         'requests>=2.21.0,<2.21.1',
+        'gcsfs==0.2.1',
+        'hurry.filesize==0.9'
     ]
 )

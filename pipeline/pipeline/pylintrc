@@ -1,0 +1,23 @@
+[MESSAGES CONTROL]
+# C0111 Missing docstring, W1203 logging fstring interpolation, C0111 missing
+# doc string, R0913 too many arguments, W0622 redefining built in, W0212
+# protected member access, W0621 redefining name from outer scope, R0914 too
+# many local variables, W0603 using the global statement, R0902 too many
+# instance attributes, R1705 unnecessary "else" after "return", W0511 fixme,
+# R0903 Too few public methods, R0401 Cyclic import, R0801 Similar lines,
+# R0912 Too many branches, R1720 no-else-raise
+
+disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R1705,W0511,R0903,R0401,R0801,R0912,R1720,invalid-name
+
+[FORMAT]
+# String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1
+# tab).
+indent-string='    '
+
+attr-rgx=[a-z_][a-z0-9_]{0,30}|id$
+argument-rgx=[a-z_][a-z0-9_]{0,30}|id$
+variable-rgx=[a-z_][a-z0-9_]{0,30}|id|f$
+const-rgx=(([a-zA-Z_][a-zA-Z0-9_]*)|(__.*__))$
+
+# Maximum number of characters on a single line.
+max-line-length=120

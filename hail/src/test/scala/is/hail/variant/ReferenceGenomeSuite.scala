@@ -53,7 +53,7 @@ class ReferenceGenomeSuite extends SparkSuite {
   @Test def testAssertions() {
     TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(ReferenceGenome("test", Array.empty[String], Map.empty[String, Int]))
     TestUtils.interceptFatal("No lengths given for the following contigs:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5)))
-    TestUtils.interceptFatal("Contigs found in `lengths' that are not present in `contigs'")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100)))
+    TestUtils.interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100)))
     TestUtils.interceptFatal("The following X contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("X")))
     TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), yContigs = Set("Y")))
     TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), mtContigs = Set("MT")))
@@ -89,18 +89,13 @@ class ReferenceGenomeSuite extends SparkSuite {
     val l1 = Locus("1", 25)
     val l2 = Locus("1", 13000)
     val l3 = Locus("2", 26)
-
-    assert(rg.compare(l1, l3) < 1)
-    assert(rg.compare(l1, l1) == 0)
-    assert(rg.compare(l3, l1) > 0)
-    assert(rg.compare(l2, l1) > 0)
   }
 
   @Test def testWriteToFile() {
     val tmpFile = tmpDir.createTempFile("grWrite", ".json")
 
     val rg = ReferenceGenome.GRCh37
-    rg.copy(name = "GRCh37_2").write(hc, tmpFile)
+    rg.copy(name = "GRCh37_2").write(hc.hadoopConf, tmpFile)
     val gr2 = ReferenceGenome.fromFile(hc, tmpFile)
 
     assert((rg.contigs sameElements gr2.contigs) &&
@@ -109,8 +104,6 @@ class ReferenceGenomeSuite extends SparkSuite {
       rg.yContigs == gr2.yContigs &&
       rg.mtContigs == gr2.mtContigs &&
       (rg.parInput sameElements gr2.parInput))
-
-    ReferenceGenome.removeReference("GRCh37_2")
   }
 
   @Test def testFasta() {
@@ -164,8 +157,6 @@ class ReferenceGenomeSuite extends SparkSuite {
     assert(fr.lookup(Interval(Locus("a", 1), Locus("a", 5), includesStart = true, includesEnd = false)) == "AGGT")
     assert(fr.lookup(Interval(Locus("a", 20), Locus("b", 5), includesStart = false, includesEnd = false)) == "ACGTATAAT")
     assert(fr.lookup(Interval(Locus("a", 20), Locus("c", 5), includesStart = false, includesEnd = false)) == "ACGTATAATTAAATTAGCCAGGAT")
-
-    ReferenceGenome.removeReference(rg.name)
   }
 
   @Test def testSerializeOnFB() {
@@ -194,7 +185,6 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     val f = fb.resultWithIndex()(0)
     assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
-    ReferenceGenome.removeReference(rg.name)
   }
 
   @Test def testSerializeWithLiftoverOnFB() {

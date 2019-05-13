@@ -10,6 +10,7 @@ import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
 import is.hail.testUtils._
+import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -28,15 +29,16 @@ class PartitioningSuite extends SparkSuite {
   }
 
   @Test def testShuffleOnEmptyRDD() {
-    val typ = TableType(TStruct("tidx" -> TInt32()), IndexedSeq("tidx"), TStruct.empty())
+    val typ = TableType(TStruct("tidx" -> TInt32()), FastIndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
       typ, BroadcastRow(Row.empty, TStruct.empty(), sc), RVD.empty(sc, typ.canonicalRVDType)))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     Interpret(
       MatrixAnnotateRowsTable(
-        ir.MatrixRead(rangeReader.fullType, false, false, rangeReader),
+        ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
         t,
-        "foo"))
+        "foo",
+        product=false))
       .rvd.count()
   }
 

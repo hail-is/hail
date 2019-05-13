@@ -1,5 +1,0 @@
-FROM spark-base
-
-COPY start-master.sh /
-
-CMD ["/start-master.sh"]

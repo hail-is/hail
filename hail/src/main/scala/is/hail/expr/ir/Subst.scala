@@ -1,50 +1,33 @@
 package is.hail.expr.ir
 
+import is.hail.utils._
+
 object Subst {
-  def apply(e: IR): IR = apply(e, Env.empty, Env.empty)
-  def apply(e: IR, env: Env[IR]): IR = apply(e, env, Env.empty)
-  def apply(e: IR, env: Env[IR], aggEnv: Env[IR]): IR = {
-    if (env.m.isEmpty && aggEnv.m.isEmpty)
+  def apply(e: IR): IR = apply(e, BindingEnv.empty[IR])
+
+  def apply(e: IR, env: BindingEnv[IR]): IR = {
+    subst(e, env)
+  }
+
+  private def subst(e: IR, env: BindingEnv[IR]): IR = {
+    if (env.allEmpty)
       return e
 
-    def subst(e: IR, env: Env[IR] = env, aggEnv: Env[IR] = aggEnv): IR = apply(e, env, aggEnv)
-
     e match {
-      case x@Ref(name, typ) =>
-        env.lookupOption(name).getOrElse(x)
-      case Let(name, v, body) =>
-        val newv = subst(v)
-        Let(name, newv, subst(body, env.delete(name).bind(name, Ref(name, newv.typ))))
-      case ArrayMap(a, name, body) =>
-        ArrayMap(subst(a), name, subst(body, env.delete(name)))
-      case ArrayFilter(a, name, cond) =>
-        ArrayFilter(subst(a), name, subst(cond, env.delete(name)))
-      case ArrayFlatMap(a, name, body) =>
-        ArrayFlatMap(subst(a), name, subst(body, env.delete(name)))
-      case ArrayFold(a, zero, accumName, valueName, body) =>
-        ArrayFold(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
-      case ArrayScan(a, zero, accumName, valueName, body) =>
-        ArrayScan(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
-      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        ArrayLeftJoinDistinct(subst(left), subst(right), l, r, subst(compare, env.delete(l).delete(r)), subst(join, env.delete(l).delete(r)))
-      case ArrayFor(a, valueName, body) =>
-        ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
-      case ArrayAgg(a, name, query) =>
-        ArrayAgg(subst(a), name, subst(query, env, env.delete(name)))
-      case AggFilter(cond, aggIR) =>
-        AggFilter(subst(cond, aggEnv), subst(aggIR, aggEnv))
-      case AggExplode(array, name, aggBody) =>
-        AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
-      case AggGroupBy(key, aggIR) =>
-        AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv))
-      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
-        val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
-        val substInitOpArgs = initOpArgs.map(initOpArgs =>
-          initOpArgs.map(arg => MapIR(subst(_))(arg)))
-        val substSeqOpArgs = seqOpArgs.map(arg => subst(arg, aggEnv, Env.empty))
-        ApplyAggOp(substConstructorArgs, substInitOpArgs, substSeqOpArgs, aggSig)
+      case x@Ref(name, _) =>
+        env.eval.lookupOption(name).getOrElse(x)
       case _ =>
-        MapIR(subst(_))(e)
+        e.copy(
+          e.children
+            .iterator
+            .zipWithIndex
+            .map { case (child: IR, i) =>
+
+              val childEnv = ChildEnvWithoutBindings(e, i, env)
+              val newBindings = NewBindings(e, i, childEnv)
+              subst(child, childEnv.subtract(newBindings))
+            case (child, _) => child
+            }.toFastIndexedSeq)
     }
   }
 }

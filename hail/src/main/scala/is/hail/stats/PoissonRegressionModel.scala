@@ -2,8 +2,6 @@ package is.hail.stats
 
 import breeze.linalg._
 import breeze.numerics._
-import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TStruct}
 
 

@@ -1,0 +1,83 @@
+<html lang="en">
+  <head>
+    <title>CI</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <h1>CI</h1>
+    {% for wb in watched_branches %}
+    <h2>{{ wb.branch }}</h2>
+    <p>SHA:
+      {% if wb.sha is not none %}
+      {{ wb.sha }}
+      {% else %}
+      unknown
+      {% endif %}
+    </p>
+    <p>Deploy State:
+      {% if wb.deploy_state is not none %}
+      {{ wb.deploy_state }}
+      {% endif %}
+    </p>
+    <p>Deploy Batch: 
+      {% if wb.deploy_batch_id is not none %}
+      <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+      {% endif %}
+    </p>
+
+    <h3>PRs</h3>
+    {% if wb.prs is not none %}
+    {% if wb.prs|length > 0 %}
+    <table>
+      <thead>
+        <tr>
+          <th align="left">Number</th>
+          <th align="left">Title</th>
+          <th align="left">Build State</th>
+          <th align="left">Review State</th>
+          <th align="left">Author</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pr in wb.prs %}
+        <tr>
+          <td align="left">
+            <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
+              {{ pr.number }}
+            </a>
+          </td>
+          <td align="left">
+            {{ pr.title }}
+          </td>
+          <td align="left">
+            {% if pr.build_state is not none %}
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
+              {{ pr.build_state }}
+            </a>
+            {% elif pr.batch_id is not none %}
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
+              building
+            </a>
+            {% endif %}
+          </td>
+          <td align="left">
+            {% if pr.review_state %}
+            {{ pr.review_state }}
+            {% endif %}
+          </td>
+          <td align="left">
+            {{ pr.author }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    No PRs.
+    {% endif %}
+    {% else %}
+    Unknown.
+    {% endif %}
+    {% endfor %}
+  </body>
+</html>

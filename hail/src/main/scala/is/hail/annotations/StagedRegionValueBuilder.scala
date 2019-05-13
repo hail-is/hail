@@ -2,10 +2,9 @@ package is.hail.annotations
 
 import is.hail.asm4s.Code._
 import is.hail.asm4s.{Code, FunctionBuilder, _}
+import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.utils._
-
-import scala.language.postfixOps
 
 class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, var region: Code[Region], val pOffset: Code[Long]) {
 
@@ -19,6 +18,10 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
 
   def this(mb: MethodBuilder, rowType: PType) = {
     this(mb, rowType, mb.getArg[Region](1), null)
+  }
+
+  def this (er: ir.EmitRegion, rowType: PType) = {
+    this(er.mb, rowType, er.region, null)
   }
 
   private val ftype = typ.fundamentalType

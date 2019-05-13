@@ -15,27 +15,31 @@ case class AggSignature(
   seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
-final case class CallStats() extends AggOp { }
-final case class Collect() extends AggOp { }
-final case class CollectAsSet() extends AggOp { }
-final case class Count() extends AggOp { }
-final case class Counter() extends AggOp { }
-final case class Downsample() extends AggOp { }
-final case class Fraction() extends AggOp { }
-final case class HardyWeinberg() extends AggOp { }
-final case class Histogram() extends AggOp { }
-final case class Inbreeding() extends AggOp { }
-final case class InfoScore() extends AggOp { }
-final case class LinearRegression() extends AggOp { }
-final case class PearsonCorrelation() extends AggOp { }
-final case class Max() extends AggOp { }
-final case class Min() extends AggOp { }
-final case class Product() extends AggOp { }
-final case class Statistics() extends AggOp { }
-final case class Sum() extends AggOp { }
-final case class Take() extends AggOp { }
-final case class TakeBy() extends AggOp { }
-final case class Group() extends AggOp { }
+final case class ApproxCDF() extends AggOp
+final case class CallStats() extends AggOp
+final case class Collect() extends AggOp
+final case class CollectAsSet() extends AggOp
+final case class Count() extends AggOp
+final case class Counter() extends AggOp
+final case class Downsample() extends AggOp
+final case class Fraction() extends AggOp
+final case class HardyWeinberg() extends AggOp
+final case class Histogram() extends AggOp
+final case class Inbreeding() extends AggOp
+final case class InfoScore() extends AggOp
+final case class LinearRegression() extends AggOp
+final case class PearsonCorrelation() extends AggOp
+final case class Max() extends AggOp
+final case class Min() extends AggOp
+final case class Product() extends AggOp
+final case class Statistics() extends AggOp
+final case class Sum() extends AggOp
+final case class Take() extends AggOp
+final case class TakeBy() extends AggOp
+final case class Group() extends AggOp
+final case class AggElements() extends AggOp
+final case class AggElementsLengthCheck() extends AggOp
+final case class PrevNonnull() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -48,9 +52,20 @@ object AggOp {
   def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
   def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
-    getOption(aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
+    getOption((aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs))
 
   val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
+
+    case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) =>
+      val resType = QuantilesAggregator.resultType(elType)
+      val constrArgTypes: Array[Class[_]] = Array(classOf[Int])
+      elType match {
+        case _: TInt32 => CodeAggregator[RegionValueApproxCDFIntAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Int]))
+        case _: TInt64 => CodeAggregator[RegionValueApproxCDFLongAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Long]))
+        case _: TFloat32 => CodeAggregator[RegionValueApproxCDFFloatAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Float]))
+        case _: TFloat64 => CodeAggregator[RegionValueApproxCDFDoubleAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Double]))
+    }
+
     case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
       CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
 
@@ -207,6 +222,8 @@ object AggOp {
         TFloat64(),
         seqOpArgTypes = Array(classOf[Double], classOf[Double])
       )
+
+    case (PrevNonnull(), Seq(), None, Seq(in)) => CodeAggregator[RegionValuePrevNonnullAnnotationAggregator2](in, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
@@ -216,6 +233,7 @@ object AggOp {
   }
 
   val fromString: PartialFunction[String, AggOp] = {
+    case "approxCDF" | "ApproxCDF" => ApproxCDF()
     case "fraction" | "Fraction" => Fraction()
     case "stats" | "Statistics" => Statistics()
     case "collect" | "Collect" => Collect()
@@ -236,5 +254,6 @@ object AggOp {
     case "linreg" | "LinearRegression" => LinearRegression()
     case "corr" | "PearsonCorrelation" => PearsonCorrelation()
     case "downsample" | "Downsample" => Downsample()
+    case "prevnonnull" | "PrevNonnull" => PrevNonnull()
   }
 }

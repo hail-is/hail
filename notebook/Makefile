@@ -37,8 +37,8 @@ notebook-worker-images: $(PUSHED)
 
 build: $(BUILT) notebook-worker-images
 ifeq ($(CI_BUILD),true)
-	-docker pull gcr.io/${PROJECT}/$*:latest
-	docker build . -t notebook --cache-from=gcr.io/${PROJECT}/$*:latest
+	-docker pull gcr.io/${PROJECT}/notebook:latest
+	docker build . -t notebook --cache-from=gcr.io/${PROJECT}/notebook:latest
 else
 	docker build . -t notebook
 endif

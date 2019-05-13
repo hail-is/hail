@@ -22,8 +22,8 @@ class Tests(unittest.TestCase):
             tinterval(tint32),
             tdict(tstr, tint32),
             tarray(tstr),
-            tndarray(tstr),
-            tndarray(tfloat64),
+            tndarray(tstr, 1),
+            tndarray(tfloat64, 2),
             tset(tint64),
             tlocus('GRCh37'),
             tlocus('GRCh38'),
@@ -82,3 +82,8 @@ class Tests(unittest.TestCase):
             c = coercer_from_dtype(t)
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
+
+    def test_nested_type_to_spark(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(nested=hl.dict({"tup": hl.tuple([ht.idx])}))
+        ht.to_spark() # should not throw exception

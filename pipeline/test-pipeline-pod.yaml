@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pipeline
+spec:
+  containers:
+  - name: test-pipeline
+    image: "{{ test_pipeline_image.image }}"
+    env:
+     - name: HAIL_TOKEN_FILE
+       value: '/jwt/jwt'
+     - name: BATCH_URL
+       value: http://batch.{{ default_ns.name }}
+    volumeMounts:
+      - mountPath: /jwt
+        readOnly: true
+        name: test-batch-jwt
+  volumes:
+    - name: test-batch-jwt
+      secret:
+        secretName: user-jwt-vkqfw
+  restartPolicy: Never

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
@@ -11,9 +12,13 @@ import org.scalatest.testng.TestNGSuite
 
 class MathFunctionsSuite extends TestNGSuite {
 
+  implicit val execStrats = ExecStrategy.values
+
   val tfloat = TFloat64()
 
   @Test def basicUnirootFunction() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val ir = Uniroot("x",
       ApplyBinaryPrimOp(Add(), Ref("x", tfloat), F64(3)),
       F64(-6), F64(0))
@@ -22,6 +27,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def unirootWithExternalBinding() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val fn = ApplyBinaryPrimOp(Add(),
       Ref("x", tfloat),
       Ref("b", tfloat))
@@ -32,6 +39,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def unirootWithRegionManipulation() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def sum(array: IR): IR =
       ArrayFold(array, F64(0), "sum", "i", ApplyBinaryPrimOp(Add(), Ref("sum", tfloat), Ref("i", tfloat)))
     val fn = ApplyBinaryPrimOp(Add(),
@@ -44,6 +53,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def isnan() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("isnan", F32(0)), false)
     assertEvalsTo(invoke("isnan", F32(Float.NaN)), true)
 
@@ -52,6 +63,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def is_finite() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("is_finite", F32(0)), expected = true)
     assertEvalsTo(invoke("is_finite", F32(Float.MaxValue)), expected = true)
     assertEvalsTo(invoke("is_finite", F32(Float.NaN)), expected = false)
@@ -66,6 +79,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def is_infinite() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("is_infinite", F32(0)), expected = false)
     assertEvalsTo(invoke("is_infinite", F32(Float.MaxValue)), expected = false)
     assertEvalsTo(invoke("is_infinite", F32(Float.NaN)), expected = false)
@@ -81,6 +96,8 @@ class MathFunctionsSuite extends TestNGSuite {
 
 
   @Test def sign() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("sign", I32(2)), 1)
     assertEvalsTo(invoke("sign", I32(0)), 0)
     assertEvalsTo(invoke("sign", I32(-2)), -1)
@@ -103,6 +120,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def approxEqual() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("approxEqual", F64(0.025), F64(0.0250000001), F64(1e-4), False(), False()), true)
     assertEvalsTo(invoke("approxEqual", F64(0.0154), F64(0.0156), F64(1e-4), True(), False()), false)
     assertEvalsTo(invoke("approxEqual", F64(0.0154), F64(0.0156), F64(1e-3), True(), False()), true)
@@ -114,6 +133,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def entropy() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(invoke("entropy", Str("")), 0.0)
     assertEvalsTo(invoke("entropy", Str("a")), 0.0)
     assertEvalsTo(invoke("entropy", Str("aa")), 0.0)
@@ -122,6 +143,8 @@ class MathFunctionsSuite extends TestNGSuite {
   }
 
   @Test def unirootIsStrictInMinAndMax() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(
       Uniroot("x", Ref("x", tfloat), F64(-6), NA(tfloat)),
       null)
@@ -140,7 +163,7 @@ class MathFunctionsSuite extends TestNGSuite {
     Array(10, 10, 10, 10, 1.0, 1.0),
     Array(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
   )
-  
+
   @Test(dataProvider = "chi_squared_test")
   def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
       val r = eval(invoke("chi_squared_test", a, b, c, d)).asInstanceOf[Row]

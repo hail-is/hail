@@ -1,8 +1,9 @@
 package is.hail.rvd
 
 import is.hail.annotations._
+import is.hail.expr.types.virtual.TInterval
 import is.hail.sparkextras._
-import is.hail.utils.fatal
+import is.hail.utils.{Muple, fatal}
 
 import scala.collection.generic.Growable
 
@@ -16,6 +17,17 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     if (!(kType isIsomorphicTo right.kType))
       fatal(
         s"""Incompatible join keys. Keys must have same length and types, in order:
+           | Left join key type: ${ kType.toString }
+           | Right join key type: ${ right.kType.toString }
+         """.stripMargin)
+  }
+
+  private def checkLeftIntervalJoinCompatability(right: KeyedRVD) {
+    if (!(kType.size == 1 && right.kType.size == 1
+      && right.kType.types(0).isInstanceOf[TInterval]
+      && kType.types(0).isOfType(right.kType.types(0).asInstanceOf[TInterval].pointType)))
+      fatal(
+        s"""Incompatible join keys in left interval join:
            | Left join key type: ${ kType.toString }
            | Right join key type: ${ right.kType.toString }
          """.stripMargin)
@@ -70,6 +82,44 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
           OrderedRVIterator(rTyp, rightIt, ctx),
           new RegionValueArrayBuffer(rRowPType, sideBuffer)))
     }.extendKeyPreservesPartitioning(joinedType.key)
+  }
+
+  def orderedLeftIntervalJoin(
+    right: KeyedRVD,
+    joiner: (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD = {
+    checkLeftIntervalJoinCompatability(right)
+
+    val lTyp = virtType
+    val rTyp = right.virtType
+
+    rvd.intervalAlignAndZipPartitions(joinedType, right.rvd) {
+      (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+        joiner(
+          ctx,
+          OrderedRVIterator(lTyp, it, ctx)
+            .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx)))
+    }
+  }
+
+  def orderedLeftIntervalJoinDistinct(
+    right: KeyedRVD,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD = {
+    checkLeftIntervalJoinCompatability(right)
+
+    val lTyp = virtType
+    val rTyp = right.virtType
+
+    rvd.intervalAlignAndZipPartitions(joinedType, right.rvd) {
+      (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+        joiner(
+          ctx,
+          OrderedRVIterator(lTyp, it, ctx)
+            .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx)))
+    }
   }
 
   def orderedJoinDistinct(

@@ -2,11 +2,10 @@ package is.hail
 
 import java.io.{PrintWriter, StringWriter}
 import java.net.InetAddress
-
-import is.hail.utils._
 import java.util.concurrent.LinkedBlockingQueue
 
 import is.hail.expr.ir.{BaseIR, Pretty}
+import is.hail.utils._
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
@@ -104,7 +103,7 @@ class Uploader { self =>
           self.upload(typ, contents, email)
         } catch {
           case e: Exception =>
-            warn(s"upload failed, caught $e")
+            log.warn(s"upload failed, caught $e")
         }
       }
     }

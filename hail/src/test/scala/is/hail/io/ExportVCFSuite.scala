@@ -1,16 +1,14 @@
 package is.hail.io
 
-import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
-import is.hail.testUtils._
 
 import scala.io.Source
 import scala.language.postfixOps
@@ -114,7 +112,7 @@ class ExportVCFSuite extends SparkSuite {
         if (l.value.startsWith("20\t13029920")) {
           assert(l.value.contains("GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" +
             "1/1:0,4:4:12:163,12,0\t1/1:0,12:12:36:479,36,0\t1/1:0,4:4:12:149,12,0\t1/1:0,6:6:18:232,18,0\t" +
-            "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0\t./.:1,0:1:.:.\t1/1:0,3:3:9:133,9,0"))
+            "1/1:0,6:6:18:242,18,0\t1/1:0,3:3:9:119,9,0\t1/1:0,9:9:27:374,27,0\t./.:1,0:1\t1/1:0,3:3:9:133,9,0"))
         }
       }
     }

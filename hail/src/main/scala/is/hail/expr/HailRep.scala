@@ -1,9 +1,8 @@
 package is.hail.expr
 
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Call, Locus, RGBase}
+import is.hail.variant.{BroadcastRGBase, Call, Locus}
 
 trait HailRep[T] { self =>
   def typ: Type
@@ -59,8 +58,8 @@ trait HailRepFunctions {
     def typ = TCall()
   }
 
-  implicit class locusHr(rg: RGBase) extends HailRep[Locus] {
-    def typ = TLocus(rg)
+  implicit class locusHr(rgBc: BroadcastRGBase) extends HailRep[Locus] {
+    def typ = TLocus(rgBc)
   }
 
   implicit def intervalHr[T](implicit hrt: HailRep[T]) = new HailRep[Interval] {

@@ -24,10 +24,6 @@ object PType {
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
-  val optionalComplex: Gen[PType] = genComplexType(false)
-
-  val requiredComplex: Gen[PType] = genComplexType(true)
-
   def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
@@ -113,12 +109,13 @@ object PType {
       case t: TCall => PCall(t.required)
       case t: TLocus => PLocus(t.rg, t.required)
       case t: TInterval => PInterval(canonical(t.pointType), t.required)
+      case t: TStream => PStream(canonical(t.elementType), t.required)
       case t: TArray => PArray(canonical(t.elementType), t.required)
       case t: TSet => PSet(canonical(t.elementType), t.required)
       case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case t: TTuple => PTuple(t.types.map(canonical), t.required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: TNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case TVoid => PVoid
     }
   }
@@ -136,11 +133,12 @@ object PType {
       case t: PCall => PCall(t.required)
       case t: PLocus => PLocus(t.rg, t.required)
       case t: PInterval => PInterval(canonical(t.pointType), t.required)
+      case t: PStream => PStream(canonical(t.elementType), t.required)
       case t: PArray => PArray(canonical(t.elementType), t.required)
       case t: PSet => PSet(canonical(t.elementType), t.required)
       case t: PTuple => PTuple(t.types.map(canonical), t.required)
       case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
-      case t: PNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: PNDArray => PNDArray(canonical(t.elementType), t.nDims, t.required)
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
       case PVoid => PVoid
     }
@@ -248,6 +246,14 @@ abstract class PType extends BaseType with Serializable {
       case t2: PSet => t.isInstanceOf[PSet] && t.asInstanceOf[PSet].elementType.isOfType(t2.elementType)
       case t2: PDict => t.isInstanceOf[PDict] && t.asInstanceOf[PDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[PDict].valueType.isOfType(t2.valueType)
     }
+  }
+
+  final def isPrimitive: Boolean = {
+    fundamentalType.isInstanceOf[PBoolean] ||
+      fundamentalType.isInstanceOf[PInt32] ||
+      fundamentalType.isInstanceOf[PInt64] ||
+      fundamentalType.isInstanceOf[PFloat32] ||
+      fundamentalType.isInstanceOf[PFloat64]
   }
 
   def subsetTo(t: Type): PType = {

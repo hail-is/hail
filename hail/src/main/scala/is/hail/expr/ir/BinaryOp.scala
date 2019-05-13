@@ -24,10 +24,10 @@ object BinaryOp {
   }
 
   def returnTypeOption(op: BinaryOp, l: Type, r: Type): Option[Type] =
-    returnType(op, l, r)
+    returnType((op, l, r))
 
   def getReturnType(op: BinaryOp, l: Type, r: Type): Type =
-    returnType(op, l, r).getOrElse(incompatible(l, r, op))
+    returnType((op, l, r)).getOrElse(incompatible(l, r, op))
 
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
@@ -58,6 +58,7 @@ object BinaryOp {
           case LeftShift() => ll << rr
           case RightShift() => ll >> rr
           case LogicalRightShift() => ll >>> rr
+          case _ => incompatible(lt, rt, op)
         }
       case (_: TInt64, _: TInt64) =>
         val ll = coerce[Long](l)

@@ -1,13 +1,7 @@
-FROM continuumio/miniconda
-MAINTAINER Hail Team <hail@broadinstitute.org>
-
-COPY environment.yml .
-RUN conda env create scorecard -f environment.yml && \
-    rm -f environment.yml && \
-    rm -rf /home/root/.conda/pkgs/*
+FROM {{ base_image.image }}
 
 COPY scorecard /scorecard
 
 EXPOSE 5000
 
-CMD ["bash", "-c", "source activate scorecard; python /scorecard/scorecard.py"]
+CMD ["bash", "-c", "python3 /scorecard/scorecard.py"]

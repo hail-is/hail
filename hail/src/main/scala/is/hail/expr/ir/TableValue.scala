@@ -1,28 +1,39 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.types.TableType
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.io.{CodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue = {
+  def apply(rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(TableType(rowType, FastIndexedSeq(), TStruct.empty()),
+        BroadcastRow.empty(),
+        RVD.unkeyed(rowType.physicalType, rdd))),
+        key))
+  }
+
+  def apply(rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue =
+    apply(rowType, key, ContextRDD.weaken[RVDContext](rdd).toRegionValues(rowType))
+
+  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue =
     Interpret(
       TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
-        RVD.unkeyed(typ.rowType.physicalType,
-          ContextRDD.weaken[RVDContext](rdd)
-            .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType))))),
-        typ.key), optimize = true)
-  }
+      RVD.unkeyed(typ.rowType.physicalType, ContextRDD.weaken[RVDContext](rdd).toRegionValues(typ.rowType)))),
+        typ.key))
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
@@ -60,6 +71,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
+    val hadoopConf = hc.hadoopConf
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -70,34 +82,36 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         CodecSpec.default
 
     if (overwrite)
-      hc.hadoopConf.delete(path, recursive = true)
-    else if (hc.hadoopConf.exists(path))
+      hadoopConf.delete(path, recursive = true)
+    else if (hadoopConf.exists(path))
       fatal(s"file already exists: $path")
 
-    hc.hadoopConf.mkDir(path)
+    hadoopConf.mkDir(path)
 
     val globalsPath = path + "/globals"
-    hc.hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
+    hadoopConf.mkDir(globalsPath)
+    AbstractRVDSpec.writeSingle(hadoopConf, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
-    hc.hadoopConf.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(hc, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(hc, referencesPath, typ.globalType)
+    hadoopConf.mkDir(referencesPath)
+    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.rowType)
+    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.globalType)
 
     val spec = TableSpec(
       FileFormat.version.rep,
-      hc.version,
+      is.hail.HAIL_PRETTY_VERSION,
       "references",
       typ,
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hc, path)
+    spec.write(hadoopConf, path)
 
-    hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    writeNativeFileReadMe(path)
+
+    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
@@ -106,7 +120,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   }
 
-  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
+  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
     hc.hadoopConf.delete(path, recursive = true)
 
@@ -119,6 +133,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val localSignature = typ.rowType.physicalType
     val localTypes = fields.map(_.typ)
 
+    val localDelim = delimiter
     rvd.mapPartitions { it =>
       val sb = new StringBuilder()
 
@@ -127,10 +142,53 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
-        }(sb += '\t')
+        }(sb.append(localDelim))
 
         sb.result()
       }
-    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
+    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+  }
+
+  def persist(storageLevel: StorageLevel): TableValue = copy(rvd = rvd.persist(storageLevel))
+
+  def unpersist(): TableValue = copy(rvd = rvd.unpersist())
+
+  def toDF(): DataFrame = {
+    HailContext.get.sparkSession.createDataFrame(
+      rvd.toRows,
+      typ.rowType.schema.asInstanceOf[StructType])
+  }
+
+  def toMatrixValue(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String]): MatrixValue = {
+
+    val (colType, colsFieldIdx) = typ.globalType.field(colsFieldName) match {
+      case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+      case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+    }
+    val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+
+    val newRowType = typ.rowType.rename(m)
+
+    val mType: MatrixType = MatrixType(
+      typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+      colKey,
+      colType,
+      typ.key,
+      newRowType)
+
+    val colValues = globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
+    val newGlobals = {
+      val (pre, post) = globals.value.toSeq.splitAt(colsFieldIdx)
+      Row.fromSeq(pre ++ post.tail)
+    }
+
+    val newRVD = rvd.cast(rvd.rowPType.rename(m))
+
+    MatrixValue(
+      mType,
+      BroadcastRow(newGlobals, mType.globalType, HailContext.get.sc),
+      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.get.sc),
+      newRVD
+    )
   }
 }

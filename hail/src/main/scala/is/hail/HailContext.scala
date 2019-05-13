@@ -4,14 +4,11 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead, TextTableReader}
-import is.hail.expr.types._
+import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
-import is.hail.io.gen.LoadGen
-import is.hail.io.plink.{FamFileConfig, LoadPlink}
+import is.hail.io.bgen.IndexBgen
 import is.hail.io.vcf._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
@@ -23,14 +20,16 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.SparkSession
+import org.json4s.Extraction
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 case class FilePartition(index: Int, file: String) extends Partition
@@ -44,9 +43,23 @@ object HailContext {
 
   private var theContext: HailContext = _
 
+  def isInitialized: Boolean = contextLock.synchronized {
+    theContext != null
+  }
+
   def get: HailContext = contextLock.synchronized {
+    assert(TaskContext.get() == null, "HailContext not available on worker")
+    assert(theContext != null, "HailContext not initialized")
     theContext
   }
+
+  def sc: SparkContext = get.sc
+
+  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
+
+  def sHadoopConf: SerializableHadoopConfiguration = get.sHadoopConf
+
+  def hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = get.hadoopConfBc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -167,10 +180,11 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
 
-    if (get != null) {
-      val hc = get
+    if (theContext != null) {
+      val hc = theContext
       if (sc == null) {
         warn("Requested that Hail be initialized with a new SparkContext, but Hail " +
           "has already been initialized. Different configuration settings will be ignored.")
@@ -191,7 +205,7 @@ object HailContext {
       hc
     } else {
       apply(sc, appName, master, local, logFile, quiet, append, minBlockSize, branchingFactor,
-        tmpDir)
+        tmpDir, optimizerIterations)
     }
   }
 
@@ -204,7 +218,8 @@ object HailContext {
     append: Boolean = false,
     minBlockSize: Long = 1L,
     branchingFactor: Int = 50,
-    tmpDir: String = "/tmp"): HailContext = contextLock.synchronized {
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
 
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
@@ -250,9 +265,9 @@ object HailContext {
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
 
-    val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
+    info(s"Hail temporary directory: $hailTempDir")
+    val hc = new HailContext(sparkContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -270,10 +285,15 @@ object HailContext {
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
+    // needs to be after `theContext` is set, since this creates broadcasts
+    ReferenceGenome.addDefaultReferences()
+
     hc
   }
 
   def clear() {
+    ReferenceGenome.reset()
+    IRFunctionRegistry.clearUserFunctions()
     theContext = null
   }
 
@@ -355,16 +375,39 @@ object HailContext {
       }
     }
   }
+
+  def pyRemoveIrVector(id: Int) {
+    get.irVectors.remove(id)
+  }
 }
 
 class HailContext private(val sc: SparkContext,
-  val sqlContext: SQLContext,
   val logFile: String,
   val tmpDir: String,
-  val branchingFactor: Int) {
+  val branchingFactor: Int,
+  val optimizerIterations: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+  val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
+  val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
+  val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
+
+  var checkRVDKeys: Boolean = false
+
+  private var nextVectorId: Int = 0
+  val irVectors: mutable.Map[Int, Array[_ <: BaseIR]] = mutable.Map.empty[Int, Array[_ <: BaseIR]]
+
+  def addIrVector(irArray: Array[_ <: BaseIR]): Int = {
+    val typ = irArray.head.typ
+    irArray.foreach { ir =>
+      if (ir.typ != typ)
+        fatal("all ir vector items must have the same type")
+    }
+    irVectors(nextVectorId) = irArray
+    nextVectorId += 1
+    nextVectorId - 1
+  }
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
@@ -387,10 +430,10 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  def indexBgen(files: java.util.ArrayList[String],
-    indexFileMap: java.util.HashMap[String, String],
+  def indexBgen(files: java.util.List[String],
+    indexFileMap: java.util.Map[String, String],
     rg: Option[String],
-    contigRecoding: java.util.HashMap[String, String],
+    contigRecoding: java.util.Map[String, String],
     skipInvalidLoci: Boolean) {
     indexBgen(files.asScala, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
   }
@@ -403,23 +446,6 @@ class HailContext private(val sc: SparkContext,
     IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
-
-  def importTable(inputs: java.util.ArrayList[String],
-    keyNames: java.util.ArrayList[String],
-    nPartitions: java.lang.Integer,
-    types: java.util.HashMap[String, String],
-    comment: java.util.ArrayList[String],
-    separator: String,
-    missing: String,
-    noHeader: Boolean,
-    impute: Boolean,
-    quote: java.lang.Character,
-    skipBlankLines: Boolean,
-    forceBGZ: Boolean
-  ): Table = importTables(inputs.asScala,
-    Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTable(input: String,
     keyNames: Option[IndexedSeq[String]] = None,
@@ -468,11 +494,6 @@ class HailContext private(val sc: SparkContext,
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
     read(file, dropSamples, dropVariants)
 
-  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
-    read(file, dropSamples, dropVariants)
-
-  def readTable(path: String): Table = Table.read(this, path)
-
   def readPartitions[T: ClassTag](
     path: String,
     partFiles: Array[String],
@@ -480,7 +501,7 @@ class HailContext private(val sc: SparkContext,
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    val localHadoopConfBc = hadoopConfBc
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
@@ -489,7 +510,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = sHadoopConfBc.value.value.unsafeReader(filename)
+        val in = localHadoopConfBc.value.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
@@ -515,29 +536,24 @@ class HailContext private(val sc: SparkContext,
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    LoadVCF.parseHeaderMetadata(this, reader, file)
+    LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
   }
 
-  def pyParseVCFMetadata(file: String): java.util.Map[String, java.util.Map[String, java.util.Map[String, String]]] = {
-    val reader = new HtsjdkRecordReader(Set.empty)
-    val metadata = LoadVCF.parseHeaderMetadata(this, reader, file)
-    metadata.mapValues { groupIds =>
-      groupIds.mapValues { fields =>
-        fields.asJava
-      }.asJava
-    }.asJava
+  def pyParseVCFMetadataJSON(file: String): String = {
+    val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
+    implicit val formats = defaultJSONFormats
+    JsonMethods.compact(Extraction.decompose(metadata))
   }
-  
-  def importMatrix(files: java.util.ArrayList[String],
-    rowFields: java.util.HashMap[String, String],
-    keyNames: java.util.ArrayList[String],
+
+  def importMatrix(files: java.util.List[String],
+    rowFields: java.util.Map[String, String],
+    keyNames: java.util.List[String],
     cellType: String,
     missingVal: String,
     minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable =
+    sep: String = "\t"): MatrixIR =
     importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
       IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
@@ -549,7 +565,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable = {
+    sep: String = "\t"): MatrixIR = {
     assert(sep.length == 1)
 
     val inputs = hadoopConf.globAll(files)

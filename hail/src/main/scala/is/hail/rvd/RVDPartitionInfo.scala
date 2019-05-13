@@ -1,8 +1,8 @@
 package is.hail.rvd
 
-import is.hail.utils._
 import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
 import is.hail.expr.types.virtual.Type
+import is.hail.utils._
 
 case class RVDPartitionInfo(
   partitionIndex: Int,
@@ -11,7 +11,8 @@ case class RVDPartitionInfo(
   max: Any,
   // min, max: RegionValue[kType]
   samples: Array[Any],
-  sortedness: Int
+  sortedness: Int,
+  contextStr: String
 ) {
   val interval = Interval(min, max, true, true)
 
@@ -49,6 +50,7 @@ object RVDPartitionInfo {
       prevF.set(f0)
 
       var sortedness = KSORTED
+      var contextStr = ""
 
       val rng = new java.util.Random(seed)
       val samples = new Array[WritableRegionValue](sampleSize)
@@ -64,15 +66,20 @@ object RVDPartitionInfo {
       while (it.hasNext) {
         val f = it.next()
 
-        if (typ.kOrd.lt(f, prevF.value)) {
+        if (sortedness > UNSORTED && typ.kOrd.lt(f, prevF.value)) {
           if (pkOrd.lt(f, prevF.value)) {
-            if (sortedness > UNSORTED)
-              log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+            val curr = f.pretty(typ.kType)
+            val prev = prevF.pretty
+            log.info(s"unsorted: $curr, $prev")
+            contextStr = s"CURRENT=$curr, PREV=$prev"
             sortedness = UNSORTED
-          } else
-            if (sortedness > TSORTED)
-              log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+          } else if (sortedness > TSORTED) {
+            val curr = f.pretty(typ.kType)
+            val prev = prevF.pretty
+            log.info(s"partition-key-sorted: $curr, $prev")
+            contextStr = s"CURRENT=$curr, PREV=$prev"
             sortedness = sortedness.min(TSORTED)
+          }
         }
 
         if (typ.kOrd.lt(f, minF.value))
@@ -99,7 +106,8 @@ object RVDPartitionInfo {
       RVDPartitionInfo(partitionIndex, i,
         safe(minF.value), safe(maxF.value),
         Array.tabulate[Any](math.min(i, sampleSize))(i => safe(samples(i).value)),
-        sortedness)
+        sortedness,
+        contextStr)
     }
   }
 }

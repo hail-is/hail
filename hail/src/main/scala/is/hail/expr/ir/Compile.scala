@@ -9,12 +9,56 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
+case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
+
+case class CodeCacheValue(typ: PType, f: Int => Any)
+
 object Compile {
+  private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
+
+  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, PType, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    body: IR,
+    nSpecialArgs: Int,
+    optimize: Boolean
+  ): (PType, Int => F) = {
+    val normalizeNames = new NormalizeNames(_.toString)
+    val normalizedBody = normalizeNames(body,
+      Env(args.map { case (n, _, _) => n -> n }: _*))
+    val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    codeCache.get(k) match {
+      case Some(v) => 
+        return (v.typ, v.f.asInstanceOf[Int => F])
+      case None =>
+    }
+
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+
+    var ir = body
+    if (optimize)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
+    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
+
+    val env = args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+
+    ir = Subst(ir, BindingEnv(env))
+    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
+
+    Emit(ir, fb, nSpecialArgs)
+
+    val f = fb.resultWithIndex()
+    codeCache += k -> CodeCacheValue(ir.pType, f)
+    (ir.pType, f)
+  }
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
     body: IR,
-    nSpecialArgs: Int
+    nSpecialArgs: Int,
+    optimize: Boolean
   ): (PType, Int => F) = {
     assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
@@ -29,34 +73,20 @@ object Compile {
 
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
-    Compile[F, R](args, argTypeInfo, body, nSpecialArgs)
-  }
-
-  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    args: Seq[(String, PType, ClassTag[_])],
-    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
-    body: IR,
-    nSpecialArgs: Int
-  ): (PType, Int => F) = {
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
-
-    var ir = body
-    ir = Optimize(ir, noisy = false, canGenerateLiterals = false)
-    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
-
-    val env = args
-      .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
-
-    ir = Subst(ir, env)
-    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
-    Emit(ir, fb, nSpecialArgs)
-    (ir.pType, fb.resultWithIndex())
+    Compile[F, R](args, argTypeInfo, body, nSpecialArgs, optimize)
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (PType, Int => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](FastSeq[(String, PType, ClassTag[_])](), body, 1)
+    apply[AsmFunction1[Region, R], R](FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
+  }
+
+  def apply[T0: ClassTag, R: TypeInfo : ClassTag](
+    name0: String,
+    typ0: PType,
+    body: IR,
+    optimize: Boolean): (PType, Int => AsmFunction3[Region, T0, Boolean, R]) = {
+
+    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1, optimize)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
@@ -64,7 +94,7 @@ object Compile {
     typ0: PType,
     body: IR): (PType, Int => AsmFunction3[Region, T0, Boolean, R]) = {
 
-    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1)
+    apply[AsmFunction3[Region, T0, Boolean, R], R](FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = true)
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
@@ -74,7 +104,7 @@ object Compile {
     typ1: PType,
     body: IR): (PType, Int => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
 
-    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1)
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
   }
 
   def apply[
@@ -94,7 +124,8 @@ object Compile {
       (name0, typ0, classTag[T0]),
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2])
-    ), body, 1)
+    ), body, 1,
+      optimize = true)
   }
 
   def apply[
@@ -114,7 +145,8 @@ object Compile {
       (name1, typ1, classTag[T1]),
       (name2, typ2, classTag[T2]),
       (name3, typ3, classTag[T3])
-    ), body, 1)
+    ), body, 1,
+      optimize = true)
   }
 
   def apply[
@@ -141,7 +173,8 @@ object Compile {
       (name3, typ3, classTag[T3]),
       (name4, typ4, classTag[T4]),
       (name5, typ5, classTag[T5])
-    ), body, 1)
+    ), body, 1,
+      optimize = true)
   }
 }
 
@@ -192,8 +225,8 @@ object CompileWithAggregators {
     assert((initScopeArgs ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
     val ExtractedAggregators(postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body, aggResultName)
-    val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](initScopeArgs, initOp, 2)
-    val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](aggScopeArgs, seqOp, 2)
+    val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](initScopeArgs, initOp, 2, optimize = true)
+    val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](aggScopeArgs, seqOp, 2, optimize = true)
 
     (rvAggs,
       (initOpIR, compileInitOp),

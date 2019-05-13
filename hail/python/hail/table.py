@@ -1,29 +1,35 @@
+from collections import Counter
+
+import itertools
 import pandas
 import pyspark
-import warnings
-
 from typing import *
 
-import hail as hl
 from hail.expr.expressions import *
-from hail.expr.types import *
 from hail.expr.table_type import *
-from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
-from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
 
-from collections import OrderedDict, Counter
-import itertools
-
 table_type = lazy()
+
+
+class TableIndexKeyError(Exception):
+    def __init__(self, key_type, index_expressions):
+        self.key_type = key_type
+        self.index_expressions = index_expressions
 
 
 class Ascending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Ascending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).asc(self.col)
@@ -32,6 +38,12 @@ class Ascending(object):
 class Descending(object):
     def __init__(self, col):
         self.col = col
+
+    def __eq__(self, other):
+        return isinstance(other, Descending) and self.col == other.col
+
+    def __ne__(self, other):
+        return not self == other
 
     def _j_obj(self):
         return scala_package_object(Env.hail().table).desc(self.col)
@@ -49,6 +61,7 @@ def desc(col):
     """Sort by `col` descending."""
 
     return Descending(col)
+
 
 class ExprContainer(object):
 
@@ -132,7 +145,7 @@ class GroupedTable(ExprContainer):
 
         >>> table_result = (table1.group_by(table1.ID)
         ...                       .partition_hint(5)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Notes
         -----
@@ -185,12 +198,12 @@ class GroupedTable(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -294,15 +307,15 @@ class Table(ExprContainer):
 
     Compute global aggregation statistics:
 
-    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = agg.mean(table1.C1),
-    ...                                       mean_c2 = agg.mean(table1.C2),
-    ...                                       stats_c3 = agg.stats(table1.C3)))
+    >>> t1_stats = table1.aggregate(hl.struct(mean_c1 = hl.agg.mean(table1.C1),
+    ...                                       mean_c2 = hl.agg.mean(table1.C2),
+    ...                                       stats_c3 = hl.agg.stats(table1.C3)))
     >>> print(t1_stats)
 
     Group by a field and aggregate to produce a new table:
 
     >>> table3 = (table1.group_by(table1.SEX)
-    ...                 .aggregate(mean_height_data = agg.mean(table1.HT)))
+    ...                 .aggregate(mean_height_data = hl.agg.mean(table1.HT)))
     >>> table3.show()
 
     Join tables together inside an annotation expression:
@@ -313,21 +326,12 @@ class Table(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jt):
-        return Table(JavaTable(jt.tir()))
+    def _from_java(jtir):
+        return Table(JavaTable(jtir))
     
-    @property
-    def _jt(self):
-        if self._jt_cache is None:
-            self._jt_cache = Env.hail().table.Table(
-                Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
-        return self._jt_cache
-
     def __init__(self, tir):
         super(Table, self).__init__()
 
-        self._jt_cache = None
-        
         self._tir = tir
         self._type = self._tir.typ
 
@@ -402,7 +406,7 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return self._jt.nPartitions()
+        return Env.backend().execute(TableToValueApply(self._tir, {'name': 'NPartitionsTable'}))
 
     def count(self):
         """Count the number of rows in the table.
@@ -768,12 +772,12 @@ class Table(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every row of the table. If `keep`
-        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
-        ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        The expression `expr` will be evaluated for every row of the table. If
+        `keep` is ``True``, then rows where `expr` evaluates to ``True`` will be
+        kept (the filter removes the rows where the predicate evaluates to
+        ``False``). If `keep` is ``False``, then rows where `expr` evaluates to
+        ``True`` will be removed (the filter keeps the rows where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
@@ -964,10 +968,11 @@ class Table(ExprContainer):
         return table
 
     @typecheck_method(output=str,
-               types_file=nullable(str),
-               header=bool,
-               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
-    def export(self, output, types_file=None, header=True, parallel=None):
+                      types_file=nullable(str),
+                      header=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+                      delimiter=str)
+    def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
         """Export to a TSV file.
 
         Examples
@@ -983,6 +988,10 @@ class Table(ExprContainer):
         read natively with any Hail method, as well as with Python's ``gzip.open``
         and R's ``read.table``.
 
+        Warning
+        -------
+        Do not export to a path that is being read from in the same pipeline.
+
         Parameters
         ----------
         output : :obj:`str`
@@ -997,10 +1006,13 @@ class Table(ExprContainer):
             the header file is output separately from the file shards. If
             'header_per_shard', each file shard has a header. If set to None
             the export will be slower.
+        delimiter : :obj:`str`
+            Field delimiter.
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
+            TableWrite(self._tir, TableTextWriter(output, types_file, header,
+                                                  Env.hail().utils.ExportType.getExportType(parallel), delimiter)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1010,12 +1022,12 @@ class Table(ExprContainer):
         Compute the mean value of `X` and the sum of `Z` per unique `ID`:
 
         >>> table_result = (table1.group_by(table1.ID)
-        ...                       .aggregate(meanX = agg.mean(table1.X), sumZ = agg.sum(table1.Z)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X), sumZ = hl.agg.sum(table1.Z)))
 
         Group by a height bin and compute sex ratio per bin:
 
         >>> table_result = (table1.group_by(height_bin = table1.HT // 20)
-        ...                       .aggregate(fraction_female = agg.fraction(table1.SEX == 'F')))
+        ...                       .aggregate(fraction_female = hl.agg.fraction(table1.SEX == 'F')))
 
         Notes
         -----
@@ -1040,17 +1052,17 @@ class Table(ExprContainer):
         First, variable-length string arguments:
 
         >>> table_result = (table1.group_by('C1', 'C2')
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Second, field reference variable-length arguments:
 
         >>> table_result = (table1.group_by(table1.C1, table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Last, expression keyword arguments:
 
         >>> table_result = (table1.group_by(C1 = table1.C1, C2 = table1.C2)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Additionally, the variable-length argument syntax also permits nested field
         references. Given the following struct field `s`:
@@ -1060,21 +1072,21 @@ class Table(ExprContainer):
         The following two usages are equivalent, grouping by one field, `x`:
 
         >>> table_result = (table3.group_by(table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         >>> table_result = (table3.group_by(x = table3.s.x)
-        ...                       .aggregate(meanX = agg.mean(table3.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table3.X)))
 
         The keyword argument syntax permits arbitrary expressions:
 
         >>> table_result = (table1.group_by(foo=table1.X ** 2 + 1)
-        ...                       .aggregate(meanZ = agg.mean(table1.Z)))
+        ...                       .aggregate(meanZ = hl.agg.mean(table1.Z)))
 
         These syntaxes can be mixed together, with the stipulation that all keyword arguments
         must come at the end due to Python language restrictions.
 
         >>> table_result = (table1.group_by(table1.C1, 'C2', height_bin = table1.HT // 20)
-        ...                       .aggregate(meanX = agg.mean(table1.X)))
+        ...                       .aggregate(meanX = hl.agg.mean(table1.X)))
 
         Note
         ----
@@ -1107,8 +1119,8 @@ class Table(ExprContainer):
         --------
         Aggregate over rows:
 
-        >>> table1.aggregate(hl.struct(fraction_male=agg.fraction(table1.SEX == 'M'),
-        ...                            mean_x=agg.mean(table1.X)))
+        >>> table1.aggregate(hl.struct(fraction_male=hl.agg.fraction(table1.SEX == 'M'),
+        ...                            mean_x=hl.agg.mean(table1.X)))
         Struct(fraction_male=0.5, mean_x=6.5)
 
         Note
@@ -1139,6 +1151,47 @@ class Table(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
+                      _codec_spec=nullable(str),
+                      _read_if_exists=bool)
+    def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
+        """Checkpoint the table to disk by writing and reading.
+
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
+
+        Returns
+        -------
+        :class:`Table`
+
+        Warning
+        -------
+        Do not checkpoint to a path that is being read from in the same computation.
+
+        Notes
+        -----
+        An alias for :meth:`write` followed by :func:`.reatd_table`. It is
+        possible to read the file at this path later with :func:`.read_table`.
+
+        Examples
+        --------
+        >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
+
+        """
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        return hl.read_table(output)
+
+    @typecheck_method(output=str,
+                      overwrite=bool,
+                      stage_locally=bool,
                       _codec_spec=nullable(str))
     def write(self, output: str, overwrite = False, stage_locally: bool = False,
               _codec_spec: Optional[str] = None):
@@ -1164,9 +1217,55 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+        Env.backend().execute(TableWrite(self._tir, TableNativeWriter(output, overwrite, stage_locally, _codec_spec)))
 
     def _show(self, n, width, truncate, types):
+        return Table._Show(self, n, width, truncate, types)
+
+    class _Show:
+        def __init__(self, table, n, width, truncate, types):
+            if n is None or width is None:
+                import shutil
+                (columns, lines) = shutil.get_terminal_size((80, 10))
+                width = width or columns
+                n = n or min(max(10, (lines - 20)), 100)
+            self.table = table
+            self.n = n
+            self.width = width
+            self.truncate = truncate
+            self.types = types
+
+        def __str__(self):
+            return self.table._ascii_str(self.n, self.width, self.truncate, self.types)
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            return self.table._html_str(self.n, self.types)
+
+    @staticmethod
+    def _hl_repr(v):
+        if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+            s = hl.format('%.2e', v)
+        elif isinstance(v.dtype, hl.tarray):
+            s = "[" + hl.delimit(hl.map(Table._hl_repr, v), ",") + "]"
+        elif isinstance(v.dtype, hl.tset):
+            s = "{" + hl.delimit(hl.map(Table._hl_repr, hl.array(v)), ",") + "}"
+        elif isinstance(v.dtype, hl.tdict):
+            s = "{" + hl.delimit(hl.map(lambda x: Table._hl_repr(x[0]) + ":" + Table._hl_repr(x[1]), hl.array(v)), ",") + "}"
+        elif v.dtype == hl.tstr:
+            s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+        elif isinstance(v.dtype, (hl.tstruct, hl.ttuple)):
+            if len(v) == 0:
+                s = '()'
+            else:
+                s = "(" + hl.delimit(hl.array([Table._hl_repr(v[i]) for i in range(len(v))]), ",") + ")"
+        else:
+            s = hl.str(v)
+        return hl.cond(hl.is_defined(v), s, "NA")
+
+    def _ascii_str(self, n, width, truncate, types):
         width = max(width, 8)
 
         if truncate:
@@ -1180,37 +1279,21 @@ class Table(ExprContainer):
             else:
                 return s
 
-        def hl_repr(v):
-            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-                s = hl.format('%.2e', v)
-            elif isinstance(v.dtype, hl.tarray):
-                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
-            elif isinstance(v.dtype, hl.tset):
-                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
-            elif isinstance(v.dtype, hl.tdict):
-                s = "{" + hl.delimit(hl.map(lambda x: x[0] + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
-            elif v.dtype == hl.tstr:
-                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
-            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
-                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
-            else:
-                s = hl.str(v)
-            return hl.cond(hl.is_defined(v), s, "NA")
-
         def hl_trunc(s):
             return hl.cond(hl.len(s) > truncate,
                            s[:truncate - 3] + "...",
                            s)
 
         def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
+            return hl.bind(lambda s: hl_trunc(s), Table._hl_repr(v))
 
         t = self
         t = t.flatten()
-        fields = [trunc(f) for f in t.row]
+        fields = list(t.row)
+        trunc_fields = [trunc(f) for f in fields]
         n_fields = len(fields)
 
-        types = [trunc(str(t.row[f].dtype)) for f in fields]
+        type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
@@ -1222,7 +1305,7 @@ class Table(ExprContainer):
         rows = [[row[f] for f in fields] for row in rows]
 
         max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(fields[i]), len(types[i]), max_value_width(i)) for i in range(n_fields)]
+        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
@@ -1265,10 +1348,10 @@ class Table(ExprContainer):
             hline = format_hline(block_column_width)
 
             s += hline
-            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
             s += hline
             if types:
-                s += format_line(types[start:end], block_column_width, block_right_align)
+                s += format_line(type_strs[start:end], block_column_width, block_right_align)
                 s += hline
             for row in rows:
                 row = row[start:end]
@@ -1281,8 +1364,40 @@ class Table(ExprContainer):
 
         return s
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+    def _html_str(self, n, types):
+        import html
+
+        t = self
+        t = t.flatten()
+        fields = list(t.row)
+
+        formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
+        rows = formatted_t.take(n + 1)
+
+        has_more = len(rows) > n
+        rows = rows[:n]
+
+        def format_line(values):
+            return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+
+        s = '<table>'
+        s += '<thead style="font-weight: bold;">'
+        s += format_line(fields)
+        if types:
+            s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
+        s += '</thead><tbody>'
+        for row in rows:
+            s += format_line([html.escape(row[f]) for f in row])
+        s += '</tbody></table>'
+
+        if has_more:
+            n_rows = len(rows)
+            s += f"<p>showing top { n_rows } { plural('row', n_rows) }</p>\n"
+
+        return s
+
+    @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
+    def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -1303,7 +1418,7 @@ class Table(ExprContainer):
 
         Parameters
         ----------
-        n : :obj:`int`
+        n or n_rows : :obj:`int`
             Maximum number of rows to show.
         width : :obj:`int`
             Horizontal width at which to break fields.
@@ -1315,9 +1430,20 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
+        if n_rows is not None and n is not None:
+            raise ValueError(f'specify one of n_rows or n, recieved {n_rows} and {n}')
+        if n_rows is not None:
+            n = n_rows
+        del n_rows
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs) -> 'StructExpression':
+    def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1383,17 +1509,28 @@ class Table(ExprContainer):
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
+        try:
+            return self._index(*exprs, all_matches=all_matches)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
+                                      f"  Table key:         {', '.join(str(t) for t in key_type.values())}\n"
+                                      f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+
+    def _index(self, *exprs, all_matches=False) -> 'Expression':
         exprs = tuple(exprs)
         if not len(exprs) > 0:
             raise ValueError('Require at least one expression to index')
         non_exprs = list(filter(lambda e: not isinstance(e, Expression), exprs))
         if non_exprs:
-            raise TypeError(f"'Table.index': arguments must be expressions, found {non_exprs}")
+            raise TypeError(f"Index arguments must be expressions, found {non_exprs}")
 
         from hail.matrixtable import MatrixTable
         indices, aggregations = unify_all(*exprs)
@@ -1401,44 +1538,38 @@ class Table(ExprContainer):
 
         if src is None or len(indices.axes) == 0:
             # FIXME: this should be OK: table[m.global_index_into_table]
-            raise ExpressionException('Cannot index table with a scalar expression')
+            raise ExpressionException('Cannot index with a scalar expression')
 
-        def types_compatible(left, right):
-            left = list(left)
-            right = list(right)
-            return (types_match(left, right)
-                    or (len(left) == 1
-                        and len(right) == 1
-                        and isinstance(left[0].dtype, tinterval)
-                        and left[0].dtype.point_type == right[0].dtype))
+        is_interval = (len(exprs) == 1
+                       and isinstance(self.key[0].dtype, hl.tinterval)
+                       and exprs[0].dtype == self.key[0].dtype.point_type)
 
-        if not types_compatible(self.key.values(), exprs):
+        if not types_match(list(self.key.values()), list(exprs)):
             if (len(exprs) == 1
-                    and isinstance(exprs[0], TupleExpression)
-                    and types_compatible(self.key.values(), exprs[0])):
-                return self.index(*exprs[0])
-            elif (len(exprs) == 1
-                  and isinstance(exprs[0], StructExpression)
-                  and types_compatible(self.key.values(), exprs[0].values())):
-                return self.index(*exprs[0].values())
-            else:
-                raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                          f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                          f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
+                    and isinstance(exprs[0], TupleExpression)):
+                return self._index(*exprs[0], all_matches=all_matches)
+
+            if (len(exprs) == 1
+                    and isinstance(exprs[0], StructExpression)):
+                return self._index(*exprs[0].values(), all_matches=all_matches)
+
+            if not is_interval:
+                raise TableIndexKeyError(self.key.dtype, exprs)
 
         uid = Env.get_uid()
 
+        if all_matches and not is_interval:
+            return self.collect_by_key(uid).index(*exprs)[uid]
+
         new_schema = self.row_value.dtype
+        if all_matches:
+            new_schema = hl.tarray(new_schema)
 
         if isinstance(src, Table):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            is_key = len(exprs) == len(src.key) and all(
-                expr is key_field for expr, key_field in zip(exprs, src.key.values()))
-            is_interval = (len(self.key) == 1
-                           and isinstance(self.key[0].dtype, hl.tinterval)
-                           and exprs[0].dtype == self.key[0].dtype.point_type)
+            is_key = len(src.key) >= len(exprs) and all(expr is key_field for expr, key_field in zip(exprs, src.key.values()))
 
             if not is_key:
                 uids = [Env.get_uid() for i in range(len(exprs))]
@@ -1458,7 +1589,7 @@ class Table(ExprContainer):
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table(TableIntervalJoin(left._tir, self._tir, uid))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid, all_matches))
                 else:
                     left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
@@ -1480,16 +1611,6 @@ class Table(ExprContainer):
             elif indices == src._row_indices:
                 is_subset_row_key = len(exprs) <= len(src.row_key) and all(
                     expr is key_field for expr, key_field in zip(exprs, src.row_key.values()))
-                is_interval = (len(self.key) == 1
-                               and isinstance(self.key[0].dtype, hl.tinterval)
-                               and exprs[0].dtype == self.key[0].dtype.point_type)
-
-                if is_interval and (len(exprs) != 1 or
-                                    exprs[0] is not src.row_key[0] or
-                                    self.key[0].dtype.point_type != exprs[0].dtype):
-                    raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                              f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
-                                              f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
                 if not (is_subset_row_key or is_interval):
                     # foreign-key join
@@ -1521,14 +1642,14 @@ class Table(ExprContainer):
                                 ))
                             )
                 else:
-                    joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right._tir, uid))
+                    def joiner(left: MatrixTable):
+                        return MatrixTable(MatrixAnnotateRowsTable(left._mir, right._tir, uid, all_matches))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
                            joiner)
                 return construct_expr(ast, new_schema, indices, aggregations)
-            elif indices == src._col_indices:
+            elif indices == src._col_indices and not (is_interval and all_matches):
                 all_uids = [uid]
                 if len(exprs) == len(src.col_key) and all([
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
@@ -1697,9 +1818,9 @@ class Table(ExprContainer):
         """Print information about the fields in the table."""
 
         def format_type(typ):
-            return typ.pretty(indent=4)
+            return typ.pretty(indent=4).lstrip()
 
-        if len(self.globals.dtype) == 0:
+        if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
@@ -1770,8 +1891,8 @@ class Table(ExprContainer):
 
         return self.annotate(**{name: hl.scan.count()})
 
-    @typecheck_method(tables=table_type)
-    def union(self, *tables) -> 'Table':
+    @typecheck_method(tables=table_type, unify=bool)
+    def union(self, *tables, unify: bool = False) -> 'Table':
         """Union the rows of multiple tables.
 
         Examples
@@ -1783,32 +1904,63 @@ class Table(ExprContainer):
 
         Notes
         -----
-
-        If a row appears in both tables identically, it is duplicated in the
-        result. The left and right tables must have the same schema and key.
+        If a row appears in more than one table identically, it is duplicated
+        in the result. All tables must have the same key names and types. They
+        must also have the same row types, unless the `unify` parameter is
+        ``True``, in which case a field appearing in any table will be included
+        in the result, with missing values for tables that do not contain the
+        field. If a field appears in multiple tables with incompatible types,
+        like arrays and strings, then an error will be raised.
 
         Parameters
         ----------
         tables : varargs of :class:`.Table`
             Tables to union.
+        unify : :obj:`bool`
+            Attempt to unify table field.
 
         Returns
         -------
         :class:`.Table`
             Table with all rows from each component table.
         """
-        left_key = list(self.key)
+        left_key = self.key.dtype
         for i, ht, in enumerate(tables):
-            right_key = list(ht.key)
-            if not ht.row.dtype == self.row.dtype:
-                raise ValueError(f"'union': table {i} has a different row type.\n"
-                                f"  Expected:  {self.row.dtype}\n"
-                                f"  Table {i}: {ht.row.dtype}")
-            elif left_key != right_key:
+            if left_key != ht.key.dtype:
                 raise ValueError(f"'union': table {i} has a different key."
-                                f"  Expected:  {left_key}\n"
-                                f"  Table {i}: {right_key}")
-        return Table(TableUnion([self._tir] + [table._tir for table in tables]))
+                                 f"  Expected:  {left_key}\n"
+                                 f"  Table {i}: {ht.key.dtype}")
+
+            if not (unify or ht.row.dtype == self.row.dtype):
+                raise ValueError(f"'union': table {i} has a different row type.\n"
+                                 f"  Expected:  {self.row.dtype}\n"
+                                 f"  Table {i}: {ht.row.dtype}\n"
+                                 f"  If the tables have the same fields in different orders, or some\n"
+                                 f"    common and some unique fields, then the 'unify' parameter may be\n"
+                                 f"    able to coerce the tables to a common type.")
+        all_tables = [self]
+        all_tables.extend(tables)
+
+        if unify and not len(set(ht.row_value.dtype for ht in all_tables)) == 1:
+            discovered = defaultdict(dict)
+            for i, ht in enumerate(all_tables):
+                for field_name in ht.row_value:
+                    discovered[field_name][i] = ht[field_name]
+            all_fields = [{} for _ in all_tables]
+            for field_name, expr_dict in discovered.items():
+                *unified, can_unify = hl.expr.expressions.unify_exprs(*expr_dict.values())
+                if not can_unify:
+                    raise ValueError(f"cannot unify field {field_name!r}: found fields of types "
+                                     f"{[str(t) for t in {e.dtype for e in expr_dict.values()}]}")
+                unified_map = dict(zip(expr_dict.keys(), unified))
+                default = hl.null(unified[0].dtype)
+                for i in range(len(all_tables)):
+                    all_fields[i][field_name] = unified_map.get(i, default)
+
+            for i, t in enumerate(all_tables):
+                all_tables[i] = t.select(**all_fields[i])
+
+        return Table(TableUnion([table._tir for table in all_tables]))
 
     @typecheck_method(n=int, _localize=bool)
     def take(self, n, _localize=True):
@@ -1994,6 +2146,83 @@ class Table(ExprContainer):
         return Table(TableRepartition(
             self._tir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
+
+    @typecheck_method(other=table_type)
+    def semi_join(self, other: 'Table') -> 'Table':
+        """Filters the table to rows whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.Table`
+
+        Notes
+        -----
+        The key type of the table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the table to keys present in another table.
+
+        To discard keys present in `other`, use :meth:`.anti_join`.
+
+        Examples
+        --------
+        >>> table_result = table1.semi_join(table2)
+
+        It may be expensive to key the left-side table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> table_result = table1.filter(hl.is_defined(table2.index(table1['ID'])))
+
+        See Also
+        --------
+        :meth:`.anti_join`
+        """
+        return self.filter(hl.is_defined(other.index(self.key)))
+
+    @typecheck_method(other=table_type)
+    def anti_join(self, other: 'Table') -> 'Table':
+        """Filters the table to rows whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.Table`
+
+        Notes
+        -----
+        The key type of the table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the table to keys not present in another table.
+
+        To restrict to keys present in `other`, use :meth:`.semi_join`.
+
+        Examples
+        --------
+        >>> table_result = table1.anti_join(table2)
+
+        It may be expensive to key the left-side table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> table_result = table1.filter(hl.is_missing(table2.index(table1['ID'])))
+
+        See Also
+        --------
+        :meth:`.semi_join`, :meth:`.filter`
+        """
+        return self.filter(hl.is_missing(other.index(self.key)))
+
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
                       _mangle=anyfunc)
@@ -2067,7 +2296,7 @@ class Table(ExprContainer):
         renames = {}
 
         for field in right._fields:
-            if field in seen:
+            if field in seen and field not in right.key:
                 i = 1
                 while i < 100:
                     mod = _mangle(field, i)
@@ -2300,14 +2529,9 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a flat schema (no struct fields).
         """
-        def _flatten(prefix, s):
-            if isinstance(s, StructExpression):
-                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
-            else:
-                return [(prefix, s)]
         # unkey but preserve order
         t = self.order_by(*self.key)
-        t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
+        t = t.select(**t.row.flatten())
         return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
@@ -2392,17 +2616,12 @@ class Table(ExprContainer):
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
     def explode(self, field, name=None) -> 'Table':
-        """Explode rows along a top-level field of the table.
-
-        Each row is copied for each element of `field`.
-        The explode operation unpacks the elements in a field of type
-        ``Array`` or ``Set`` into its own row. If an empty ``Array`` or ``Set``
-        is exploded, the entire row is removed from the table.
+        """Explode rows along a field of type array or set, copying the entire row for each element.
 
         Examples
         --------
-
-        `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
+        `people_table` is a :class:`.Table` with three fields: `Name`, `Age`
+        and `Children`.
 
         >>> people_table.show()
         +------------+-------+--------------------------+
@@ -2451,11 +2670,17 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Empty arrays or sets produce no rows in the resulting table. In the
-        example above, notice that the name "Caroline" is not found in the
-        exploded table.
+        Each row is copied for each element of `field`. The explode operation
+        unpacks the elements in a field of type ``array`` or ``set`` into its
+        own row. If an empty ``array`` or ``set`` is exploded, the entire row is
+        removed from the table. In the example above, notice that the name
+        "Caroline" is not found in the exploded table.
 
         Missing arrays or sets are treated as empty.
+
+        Currently, the `name` argument may not be used if `field` is not a
+        top-level field of the table (e.g. `name` may be used with ``ht.foo``
+        but not ``ht.foo.bar``).
 
         Parameters
         ----------
@@ -2467,20 +2692,26 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.Table`
-            Table with exploded field.
         """
-
-        if not isinstance(field, Expression):
-            # field is a str
-            field = self[field]
-
-        if not field in self._fields_inverse:
-            # nested or complex expression
-            raise ValueError("method 'explode' expects a top-level field name or expression")
-        if not field._indices == self._row_indices:
-            # global field
-            assert field._indices == self._global_indices
-            raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
+        if isinstance(field, str):
+            if not field in self._fields:
+                raise KeyError("Table has no field '{}'".format(field))
+            elif self._fields[field]._indices != self._row_indices:
+                raise ExpressionException("Method 'explode' expects a field indexed by row, found axes '{}'"
+                                          .format(self._fields[field]._indices.axes))
+            root = [field]
+            field = self._fields[field]
+        else:
+            analyze('Table.explode', field, self._row_indices, set(self._fields.keys()))
+            if not field._ir.is_nested_field:
+                raise ExpressionException(
+                    "method 'explode' requires a field or subfield, not a complex expression")
+            nested = field._ir
+            root = []
+            while isinstance(nested, GetField):
+                root.append(nested.name)
+                nested = nested.o
+            root = root[::-1]
 
         if not isinstance(field.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
@@ -2489,10 +2720,11 @@ class Table(ExprContainer):
             if k is field:
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
-        f = self._fields_inverse[field]
-        t = Table(TableExplode(self._tir, [f]))
+        t = Table(TableExplode(self._tir, root))
         if name is not None:
-            t = t.rename({f: name})
+            if len(root) > 1:
+                raise ValueError(f"'Table.explode' does not support the 'name' argument when exploding nested fields")
+            t = t.rename({root[0]: name})
         return t
 
     @typecheck_method(row_key=sequenceof(str),
@@ -2540,8 +2772,88 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        return hl.MatrixTable(TableToMatrixTable(
-            self._tir, row_key, col_key, row_fields, col_fields, n_partitions))
+        ht = self.key_by()
+
+        non_entry_fields = set(itertools.chain(row_key, col_key, row_fields, col_fields))
+        entry_fields = [x for x in ht.row if x not in non_entry_fields]
+
+        if not entry_fields:
+            raise ValueError(f"'Table.to_matrix_table': no fields remain as entry fields:\n"
+                             f"  all table fields found in one of 'row_key', 'col_key', 'row_fields', 'col_fields'")
+
+        col_data = hl.rbind(
+            hl.array(
+                ht.aggregate(
+                    hl.agg.group_by(ht.row.select(*col_key), hl.agg.take(ht.row.select(*col_fields), 1)[0]),
+                    _localize=False)),
+            lambda data: hl.struct(data=data,
+                                   key_to_index=hl.dict(hl.range(0, hl.len(data)).map(lambda i: (data[i][0], i))))
+        )
+
+        col_data_uid = Env.get_uid()
+        ht = ht.drop(*col_fields)
+        ht = ht.annotate_globals(**{col_data_uid: col_data})
+
+        entries_uid = Env.get_uid()
+        ht = (ht.group_by(*row_key)
+              .partition_hint(n_partitions)
+              # FIXME: should be agg._prev_nonnull https://github.com/hail-is/hail/issues/5345
+              .aggregate(**{x: hl.agg.take(ht[x], 1)[0] for x in row_fields},
+                         **{entries_uid: hl.rbind(
+                             hl.dict(hl.agg.collect((ht[col_data_uid]['key_to_index'][ht.row.select(*col_key)],
+                                                     ht.row.select(*entry_fields)))),
+                             lambda entry_dict: hl.range(0, hl.len(ht[col_data_uid]['key_to_index']))
+                                 .map(lambda i: entry_dict.get(i)))
+                         }))
+        ht = ht.annotate_globals(
+            **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))})
+        return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
+
+    @typecheck_method(columns=sequenceof(str), entry_field_name=nullable(str), col_field_name=str)
+    def to_matrix_table_row_major(self, columns, entry_field_name=None, col_field_name='col'):
+        """Construct a matrix table from a table in row major representation. Each element in `columns`
+        is a field that will become an entry field in the matrix table. Fields omitted from `columns` become row
+        fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
+        the matrix table will have one entry field named `entry_field_name` whose values come from the values
+        of the `columns` fields. The matrix table is column indexed by `col_field_name`.
+
+        Notes
+        -----
+        All fields in `columns` must have the same type.
+
+        Parameters
+        ----------
+        columns : Sequence[str]
+            Fields to be used as columns.
+        entry_field_name : :obj:`str` or None
+            Field name for the entries of the matrix table.
+        col_field_name : :obj:`str`
+            Field name for the columns of the matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        if len(columns) == 0:
+            raise ValueError('Columns must be non-empty.')
+
+        fields = [self[field] for field in columns]
+        col_types = set([field.dtype for field in fields])
+        if len(col_types) != 1:
+            raise ValueError('All columns must have the same type.')
+
+        if all([isinstance(col_typ, hl.tstruct) for col_typ in col_types]):
+            if entry_field_name is not None:
+                raise ValueError('Cannot both provide struct columns and an entry field name.')
+            entries = hl.array(fields)
+        else:
+            if entry_field_name is None:
+                raise ValueError('Must provide an entry field name.')
+            entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
+
+        t = self.transmute(entries=entries)
+        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        return t._unlocalize_entries('entries', 'cols', [col_field_name])
 
     @property
     def globals(self) -> 'StructExpression':
@@ -2810,6 +3122,9 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
+        import hail.methods.misc as misc
+        misc.require_key(self, 'collect_by_key')
+
         return Table(TableAggregateByKey(
             self._tir,
             hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
@@ -2858,14 +3173,33 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
+        import hail.methods.misc as misc
+        misc.require_key(self, 'distinct')
+
         return Table(TableDistinct(self._tir))
+
+    def summarize(self):
+        """Compute and print summary information about the fields in the table.
+
+        .. include:: _templates/experimental.rst
+        """
+
+        computations, printers = hl.expr.generic_summary(self.row, skip_top=True)
+        results = self.aggregate(computations)
+        for name, fields in printers:
+            print(f'* {name}:')
+
+            max_k_len = max(len(f) for f in fields)
+            for k, v in fields.items():
+                print(f'    {k.rjust(max_k_len)} : {v(results)}')
+            print()
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
         return Table(TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
-    @typecheck_method(cols_field_name=str,
-                      entries_field_name=str,
+    @typecheck_method(entries_field_name=str,
+                      cols_field_name=str,
                       col_key=sequenceof(str))
     def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key) -> 'hl.MatrixTable':
         return hl.MatrixTable(CastTableToMatrix(

@@ -2,7 +2,7 @@ package is.hail.io.plink
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
@@ -73,7 +73,7 @@ object LoadPlink {
           case "0" => null
           case "1" => false
           case "2" => true
-          case _ => fatal(s"Invalid sex: `$isFemale'. Male is `1', female is `2', unknown is `0'")
+          case _ => fatal(s"Invalid sex: '$isFemale'. Male is '1', female is '2', unknown is '0'")
         }
 
         var warnedAbout9 = false
@@ -90,7 +90,7 @@ object LoadPlink {
                 }
                 -9d
               case numericRegex() => pheno.toDouble
-              case _ => fatal(s"Invalid quantitative phenotype: `$pheno'. Value must be numeric or `${ ffConfig.missingValue }'")
+              case _ => fatal(s"Invalid quantitative phenotype: '$pheno'. Value must be numeric or '${ ffConfig.missingValue }'")
             }
           else
             pheno match {
@@ -100,7 +100,7 @@ object LoadPlink {
               case "0" => null
               case "-9" => null
               case "N/A" => null
-              case numericRegex() => fatal(s"Invalid case-control phenotype: `$pheno'. Control is `1', case is `2', missing is `0', `-9', `${ ffConfig.missingValue }', or non-numeric.")
+              case numericRegex() => fatal(s"Invalid case-control phenotype: '$pheno'. Control is '1', case is '2', missing is '0', '-9', '${ ffConfig.missingValue }', or non-numeric.")
               case _ => null
             }
         idBuilder += kid
@@ -130,7 +130,7 @@ case class MatrixPLINKReader(
   rg: Option[String],
   contigRecoding: Map[String, String] = Map.empty[String, String],
   skipInvalidLoci: Boolean = false
-) extends MatrixReader {
+) extends MatrixHybridReader {
   private val hc = HailContext.get
   private val sc = hc.sc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
@@ -178,7 +178,7 @@ case class MatrixPLINKReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val fullType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
     colKey = Array("s"),
     colType = saSignature,
@@ -190,13 +190,13 @@ case class MatrixPLINKReader(
     rowKey = Array("locus", "alleles"),
     entryType = TStruct("GT" -> TCall()))
 
-  val fullRVDType: RVDType = fullType.canonicalRVDType
+  val fullRVDType: RVDType = fullMatrixType.canonicalRVDType
 
-  def apply(mr: MatrixRead): MatrixValue = {
-    val requestedType = mr.typ
+  def apply(tr: TableRead): TableValue = {
+    val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
-    val rvd = if (mr.dropRows)
+    val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else {
       val variantsBc = sc.broadcast(variants)
@@ -212,11 +212,16 @@ case class MatrixPLINKReader(
           nPartitions.getOrElse(sc.defaultMinPartitions)))
 
       val kType = requestedType.canonicalRVDType.kType
-      val rvRowType = requestedType.rvRowType
+      val rvRowType = requestedType.rowType
 
       val hasRsid = requestedType.rowType.hasField("rsid")
       val hasCmPos = requestedType.rowType.hasField("cm_position")
-      val hasGT = requestedType.entryType.hasField("GT")
+
+      val (hasGT, dropSamples) = requestedType.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+        case Some(fd) => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct].hasField("GT") -> false
+        case None => false -> true
+      }
+
 
       val skipInvalidLociLocal = skipInvalidLoci
       val rgLocal = referenceGenome
@@ -268,7 +273,8 @@ case class MatrixPLINKReader(
               rvb.addAnnotation(rvRowType.types(2), rsid)
             if (hasCmPos)
               rvb.addDouble(cmPos)
-            record.getValue(rvb, hasGT)
+            if (!dropSamples)
+              record.getValue(rvb, hasGT)
             rvb.endStruct()
 
             rv.setOffset(rvb.end())
@@ -286,10 +292,9 @@ case class MatrixPLINKReader(
         info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ referenceGenome.get.name }'.")
     }
 
-    MatrixValue(requestedType,
-      BroadcastRow(Row.empty, requestedType.globalType, sc),
-      BroadcastIndexedSeq(if (mr.dropCols) Array.empty[Annotation] else sampleInfo, TArray(requestedType.colType), sc),
-      rvd
-    )
+
+    val globalValue = makeGlobalValue(requestedType, sampleInfo)
+
+    TableValue(requestedType, globalValue, rvd)
   }
 }

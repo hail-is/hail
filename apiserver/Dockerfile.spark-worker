@@ -1,0 +1,5 @@
+FROM {{ hail_base_image.image }}
+
+COPY start-worker.sh /
+
+CMD ["/start-worker.sh"]

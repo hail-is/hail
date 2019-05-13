@@ -1,11 +1,12 @@
 import abc
 import json
 
+from .utils import make_filter_and_replace
 from ..expr.types import tfloat32, tfloat64
+from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import *
 from ..utils import wrap_to_list
 from ..utils.java import escape_str
-from ..genetics.reference_genome import reference_genome_type
 
 
 class MatrixReader(object):
@@ -68,6 +69,8 @@ class MatrixVCFReader(MatrixReader):
                       skip_invalid_loci=bool,
                       force_bgz=bool,
                       force_gz=bool,
+                      filter=nullable(str),
+                      find_replace=nullable(sized_tupleof(str, str)),
                       _partitions_json=nullable(str))
     def __init__(self,
                  path,
@@ -81,6 +84,8 @@ class MatrixVCFReader(MatrixReader):
                  skip_invalid_loci,
                  force_bgz,
                  force_gz,
+                 filter,
+                 find_replace,
                  _partitions_json):
         self.path = wrap_to_list(path)
         self.header_file = header_file
@@ -93,13 +98,15 @@ class MatrixVCFReader(MatrixReader):
         self.skip_invalid_loci = skip_invalid_loci
         self.force_gz = force_gz
         self.force_bgz = force_bgz
+        self.filter = filter
+        self.find_replace = find_replace
         self._partitions_json = _partitions_json
 
     def render(self, r):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
-                  'entryFloatType': self.entry_float_type,
+                  'entryFloatTypeName': self.entry_float_type,
                   'headerFile': self.header_file,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
@@ -108,6 +115,7 @@ class MatrixVCFReader(MatrixReader):
                   'skipInvalidLoci': self.skip_invalid_loci,
                   'gzAsBGZ': self.force_bgz,
                   'forceGZ': self.force_gz,
+                  'filterAndReplace': make_filter_and_replace(self.filter, self.find_replace),
                   'partitionsJSON': self._partitions_json}
         return escape_str(json.dumps(reader))
 
@@ -124,6 +132,8 @@ class MatrixVCFReader(MatrixReader):
                other.skip_invalid_loci == self.skip_invalid_loci and \
                other.force_bgz == self.force_bgz and \
                other.force_gz == self.force_gz and \
+               other.filter == self.filter and \
+               other.find_replace == self.find_replace and \
                other._partitions_json == self._partitions_json
 
 
@@ -143,7 +153,7 @@ class MatrixBGENReader(MatrixReader):
 
         from hail.table import Table
         if included_variants is not None:
-            assert(isinstance(included_variants, Table))
+            assert (isinstance(included_variants, Table))
         self.included_variants = included_variants
 
     def render(self, r):
@@ -153,6 +163,7 @@ class MatrixBGENReader(MatrixReader):
                   'indexFileMap': self.index_file_map,
                   'nPartitions': self.n_partitions,
                   'blockSizeInMB': self.block_size,
+                   # FIXME: This has to be wrong. The included_variants IR is not included as a child
                   'includedVariants': r(self.included_variants._tir) if self.included_variants else None
                   }
         return escape_str(json.dumps(reader))
@@ -214,6 +225,7 @@ class MatrixPLINKReader(MatrixReader):
                other.contig_recoding == self.contig_recoding and \
                other.skip_invalid_loci == self.skip_invalid_loci
 
+
 class MatrixGENReader(MatrixReader):
     @typecheck_method(files=sequenceof(str), sample_file=str, chromosome=nullable(str),
                       min_partitions=nullable(int), tolerance=float, rg=nullable(str),
@@ -237,4 +249,4 @@ class MatrixGENReader(MatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, MatrixGENReader) and \
-            self.config == other.config
+               self.config == other.config

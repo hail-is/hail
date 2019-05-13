@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
@@ -10,6 +11,8 @@ import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 class StringFunctionsSuite extends TestNGSuite {
+  implicit val execStrats = ExecStrategy.javaOnly
+
   @Test def testRegexMatch() {
     assertEvalsTo(invoke("~", Str("a"), NA(TString())), null)
     assertEvalsTo(invoke("~", NA(TString()), Str("b")), null)

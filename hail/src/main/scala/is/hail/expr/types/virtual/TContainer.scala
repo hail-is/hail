@@ -1,12 +1,14 @@
 package is.hail.expr.types.virtual
 
+import is.hail.annotations.Annotation
 import is.hail.expr.types.physical.PContainer
-import is.hail.utils._
 
-abstract class TContainer extends Type {
+abstract class TContainer extends TIterable {
   def physicalType: PContainer
 
-  def elementType: Type
-
-  override def children = FastSeq(elementType)
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean =
+    a1 == a2 || (a1 != null && a2 != null
+      && (a1.asInstanceOf[Iterable[_]].size == a2.asInstanceOf[Iterable[_]].size)
+      && a1.asInstanceOf[Iterable[_]].zip(a2.asInstanceOf[Iterable[_]])
+      .forall { case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute) })
 }

@@ -11,7 +11,7 @@ import scala.reflect.{ClassTag, classTag}
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
   lazy val physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)
 
-  val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
+  lazy val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
 
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
@@ -69,6 +69,6 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
-  val ordering: ExtendedOrdering =
+  lazy val ordering: ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering)
 }

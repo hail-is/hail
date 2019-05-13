@@ -10,6 +10,7 @@ import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
 import is.hail.sparkextras._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
@@ -17,7 +18,7 @@ import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContex
 import scala.language.reflectiveCalls
 
 sealed trait EntriesSetting
-final case object NoEntries extends EntriesSetting
+case object NoEntries extends EntriesSetting
 final case class EntriesWithFields (
   gt: Boolean,
   gp: Boolean,
@@ -36,7 +37,7 @@ case class BgenSettings(
   entries: EntriesSetting,
   dropCols: Boolean,
   rowFields: RowFields,
-  rg: Option[ReferenceGenome],
+  rgBc: Option[Broadcast[ReferenceGenome]],
   indexAnnotationType: Type
 ) {
   val (includeGT, includeGP, includeDosage) = entries match {
@@ -45,7 +46,7 @@ case class BgenSettings(
   }
 
   val matrixType: MatrixType = MatrixBGENReader.getMatrixType(
-    rg,
+    rgBc.map(_.value),
     rowFields.rsid,
     rowFields.varid,
     rowFields.offset,
@@ -63,6 +64,8 @@ case class BgenSettings(
   }
 
   def pType: PStruct = typ.physicalType
+
+  def rg: Option[ReferenceGenome] = rgBc.map(_.value)
 }
 
 object BgenRDD {
@@ -100,7 +103,7 @@ private class BgenRDD(
           new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
-          context.addTaskCompletionListener { context =>
+          context.addTaskCompletionListener { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
@@ -134,7 +137,7 @@ private class IndexBgenRecordIterator(
     }
   }
 
-  def hasNext(): Boolean =
+  def hasNext: Boolean =
     bfis.getPosition < p.endByteOffset
 }
 
@@ -163,7 +166,7 @@ private class BgenRecordIteratorWithoutFilter(
     }
   }
 
-  def hasNext(): Boolean =
+  def hasNext: Boolean =
     it.hasNext
 }
 
@@ -199,7 +202,7 @@ private class BgenRecordIteratorWithFilter(
     result
   }
 
-  def hasNext(): Boolean = {
+  def hasNext: Boolean = {
     if (isEnd)
       return false
 

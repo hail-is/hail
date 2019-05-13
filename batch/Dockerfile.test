@@ -1,14 +1,15 @@
-FROM alpine:3.8
+FROM {{ base_image.image }}
 
-RUN apk add --no-cache \
-  py3-cffi \
-  py3-cryptography \
-  python3 \
-  && true
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
 
-COPY setup.py /batch/
-COPY batch /batch/batch/
-RUN pip3 install --no-cache-dir /batch
-COPY test /test
+COPY batch/setup.py /batch/
+COPY batch/batch/ /batch/batch/
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
 
-CMD ["python3", "-m", "unittest", "-v", "/test/test_batch.py"]
+COPY batch/test/ /test/
+
+CMD ["python3", "-m", "pytest", "-v", "-s", "/test/"]

@@ -18,3 +18,21 @@ def short_body(response, max_body_text):
             return response.text
         return response.text[:max_body_text-3] + '...'
     return ''
+
+
+def filter_params(complete, success, attributes):
+    params = None
+    if complete is not None:
+        if not params:
+            params = {}
+        params['complete'] = '1' if complete else '0'
+    if success is not None:
+        if not params:
+            params = {}
+        params['success'] = '1' if success else '0'
+    if attributes is not None:
+        if not params:
+            params = {}
+        for n, v in attributes.items():
+            params[f'a:{n}'] = v
+    return params

@@ -1,6 +1,7 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
@@ -9,11 +10,18 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+
+object ExecStrategy extends Enumeration {
+  type ExecStrategy = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile = Value
+
+  val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
+}
 
 object TestUtils {
 
@@ -23,7 +31,7 @@ object TestUtils {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
-      s"""expected fatal exception with pattern `$regex'
+      s"""expected fatal exception with pattern '$regex'
          |  Found: ${ thrown.getMessage } """
     if (!p)
       println(msg)
@@ -137,7 +145,8 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        SparkBackend.executeOrError(HailContext.get.sc, x, optimize = false)
+        val (res, _) = SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        res
       } catch {
         case e: CXXUnsupportedOperation =>
           throw e
@@ -173,7 +182,7 @@ object TestUtils {
         }
       }
 
-      val rewritten = Subst(rewrite(x), substEnv)
+      val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
         MakeTuple(FastSeq(rewritten)), false)
@@ -239,7 +248,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -314,7 +323,7 @@ object TestUtils {
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
+          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -370,46 +379,50 @@ object TestUtils {
     }
   }
 
-  def assertEvalsTo(x: IR, expected: Any) {
+  def assertEvalsTo(x: IR, expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
   }
 
-  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any) {
+  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, args, None, expected)
   }
 
-  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
   }
 
-  def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
-    TypeCheck(x,
-      env.mapValues(_._2),
-      agg.map(_._2.toEnv))
+  def assertEvalsTo(x: IR,
+    env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+
+    TypeCheck(x, BindingEnv(env.mapValues(_._2), agg = agg.map(_._2.toEnv)))
 
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    val i = Interpret[Any](x, env, args, agg)
-    assert(t.typeCheck(i))
-    assert(t.valuesSimilar(i, expected), s"($i, $expected)")
-
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    assert(t.typeCheck(i2))
-    assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
-
-    if (Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR]))) {
-      val c = eval(x, env, args, agg)
-      assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
-    }
-
-    try {
-      val c = nativeExecute(x, env, args, agg)
-      assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
-    } catch {
-      case _: CXXUnsupportedOperation =>
+    ExecStrategy.values.intersect(execStrats).foreach { strat =>
+      try {
+        val res = strat match {
+          case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
+          case ExecStrategy.InterpretUnoptimized => Interpret[Any](x, env, args, agg, optimize = false)
+          case ExecStrategy.JvmCompile =>
+            assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+            eval(x, env, args, agg)
+          case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+        }
+        assert(t.typeCheck(res))
+        assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
+      } catch {
+        case e: Exception =>
+          error(s"error from strategy $strat")
+          if (execStrats.contains(strat)) throw e
+      }
     }
   }
 
@@ -459,12 +472,9 @@ object TestUtils {
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
     partitionsJSON: String = null): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    } // Needed for tests
+    rg.foreach { referenceGenome =>
+      ReferenceGenome.addReference(referenceGenome)
+    }
     val entryFloatType = TFloat64()._toPretty
 
     val reader = MatrixVCFReader(
@@ -479,34 +489,11 @@ object TestUtils {
       skipInvalidLoci,
       forceBGZ,
       force,
+      TextInputFilterAndReplace(),
       partitionsJSON
     )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
+    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
-
-  def importPlink(hc: HailContext,
-    bed: String,
-    bim: String,
-    fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    val reader = MatrixPLINKReader(bed, bim, fam,
-      nPartitions, delimiter, missing, quantPheno,
-      a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
-      skipInvalidLoci)
-
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader))
-  }
-
 
   def vdsFromCallMatrix(hc: HailContext)(
     callMat: Matrix[BoxedCall],

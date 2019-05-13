@@ -1,0 +1,37 @@
+FROM {{ hail_base_image.image }}
+
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt
+RUN python3 -m pip install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch
+RUN python3 -m pip install --no-cache-dir /batch && \
+  rm -rf /batch
+
+COPY pipeline/setup.py /pipeline/
+COPY pipeline/pipeline /pipeline/pipeline
+RUN python3 -m pip install --no-cache-dir /pipeline && \
+  rm -rf /pipeline
+
+RUN python3 -m pip install --no-cache-dir https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
+
+RUN mkdir /home/jovian && \
+    mkdir /home/jovian/bin && \
+    groupadd jovian && \
+    useradd -g jovian jovian && \
+    chown -R jovian:jovian /home/jovian
+
+USER jovian
+WORKDIR /home/jovian
+ENV HOME /home/jovian
+ENV PATH "/home/jovian/bin:$PATH"
+ENV HAIL_APISERVER_URL "http://apiserver:5000"
+
+COPY apiserver/jupyter_notebook_config.py.in /home/jovian/
+RUN sed -e "s,@project@,{{ global.project }},g" \
+  < /home/jovian/jupyter_notebook_config.py.in \
+  > jupyter_notebook_config.py
+
+CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser"]

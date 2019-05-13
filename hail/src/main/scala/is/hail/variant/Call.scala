@@ -46,7 +46,7 @@ object Call2 {
 }
 
 object CallN {
-  def apply(alleles: java.util.ArrayList[Int], phased: Boolean): Call = apply(alleles.asScala.toFastIndexedSeq, phased)
+  def apply(alleles: java.util.List[Int], phased: Boolean): Call = apply(alleles.asScala.toFastIndexedSeq, phased)
 
   def apply(alleles: IndexedSeq[Int], phased: Boolean = false): Call = {
     val ploidy = alleles.length
@@ -318,7 +318,7 @@ object Call extends Serializable {
             unphasedDiploidGtIndex(Call2(p.j, p.k))
           } else
             unphasedDiploidGtIndex(c)
-        assert(udtn < nGenotypes, s"Invalid call found `${ c.toString }' for number of alleles equal to `$nAlleles'.")
+        assert(udtn < nGenotypes, s"Invalid call found '${ c.toString }' for number of alleles equal to '$nAlleles'.")
       case _ =>
         alleles(c).foreach(a => assert(a >= 0 && a < nAlleles))
     }

@@ -35,6 +35,41 @@ Convert variants in string format to separate locus and allele fields
             this struct so that the resulting table has two new fields, ``locus`` and
             ``alleles``.
 
+.. _liftover_howto:
+
+Liftover variants from one coordinate system to another
+.......................................................
+
+:**tags**: liftover
+
+:**description**: Liftover a Table or MatrixTable from one reference genome to another.
+
+:**code**:
+
+    First, we need to set up the two reference genomes (source and destination):
+
+    >>> rg37 = hl.get_reference('GRCh37')  # doctest: +SKIP
+    >>> rg38 = hl.get_reference('GRCh38')  # doctest: +SKIP
+    >>> rg37.add_liftover('gs://hail-common/references/grch37_to_grch38.over.chain.gz', rg38)  # doctest: +SKIP
+
+    Then we can liftover the locus coordinates in a Table or MatrixTable (here, `ht`)
+    from reference genome ``'GRCh37'`` to ``'GRCh38'``:
+
+    >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38'))  # doctest: +SKIP
+    >>> ht = ht.filter(hl.is_defined(ht.new_locus))  # doctest: +SKIP
+    >>> ht = ht.key_by(locus=ht.new_locus)  # doctest: +SKIP
+
+    Note that this approach does not retain the old locus, nor does it verify
+    that the allele has not changed strand. We can keep the old one for
+    reference and filter out any liftover that changed strands using:
+
+    >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38', include_strand=True),
+    ...                  old_locus=ht.locus)  # doctest: +SKIP
+    >>> ht = ht.filter(hl.is_defined(ht.new_locus) & ~ht.new_locus.is_negative_strand)  # doctest: +SKIP
+    >>> ht = ht.key_by(locus=ht.new_locus.result)  # doctest: +SKIP
+
+:**dependencies**: :func:`.liftover`, :meth:`.add_liftover`, :func:`.get_reference`
+
 Filtering and Pruning
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -84,12 +119,14 @@ Filter loci by a list of locus intervals
 From a table of intervals
 +++++++++++++++++++++++++
 
+:**tags**: genomic region, genomic range
+
 :**description**: Import a text file of locus intervals as a table, then use
                   this table to filter the loci in a matrix table.
 
 :**code**:
 
-    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list')
+    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list', reference_genome='GRCh37')
     >>> filtered_mt = mt.filter_rows(hl.is_defined(interval_table[mt.locus]))
 
 :**dependencies**: :func:`.import_locus_intervals`, :meth:`.MatrixTable.filter_rows`
@@ -116,22 +153,47 @@ From a table of intervals
             To do our filtering, we can filter to the rows of our matrix table where the
             struct expression ``interval_table[mt.locus]`` is defined.
 
-            This method will also work to filter a table of loci, instead of
-            a matrix table.
+            This method will also work to filter a table of loci, as well as a matrix
+            table.
 
-From a Python list
-++++++++++++++++++
+From a UCSC BED file
+++++++++++++++++++++
 
-:**description**: Filter loci in a matrix table using a list of intervals.
-                  Suitable for a small list of intervals.
-
-:**dependencies**: :func:`.filter_intervals`
+:**description**: Import a UCSC BED file as a table of intervals, then use this
+                  table to filter the loci in a matrix table.
 
 :**code**:
 
-    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list')
-    >>> interval_list = [x.interval for x in interval_table.collect()]
-    >>> filtered_mt = hl.filter_intervals(mt, interval_list)
+    >>> interval_table = hl.import_bed('data/file1.bed', reference_genome='GRCh37')
+    >>> filtered_mt = mt.filter_rows(hl.is_defined(interval_table[mt.locus]))
+
+:**dependencies**: :func:`.import_bed`, :meth:`.MatrixTable.filter_rows`
+
+Using ``hl.filter_intervals``
++++++++++++++++++++++++++++++
+
+:**description**: Filter using an interval table, suitable for a small list of
+                  intervals.
+
+:**code**:
+
+    >>> filtered_mt = hl.filter_intervals(mt, interval_table['interval'].collect())
+
+:**dependencies**: :func:`.filter_intervals`
+
+Declaring intervals with ``hl.parse_locus_interval``
+++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+:**description**: Filter to declared intervals.
+
+:**code**:
+
+    >>> intervals = ['1:100M-200M', '16:29.1M-30.2M', 'X']
+    >>> filtered_mt = hl.filter_intervals(
+    ...     mt,
+    ...     [hl.parse_locus_interval(x, reference_genome='GRCh37') for x in intervals])
+
+:**dependencies**: :func:`.filter_intervals`, :func:`.parse_locus_interval`
 
 Pruning Variants in Linkage Disequilibrium
 ..........................................
@@ -253,6 +315,42 @@ Multiple Phenotypes
             patterns of missingness. Approach #2 will do two passes over the data while Approaches #1 and #3 will
             do one pass over the data and compute the regression statistics for each phenotype simultaneously.
 
+Using Variants (SNPs) as Covariates
++++++++++++++++++++++++++++++++++++
+
+:**tags**: sample genotypes covariate
+
+:**description**: Use sample genotype dosage at specific variant(s) as covariates in regression routines.
+
+:**code**:
+
+    List the variants of interest:
+
+    >>> my_snps = ['20:13714384:A:C', '20:17479730:T:C']
+
+    Annotate the variants as a global field:
+
+    >>> mt_filt = mt.annotate_globals(
+    ...     snps = hl.set([hl.parse_variant(x) for x in my_snps]))
+
+    Filter rows to these variants:
+
+    >>> mt_filt = mt_filt.filter_rows(mt_filt.snps.contains(mt_filt.row_key))
+
+    Aggregate to collect a dictionary per sample of SNP to allele dosage:
+
+        >>> sample_genos = mt_filt.annotate_cols(
+        ...     genotypes = hl.dict(hl.agg.collect( (hl.variant_str(mt_filt.row_key), mt_filt.GT.n_alt_alleles()) )))
+        >>> mt_annot = mt.annotate_cols(snp_covs = sample_genos.cols()[mt.s].genotypes)
+
+    Run the GWAS with :func:`.linear_regression_rows` using variant dosages as covariates:
+
+    >>> gwas = hl.linear_regression_rows(
+    ...     x=mt_annot.GT.n_alt_alleles(),
+    ...     y=mt_annot.pheno.blood_pressure,
+    ...     covariates=[1, mt_annot.pheno.age, *(mt_annot.snp_covs.get(x) for x in my_snps)])
+
+:**dependencies**: :func:`.linear_regression_rows`, :func:`.aggregators.collect`, :func:`.parse_variant`, :func:`.variant_str`
 
 Stratified by Group
 +++++++++++++++++++

@@ -1,10 +1,12 @@
+/Dockerfile.out
+/deployment.yaml.out
 /batch.log
 /logs
-/deployment.yaml
-/test-batch-pod.yaml
-/batch-image
-/batch-test-image
+/batch-secrets
+cloud_sql_proxy
 flycheck_*.py
 *_flymake.py
 *.pyc
 **/__pycache__
+/hailjwt
+/test/jwt-test-user-token

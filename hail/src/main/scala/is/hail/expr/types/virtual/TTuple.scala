@@ -16,28 +16,24 @@ object TTuple {
 
   def apply(args: Type*): TTuple = apply(false, args: _*)
 
-  def apply(types: java.util.ArrayList[Type], required: Boolean): TTuple = {
+  def apply(types: java.util.List[Type], required: Boolean): TTuple = {
     TTuple(types.asScala.toArray, required)
   }
 }
 
 final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean = false) extends TBaseStruct {
-  lazy val physicalType: PTuple = PTuple(types.map(_.physicalType), required)
+  lazy val physicalType: PTuple = PTuple(_types.map(_.physicalType), required)
 
-  val types = _types.toArray
-  val fieldRequired: Array[Boolean] = types.map(_.required)
+  lazy val types = _types.toArray
 
-  val fields: IndexedSeq[Field] = types.zipWithIndex.map { case (t, i) => Field(s"$i", t, i) }
+  lazy val fields: IndexedSeq[Field] = types.zipWithIndex.map { case (t, i) => Field(s"$i", t, i) }
 
-  val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
+  lazy val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
-  val size: Int = types.length
+  def size: Int = types.length
 
   override def truncate(newSize: Int): TTuple =
     TTuple(types.take(newSize), required)
-
-  val missingIdx = new Array[Int](size)
-  val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
 
   def ++(that: TTuple): TTuple = TTuple(types ++ that.types, required = false)
 
@@ -72,7 +68,7 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
   }
 
 
-  override val fundamentalType: TTuple = {
+  override lazy val fundamentalType: TTuple = {
     val fundamentalFieldTypes = types.map(t => t.fundamentalType)
     if ((types, fundamentalFieldTypes).zipped
       .forall { case (t, ft) => t == ft })

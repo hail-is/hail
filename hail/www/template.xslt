@@ -16,7 +16,7 @@
             <head>
                 <meta charset="utf-8"/>
                 <title><xsl:call-template name="page-title"/></title>
-                <link rel='shortcut icon' href='hail_logo_sq.png' type='image/x-icon'/>
+                <link rel='shortcut icon' href='hail_logo_sq.ico' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
                 <script src="/jquery-3.1.1.min.js"></script>
                 <script src="/bootstrap.min.js"></script>
@@ -38,13 +38,9 @@
             <body>
                 <nav class="navbar navbar-default navbar-static-top" id="hail-navbar"></nav>
                 <div id="body">
-                    <xsl:call-template name="jobs-banner"/>
                     <xsl:apply-templates select="body"/>
                 </div>
             </body>
         </html>
     </xsl:template>
-
-    <xsl:template name="jobs-banner"/>
-
 </xsl:stylesheet>

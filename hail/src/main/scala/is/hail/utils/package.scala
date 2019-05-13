@@ -3,8 +3,11 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.zip.Inflater
 
+import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
@@ -23,6 +26,51 @@ import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 
+package utils {
+  trait Truncatable {
+    def truncate: String
+
+    def strings: (String, String)
+  }
+
+  sealed trait FlattenOrNull[C[_] >: Null] {
+    def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
+      for (elt <- it) {
+        if (elt == null)
+          return null
+        b ++= elt
+      }
+      b.result()
+    }
+  }
+
+  sealed trait AnyFailAllFail[C[_]] {
+    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
+      val b = cbf()
+      for (t <- ts) {
+        if (t.isEmpty)
+          return None
+        else
+          b += t.get
+      }
+      Some(b.result())
+    }
+  }
+
+  sealed trait MapAccumulate[C[_], U] {
+    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
+      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+      val b = cbf()
+      var acc = z
+      for ((x, i) <- a.zipWithIndex) {
+        val (y, newAcc) = f(x, acc)
+        b += y
+        acc = newAcc
+      }
+      b.result()
+    }
+  }
+}
 package object utils extends Logging
   with richUtils.Implicits
   with NumericPairImplicits
@@ -33,15 +81,33 @@ package object utils extends Logging
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
     new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 
-  trait Truncatable {
-    def truncate: String
-
-    def strings: (String, String)
-  }
-
   def format(s: String, substitutions: Any*): String = {
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
       str.replace(s"@${ i + 1 }", value.toString)
+    }
+  }
+
+  def checkGzippedFile(hConf: org.apache.hadoop.conf.Configuration,
+    input: String,
+    forceGZ: Boolean,
+    gzAsBGZ: Boolean,
+    maxSizeMB: Int = 128) {
+    if (!forceGZ && !gzAsBGZ)
+      fatal(
+        s"""Cannot load file '$input'
+           |  .gz cannot be loaded in parallel. Is the file actually *block* gzipped?
+           |  If the file is actually block gzipped (even though its extension is .gz),
+           |  use the 'force_bgz' argument to treat all .gz file extensions as .bgz.
+           |  If you are sure that you want to load a non-block-gzipped file serially
+           |  on one core, use the 'force' argument.""".stripMargin)
+    else if (!gzAsBGZ) {
+      val fileSize = hConf.getFileSize(input)
+      if (fileSize > 1024 * 1024 * maxSizeMB)
+        warn(
+          s"""file '$input' is ${ readableBytes(fileSize) }
+             |  It will be loaded serially (on one core) due to usage of the 'force' argument.
+             |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
+             |  argument.""".stripMargin)
     }
   }
 
@@ -205,7 +271,7 @@ package object utils extends Logging
 
     fname match {
       case partRegex(i) => i.toInt
-      case _ => throw new PathIOException(s"invalid partition file `$fname'")
+      case _ => throw new PathIOException(s"invalid partition file '$fname'")
     }
   }
 
@@ -225,35 +291,11 @@ package object utils extends Logging
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
-  sealed trait FlattenOrNull[C[_] >: Null] {
-    def apply[T >: Null](b: mutable.Builder[T, C[T]], it: Iterable[Iterable[T]]): C[T] = {
-      for (elt <- it) {
-        if (elt == null)
-          return null
-        b ++= elt
-      }
-      b.result()
-    }
-  }
-
   // NB: can't use Nothing here because it is not a super type of Null
   private object flattenOrNullInstance extends FlattenOrNull[Array]
 
   def flattenOrNull[C[_] >: Null] =
     flattenOrNullInstance.asInstanceOf[FlattenOrNull[C]]
-
-  sealed trait AnyFailAllFail[C[_]] {
-    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
-      val b = cbf()
-      for (t <- ts) {
-        if (t.isEmpty)
-          return None
-        else
-          b += t.get
-      }
-      Some(b.result())
-    }
-  }
 
   private object anyFailAllFailInstance extends AnyFailAllFail[Nothing]
 
@@ -261,20 +303,6 @@ package object utils extends Logging
     anyFailAllFailInstance.asInstanceOf[AnyFailAllFail[C]]
 
   def uninitialized[T]: T = null.asInstanceOf[T]
-
-  sealed trait MapAccumulate[C[_], U] {
-    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
-      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
-      val b = cbf()
-      var acc = z
-      for ((x, i) <- a.zipWithIndex) {
-        val (y, newAcc) = f(x, acc)
-        b += y
-        acc = newAcc
-      }
-      b.result()
-    }
-  }
 
   private object mapAccumulateInstance extends MapAccumulate[Nothing, Nothing]
 
@@ -415,25 +443,6 @@ package object utils extends Logging
 
   val defaultJSONFormats: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
 
-  def splitWarning(leftSplit: Boolean, left: String, rightSplit: Boolean, right: String) {
-    val msg =
-      """Merge behavior may not be as expected, as all alternate alleles are
-        |  part of the variant key.  See `annotatevariants' documentation for
-        |  more information.""".stripMargin
-    (leftSplit, rightSplit) match {
-      case (true, true) =>
-      case (false, false) => warn(
-        s"""annotating an unsplit $left from an unsplit $right
-           |  $msg""".stripMargin)
-      case (true, false) => warn(
-        s"""annotating a biallelic (split) $left from an unsplit $right
-           |  $msg""".stripMargin)
-      case (false, true) => warn(
-        s"""annotating an unsplit $left from a biallelic (split) $right
-           |  $msg""".stripMargin)
-    }
-  }
-
   def box(i: Int): java.lang.Integer = i
 
   def box(l: Long): java.lang.Long = l
@@ -467,7 +476,7 @@ package object utils extends Logging
 
   def loadFromResource[T](file: String)(reader: (InputStream) => T): T = {
     val resourceStream = Thread.currentThread().getContextClassLoader.getResourceAsStream(file)
-    assert(resourceStream != null, s"Error while locating file `$file'")
+    assert(resourceStream != null, s"Error while locating file '$file'")
 
     try
       reader(resourceStream)
@@ -592,6 +601,31 @@ package object utils extends Logging
 
   def point[T]()(implicit t: Pointed[T]): T = t.point
 
+  def singletonElement[T](it: Iterator[T]): T = {
+    val x = it.next()
+    assert(!it.hasNext)
+    x
+  }
+
+  // return partition of the ith item
+  def itemPartition(i: Int, n: Int, k: Int): Int = {
+    assert(n >= 0)
+    assert(k > 0)
+    assert(i >= 0 && i < n)
+    val minItemsPerPartition = n / k
+    val r = n % k
+    if (r == 0)
+      i / minItemsPerPartition
+    else {
+      val maxItemsPerPartition = minItemsPerPartition + 1
+      val crossover = maxItemsPerPartition * r
+      if (i < crossover)
+        i / maxItemsPerPartition
+      else
+        r + ((i - crossover) / minItemsPerPartition)
+    }
+  }
+
   def partition(n: Int, k: Int): Array[Int] = {
     if (k == 0) {
       assert(n == 0)
@@ -622,6 +656,20 @@ package object utils extends Logging
       "\\" + s
     else
       s
+  }
+
+  def ordMax[T](left: T, right: T, ord: ExtendedOrdering): T = {
+    if (ord.gt(left, right))
+      left
+    else
+      right
+  }
+
+  def ordMin[T](left: T, right: T, ord: ExtendedOrdering): T = {
+    if (ord.lt(left, right))
+      left
+    else
+      right
   }
 
   def toMapFast[T, K, V](
@@ -686,6 +734,18 @@ package object utils extends Logging
     val parent = cl.getParent
     if (parent != null)
       dumpClassLoader(parent)
+  }
+
+  def writeNativeFileReadMe(path: String): Unit = {
+    val hc = HailContext.get
+    val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
+
+    hc.hadoopConf.writeTextFile(path + "/README.txt") { out =>
+      out.write(
+        s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
+           |  Written with version ${ hc.version }
+           |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
+    }
   }
 }
 

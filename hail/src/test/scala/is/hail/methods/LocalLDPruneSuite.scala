@@ -62,7 +62,7 @@ object LocalLDPruneSuite {
     rvb.start(rvRowType.physicalType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -95,7 +95,7 @@ object LocalLDPruneSuite {
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
     val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
@@ -352,16 +352,6 @@ class LocalLDPruneSuite extends SparkSuite {
 
   @Test def testIsLocallyUncorrelated() {
     val locallyPrunedVariantsTable = LocalLDPrune(vds, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
-    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-    assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-  }
-
-  @Test def testCallExpressionParameter() {
-    val entryMap = new java.util.HashMap[String, String](1)
-    entryMap.put("GT", "foo")
-    val fooVDS = vds.renameFields(new java.util.HashMap[String, String](), new java.util.HashMap[String, String](),
-      entryMap, new java.util.HashMap[String, String]())
-    val locallyPrunedVariantsTable = LocalLDPrune(fooVDS, "foo", r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }

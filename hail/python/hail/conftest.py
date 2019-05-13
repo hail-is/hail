@@ -2,7 +2,6 @@ import pytest
 import os
 import shutil
 import hail as hl
-import hail.expr.aggregators as agg
 
 import doctest
 
@@ -34,7 +33,6 @@ def init(doctest_namespace):
     os.chdir("docs/")
 
     doctest_namespace['hl'] = hl
-    doctest_namespace['agg'] = agg
 
     if not os.path.isdir("output/"):
         try:
@@ -59,6 +57,10 @@ def init(doctest_namespace):
 
     s_metadata = ds.cols().annotate(pop='AMR', is_case=False, sex='F')
     doctest_namespace['s_metadata'] = s_metadata
+    doctest_namespace['cols_to_keep'] = s_metadata
+    doctest_namespace['cols_to_remove'] = s_metadata
+    doctest_namespace['rows_to_keep'] = v_metadata
+    doctest_namespace['rows_to_remove'] = v_metadata
 
     # Table
     table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
@@ -108,6 +110,7 @@ def init(doctest_namespace):
     doctest_namespace['tup'] = hl.literal(("a", 1, [1, 2, 3]))
     doctest_namespace['s'] = hl.literal('The quick brown fox')
     doctest_namespace['interval2'] = hl.Interval(3, 6)
+    doctest_namespace['nd'] = hl._ndarray([[1, 2], [3, 4]])
 
     # Overview
     doctest_namespace['ht'] = hl.import_table("data/kt_example1.tsv", impute=True)

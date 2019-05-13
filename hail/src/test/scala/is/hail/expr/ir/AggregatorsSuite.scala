@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -11,9 +12,14 @@ import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation
+import is.hail.utils._
+import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
 
-class AggregatorsSuite {
+class AggregatorsSuite extends SparkSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
+
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
 
@@ -759,7 +765,8 @@ class AggregatorsSuite {
         ApplyAggOp(constrArgs,
           initOpArgs,
           seqOpArgs,
-          AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ)))),
+          AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))),
+        false),
       (agg, aggType),
       expected)
   }
@@ -853,7 +860,9 @@ class AggregatorsSuite {
             FastSeq(),
             None,
             FastSeq(Ref("x", TInt32())),
-            aggSig))),
+            aggSig),
+          false),
+        false),
       (agg, aggType),
       expected
     )
@@ -882,7 +891,7 @@ class AggregatorsSuite {
             FastSeq(),
             Some(FastSeq(I32(2))),
             FastSeq(Ref("g", TCall())),
-            aggSig))),
+            aggSig), false), false),
       (agg, aggType),
       expected
     )
@@ -907,7 +916,7 @@ class AggregatorsSuite {
             FastIndexedSeq(I32(2)),
             None,
             FastSeq(Ref("x", TFloat64()), Ref("y", TInt32())),
-            aggSig))),
+            aggSig), false), false),
       (agg, aggType),
       expected
     )
@@ -927,7 +936,7 @@ class AggregatorsSuite {
               FastSeq(),
               None,
               FastSeq(Ref("x", TInt32())),
-              aggSig)))),
+              aggSig), false), false), false),
       (agg, aggType),
       expected
     )
@@ -936,10 +945,10 @@ class AggregatorsSuite {
   @Test def downsample() {
     runAggregator(Downsample(),
       TStruct("x" -> TFloat64(), "y" -> TFloat64(), "label" -> TArray(TString())),
-      FastIndexedSeq(Row(1500.0, 1500.0, IndexedSeq("1500")), Row(5500.0, 5500.0, IndexedSeq("5500")), Row(5600.0, 5600.0, IndexedSeq("5600")),
-        Row(9200.0, 9200.0, IndexedSeq("9200")), Row(9400.0, 9400.0, IndexedSeq("9400")), Row(0.0, 10000.0, IndexedSeq("0, 10000"))),
-      FastIndexedSeq(Row(1500.0, 1500.0, IndexedSeq("1500")), Row(5600.0, 5600.0, IndexedSeq("5600")), Row(9400.0, 9400.0, IndexedSeq("9400")),
-        Row(0.0, 10000.0, IndexedSeq("0, 10000"))),
+      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5500.0, 5500.0, FastIndexedSeq("5500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")),
+        Row(9200.0, 9200.0, FastIndexedSeq("9200")), Row(9400.0, 9400.0, FastIndexedSeq("9400")), Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
+      FastIndexedSeq(Row(1500.0, 1500.0, FastIndexedSeq("1500")), Row(5600.0, 5600.0, FastIndexedSeq("5600")), Row(9400.0, 9400.0, FastIndexedSeq("9400")),
+        Row(0.0, 10000.0, FastIndexedSeq("0, 10000"))),
       FastIndexedSeq(10),
       None,
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
@@ -964,7 +973,7 @@ class AggregatorsSuite {
           AggFilter(Ref("x", TBoolean()),
             ApplyAggOp(FastSeq(), None,
               FastSeq(Ref("y", TInt64())),
-              aggSig)),
+              aggSig), false),
       (agg, aggType),
       5L)
   }
@@ -983,9 +992,32 @@ class AggregatorsSuite {
         "y",
         ApplyAggOp(FastSeq(), None,
           FastSeq(Ref("y", TInt64())),
-          aggSig)),
+          aggSig), false),
       (agg, aggType),
       15L)
   }
 
+  @Test def testArrayElementsAggregator(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    def getAgg(n: Int, m: Int): IR = {
+      hc
+      val ht = TableRange(10, 3)
+        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
+
+      TableAggregate(
+        ht,
+        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt", "_'",
+          ApplyAggOp(
+            FastIndexedSeq(),
+            None,
+            FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
+            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          false
+        )
+      )
+    }
+
+    assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
+  }
 }

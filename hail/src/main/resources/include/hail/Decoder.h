@@ -42,6 +42,55 @@ class StreamInputBlockBuffer {
     int read_block(char * buf);
 };
 
+class StreamInputBuffer {
+  private:
+    std::shared_ptr<InputStream> is_;
+    char buf_[8];
+
+  public:
+    StreamInputBuffer() = delete;
+    StreamInputBuffer(StreamInputBuffer &buf) = delete;
+    StreamInputBuffer(std::shared_ptr<InputStream> is) : is_(is) {}
+
+    char read_byte() {
+      is_->read(buf_, 1);
+      return load_byte(buf_);
+    }
+
+    int read_int() {
+      is_->read(buf_, 4);
+      return load_int(buf_);
+    }
+
+    long read_long() {
+      is_->read(buf_, 8);
+      return load_long(buf_);
+    }
+
+    float read_float() {
+      is_->read(buf_, 4);
+      return load_float(buf_);
+    }
+
+    double read_double() {
+      is_->read(buf_, 8);
+      return load_double(buf_);
+    }
+
+    void read_bytes(char * to_buf, int n) {
+      is_->read(to_buf, n);
+    }
+
+    void skip_byte() { is_->skip(1); }
+    void skip_int() { is_->skip(4); }
+    void skip_long() { is_->skip(8); }
+    void skip_float() { is_->skip(4); }
+    void skip_double() { is_->skip(8); }
+    void skip_bytes(int n) { is_->skip(n); }
+    void skip_boolean() { skip_byte(); }
+    bool read_boolean() { return read_byte() != 0; };
+};
+
 template <int BUFSIZE, typename InputBlockBuffer>
 class LZ4InputBlockBuffer {
   private:

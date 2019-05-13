@@ -388,8 +388,19 @@ class Expression(object):
         coercer = expressions.coercer_from_dtype(typ)
         if isinstance(typ, tarray) and not isinstance(self.dtype, tarray):
             return coercer.ec.coerce(self)
+        elif isinstance(typ, tndarray) and not isinstance(self.dtype, tndarray):
+            return coercer.ec.coerce(self)
         else:
             return coercer.coerce(self)
+
+    @staticmethod
+    def _div_ret_type_f(t):
+        assert is_numeric(t)
+        if t == tint32 or t == tint64:
+            return tfloat32
+        else:
+            # Float64 or Float32
+            return t
 
     def _bin_op_numeric_unify_types(self, name, other):
         def numeric_proxy(t):
@@ -401,15 +412,22 @@ class Expression(object):
         def scalar_type(t):
             if isinstance(t, tarray):
                 return numeric_proxy(t.element_type)
+            elif isinstance(t, tndarray):
+                return numeric_proxy(t.element_type)
             else:
                 return numeric_proxy(t)
 
         t = unify_types(scalar_type(self.dtype), scalar_type(other.dtype))
         if t is None:
-            raise NotImplementedError("'{}' {} '{}'".format(
-                self.dtype, name, other.dtype))
+            raise NotImplementedError("'{}' {} '{}'".format(self.dtype, name, other.dtype))
+
         if isinstance(self.dtype, tarray) or isinstance(other.dtype, tarray):
-            t = tarray(t)
+            return tarray(t)
+        elif isinstance(self.dtype, tndarray):
+            return tndarray(t, self.ndim)
+        elif isinstance(other.dtype, tndarray):
+            return tndarray(t, other.ndim)
+
         return t
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
@@ -420,6 +438,8 @@ class Expression(object):
         if ret_type_f:
             if isinstance(unified_type, tarray):
                 ret_type = tarray(ret_type_f(unified_type.element_type))
+            elif isinstance(unified_type, tndarray):
+                ret_type = tndarray(ret_type_f(unified_type.element_type), unified_type.ndim)
             else:
                 ret_type = ret_type_f(unified_type)
         else:
@@ -430,13 +450,13 @@ class Expression(object):
         return to_expr(other)._bin_op_numeric(name, self, ret_type_f)
 
     def _unary_op(self, name):
-        return expressions.construct_expr(ApplyUnaryOp(name, self._ir), self._type, self._indices, self._aggregations)
+        return expressions.construct_expr(ApplyUnaryPrimOp(name, self._ir), self._type, self._indices, self._aggregations)
 
     def _bin_op(self, name, other, ret_type):
         other = to_expr(other)
         indices, aggregations = unify_all(self, other)
         if (name in {'+', '-', '*', '/', '//'}) and (ret_type in {tint32, tint64, tfloat32, tfloat64}):
-            op = ApplyBinaryOp(name, self._ir, other._ir)
+            op = ApplyBinaryPrimOp(name, self._ir, other._ir)
         elif name in {"==", "!=", "<", "<=", ">", ">="}:
             op = ApplyComparisonOp(name, self._ir, other._ir)
         else:
@@ -573,6 +593,9 @@ class Expression(object):
         return self._compare_op("!=", other)
 
     def _to_table(self, name):
+        return self._to_relational(name, force_table=True)
+
+    def _to_relational(self, name, force_table=False):
         source = self._indices.source
         axes = self._indices.axes
         if not self._aggregations.empty():
@@ -630,15 +653,17 @@ class Expression(object):
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self}).select_rows().select_cols()
-            to_return = source.key_cols_by().entries().select_globals()
+            if force_table:
+                to_return = source.key_cols_by().entries().select_globals()
+            else:
+                to_return = source.select_globals()
         assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
                                                     f'  Actual:    {self.dtype}\n' \
                                                     f'  Should be: {to_return[name].dtype}'
         return to_return
 
-
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=nullable(anyfunc))
+    def show(self, n=10, width=90, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -681,33 +706,34 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        handler(self._show(n, width, truncate, types))
+        self._to_relational_preserving_rows_and_cols().show(
+            n_rows=n, width=width, truncate=truncate, types=types, handler=handler)
 
-    def _show(self, n, width, truncate, types):
+    def _to_relational_preserving_rows_and_cols(self):
         name = '<expr>'
         source = self._indices.source
         if isinstance(source, hl.Table):
             if self is source.row:
-                return source._show(n, width, truncate, types)
+                return source
             elif self is source.key:
-                return source.select()._show(n, width, truncate, types)
+                return source.select()
         elif isinstance(source, hl.MatrixTable):
             if self is source.row:
-                return source.rows()._show(n, width, truncate, types)
+                return source.rows()
             elif self is source.row_key:
-                return source.rows().select()._show(n, width, truncate, types)
+                return source.rows().select()
             if self is source.col:
-                return source.cols()._show(n, width, truncate, types)
+                return source.cols()
             elif self is source.col_key:
-                return source.cols().select()._show(n, width, truncate, types)
+                return source.cols().select()
             if self is source.entry:
-                return source.select_rows().select_cols().entries()._show(n, width, truncate, types)
+                return source.select_rows().select_cols()
         if source is not None:
             name = source._fields_inverse.get(self, name)
-        t = self._to_table(name)
-        if name in t.key:
-            t = t.key_by(name).select()
-        return t._show(n, width, truncate, types)
+        x = self._to_relational(name)
+        if isinstance(x, hl.Table) and name in x.key:
+            return x.order_by(*x.key).select(name)
+        return x
 
 
     @typecheck_method(n=int, _localize=bool)
@@ -767,7 +793,8 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid).key_by().select(uid)
+        t = self._to_table(uid)
+        t = t.order_by(*t.key).select(uid)
 
         e = t.collect(_localize=False).map(lambda r: r[uid])
         if _localize:
@@ -775,16 +802,53 @@ class Expression(object):
         else:
             return e
 
-    def _aggregation_method(self):
+    def summarize(self):
+        """Compute and print summary information about the expression.
+
+        .. include:: _templates/experimental.rst
+        """
+        src =self._indices.source
+        if src is None or len(self._indices.axes) == 0:
+            raise ValueError("Cannot summarize a scalar expression")
+
+        selector, agg_f = self._selector_and_agg_method()
+
+        if self in src._fields:
+            field_name = src._fields_inverse[self]
+            prefix = field_name
+            t = selector(field_name)
+        else:
+            field_name = Env.get_uid()
+            if self._ir.is_nested_field:
+                prefix = self._ir.name
+            else:
+                prefix = '<expr>'
+            t = selector(**{field_name: self})
+        computations, printers = hl.expr.generic_summary(t[field_name], prefix)
+        results = agg_f(t)(computations)
+
+        for name, fields in printers:
+            print(f'* {name}:')
+
+            max_k_len = max(len(f) for f in fields)
+            for k, v in fields.items():
+                print(f'    {k.rjust(max_k_len)} : {v(results)}')
+            print()
+
+
+    def _selector_and_agg_method(self):
         src = self._indices.source
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
             if self._indices == src._row_indices:
-                return src.aggregate_rows
+                return src.select_rows, lambda t: t.aggregate_rows
             elif self._indices == src._col_indices:
-                return src.aggregate_cols
+                return src.select_cols, lambda t: t.aggregate_cols
             else:
-                return src.aggregate_entries
+                return src.select_entries, lambda t: t.aggregate_entries
         else:
-            return src.aggregate
+            return src.select, lambda t: t.aggregate
+
+    def _aggregation_method(self):
+        return self._selector_and_agg_method()[1](self._indices.source)

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
@@ -36,21 +36,23 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("counter")
+    registerSeeded("counter_seeded", TInt32()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Long]("seed")
+    registerSeeded("seed_seeded", TInt64()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32()) { case (mb, seed) =>
-      getTestRNG(mb, seed).invoke[Int]("partitionIndex")
+    registerSeeded("pi_seeded", TInt32()) { case (r, seed) =>
+      getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
 }
 
 class RandomFunctionsSuite extends SparkSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   val counter = ApplySeeded("counter_seeded", FastSeq(), 0L)
   val partitionIdx = ApplySeeded("pi_seeded", FastSeq(), 0L)

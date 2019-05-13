@@ -1,12 +1,12 @@
 package is.hail.rvd
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
+import org.apache.commons.lang.builder.HashCodeBuilder
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
-import org.apache.spark.broadcast.Broadcast
 
 class RVDPartitioner(
   val kType: TStruct,
@@ -19,7 +19,7 @@ class RVDPartitioner(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
     allowedOverlap: Int
-  ) = this(kType, rangeBounds.toArray, kType.size)
+  ) = this(kType, rangeBounds.toArray, allowedOverlap)
 
   def this(
     kType: TStruct,
@@ -66,8 +66,15 @@ class RVDPartitioner(
 
   override def equals(other: Any): Boolean = other match {
     case that: RVDPartitioner =>
-      this.kType == that.kType && this.rangeBounds == that.rangeBounds
+      this.eq(that) || (this.kType == that.kType && this.rangeBounds.sameElements(that.rangeBounds))
     case _ => false
+  }
+
+  override def hashCode: Int = {
+    val b = new HashCodeBuilder()
+    b.append(kType)
+    rangeBounds.foreach(b.append)
+    b.toHashCode
   }
 
   @transient
@@ -98,11 +105,17 @@ class RVDPartitioner(
   def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
-  def coarsen(newKeyLen: Int): RVDPartitioner =
-    new RVDPartitioner(
-      kType.truncate(newKeyLen),
-      coarsenedRangeBounds(newKeyLen)
-    )
+  def coarsen(newKeyLen: Int): RVDPartitioner = {
+    if (newKeyLen == kType.size)
+      this
+    else {
+      assert(newKeyLen < kType.size)
+      new RVDPartitioner(
+        kType.truncate(newKeyLen),
+        coarsenedRangeBounds(newKeyLen),
+        math.min(allowedOverlap, newKeyLen))
+    }
+  }
 
   def strictify: RVDPartitioner = extendKey(kType)
 
@@ -153,27 +166,7 @@ class RVDPartitioner(
   def intersect(other: RVDPartitioner): RVDPartitioner = {
     require(kType isIsomorphicTo other.kType)
 
-    val scalaEOrd = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
-
-    val left = this.rangeBounds.iterator.buffered
-    val right = other.rangeBounds.iterator.buffered
-    val ab = new ArrayBuilder[Interval]()
-
-    while (left.hasNext && right.hasNext) {
-      val (leader, lagger) =
-        if (scalaEOrd.gt(left.head.left, right.head.left))
-          (left, right)
-        else
-          (right, left)
-      // leader.head.left >= lagger.head.left
-      if (scalaEOrd.lteq(lagger.head.right, leader.head.left))
-        lagger.next()
-      else if (scalaEOrd.lteq(lagger.head.right, leader.head.right))
-        ab += Interval(leader.head.left, lagger.next().right)
-      else
-        ab += leader.next()
-    }
-    new RVDPartitioner(kType, ab.result())
+    new RVDPartitioner(kType, Interval.intersection(this.rangeBounds, other.rangeBounds, kord.intervalEndpointOrdering))
   }
 
   def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(
@@ -184,9 +177,10 @@ class RVDPartitioner(
 
   def copy(
     kType: TStruct = kType,
-    rangeBounds: IndexedSeq[Interval] = rangeBounds
+    rangeBounds: IndexedSeq[Interval] = rangeBounds,
+    allowedOverlap: Int = allowedOverlap
   ): RVDPartitioner =
-    new RVDPartitioner(kType, rangeBounds)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>

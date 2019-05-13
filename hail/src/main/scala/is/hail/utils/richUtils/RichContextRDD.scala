@@ -2,6 +2,7 @@ package is.hail.utils.richUtils
 
 import java.io._
 
+import is.hail.HailContext
 import is.hail.rvd.RVDContext
 import org.apache.spark.TaskContext
 import is.hail.utils._
@@ -26,7 +27,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
 
     hadoopConf.mkDir(path + "/parts")
 
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hadoopConf))
+    val sHadoopConfBc = HailContext.hadoopConfBc
 
     val nPartitions = crdd.getNumPartitions
 
@@ -40,7 +41,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
         if (stageLocally) {
           val context = TaskContext.get
           val partPath = hConf.getTemporaryFile("file:///tmp")
-          context.addTaskCompletionListener { context =>
+          context.addTaskCompletionListener { (context: TaskContext) =>
             hConf.delete(partPath, recursive = false)
           }
           partPath

@@ -2,18 +2,17 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.Row
 
-import scala.language.implicitConversions
-import scala.language.existentials
 import scala.io.Source
+import scala.language.{existentials, implicitConversions}
 
 class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryType: TStruct, nCols: Int, missingValue: String, file: String, sep: Char) {
 
@@ -26,8 +25,6 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
     var ii = 0
     var off = 0
     while (ii < fieldTypes.length) {
-      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
-      ii += 1
       if (off > line.length) {
         fatal(
           s"""Error parsing row fields in row $rowNum:
@@ -37,6 +34,8 @@ class LoadMatrixParser(rvb: RegionValueBuilder, fieldTypes: Array[Type], entryTy
              |        ${ line.truncate }""".stripMargin
         )
       }
+      off = addType(fieldTypes(ii))(line, rowNum, ii, off)
+      ii += 1
     }
 
     ii = 0
@@ -208,7 +207,7 @@ object LoadMatrix {
       lines match {
         case Array(header, first) =>
           val nCols = first.split(charRegex(sep), -1).length - nRowFields
-          if (nCols <= 0)
+          if (nCols < 0)
             fatal(s"More row fields ($nRowFields) than columns (${ nRowFields + nCols }) in file: $file")
           (header.split(charRegex(sep), -1), nCols)
         case _ =>
@@ -275,7 +274,7 @@ object LoadMatrix {
     missingValue: String = "NA",
     nPartitions: Option[Int] = None,
     noHeader: Boolean = false,
-    sep: Char = '\t'): MatrixTable = {
+    sep: Char = '\t'): MatrixIR = {
 
     require(cellType.size == 1, "cellType can only have 1 field")
 
@@ -393,10 +392,9 @@ object LoadMatrix {
     } else
       RVD.coerce(matrixType.canonicalRVDType, rdd)
 
-    new MatrixTable(hc,
-      matrixType,
+    MatrixLiteral(MatrixValue(matrixType,
       BroadcastRow(Row(), matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.sc),
-      rvd)
+      rvd))
   }
 }

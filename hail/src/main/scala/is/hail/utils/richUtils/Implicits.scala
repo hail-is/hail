@@ -6,9 +6,8 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.io.RichContextRDDRegionValue
+import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
-import is.hail.io.{InputBuffer, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
@@ -40,8 +39,6 @@ trait Implicits {
   implicit def toRichHadoopConfiguration(hConf: hadoop.conf.Configuration): RichHadoopConfiguration =
     new RichHadoopConfiguration(hConf)
 
-  implicit def toRichInt(i: Int): RichInt = new RichInt(i)
-
   implicit def toRichIndexedRowMatrix(irm: IndexedRowMatrix): RichIndexedRowMatrix = new RichIndexedRowMatrix(irm)
 
   implicit def toRichIntPairTraversableOnce[V](t: TraversableOnce[(Int, V)]): RichIntPairTraversableOnce[V] =
@@ -56,8 +53,6 @@ trait Implicits {
   implicit def toRichIterator[T](it: Iterator[T]): RichIterator[T] = new RichIterator[T](it)
 
   implicit def toRichRowIterator(it: Iterator[Row]): RichRowIterator = new RichRowIterator(it)
-
-  implicit def toRichLong(l: Long): RichLong = new RichLong(l)
 
   implicit def toRichMap[K, V](m: Map[K, V]): RichMap[K, V] = new RichMap(m)
 
@@ -82,8 +77,6 @@ trait Implicits {
 
   implicit def toRichContextRDDRegionValue(r: ContextRDD[RVDContext, RegionValue]): RichContextRDDRegionValue = new RichContextRDDRegionValue(r)
 
-  implicit def toRichRDDByteArray(r: RDD[Array[Byte]]): RichRDDByteArray = new RichRDDByteArray(r)
-
   implicit def toRichRegex(r: Regex): RichRegex = new RichRegex(r)
 
   implicit def toRichRow(r: Row): RichRow = new RichRow(r)
@@ -93,8 +86,6 @@ trait Implicits {
   implicit def toRichString(str: String): RichString = new RichString(str)
 
   implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder = new RichStringBuilder(sb)
-
-  implicit def toRichStorageLevel(sl: StorageLevel): RichStorageLevel = new RichStorageLevel(sl)
 
   implicit def toTruncatable(s: String): Truncatable = s.truncatable()
 
@@ -124,5 +115,9 @@ trait Implicits {
 
   implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[RVDContext, T]): RichContextRDD[T] = new RichContextRDD(x)
 
+  implicit def toRichContextRDDRow(x: ContextRDD[RVDContext, Row]): RichContextRDDRow = new RichContextRDDRow(x)
+
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
+  implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 }

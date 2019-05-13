@@ -3,17 +3,16 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
-import scala.collection.JavaConverters._
-import scala.collection.generic.Growable
-import scala.collection.mutable
-import scala.language.{higherKinds, implicitConversions}
 import is.hail.utils._
 import org.apache.spark.TaskContext
-import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.tree._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
+import org.objectweb.asm.{ClassReader, ClassWriter, Type}
 
+import scala.collection.JavaConverters._
+import scala.collection.generic.Growable
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 object FunctionBuilder {
@@ -124,7 +123,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
     mn.instructions.add(end)
   }
 
-  def invoke(args: Code[_]*) = {
+  def invoke[T](args: Code[_]*): Code[T] = {
     var c: Code[_] = getArg[java.lang.Object](0)
     args.foreach { a => c = Code(c, a) }
     Code(c, new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false))

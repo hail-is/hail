@@ -342,29 +342,28 @@ class EmitFunctionBuilder[F >: Null](
       "FunctionBuilder emission should happen on master, but happened on worker")
 
     new ((Int) => F) with java.io.Serializable {
-      @transient
-      @volatile private var f: F = null
+      @transient @volatile private var theClass: Class[_] = null
 
       def apply(idx: Int): F = {
         try {
-          if (f == null) {
+          if (theClass == null) {
             this.synchronized {
-              if (f == null) {
+              if (theClass == null) {
                 childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
-                if (localHConf != null)
-                  f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+                theClass = loadClass(n, bytes)
               }
             }
           }
+          val f = theClass.newInstance().asInstanceOf[F]
+          if (localHConf != null)
+            f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {
           //  only triggers on classloader
-          case e@(_: Exception | _: LinkageError) => {
+          case e@(_: Exception | _: LinkageError) =>
             FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
             throw e
-          }
         }
       }
     }

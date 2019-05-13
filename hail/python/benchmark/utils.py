@@ -36,6 +36,7 @@ _registry = {}
 _data_dir = ''
 _mt = None
 _initialized = False
+_n_iter = None
 
 
 def download_data():
@@ -60,14 +61,22 @@ def download_data():
     _initialized = True
     _mt = hl.read_matrix_table(resource('profile.mt'))
 
-
-def _initialize(cores):
+def _ensure_initialized():
     if not _initialized:
-        hl.init(master=f'local[{cores}]', quiet=True)
-        download_data()
+        raise AssertionError("Hail benchmark environment not initialized. "
+                             "Are you running benchmark from the main module?")
 
-        # make JVM do something to ensure that it is fresh
-        hl.utils.range_table(100)._force_count()
+def initialize(cores, log, n_iter):
+    assert not _initialized
+    hl.init(master=f'local[{cores}]', quiet=True, log=log)
+
+    global _n_iter
+    _n_iter = n_iter
+
+    download_data()
+
+    # make JVM do something to ensure that it is fresh
+    hl.utils.range_table(1)._force_count()
 
 
 def _run(benchmark, n_iter):
@@ -80,16 +89,16 @@ def _run(benchmark, n_iter):
     print(f'    Mean, Median: {np.mean(times):.2f}s, {np.median(times):.2f}s')
 
 
-def run_all(n_iter=3, cores=1):
-    _initialize(cores)
+def run_all():
+    _ensure_initialized()
     for name, benchmark in _registry.items():
-        _run(benchmark, n_iter)
+        _run(benchmark, _n_iter)
 
 
-def run_single(name, n_iter=3, cores=1):
-    _initialize(cores)
+def run_single(name):
+    _ensure_initialized()
 
     if not name in _registry:
         raise ValueError(f'test {repr(name)} not found')
     else:
-        _run(_registry[name], n_iter)
+        _run(_registry[name], _n_iter)

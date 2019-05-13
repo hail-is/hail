@@ -80,6 +80,25 @@ class Tests(unittest.TestCase):
         self.assertEqual(e_cols.row.dtype, t_cols.row.dtype)
         self.assertTrue(e_cols._same(t_cols))
 
+    def test_trio_matrix_null_keys(self):
+        ped = hl.Pedigree.read(resource('triomatrix.fam'))
+        ht = hl.import_fam(resource('triomatrix.fam'))
+
+        mt = hl.import_vcf(resource('triomatrix.vcf'))
+        mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
+
+        # Make keys all null
+        mt = mt.key_cols_by(s=hl.null(hl.tstr))
+
+        tt = hl.trio_matrix(mt, ped, complete_trios=True)
+        self.assertEqual(tt.count_cols(), 0)
+
+    def test_trio_matrix_incomplete_trios(self):
+        ped = hl.Pedigree.read(resource('triomatrix.fam'))
+        mt = hl.import_vcf(resource('triomatrix.vcf'))
+        hl.trio_matrix(mt, ped, complete_trios=False)
+
+
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))
@@ -118,10 +137,12 @@ class Tests(unittest.TestCase):
         self.assertEqual(ind.count(), 7)
         self.assertEqual(var.count(), mt.count_rows())
 
-        self.assertEqual(set(fam.select('errors', 'snp_errors').collect()),
+        self.assertEqual(set(fam.select('children', 'errors', 'snp_errors').collect()),
                          {
-                             hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', errors=41, snp_errors=39),
-                             hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', errors=0, snp_errors=0)
+                             hl.utils.Struct(pat_id='Dad1', mat_id='Mom1', children=2,
+                                             errors=41, snp_errors=39),
+                             hl.utils.Struct(pat_id='Dad2', mat_id='Mom2', children=1,
+                                             errors=0, snp_errors=0)
                          })
 
         self.assertEqual(set(ind.select('errors', 'snp_errors').collect()),

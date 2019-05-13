@@ -5,6 +5,7 @@ from collections import Mapping, Sequence
 
 import hail as hl
 from hail import genetics
+from hail.expr.nat import NatBase, NatLiteral
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
@@ -81,6 +82,7 @@ def dtype(type_str):
         str = "tstr" / "str"
         locus = ("tlocus" / "locus") _ "[" identifier "]"
         array = ("tarray" / "array") _ "<" type ">"
+        ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
         struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -510,15 +512,18 @@ class tndarray(HailType):
     ----------
     element_type : :class:`.HailType`
         Element type of array.
+    ndim : int32
+        Number of dimensions.
 
     See Also
     --------
     :class:`.NDArrayExpression`, :func:`.ndarray`
     """
 
-    @typecheck_method(element_type=hail_type)
-    def __init__(self, element_type):
+    @typecheck_method(element_type=hail_type, ndim=oneof(NatBase, int))
+    def __init__(self, element_type, ndim):
         self._element_type = element_type
+        self._ndim = NatLiteral(ndim) if isinstance(ndim, int) else ndim
         super(tndarray, self).__init__()
 
     @property
@@ -532,6 +537,18 @@ class tndarray(HailType):
         """
         return self._element_type
 
+    @property
+    def ndim(self):
+        """NDArray number of dimensions.
+
+        Returns
+        -------
+        :obj:`int`
+            Number of dimensions.
+        """
+        assert isinstance(self._ndim, NatLiteral), "tndarray must be realized with a concrete number of dimensions"
+        return self._ndim.n
+
     def _traverse(self, obj, f):
         if f(self, obj):
             for elt in obj:
@@ -541,24 +558,38 @@ class tndarray(HailType):
         raise NotImplementedError
 
     def __str__(self):
-        return "ndarray<{}>".format(self.element_type)
+        return "ndarray<{}, {}>".format(self.element_type, self.ndim)
 
     def _eq(self, other):
         return isinstance(other, tndarray) and self.element_type == other.element_type
 
     def _pretty(self, l, indent, increment):
         l.append('ndarray<')
-        self.element_type._pretty(l, indent, increment)
+        self._element_type._pretty(l, indent, increment)
+        l.append(', ')
+        l.append(str(self.ndim))
         l.append('>')
 
     def _parsable_string(self):
-        return "NDArray[" + self.element_type._parsable_string() + "]"
+        return f'NDArray[{self._element_type._parsable_string()},{self.ndim}]'
 
     def _convert_from_json(self, x):
         raise NotImplementedError
 
     def _convert_to_json(self, x):
         raise NotImplementedError
+
+    def clear(self):
+        self._element_type.clear()
+        self._ndim.clear()
+
+    def unify(self, t):
+        return isinstance(t, tndarray) and \
+               self._element_type.unify(t._element_type) and \
+               self._ndim.unify(t._ndim)
+
+    def subst(self):
+        return tndarray(self._element_type.subst(), self._ndim.subst())
 
 
 class tarray(HailType):
@@ -1031,6 +1062,9 @@ class ttuple(HailType):
             if len(annotation) != len(self.types):
                 raise TypeError("%s expected tuple of size '%i', but found '%s'" %
                                 (self, len(self.types), annotation))
+
+    def __len__(self):
+        return len(self._types)
 
     def __str__(self):
         return "tuple({})".format(", ".join([str(t) for t in self.types]))

@@ -1,0 +1,27 @@
+@import "../variables/colors.scss";
+@import "../variables/margins.scss";
+#theme-site {
+  #login {
+    flex-direction: column;
+    h3 {
+      margin-bottom: $margin;
+    }
+    #login-choices {
+      display: flex;
+      margin-left: 3px;
+      justify-content: space-between;
+      align-items: center;
+      form {
+        display: flex;
+        flex-grow: 1;
+        input[name="workshop-password"] {
+          width: 100%;
+          width: 215px;
+        }
+        #separator {
+          margin: auto $margin;
+        }
+      }
+    }
+  }
+}

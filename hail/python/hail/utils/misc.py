@@ -105,6 +105,8 @@ def check_positive_and_in_range(caller, name, value):
 def wrap_to_list(s):
     if isinstance(s, list):
         return s
+    elif isinstance(s, tuple):
+        return list(s)
     else:
         return [s]
 
@@ -416,10 +418,10 @@ def process_joins(obj, exprs):
     for e in exprs:
         joins = e._ir.search(lambda a: isinstance(a, hail.ir.Join))
         for j in sorted(joins, key=lambda j: j.idx): # Make sure joins happen in order
-            if j not in used_joins:
+            if j.idx not in used_joins:
                 left = j.join_func(left)
                 all_uids.extend(j.temp_vars)
-                used_joins.add(j)
+                used_joins.add(j.idx)
 
     def cleanup(table):
         remaining_uids = [uid for uid in all_uids if uid in table._fields]

@@ -1,0 +1,5 @@
+FROM {{ hail_base_image.image }}
+
+COPY start-master.sh /
+
+CMD ["/start-master.sh"]

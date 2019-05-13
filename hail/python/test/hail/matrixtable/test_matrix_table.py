@@ -5,6 +5,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
 
@@ -71,6 +72,32 @@ class Tests(unittest.TestCase):
         for x, t, f in data:
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
+
+    def test_head(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+
+        # empty partitions at front
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
+        mts = [mt1, mt2]
+
+        for mt in mts:
+            tmp_file = new_temp_file(suffix='mt')
+
+            mt.write(tmp_file)
+            mt_readback = hl.read_matrix_table(tmp_file)
+            for mt_ in [mt, mt_readback]:
+                assert mt_.head(1).count_rows() == 1
+                assert mt_.head(1)._force_count_rows() == 1
+                assert mt_.head(100).count_rows() == 10
+                assert mt_.head(100)._force_count_rows() == 10
+
+    def test_head_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        assert mt1.head(1, 2).count() == (1, 2)
+        assert mt1.head(1, None).count() == (1, 10)
+        assert mt1.head(None, 1).count() == (10, 1)
 
     def test_filter(self):
         vds = self.get_vds()
@@ -234,6 +261,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(result.entries()._same(expected))
 
+    def test_aggregate_cols_by_init_op(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        cs = mt.group_cols_by(mt.s).aggregate(cs = hl.agg.call_stats(mt.GT, mt.alleles))
+        cs._force_count_rows() # should run without error
+
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
@@ -305,6 +337,20 @@ class Tests(unittest.TestCase):
         ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
+    def test_semi_anti_join_rows(self):
+        mt = hl.utils.range_matrix_table(10, 3)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_rows(ht).count() == (3, 3)
+        assert mt.anti_join_rows(ht).count() == (7, 3)
+
+    def test_semi_anti_join_cols(self):
+        mt = hl.utils.range_matrix_table(3, 10)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_cols(ht).count() == (3, 3)
+        assert mt.anti_join_cols(ht).count() == (3, 7)
+
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)
@@ -342,6 +388,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
+    def test_table_product_join(self):
+        left = hl.utils.range_matrix_table(5, 1)
+        right = hl.utils.range_table(5)
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate_rows(matches=right.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
+
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
         self.assertEqual(vds.n_partitions(), 8)
@@ -354,8 +408,26 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
+
+    def test_globals_lowering(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
+        lit = hl.literal(hl.utils.Struct(x = 0))
+
+        mt.annotate_rows(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.annotate_cols(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.filter_rows(mt.globals == lit)._force_count_rows()
+        mt.filter_cols(mt.globals == lit)._force_count_rows()
+        mt.filter_entries(mt.globals == lit)._force_count_rows()
+        (mt.group_rows_by(mt.row_idx)
+         .aggregate_rows(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
+        (mt.group_cols_by(mt.col_idx)
+         .aggregate_cols(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
 
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
@@ -369,6 +441,9 @@ class Tests(unittest.TestCase):
         r2 = hl.MatrixTable.union_rows(*datasets)
 
         self.assertTrue(r1._same(r2))
+
+        with self.assertRaises(ValueError):
+            ds1.filter_cols(ds1.s.endswith('5')).union_rows(ds2)
 
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
@@ -479,6 +554,28 @@ class Tests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    def test_interval_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
+        intervals = hl.utils.range_table(4)
+        intervals = intervals.key_by(interval=hl.interval(intervals.idx * 10, intervals.idx * 10 + 5))
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.case()
+                                 .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
+                                 .default(hl.is_missing(rows.interval_matches))))
+
+    def test_interval_product_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
+
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -522,6 +619,22 @@ class Tests(unittest.TestCase):
         et = mt.entries()
         self.assertEqual(et.count(), 100)
         self.assertTrue(et.all(et.x == et.col_idx + et.row_idx))
+
+    def test_entries_table_no_keys(self):
+        mt = hl.utils.range_matrix_table(2, 2)
+        mt = mt.annotate_entries(x = (mt.row_idx, mt.col_idx))
+
+        original_order = [
+            hl.utils.Struct(row_idx=0, col_idx=0, x=(0, 0)),
+            hl.utils.Struct(row_idx=0, col_idx=1, x=(0, 1)),
+            hl.utils.Struct(row_idx=1, col_idx=0, x=(1, 0)),
+            hl.utils.Struct(row_idx=1, col_idx=1, x=(1, 1)),
+        ]
+
+        assert mt.entries().collect() == original_order
+        assert mt.key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().key_cols_by().entries().collect() == original_order
+        assert mt.key_rows_by().entries().collect() == sorted(original_order, key=lambda x: x.col_idx)
 
     def test_filter_cols_required_entries(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4)
@@ -602,7 +715,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.globals_table()._same(t))
 
     def test_codecs_matrix(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         ds = self.get_vds()
         temp = new_temp_file(suffix='hmt')
@@ -612,7 +725,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         rt = self.get_vds().rows()
         temp = new_temp_file(suffix='ht')
@@ -773,10 +886,18 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         t = mt.make_table()
-        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+        assert list(t.row) == ['row_idx', '0.x', '1.x']
 
         t = mt.make_table(separator='__')
-        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+        assert list(t.row) == ['row_idx', '0__x', '1__x']
+
+    def test_make_table_row_equivalence(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_rows(r1 = hl.rand_norm(), r2 = hl.rand_norm())
+        mt = mt.annotate_entries(e1 = hl.rand_norm(), e2 = hl.rand_norm())
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
     def test_transmute(self):
         mt = (
@@ -1035,3 +1156,92 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
+
+    def localize_entries_with_both_none_is_rows_table(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=None)
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+        assert rows_table.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_cols_adds_no_globals(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=Env.get_uid(),
+                                        columns_array_field_name=None)
+        assert mt.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_entries_changes_no_rows(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=Env.get_uid())
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+
+    def localize_entries_creates_arrays_of_entries_and_array_of_cols(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name='entries',
+                                        columns_array_field_name='cols')
+        assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
+        assert range(0, 10) == localized.cols.collect()
+
+    def test_multi_write(self):
+        mt = self.get_vds()
+        f = new_temp_file()
+        hl.experimental.write_matrix_tables([mt, mt], f)
+        path1 = f + '0.mt'
+        path2 = f + '1.mt'
+        mt1 = hl.read_matrix_table(path1)
+        mt2 = hl.read_matrix_table(path2)
+        self.assertTrue(mt._same(mt1))
+        self.assertTrue(mt._same(mt2))
+        self.assertTrue(mt1._same(mt2))
+
+    def test_matrix_type_equality(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt2 = mt.annotate_entries(foo=1)
+        assert mt._type == mt._type
+        assert mt._type != mt2._type
+
+    def test_entry_filtering(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
+
+        assert mt.aggregate_entries(hl.agg.count()) == 50
+        assert all(x == 5 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 5 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+        mt = mt.unfilter_entries()
+
+        assert mt.aggregate_entries(hl.agg.count()) == 100
+        assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+    def test_entry_filter_stats(self):
+        mt = hl.utils.range_matrix_table(40, 20)
+        mt = mt.filter_entries((mt.row_idx % 4 == 0) & (mt.col_idx % 4 == 0), keep=False)
+        mt = mt.compute_entry_filter_stats()
+
+        row_expected = hl.dict({True: hl.struct(n_filtered=5,
+                                                n_remaining=15,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=20,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_rows(hl.agg.all(mt.entry_stats_row == row_expected[mt.row_idx % 4 == 0]))
+
+        col_expected = hl.dict({True: hl.struct(n_filtered=10,
+                                                n_remaining=30,
+                                                fraction_filtered=hl.float32(0.25)),
+                                False: hl.struct(n_filtered=0,
+                                                 n_remaining=40,
+                                                 fraction_filtered=hl.float32(0.0))})
+        assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
+
+    def test_show(self):
+        mt = self.get_vds()
+        mt.show()

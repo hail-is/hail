@@ -1,0 +1,6 @@
+flycheck_*.py
+*_flymake.py
+*.pyc
+**/__pycache__
+/build
+/batch-secrets

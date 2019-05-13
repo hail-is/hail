@@ -1,23 +1,27 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
+import is.hail.SparkSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.{Locus, RGBase, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
-class LocusFunctionsSuite extends TestNGSuite {
+class LocusFunctionsSuite extends SparkSuite {
 
-  val grch38: ReferenceGenome = ReferenceGenome.GRCh38
+  implicit val execStrats = ExecStrategy.javaOnly
 
-  val locusIR: Apply = {
+  def grch38: ReferenceGenome = ReferenceGenome.GRCh38
+
+  def locusIR: Apply = {
     val fn = grch38.wrapFunctionName("Locus")
     Apply(fn, FastSeq(Str("chr22"), I32(1)))
   }
 
-  val locus = Locus("chr22", 1, grch38)
+  def locus = Locus("chr22", 1, grch38)
 
   @Test def contig() {
     assertEvalsTo(invoke("contig", locusIR), locus.contig)
@@ -57,7 +61,7 @@ class LocusFunctionsSuite extends TestNGSuite {
 
   @Test def minRep() {
     val alleles = MakeArray(Seq(Str("AA"), Str("AT")), TArray(TString()))
-    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), IndexedSeq("A", "T")))
+    assertEvalsTo(invoke("min_rep", locusIR, alleles), Row(Locus("chr22", 2), FastIndexedSeq("A", "T")))
     assertEvalsTo(invoke("min_rep", locusIR, NA(TArray(TString()))), null)
   }
   

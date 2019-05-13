@@ -1,6 +1,5 @@
 package is.hail.utils
 
-import is.hail.expr.types._
 import is.hail.annotations._
 import is.hail.expr.types.virtual.{TArray, TFloat32}
 
@@ -38,8 +37,6 @@ class MissingFloatArrayBuilder extends Serializable {
   }
 
   val typ = TArray(TFloat32())
-
-  private val rvb = new RegionValueBuilder()
 
   def write(rvb: RegionValueBuilder) {
     rvb.startArray(len)

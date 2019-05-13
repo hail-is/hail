@@ -1,8 +1,6 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.TStruct
 import is.hail.stats.HistogramCombiner
 import is.hail.utils._
@@ -13,7 +11,7 @@ object RegionValueHistogramAggregator {
 
 class RegionValueHistogramAggregator(start: Double, end: Double, bins: Int) extends RegionValueAggregator {
   if (bins <= 0)
-    fatal(s"""method `hist' expects `bins' argument to be > 0, but got $bins""")
+    fatal(s"""method 'hist' expects 'bins' argument to be > 0, but got $bins""")
 
   private val binSize = (end - start) / bins
   if (binSize <= 0)

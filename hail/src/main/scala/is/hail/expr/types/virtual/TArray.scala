@@ -8,7 +8,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TArray(elementType: Type, override val required: Boolean = false) extends TIterable {
+final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer with TStreamable {
   lazy val physicalType: PArray = PArray(elementType.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -30,13 +30,6 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
     case _ => false
   }
 
-  override def unify(concrete: Type): Boolean = {
-    concrete match {
-      case TArray(celementType, _) => elementType.unify(celementType)
-      case _ => false
-    }
-  }
-
   override def subst() = TArray(elementType.subst().setRequired(false))
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
@@ -50,7 +43,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] =
+  override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
   val ordering: ExtendedOrdering =

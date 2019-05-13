@@ -4,6 +4,7 @@ import sun.misc.Unsafe;
 
 import java.lang.reflect.Field;
 
+@SuppressWarnings("sunapi")
 public final class Memory {
     private static final Unsafe unsafe;
 

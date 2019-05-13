@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.virtual.{TArray, TInt32}
+import is.hail.expr.types.virtual.{TArray, TInt32, TString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -11,12 +12,14 @@ import org.scalatest.testng.TestNGSuite
 class ArrayFunctionsSuite extends TestNGSuite {
   val naa = NA(TArray(TInt32()))
 
+  implicit val execStrats = ExecStrategy.javaOnly
+
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq(3, 7)),
+    Array(FastIndexedSeq(3, 7)),
     Array(null),
-    Array(IndexedSeq(3, null, 7, null)),
-    Array(IndexedSeq())
+    Array(FastIndexedSeq(3, null, 7, null)),
+    Array(FastIndexedSeq())
   )
 
   @DataProvider(name = "basicPairs")
@@ -81,27 +84,12 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "sort")
   def sortData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq(3, 9, 7), IndexedSeq(3, 7, 9), IndexedSeq(9, 7, 3)),
+    Array(FastIndexedSeq(3, 9, 7), FastIndexedSeq(3, 7, 9), FastIndexedSeq(9, 7, 3)),
     Array(null, null, null),
-    Array(IndexedSeq(3, null, 1, null, 3), IndexedSeq(1, 3, 3, null, null), IndexedSeq(3, 3, 1, null, null)),
-    Array(IndexedSeq(1, null, 3, null, 1), IndexedSeq(1, 1, 3, null, null), IndexedSeq(3, 1, 1, null, null)),
-    Array(IndexedSeq(), IndexedSeq(), IndexedSeq())
+    Array(FastIndexedSeq(3, null, 1, null, 3), FastIndexedSeq(1, 3, 3, null, null), FastIndexedSeq(3, 3, 1, null, null)),
+    Array(FastIndexedSeq(1, null, 3, null, 1), FastIndexedSeq(1, 1, 3, null, null), FastIndexedSeq(3, 1, 1, null, null)),
+    Array(FastIndexedSeq(), FastIndexedSeq(), FastIndexedSeq())
   )
-
-  @Test(dataProvider = "sort")
-  def sort(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a)), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortAsc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), True()), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortDesc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), False()), desc)
-  }
 
   @Test(dataProvider = "sort")
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
@@ -117,11 +105,11 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "argminmax")
   def argMinMaxData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq(3, 9, 7), 0, 1),
+    Array(FastIndexedSeq(3, 9, 7), 0, 1),
     Array(null, null, null),
-    Array(IndexedSeq(3, null, 1, null, 3), 2, 0),
-    Array(IndexedSeq(1, null, 3, null, 1), 0, 2),
-    Array(IndexedSeq(), null, null)
+    Array(FastIndexedSeq(3, null, 1, null, 3), 2, 0),
+    Array(FastIndexedSeq(1, null, 3, null, 1), 0, 2),
+    Array(FastIndexedSeq(), null, null)
   )
 
   @Test(dataProvider = "argminmax")
@@ -136,11 +124,11 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "uniqueMinMaxIndex")
   def uniqueMinMaxData(): Array[Array[Any]] = Array(
-    Array(IndexedSeq(3, 9, 7), 0, 1),
+    Array(FastIndexedSeq(3, 9, 7), 0, 1),
     Array(null, null, null),
-    Array(IndexedSeq(3, null, 1, null, 3), 2, null),
-    Array(IndexedSeq(1, null, 3, null, 1), null, 2),
-    Array(IndexedSeq(), null, null)
+    Array(FastIndexedSeq(3, null, 1, null, 3), 2, null),
+    Array(FastIndexedSeq(1, null, 3, null, 1), null, 2),
+    Array(FastIndexedSeq(), null, null)
   )
 
   @Test(dataProvider = "uniqueMinMaxIndex")
@@ -155,9 +143,9 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "arrayOpsData")
   def arrayOpsData(): Array[Array[Any]] = Array[Any](
-    IndexedSeq(3, 9, 7, 1),
-    IndexedSeq(null, 2, null, 8),
-    IndexedSeq(5, 3, null, null),
+    FastIndexedSeq(3, 9, 7, 1),
+    FastIndexedSeq(null, 2, null, 8),
+    FastIndexedSeq(5, 3, null, null),
     null
   ).combinations(2).toArray
 
@@ -211,46 +199,46 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def indexing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("[]", a, I32(0)), 0)
-    assertEvalsTo(invoke("[]", a, I32(1)), null)
-    assertEvalsTo(invoke("[]", a, I32(2)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-1)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-3)), 0)
-    assertFatal(invoke("[]", a, I32(3)), "array index out of bounds")
-    assertFatal(invoke("[]", a, I32(-4)), "array index out of bounds")
-    assertEvalsTo(invoke("[]", naa, I32(2)), null)
-    assertEvalsTo(invoke("[]", a, NA(TInt32())), null)
+    assertEvalsTo(invoke("indexArray", a, I32(0)), 0)
+    assertEvalsTo(invoke("indexArray", a, I32(1)), null)
+    assertEvalsTo(invoke("indexArray", a, I32(2)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-1)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-3)), 0)
+    assertFatal(invoke("indexArray", a, I32(3)), "array index out of bounds")
+    assertFatal(invoke("indexArray", a, I32(-4)), "array index out of bounds")
+    assertEvalsTo(invoke("indexArray", naa, I32(2)), null)
+    assertEvalsTo(invoke("indexArray", a, NA(TInt32())), null)
   }
 
   @Test def slicing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("[:]", a), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[:]", a), FastIndexedSeq(0, null, 2))
     assertEvalsTo(invoke("[:]", naa), null)
 
-    assertEvalsTo(invoke("[*:]", a, I32(1)), IndexedSeq(null, 2))
-    assertEvalsTo(invoke("[*:]", a, I32(-2)), IndexedSeq(null, 2))
-    assertEvalsTo(invoke("[*:]", a, I32(5)), IndexedSeq())
-    assertEvalsTo(invoke("[*:]", a, I32(-5)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:]", a, I32(1)), FastIndexedSeq(null, 2))
+    assertEvalsTo(invoke("[*:]", a, I32(-2)), FastIndexedSeq(null, 2))
+    assertEvalsTo(invoke("[*:]", a, I32(5)), FastIndexedSeq())
+    assertEvalsTo(invoke("[*:]", a, I32(-5)), FastIndexedSeq(0, null, 2))
     assertEvalsTo(invoke("[*:]", naa, I32(1)), null)
     assertEvalsTo(invoke("[*:]", a, NA(TInt32())), null)
 
-    assertEvalsTo(invoke("[:*]", a, I32(2)), IndexedSeq(0, null))
-    assertEvalsTo(invoke("[:*]", a, I32(-1)), IndexedSeq(0, null))
-    assertEvalsTo(invoke("[:*]", a, I32(5)), IndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("[:*]", a, I32(-5)), IndexedSeq())
+    assertEvalsTo(invoke("[:*]", a, I32(2)), FastIndexedSeq(0, null))
+    assertEvalsTo(invoke("[:*]", a, I32(-1)), FastIndexedSeq(0, null))
+    assertEvalsTo(invoke("[:*]", a, I32(5)), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[:*]", a, I32(-5)), FastIndexedSeq())
     assertEvalsTo(invoke("[:*]", naa, I32(1)), null)
     assertEvalsTo(invoke("[:*]", a, NA(TInt32())), null)
 
-    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(3)), IndexedSeq(null, 2))
-    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(2)), IndexedSeq(null))
-    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(2)), IndexedSeq(0, null))
-    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(3)), IndexedSeq(0, null, 2))
-    assertEvalsTo(invoke("[*:*]", a, I32(-1), I32(3)), IndexedSeq(2))
-    assertEvalsTo(invoke("[*:*]", a, I32(-4), I32(4)), IndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(3)), FastIndexedSeq(null, 2))
+    assertEvalsTo(invoke("[*:*]", a, I32(1), I32(2)), FastIndexedSeq(null))
+    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(2)), FastIndexedSeq(0, null))
+    assertEvalsTo(invoke("[*:*]", a, I32(0), I32(3)), FastIndexedSeq(0, null, 2))
+    assertEvalsTo(invoke("[*:*]", a, I32(-1), I32(3)), FastIndexedSeq(2))
+    assertEvalsTo(invoke("[*:*]", a, I32(-4), I32(4)), FastIndexedSeq(0, null, 2))
     assertEvalsTo(invoke("[*:*]", naa, I32(1), I32(2)), null)
     assertEvalsTo(invoke("[*:*]", a, I32(1), NA(TInt32())), null)
     assertEvalsTo(invoke("[*:*]", a, NA(TInt32()), I32(1)), null)
-    assertEvalsTo(invoke("[*:*]", a, I32(3), I32(2)), IndexedSeq())
+    assertEvalsTo(invoke("[*:*]", a, I32(3), I32(2)), FastIndexedSeq())
   }
 
   @DataProvider(name = "flatten")
@@ -265,6 +253,44 @@ class ArrayFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "flatten")
   def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]) {
     assertEvalsTo(invoke("flatten", MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32())))), expected)
+  }
 
+  @Test def testContains() {
+    val t = TArray(TString())
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq() -> t),
+      expected=false)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq(null) -> t),
+      expected=false)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b") -> t),
+      expected=true)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq(FastIndexedSeq("c", "a", "b", null) -> t),
+      expected=true)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), Str("a")),
+      args = FastIndexedSeq((null, t)),
+      expected=null)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), NA(t.elementType)),
+      args = FastIndexedSeq((null, t)),
+      expected=null)
+
+    assertEvalsTo(
+      invoke("contains", In(0, t), NA(t.elementType)),
+      args = FastIndexedSeq(FastIndexedSeq("a", null) -> t),
+      expected=true)
   }
 }

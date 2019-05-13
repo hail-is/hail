@@ -1,0 +1,23 @@
+{% extends "layout.html" %}
+{% block title %}Login{% endblock %}
+{% block head %}
+    <link rel="stylesheet" type="text/css" href="/static/css/pages/login.css" />
+{% endblock %}
+{% block content %}
+    <div id="login" class="centered">
+        <h3>Login</h3>
+        <div id="login-choices">
+            <form action="/login" method="POST">
+            <button type="submit" class="outlined-button">
+                Login
+            </button>
+            <span id="separator">or</span>
+            <input
+                name="workshop-password"
+                type="text"
+                placeholder="Enter the workshop password"
+            />
+            </form>
+        </div>
+    </div>
+{% endblock %}

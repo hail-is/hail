@@ -1,7 +1,7 @@
 package is.hail.stats
 
-import org.apache.spark.sql.Row
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 class DownsampleCombiner(nDivisions: Int) extends Serializable {
   type BinType = (Int, Int)
@@ -23,7 +23,7 @@ class DownsampleCombiner(nDivisions: Int) extends Serializable {
 
   def baseMerge(x: Double, y: Double, label: Seq[String]): DownsampleCombiner = {
     assert(binToPoint != null)
-    binToPoint += (toBinCoords(x, y) -> (x, y, label))
+    binToPoint += (toBinCoords(x, y) -> ((x, y, label)))
 
     this
   }

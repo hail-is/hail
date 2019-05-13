@@ -2,12 +2,9 @@ package is.hail.io
 
 import is.hail.SparkSuite
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.index._
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -40,7 +37,10 @@ class IndexSuite extends SparkSuite {
     annotationType: Type,
     branchingFactor: Int,
     attributes: Map[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
+    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }

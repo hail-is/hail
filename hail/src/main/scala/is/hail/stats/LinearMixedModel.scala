@@ -3,15 +3,13 @@ package is.hail.stats
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.ir.{TableLiteral, TableValue}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
@@ -19,11 +17,11 @@ case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[D
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
 
 object LinearMixedModel {
-  def apply(hc: HailContext, gamma: Double, residualSq: Double, py: Array[Double], px: BDM[Double], d: Array[Double],
+  def pyApply(gamma: Double, residualSq: Double, py: Array[Double], px: BDM[Double], d: Array[Double],
     ydy: Double, xdy: Array[Double], xdx: BDM[Double],
     yOpt: Option[Array[Double]], xOpt: Option[BDM[Double]]): LinearMixedModel = {
 
-    new LinearMixedModel(hc,
+    new LinearMixedModel(HailContext.get,
       LMMData(gamma, residualSq, BDV(py), px, BDV(d), ydy, BDV(xdy), xdx, yOpt.map(BDV(_)), xOpt))
   }
   
@@ -36,13 +34,13 @@ object LinearMixedModel {
 
   private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
 
-  def toTable(hc: HailContext, rvd: RVD): Table = {
-    new Table(hc, TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, hc.sc), rvd)))
+  def toTableIR(rvd: RVD): TableIR = {
+    TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, HailContext.get.sc), rvd))
   }
 }
 
 class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
-  def fit(pa_t: RowMatrix, a_t: Option[RowMatrix]): Table =
+  def fit(pa_t: RowMatrix, a_t: Option[RowMatrix]): TableIR =
     if (a_t.isDefined) {
       assert(lmmData.yOpt.isDefined && lmmData.xOpt.isDefined)
       fitLowRank(pa_t, a_t.get)
@@ -51,7 +49,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       fitFullRank(pa_t)
     }
  
-  def fitLowRank(pa_t: RowMatrix, a_t: RowMatrix): Table = {
+  def fitLowRank(pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
     if (pa_t.nRows != a_t.nRows)
       fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")
     else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
@@ -122,10 +120,10 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       pa_t.partitioner(),
       ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
 
-    LinearMixedModel.toTable(hc, rvd)
+    LinearMixedModel.toTableIR(rvd)
   }
   
-  def fitFullRank(pa_t: RowMatrix): Table = {
+  def fitFullRank(pa_t: RowMatrix): TableIR = {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType.physicalType
@@ -189,6 +187,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       pa_t.partitioner(),
       ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
 
-    LinearMixedModel.toTable(hc, rvd)
+    LinearMixedModel.toTableIR(rvd)
   }
 }

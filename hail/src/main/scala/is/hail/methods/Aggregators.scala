@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.stats._
@@ -11,11 +10,11 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.util.StatCounter
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.reflect.ClassTag
-import scala.collection.JavaConverters._
 import scala.language.implicitConversions
+import scala.reflect.ClassTag
 
 object Aggregators {
 
@@ -111,11 +110,13 @@ class StatAggregator() extends TypedAggregator[Annotation] {
 
   var _state = new StatCounter()
 
-  def result =
-    if (_state.count == 0)
-      null
-    else
-      Annotation(_state.mean, _state.stdev, _state.min, _state.max, _state.count, _state.sum)
+  def result = Annotation(
+    if (_state.count == 0d) null else _state.mean,
+    if (_state.count == 0d) null else _state.stdev,
+    if (_state.count == 0d) null else _state.min,
+    if (_state.count == 0d) null else _state.max,
+    _state.count,
+    _state.sum)
 
   def seqOp(x: Any) {
     if (x != null)
@@ -287,7 +288,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
       else {
         if (r.length != _state.length)
           fatal(
-            s"""cannot aggregate arrays of unequal length with `sum'
+            s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ _state.length }) and (${ r.length })""".stripMargin)
         else {
           var i = 0
@@ -308,7 +309,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
     else if (agg2._state != null) {
       if (_state.length != agg2state.length)
         fatal(
-          s"""cannot aggregate arrays of unequal length with `sum'
+          s"""cannot aggregate arrays of unequal length with 'sum'
              |  Found conflicting arrays of size (${ _state.length }) and (${ agg2state.length })""".
             stripMargin)
       for (i <- _state.indices)
@@ -322,6 +323,7 @@ class SumArrayAggregator[T](implicit ev: scala.math.Numeric[T], ct: ClassTag[T])
 class MaxAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: ClassTag[T]) extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero
@@ -350,6 +352,7 @@ class MinAggregator[T, BoxedT >: Null](implicit ev: NumericPair[T, BoxedT], ct: 
   extends TypedAggregator[BoxedT] {
 
   import ev.numeric
+
   import Ordering.Implicits._
 
   var _state: T = ev.numeric.zero

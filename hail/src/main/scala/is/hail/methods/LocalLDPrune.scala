@@ -4,8 +4,8 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._
@@ -299,7 +299,7 @@ case class LocalLDPrune(
 
   def execute(mv: MatrixValue): TableValue = {
     if (maxQueueSize < 1)
-      fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
+      fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
     val nSamples = mv.nCols
     
@@ -365,7 +365,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(mv.sparkContext), sitesOnly)
+    TableValue(tableType, BroadcastRow.empty(), sitesOnly)
   }
 }
 

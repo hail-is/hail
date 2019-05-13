@@ -44,7 +44,7 @@ object Locus {
     val elts = str.split(":")
     val size = elts.length
     if (size < 2)
-      fatal(s"Invalid string for Locus. Expecting contig:pos -- found `$str'.")
+      fatal(s"Invalid string for Locus. Expecting contig:pos -- found '$str'.")
 
     val contig = elts.take(size - 1).mkString(":")
     Locus(contig, elts(size - 1).toInt, rg)
@@ -54,7 +54,7 @@ object Locus {
 
   def parseIntervals(arr: Array[String], rg: RGBase): Array[Interval] = arr.map(parseInterval(_, rg))
 
-  def parseIntervals(arr: java.util.ArrayList[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
+  def parseIntervals(arr: java.util.List[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
 
   def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean, rgBase: RGBase): Interval = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
@@ -65,8 +65,6 @@ object Locus {
 }
 
 case class Locus(contig: String, position: Int) {
-  def compare(that: Locus, rg: ReferenceGenome): Int = rg.compare(this, that)
-
   def toRow: Row = Row(contig, position)
 
   def toJSON: JValue = JObject(

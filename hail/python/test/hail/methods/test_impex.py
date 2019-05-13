@@ -46,6 +46,18 @@ class VCFTests(unittest.TestCase):
             (hl.import_vcf([resource('sample.vcf'), t])
              ._force_count_rows())
 
+    def test_filter(self):
+        mt = hl.import_vcf(resource('malformed.vcf'), filter='rs685723')
+        mt._force_count_rows()
+
+        mt = hl.import_vcf(resource('sample.vcf'), filter='\trs\d+\t')
+        assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
+
+    def test_find_replace(self):
+        mt = hl.import_vcf(resource('sample.vcf'), find_replace=('\trs\d+\t', '\t.\t'))
+        mt.rows().show()
+        assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
+
     def test_haploid(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
@@ -200,6 +212,30 @@ class VCFTests(unittest.TestCase):
         # are py4 JavaMaps, not dicts, so can't use assertDictEqual
         self.assertEqual(vcf_metadata, metadata_imported)
 
+    def test_export_vcf_empty_format(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+
+        assert hl.import_vcf(tmp)._same(mt)
+
+    def test_export_vcf_no_gt(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+
+        assert hl.import_vcf(tmp)._same(mt)
+
+    def test_export_vcf_no_alt_alleles(self):
+        mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
+        self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
+
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+        mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
+        self.assertTrue(mt._same(mt2))
+
+    @skip_unless_spark_backend()
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -217,7 +253,7 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
@@ -236,6 +272,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
+    @skip_unless_spark_backend()
     def test_import_vcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -245,13 +282,28 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    def test_vcf_parser_golden_master(self):
+        files = [(resource('ex.vcf'), 'GRCh37'),
+                 (resource('sample.vcf'), 'GRCh37'),
+                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
+        for vcf_path, rg in files:
+            vcf = hl.import_vcf(
+                vcf_path,
+                reference_genome=rg,
+                array_elements_required=False,
+                force_bgz=True)
+            mt = hl.read_matrix_table(vcf_path + '.mt')
+            self.assertTrue(mt._same(vcf))
+
+
+    @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -281,6 +333,7 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
+    @skip_unless_spark_backend()
     def test_combiner_works(self):
         from hail.experimental.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -304,7 +357,8 @@ class VCFTests(unittest.TestCase):
             MQ_DP=hl.null(hl.tint32),
             VarDP=hl.null(hl.tint32),
             QUALapprox=hl.null(hl.tint32))))
-                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38')]
+                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38',
+                                         array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
@@ -612,7 +666,6 @@ class BGENTests(unittest.TestCase):
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
-        bgen._jmt.typecheck()
 
     def test_import_bgen_no_reference(self):
         hl.index_bgen(resource('example.8bits.bgen'),
@@ -1144,6 +1197,11 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    def test_import_bed_kwargs_to_import_table(self):
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', find_replace=('gene', ''))
+        self.assertFalse('gene1' in t.aggregate(hl.agg.collect_as_set(t.target)))
+
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
@@ -1154,6 +1212,7 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
+    @skip_unless_spark_backend()
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
@@ -1182,6 +1241,16 @@ class ImportMatrixTableTests(unittest.TestCase):
                           no_header=True,
                           row_key=['foo'])
 
+    @skip_unless_spark_backend()
+    def test_import_matrix_table_no_cols(self):
+        fields = {'Chromosome':hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr, 'Rand1': hl.tfloat64, 'Rand2': hl.tfloat64}
+        file = resource('sample2_va_nomulti.tsv')
+        mt = hl.import_matrix_table(file, row_fields=fields, row_key=['Chromosome', 'Position'])
+        t = hl.import_table(file, types=fields, key=['Chromosome', 'Position'])
+
+        self.assertEqual(mt.count_cols(), 0)
+        self.assertTrue(t._same(mt.rows()))
+
 
 class ImportTableTests(unittest.TestCase):
     def test_import_table_force_bgz(self):
@@ -1193,3 +1262,7 @@ class ImportTableTests(unittest.TestCase):
         run_command(["cp", uri_path(f), uri_path(f2)])
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
+
+    def test_glob(self):
+        tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
+        assert tables.count() == 346

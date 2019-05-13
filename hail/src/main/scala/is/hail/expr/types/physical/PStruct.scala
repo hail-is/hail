@@ -25,7 +25,7 @@ object PStruct {
   def apply(args: (String, PType)*): PStruct =
     apply(false, args: _*)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[PType], required: Boolean): PStruct = {
+  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
@@ -183,7 +183,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     PStruct(newFieldsBuilder.result(): _*)
   }

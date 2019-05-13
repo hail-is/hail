@@ -5,8 +5,6 @@ import java.io.{InputStream, OutputStream}
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.virtual.Type
-import is.hail.table.Table
-import is.hail.variant.MatrixTable
 import org.apache.hadoop.fs.FileStatus
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
@@ -85,7 +83,7 @@ trait Py4jUtils {
   private val giga: Long = mega * 1024
   private val tera: Long = giga * 1024
 
-  private def readableBytes(bytes: Long): String = {
+  def readableBytes(bytes: Long): String = {
     if (bytes < kilo)
       bytes.toString
     else if (bytes < mega)
@@ -131,22 +129,6 @@ trait Py4jUtils {
 
   def logError(msg: String) {
     error(msg)
-  }
-
-  def joinGlobals(left: Table, right: Table, identifier: String): Table = {
-    left.annotateGlobal(right.globals.value, right.globalSignature, identifier)
-  }
-
-  def joinGlobals(left: Table, right: MatrixTable, identifier: String): Table = {
-    left.annotateGlobal(right.globals.value, right.globalType, identifier)
-  }
-
-  def joinGlobals(left: MatrixTable, right: Table, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals.value, right.globalSignature, identifier)
-  }
-
-  def joinGlobals(left: MatrixTable, right: MatrixTable, identifier: String): MatrixTable = {
-    left.annotateGlobal(right.globals.value, right.globalType, identifier)
   }
 
   def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)

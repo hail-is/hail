@@ -62,12 +62,12 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     """
     mt = dataset
     require_col_key_str(mt, "trio_matrix")
-    
+
     k = mt.col_key.dtype.fields[0]
     samples = mt[k].collect()
 
     pedigree = pedigree.filter_to(samples)
-    trios = pedigree.complete_trios() if complete_trios else pedigree.trios()
+    trios = pedigree.complete_trios() if complete_trios else pedigree.trios
     n_trios = len(trios)
 
     sample_idx = {}
@@ -76,8 +76,8 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
 
     trios = [hl.Struct(
         id=sample_idx[t.s],
-        pat_id=sample_idx[t.pat_id],
-        mat_id=sample_idx[t.mat_id],
+        pat_id=None if t.pat_id is None else sample_idx[t.pat_id],
+        mat_id=None if t.mat_id is None else sample_idx[t.mat_id],
         is_female=t.is_female,
         fam_id=t.fam_id) for t in trios]
     trios_type = hl.dtype('array<struct{id:int,pat_id:int,mat_id:int,is_female:bool,fam_id:str}>')
@@ -270,21 +270,20 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     table1 = entries.select('fam_id', 'mendel_code')
 
-    fam_counts = (
-        entries
-            .group_by(pat_id=entries.father[ck_name], mat_id=entries.mother[ck_name])
-            .partition_hint(min(entries.n_partitions(), 8))
-            .aggregate(children=hl.len(hl.agg.collect_as_set(entries[ck_name])),
-                       errors=hl.agg.count_where(hl.is_defined(entries.mendel_code)),
-                       snp_errors=hl.agg.count_where(hl.is_snp(entries.alleles[0], entries.alleles[1]) &
-                                                     hl.is_defined(entries.mendel_code)))
-    )
-    table2 = tm.key_cols_by().cols()
+    t2 = tm.annotate_cols(
+        errors=hl.agg.count(),
+        snp_errors=hl.agg.count_where(hl.is_snp(tm.alleles[0], tm.alleles[1])))
+    table2 = t2.key_cols_by().cols()
     table2 = table2.select(pat_id=table2.father[ck_name],
                            mat_id=table2.mother[ck_name],
                            fam_id=table2.fam_id,
-                           **fam_counts[table2.father[ck_name], table2.mother[ck_name]])
-    table2 = table2.key_by('pat_id', 'mat_id').distinct()
+                           errors=table2.errors,
+                           snp_errors=table2.snp_errors)
+    table2 = table2.group_by('pat_id', 'mat_id').aggregate(
+        fam_id=hl.agg.take(table2.fam_id, 1)[0],
+        children=hl.int32(hl.agg.count()),
+        errors=hl.agg.sum(table2.errors),
+        snp_errors=hl.agg.sum(table2.snp_errors))
     table2 = table2.annotate(errors=hl.or_else(table2.errors, hl.int64(0)),
                              snp_errors=hl.or_else(table2.snp_errors, hl.int64(0)))
 
@@ -350,7 +349,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     Examples
     --------
     Compute TDT association statistics and show the first two results:
-    
+
     >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
     >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
     >>> tdt_table.show(2)  # doctest: +NOTEST

@@ -16,7 +16,7 @@ class TableSuite extends SparkSuite {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = IndexedSeq("Sample")
+    val keyNames = FastIndexedSeq("Sample")
 
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
@@ -24,22 +24,25 @@ class TableSuite extends SparkSuite {
   }
 
   def sampleKT2: Table = {
-    val data = Array(Array("Sample1", IndexedSeq(9, 1), 5), Array("Sample2", IndexedSeq(3), 5),
-      Array("Sample3", IndexedSeq(2, 3, 4), 5), Array("Sample4", IndexedSeq.empty[Int], 5))
+    val data = Array(Array("Sample1", FastIndexedSeq(9, 1), 5), Array("Sample2", FastIndexedSeq(3), 5),
+      Array("Sample3", FastIndexedSeq(2, 3, 4), 5), Array("Sample4", FastIndexedSeq.empty[Int], 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TInt32())), ("field2", TInt32()))
-    val keyNames = IndexedSeq("Sample")
+    val keyNames = FastIndexedSeq("Sample")
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
 
   def sampleKT3: Table = {
-    val data = Array(Array("Sample1", IndexedSeq(IndexedSeq(9, 10), IndexedSeq(1)), IndexedSeq(5, 6)), Array("Sample2", IndexedSeq(IndexedSeq(3), IndexedSeq.empty[Int]), IndexedSeq(5, 3)),
-      Array("Sample3", IndexedSeq(IndexedSeq(2, 3, 4), IndexedSeq(3), IndexedSeq(4, 10)), IndexedSeq.empty[Int]), Array("Sample4", IndexedSeq.empty[Int], IndexedSeq(5)))
+    val data = Array(
+      Array("Sample1", FastIndexedSeq(FastIndexedSeq(9, 10), FastIndexedSeq(1)), FastIndexedSeq(5, 6)),
+      Array("Sample2", FastIndexedSeq(FastIndexedSeq(3), FastIndexedSeq.empty[Int]), FastIndexedSeq(5, 3)),
+      Array("Sample3", FastIndexedSeq(FastIndexedSeq(2, 3, 4), FastIndexedSeq(3), FastIndexedSeq(4, 10)),
+        FastIndexedSeq.empty[Int]), Array("Sample4", FastIndexedSeq.empty[Int], FastIndexedSeq(5)))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TArray(TInt32()))), ("field2", TArray(TInt32())))
-    val keyNames = IndexedSeq("Sample")
+    val keyNames = FastIndexedSeq("Sample")
     val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
@@ -87,34 +90,6 @@ class TableSuite extends SparkSuite {
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
-  @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
-    val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TStruct(
-      "rows" -> TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required, "phenotype" -> TString())),
-      "global" -> TStruct()), Row(FastIndexedSeq(
-      Row("1:100", 0.5.toFloat, "trait1"),
-      Row("1:100", 0.6.toFloat, "trait1")), Row())), None))
-
-    TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
-      table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array()).count())
-  }
-
-  @Test def testToMatrixTable() {
-    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val gkt = vds.entriesTable()
-
-    val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
-      Array("s"),
-      vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"))
-
-    val sampleOrder = vds.colKeys.toArray
-
-    assert(reVDS.rowsTable().same(vds.rowsTable()))
-    assert(reVDS.colsTable().same(vds.colsTable()))
-    assert(reVDS.reorderCols(sampleOrder).same(vds))
-  }
-
   @Test def testExplode() {
     val kt1 = sampleKT1
     val kt2 = sampleKT2
@@ -125,7 +100,7 @@ class TableSuite extends SparkSuite {
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
     val ktResult2 = Table(hc, resRDD2,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = IndexedSeq("Sample"))
+      key = FastIndexedSeq("Sample"))
     ktResult2.typeCheck()
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
@@ -133,7 +108,7 @@ class TableSuite extends SparkSuite {
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
     val ktResult3 = Table(hc, resRDD3,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = IndexedSeq("Sample"))
+      key = FastIndexedSeq("Sample"))
     ktResult3.typeCheck()
 
     assert(ktResult2.same(kt2.explode(Array("field1"))))

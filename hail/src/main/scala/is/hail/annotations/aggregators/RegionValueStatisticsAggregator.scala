@@ -1,8 +1,6 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import org.apache.spark.util.StatCounter
 
@@ -29,18 +27,21 @@ class RegionValueStatisticsAggregator extends RegionValueAggregator {
   }
 
   def result(rvb: RegionValueBuilder) {
-    if (sc.count == 0)
-      rvb.setMissing()
-    else {
       rvb.startStruct()
-      rvb.addDouble(sc.mean)
-      rvb.addDouble(sc.stdev)
-      rvb.addDouble(sc.min)
-      rvb.addDouble(sc.max)
+      if (sc.count == 0) {
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+      } else {
+        rvb.addDouble(sc.mean)
+        rvb.addDouble(sc.stdev)
+        rvb.addDouble(sc.min)
+        rvb.addDouble(sc.max)
+      }
       rvb.addLong(sc.count)
       rvb.addDouble(sc.sum)
       rvb.endStruct()
-    }
   }
 
   def newInstance() = new RegionValueStatisticsAggregator()

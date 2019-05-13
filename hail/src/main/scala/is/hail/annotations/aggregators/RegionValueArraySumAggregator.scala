@@ -1,7 +1,6 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PType}
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt64, Type}
 import is.hail.utils._
 
@@ -22,7 +21,7 @@ class RegionValueArraySumLongAggregator(t: Type) extends RegionValueAggregator {
         val len = typ.loadLength(region, aoff)
         if (len != sum.length)
           fatal(
-            s"""cannot aggregate arrays of unequal length with `sum'
+            s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ sum.length }) and ($len)""".stripMargin)
         else {
           var i = 0
@@ -40,7 +39,7 @@ class RegionValueArraySumLongAggregator(t: Type) extends RegionValueAggregator {
     val that = _that.asInstanceOf[RegionValueArraySumLongAggregator]
     if (that.sum != null && sum != null && that.sum.length != sum.length)
       fatal(
-        s"""cannot aggregate arrays of unequal length with `sum'
+        s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ sum.length })
                |and (${ that.sum.length })""".stripMargin)
     if (sum == null)
@@ -95,7 +94,7 @@ class RegionValueArraySumDoubleAggregator(t: Type) extends RegionValueAggregator
         val len = typ.loadLength(region, aoff)
         if (len != sum.length)
           fatal(
-            s"""cannot aggregate arrays of unequal length with `sum'
+            s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ sum.length }) and ($len)""".stripMargin)
         else {
           var i = 0
@@ -113,7 +112,7 @@ class RegionValueArraySumDoubleAggregator(t: Type) extends RegionValueAggregator
     val that = _that.asInstanceOf[RegionValueArraySumDoubleAggregator]
     if (that.sum != null && sum != null && that.sum.length != sum.length)
       fatal(
-        s"""cannot aggregate arrays of unequal length with `sum'
+        s"""cannot aggregate arrays of unequal length with 'sum'
                |Found conflicting arrays of size (${ sum.length })
                |and (${ that.sum.length })""".stripMargin)
     if (sum == null)
