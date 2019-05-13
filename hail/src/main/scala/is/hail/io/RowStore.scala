@@ -234,6 +234,8 @@ trait OutputBlockBuffer extends Closeable {
 trait InputBlockBuffer extends Closeable {
   def close(): Unit
 
+  def seek(offset: Long)
+
   def readBlock(buf: Array[Byte]): Int
 }
 
@@ -250,7 +252,6 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
     out.write(buf, 0, len)
   }
 
-  // FIXME this fails
   def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
@@ -260,6 +261,9 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   def close() {
     in.close()
   }
+
+  // this takes a virtual offset and will seek the underlying stream to offset >> 16
+  def seek(offset: Long): Unit = in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
 
   def readBlock(buf: Array[Byte]): Int = {
     in.readFully(lenBuf, 0, 4)
@@ -414,6 +418,8 @@ final class MemoryBuffer extends Serializable {
 final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   def close() {}
 
+  def seek(offset: Long) = ???
+
   def readByte(): Byte = mb.readByte()
 
   def readInt(): Int = mb.readInt()
@@ -446,7 +452,7 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 
   def close() {}
 
-  def indexOffset(): Long = 0
+  def indexOffset(): Long = ???
 
   def writeByte(b: Byte): Unit = mb.writeByte(b)
 
@@ -687,6 +693,8 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 trait InputBuffer extends Closeable {
   def close(): Unit
 
+  def seek(offset: Long): Unit
+
   def readByte(): Byte
 
   def readInt(): Int
@@ -724,6 +732,8 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   private val buff = new Array[Byte](8)
 
   def close(): Unit = in.close()
+
+  def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
     in.read(buff, 0, 1)
@@ -779,6 +789,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readByte(): Byte = {
     in.readByte()
@@ -840,12 +852,13 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
   private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
   private var decompBuf = new Array[Byte](blockSize)
-  private var pos = 0
   private var lim = 0
 
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readBlock(buf: Array[Byte]): Int = {
     val blockLen = in.readBlock(comp)
@@ -881,6 +894,14 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def close() {
     in.close()
+  }
+
+  def seek(offset: Long): Unit = {
+    in.seek(offset)
+    off = end
+    readBlock()
+    off = (offset & 0xFFFF).asInstanceOf[Int]
+    assert(off < end)
   }
 
   def readByte(): Byte = {
@@ -997,6 +1018,8 @@ trait Decoder extends Closeable {
   def readRegionValue(region: Region): Long
 
   def readByte(): Byte
+
+  def seek(offset: Long): Unit
 }
 
 class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[MethodBuilderSelfLike] {
@@ -1300,6 +1323,8 @@ final class NativePackDecoder(in: InputStream, module: NativeDecoderModule) exte
   def readByte(): Byte = decode_byte(st, decoder.get()).toByte
 
   def readRegionValue(region: Region): Long = decode_row(st, decoder.get(), region.get())
+
+  def seek(offset: Long): Unit = ???
 }
 
 final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, InputBuffer, Long]) extends Decoder {
@@ -1312,12 +1337,16 @@ final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, I
   def readRegionValue(region: Region): Long = {
     f()(region, in)
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 }
 
 final class PackDecoder(rowType: PType, in: InputBuffer) extends Decoder {
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readByte(): Byte = in.readByte()
 
