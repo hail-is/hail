@@ -347,7 +347,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     The FORMAT field is generated from the entry schema, which
     must be a :class:`.tstruct`.  There is a FORMAT
-    field for each field of the Struct.
+    field for each field of the struct.
 
     INFO and FORMAT fields may be generated from Struct fields of type
     :py:data:`.tcall`, :py:data:`.tint32`, :py:data:`.tfloat32`,
@@ -423,8 +423,23 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         dictionary should be structured.
 
     """
-
     require_row_key_variant(dataset, 'export_vcf')
+    row_fields_used = {'rsid', 'info', 'filters', 'qual'}
+
+    fields_dropped = []
+    for f in dataset.globals:
+        fields_dropped.append((f, 'global'))
+    for f in dataset.col_value:
+        fields_dropped.append((f, 'column'))
+    for f in dataset.row_value:
+        if not f in row_fields_used:
+            fields_dropped.append((f, 'row'))
+
+    if fields_dropped:
+        ignored_str = ''.join(f'\n    {f!r} ({axis})' for f, axis in fields_dropped)
+        hl.utils.java.warn('export_vcf: ignored the following fields:' + ignored_str)
+        dataset = dataset.drop(*(f for f, _ in fields_dropped))
+
     writer = MatrixVCFWriter(output,
                              append_to_header,
                              Env.hail().utils.ExportType.getExportType(parallel),
