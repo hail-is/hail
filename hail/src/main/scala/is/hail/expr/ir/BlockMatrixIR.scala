@@ -369,14 +369,14 @@ case class BlockMatrixBroadcast(
   private def broadcastRowVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
-    (0 to nRows).foreach(_ => data ++= vec)
+    (0 until nRows).foreach(_ => data ++= vec)
     BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
   }
 
   private def broadcastColVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
     val data = ArrayBuffer[Double]()
     data.sizeHint(nRows * nCols)
-    (0 to nRows).foreach(row => (0 to nCols).foreach(_ => data += vec(row)))
+    (0 until nRows).foreach(row => (0 until nCols).foreach(_ => data += vec(row)))
     BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
   }
 }
