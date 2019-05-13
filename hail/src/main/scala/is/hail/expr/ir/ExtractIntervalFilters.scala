@@ -6,26 +6,6 @@ import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
 
-sealed trait KeyFilterPredicate
-
-case class KeyComparison(comp: ApplyComparisonOp) extends KeyFilterPredicate
-
-case class LiteralContains(comp: IR) extends KeyFilterPredicate
-
-case class IntervalContains(comp: IR) extends KeyFilterPredicate
-
-case class LocusContigComparison(comp: ApplyComparisonOp) extends KeyFilterPredicate
-
-case class LocusPositionComparison(comp: ApplyComparisonOp) extends KeyFilterPredicate
-
-case class LocusContigContains(comp: IR) extends KeyFilterPredicate
-
-case class Disjunction(l: KeyFilterPredicate, r: KeyFilterPredicate) extends KeyFilterPredicate
-
-case class Conjunction(l: KeyFilterPredicate, r: KeyFilterPredicate) extends KeyFilterPredicate
-
-case object Unknown extends KeyFilterPredicate
-
 object ExtractIntervalFilters {
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
     intervals.map { interval =>
