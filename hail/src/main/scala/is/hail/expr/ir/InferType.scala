@@ -120,6 +120,10 @@ object InferType {
       case NDArrayRef(nd, idxs) =>
         assert(idxs.forall(_.typ.isOfType(TInt64())))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
+      case NDArrayMatMul(l, r) =>
+        val lTyp = coerce[TNDArray](l.typ)
+        val rTyp = coerce[TNDArray](r.typ)
+        TNDArray(lTyp.elementType, Nat(TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims)), lTyp.required && rTyp.required)
       case NDArrayWrite(_, _) => TVoid
       case AggFilter(_, aggIR, _) =>
         aggIR.typ

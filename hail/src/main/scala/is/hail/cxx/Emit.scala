@@ -1020,10 +1020,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
               }
             }
             assert(!resultIdxVarsIter.hasNext)
-            val index = NDArrayLoopEmitter.linearizeIndices(joinedIdxVars, s"$nd.strides")
 
             val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
-            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, index, childTyp.elementType) };"
+            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, joinedIdxVars, childTyp.elementType) };"
             val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
               s"""
                  |${ dimVar.define }
@@ -1044,6 +1043,58 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
         present(emitter.emit(resTyp.elementType))
+
+      case x@ir.NDArrayMatMul(lIR, rIR) =>
+        val lt = emit(lIR)
+        val rt = emit(rIR)
+        val lNDims = lIR.pType.asInstanceOf[PNDArray].nDims
+        val rNDims = rIR.pType.asInstanceOf[PNDArray].nDims
+
+        val xType = x.pType.asInstanceOf[PNDArray]
+
+        val l = fb.variable("l", "NDArray", lt.v)
+        val r = fb.variable("r", "NDArray", rt.v)
+
+        val shape = fb.variable("shape", "std::vector<long>", s"matmul_shape($l.shape, $r.shape)")
+        val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define)
+
+        val emitter = new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val element = fb.variable("element", typeToCXXType(xType.elementType), "0")
+            val k = fb.variable("k", "int")
+
+            // NOTE: Follows semantics of numpy.matmul, explained here:
+            // https://docs.scipy.org/doc/numpy/reference/generated/numpy.matmul.html
+            val (lIdxVars, rIdxVars) = (lNDims, rNDims) match {
+              case (1, 1) => (Seq(k), Seq(k))
+              case (1, _) =>
+                val stackDims :+ m = idxVars
+                (Seq(k), stackDims :+ k :+ m)
+              case (_, 1) =>
+                val stackDims :+ n = idxVars
+                (stackDims :+ n :+ k, Seq(k))
+              case _ =>
+                val stackDims :+ n :+ m = idxVars
+                (stackDims :+ n :+ k, stackDims :+ k :+ m)
+            }
+
+            val lElem = NDArrayLoopEmitter.loadElement(l, lIdxVars, xType.elementType)
+            val rElem = NDArrayLoopEmitter.loadElement(r, rIdxVars, xType.elementType)
+            s"""
+               |({
+               |  ${ element.define }
+               |  ${ k.define }
+               |  for ($k = 0; $k < $l.shape[${ lNDims - 1 }]; ++$k) {
+               |    $element += $lElem * $rElem;
+               |  }
+               |
+               |  $element;
+               |})
+             """.stripMargin
+          }
+        }
+
+        present(emitter.emit(xType.elementType))
 
       case ir.NDArrayRef(ndIR, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
@@ -1424,8 +1475,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val index = NDArrayLoopEmitter.linearizeIndices(idxVars, s"$nd.strides")
-            NDArrayLoopEmitter.loadElement(nd, index, xType.elementType)
+            NDArrayLoopEmitter.loadElement(nd, idxVars, xType.elementType)
           }
         }
     }

@@ -613,6 +613,26 @@ class NDArrayAgg(IR):
         self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
 
 
+class NDArrayMatMul(IR):
+    @typecheck_method(l=IR, r=IR)
+    def __init__(self, l, r):
+        super().__init__(l, r)
+        self.l = l
+        self.r = r
+
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        return NDArrayMatMul(l, r)
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
+        from hail.expr.expressions import unify_types
+        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+
+
 class NDArrayWrite(IR):
     @typecheck_method(nd=IR, path=IR)
     def __init__(self, nd, path):

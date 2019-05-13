@@ -2,7 +2,7 @@ from typing import *
 
 import hail as hl
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Aggregation
+    unify_all, Indices, Aggregation, unify_types
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.ir import *
@@ -3484,6 +3484,52 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
+
+    def __matmul__(self, other):
+        """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,
+        the vector dot product is performed, returning a `NumericExpression`. If `a` and `b` are both 2-dimensional
+        matrices, this performs normal matrix multiplication. If `a` and `b` have more than 2 dimensions, they are
+        treated as multi-dimensional stacks of 2-dimensional matrices. Matrix multiplication is applied element-wise
+        across the higher dimensions. E.g. if `a` has shape `(3, 4, 5)` and `b` has shape `(3, 5, 6)`, `a` is treated
+        as a stack of three matrices of shape `(4, 5)` and `b` as a stack of three matrices of shape `(5, 6)`. `a @ b`
+        would then have shape `(3, 4, 6)`.
+
+        Notes
+        -----
+        The last dimension of `a` and the second to last dimension of `b` (or only dimension if `b` is a vector)
+        must have the same length. The dimensions to the left of the last two dimensions of `a` and `b` (for NDArrays
+        of dimensionality > 2) must be equal or be compatible for broadcasting.
+        Number of dimensions of both NDArrays must be at least 1.
+
+        Parameters
+        ----------
+        other : :class:`numpy.ndarray` :class:`.NDArrayNumericExpression`
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
+        """
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._ndarray(other)
+
+        if self.ndim == 0 or other.ndim == 0:
+            raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
+
+        if self.ndim > 1 and other.ndim > 1:
+            left, right = self._broadcast_to_same_ndim(other)
+        else:
+            left, right = self, other
+
+        from hail.linalg.utils.misc import _ndarray_matmul_ndim
+        result_ndim = _ndarray_matmul_ndim(left.ndim, right.ndim)
+        elem_type = unify_types(self._type.element_type, other._type.element_type)
+        ret_type = tndarray(elem_type, result_ndim)
+        left = left._promote_numeric(ret_type)
+        right = right._promote_numeric(ret_type)
+
+        res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
+
+        return res if result_ndim > 0 else res[()]
 
     @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
     def sum(self, axis=None):
