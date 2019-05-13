@@ -394,6 +394,8 @@ class Tests(unittest.TestCase):
     def test_matrix_ops(self):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
+        nsquare = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        square = BlockMatrix.from_numpy(nsquare, block_size=2)
 
         nrow = np.matrix([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
@@ -427,6 +429,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.sum(axis=0) + row.T, np.array([[12.0, 14.0, 16.0],
                                                          [13.0, 15.0, 17.0],
                                                          [14.0, 16.0, 18.0]]))
+        self._assert_eq(square.sum(axis=0).T + square.sum(axis=1), np.array([[18.0], [30.0], [42.0]]))
 
     def test_fill(self):
         nd = np.ones((3, 5))
