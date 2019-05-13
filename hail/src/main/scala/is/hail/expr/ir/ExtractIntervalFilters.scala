@@ -119,7 +119,7 @@ object ExtractIntervalFilters {
         val ApplySpecial(_, Seq(Literal(_, lit), _)) = comp
         val intervals = lit match {
           case null => Array[Interval]()
-          case i: Interval => Array(Interval(endpoint(i.left.point, i.left.sign), endpoint(i.right.point, i.right.sign)))
+          case i: Interval => Array(i)
         }
         Set[IR](comp) -> intervals
 
@@ -134,12 +134,11 @@ object ExtractIntervalFilters {
         val (v, isFlipped) = if (IsConstant(comp.l)) (comp.l, false) else (comp.r, true)
         val pos = constValue(v).asInstanceOf[Int]
         val rg = kType.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
-        val intOrd = TInt32().ordering.intervalEndpointOrdering
+        val ord = TInt32().ordering
         val intervals = rg.contigs.indices
           .flatMap { i =>
-            Interval.intersection(Array(openInterval(pos, TInt32(), comp.op, isFlipped)),
-              Array(Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1))),
-              intOrd)
+            openInterval(pos, TInt32(), comp.op, isFlipped).intersect(ord,
+              Interval(endpoint(1, -1), endpoint(rg.contigLength(i), -1)))
               .map { interval =>
                 Interval(endpoint(Locus(rg.contigs(i), interval.left.point.asInstanceOf[Int]), interval.left.sign),
                   endpoint(Locus(rg.contigs(i), interval.right.point.asInstanceOf[Int]), interval.right.sign))
