@@ -660,8 +660,25 @@ date
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):
-        # namespace cleanup will handle deployments
-        pass
+        script = ''
+        for w in self.wait:
+            name = w['name']
+            if w['kind'] == 'Deployment':
+                script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+            elif w['kind'] == 'Service':
+                assert w['for'] == 'alive', w['for']
+                script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+            else:
+                assert w['kind'] == 'Pod', w['kind']
+                script += f'kubectl -n {self.namespace} logs {name}\n'
+        script += 'date\n'
+        self.job = await batch.create_job(CI_UTILS_IMAGE,
+                                          command=['bash', '-c', script],
+                                          attributes={'name': self.name + '_logs'},
+                                          # FIXME configuration
+                                          service_account_name='ci2-agent',
+                                          parent_ids=[sink.id],
+                                          always_run=True)
 
 
 class CreateDatabaseStep(Step):
