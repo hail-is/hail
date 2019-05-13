@@ -84,6 +84,9 @@ object Copy {
       case NDArrayAgg(_, axes) =>
         val IndexedSeq(nd: IR) = newChildren
         NDArrayAgg(nd, axes)
+      case NDArrayMatMul(_, _) =>
+        val IndexedSeq(l: IR, r: IR) = newChildren
+        NDArrayMatMul(l, r)
       case NDArrayWrite(_, _) =>
         val IndexedSeq(nd: IR, path: IR) = newChildren
         NDArrayWrite(nd, path)

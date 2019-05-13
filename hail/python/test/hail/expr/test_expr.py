@@ -2890,6 +2890,44 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: v.transpose((1,)))
         self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
 
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_matmul(self):
+        np_v = np.array([1, 2])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_cube = np.array([[[1, 2],
+                             [3, 4]],
+                            [[5, 6],
+                             [7, 8]]])
+        np_rect_prism = np.array([[[1, 2],
+                                   [3, 4]],
+                                  [[5, 6],
+                                   [7, 8]],
+                                  [[9, 10],
+                                   [11, 12]]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        cube = hl._ndarray(np_cube)
+        rect_prism = hl._ndarray(np_rect_prism)
+
+        self.assertEqual(hl.eval(v @ v), np_v @ np_v)
+        self.ndarray_eq(m @ m, np_m @ np_m)
+        self.ndarray_eq(m @ m.T, np_m @ np_m.T)
+        self.ndarray_eq(v @ m, np_v @ np_m)
+        self.ndarray_eq(m @ v, np_m @ np_v)
+        self.ndarray_eq(cube @ cube, np_cube @ np_cube)
+        self.ndarray_eq(cube @ v, np_cube @ np_v)
+        self.ndarray_eq(v @ cube, np_v @ np_cube)
+        self.ndarray_eq(cube @ m, np_cube @ np_m)
+        self.ndarray_eq(m @ cube, np_m @ np_cube)
+        self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
+        self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
+        self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        self.assertRaises(ValueError, lambda: m @ 5)
+        self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
+        self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
+
     def test_collection_getitem(self):
         collection_types = [(hl.array, list), (hl.set, frozenset)]
         for (htyp, pytyp) in collection_types:

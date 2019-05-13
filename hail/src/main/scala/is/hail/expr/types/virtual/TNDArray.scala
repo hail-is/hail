@@ -7,6 +7,17 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
 
+object TNDArray {
+  def matMulNDims(l: Int, r: Int): Int = {
+    (l, r) match {
+      case (1, 1) => 0
+      case (1, n) => n - 1
+      case (n, 1) => n - 1
+      case (_, _) => l
+    }
+  }
+}
+
 final case class TNDArray(elementType: Type, nDimsBase: NatBase, override val required: Boolean = false) extends Type {
   lazy val nDims: Int = {
     assert(nDimsBase.isInstanceOf[Nat], "Missing concrete number of dimensions.")
