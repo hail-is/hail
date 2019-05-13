@@ -35,6 +35,20 @@ object ComparisonOp {
       checkCompatible(t1, t2)
       Compare(t1, t2)
   }
+
+  def invert[T](op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
+    assert(!op.isInstanceOf[Compare])
+    op match {
+      case GT(t1, t2) => LTEQ(t1, t2)
+      case LT(t1, t2) => GTEQ(t1, t2)
+      case GTEQ(t1, t2) => LT(t1, t2)
+      case LTEQ(t1, t2) => GT(t1, t2)
+      case EQ(t1, t2) => NEQ(t1, t2)
+      case NEQ(t1, t2) => EQ(t1, t2)
+      case EQWithNA(t1, t2) => NEQWithNA(t1, t2)
+      case NEQWithNA(t1, t2) => EQWithNA(t1, t2)
+    }
+  }
 }
 
 sealed trait ComparisonOp[ReturnType] {

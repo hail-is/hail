@@ -20,6 +20,8 @@ abstract class MatrixToMatrixFunction {
   def preservesPartitionCounts: Boolean
 
   def lower(): Option[TableToTableFunction] = None
+
+  def requestType(requestedType: MatrixType, childBaseType: MatrixType): MatrixType = childBaseType
 }
 
 abstract class MatrixToTableFunction {
@@ -74,6 +76,8 @@ abstract class TableToTableFunction {
   def execute(tv: TableValue): TableValue
 
   def preservesPartitionCounts: Boolean
+
+  def requestType(requestedType: TableType, childBaseType: TableType): TableType = childBaseType
 }
 
 abstract class TableToValueFunction {
