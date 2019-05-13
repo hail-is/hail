@@ -46,7 +46,6 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
-  require((blockSize & (blockSize - 1)) == 0)
   require(blockSize <= (1 << 16))
 
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
@@ -69,7 +68,6 @@ trait BlockBufferSpec extends Serializable {
 }
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
-  require((blockSize & (blockSize - 1)) == 0)
   require(blockSize <= (1 << 16))
 
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
