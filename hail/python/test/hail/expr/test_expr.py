@@ -332,6 +332,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(100)
         table = table.annotate(i=table.idx)
         table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001))
+        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001, all_quantiles=True))
 
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
