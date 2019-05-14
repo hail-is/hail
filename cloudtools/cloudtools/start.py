@@ -137,8 +137,7 @@ def main(args):
 
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
-                     ['gs://dataproc-initialization-actions/conda/bootstrap-conda.sh',
-                      init_script])
+                     [init_script])
     # add VEP init script
     if args.vep:
         if args.version == '0.1':
