@@ -532,6 +532,38 @@ object Simplify {
         right
       else
         TableMapGlobals(right, TableGetGlobals(left))
+
+    // push down filter intervals nodes
+    case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
+      TableFilter(TableFilterIntervals(child, intervals, keep), pred)
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) =>
+      TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
+      TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
+      TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
+    case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>
+      TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
+    case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
+      TableIntervalJoin(TableFilterIntervals(child, intervals, keep), right, root, product)
+    case TableFilterIntervals(TableExplode(child, path), intervals, keep) =>
+      TableExplode(TableFilterIntervals(child, intervals, keep), path)
+    case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
+      TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
+    case TableFilterIntervals(TableFilterIntervals(child, i1, k1), i2, k2) if k1 == k2 =>
+      val ord = child.typ.keyType.ordering.intervalEndpointOrdering
+      val intervals = if (k1)
+      // keep means intersect intervals
+        Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
+      else
+      // remove means union intervals
+        Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
+      TableFilterIntervals(child, intervals.toFastIndexedSeq, k1)
+    // TODO: write rule for TableParallelize that pushes down filter into value IR
+    // TODO: write rule for TableKeyByAndAggregate that pushes down filter as a TableFilter
+    // TODO: write rule for TableRead that that pushes down filter into coming index files
+    // TODO: write rule for TableJoin that pushes down filter to both sides
+    // TODO: write rule for TableKeyBy(TableFilterIntervals(TableKeyBy))), which could prevent key pruning optimization
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {

@@ -2,8 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.types.virtual.{TArray, TInterval}
 import is.hail.table.Ascending
 import is.hail.utils._
+import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -295,6 +297,14 @@ object Pretty {
                 s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
                 s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+            case TableFilterIntervals(child, intervals, keep) =>
+              prettyStringLiteral(Serialization.write(
+                JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
+              )(RelationalSpec.formats)) + " " + prettyBooleanLiteral(keep)
+            case MatrixFilterIntervals(child, intervals, keep) =>
+              prettyStringLiteral(Serialization.write(
+                JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
+              )(RelationalSpec.formats)) + " " + prettyBooleanLiteral(keep)
             case ReadPartition(path, spec, encodedType, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ encodedType.parsableString() } ${ rowType.parsableString() }"
 
