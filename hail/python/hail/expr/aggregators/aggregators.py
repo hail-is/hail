@@ -219,6 +219,9 @@ def approx_cdf(expr, k=100):
     with the value `values(i)` occupying indices `ranks(i)` (inclusive) to
     `ranks(i+1)` (exclusive).
 
+    The returned struct also contains an array `_compaction_counts`, which is
+    used internally to support downstream error estimation.
+
     Warning
     -------
     This is an approximate and nondeterministic method.
@@ -235,7 +238,7 @@ def approx_cdf(expr, k=100):
     :class:`.StructExpression`
         Struct containing `values` and `ranks` arrays.
     """
-    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64)), constructor_args=[k])
+    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64), _compaction_counts=tarray(tint32)), constructor_args=[k])
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
