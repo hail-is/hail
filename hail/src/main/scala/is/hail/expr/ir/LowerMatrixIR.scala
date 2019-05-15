@@ -281,7 +281,7 @@ object LowerMatrixIR {
 
     case MatrixColsHead(child, n) => lower(child)
       .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", n)))
-      .mapRows('row.insertFields(entriesField -> 'row (entriesField.invoke("[:*]", n))))
+      .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", n)))
 
     case MatrixExplodeCols(child, path) =>
       val loweredChild = lower(child)
