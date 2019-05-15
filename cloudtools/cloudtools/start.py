@@ -5,7 +5,7 @@ import re
 from subprocess import check_call
 from .utils import latest_sha, load_config, load_config_file
 
-COMPATIBILITY_VERSION = 1
+COMPATIBILITY_VERSION = 2
 init_script = 'gs://hail-common/cloudtools/init_notebook{}.py'.format(COMPATIBILITY_VERSION)
 
 # master machine type to memory map, used for setting spark.driver.memory property
