@@ -194,7 +194,9 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     val inIntervals = FastIndexedSeq(
       Interval(IntervalEndpoint(0, -1), IntervalEndpoint(10, -1)),
       null,
-      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(5, -1)))
+      Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1)),
+      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(5, -1))
+    )
 
     val ir = ArrayFold(
       Literal(TArray(TInterval(TInt32())), inIntervals),
@@ -205,7 +207,9 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     )
     val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(ir, ref1, k1).get
     assert(rw == True())
-    assert(intervals.toSeq == FastSeq(Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(10, -1))))
+    assert(intervals.toSeq == FastSeq(
+      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(10, -1)),
+      Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1))))
   }
 
   @Test def testDisjunction() {
