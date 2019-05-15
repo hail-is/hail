@@ -279,6 +279,10 @@ object LowerMatrixIR {
 
     case MatrixRowsHead(child, n) => TableHead(lower(child), n)
 
+    case MatrixColsHead(child, n) => lower(child)
+      .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", n)))
+      .mapRows('row.insertFields(entriesField -> 'row (entriesField.invoke("[:*]", n))))
+
     case MatrixExplodeCols(child, path) =>
       val loweredChild = lower(child)
       val lengths = Symbol(genUID())
