@@ -82,7 +82,7 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
 
 object SparkFunctionContext {
   def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
-    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.hadoop_conf_",
+    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.fs_",
       EmitRegion(fb, s"$spark_context.region_"))
 
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
