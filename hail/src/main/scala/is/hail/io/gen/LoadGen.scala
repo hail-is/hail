@@ -21,16 +21,16 @@ case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Anno
 
 object LoadGen {
   def apply(
-             genFile: String,
-             sampleFile: String,
-             sc: SparkContext,
-             fs: FS,
-             rgBc: Option[Broadcast[ReferenceGenome]],
-             nPartitions: Option[Int] = None,
-             tolerance: Double = 0.02,
-             chromosome: Option[String] = None,
-             contigRecoding: Map[String, String] = Map.empty[String, String],
-             skipInvalidLoci: Boolean = false): GenResult = {
+    genFile: String,
+    sampleFile: String,
+    sc: SparkContext,
+    fs: FS,
+    rgBc: Option[Broadcast[ReferenceGenome]],
+    nPartitions: Option[Int] = None,
+    tolerance: Double = 0.02,
+    chromosome: Option[String] = None,
+    contigRecoding: Map[String, String] = Map.empty[String, String],
+    skipInvalidLoci: Boolean = false): GenResult = {
 
     val sampleIds = LoadBgen.readSampleFile(fs, sampleFile)
 
