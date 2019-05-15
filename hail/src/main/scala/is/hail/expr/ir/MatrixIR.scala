@@ -50,7 +50,7 @@ object MatrixIR {
     val newMatrixType = typ.copy(rvRowType = coerce[TStruct](rTyp.virtualType))
 
     val keepF = { (mv: MatrixValue, keep: Array[Int]) =>
-      val keepBc = mv.hc.sc.broadcast(keep)
+      val keepBc = mv.sparkContext.broadcast(keep)
       mv.copy(typ = newMatrixType,
         colValues = mv.colValues.copy(value = keep.map(mv.colValues.value)),
         rvd = mv.rvd.mapPartitionsWithIndex(newMatrixType.canonicalRVDType, { (i, ctx, it) =>

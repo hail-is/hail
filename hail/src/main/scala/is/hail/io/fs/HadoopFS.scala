@@ -422,10 +422,6 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
     }
   }
 
-  def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
-
-  def unsafeWriter(filename: String): OutputStream = create(filename)
-
   def writeTable(filename: String, lines: Traversable[String], header: Option[String] = None) {
     writeTextFile(filename) {
       fw =>
@@ -439,6 +435,10 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
         }
     }
   }
+
+  def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
+
+  def unsafeWriter(filename: String): OutputStream = create(filename)
 
   def writeLZ4DataFile[T](path: String, blockSize: Int, compressor: LZ4Compressor)(writer: (DataOutputStream) => T): T = {
     val oos = create(path)

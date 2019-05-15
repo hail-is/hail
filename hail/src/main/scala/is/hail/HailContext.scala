@@ -494,11 +494,13 @@ class HailContext private(val sc: SparkContext,
     read(file, dropSamples, dropVariants)
 
   def readPartitions[T: ClassTag](
-    path: String,
-    partFiles: Array[String],
-    read: (Int, InputStream, InputMetrics) => Iterator[T],
-    optPartitioner: Option[Partitioner] = None): RDD[T] = {
+                                   path: String,
+                                   partFiles: Array[String],
+                                   read: (Int, InputStream, InputMetrics) => Iterator[T],
+                                   optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
+
+    val localBcFS = bcFS
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
@@ -507,7 +509,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = bcFS.value.unsafeReader(filename)
+        val in = localBcFS.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 

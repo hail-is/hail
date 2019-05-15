@@ -1887,10 +1887,12 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     partitioner: RVDPartitioner,
     stageLocally: Boolean
   ): Array[Long] = {
-    val fs = HailContext.bcFS.value
+    val fs = HailContext.sFS
 
     fs.mkDir(path + "/rows/rows/parts")
     fs.mkDir(path + "/entries/rows/parts")
+
+    val bcFS = HailContext.bcFS
 
     val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
@@ -1904,6 +1906,8 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      val fs = bcFS.value
+
       val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
         fs,
         path,

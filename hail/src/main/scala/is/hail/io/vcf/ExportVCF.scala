@@ -312,7 +312,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        mv.hc.sFS.readFile(f) { s =>
+        HailContext.sFS.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)

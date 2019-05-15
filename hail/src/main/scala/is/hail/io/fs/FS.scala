@@ -23,7 +23,7 @@ trait FileSystem {
   def deleteOnExit(path: FilePath): Boolean
 }
 
-trait FilePath {
+trait FilePath extends Serializable {
   type Configuration
 
   def toString: String
@@ -31,7 +31,7 @@ trait FilePath {
   def getFileSystem(conf: Configuration): FileSystem
 }
 
-trait FileStatus {
+trait FileStatus extends Serializable {
   def getPath: FilePath
   def getModificationTime: Long
   def getLen: Long

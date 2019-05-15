@@ -2,13 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
 import is.hail.io.fs.FS
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
+import is.hail.rvd.{AbstractRVDSpec, RVD, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -24,11 +23,10 @@ case class MatrixValue(
   globals: BroadcastRow,
   colValues: BroadcastIndexedSeq,
   rvd: RVD) {
-
   require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${ typ.rowType }\nrvd rowType: ${ rvd.rowType }")
   require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${ typ.rowKey }\nrvd key: ${ rvd.typ.key }")
 
-  def hc: HailContext = HailContext.get
+  def sparkContext: SparkContext = rvd.sparkContext
 
   def nPartitions: Int = rvd.getNumPartitions
 
@@ -215,7 +213,7 @@ case class MatrixValue(
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = hc.sc.broadcast(partStarts)
+    val partStartsBc = sparkContext.broadcast(partStarts)
 
     val rvRowType = typ.rvRowType.physicalType
     val entryArrayType = typ.entryArrayType.physicalType
@@ -253,7 +251,7 @@ case class MatrixValue(
       }
     }
 
-    new RowMatrix(hc, rows, nCols, Some(partStarts.last), Some(partCounts))
+    new RowMatrix(HailContext.get, rows, nCols, Some(partStarts.last), Some(partCounts))
   }
 
   def typeCheck(): Unit = {
@@ -292,8 +290,7 @@ object MatrixValue {
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
-    val hc = HailContext.get
-    val fs = hc.sFS
+    val fs = HailContext.sFS
     val codecSpec = CodecSpec.default
 
     val d = digitsNeeded(mvs.length)

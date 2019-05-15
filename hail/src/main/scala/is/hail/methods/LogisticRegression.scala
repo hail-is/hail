@@ -70,7 +70,7 @@ case class LogisticRegression(
       nullFit
     })
 
-    val sc = mv.hc.sc
+    val sc = mv.sparkContext
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
     val yVecsBc = sc.broadcast(yVecs)

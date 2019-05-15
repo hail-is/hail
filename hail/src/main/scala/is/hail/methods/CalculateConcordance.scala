@@ -103,7 +103,7 @@ object CalculateConcordance {
 
     val rightIdIndex = rightIds.zipWithIndex.toMap
     val leftToRight = leftIds.map(rightIdIndex).toArray
-    val leftToRightBc = left.hc.sc.broadcast(leftToRight)
+    val leftToRightBc = left.sparkContext.broadcast(leftToRight)
 
     val (_, join) = leftFiltered.rvd.orderedZipJoin(rightFiltered.rvd)
 

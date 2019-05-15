@@ -18,7 +18,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
   def execute(mv: MatrixValue): Any = {
 
-    val fs = mv.hc.sFS
+    val fs = HailContext.sFS
 
     fs.delete(path, recursive = true) // overwrite by default
 
@@ -46,7 +46,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
-      val colValuesJSON = mv.hc.sc.broadcast(
+      val colValuesJSON = mv.sparkContext.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray)
@@ -115,7 +115,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       }.collect()
 
       val ns = endIdx - startIdx
-      val newFiles = mv.hc.sc.parallelize(0 until ns, numSlices = ns)
+      val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
           val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))

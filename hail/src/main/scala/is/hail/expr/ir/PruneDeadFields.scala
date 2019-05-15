@@ -104,7 +104,7 @@ object PruneDeadFields {
       None,
       optimize = false)
     (colDep,
-      BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.hc.sc),
+      BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.sparkContext),
       rebuildIR(valueIRCopy, relationalTypeToEnv(matrixType.copy(colType = colDep, colKey = FastIndexedSeq())), memo)
     )
   }
