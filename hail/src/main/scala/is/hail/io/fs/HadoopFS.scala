@@ -16,12 +16,6 @@ import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import scala.io.Source
 
-class HadoopInputStream(is: FSDataInputStream) extends HailInputStream(is) {
-  def seek(pos: Long): Unit = {
-    is.seek(pos)
-  }
-}
-
 class HadoopFilePath(path: hadoop.fs.Path) extends FilePath {
   type Configuration = hadoop.conf.Configuration
 
@@ -38,22 +32,21 @@ class HadoopFilePath(path: hadoop.fs.Path) extends FilePath {
   }
 }
 
-
 class HadoopFileSystem(val filename: String, conf: hadoop.conf.Configuration) extends FileSystem  {
   private val dPath = new hadoop.fs.Path(filename)
   private val hfs = dPath.getFileSystem(conf)
 
-  def open: HailInputStream = {
+  def open: FSDataInputStream = {
     val test = hfs.open(dPath)
-    new HadoopInputStream(hfs.open(dPath))
+    hfs.open(dPath)
   }
 
-  def open(fPath: FilePath): HailInputStream = {
-    new HadoopInputStream(hfs.open(new hadoop.fs.Path(fPath.toString())))
+  def open(fPath: FilePath): FSDataInputStream = {
+    hfs.open(new hadoop.fs.Path(fPath.toString()))
   }
 
-  def open(fPath: String): HailInputStream = {
-    new HadoopInputStream(hfs.open(new hadoop.fs.Path(fPath)))
+  def open(fPath: String): FSDataInputStream = {
+    hfs.open(new hadoop.fs.Path(fPath))
   }
 
   def deleteOnExit(fPath: FilePath): Boolean = {
@@ -84,20 +77,6 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
 
   def getOwner: String = fs.getOwner
 }
-
-//class SerializableHadoopFS(@transient var conf: hadoop.conf.Configuration) extends Serializable {
-//  private def writeObject(out: ObjectOutputStream) {
-//    out.defaultWriteObject()
-//    conf.write(out)
-//  }
-//
-//  private def readObject(in: ObjectInputStream) {
-//    conf = new hadoop.conf.Configuration(false)
-//    conf.readFields(in)
-//
-//  }
-//}
-
 
 class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
     private def writeObject(out: ObjectOutputStream) {

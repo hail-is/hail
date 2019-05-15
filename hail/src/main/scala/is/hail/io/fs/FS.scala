@@ -1,22 +1,17 @@
 package is.hail.io.fs
 
 import java.io._
-import java.util.Map
 import java.util
 
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
 import com.esotericsoftware.kryo.io.{Input, Output}
-
-abstract class HailInputStream(val is: InputStream) extends DataInputStream(is) {
-  @throws(classOf[IOException])
-  def seek(pos: Long): Unit
-}
+import org.apache.hadoop.fs.FSDataInputStream
 
 trait FileSystem {
-  def open: HailInputStream
-  def open(path: FilePath): HailInputStream
-  def open(path: String): HailInputStream
+  def open: FSDataInputStream
+  def open(path: FilePath): FSDataInputStream
+  def open(path: String): FSDataInputStream
 
   def getPath(path: String): FilePath
   def makeQualified(path: FilePath): FilePath
