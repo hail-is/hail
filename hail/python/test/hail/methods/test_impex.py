@@ -1210,6 +1210,11 @@ class LocusIntervalTests(unittest.TestCase):
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertTrue(t.count() == 4)
 
+    def test_pass_through_args(self):
+        interval_file = resource('example3.interval_list')
+        t = hl.import_locus_intervals(interval_file, reference_genome='GRCh37', min_partitions=10)
+        assert t.n_partitions() == 10
+
 
 class ImportMatrixTableTests(unittest.TestCase):
     @skip_unless_spark_backend()
