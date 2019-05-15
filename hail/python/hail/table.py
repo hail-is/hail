@@ -2531,7 +2531,7 @@ class Table(ExprContainer):
         """
         # unkey but preserve order
         t = self.order_by(*self.key)
-        t = t.select(**t.row.flatten())
+        t = Table(TableMapRows(t._tir, t.row.flatten()._ir))
         return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
