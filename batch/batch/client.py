@@ -44,19 +44,6 @@ class Job:
         poll_until(update_and_is_complete)
         return self._status
 
-    def cancel(self):
-        self.client._cancel_job(self.id)
-
-    def delete(self):
-        self.client._delete_job(self.id)
-
-        # this object should not be referenced again
-        del self.client
-        del self.id
-        del self.attributes
-        del self.parent_ids
-        del self._status
-
     def log(self):
         return self.client._get_job_log(self.id)
 
@@ -87,7 +74,7 @@ class Batch:
     def wait(self):
         def update_and_is_complete():
             status = self.status()
-            if not any(j['state'] == 'Created' or j['state'] == 'Ready' for j in status['jobs']):
+            if status['complete']:
                 return status
             return False
         return poll_until(update_and_is_complete)
@@ -202,12 +189,6 @@ class BatchClient:
     def _get_job_log(self, id):
         return self.api.get_job_log(self.url, id)
 
-    def _delete_job(self, id):
-        self.api.delete_job(self.url, id)
-
-    def _cancel_job(self, id):
-        self.api.cancel_job(self.url, id)
-
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
 
@@ -219,15 +200,6 @@ class BatchClient:
 
     def _close_batch(self, batch_id):
         return self.api.close_batch(self.url, batch_id)
-
-    def list_jobs(self, complete=None, success=None, attributes=None):
-        jobs = self.api.list_jobs(self.url, complete=complete, success=success, attributes=attributes)
-        return [Job(self,
-                    j['id'],
-                    attributes=j.get('attributes'),
-                    parent_ids=j.get('parent_ids', []),
-                    _status=j)
-                for j in jobs]
 
     def list_batches(self, complete=None, success=None, attributes=None):
         batches = self.api.list_batches(self.url, complete=complete, success=success, attributes=attributes)

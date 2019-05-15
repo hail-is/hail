@@ -143,16 +143,16 @@ class LocalTests(unittest.TestCase):
                                    idx="bar")
         t = p.new_task()
         t.command(f"cat {input.fasta}")
-        assert(input.fasta in t._inputs)
-        assert(input.idx in t._inputs)
+        assert input.fasta in t._inputs
+        assert input.idx in t._inputs
 
     def test_resource_group_get_all_mentioned(self):
         p = Pipeline()
         t = p.new_task()
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat {t.foo.bed}")
-        assert(t.foo.bed in t._mentioned)
-        assert(t.foo.bim in t._mentioned)
+        assert t.foo.bed in t._mentioned
+        assert t.foo.bim not in t._mentioned
 
     def test_resource_group_get_all_mentioned_dependent_tasks(self):
         p = Pipeline()
@@ -171,10 +171,16 @@ class LocalTests(unittest.TestCase):
         t2.command(f"cat {t1.foo.bed}")
 
         for r in [t1.foo.bed, t1.foo.bim]:
-            assert(r in t1._outputs)
-            assert(r in t2._inputs)
-            assert(r in t1._mentioned)
-            assert(r not in t2._mentioned)
+            assert r in t1._internal_outputs
+            assert r in t2._inputs
+
+        assert t1.foo.bed in t1._mentioned
+        assert t1.foo.bim not in t1._mentioned
+
+        assert t1.foo.bed in t2._mentioned
+        assert t1.foo.bim not in t2._mentioned
+
+        assert t1.foo not in t1._mentioned
 
     def test_multiple_isolated_tasks(self):
         p = Pipeline()

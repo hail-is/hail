@@ -14,6 +14,7 @@ from .sparse_split_multi import sparse_split_multi
 from .function import define_function
 from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
+from .tidyr import gather, separate, spread
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -38,4 +39,6 @@ __all__ = ['ld_score',
            'define_function',
            'simulate_phenotypes',
            'full_outer_join_mt',
-]
+           'gather',
+           'separate',
+           'spread']

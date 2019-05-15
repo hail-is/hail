@@ -8,7 +8,7 @@ import gidgethub
 from .log import log
 from .constants import GITHUB_CLONE_URL
 from .environment import SELF_HOSTNAME
-from .utils import check_shell, check_shell_output, update_batch_status
+from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
@@ -341,7 +341,6 @@ mkdir -p {shq(repo_dir)}
             failed = None
             for b in batches:
                 s = await b.status()
-                update_batch_status(s)
                 if s['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
@@ -355,7 +354,6 @@ mkdir -p {shq(repo_dir)}
 
         if self.batch:
             status = await self.batch.status()
-            update_batch_status(status)
             if status['complete']:
                 if status['state'] == 'success':
                     self.build_state = 'success'
@@ -403,12 +401,12 @@ if [ ! -d .git ]; then
   git config user.name ci
 else
   git reset --merge
-  time git fetch origin
+  time git fetch -q origin
 fi
 
 git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
 
-time git fetch {shq(self.source_repo.short_str())}
+time git fetch -q {shq(self.source_repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''
@@ -567,8 +565,12 @@ class WatchedBranch(Code):
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
 
         if self.deploy_batch:
-            status = await self.deploy_batch.status()
-            update_batch_status(status)
+            try:
+                status = await self.deploy_batch.status()
+            except aiohttp.client_exceptions.ClientResponseError as exc:
+                log.info(f'Could not update deploy_batch status due to exception {exc}, setting deploy_batch to None')
+                self.deploy_batch = None
+                return
             if status['complete']:
                 if status['state'] == 'success':
                     self.deploy_state = 'success'
@@ -691,7 +693,7 @@ if [ ! -d .git ]; then
   git config user.name ci
 else
   git reset --merge
-  time git fetch origin
+  time git fetch -q origin
 fi
 
 git checkout {shq(self.sha)}

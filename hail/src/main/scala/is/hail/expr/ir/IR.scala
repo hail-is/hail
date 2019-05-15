@@ -218,9 +218,12 @@ final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
-final case class NDArrayReshape(nd: IR, shape: IndexedSeq[IR]) extends IR {
-  require(shape.nonEmpty)
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
+
+final case class NDArrayShape(nd: IR) extends IR
+
+final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
+  require(shape.typ.asInstanceOf[TTuple].size > 0)
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
@@ -238,6 +241,8 @@ final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: I
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
 final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
+
+final case class NDArrayMatMul(l: IR, r: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 

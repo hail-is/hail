@@ -48,7 +48,7 @@ object ForwardLets {
       def shouldForward(value: IR, refs: mutable.Set[RefEquality[Ref]], base: IR): Boolean = {
         value.isInstanceOf[Ref] ||
         value.isInstanceOf[In] ||
-          IsConstant(value) ||
+          (IsConstant(value) && !value.isInstanceOf[Str]) ||
           refs.isEmpty ||
           (refs.size == 1 &&
             nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&

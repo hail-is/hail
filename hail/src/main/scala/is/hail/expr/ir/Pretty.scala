@@ -186,7 +186,6 @@ object Pretty {
             case AggGroupBy(_, _, isScan) => prettyBooleanLiteral(isScan)
             case AggArrayPerElement(_, elementName, indexName, _, isScan) =>
               prettyIdentifier(elementName) + " " + prettyIdentifier(indexName) + " " + prettyBooleanLiteral(isScan)
-            case MakeNDArray(nDim, _, _, _) => nDim.toString
             case NDArrayMap(_, name, _) => prettyIdentifier(name)
             case NDArrayMap2(_, _, lName, rName, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case NDArrayReindex(_, indexExpr) => prettyInts(indexExpr)

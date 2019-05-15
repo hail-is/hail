@@ -11,10 +11,10 @@ but we recommend instead that you run them yourself with Jupyter.
     :maxdepth: 1
 
         GWAS Tutorial <tutorials/01-genome-wide-association-study.ipynb>
-        Expression Tutorial <tutorials/03-expressions.ipynb>
-        Table Tutorial <tutorials/05-tables.ipynb>
-        Aggregation Tutorial <tutorials/06-aggregation.ipynb>
-        Filtering and Annotation Tutorial <tutorials/07-filter-annotate.ipynb>
-        Table Joins Tutorial <tutorials/08-joins>
-        MatrixTable Tutorial <tutorials/09-matrixtable.ipynb>
-        Plotting Tutorial<tutorials/plotting.ipynb>
+        Expression Tutorial <tutorials/02-expressions.ipynb>
+        Table Tutorial <tutorials/03-tables.ipynb>
+        Aggregation Tutorial <tutorials/04-aggregation.ipynb>
+        Filtering and Annotation Tutorial <tutorials/05-filter-annotate.ipynb>
+        Table Joins Tutorial <tutorials/06-joins>
+        MatrixTable Tutorial <tutorials/07-matrixtable.ipynb>
+        Plotting Tutorial<tutorials/08-plotting.ipynb>

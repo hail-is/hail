@@ -166,27 +166,7 @@ class RVDPartitioner(
   def intersect(other: RVDPartitioner): RVDPartitioner = {
     require(kType isIsomorphicTo other.kType)
 
-    val scalaEOrd = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
-
-    val left = this.rangeBounds.iterator.buffered
-    val right = other.rangeBounds.iterator.buffered
-    val ab = new ArrayBuilder[Interval]()
-
-    while (left.hasNext && right.hasNext) {
-      val (leader, lagger) =
-        if (scalaEOrd.gt(left.head.left, right.head.left))
-          (left, right)
-        else
-          (right, left)
-      // leader.head.left >= lagger.head.left
-      if (scalaEOrd.lteq(lagger.head.right, leader.head.left))
-        lagger.next()
-      else if (scalaEOrd.lteq(lagger.head.right, leader.head.right))
-        ab += Interval(leader.head.left, lagger.next().right)
-      else
-        ab += leader.next()
-    }
-    new RVDPartitioner(kType, ab.result())
+    new RVDPartitioner(kType, Interval.intersection(this.rangeBounds, other.rangeBounds, kord.intervalEndpointOrdering))
   }
 
   def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(

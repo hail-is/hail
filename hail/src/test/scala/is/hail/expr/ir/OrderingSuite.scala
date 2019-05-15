@@ -128,7 +128,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testToSetOnRandomDuplicatedArray() {
+  def testToSetOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -144,7 +144,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testToDictOnRandomDuplicatedArray() {
+  def testToDictOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       kt <- Type.genArb
@@ -158,7 +158,7 @@ class OrderingSuite extends SparkSuite {
       val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       assertEvalsTo(
         ArrayMap(ToArray(ToDict(In(0, TArray(telt)))),
-        "x", GetField(Ref("x", tdict.elementType), "key")),
+        "x", GetField(Ref("x", -tdict.elementType), "key")),
         FastIndexedSeq(array -> TArray(telt)),
         expected = expectedMap.keys.toFastIndexedSeq.sorted(telt.types(0).ordering.toOrdering))
       true
@@ -197,7 +197,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testDictGetOnRandomDict() {
+  def testDictGetOnRandomDict() {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
@@ -223,7 +223,7 @@ class OrderingSuite extends SparkSuite {
     p.check()
   }
 
-  @Test def testBinarySearchOnSet() {
+  def testBinarySearchOnSet() {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]

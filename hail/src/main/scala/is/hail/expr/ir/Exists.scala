@@ -15,9 +15,9 @@ object Exists {
       true
     else
       node.children.exists {
-        case child: IR => inIR(child, visitor)
         case child: TableAggregate => visitor(child)
         case child: MatrixAggregate => visitor(child)
+        case child: IR => inIR(child, visitor)
         case _ => false
       }
   }

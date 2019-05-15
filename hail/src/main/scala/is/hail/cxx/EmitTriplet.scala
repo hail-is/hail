@@ -95,14 +95,15 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 }
 
 object NDArrayLoopEmitter {
-  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
-    idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
-        s"($idxVar * $strides[$dim] + $linearIndex)"
-    }
+  def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
+    val index = linearizeIndices(idxs, s"$nd.strides")
+    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
   }
 
-  def loadElement(nd: Variable, index: Code, elemType: PType): Code = {
-    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
+  private def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+    idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
+      s"($idxVar * $strides[$dim] + $linearIndex)"
+    }
   }
 }
 

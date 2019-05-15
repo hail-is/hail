@@ -205,8 +205,14 @@ object Simplify {
     case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayFlatMap(a, n1, Let(n2, b1, b2))
 
+    case ArrayMap(a, elt, r: Ref) if r.name == elt => a
+
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))
+
+    case NDArrayShape(MakeNDArray(_, shape, _)) => shape
+
+    case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
       val (_, x) = fields.find { case (n, _) => n == name }.get
@@ -351,6 +357,9 @@ object Simplify {
     case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
     case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
     case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
+
+    case ApplyUnaryPrimOp(Bang(), ApplyComparisonOp(op, l, r)) =>
+      ApplyComparisonOp(ComparisonOp.invert(op.asInstanceOf[ComparisonOp[Boolean]]), l, r)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
@@ -453,12 +462,6 @@ object Simplify {
       TableMapRows(
         mct,
         Subst(newRow, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
-
-    case MatrixColsTable(MatrixFilterCols(child, pred)) =>
-      val mct = MatrixColsTable(child)
-      TableFilter(
-        mct,
-        Subst(pred, BindingEnv(Env("sa" -> Ref("row", mct.typ.rowType)))))
 
     case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
