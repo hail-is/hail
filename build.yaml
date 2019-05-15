@@ -158,7 +158,7 @@ steps:
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
      - from: /io/repo/pipeline/test/resources
-       to: /pipeline/test/resources/
+       to: /pipeline/test/
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -529,6 +529,22 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: runImage
+   name: setup_pipeline
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+   outputs:
+     - from: /io/repo/pipeline/test/resources
+       to: /pipeline/test/
+   dependsOn:
+    - base_image
  - kind: deploy
    name: test_pipeline
    namespace:
@@ -544,6 +560,10 @@ steps:
     - batch_pods_ns
     - deploy_batch
     - test_pipeline_image
+    - setup_pipeline
+   inputs:
+    - from: /pipeline/test/
+      to: /io/pipeline/test/
  - kind: deploy
    name: deploy_apiserver
    namespace:
