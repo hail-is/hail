@@ -34,6 +34,8 @@ steps:
     # hail|test-batch
     - user-jwt-vkqfw
     - gsa-key-2x975
+    # pipeline|test-user
+    - pipeline-test-0-1--hail-is-service-account-key
    dependsOn:
     - default_ns
     - deploy_batch_sa
@@ -92,6 +94,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: test_pipeline_image
+   dockerFile: pipeline/Dockerfile.test
+   contextPath: .
+   publishAs: test-pipeline
+   dependsOn:
+     - base_image
+ - kind: buildImage
    name: image_fetcher_image
    dockerFile: image-fetcher/Dockerfile
    contextPath: image-fetcher
@@ -122,7 +131,7 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd hail
-     ./gradlew shadowJar
+     make jars
      (cd python && zip -r hail.zip hail)
      tar czf test.tar.gz -C python test
      tar czf resources.tar.gz -C src/test resources
@@ -130,8 +139,14 @@ steps:
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
    outputs:
-     - from: /io/repo/hail/build/libs/hail-all-spark.jar
-       to: /hail-all-spark.jar
+     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+       to: /hail.jar
+     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
+       to: /hail-test.jar
+     - from: /io/repo/hail/testng.xml
+       to: /testng.xml
+     - from: /io/repo/hail/testng-cpp-codegen.xml
+       to: /testng-cpp-codegen.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
@@ -146,6 +161,33 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: runImage
+   name: test_hail_java
+   image:
+     valueFrom: hail_run_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     export HAIL_TEST_SKIP_R=1
+     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
+     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng.xml
+      to: /io/testng.xml
+    - from: /testng-cpp-codegen.xml
+      to: /io/testng-cpp-codegen.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
  - kind: buildImage
    name: hail_base_image
    dockerFile: apiserver/Dockerfile.hail-base
@@ -155,8 +197,8 @@ steps:
     - hail_run_image
     - build_hail
    inputs:
-    - from: /hail-all-spark.jar
-      to: /hail-all-spark.jar
+    - from: /hail.jar
+      to: /hail.jar
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
@@ -221,12 +263,12 @@ steps:
      tar xzf data.tar.gz
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail-all-spark.jar --conf spark.executor.extraClassPath=./hail-all-spark.jar pyspark-shell"
+     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
      python3 -m pytest test
    inputs:
-     - from: /hail-all-spark.jar
-       to: /io/hail-all-spark.jar
+     - from: /hail.jar
+       to: /io/hail.jar
      - from: /hail.zip
        to: /io/hail.zip
      - from: /test.tar.gz
@@ -264,7 +306,7 @@ steps:
      gcloud config set project broad-ctsa
      SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
      time gsutil cp \
-       /io/hail-all-spark.jar \
+       /io/hail.jar \
        $SCRATCH/hail.jar
      time gsutil cp \
        /io/hail.zip \
@@ -297,8 +339,8 @@ steps:
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
-    - from: /hail-all-spark.jar
-      to: /io/hail-all-spark.jar
+    - from: /hail.jar
+      to: /io/hail.jar
     - from: /cluster-tests.tar.gz
       to: /io/cluster-tests.tar.gz
    dependsOn:
@@ -481,13 +523,28 @@ steps:
     - kind: Pod
       name: test-batch
       for: completed
-      timeout: 480
+      timeout: 900
    dependsOn:
     - default_ns
     - batch_pods_ns
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: deploy
+   name: test_pipeline
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: pipeline/test-pipeline-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-pipeline
+      for: completed
+      timeout: 900
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - test_pipeline_image
  - kind: deploy
    name: deploy_apiserver
    namespace:

@@ -2,6 +2,24 @@
   <head>
     <title>CI</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <style>
+      #statuses {
+        border-collapse: collapse;
+      }
+      #statuses td, #statuses th {
+        border: 1px solid #ddd;
+        padding: 8px;
+      }
+      #statuses tr:nth-child(even){background-color: #f2f2f2;}
+      #statuses tr:hover {background-color: #ddd;}
+      #statuses th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #2A388F;
+        color: white;
+      }
+    </style>
   </head>
   <body>
     <h1>CI</h1>
@@ -28,7 +46,7 @@
     <h3>PRs</h3>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
-    <table>
+    <table id="statuses">
       <thead>
         <tr>
           <th align="left">Number</th>

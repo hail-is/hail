@@ -49,10 +49,12 @@ object Children {
       Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
-    case MakeNDArray(_, data, shape, rowMajor) =>
+    case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
+    case NDArrayShape(nd) =>
+      Array(nd)
     case NDArrayReshape(nd, shape) =>
-      nd +: shape
+      Array(nd, shape)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
@@ -95,6 +97,8 @@ object Children {
       Array(nd)
     case NDArrayAgg(nd, _) =>
       Array(nd)
+    case NDArrayMatMul(l, r) =>
+      Array(l, r)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>

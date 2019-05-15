@@ -112,7 +112,6 @@ class TabixSuite extends SparkSuite {
       var test = false
       while (htsStr != null) {
         val hailStr = hailIter.next()
-        println(s"hail   : $hailStr")
         if (test) {
           assert(hailStr == htsStr, s"\nhail   : $hailStr\nhtsjdk : $htsStr")
           htsStr = htsIter.next()

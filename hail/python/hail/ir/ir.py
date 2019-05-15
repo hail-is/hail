@@ -473,42 +473,53 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(ndim=int, data=IR, shape=IR, row_major=IR)
-    def __init__(self, ndim, data, shape, row_major):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
         super().__init__(data, shape, row_major)
-        self.ndim = ndim
         self.data = data
         self.shape = shape
         self.row_major = row_major
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        return MakeNDArray(self.ndim, data, shape, row_major)
-
-    def head_str(self):
-        return f'{self.ndim}'
+        return MakeNDArray(data, shape, row_major)
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
         self.shape._compute_type(env, agg_env)
         self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type, self.ndim)
+        self._type = tndarray(self.data.typ.element_type, len(self.shape.typ))
 
 
-class NDArrayReshape(IR):
-    @typecheck_method(nd=IR, shape=sequenceof(IR))
-    def __init__(self, nd, shape):
-        super().__init__(nd, *shape)
+class NDArrayShape(IR):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
+        super().__init__(nd)
         self.nd = nd
-        self.shape = shape
 
-    def copy(self, *args):
-        return NDArrayReshape(args[0], args[1:])
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayShape(nd)
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        [dim_length._compute_type(env, agg_env) for dim_length in self.shape]
-        self._type = tndarray(self.nd.typ.element_type, len(self.shape))
+        self._type = ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
+
+
+class NDArrayReshape(IR):
+    @typecheck_method(nd=IR, shape=IR)
+    def __init__(self, nd, shape):
+        super().__init__(nd, shape)
+        self.nd = nd
+        self.shape = shape
+
+    def copy(self, nd, shape):
+        return NDArrayReshape(nd, shape)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
 class NDArrayMap(IR):
@@ -600,6 +611,26 @@ class NDArrayAgg(IR):
         assert all([axis < self.nd.typ.ndim for axis in self.axes])
 
         self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
+
+
+class NDArrayMatMul(IR):
+    @typecheck_method(l=IR, r=IR)
+    def __init__(self, l, r):
+        super().__init__(l, r)
+        self.l = l
+        self.r = r
+
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        return NDArrayMatMul(l, r)
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
+        from hail.expr.expressions import unify_types
+        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
 
 
 class NDArrayWrite(IR):

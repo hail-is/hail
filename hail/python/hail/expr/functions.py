@@ -3693,11 +3693,11 @@ def _ndarray(collection, row_major=True):
         shape = []
         data = hl.array([collection])
 
-    shape_expr = to_expr(shape, ir.tarray(ir.tint64))
+    shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
     data_expr = hl.array(data)
 
-    ndir = ir.MakeNDArray(builtins.len(shape), data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
-    return construct_expr(ndir, ndir.typ)
+    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)

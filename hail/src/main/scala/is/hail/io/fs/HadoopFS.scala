@@ -270,6 +270,9 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
 
     val filesToMerge = headerFileStatus ++ sortedPartFileStatuses
 
+    info(s"merging ${ filesToMerge.length } files totalling " +
+      s"${ readableBytes(sortedPartFileStatuses.map(_.getLen).sum) }...")
+
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
     }

@@ -1024,6 +1024,38 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(d.get('missing_values', hl.null(hl.tint32))), None)
         self.assertEqual(hl.eval(d.get('missing_values', 5)), 5)
 
+    def test_functions_any_and_all(self):
+        x1 = hl.literal([], dtype='array<bool>')
+        x2 = hl.literal([True], dtype='array<bool>')
+        x3 = hl.literal([False], dtype='array<bool>')
+        x4 = hl.literal([None], dtype='array<bool>')
+        x5 = hl.literal([True, False], dtype='array<bool>')
+        x6 = hl.literal([True, None], dtype='array<bool>')
+        x7 = hl.literal([False, None], dtype='array<bool>')
+        x8 = hl.literal([True, False, None], dtype='array<bool>')
+
+        assert hl.eval(
+            (
+                (x1.any(lambda x: x), x1.all(lambda x: x)),
+                (x2.any(lambda x: x), x2.all(lambda x: x)),
+                (x3.any(lambda x: x), x3.all(lambda x: x)),
+                (x4.any(lambda x: x), x4.all(lambda x: x)),
+                (x5.any(lambda x: x), x5.all(lambda x: x)),
+                (x6.any(lambda x: x), x6.all(lambda x: x)),
+                (x7.any(lambda x: x), x7.all(lambda x: x)),
+                (x8.any(lambda x: x), x8.all(lambda x: x)),
+            )
+        ) == (
+                   (False, True),
+                   (True, True),
+                   (False, False),
+                   (None, None),
+                   (True, False),
+                   (True, None),
+                   (None, False),
+                   (True, False)
+               )
+
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
@@ -2634,8 +2666,8 @@ class Tests(unittest.TestCase):
         np_scalar = np.array(scalar)
         h_scalar = hl._ndarray(scalar)
         h_np_scalar = hl._ndarray(np_scalar)
-        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
-        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
+        self.assert_evals_to(h_scalar[()], 5.0)
+        self.assert_evals_to(h_np_scalar[()], 5.0)
 
         cube = [[[0, 1],
                  [2, 3]],
@@ -2643,10 +2675,10 @@ class Tests(unittest.TestCase):
                  [6, 7]]]
         h_cube = hl._ndarray(cube)
         h_np_cube = hl._ndarray(np.array(cube))
-        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
-        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+        self.assert_evals_to(h_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_cube[1, 1, 0], 6)
+        self.assert_evals_to(h_np_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_np_cube[1, 1, 0], 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2655,6 +2687,27 @@ class Tests(unittest.TestCase):
 
     def ndarray_almost_eq(self, expr, expected):
         self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_shape(self):
+        np_e = np.array(3)
+        np_row = np.array([1, 2, 3])
+        np_col = np.array([[1], [2], [3]])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_nd = np.arange(30).reshape((2, 5, 3))
+
+        e = hl._ndarray(np_e)
+        row = hl._ndarray(np_row)
+        col = hl._ndarray(np_col)
+        m = hl._ndarray(np_m)
+        nd = hl._ndarray(np_nd)
+        self.assert_evals_to(e.shape, np_e.shape)
+        self.assert_evals_to(row.shape, np_row.shape)
+        self.assert_evals_to(m.shape, np_m.shape)
+        self.assert_evals_to(nd.shape, np_nd.shape)
+        self.assert_evals_to((row + nd).shape, (np_row + np_nd).shape)
+        self.assert_evals_to((row + col).shape, (np_row + np_col).shape)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2836,3 +2889,63 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(ValueError, lambda: v.transpose((1,)))
         self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_matmul(self):
+        np_v = np.array([1, 2])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_cube = np.array([[[1, 2],
+                             [3, 4]],
+                            [[5, 6],
+                             [7, 8]]])
+        np_rect_prism = np.array([[[1, 2],
+                                   [3, 4]],
+                                  [[5, 6],
+                                   [7, 8]],
+                                  [[9, 10],
+                                   [11, 12]]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        cube = hl._ndarray(np_cube)
+        rect_prism = hl._ndarray(np_rect_prism)
+
+        self.assertEqual(hl.eval(v @ v), np_v @ np_v)
+        self.ndarray_eq(m @ m, np_m @ np_m)
+        self.ndarray_eq(m @ m.T, np_m @ np_m.T)
+        self.ndarray_eq(v @ m, np_v @ np_m)
+        self.ndarray_eq(m @ v, np_m @ np_v)
+        self.ndarray_eq(cube @ cube, np_cube @ np_cube)
+        self.ndarray_eq(cube @ v, np_cube @ np_v)
+        self.ndarray_eq(v @ cube, np_v @ np_cube)
+        self.ndarray_eq(cube @ m, np_cube @ np_m)
+        self.ndarray_eq(m @ cube, np_m @ np_cube)
+        self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
+        self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
+        self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        self.assertRaises(ValueError, lambda: m @ 5)
+        self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
+        self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
+
+    def test_collection_getitem(self):
+        collection_types = [(hl.array, list), (hl.set, frozenset)]
+        for (htyp, pytyp) in collection_types:
+            x = htyp([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
+            assert hl.eval(x.a) == pytyp(['foo', 'bar'])
+
+        a = hl.array([hl.struct(b=[hl.struct(inner=1),
+                                   hl.struct(inner=2)]),
+                      hl.struct(b=[hl.struct(inner=3)])])
+        assert hl.eval(a.b) == [[hl.Struct(inner=1), hl.Struct(inner=2)],
+                                [hl.Struct(inner=3)]]
+        assert hl.eval(hl.flatten(a.b).inner) == [1, 2, 3]
+        assert hl.eval(a.b.inner) == [[1, 2], [3]]
+        assert hl.eval(a["b"].inner) == [[1, 2], [3]]
+        assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
+        assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
+
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])

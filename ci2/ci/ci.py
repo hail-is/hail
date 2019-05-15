@@ -16,7 +16,6 @@ import batch
 from .log import log
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch
-from .utils import update_batch_status
 
 with open(os.environ.get('HAIL_CI2_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -109,11 +108,7 @@ async def get_pr(request):
             'pr': pr_number
         })
     batches = sorted(batches, key=lambda b: b.id, reverse=True)
-    # FIXME performance
-    statuses = [await b.status() for b in batches]
-    for status in statuses:
-        update_batch_status(status)
-    config['history'] = statuses
+    config['history'] = [await b.status() for b in batches]
 
     return config
 
@@ -124,8 +119,6 @@ async def get_batches(request):
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches()
     statuses = [await b.status() for b in batches]
-    for status in statuses:
-        update_batch_status(status)
     return {
         'batches': statuses
     }

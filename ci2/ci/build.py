@@ -608,7 +608,8 @@ echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
                     # FIXME what if the cluster isn't big enough?
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name}
+kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
+  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
 set -e
@@ -620,7 +621,8 @@ set -e
                     timeout = w.get('timeout', 60)
                     script += f'''
 set +e
-kubectl -n {self.namespace} wait --timeout=1h deployment --for=condition=available {name} && \
+kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
+  kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
   python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
 kubectl -n {self.namespace} logs -l app={name}
@@ -658,8 +660,26 @@ date
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):
-        # namespace cleanup will handle deployments
-        pass
+        if self.wait:
+            script = ''
+            for w in self.wait:
+                name = w['name']
+                if w['kind'] == 'Deployment':
+                    script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+                elif w['kind'] == 'Service':
+                    assert w['for'] == 'alive', w['for']
+                    script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+                else:
+                    assert w['kind'] == 'Pod', w['kind']
+                    script += f'kubectl -n {self.namespace} logs {name}\n'
+            script += 'date\n'
+            self.job = await batch.create_job(CI_UTILS_IMAGE,
+                                              command=['bash', '-c', script],
+                                              attributes={'name': self.name + '_logs'},
+                                              # FIXME configuration
+                                              service_account_name='ci2-agent',
+                                              parent_ids=[sink.id],
+                                              always_run=True)
 
 
 class CreateDatabaseStep(Step):

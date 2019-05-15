@@ -593,6 +593,9 @@ class Expression(object):
         return self._compare_op("!=", other)
 
     def _to_table(self, name):
+        return self._to_relational(name, force_table=True)
+
+    def _to_relational(self, name, force_table=False):
         source = self._indices.source
         axes = self._indices.axes
         if not self._aggregations.empty():
@@ -650,15 +653,17 @@ class Expression(object):
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self}).select_rows().select_cols()
-            to_return = source.key_cols_by().entries().select_globals()
+            if force_table:
+                to_return = source.key_cols_by().entries().select_globals()
+            else:
+                to_return = source.select_globals()
         assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
                                                     f'  Actual:    {self.dtype}\n' \
                                                     f'  Should be: {to_return[name].dtype}'
         return to_return
 
-
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
-    def show(self, n=10, width=90, truncate=None, types=True, handler=print):
+    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=nullable(anyfunc))
+    def show(self, n=10, width=90, truncate=None, types=True, handler=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -701,33 +706,34 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
-        handler(self._show(n, width, truncate, types))
+        self._to_relational_preserving_rows_and_cols().show(
+            n_rows=n, width=width, truncate=truncate, types=types, handler=handler)
 
-    def _show(self, n, width, truncate, types):
+    def _to_relational_preserving_rows_and_cols(self):
         name = '<expr>'
         source = self._indices.source
         if isinstance(source, hl.Table):
             if self is source.row:
-                return source._show(n, width, truncate, types)
+                return source
             elif self is source.key:
-                return source.select()._show(n, width, truncate, types)
+                return source.select()
         elif isinstance(source, hl.MatrixTable):
             if self is source.row:
-                return source.rows()._show(n, width, truncate, types)
+                return source.rows()
             elif self is source.row_key:
-                return source.rows().select()._show(n, width, truncate, types)
+                return source.rows().select()
             if self is source.col:
-                return source.cols()._show(n, width, truncate, types)
+                return source.cols()
             elif self is source.col_key:
-                return source.cols().select()._show(n, width, truncate, types)
+                return source.cols().select()
             if self is source.entry:
-                return source.select_rows().select_cols().entries()._show(n, width, truncate, types)
+                return source.select_rows().select_cols()
         if source is not None:
             name = source._fields_inverse.get(self, name)
-        t = self._to_table(name)
-        if name in t.key:
-            t = t.order_by(*t.key).select(name)
-        return t._show(n, width, truncate, types)
+        x = self._to_relational(name)
+        if isinstance(x, hl.Table) and name in x.key:
+            return x.order_by(*x.key).select(name)
+        return x
 
 
     @typecheck_method(n=int, _localize=bool)
