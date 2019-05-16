@@ -34,7 +34,7 @@ python/hail/hail_pip_version:
 	echo $(HAIL_PIP_VERSION) > python/hail/hail_pip_version
 
 jars: build-info
-	make -C src/main/c
+	make -C src/main/c/ prebuilt all
 	mvn -B compile test-compile jar:jar jar:test-jar assembly:single
 
 clean:
