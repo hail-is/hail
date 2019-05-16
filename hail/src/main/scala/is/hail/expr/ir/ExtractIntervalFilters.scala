@@ -112,6 +112,18 @@ object ExtractIntervalFilters {
           case (None, None) =>
             None
         }
+      case ArrayFold(Literal(t, lit), False(), acc, value, body) =>
+        body match {
+          case ApplySpecial("||", Seq(Ref(`acc`, _), ApplySpecial("contains", Seq(Ref(`value`, _), `k`)))) =>
+            assert(t.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
+            Some((True(),
+              Interval.union(lit.asInstanceOf[Iterable[_]]
+                .filter(_ != null)
+                .map(_.asInstanceOf[Interval])
+                .toArray,
+                k.typ.ordering.intervalEndpointOrdering)))
+          case _ => None
+        }
       case Coalesce(Seq(x, False())) => extractAndRewrite(x, ref, k)
         .map { case (ir, intervals) => (Coalesce(FastSeq(ir, False())), intervals) }
       case ApplyIR("contains", Seq(lit: Literal, `k`)) =>
