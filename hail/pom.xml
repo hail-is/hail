@@ -180,6 +180,12 @@
           <args>
             <arg>-feature</arg>
             <arg>-Xno-patmat-analysis</arg>
+            <arg>-Xfatal-warnings</arg>
+            <arg>-Xlint:_</arg>
+            <arg>-deprecation</arg>
+            <arg>-unchecked</arg>
+            <arg>-Xlint:-infer-any</arg>
+            <arg>-Xlint:-unsound-match</arg>
           </args>
           <jvmArgs>
             <jvmArg>-Xms512M</jvmArg>
