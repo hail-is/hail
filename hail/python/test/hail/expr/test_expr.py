@@ -2949,3 +2949,9 @@ class Tests(unittest.TestCase):
         self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
+
+    def test_binary_search(self):
+        a = hl.array([0, 2, 4, 8])
+        values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
+        expected = [0, 0, 1, 1, 2, 2, 4, None]
+        assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected

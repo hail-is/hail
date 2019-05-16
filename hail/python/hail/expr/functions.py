@@ -4832,6 +4832,51 @@ def bit_not(x):
     return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
+@typecheck(array=expr_array(expr_numeric), elem=expr_numeric)
+def binary_search(array, elem) -> Int32Expression:
+    """Binary search `array` for the insertion point of `elem`.
+
+    Parameters
+    ----------
+    array : :class:`.Expression` of type :class:`.tarray`
+    elem : :class:`.Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+
+    Notes
+    -----
+    This function assumes that `array` is sorted in ascending order, and does
+    not perform any sortedness check.
+
+    The returned index is the lower bound on the insertion point of `elem` into
+    the ordered array, or the index of the first element in `array` not smaller
+    than `elem`. This is a value between 0 and the length of `array`, inclusive
+    (if all elements in `array` are smaller than `elem`, the returned value is
+    the length of `array`).
+
+    Examples
+    --------
+
+    >>> a = hl.array([0, 2, 4, 8])
+
+    >>> hl.eval(hl.binary_search(a, -1))
+    0
+
+    >>> hl.eval(hl.binary_search(a, 1))
+    1
+
+    >>> hl.eval(hl.binary_search(a, 10))
+    4
+
+    """
+    c = coercer_from_dtype(array.dtype.element_type)
+    if not c.can_coerce(elem.dtype):
+        raise TypeError(f"'binary_search': cannot search an array of type {array.dtype} for a value of type {elem.dtype}")
+    elem = c.coerce(elem)
+    return hl.switch(elem).when_missing(hl.null(hl.tint32)).default(_lower_bound(array, elem))
+
 @typecheck(s=expr_str)
 def _escape_string(s):
     return _func("escapeString", hl.tstr, s)
