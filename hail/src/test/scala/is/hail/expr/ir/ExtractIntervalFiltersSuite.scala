@@ -190,6 +190,28 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     }
   }
 
+  @Test def testIntervalListFold() {
+    val inIntervals = FastIndexedSeq(
+      Interval(IntervalEndpoint(0, -1), IntervalEndpoint(10, -1)),
+      null,
+      Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1)),
+      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(5, -1))
+    )
+
+    val ir = ArrayFold(
+      Literal(TArray(TInterval(TInt32())), inIntervals),
+      False(),
+      "acc",
+      "elt",
+      invoke("||", Ref("acc", TBoolean()), invoke("contains", Ref("elt", TInterval(TInt32())), k1))
+    )
+    val (rw, intervals) = ExtractIntervalFilters.extractAndRewrite(ir, ref1, k1).get
+    assert(rw == True())
+    assert(intervals.toSeq == FastSeq(
+      Interval(IntervalEndpoint(-10, -1), IntervalEndpoint(10, -1)),
+      Interval(IntervalEndpoint(20, -1), IntervalEndpoint(25, -1))))
+  }
+
   @Test def testDisjunction() {
     val ir1 = ApplyComparisonOp(GT(TInt32()), k1, I32(0))
     val ir2 = ApplyComparisonOp(GT(TInt32()), k1, I32(10))
