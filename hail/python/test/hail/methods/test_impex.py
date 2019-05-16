@@ -1215,8 +1215,8 @@ class LocusIntervalTests(unittest.TestCase):
         t = hl.import_locus_intervals(interval_file,
                                       reference_genome='GRCh37',
                                       skip_invalid_intervals=True,
-                                      min_partitions=10)
-        assert t.n_partitions() == 10
+                                      filter=r'target_\d\d')
+        assert t.count() == 9
 
 
 class ImportMatrixTableTests(unittest.TestCase):
