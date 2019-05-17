@@ -327,7 +327,6 @@ steps:
        --hash {{ code.sha }} \
        --jar $SCRATCH/hail.jar \
        --zip $SCRATCH/hail.zip \
-       --vep
      for SCRIPT in python/cluster-tests/*.py; do
        time cluster submit $CLUSTER $SCRIPT
      done
