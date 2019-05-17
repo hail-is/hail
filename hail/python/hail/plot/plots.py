@@ -1,6 +1,7 @@
 import warnings
 from math import log, isnan, log10
 
+import collections
 import numpy as np
 import pandas as pd
 import bokeh
@@ -644,7 +645,7 @@ def _get_scatter_plot_elements(
 
     else:
         all_renderers = []
-        legend_items = {col: DefaultDict(list) for col in factor_cols}
+        legend_items = {col: collections.defaultdict(list) for col in factor_cols}
         for key in source_pd.groupby(factor_cols).groups.keys():
             key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(source=cds, filters=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
