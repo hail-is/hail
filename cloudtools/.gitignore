@@ -1,7 +1,0 @@
-.DS_Store
-*.pyc
-dist/
-build/
-*.egg-info/
-test.py
-*~
