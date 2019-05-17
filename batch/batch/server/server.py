@@ -460,7 +460,8 @@ class Job:
         if self.is_complete():
             return
         if self._state == 'Created':
-            await self.set_state('Cancelled')
+            if not self.always_run:
+                await self.set_state('Cancelled')
         else:
             assert self._state == 'Ready', self._state
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
