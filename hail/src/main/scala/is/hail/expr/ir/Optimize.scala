@@ -16,9 +16,9 @@ object Optimize {
     while (iter < maxIter && ir != last) {
       last = ir
       ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
+      ir = ExtractIntervalFilters(ir)
       ir = Simplify(ir)
       ir = ForwardLets(ir)
-      ir = ExtractIntervalFilters(ir)
       ir = ForwardRelationalLets(ir)
       ir = PruneDeadFields(ir)
 

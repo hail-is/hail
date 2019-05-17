@@ -1013,11 +1013,41 @@ class AggregatorsSuite extends SparkSuite {
             None,
             FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
             AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          None,
           false
         )
       )
     }
 
     assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
+  }
+
+  @Test def testArrayElementsAggregatorEmpty(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
+      hc
+      val ht = TableRange(10, 3)
+        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
+        .mapGlobals('global.insertFields('m -> m))
+        .filter(false)
+
+      TableAggregate(
+        ht,
+        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt", "_'",
+          ApplyAggOp(
+            FastIndexedSeq(),
+            None,
+            FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
+            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          knownLength,
+          false
+        )
+      )
+    }
+
+    assertEvalsTo(getAgg(10, 10, None), null)
+    assertEvalsTo(getAgg(10, 10, Some(1)), FastIndexedSeq(0L))
+    assertEvalsTo(getAgg(10, 10, Some(GetField(Ref("global", TStruct("m" -> TInt32())), "m"))), Array.fill(10)(0L).toFastIndexedSeq)
   }
 }

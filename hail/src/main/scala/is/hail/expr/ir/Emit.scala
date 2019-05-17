@@ -797,15 +797,30 @@ private class Emit(
               Code._empty)
 
           case AggElementsLengthCheck() =>
-            val newRVAs = Code.checkcast[ArrayElementsAggregator]((rvas.get)(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
+            val newRVAs = Code.checkcast[ArrayElementsAggregator](rvas.get.apply(codeI.value[Int]))
+              .invoke[Array[RegionValueAggregator]]("rvAggs")
+
+            val knownLengthCode = if (args.length == 1)
+              Code._empty
+            else {
+              assert(args.length == 2)
+              val kl = emit(args(1))
+              Code(kl.setup,
+                kl.m.mux(
+                  Code._fatal(s"known length for AggArrayPerElement cannot be missing"),
+                  Code.checkcast[ArrayElementsAggregator](rvas.get.apply(codeI.value[Int]))
+                    .invoke[Int, Unit]("broadcast", coerce[Int](kl.v))))
+            }
             val init = emit(args(0), rvas = Some(newRVAs))
             EmitTriplet(Code(
               codeI.setup,
               codeI.m.mux[Unit](
                 Code._empty,
-                init.setup)),
+                Code(init.setup, knownLengthCode)
+              )),
               const(false),
-              Code._empty)
+              Code._empty
+            )
 
           case _ =>
             val nArgs = args.length

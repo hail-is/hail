@@ -684,6 +684,7 @@ class PruneSuite extends SparkSuite {
       "bar",
       ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
         AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      None,
       false),
       TArray(TArray(TStruct("a" -> TInt32()))),
       Array(TArray(TStruct("a" -> TInt32())),
