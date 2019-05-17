@@ -234,6 +234,7 @@ final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)

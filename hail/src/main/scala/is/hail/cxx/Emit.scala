@@ -917,7 +917,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
@@ -1492,6 +1492,76 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                | }
                |
                | ${ bodyt.v };
+               |})
+             """.stripMargin
+          }
+        }
+
+      case ir.NDArraySlice(ndIR, slicesIR) =>
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+        val slicest = emit(resultRegion, slicesIR, env)
+        val slicesTup = fb.variable("slices_tuple", "const char *", slicest.v)
+        val slicesPType = slicesIR.pType.asInstanceOf[PTuple]
+        val slicePType = PTuple(IndexedSeq(PInt64(), PInt64(), PInt64()))
+
+        val slicesMissing = Seq.tabulate(slicesPType.size) { slicesPType.cxxIsFieldMissing(slicesTup.toString, _) }
+        val sliceVars = mutable.Map[Int, (Variable, Variable, Variable)]()
+        val refVars = mutable.Map[Int, Variable]()
+        coerce[TTuple](slicesIR.typ).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
+          val slice = slicesPType.cxxLoadField(slicesTup.toString, dim)
+          sliceOrIndex match {
+            case _: TTuple =>
+              val startVar = fb.variable(s"start_$dim", "int", slicePType.cxxLoadField(slice, 0))
+              val stopVar  = fb.variable(s"stop_$dim",  "int", slicePType.cxxLoadField(slice, 1))
+              val stepVar  = fb.variable(s"step_$dim",  "int", slicePType.cxxLoadField(slice, 2))
+
+              sliceVars += dim -> ((startVar, stopVar, stepVar))
+            case _: TInt64 =>
+              val idx = fb.variable(s"ref_$dim", "int", slice)
+              refVars += dim -> idx
+          }
+        }
+
+        val defineSliceVars = sliceVars.values.map { case (start, stop, step) =>
+          Code(start.define, stop.define, step.define)
+        }
+        val newShapeSeq = sliceVars.values.map { case (start, stop, step) => s"(($stop - $start) / $step)" }
+        val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
+        val setup =
+          s"""
+             | ${ childEmitter.setup }
+             | ${ slicest.setup }
+             | ${ slicesTup.define }
+             | ${ Code.sequence(defineSliceVars.toSeq) }
+             | ${ Code.sequence(refVars.values.map(_.define).toSeq) }
+             | ${ shape.define }
+           """.stripMargin
+
+        new NDArrayLoopEmitter(fb, resultRegion, childEmitter.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val newLoopVarsToDefine = mutable.ArrayBuffer[Variable]()
+            newLoopVarsToDefine.sizeHint(sliceVars.values.size)
+
+            val oldIdxVarsIter = idxVars.iterator
+            val sliceIdxVars = IndexedSeq.tabulate(childEmitter.nDims) { dim =>
+              if (refVars.contains(dim)) {
+                refVars(dim)
+              } else {
+                assert(sliceVars.contains(dim))
+                assert(oldIdxVarsIter.hasNext)
+
+                val (start, _, step) = sliceVars(dim)
+                val oldIdxVar = oldIdxVarsIter.next()
+                val shiftedIdx = fb.variable("slice_idx", "int", s"($start + ($oldIdxVar * $step))")
+                newLoopVarsToDefine += shiftedIdx
+                shiftedIdx
+              }
+            }
+
+            s"""
+               |({
+               |  ${ Code.sequence(newLoopVarsToDefine.map(_.define)) }
+               |  ${ childEmitter.outputElement(sliceIdxVars) };
                |})
              """.stripMargin
           }

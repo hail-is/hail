@@ -7,6 +7,7 @@ object Interpretable {
            _: NDArrayShape |
            _: NDArrayReshape |
            _: NDArrayRef |
+           _: NDArraySlice |
            _: NDArrayMap |
            _: NDArrayMap2 |
            _: NDArrayReindex |

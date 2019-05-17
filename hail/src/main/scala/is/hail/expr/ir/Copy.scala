@@ -76,6 +76,9 @@ object Copy {
       case NDArrayRef(_, _) =>
         val (nd: IR) +: (idxs: IndexedSeq[_]) = newChildren
         NDArrayRef(nd, idxs.asInstanceOf[IndexedSeq[IR]])
+      case NDArraySlice(_, _) =>
+        val IndexedSeq(nd: IR, slices: IR) = newChildren
+        NDArraySlice(nd, slices)
       case NDArrayMap(_, name, _) =>
         val IndexedSeq(nd: IR, body: IR) = newChildren
         NDArrayMap(nd, name, body)

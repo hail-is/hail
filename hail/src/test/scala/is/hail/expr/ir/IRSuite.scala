@@ -1118,6 +1118,15 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
+  @Test def testNDArraySlice() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple(Seq(MakeTuple(Seq(I64(0), I64(2), I64(1))), I64(1))))
+    assertEvalsTo(NDArrayShape(rightCol), Row(2L))
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(1)), 4.0)
+  }
+
   @Test def testNDArrayWrite() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
