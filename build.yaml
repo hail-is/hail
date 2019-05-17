@@ -326,7 +326,7 @@ steps:
        --config-file config.json \
        --hash {{ code.sha }} \
        --jar $SCRATCH/hail.jar \
-       --zip $SCRATCH/hail.zip \
+       --zip $SCRATCH/hail.zip
      for SCRIPT in python/cluster-tests/*.py; do
        time cluster submit $CLUSTER $SCRIPT
      done
