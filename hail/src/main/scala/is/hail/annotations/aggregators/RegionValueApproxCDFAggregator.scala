@@ -489,10 +489,57 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
   }
 }
 
-class RegionValueApproxCDFIntAggregator(k: Int) extends RegionValueApproxCDFAggregator[Int](k, 8, 4, false)
-class RegionValueApproxCDFLongAggregator(k: Int) extends RegionValueApproxCDFAggregator[Long](k, 8, 4, false)
-class RegionValueApproxCDFFloatAggregator(k: Int) extends RegionValueApproxCDFAggregator[Float](k, 8, 4, false)
-class RegionValueApproxCDFDoubleAggregator(k: Int) extends RegionValueApproxCDFAggregator[Double](k, 8, 4, false)
+class RegionValueApproxCDFIntAggregator(k: Int) extends RegionValueApproxCDFAggregator[Int](k, 8, 4, false) {
+  override def newInstance(): RegionValueApproxCDFIntAggregator = {
+    new RegionValueApproxCDFIntAggregator(k)
+  }
+
+  override def copy(): RegionValueApproxCDFIntAggregator = {
+    val newAgg = newInstance()
+    newAgg.n = n
+    newAgg.combiner = combiner.copy()
+    newAgg
+  }
+}
+
+class RegionValueApproxCDFLongAggregator(k: Int) extends RegionValueApproxCDFAggregator[Long](k, 8, 4, false) {
+  override def newInstance(): RegionValueApproxCDFLongAggregator = {
+    new RegionValueApproxCDFLongAggregator(k)
+  }
+
+  override def copy(): RegionValueApproxCDFLongAggregator = {
+    val newAgg = newInstance()
+    newAgg.n = n
+    newAgg.combiner = combiner.copy()
+    newAgg
+  }
+}
+
+class RegionValueApproxCDFFloatAggregator(k: Int) extends RegionValueApproxCDFAggregator[Float](k, 8, 4, false) {
+  override def newInstance(): RegionValueApproxCDFFloatAggregator = {
+    new RegionValueApproxCDFFloatAggregator(k)
+  }
+
+  override def copy(): RegionValueApproxCDFFloatAggregator = {
+    val newAgg = newInstance()
+    newAgg.n = n
+    newAgg.combiner = combiner.copy()
+    newAgg
+  }
+}
+
+class RegionValueApproxCDFDoubleAggregator(k: Int) extends RegionValueApproxCDFAggregator[Double](k, 8, 4, false) {
+  override def newInstance(): RegionValueApproxCDFDoubleAggregator = {
+    new RegionValueApproxCDFDoubleAggregator(k)
+  }
+
+  override def copy(): RegionValueApproxCDFDoubleAggregator = {
+    val newAgg = newInstance()
+    newAgg.n = n
+    newAgg.combiner = combiner.copy()
+    newAgg
+  }
+}
 
 /* Compute an approximation to the sorted sequence of values seen.
  *
@@ -510,7 +557,7 @@ class RegionValueApproxCDFDoubleAggregator(k: Int) extends RegionValueApproxCDFA
  * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
  * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
  */
-class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
+abstract class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
   val k: Int, val m: Int = 8, growthRate: Int = 4, eager: Boolean = false, relError: Option[Double] = None
 )(implicit helper: ApproxCDFHelper[T]
 ) extends RegionValueAggregator {
@@ -619,16 +666,6 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
   def clear() {
     n = 0
     combiner.clear()
-  }
-
-  def newInstance(): RegionValueApproxCDFAggregator[T] =
-    new RegionValueApproxCDFAggregator[T](k, m, growthRate, eager)
-
-  def copy(): RegionValueApproxCDFAggregator[T] = {
-    val newAgg = newInstance()
-    newAgg.n = n
-    newAgg.combiner = combiner.copy()
-    newAgg
   }
 
   private def findFullLevel(): Int = {
