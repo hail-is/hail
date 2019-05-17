@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `callback` TEXT(65535),
   `task_idx` INT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
-  `cancelled` BOOLEAN NOT NULL,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `duration` BIGINT,
   `userdata` TEXT(65535) NOT NULL,
