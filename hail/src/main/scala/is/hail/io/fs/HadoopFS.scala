@@ -79,15 +79,15 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
 }
 
 class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
-    private def writeObject(out: ObjectOutputStream) {
-      out.defaultWriteObject()
-      conf.write(out)
-    }
+  private def writeObject(out: ObjectOutputStream) {
+    out.defaultWriteObject()
+    conf.write(out)
+  }
 
-    private def readObject(in: ObjectInputStream) {
-      conf = new hadoop.conf.Configuration(false)
-      conf.readFields(in)
-    }
+  private def readObject(in: ObjectInputStream) {
+    conf = new hadoop.conf.Configuration(false)
+    conf.readFields(in)
+  }
 
   private def create(filename: String): OutputStream = {
     val hPath = new hadoop.fs.Path(filename)
@@ -104,8 +104,8 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def open(filename: String, checkCodec: Boolean = true): InputStream = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val fs = hPath.getFileSystem(conf)
 
     val is = try {
       fs.open(hPath)
