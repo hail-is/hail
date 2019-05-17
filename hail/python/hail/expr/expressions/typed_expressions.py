@@ -3272,7 +3272,7 @@ class NDArrayExpression(Expression):
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
         return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
-    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
+    @typecheck_method(item=oneof(expr_int64, slice, tupleof(oneof(expr_int64, slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
@@ -3280,6 +3280,24 @@ class NDArrayExpression(Expression):
         if len(item) != self.ndim:
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
+
+        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        if n_sliced_dims > 0:
+            slices = []
+            for i, s in enumerate(item):
+                if isinstance(s, slice):
+                    start = s.start if s.start is not None else 0
+                    stop = s.stop if s.stop is not None else self.shape[i]
+                    step = s.step if s.step is not None else 1
+                    slices.append(hl.tuple((to_expr(start, tint64),
+                                            to_expr(stop, tint64),
+                                            to_expr(step, tint64))))
+                else:
+                    slices.append(s)
+            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                  tndarray(self._type.element_type, n_sliced_dims),
+                                  self._indices,
+                                  self._aggregations)
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 
