@@ -1,6 +1,8 @@
 import os
+import logging
 import jwt
 
+log = logging.getLogger('hailjwt')
 
 class JWTClient:
     __ALGORITHM = 'HS256'
