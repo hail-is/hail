@@ -1,5 +1,6 @@
 import os
 import logging
+from aiohttp import web
 import jwt
 
 log = logging.getLogger('hailjwt')
