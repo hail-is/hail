@@ -113,8 +113,8 @@ def _require_first_key_field_locus(dataset, method):
 @typecheck(ld_matrix=BlockMatrix,
            annotation_exprs=oneof(expr_numeric,
                                   sequenceof(expr_numeric)))
-def ld_scores(ld_matrix,
-              annotation_exprs) -> Table:
+def compute_ld_scores(ld_matrix,
+                      annotation_exprs) -> Table:
     """Compute LD scores.
 
     Given an LD matrix, such as the one returned by the :func:`.ld_matrix`
