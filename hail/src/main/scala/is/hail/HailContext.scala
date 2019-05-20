@@ -494,10 +494,10 @@ class HailContext private(val sc: SparkContext,
     read(file, dropSamples, dropVariants)
 
   def readPartitions[T: ClassTag](
-                                   path: String,
-                                   partFiles: Array[String],
-                                   read: (Int, InputStream, InputMetrics) => Iterator[T],
-                                   optPartitioner: Option[Partitioner] = None): RDD[T] = {
+    path: String,
+    partFiles: Array[String],
+    read: (Int, InputStream, InputMetrics) => Iterator[T],
+    optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
     val localBcFS = bcFS
