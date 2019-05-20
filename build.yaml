@@ -566,7 +566,7 @@ steps:
      set -e
      bucket=(python3 -c 'import hailjwt as hj; print(hj.unsafe_decode_from_file($HAIL_TOKEN_FILE)["bucket"])')
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
-     gsutil rm -r gs://${bucket}/{{ token }}/pipeline
+     -gsutil rm -r gs://${bucket}/{{ token }}/pipeline
    dependsOn:
     - test_pipeline
  - kind: deploy
