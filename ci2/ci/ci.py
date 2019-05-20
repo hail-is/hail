@@ -211,7 +211,7 @@ async def batch_callback_handler(request):
             for wb in watched_branches:
                 if wb.branch.short_str() == target_branch:
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
-                    wb.notify_batch_changed()
+                    await wb.notify_batch_changed()
 
 
 @routes.post('/batch_callack')
