@@ -1,4 +1,4 @@
-from ..database import Database, Table
+from ..database import Database, Table, make_where_statement
 
 
 class BatchDatabase(Database):
