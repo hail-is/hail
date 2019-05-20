@@ -50,6 +50,8 @@ spec:
               value: '/ci2-jwt/jwt'
             - name: HAIL_SELF_HOSTNAME
               value: ci2
+            - name: HAIL_JWT_SECRET_KEY_FILE
+              value: /jwt-secret/secret-key
           ports:
             - containerPort: 5000
           volumeMounts:
@@ -59,6 +61,9 @@ spec:
             - mountPath: /ci2-jwt
               readOnly: true
               name: ci2-jwt
+            - name: jwt-secret
+              mountPath: /jwt-secret
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -78,6 +83,10 @@ spec:
         - name: ci2-jwt
           secret:
             secretName: user-jwt-fzp4f
+        - name: jwt-secret
+          secret:
+            optional: false
+            secretName: notebook-secrets
 ---
 apiVersion: v1
 kind: Service

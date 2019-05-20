@@ -1,5 +1,9 @@
+import os
+import logging
+from aiohttp import web
 import jwt
 
+log = logging.getLogger('hailjwt')
 
 class JWTClient:
     __ALGORITHM = 'HS256'
@@ -41,3 +45,27 @@ class JWTClient:
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
+jwtclient = None
+
+
+def authenticated_users_only(fun):
+    global jwtclient
+
+    if not jwtclient:
+        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
+            jwtclient = JWTClient(f.read())
+
+    def wrapped(request, *args, **kwargs):
+        encoded_token = request.cookies.get('user')
+        if encoded_token is not None:
+            try:
+                userdata = jwtclient.decode(encoded_token)
+                if 'userdata' in fun.__code__.co_varnames:
+                    return fun(request, *args, userdata=userdata, **kwargs)
+                return fun(request, *args, **kwargs)
+            except jwt.exceptions.InvalidTokenError as exc:
+                log.info(f'could not decode token: {exc}')
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+    wrapped.__name__ = fun.__name__
+    return wrapped
