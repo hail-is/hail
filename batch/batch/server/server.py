@@ -236,30 +236,30 @@ class Job:
                                                                        self.id,
                                                                        self._current_task.name))
         except kube.client.rest.ApiException as err:
-            await self.mark_complete(None, failed=True)
+            await self.mark_complete(None)
             log.info(f'pod creation failed for job {self.id} with the following error: {err}')
 
     async def _delete_pvc(self):
-        if self._pvc_name is not None:
-            log.info(f'deleting persistent volume claim {self._pvc_name}')
-            try:
-                v1.delete_namespaced_persistent_volume_claim(
-                    self._pvc_name,
-                    HAIL_POD_NAMESPACE,
-                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kube.client.rest.ApiException as err:
-                if err.status == 404:
-                    log.info(f'persistent volume claim {self._pvc_name} is already deleted')
-                    return
-                raise
-            finally:
-                await db.jobs.update_record(self.id, pvc_name=None)
-                self._pvc_name = None
+        if self._pvc_name is None:
+            return
+
+        log.info(f'deleting persistent volume claim {self._pvc_name}')
+        try:
+            v1.delete_namespaced_persistent_volume_claim(
+                self._pvc_name,
+                HAIL_POD_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        except kube.client.rest.ApiException as err:
+            if err.status == 404:
+                log.info(f'persistent volume claim {self._pvc_name} is already deleted')
+                return
+            raise
+        finally:
+            await db.jobs.update_record(self.id, pvc_name=None)
+            self._pvc_name = None
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
-        await db.jobs.update_record(self.id, pod_name=None)
-
         if self._pod_name is not None:
             try:
                 v1.delete_namespaced_pod(
@@ -271,6 +271,7 @@ class Job:
                     pass
                 raise
             finally:
+                await db.jobs.update_record(self.id, pod_name=None)
                 self._pod_name = None
 
     async def _read_logs(self):
@@ -1075,13 +1076,13 @@ async def refresh_k8s_pvc():
 async def create_pods_if_ready():
     await asyncio.sleep(30)
     while True:
-        try:
-            for record in await db.jobs.get_records_where({'state': 'Ready',
-                                                           'pod_name': None}):
-                job = Job.from_record(record)
+        for record in await db.jobs.get_records_where({'state': 'Ready',
+                                                       'pod_name': None}):
+            job = Job.from_record(record)
+            try:
                 await job._create_pod()
-        except Exception as exc:  # pylint: disable=W0703
-            log.exception(f'Could not create pods due to exception: {exc}')
+            except Exception as exc:  # pylint: disable=W0703
+                log.exception(f'Could not create pod for job {job.id} due to exception: {exc}')
         await asyncio.sleep(30)
 
 
