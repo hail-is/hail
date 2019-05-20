@@ -529,6 +529,18 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: runImage
+   name: setup_pipeline
+   image:
+     valueFrom: test_pipeline_image.image
+   alwaysRun: true     
+   script: |
+     set -e
+     bucket=(python3 -c 'import hailjwt as hj; print(hj.unsafe_decode_from_file($HAIL_TOKEN_FILE)["bucket"])')
+     gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+     gsutil -m cp -r /test/resources/  gs://${bucket}/{{ token }}/pipeline/
+   dependsOn:
+    - test_pipeline    
  - kind: deploy
    name: test_pipeline
    namespace:
@@ -544,10 +556,12 @@ steps:
     - batch_pods_ns
     - deploy_batch
     - test_pipeline_image
+    - setup_pipeline
  - kind: runImage
    name: cleanup_pipeline
    image:
      valueFrom: base_image.image
+   alwaysRun: true     
    script: |
      set -e
      bucket=(python3 -c 'import hailjwt as hj; print(hj.unsafe_decode_from_file($HAIL_TOKEN_FILE)["bucket"])')
