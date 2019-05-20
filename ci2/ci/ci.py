@@ -11,7 +11,9 @@ import jinja2
 import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
+
 import batch
+from hailjwt import authenticated_users_only
 
 from .log import log
 from .constants import BUCKET
@@ -33,6 +35,7 @@ routes = web.RouteTableDef()
 
 
 @routes.get('/')
+@authenticated_users_only
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
     wb_configs = []
@@ -71,6 +74,7 @@ async def index(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
+@authenticated_users_only
 @aiohttp_jinja2.template('pr.html')
 async def get_pr(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
@@ -114,6 +118,7 @@ async def get_pr(request):
 
 
 @routes.get('/batches')
+@authenticated_users_only
 @aiohttp_jinja2.template('batches.html')
 async def get_batches(request):
     batch_client = request.app['batch_client']
@@ -125,6 +130,7 @@ async def get_batches(request):
 
 
 @routes.get('/batches/{batch_id}')
+@authenticated_users_only
 @aiohttp_jinja2.template('batch.html')
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
@@ -140,6 +146,7 @@ async def get_batch(request):
 
 
 @routes.get('/jobs/{job_id}/log')
+@authenticated_users_only
 @aiohttp_jinja2.template('job_log.html')
 async def get_job_log(request):
     job_id = int(request.match_info['job_id'])
