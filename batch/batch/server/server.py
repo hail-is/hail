@@ -304,7 +304,7 @@ class Job:
         pvc = None
         pod_name = None
         exit_code = None
-        duration = None
+        duration = 0
         task_idx = -1
         state = 'Created'
         cancelled = False
@@ -486,8 +486,6 @@ class Job:
                 duration = (terminated.finished_at - terminated.started_at).total_seconds()
                 if self.duration is not None:
                     self.duration += duration
-                else:
-                    self.duration = duration
             else:
                 log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
                             f'terminated but has no timing information. {pod}')
