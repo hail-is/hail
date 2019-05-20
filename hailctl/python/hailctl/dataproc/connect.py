@@ -1,6 +1,5 @@
 import subprocess as sp
 import os
-from .safe_call import safe_call
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')

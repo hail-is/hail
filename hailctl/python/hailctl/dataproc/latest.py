@@ -1,5 +1,6 @@
 from .utils import latest_sha, load_config
 
+
 def init_parser(parser):
     parser.add_argument('version', type=str, choices=['0.1', '0.2'],
                         help='Hail version to use (default: %(default)s).')
@@ -8,6 +9,7 @@ def init_parser(parser):
     parser.add_argument('--sha', action='store_true', help="Print the newest deployed SHA.")
     parser.add_argument('--jar', action='store_true', help="Print the location of the newest deployed jar.")
     parser.add_argument('--zip', action='store_true', help="Print the location of the newest deployed zip.")
+
 
 def main(args, pass_through_args):
     sha = latest_sha(args.version, args.spark)
