@@ -489,13 +489,13 @@ class WatchedBranch(Code):
                 if self.state_changed:
                     self.state_changed = False
                     await self._heal(batch_client)
-            await update_statuses()
+            await self.update_statuses()
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
-        await update_statuses()
+        await self.update_statuses()
         for pr in self.prs.values():
             if pr.is_mergeable():
                 if await pr.merge(gh):
@@ -504,7 +504,7 @@ class WatchedBranch(Code):
                     self.state_changed = True
                     return
 
-    async def update_statuses():
+    async def update_statuses(self):
         new_statuses = {}
         for pr in self.prs.values():
             if pr.source_sha:
