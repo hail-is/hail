@@ -106,6 +106,13 @@ task nativeLibPrebuilt(type: Exec) {
     outputs.upToDateWhen { false }
 }
 
+task nativeLibResetPrebuilt(type: Exec) {
+    workingDir 'src/main/c'
+    args('reset-prebuilt')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
 sourceSets {
     main {
         resources {
@@ -172,6 +179,11 @@ task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
 task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
     commandLine 'bash', 'python/pipinstall.sh'
     outputs.upToDateWhen { false }
+}
+
+shadowJar.mustRunAfter nativeLibPrebuilt
+nativeLibResetPrebuilt.mustRunAfter shadowJar
+task releaseJar(type: Wrapper, dependsOn: ['nativeLibPrebuilt', 'shadowJar', 'nativeLibResetPrebuilt']) {
 }
 
 compileScala {
