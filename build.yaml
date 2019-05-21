@@ -534,12 +534,12 @@ steps:
      valueFrom: test_pipeline_image.image
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
      gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
    secrets:
     # hail|test-batch
     - name: gsa-key-2x975 
-      mountPath: /gsa-key/
+      mountPath: /gsa-key-test-batch/
    dependsOn:
     - test_pipeline_image
  - kind: deploy
@@ -565,12 +565,12 @@ steps:
    alwaysRun: true     
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
      -gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
    secrets:
     # hail|test-batch
     - name: gsa-key-2x975 
-      mountPath: /gsa-key/
+      mountPath: /gsa-key-test-batch/
    dependsOn:
     - base_image
     - test_pipeline
