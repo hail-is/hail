@@ -153,7 +153,6 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-
     fs.listStatus(hPath).map( status => new HadoopFileStatus(status) )
   }
 
@@ -170,9 +169,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def exists(files: String*): Boolean = {
-    files.forall(filename => {
-      _fileSystem(filename).exists(new hadoop.fs.Path(filename))
-    })
+    files.forall(filename => _fileSystem(filename).exists(new hadoop.fs.Path(filename)))
   }
 
   /**
@@ -227,9 +224,10 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def glob(filename: String): Array[FileStatus] = {
+    val fs = _fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
-    val files = path.getFileSystem(conf).globStatus(path)
+    val files = fs.globStatus(path)
     if (files == null)
       return Array.empty[FileStatus]
 
@@ -312,7 +310,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
         else
           0
         val srcFS = fileSystem(fileStatus.getPath.toString)
-        val inputStream = srcFS.open(fileStatus.getPath.toString())
+        val inputStream = srcFS.open(fileStatus.getPath)
         try {
           copyBytes(inputStream, outputStream,
             fileStatus.getLen + lenAdjust,
