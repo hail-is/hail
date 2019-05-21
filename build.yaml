@@ -566,7 +566,7 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
-     -gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
+     gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
    secrets:
     # hail|test-batch
     - name: gsa-key-2x975 
