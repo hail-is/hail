@@ -213,6 +213,7 @@ steps:
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
+    - default_ns
  - kind: buildImage
    name: spark_master_image
    dockerFile: apiserver/Dockerfile.spark-master
