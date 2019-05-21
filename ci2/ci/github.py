@@ -6,7 +6,7 @@ import concurrent.futures
 import aiohttp
 import gidgethub
 from .log import log
-from .constants import GITHUB_CLONE_URL
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .environment import SELF_HOSTNAME
 from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
@@ -489,21 +489,13 @@ class WatchedBranch(Code):
                 if self.state_changed:
                     self.state_changed = False
                     await self._heal(batch_client)
-
-            # update statuses
-            new_statuses = {}
-            for pr in self.prs.values():
-                if pr.source_sha:
-                    gh_status = pr.github_status()
-                    if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
-                        await pr.post_github_status(gh, gh_status)
-                    new_statuses[pr.source_sha] = gh_status
-            self.statuses = new_statuses
+            await self.update_statuses(gh)
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
+        await self.update_statuses(gh)
         for pr in self.prs.values():
             if pr.is_mergeable():
                 if await pr.merge(gh):
@@ -511,6 +503,16 @@ class WatchedBranch(Code):
                     self.sha = None
                     self.state_changed = True
                     return
+
+    async def update_statuses(self, gh):
+        new_statuses = {}
+        for pr in self.prs.values():
+            if pr.source_sha:
+                gh_status = pr.github_status()
+                if pr.source_sha not in self.statuses or self.statuses[pr.source_sha] != gh_status:
+                    await pr.post_github_status(gh, gh_status)
+                new_statuses[pr.source_sha] = gh_status
+        self.statuses = new_statuses
 
     async def _update_github(self, gh):
         log.info(f'update github {self.short_str()}')
@@ -526,6 +528,8 @@ class WatchedBranch(Code):
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
+            if gh_json_pr['user']['login'] not in AUTHORIZED_USERS:
+                continue
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]

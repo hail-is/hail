@@ -1369,22 +1369,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
     x match {
       case ir.NDArrayReindex(child, indexExpr) =>
         val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
-        val shape = fb.variable("shape", "std::vector<long>")
-        val reindexShapeAndStrides = indexExpr.map { i =>
-          s"""
-             | if ($i < ${ childEmitter.shape }.size()) {
-             |  $shape.push_back(${ childEmitter.shape }[$i]);
-             | } else {
-             |  $shape.push_back(1);
-             | }
-           """.stripMargin
+        val newShapeSeq = indexExpr.map { dim =>
+          if (dim < childEmitter.nDims)
+            s"${ childEmitter.shape }[$dim]"
+          else
+            "1"
         }
-        val setup =
-          s"""
-             | ${ childEmitter.setup }
-             | ${ shape.define }
-             | ${ reindexShapeAndStrides.mkString("\n") }
-           """.stripMargin
+        val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
+        val setup = Code(childEmitter.setup, shape.define)
 
         new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {

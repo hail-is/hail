@@ -103,7 +103,7 @@ def init_parser(parser):
     # arguments with default parameters
     parser.add_argument('file', type=str, help='Path to hail file (either MatrixTable or Table).')
 
-def main(args):
+def main(args, pass_through_args):
 
     command = ['gsutil'] if args.file.startswith('gs://') else []
 

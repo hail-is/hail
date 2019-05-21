@@ -1,5 +1,5 @@
 MAKEFLAGS += --no-builtin-rules
-.PHONY: all clean debug prebuilt test
+.PHONY: all clean debug prebuilt test reset-prebuilt
 .SUFFIXES:
 .DEFAULT_GOAL := all
 
@@ -170,6 +170,10 @@ $(PREBUILT)/$(LIBHAIL): $(LIBHAIL)
 	cp -p -f $< $@
 
 prebuilt: $(PREBUILT)/$(LIBBOOT) $(PREBUILT)/$(LIBHAIL)
+
+reset-prebuilt:
+	git checkout HEAD -- $(PREBUILT)/$(LIBBOOT)
+	git checkout HEAD -- $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
 	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \

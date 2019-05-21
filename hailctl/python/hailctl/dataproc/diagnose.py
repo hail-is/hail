@@ -18,7 +18,7 @@ def init_parser(parser):
                         help="Only download logs from the first N workers.")
 
 
-def main(args):
+def main(args, pass_through_args):
     print("Diagnosing cluster '{}'...".format(args.name))
 
 

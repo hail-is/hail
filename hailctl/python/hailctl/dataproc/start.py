@@ -94,7 +94,7 @@ def init_parser(parser):
     parser.add_argument('--config-file', help='Pass in a custom json file to load configurations.')
 
 
-def main(args):
+def main(args, pass_through_args):
     if not args.spark:
         args.spark = '2.4.0' if args.version == '0.2' else '2.0.2'
 

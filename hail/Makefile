@@ -12,6 +12,9 @@ HAIL_PIP_VERSION=0.2.14
 shadowJar:
 	./gradlew shadowJar
 
+releaseJar:
+	./gradlew releaseJar
+
 build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version
 
 define properties

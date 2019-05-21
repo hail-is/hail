@@ -1,7 +1,6 @@
 from .cluster_config import ClusterConfig
 import subprocess as sp
 import sys
-from . import __version__
 
 
 if sys.version_info >= (3,0):
@@ -12,7 +11,8 @@ else:
     decode = lambda s: s
 
 def latest_sha(version, spark):
-    cloudtools_version = __version__.strip().split('.')
+    # FIXME
+    cloudtools_version = '4.1.0'.strip().split('.')
     hash_file = 'gs://hail-common/builds/{}/latest-hash/cloudtools-{}-spark-{}.txt'.format(
         version,
         cloudtools_version[0],

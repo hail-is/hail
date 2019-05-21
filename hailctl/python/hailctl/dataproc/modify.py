@@ -17,7 +17,7 @@ def init_parser(parser):
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-def main(args):
+def main(args, pass_through_args):
 
     modify_args = []
     if args.num_workers is not None:

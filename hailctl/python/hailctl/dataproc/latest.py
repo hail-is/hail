@@ -9,7 +9,7 @@ def init_parser(parser):
     parser.add_argument('--jar', action='store_true', help="Print the location of the newest deployed jar.")
     parser.add_argument('--zip', action='store_true', help="Print the location of the newest deployed zip.")
 
-def main(args):
+def main(args, pass_through_args):
     sha = latest_sha(args.version, args.spark)
     if args.sha:
         print(sha)

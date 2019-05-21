@@ -14,7 +14,7 @@ import kubernetes as kube
 import requests
 import uvloop
 
-import hailjwt as hj
+from hailjwt import authenticated_users_only
 
 from .globals import blocking_to_async
 from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
@@ -549,26 +549,6 @@ class Job:
         if self.attributes:
             result['attributes'] = self.attributes
         return result
-
-
-with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
-    jwtclient = hj.JWTClient(f.read())
-
-
-def authenticated_users_only(fun):
-    def wrapped(request, *args, **kwargs):
-        encoded_token = request.cookies.get('user')
-        if encoded_token is not None:
-            try:
-                userdata = jwtclient.decode(encoded_token)
-                if 'userdata' in fun.__code__.co_varnames:
-                    return fun(request, *args, userdata=userdata, **kwargs)
-                return fun(request, *args, **kwargs)
-            except jwt.exceptions.DecodeError as de:
-                log.info(f'could not decode token: {de}')
-        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-    wrapped.__name__ = fun.__name__
-    return wrapped
 
 
 @routes.post('/jobs/create')

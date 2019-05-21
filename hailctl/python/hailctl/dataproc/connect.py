@@ -13,7 +13,7 @@ def init_parser(parser):
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-def main(args):
+def main(args, pass_through_args):
     print("Connecting to cluster '{}'...".format(args.name))
 
     # shortcut mapping
