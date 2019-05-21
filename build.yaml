@@ -157,8 +157,6 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
-     - from: /io/repo/pipeline/test/resources
-       to: /pipeline/test/
    dependsOn:
     - hail_build_image
  - kind: runImage
