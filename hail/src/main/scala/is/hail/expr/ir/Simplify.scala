@@ -550,20 +550,15 @@ object Simplify {
       TableExplode(TableFilterIntervals(child, intervals, keep), path)
     case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
-    case TableFilterIntervals(TableFilterIntervals(child, i1, k1), i2, k2) if k1 == k2 =>
+    case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
       val ord = child.typ.keyType.ordering.intervalEndpointOrdering
-      val intervals = if (k1)
+      val intervals = if (keep1)
       // keep means intersect intervals
         Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
       else
       // remove means union intervals
         Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
-      TableFilterIntervals(child, intervals.toFastIndexedSeq, k1)
-    // TODO: write rule for TableParallelize that pushes down filter into value IR
-    // TODO: write rule for TableKeyByAndAggregate that pushes down filter as a TableFilter
-    // TODO: write rule for TableRead that that pushes down filter into coming index files
-    // TODO: write rule for TableJoin that pushes down filter to both sides
-    // TODO: write rule for TableKeyBy(TableFilterIntervals(TableKeyBy))), which could prevent key pruning optimization
+      TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
