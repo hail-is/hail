@@ -464,8 +464,9 @@ class Job:
                 await self.set_state('Cancelled')
         else:
             assert self._state == 'Ready', self._state
-            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-            await self._delete_k8s_resources()
+            if not self.always_run:
+                await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
+                await self._delete_k8s_resources()
 
     def is_complete(self):
         return self._state in ('Complete', 'Cancelled')
