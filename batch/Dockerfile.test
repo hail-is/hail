@@ -15,4 +15,4 @@ COPY batch/test/ /test/
 COPY pylintrc /pylintrc
 COPY batch/test.sh /test.sh
 
-CMD ["/bin/bash", "-c", "/test.sh"]
+CMD ["/test.sh"]
