@@ -11,9 +11,9 @@ COPY batch/batch/ /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 
-COPY ci2/setup.py /ci2/
-COPY ci2/setup.cfg /ci2/
-COPY ci2/ci /ci2/ci
+COPY ci2/setup.py /ci/
+COPY ci2/setup.cfg /ci/
+COPY ci2/ci /ci/ci
 
 COPY pylintrc /pylintrc
 COPY ci2/test.sh /test.sh
