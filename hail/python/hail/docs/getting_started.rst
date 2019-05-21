@@ -66,7 +66,7 @@ On Mac OS X, you might try::
 
 To build the Hail JAR compatible with Spark 2.3.0, execute this::
 
-    ./gradlew -Dspark.version=2.3.0 shadowJar
+    ./gradlew -Dspark.version=2.3.0 releaseJar
 
 The Spark version in this command should match whichever version of Spark you
 would like to build against.
@@ -190,7 +190,7 @@ the same as above, except:
    builds a Hail JAR for Cloudera's
    2.4.0 version of Spark::
 
-    ./gradlew shadowJar -Dspark.version=2.4.0.cloudera -Dpy4j.version=0.10.7
+    ./gradlew releaseJar -Dspark.version=2.4.0.cloudera -Dpy4j.version=0.10.7
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
