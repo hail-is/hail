@@ -92,9 +92,6 @@ object LowerTableIR {
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new SparkBackendUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
-    case _: In =>
-      throw new SparkBackendUnsupportedOperation(s"`In` value IR node cannot be lowered in Spark backend.")
-
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })
   }
