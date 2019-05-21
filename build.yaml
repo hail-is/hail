@@ -435,20 +435,6 @@ steps:
     - default_ns
     - scorecard_image
     - deploy_router
- - kind: deploy
-   name: deploy_ci
-   namespace:
-     valueFrom: default_ns.name
-   config: ci2/deployment.yaml
-   wait:
-    - kind: Service
-      name: ci2
-      for: alive
-   dependsOn:
-    - default_ns
-    - ci_image
-    - ci_utils_image
-    - deploy_batch
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -506,6 +492,20 @@ steps:
     - batch_image
     - batch_database
     - create_batch_tables
+ - kind: deploy
+   name: deploy_ci
+   namespace:
+     valueFrom: default_ns.name
+   config: ci2/deployment.yaml
+   wait:
+    - kind: Service
+      name: ci2
+      for: alive
+   dependsOn:
+    - default_ns
+    - ci_image
+    - ci_utils_image
+    - deploy_batch
  - kind: deploy
    name: deploy_batch_pods
    namespace:
