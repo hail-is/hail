@@ -12,15 +12,15 @@ spec:
          fieldRef:
            fieldPath: status.podIP
      - name: HAIL_TOKEN_FILE
-       value: '/jwt/jwt'
+       value: '/test-jwt/jwt'
      - name: BATCH_URL
        value: http://batch.{{ default_ns.name }}
     volumeMounts:
-      - mountPath: /jwt
+      - mountPath: /test/jwt
         readOnly: true
-        name: test-batch-jwt
+        name: test-jwt
   volumes:
-    - name: test-batch-jwt
+    - name: test-jwt
       secret:
-        secretName: user-jwt-vkqfw
+        secretName: test-jwt
   restartPolicy: Never

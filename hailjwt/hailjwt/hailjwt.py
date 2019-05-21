@@ -53,7 +53,7 @@ def authenticated_users_only(fun):
     global jwtclient
 
     if not jwtclient:
-        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
+        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key'), 'rb') as f:
             jwtclient = JWTClient(f.read())
 
     def wrapped(request, *args, **kwargs):

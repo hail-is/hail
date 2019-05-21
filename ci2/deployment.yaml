@@ -51,7 +51,7 @@ spec:
             - name: HAIL_SELF_HOSTNAME
               value: ci2
             - name: HAIL_JWT_SECRET_KEY_FILE
-              value: /jwt-secret/secret-key
+              value: /jwt-secret-key/secret-key
           ports:
             - containerPort: 5000
           volumeMounts:
@@ -61,8 +61,8 @@ spec:
             - mountPath: /ci2-jwt
               readOnly: true
               name: ci2-jwt
-            - name: jwt-secret
-              mountPath: /jwt-secret
+            - name: jwt-secret-key
+              mountPath: /jwt-secret-key
               readOnly: true
           livenessProbe:
             httpGet:
@@ -82,11 +82,11 @@ spec:
             secretName: hail-ci-0-1-github-oauth-token
         - name: ci2-jwt
           secret:
-            secretName: user-jwt-fzp4f
-        - name: jwt-secret
+            secretName: ci2-jwt
+        - name: jwt-secret-key
           secret:
             optional: false
-            secretName: notebook-secrets
+            secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service
