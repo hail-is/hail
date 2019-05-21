@@ -3640,11 +3640,11 @@ class MatrixTable(ExprContainer):
         if n is not None:
             if n < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(MatrixRowsHead(self._mir, n))
+            mt = MatrixTable(MatrixRowsHead(mt._mir, n))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
-            mt = mt.filter_cols(hl.scan.count() < n_cols)
+            mt = MatrixTable(MatrixColsHead(mt._mir, n_cols))
         return mt
 
     @typecheck_method(parts=sequenceof(int), keep=bool)

@@ -320,6 +320,22 @@ class MatrixRowsHead(MatrixIR):
         self._type = self.child.typ
 
 
+class MatrixColsHead(MatrixIR):
+    def __init__(self, child, n):
+        super().__init__(child)
+        self.child = child
+        self.n = n
+
+    def head_str(self):
+        return self.n
+
+    def _eq(self, other):
+        return self.n == other.n
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
         super().__init__(child)
