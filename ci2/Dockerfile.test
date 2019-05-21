@@ -1,0 +1,21 @@
+FROM {{ base_image.image }}
+
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
+COPY batch/setup.py /batch/
+COPY batch/setup.cfg /batch/
+COPY batch/batch/ /batch/batch/
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
+
+COPY ci2/setup.py /ci2/
+COPY ci2/setup.cfg /ci2/
+COPY ci2/ci /ci2/ci
+
+COPY pylintrc /pylintrc
+COPY ci2/test.sh /test.sh
+
+CMD ["/test.sh"]
