@@ -12,11 +12,6 @@ class JWTClient:
     @staticmethod
     def unsafe_decode(token):
         return jwt.decode(token, verify=False)
-
-    @staticmethod
-    def unsafe_decode_from_file(fname):
-        with open(fname) as f:
-            return JWTClient.unsafe_decode(f.read())
     
     @staticmethod
     def _verify_key_preqrequisites(secret_key):
