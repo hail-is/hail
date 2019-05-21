@@ -1036,7 +1036,7 @@ object LoadVCF {
   }
 
   def globAllVCFs(arguments: Array[String],
-                  fs: FS,
+    fs: FS,
     forceGZ: Boolean = false,
     gzAsBGZ: Boolean = false): Array[String] = {
     val inputs = fs.globAll(arguments)

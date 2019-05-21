@@ -90,8 +90,8 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   private def create(filename: String): OutputStream = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val fs = hPath.getFileSystem(conf)
 
     val os = fs.create(hPath)
     val codecFactory = new CompressionCodecFactory(conf)
@@ -151,19 +151,22 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
     fileStatus(filename).getLen
 
   def listStatus(filename: String): Array[FileStatus] = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val fs = hPath.getFileSystem(conf)
+
     fs.listStatus(hPath).map( status => new HadoopFileStatus(status) )
   }
 
   def isDir(filename: String): Boolean = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    hPath.getFileSystem(conf).isDirectory(hPath)
+    fs.isDirectory(hPath)
   }
 
   def isFile(filename: String): Boolean = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    hPath.getFileSystem(conf).isFile(hPath)
+    fs.isFile(hPath)
   }
 
   def exists(files: String*): Boolean = {
@@ -184,7 +187,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
-                       prefix: Option[String] = None, suffix: Option[String] = None): String = {
+    prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
     val destFS = _fileSystem(tmpdir)
     val prefixString = if (prefix.isDefined) prefix.get + "-" else ""
@@ -241,13 +244,13 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
   }
 
   def copyMerge(
-     sourceFolder: String,
-     destinationFile: String,
-     numPartFilesExpected: Int,
-     deleteSource: Boolean = true,
-     header: Boolean = true,
-     partFilesOpt: Option[IndexedSeq[String]] = None
-   ) {
+    sourceFolder: String,
+    destinationFile: String,
+    numPartFilesExpected: Int,
+    deleteSource: Boolean = true,
+    header: Boolean = true,
+    partFilesOpt: Option[IndexedSeq[String]] = None
+  ) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -288,7 +291,7 @@ class HadoopFS(@transient var conf: hadoop.conf.Configuration) extends FS {
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
-    val destFS = destPath.getFileSystem(conf)
+    val destFS = _fileSystem(destFilename)
 
     val codecFactory = new CompressionCodecFactory(conf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))

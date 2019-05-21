@@ -43,7 +43,6 @@ private case class LoadBgenPartition(
   partitionIndex: Int,
   startIndex: Long,
   endIndex: Long,
-  fs: FS,
   bcFS: Broadcast[FS]
 ) extends BgenPartition {
   assert(startIndex <= endIndex)
@@ -88,8 +87,9 @@ object BgenRDDPartitions extends Logging {
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
-    val fs = HailContext.sFS
-    val bcFS = HailContext.bcFS
+    val hc = HailContext.get
+    val fs = hc.sFS
+    val bcFS = hc.bcFS
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering
@@ -145,7 +145,6 @@ object BgenRDDPartitions extends Logging {
               partitionIndex,
               firstVariantIndex,
               lastVariantIndex,
-              fs,
               bcFS
             )
 
