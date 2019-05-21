@@ -2685,6 +2685,8 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(h_cube[1, 1, 0], 6)
         self.assert_evals_to(h_np_cube[0, 0, 1], 1)
         self.assert_evals_to(h_np_cube[1, 1, 0], 6)
+        self.assert_evals_to(hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1)
+        self.assert_evals_to(hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
