@@ -155,32 +155,32 @@ class BatchTable(Table):
         havings = []
         groups = []
 
-        values += user
-        wheres += "job.user = %s"
+        values.append(user)
+        wheres.append("job.user = %s")
         if deleted is not None:
             if deleted:
-                wheres += "batch.deleted"
+                wheres.append("batch.deleted")
             else:
-                wheres += "not batch.deleted"
+                wheres.append("not batch.deleted")
         if complete is not None:
             condition = "not batch.is_open and batch.n_completed = batch.n_jobs"
             if complete:
-                wheres += condition
+                wheres.append(condition)
             else:
-                wheres += f"not ({condition})"
+                wheres.append(f"not ({condition})")
         if success is not None:
             condition = "not batch.is_open and batch.n_succeeded = batch.n_jobs"
             if success:
-                wheres += condition
+                wheres.append(condition)
             else:
-                wheres += f"not ({condition})"
+                wheres.append(f"not ({condition})")
         if attributes:
-            joins += "inner join {self._db.batch_attributes.name} as attr using (batch_id)"
-            groups += "batch.id"
+            joins.append("inner join {self._db.batch_attributes.name} as attr using (batch_id)")
+            groups.append("batch.id")
             for k, v in attributes.items():
-                values += v
-                values += len(attributes)
-                havings += f"sum(attr.`{k}` = %s) = %s"
+                values.append(v)
+                values.append(len(attributes))
+                havings.append(f"sum(attr.`{k}` = %s) = %s")
         sql += " ".join(joins)
         sql += " where " + " and ".join(wheres)
         sql += " having " + " and ".join(havings)
