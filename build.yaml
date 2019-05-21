@@ -563,6 +563,7 @@ steps:
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
      -gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
    dependsOn:
+    - base_image
     - test_pipeline
  - kind: deploy
    name: deploy_apiserver
