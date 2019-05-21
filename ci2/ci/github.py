@@ -258,7 +258,7 @@ class PR(Code):
             if state == 'APPROVED':
                 review_state = 'approved'
             else:
-                assert state in ('DISMISSED', 'COMMENTED'), state
+                assert state in ('DISMISSED', 'COMMENTED', 'PENDING'), state
 
         if review_state != self.review_state:
             self.review_state = review_state
