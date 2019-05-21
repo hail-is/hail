@@ -23,40 +23,13 @@ object SparkBackend {
   }
 
   def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
-    val evalContext = "CXX Compile"
-    val timer = new ExecutionTimer(evalContext)
-    var ir = ir0
+    val timer = new ExecutionTimer("CXX Compile")
 
-    ir = ir.unwrap
-    if (optimize) {
-      val context = "first pass"
-      ir = timer.time(
-        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
-        context)
-    }
-
-    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "lifting non-compilable")
-    ir = timer.time(LowerMatrixIR(ir), "lowering MatrixIR")
-
-    if (optimize) {
-      val context = "after MatrixIR lowering"
-      ir = timer.time(
-        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
-        context)
-    }
-
-    try {
-      ir = LowerTableIR.lower(ir)
+    val ir = try {
+      LowerTableIR(ir0, timer, optimize)
     } catch {
       case e: SparkBackendUnsupportedOperation =>
         throw new CXXUnsupportedOperation(s"Failed lowering step:\n${e.getMessage}")
-    }
-
-    if (optimize) {
-      val context = "after TableIR lowering"
-      ir = timer.time(
-        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"$evalContext: $context")),
-        context)
     }
 
     val value = ir.typ match {
