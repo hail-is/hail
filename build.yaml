@@ -94,6 +94,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: test_ci2_image
+   dockerFile: ci2/Dockerfile.test
+   contextPath: .
+   publishAs: test-ci2
+   dependsOn:
+     - base_image
+ - kind: buildImage
    name: test_pipeline_image
    dockerFile: pipeline/Dockerfile.test
    contextPath: .
@@ -441,6 +448,7 @@ steps:
     - default_ns
     - ci_image
     - ci_utils_image
+    - deploy_batch
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -529,6 +537,20 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: deploy
+   name: test_ci2
+   namespace:
+     valueFrom: default_ns.name
+   config: ci2/test-ci2-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-ci2
+      for: completed
+      timeout: 900
+   dependsOn:
+    - default_ns
+    - deploy_ci
+    - test_ci2_image
  - kind: deploy
    name: test_pipeline
    namespace:
