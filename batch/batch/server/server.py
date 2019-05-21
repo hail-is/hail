@@ -867,7 +867,7 @@ async def _get_batches_list(params, user):
     success = params.get('success')
     if success:
         del params['success']
-        success = success = '1'
+        success = success == '1'
     attributes = {}
     for k, v in params.items():
         if not k.startswith('a:'):

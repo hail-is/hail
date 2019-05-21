@@ -215,7 +215,7 @@ class BatchAttributesTable(Table):
         return await super().get_record(where, select_fields=select)
 
     async def get_attributes(self, batch_id):
-        return self._query('key', 'value', batch_id=batch_id)
+        return await self._query('key', 'value', batch_id=batch_id)
 
     async def get_batches(self, key, value):
-        return self._query('batch_id', key=key, value=value)
+        return await self._query('batch_id', key=key, value=value)
