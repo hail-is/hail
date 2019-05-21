@@ -531,7 +531,6 @@ steps:
    name: setup_pipeline
    image:
      valueFrom: test_pipeline_image.image
-   alwaysRun: true     
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
