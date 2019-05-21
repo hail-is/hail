@@ -6,10 +6,13 @@ RUN pip3 install --no-cache-dir /hailjwt && \
   rm -rf /hailjwt
 
 COPY batch/setup.py /batch/
+COPY batch/setup.cfg /batch/
 COPY batch/batch/ /batch/batch/
 RUN pip3 install --no-cache-dir /batch && \
   rm -rf /batch
 
 COPY batch/test/ /test/
+COPY pylintrc /pylintrc
+COPY batch/test.sh /test.sh
 
-CMD ["python3", "-m", "pytest", "-v", "-s", "/test/"]
+CMD ["/bin/bash", "-c", "/test.sh"]
