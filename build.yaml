@@ -537,7 +537,7 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
-     gsutil -m cp -r /test/resources/  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/
+     gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
    dependsOn:
     - test_pipeline    
  - kind: deploy
