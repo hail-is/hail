@@ -538,7 +538,8 @@ steps:
      gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
    secrets:
     # hail|test-batch
-    - gsa-key-2x975   
+    - name: gsa-key-2x975 
+      mountPath: /gsa-key/
    dependsOn:
     - test_pipeline_image
  - kind: deploy
@@ -568,7 +569,8 @@ steps:
      -gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
    secrets:
     # hail|test-batch
-    - gsa-key-2x975     
+    - name: gsa-key-2x975 
+      mountPath: /gsa-key/
    dependsOn:
     - base_image
     - test_pipeline
