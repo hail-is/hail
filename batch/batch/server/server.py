@@ -236,7 +236,6 @@ class Job:
                                                                        self.id,
                                                                        self._current_task.name))
         except kube.client.rest.ApiException as err:
-            await self.mark_complete(None)
             log.info(f'pod creation failed for job {self.id} with the following error: {err}')
 
     async def _delete_pvc(self):
