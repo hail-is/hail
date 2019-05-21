@@ -4,7 +4,6 @@ import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
 import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -38,6 +37,38 @@ case class SparkStage(
 
 object LowerTableIR {
 
+  def apply(ir0: IR, timer: ExecutionTimer, optimize: Boolean = true): IR = {
+    var ir = ir0
+
+    ir = ir.unwrap
+    if (optimize) {
+      val context = "first pass"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"${ timer.context }: $context")),
+        context)
+    }
+
+    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "lifting non-compilable")
+    ir = timer.time(LowerMatrixIR(ir), "lowering MatrixIR")
+
+    if (optimize) {
+      val context = "after MatrixIR lowering"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"${ timer.context }: $context")),
+        context)
+    }
+
+    ir = LowerTableIR.lower(ir)
+
+    if (optimize) {
+      val context = "after TableIR lowering"
+      ir = timer.time(
+        Optimize(ir, noisy = true, canGenerateLiterals = true, Some(s"${ timer.context }: $context")),
+        context)
+    }
+    ir
+  }
+
   def lower(ir: IR): IR = ir match {
 
     case TableCount(tableIR) =>
@@ -60,9 +91,6 @@ object LowerTableIR {
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new SparkBackendUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
-
-    case _: In =>
-      throw new SparkBackendUnsupportedOperation(s"`In` value IR node cannot be lowered in Spark backend.")
 
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })

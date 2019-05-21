@@ -12,7 +12,7 @@ class Timings(val value: mutable.Map[String, Map[String, Any]]) extends AnyVal {
   }
 }
 
-class ExecutionTimer(context: String) {
+class ExecutionTimer(val context: String) {
   val timings: Timings = new Timings(mutable.Map.empty)
 
   def time[T](block: => T, stage: String): T = {

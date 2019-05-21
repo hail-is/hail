@@ -3,21 +3,21 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.spark.{LowerTableIR, SparkBackend}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.utils._
+import is.hail.utils.{ExecutionTimer, _}
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile, LoweredJVMCompile = Value
 
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
@@ -415,6 +415,8 @@ object TestUtils {
             assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
             eval(x, env, args, agg)
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+          case ExecStrategy.LoweredJVMCompile =>
+            eval(LowerTableIR(x, new ExecutionTimer("JVMLowerer"), false), env, args, agg)
         }
         assert(t.typeCheck(res))
         assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
