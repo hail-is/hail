@@ -73,7 +73,7 @@ class Pipeline:
         elif os.environ.get('BATCH_URL') is not None:
             self._backend = BatchBackend(os.environ.get('BATCH_URL'))
         else:
-            self._backend = backend if backend else LocalBackend()
+            self._backend = LocalBackend()
 
     def new_task(self):
         """
