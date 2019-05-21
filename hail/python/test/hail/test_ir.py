@@ -214,6 +214,7 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
             ir.MatrixRowsHead(matrix_read, 5),
+            ir.MatrixColsHead(matrix_read, 5),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',

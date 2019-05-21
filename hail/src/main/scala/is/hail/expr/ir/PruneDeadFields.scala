@@ -735,6 +735,7 @@ object PruneDeadFields {
           globalType = requestedType.globalType
         )
         memoizeMatrixIR(child, dep, memo)
+      case MatrixColsHead(child, n) => memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(

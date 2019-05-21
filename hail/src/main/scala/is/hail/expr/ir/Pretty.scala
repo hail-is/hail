@@ -233,6 +233,7 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case MatrixRowsHead(_, n) => n.toString
+            case MatrixColsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid, product) =>
               prettyStringLiteral(uid) + " " + prettyBooleanLiteral(product)
             case MatrixAnnotateColsTable(_, _, uid) =>
