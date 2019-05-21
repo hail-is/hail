@@ -11,6 +11,8 @@ spec:
        value: '/jwt/jwt'
      - name: BATCH_URL
        value: http://batch.{{ default_ns.name }}
+     - name: SCRATCH
+       value: gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
     volumeMounts:
       - mountPath: /jwt
         readOnly: true

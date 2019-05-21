@@ -536,9 +536,8 @@ steps:
    alwaysRun: true     
    script: |
      set -e
-     bucket=(python3 -c 'import hailjwt as hj; print(hj.unsafe_decode_from_file($HAIL_TOKEN_FILE)["bucket"])')
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
-     gsutil -m cp -r /test/resources/  gs://${bucket}/{{ token }}/pipeline/
+     gsutil -m cp -r /test/resources/  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/
    dependsOn:
     - test_pipeline    
  - kind: deploy
@@ -564,9 +563,8 @@ steps:
    alwaysRun: true     
    script: |
      set -e
-     bucket=(python3 -c 'import hailjwt as hj; print(hj.unsafe_decode_from_file($HAIL_TOKEN_FILE)["bucket"])')
      gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData
-     -gsutil rm -r gs://${bucket}/{{ token }}/pipeline
+     -gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
    dependsOn:
     - test_pipeline
  - kind: deploy
