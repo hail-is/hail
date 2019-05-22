@@ -8,7 +8,7 @@ import bokeh
 import bokeh.io
 from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
     ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
-    Select, Column, Span
+    Select, Column, Span, DataRange1d, Slope
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
@@ -861,7 +861,7 @@ def scatter(
     Note that using many different labelling schemes in the same plots, particularly if those labels contain many
     different classes could slow down the plot interactions.
 
-    Hovering on points will display their coordinates, labels and any additional fields specified in ``source_fields``.
+    Hovering on points will display their coordinates, labels and any additional fields specified in ``hover_fields``.
 
     Parameters
     ----------
@@ -1009,7 +1009,7 @@ def joint_plot(
        Note that using many different labelling schemes in the same plots, particularly if those labels contain many
        different classes could slow down the plot interactions.
 
-       Hovering on points in the scatter plot displays their coordinates, labels and any additional fields specified in ``source_fields``.
+       Hovering on points in the scatter plot displays their coordinates, labels and any additional fields specified in ``hover_fields``.
 
         Parameters
         ----------
@@ -1195,58 +1195,131 @@ def joint_plot(
     return gridplot(first_row, [sp, yp])
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), collect_all=bool, n_divisions=int)
-def qq(pvals, collect_all=False, n_divisions=500):
+@typecheck(pvals=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
+           label=nullable(oneof(dictof(str, expr_any), expr_any)), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
+           hover_fields=nullable(dictof(str, expr_any)),
+           colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
+           width=int, height=int, collect_all=bool, n_divisions=nullable(int), missing_label=str)
+def qq(
+        pvals: Union[NumericExpression, Tuple[str, NumericExpression]],
+        label: Union[Expression, Dict[str, Expression]] = None,
+        title: str = 'Q-Q plot',
+        xlabel: str = 'Expected p-value (-log10 scale)',
+        ylabel: str = 'Observed p-value (-log10 scale)',
+        size: int =4,
+        legend: bool = True,
+        hover_fields: Dict[str, Expression] = None,
+        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
+        width: int = 800,
+        height: int = 800,
+        collect_all: bool = False,
+        n_divisions: int = 500,
+        missing_label: str = 'NA'
+) -> Union[bokeh.plotting.Figure, Column]:
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
+
+    ``pvals`` must be either:
+    - a :class:`NumericExpression`
+    - a tuple (str, :class:`NumericExpression`). If passed as a tuple the first element is used as the hover label.
+
+    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
+    Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
+    - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
+    - a :class:`bokeh.plotting.figure.Figure` containing the interactive qq plot
+
+    Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
+    the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
+    mapper, check `the bokeh documentation <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__
+    for CategoricalMapper for categorical labels, and for LinearColorMapper and LogColorMapper
+    for continuous labels.
+    For categorical labels, clicking on one of the items in the legend will hide/show all points with the corresponding label.
+    Note that using many different labelling schemes in the same plots, particularly if those labels contain many
+    different classes could slow down the plot interactions.
+
+    Hovering on points will display their coordinates, labels and any additional fields specified in ``hover_fields``.
 
     Parameters
     ----------
-    pvals : List[float] or :class:`.Float64Expression`
-        P-values to be plotted.
+    pvals : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
+        List of x-values to be plotted.
+    label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+        Either a single expression (if a single label is desired), or a
+        dictionary of label name -> label value for x and y values.
+        Used to color each point w.r.t its label.
+        When multiple labels are given, a dropdown will be displayed with the different options.
+        Can be used with categorical or continuous expressions.
+    title : str
+        Title of the scatterplot.
+    xlabel : str
+        X-axis label.
+    ylabel : str
+        Y-axis label.
+    size : int
+        Size of markers in screen space units.
+    legend: bool
+        Whether or not to show the legend in the resulting figure.
+    hover_fields : Dict[str, :class:`.Expression`]
+        Extra fields to be displayed when hovering over a point on the plot.
+    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+        If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
+        be a Dict of label name -> color mapper.
+        Used to set colors for the labels defined using ``label``.
+        If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
+    width: int
+        Plot width
+    height: int
+        Plot height
     collect_all : bool
         Whether to collect all values or downsample before plotting.
-        This parameter will be ignored if pvals is a Python object.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+    missing_label: str
+        Label to use when a point is missing data for a categorical label
 
     Returns
     -------
-    :class:`bokeh.plotting.figure.Figure`
+    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
     """
-    if isinstance(pvals, Expression):
-        source = pvals._indices.source
-        if source is not None:
-            if collect_all:
-                pvals = pvals.collect()
-                spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
-                exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-                obs = [-math.log(p, 10) for p in spvals]
-            else:
-                if isinstance(source, Table):
-                    ht = source.select(pval=pvals).key_by().persist().key_by('pval')
-                else:
-                    ht = source.select_rows(pval=pvals).rows().key_by().select('pval').persist().key_by('pval')
-                n = ht.count()
-                ht = ht.select(idx=hail.scan.count())
-                ht = ht.annotate(expected_p=(ht.idx + 1) / n)
-                pvals = ht.aggregate(
-                    aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
-                exp = [point[0] for point in pvals if not math.isnan(point[1])]
-                obs = [point[1] for point in pvals if not math.isnan(point[1])]
-        else:
-            return ValueError('Invalid input: expression has no source')
+    hover_fields = {} if hover_fields is None else hover_fields
+    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
+    source = pvals._indices.source
+    if isinstance(source, Table):
+        ht = source.select(pval=pvals, **hover_fields, **label)
     else:
-        spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
-        exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-        obs = [-math.log(p, 10) for p in spvals]
+        ht = source.select_rows(pval=pvals, **hover_fields, **label).rows()
+    ht = ht.key_by().select('pval', *hover_fields, *label).key_by('pval').persist()
+    n = ht.count()
+    ht = ht.annotate(
+        observed_p=-hail.log10(ht.pval),
+        expected_p=-hail.log10((hail.scan.count() + 1) / n)
+    ).persist()
+    p = scatter(
+        ht.expected_p,
+        ht.observed_p,
+        label={x: ht[x] for x in label},
+        title=title,
+        xlabel=xlabel,
+        ylabel=ylabel,
+        size=size,
+        legend=legend,
+        hover_fields={x: ht[x] for x in hover_fields},
+        colors=colors,
+        width=width,
+        height=height,
+        collect_all=collect_all,
+        n_divisions=n_divisions,
+        missing_label=missing_label
 
-    p = figure(
-        title='Q-Q Plot',
-        x_axis_label='Expected p-value (-log10 scale)',
-        y_axis_label='Observed p-value (-log10 scale)')
-    p.scatter(x=exp, y=obs, color='black')
-    bound = max(max(exp), max(obs)) * 1.1
-    p.line([0, bound], [0, bound], color='red')
+    )
+    max_p = ht.aggregate(hail.agg.max(hail.max(ht.observed_p, ht.expected_p)))
+    if isinstance(p, Column):
+        qq = p.children[1]
+    else:
+        qq = p
+    qq.x_range = DataRange1d(start=0, end=max_p + 1)
+    qq.y_range = DataRange1d(start=0, end=max_p + 1)
+    qq.add_layout(Slope(gradient=1, y_intercept=0, line_color='red'))
     return p
 
 
