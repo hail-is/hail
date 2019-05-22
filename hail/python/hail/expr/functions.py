@@ -4848,13 +4848,16 @@ def binary_search(array, elem) -> Int32Expression:
     Notes
     -----
     This function assumes that `array` is sorted in ascending order, and does
-    not perform any sortedness check.
+    not perform any sortedness check. Missing values sort last.
 
     The returned index is the lower bound on the insertion point of `elem` into
     the ordered array, or the index of the first element in `array` not smaller
     than `elem`. This is a value between 0 and the length of `array`, inclusive
     (if all elements in `array` are smaller than `elem`, the returned value is
-    the length of `array`).
+    the length of `array` or the index of the first missing value, if one
+    exists).
+
+    If either `elem` or `array` is missing, the result is missing.
 
     Examples
     --------
