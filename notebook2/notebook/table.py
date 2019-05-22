@@ -43,9 +43,6 @@ class Table:
         return pymysql.connect(**self.connection_params,
                                cursorclass=pymysql.cursors.DictCursor)
 
-    def __del__(self):
-        self.cnx.close()
-
     def get(self, user_id):
         with self.acquire_connection() as cursor:
             cursor.execute(
