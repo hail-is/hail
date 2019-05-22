@@ -480,12 +480,16 @@ class Tests(unittest.TestCase):
                         (-8, slice(3, 4)),
                         (-1, slice(3, 4))]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(3, 4), 0),
                         (slice(3, 4), 1),
                         (slice(3, 4), -8),
                         (slice(3, 4), -1)]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(0, 8), slice(0, 10)),
                         (slice(0, 8, 2), slice(0, 10, 2)),

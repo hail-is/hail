@@ -226,6 +226,7 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case BlockMatrixAgg(_, outIndexExpr) => prettyInts(outIndexExpr)
+            case BlockMatrixSlice(_, slices) => slices.map(slice => prettyLongs(slice)).mkString("(", " ", ")")
             case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " "
