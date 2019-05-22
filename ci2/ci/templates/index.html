@@ -68,15 +68,15 @@
             {{ pr.title }}
           </td>
           <td align="left">
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
             {% if pr.build_state is not none %}
-            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
               {{ pr.build_state }}
-            </a>
             {% elif pr.batch_id is not none %}
-            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
               building
-            </a>
+            {% else %}
+              pending
             {% endif %}
+            </a>
           </td>
           <td align="left">
             {% if pr.review_state %}
