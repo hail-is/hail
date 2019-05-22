@@ -2,10 +2,10 @@ import abc
 import os
 import subprocess as sp
 import uuid
+from shlex import quote as shq
 import batch.client
 
 from .resource import InputResourceFile, TaskResourceFile
-from .utils import escape_string
 
 
 class Backend:
@@ -54,7 +54,7 @@ class LocalBackend(Backend):
                     if r._input_path.startswith('gs://'):
                         return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
                     else:
-                        absolute_input_path = escape_string(os.path.realpath(r._input_path))
+                        absolute_input_path = shq(os.path.realpath(r._input_path))
                         if task._image is not None:  # pylint: disable-msg=W0640
                             return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
                         else:
@@ -76,11 +76,11 @@ class LocalBackend(Backend):
                     return 'gsutil cp'
 
             if isinstance(r, InputResourceFile):
-                return [f'{cp(dest)} {escape_string(r._input_path)} {escape_string(dest)}'
+                return [f'{cp(dest)} {shq(r._input_path)} {shq(dest)}'
                         for dest in r._output_paths]
             else:
                 assert isinstance(r, TaskResourceFile)
-                return [f'{cp(dest)} {r._get_path(tmpdir)} {escape_string(dest)}'
+                return [f'{cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
                         for dest in r._output_paths]
 
         write_inputs = [x for r in pipeline._input_resources for x in copy_external_output(r)]
@@ -110,7 +110,7 @@ class LocalBackend(Backend):
                            f"{memory} "
                            f"{cpu} "
                            f"{task._image} /bin/bash "
-                           f"-c {escape_string(defs + cmd)}",
+                           f"-c {shq(defs + cmd)}",
                            '\n']
             else:
                 script += resource_defs
@@ -188,7 +188,7 @@ class BatchBackend(Backend):
 
         def copy_input(r):
             if isinstance(r, InputResourceFile):
-                return [(escape_string(r._input_path), r._get_path(local_tmpdir))]
+                return [(r._input_path, r._get_path(local_tmpdir))]
             else:
                 assert isinstance(r, TaskResourceFile)
                 return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
@@ -199,10 +199,10 @@ class BatchBackend(Backend):
 
         def copy_external_output(r):
             if isinstance(r, InputResourceFile):
-                return [(escape_string(r._input_path), escape_string(dest)) for dest in r._output_paths]
+                return [(r._input_path, dest) for dest in r._output_paths]
             else:
                 assert isinstance(r, TaskResourceFile)
-                return [(r._get_path(local_tmpdir), escape_string(dest)) for dest in r._output_paths]
+                return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
 
         write_external_inputs = [x for r in pipeline._input_resources for x in copy_external_output(r)]
         if write_external_inputs:
