@@ -145,7 +145,7 @@ object IRParser {
     try {
       Serialization.read[T](str)
     } catch {
-      case e: MappingException => 
+      case e: MappingException =>
         if (e.cause != null)
           throw e.cause
         else
@@ -882,11 +882,7 @@ object IRParser {
       case "MatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats = MatrixNativeMultiWriter.formats
-        val writer = try{
-          Serialization.read[MatrixNativeMultiWriter](writerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        val writer = deserialize[MatrixNativeMultiWriter](writerStr)
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
       case "BlockMatrixWrite" =>
@@ -1144,11 +1140,7 @@ object IRParser {
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         implicit val formats: Formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
-        val reader = try {
-          Serialization.read[MatrixReader](readerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        val reader = deserialize[MatrixReader](readerStr)
         MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
