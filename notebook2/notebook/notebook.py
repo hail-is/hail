@@ -16,12 +16,11 @@ from functools import wraps
 
 import logging
 import os
-import re
 import requests
 import uuid
 import hashlib
 import kubernetes as kube
-import os
+import jwt
 
 from table import Table
 from hailjwt import JWTClient, get_domain
@@ -112,6 +111,7 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 jwtclient = JWTClient(SECRET_KEY)
 
+
 def jwt_decode(token):
     if token is None:
         return None
@@ -121,6 +121,7 @@ def jwt_decode(token):
     except jwt.exceptions.InvalidTokenError as e:
         log.warn(f'found invalid token {e}')
         return None
+
 
 def attach_user():
     def attach_user(f):
@@ -518,9 +519,8 @@ def auth0_callback():
     userinfo = auth0.get('userinfo').json()
 
     email = userinfo['email']
-    workshop_user = session.get('workshop_user', False)
 
-    if AUTHORIZED_USERS.get(email) is None and workshop_user is False:
+    if AUTHORIZED_USERS.get(email) is None:
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     g.user = {
@@ -549,28 +549,14 @@ def error_page():
     return render_template('error.html', error = request.args.get('err'))
 
 
-@app.route('/login', methods=['GET'])
-@attach_user()
-def login_page():
-    return render_template('login.html')
-
-
 @app.route('/user', methods=['GET'])
 @requires_auth()
 def user_page():
     return render_template('user.html', user=g.user)
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET'])
 def login_auth0():
-    workshop_password = request.form['workshop-password']
-
-    if workshop_password != '':
-        if workshop_password != PASSWORD:
-            return redirect(external_url_for(f"error?err=Unauthorized"))
-
-        session['workshop_user'] = True
-
     return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
                                     audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
