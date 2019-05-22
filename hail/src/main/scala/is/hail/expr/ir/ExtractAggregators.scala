@@ -99,7 +99,7 @@ object ExtractAggregators {
       rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
       addLets(Begin(ops.map(_.seqOp)), ab3.result()),
-      aggs.map(_.rvAgg))
+      aggs.map(_.rvAgg).toArray)
   }
 
   private def extract[RVAgg](ir: IR, ab: ArrayBuilder[IRAgg[RVAgg]], ab2: ArrayBuilder[AggOps], ab3: ArrayBuilder[AggLet], result: IR,
@@ -152,7 +152,7 @@ object ExtractAggregators {
         val transformed = this.extract[RVAgg](aggIR, newRVAggBuilder, newBuilder, ab3, GetField(newRef, "value"), newAggregator, keyedAggregator, arrayAggregator)
 
         val nestedAggs = newRVAggBuilder.result()
-        val agg = keyedAggregator(nestedAggs.map(_.rvAgg), key.typ)
+        val agg = keyedAggregator(nestedAggs.map(_.rvAgg).toArray, key.typ)
         val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid))
         val rt = TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
@@ -178,7 +178,7 @@ object ExtractAggregators {
         ab3 ++= independent
 
         val nestedAggs = newRVAggBuilder.result()
-        val agg = arrayAggregator(nestedAggs.map(_.rvAgg))
+        val agg = arrayAggregator(nestedAggs.map(_.rvAgg).toArray)
         val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
 
