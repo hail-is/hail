@@ -64,7 +64,7 @@ class RegionValueIteratorSuite extends SparkSuite {
     val bin = mod.getBinary
 
     val result = hc.sc.parallelize(a, 2).mapPartitions { rowsIt =>
-      val rows = rowsIt.toIndexedSeq
+      val rows = rowsIt.toFastIndexedSeq
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
         val it = new RegionValueIterator(rows.toIterator.map { r =>
@@ -122,7 +122,7 @@ class RegionValueIteratorSuite extends SparkSuite {
     val makeIt = CXXRegionValueIterator(s"ScalaStagingIterator<$itType>", tub, modToPtr)
 
     val encoded = hc.sc.parallelize(a, 2).mapPartitions { case (rowsIt) =>
-      val rows = rowsIt.toIndexedSeq
+      val rows = rowsIt.toFastIndexedSeq
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
         val baos = new ByteArrayOutputStream()
