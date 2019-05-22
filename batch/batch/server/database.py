@@ -78,8 +78,11 @@ class JobsTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
-    async def update_log_uri(self, id, task_name, uri):
-        await self.update_record(id, **{JobsTable.log_uri_mapping[task_name]: uri})
+    async def update_with_log_ec(self, id, task_name, uri, exit_code, **items):
+        await self.update_record(id,
+                                 **{JobsTable.log_uri_mapping[task_name]: uri,
+                                    JobsTable.exit_code_mapping[task_name]: exit_code},
+                                 **items)
 
     async def get_log_uri(self, id, task_name):
         uri_field = JobsTable.log_uri_mapping[task_name]

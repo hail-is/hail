@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `state` VARCHAR(40) NOT NULL,
   `input_exit_code` INT,
   `main_exit_code` INT,
-  `output_exit_code` INT,  
+  `output_exit_code` INT,
   `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),

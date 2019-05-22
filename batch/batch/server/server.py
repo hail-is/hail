@@ -142,12 +142,6 @@ class JobTask:  # pylint: disable=R0903
 
 
 class Job:
-    async def _next_task(self):
-        self._task_idx += 1
-        await db.jobs.update_record(self.id, task_idx=self._task_idx)
-        if self._task_idx < len(self._tasks):
-            self._current_task = self._tasks[self._task_idx]
-
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
@@ -299,9 +293,23 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Created'
         return None
 
-    async def _write_log(self, task_name, log):
-        uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
-        await db.jobs.update_log_uri(self.id, task_name, uri)
+    async def _mark_job_task_complete(self, task_name, log, exit_code):
+        self.exit_codes[self._task_idx] = exit_code
+
+        self._task_idx += 1
+        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
+
+        if self._pod_name:
+            self._pod_name = None
+
+        uri = None
+        if log is not None:
+            uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
+
+        await db.jobs.update_with_log_ec(self.id, task_name, uri, exit_code,
+                                         task_idx=self._task_idx,
+                                         pod_name=self._pod_name,
+                                         duration=self.duration)
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -345,7 +353,7 @@ class Job:
         pvc_name = None
         pod_name = None
         duration = 0
-        task_idx = -1
+        task_idx = 0
         state = 'Created'
         cancelled = False
         user = userdata['ksa_name']
@@ -375,9 +383,6 @@ class Job:
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
                   pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
                   task_idx=task_idx, state=state, cancelled=cancelled)
-
-        await job._next_task()
-        assert job._current_task is not None
 
         for parent in parent_ids:
             await db.jobs_parents.new_record(job_id=id,
@@ -484,9 +489,7 @@ class Job:
 
         if failed:
             exit_code = 999  # FIXME hack
-            await db.jobs.update_record(self.id,
-                                        **{JobsTable.exit_code_mapping[task_name]: exit_code,
-                                           'pod_name': None})
+            pod_log = None
         else:
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
@@ -498,31 +501,21 @@ class Job:
                 log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
                             f'terminated but has no timing information. {pod}')
                 self.duration = None
-            await db.jobs.update_record(self.id, **{db.jobs.exit_code_field(task_name): exit_code,
-                                                    'duration': self.duration,
-                                                    'pod_name': None})
-
             try:
                 pod_log = v1.read_namespaced_pod_log(
                     pod.metadata.name,
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-                await self._write_log(task_name, pod_log)
             except kube.client.rest.ApiException as exc:
                 pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
                 log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
-                await self._write_log(task_name, pod_log)
                 if exc.status == 400:
-                   await self.mark_unscheduled()
+                    await self.mark_unscheduled()
                 else:
                     raise
 
-        self.exit_codes[self._task_idx] = exit_code
+        await self._mark_job_task_complete(task_name, pod_log, exit_code)
 
-        if self._pod_name:
-            self._pod_name = None
-
-        await self._next_task()
         if exit_code == 0:
             if self._has_next_task():
                 await self._create_pod()
