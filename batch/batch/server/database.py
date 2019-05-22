@@ -181,7 +181,7 @@ class BatchTable(Table):
                 values.append(v)
                 values.append(len(attributes))
                 havings.append(f"sum(attr.`{k}` = %s) = %s")
-        sql += " ".join(joins)
+        sql += " " + " ".join(joins)
         sql += " where " + " and ".join(wheres)
         sql += " having " + " and ".join(havings)
         sql += " group by " + ", ".join(groups)
