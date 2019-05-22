@@ -142,8 +142,17 @@ object IRParser {
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
 
   def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
-    Serialization.read[T](str)
-  }
+    try {
+	      Serialization.read[T](str)
+	    } catch {
+	      case e: MappingException => 
+          if (e.cause != null) {
+            throw e.cause
+          } else {
+            throw e
+          }
+	    }
+	  }
 
   def consumeToken(it: TokenIterator): Token = {
     if (!it.hasNext)
