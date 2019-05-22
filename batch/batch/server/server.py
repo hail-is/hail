@@ -6,6 +6,7 @@ import os
 import threading
 import json
 import uuid
+from shlex import quote as shq
 
 from aiohttp import web
 import cerberus
@@ -109,10 +110,10 @@ class JobTask:  # pylint: disable=R0903
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):
-                    mkdirs = f'mkdir -p {os.path.dirname(dst)};'
+                    mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
                 else:
                     mkdirs = ""
-                return f'{mkdirs} gsutil -m cp -R {src} {dst}'
+                return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
             copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
             sh_expression = f'{authenticate} && {copies}'

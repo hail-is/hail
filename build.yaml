@@ -34,8 +34,6 @@ steps:
     # hail|test-batch
     - user-jwt-vkqfw
     - gsa-key-2x975
-    # pipeline|test-user
-    - pipeline-test-0-1--hail-is-service-account-key
    dependsOn:
     - default_ns
     - deploy_batch_sa
@@ -215,6 +213,7 @@ steps:
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
+    - default_ns
  - kind: buildImage
    name: spark_master_image
    dockerFile: apiserver/Dockerfile.spark-master
@@ -529,6 +528,20 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: runImage
+   name: setup_pipeline
+   image:
+     valueFrom: test_pipeline_image.image
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
+     gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
+   secrets:
+    # hail|test-batch
+    - name: gsa-key-2x975 
+      mountPath: /gsa-key-test-batch/
+   dependsOn:
+    - test_pipeline_image
  - kind: deploy
    name: test_pipeline
    namespace:
@@ -544,6 +557,24 @@ steps:
     - batch_pods_ns
     - deploy_batch
     - test_pipeline_image
+    - setup_pipeline
+ - kind: runImage
+   name: cleanup_pipeline
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true     
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
+     gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ setup_pipeline.token }}/pipeline
+   secrets:
+    # hail|test-batch
+    - name: gsa-key-2x975 
+      mountPath: /gsa-key-test-batch/
+   dependsOn:
+    - base_image
+    - setup_pipeline    
+    - test_pipeline
  - kind: deploy
    name: deploy_apiserver
    namespace:
