@@ -143,15 +143,13 @@ object IRParser {
 
   def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
     try {
-	      Serialization.read[T](str)
-	    } catch {
-	      case e: MappingException => 
-          if (e.cause != null) {
-            throw e.cause
-          } else {
-            throw e
-          }
-	    }
+      Serialization.read[T](str)
+    } catch {
+	    case e: MappingException => 
+        if (e.cause != null)
+          throw e.cause
+        else
+          throw e
 	  }
 
   def consumeToken(it: TokenIterator): Token = {
