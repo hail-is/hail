@@ -50,6 +50,8 @@ steps:
      kubectl -n {{ default_ns.name }} create secret generic ci2-jwt --from-file=./jwt
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
    serviceAccount: ci2-agent
+   scopes:
+    - test
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -563,7 +565,7 @@ steps:
    name: test_pipeline
    namespace:
      valueFrom: batch_pods_ns.name
-   config: pipeline/test-pipeline-pod.yaml 
+   config: pipeline/test-pipeline-pod.yaml
    wait:
     - kind: Pod
       name: test-pipeline

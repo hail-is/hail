@@ -45,6 +45,9 @@ spec:
          - name: jwt-secret-key
            mountPath: /jwt-secret-key
            readOnly: true
+         - name: gsa-key
+           mountPath: /batch-gsa-key
+           readOnly: true
          - name: batch-jwt
            mountPath: /batch-jwt
            readOnly: true
@@ -63,6 +66,14 @@ spec:
          secret:
            optional: false
            secretName: jwt-secret-key
+       - name: gsa-key
+         secret:
+           optional: false
+{% if deploy %}
+           secretName: gsa-key-n6hf9
+{% else %}
+           secretName: test-gsa-key
+{% endif %}
        - name: batch-jwt
          secret:
            optional: false
