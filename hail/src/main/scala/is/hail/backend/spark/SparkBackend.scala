@@ -23,7 +23,7 @@ object SparkBackend {
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
 
-  def jvmExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
+  def jvmLowerAndExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
     val timer = new ExecutionTimer("JVMCompile")
 
     val ir = LowerTableIR(ir0, Some(timer), optimize)

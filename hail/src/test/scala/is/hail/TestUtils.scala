@@ -209,7 +209,7 @@ object TestUtils {
   def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    SparkBackend.jvmExecute(HailContext.get.sc, x, optimize = false)._1
+    SparkBackend.jvmLowerAndExecute(HailContext.get.sc, x, optimize = false)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
