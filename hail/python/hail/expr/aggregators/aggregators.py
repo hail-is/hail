@@ -279,7 +279,7 @@ def approx_quantiles(expr, qs, k=100) -> Expression:
     if isinstance(qs.dtype, tarray):
         return rbind(approx_cdf(expr, k), lambda cdf: qs.map(lambda q: _quantile_from_cdf(cdf, float32(q))))
     else:
-        return rbind(approx_cdf(expr, k), lambda cdf: _quantile_from_cdf(cdf, qs))
+        return _quantile_from_cdf(approx_cdf(expr, k), qs)
 
 
 @typecheck(expr=expr_any)
