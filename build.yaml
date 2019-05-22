@@ -536,7 +536,6 @@ steps:
      set -e
      gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
      gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
-     gsutil ls -l gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
    secrets:
     # hail|test-batch
     - name: gsa-key-2x975 
@@ -567,13 +566,14 @@ steps:
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
-     gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline
+     gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ setup_pipeline.token }}/pipeline
    secrets:
     # hail|test-batch
     - name: gsa-key-2x975 
       mountPath: /gsa-key-test-batch/
    dependsOn:
     - base_image
+    - setup_pipeline    
     - test_pipeline
  - kind: deploy
    name: deploy_apiserver
