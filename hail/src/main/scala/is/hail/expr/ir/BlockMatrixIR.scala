@@ -454,12 +454,12 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
   assert(slices.length == 2)
   assert(slices.forall(_.length == 3))
 
-  val matrixShape: IndexedSeq[Long] = slices.map { s =>
-    val IndexedSeq(start, stop, step) = s
-    1 + (stop - start - 1) / step
-  }
-
   override def typ: BlockMatrixType = {
+    val matrixShape: IndexedSeq[Long] = slices.map { s =>
+      val IndexedSeq(start, stop, step) = s
+      1 + (stop - start - 1) / step
+    }
+
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize)
   }
@@ -478,9 +478,10 @@ case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[
       start until stop by step
     }
 
-    if (isFullRange(rowKeep, child.typ.shape(0))) {
+    val (childNRows, childNCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
+    if (isFullRange(rowKeep, childNRows)) {
       bm.filterCols(colKeep.toArray)
-    } else if (isFullRange(colKeep, child.typ.shape(1))) {
+    } else if (isFullRange(colKeep, childNCols)) {
       bm.filterRows(rowKeep.toArray)
     } else {
       bm.filter(rowKeep.toArray, colKeep.toArray)

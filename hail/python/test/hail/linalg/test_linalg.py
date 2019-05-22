@@ -500,6 +500,8 @@ class Tests(unittest.TestCase):
                         (slice(4, None), slice(4, None)),
                         (slice(None, None), slice(None, None))]:
             self._assert_eq(bm[indices], nd[indices])
+            self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
+            self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])
 
         self.assertRaises(ValueError, lambda: bm[0, ])
 
