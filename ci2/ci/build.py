@@ -709,7 +709,7 @@ date
 
 class CreateDatabaseStep(Step):
     def __init__(self, params, database_name, namespace):
-        super().__init__(json)
+        super().__init__(params)
         # FIXME validate
         self.database_name = database_name
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.deploy))
