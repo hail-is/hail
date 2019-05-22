@@ -48,7 +48,7 @@ steps:
        f.write(secret_key)
      payload = {'ksa_name':'unused','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key'}
      with open('jwt', 'w') as f:
-       f.write(jwt.encode(payload, secret_key))
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
