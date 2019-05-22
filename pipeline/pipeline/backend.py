@@ -234,6 +234,7 @@ class BatchBackend(Backend):
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
+            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{task._uid}/; '
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
@@ -251,7 +252,7 @@ class BatchBackend(Backend):
                 resources['requests']['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
-                                 command=['/bin/bash', '-c', defs + cmd],
+                                 command=['/bin/bash', '-c', make_local_tmpdir + defs + cmd],
                                  parent_ids=parent_ids,
                                  attributes=attributes,
                                  resources=resources,
