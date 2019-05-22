@@ -32,10 +32,17 @@ spec:
           - mountPath: /notebook-secrets
             readOnly: true
             name: notebook-secrets
+          - name: jwt-secret-key
+            mountPath: /jwt-secret-key
+            readOnly: true
       volumes:
         - name: notebook-secrets
           secret:
             secretName: notebook-secrets
+        - name: jwt-secret-key
+          secret:
+            optional: false
+            secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service
