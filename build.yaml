@@ -30,6 +30,11 @@ steps:
    dependsOn:
     - default_ns
     - deploy_batch_sa
+ - kind: buildImage
+   name: base_image
+   dockerFile: docker/Dockerfile.base
+   contextPath: docker
+   publishAs: base
  - kind: runImage
    name: create_accounts
    image: "{{ base_image.image }}"
@@ -56,11 +61,6 @@ steps:
     - default_ns
     - batch_pods_ns
     - base_image
- - kind: buildImage
-   name: base_image
-   dockerFile: docker/Dockerfile.base
-   contextPath: docker
-   publishAs: base
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
