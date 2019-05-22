@@ -324,8 +324,8 @@ class Job:
             userdata = json.loads(record['userdata'])
 
             exit_codes = [record[db.jobs.exit_code_field(t.name)] for t in tasks]
-            last_ec_indices = [idx for idx, ec in enumerate(exit_codes) if ec is not None]
-            assert record['task_idx'] == 1 + (last_ec_indices[-1] if len(last_ec_indices) else -1)
+            ec_indices = [idx for idx, ec in enumerate(exit_codes) if ec is not None]
+            assert record['task_idx'] == 1 + (ec_indices[-1] if len(ec_indices) else -1)
 
             return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
