@@ -37,7 +37,8 @@ steps:
    publishAs: base
  - kind: runImage
    name: create_accounts
-   image: "{{ base_image.image }}"
+   image:
+     valueFrom: base_image.image
    script: |
      set -e
      echo creating jwt-signing-key secret...
