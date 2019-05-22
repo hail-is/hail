@@ -143,7 +143,7 @@ class MatrixIRSuite extends SparkSuite {
     val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
-    val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
+    val exploded = getRows(MatrixExplodeRows(annotated, path.toFastIndexedSeq)).map(q(_).asInstanceOf[Integer])
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
     assert(exploded sameElements expected)
@@ -161,7 +161,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
 
-    Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toIndexedSeq))
+    Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toFastIndexedSeq))
   }
 
   @Test def testCastTableToMatrix() {
