@@ -20,7 +20,9 @@ CREATE INDEX batch_user ON batch (user);
 CREATE TABLE IF NOT EXISTS `jobs` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(40) NOT NULL,
-  `exit_code` INT,
+  `input_exit_code` INT,
+  `main_exit_code` INT,
+  `output_exit_code` INT,  
   `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),

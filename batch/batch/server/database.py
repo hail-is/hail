@@ -15,6 +15,10 @@ class JobsTable(Table):
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
+    exit_code_mapping = {'input': 'input_exit_code',
+                         'main': 'main_exit_code',
+                         'output': 'output_exit_code'}
+
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
@@ -84,6 +88,9 @@ class JobsTable(Table):
             assert len(records) == 1
             return records[0][uri_field]
         return None
+
+    def exit_code_field(self, task_name):
+        return JobsTable.exit_code_mapping[task_name]
 
     async def get_parents(self, job_id):
         async with self._db.pool.acquire() as conn:

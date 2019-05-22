@@ -32,7 +32,7 @@
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
 	    {% if 'exit_code' in job %}
-	    {{ job['exit_code'] }}
+	    {{ max(job['exit_code']) }}
 	    {% endif %}
 	  </td>
           <td align="right">

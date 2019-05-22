@@ -312,13 +312,14 @@ class Job:
     def from_record(record):
         if record is not None:
             tasks = [JobTask.from_dict(item) for item in json.loads(record['tasks'])]
+            exit_codes = [record[db.jobs.exit_code_field(t.name)] for t in tasks]
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
             return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
                        always_run=record['always_run'], pvc_name=record['pvc_name'], pod_name=record['pod_name'],
-                       exit_code=record['exit_code'], duration=record['duration'], tasks=tasks,
+                       exit_codes=exit_codes, duration=record['duration'], tasks=tasks,
                        task_idx=record['task_idx'], state=record['state'], cancelled=record['cancelled'])
         return None
 
@@ -340,7 +341,6 @@ class Job:
                          input_files, output_files, userdata, always_run):
         pvc_name = None
         pod_name = None
-        exit_code = None
         duration = 0
         task_idx = -1
         state = 'Created'
@@ -352,9 +352,9 @@ class Job:
                  JobTask.copy_task('output', output_files)]
 
         tasks = [t for t in tasks if t is not None]
+        exit_codes = [None for _ in tasks]
 
         id = await db.jobs.new_record(state=state,
-                                      exit_code=exit_code,
                                       batch_id=batch_id,
                                       pod_name=pod_name,
                                       pvc_name=pvc_name,
@@ -370,7 +370,7 @@ class Job:
 
         job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
-                  pod_name=pod_name, exit_code=exit_code, duration=duration, tasks=tasks,
+                  pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
                   task_idx=task_idx, state=state, cancelled=cancelled)
 
         await job._next_task()
@@ -391,7 +391,7 @@ class Job:
         return job
 
     def __init__(self, id, batch_id, attributes, callback, userdata, user, always_run,
-                 pvc_name, pod_name, exit_code, duration, tasks, task_idx, state, cancelled):
+                 pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state, cancelled):
         self.id = id
         self.batch_id = batch_id
         self.attributes = attributes
@@ -399,7 +399,7 @@ class Job:
         self.always_run = always_run
         self.userdata = userdata
         self.user = user
-        self.exit_code = exit_code
+        self.exit_codes = exit_codes
         self.duration = duration
 
         self._pvc_name = pvc_name
@@ -468,7 +468,7 @@ class Job:
         return self._state in ('Complete', 'Cancelled')
 
     def is_successful(self):
-        return self._state == 'Complete' and self.exit_code == 0
+        return self._state == 'Complete' and all([ec == 0 for ec in self.exit_codes])
 
     async def mark_unscheduled(self):
         if self._pod_name:
@@ -480,13 +480,13 @@ class Job:
         task_name = self._current_task.name
 
         if failed:
+            exit_code = 999  # FIXME hack
             await db.jobs.update_record(self.id,
-                                        # FIXME hack
-                                        exit_code=999,
-                                        pod_name=None)
+                                        **{JobsTable.exit_code_mapping[task_name]: exit_code,
+                                           'pod_name': None})
         else:
             terminated = pod.status.container_statuses[0].state.terminated
-            self.exit_code = terminated.exit_code
+            exit_code = terminated.exit_code
             if terminated.finished_at is not None and terminated.started_at is not None:
                 duration = (terminated.finished_at - terminated.started_at).total_seconds()
                 if self.duration is not None:
@@ -495,29 +495,32 @@ class Job:
                 log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
                             f'terminated but has no timing information. {pod}')
                 self.duration = None
-            await db.jobs.update_record(self.id,
-                                        exit_code=self.exit_code,
-                                        duration=self.duration,
-                                        pod_name=None)
+            await db.jobs.update_record(self.id, **{db.jobs.exit_code_field(task_name): exit_code,
+                                                    'duration': self.duration,
+                                                    'pod_name': None})
 
             try:
                 pod_log = v1.read_namespaced_pod_log(
                     pod.metadata.name,
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+                await self._write_log(task_name, pod_log)
             except kube.client.rest.ApiException as exc:
+                pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
+                log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
+                await self._write_log(task_name, pod_log)
                 if exc.status == 400:
-                    log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
-                    pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
+                   await self.mark_unscheduled()
                 else:
                     raise
-            await self._write_log(task_name, pod_log)
+
+        self.exit_codes[self._task_idx] = exit_code
 
         if self._pod_name:
             self._pod_name = None
 
         await self._next_task()
-        if self.exit_code == 0:
+        if exit_code == 0:
             if self._has_next_task():
                 await self._create_pod()
                 return
@@ -527,7 +530,7 @@ class Job:
 
         await self.set_state('Complete')
 
-        log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
+        log.info('job {} complete, exit_codes {}'.format(self.id, self.exit_codes))
 
         if self.callback:
             def handler(id, callback, json):
@@ -550,7 +553,8 @@ class Job:
             'state': self._state
         }
         if self._state == 'Complete':
-            result['exit_code'] = self.exit_code
+            result['exit_code'] = {t.name: ec for idx, (ec, t) in enumerate(zip(self.exit_codes, self._tasks))
+                                   if idx < self._task_idx}
             result['duration'] = self.duration
 
         if self.attributes:
