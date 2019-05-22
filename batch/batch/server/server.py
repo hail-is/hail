@@ -947,26 +947,18 @@ async def close_batch(request, userdata):
     await batch.close()
     return jsonify({})
 
-@routes.patch('/ui/batches/{batch_id}')
-@authenticated_users_only
-async def ui_batches(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
 
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
+@routes.get('/ui/batches/{batch_id}')
+@aiohttp_jinja2.template('batch.html')
+async def batches_show(request, userdata):
+    jobs = await get_batch(request, userdata)
+    return {"job_list": jobs}
 
-@app.route('/batches/<int:id>')
-def batches_show(id):
-    b = bc.get_batch(id)
-    jobs = b.status()['jobs']
-    return render_template('batch.html',job_list=jobs)
-
-@app.route('/batches')
-def batch_id():
-    b= bc.list_batches()
-    return render_template('batches.html', batch_list=b)
+@routes.get('/ui/batches')
+@aiohttp_jinja2.template('batches.html')
+async def batch_id(request, userdata):
+    b= await get_batches_list(request, userdata)
+    return {"batch_list":b}
 
 
 
