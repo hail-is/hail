@@ -40,16 +40,15 @@ steps:
    image:
      valueFrom: base_image.image
    script: |
-     set -e
-     echo creating jwt-signing-key secret...
+     set -ex
      python3 -c "
-     import secrets, json, jwt
+     import secrets, jwt
      secret_key = secrets.token_urlsafe(64)
      with open('secret-key', 'w') as f:
        f.write(secret_key)
      payload = {'ksa_name':'unused','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key'}
      with open('jwt', 'w') as f:
-       f.write(jwt.encode(json.dumps(payload), secret_key))
+       f.write(jwt.encode(payload, secret_key))
      "
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
