@@ -1,6 +1,6 @@
 import abc
 
-from .utils import escape_string
+from shlex import quote as shq
 
 
 class Resource:
@@ -15,7 +15,7 @@ class Resource:
         pass
 
     def _declare(self, directory):
-        return f"{self._uid}={escape_string(self._get_path(directory))}"
+        return f"{self._uid}={shq(self._get_path(directory))}"
 
 
 class ResourceFile(Resource, str):
@@ -126,7 +126,7 @@ class InputResourceFile(ResourceFile):
 
     def _get_path(self, directory):
         assert self._value is not None
-        return escape_string(directory + '/inputs/' + self._value)
+        return shq(directory + '/inputs/' + self._value)
 
 
 class TaskResourceFile(ResourceFile):
@@ -143,7 +143,7 @@ class TaskResourceFile(ResourceFile):
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
-        return escape_string(directory + '/' + self._source._uid + '/' + self._value)
+        return shq(directory + '/' + self._source._uid + '/' + self._value)
 
 
 class ResourceGroup(Resource):
