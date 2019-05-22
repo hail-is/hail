@@ -145,12 +145,13 @@ object IRParser {
     try {
       Serialization.read[T](str)
     } catch {
-	    case e: MappingException => 
+      case e: MappingException => 
         if (e.cause != null)
           throw e.cause
         else
           throw e
-	  }
+    }
+  }
 
   def consumeToken(it: TokenIterator): Token = {
     if (!it.hasNext)
