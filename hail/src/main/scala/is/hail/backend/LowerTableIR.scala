@@ -48,7 +48,6 @@ object LowerTableIR {
     ir = ir.unwrap
     if (optimize) { ir = time( "first pass", opt(_, ir)) }
 
-    ir = time("lifting non-compilable", _ => LiftNonCompilable(ir).asInstanceOf[IR])
     ir = time("lowering MatrixIR", _ => LowerMatrixIR(ir))
 
     if (optimize) { ir = time("after MatrixIR lowering", opt(_, ir)) }
