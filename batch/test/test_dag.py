@@ -21,7 +21,7 @@ def client():
 
 def test_user():
     fname = os.environ.get("HAIL_TOKEN_FILE")
-    with open(fname) as f:
+    with open(fname, 'rb') as f:
         return hj.JWTClient.unsafe_decode(f.read())
 
 

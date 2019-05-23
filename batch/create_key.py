@@ -2,7 +2,7 @@ import hailjwt as hj
 import json
 import sys
 
-with open(sys.argv[1]) as f:
+with open(sys.argv[1], 'rb') as f:
     c = hj.JWTClient(f.read())
 
-sys.stdout.buffer.write(c.encode(json.loads(sys.stdin.read())))
+sys.stdout.write(c.encode(json.loads(sys.stdin.read())))

@@ -21,7 +21,7 @@ app = web.Application()
 routes = web.RouteTableDef()
 
 
-with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret-key/secret-key') as f:
+with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret-key/secret-key', 'rb') as f:
     jwtclient = hj.JWTClient(f.read())
 
 
