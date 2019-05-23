@@ -120,7 +120,6 @@ def create_bucket(bucket_name, gsa_email):
 
 def create_kube_namespace(username):
     return v1.create_namespace(
-        namespace=namespace,
         body=kube_client.V1Namespace(
             api_version='v1',
             metadata=kube_client.V1ObjectMeta(
@@ -135,11 +134,10 @@ def create_kube_namespace(username):
 def create_rbac(namespace, sa_name):
     api = kube_client.RbacAuthorizationV1Api()
 
-    rule_name = f"admin"
+    rule_name = "admin"
     api.create_namespaced_role(
         namespace=namespace,
         body=kube_client.V1Role(
-            api_version='v1',
             metadata=kube_client.V1ObjectMeta(
                 name=rule_name,
                 annotations={
@@ -148,7 +146,9 @@ def create_rbac(namespace, sa_name):
             ),
             rules = [
                 kube_client.V1PolicyRule(
-                    verbs=["*"]
+                    verbs=["*"],   
+                    api_groups=["*"],
+                    resources=["*"]               
                 )
             ]
         )
@@ -156,10 +156,9 @@ def create_rbac(namespace, sa_name):
 
     api.create_namespaced_role_binding(
         namespace=namespace,
-        body=kube_client.V1Role(
-            api_version='v1',
+        body=kube_client.V1RoleBinding(
             metadata=kube_client.V1ObjectMeta(
-                name=f"{username}-role",
+                name=f"{namespace}-admin",
                 annotations={
                     "type": "user"
                 }
@@ -204,23 +203,37 @@ def delete_bucket(bucket_name):
     return storage.Client().get_bucket(bucket_name).delete()
 
 
-def create_all(username, google_project, kube_namespace, is_developer = 0, is_service_account = 0):
-    out = {}
+def create_all(email, user_id, username, google_project, kube_namespace, is_developer = 0, is_service_account = 0):
+    out = {
+        'email': email,
+        'user_id': user_id,
+    }
+
     random_str = shortuuid.uuid()[0:5]
 
     sa_name = f'{username}-{random_str}'
 
     if is_developer == 1:
         out['developer'] = 1
+        out['service_account'] = 0
         
         namespace_response = create_kube_namespace(username)
-        namespace_name = namespace_response.metadata.name
+        out['namespace_name'] = namespace_response.metadata.name
+
         ksa_response = create_kube_service_acccount(username, kube_namespace)
         out['ksa_name'] = ksa_response.metadata.name
 
-        create_rbac(namespace_name, out['ksa_name'])
+        create_rbac(out['namespace_name'], out['ksa_name'])
     else:
-        username = sa_name
+        if is_service_account == 0:
+            username = sa_name
+            out['service_account'] = 0
+        else:
+            out['service_account'] = 1
+
+        out['namespace_name'] = ""
+        out['ksa_name'] = ""
+        out['developer'] = 0
     
     out['username'] = username
 
@@ -230,7 +243,7 @@ def create_all(username, google_project, kube_namespace, is_developer = 0, is_se
     gs_response = create_google_service_account(username, google_project)
     out['gsa_email'] = gs_response['email']
 
-    bucket_name = f'hail-{username}-{random_str}'
+    bucket_name = f'hail-{sa_name}'
     create_bucket(bucket_name, out['gsa_email'])
     out['bucket_name'] = bucket_name
     
@@ -286,19 +299,20 @@ def email_to_username(email):
 
     return username
 
-def create_all_idempotent(username, google_project='hail-vdc', kube_namespace='default', is_developer=0,is_service_account=0):
+def create_all_idempotent(email, user_id, google_project='hail-vdc', kube_namespace='default', is_developer=0,is_service_account=0):
     table = Table()
-    existing = table.get(username)
-
+    existing = table.get(user_id)
+    print("Existing", existing)
     if existing is None:
-        username = email_to_username(email)
+        basename = email_to_username(email)
     
-        user = create_all(username, google_project, kube_namespace)
-        user['jwt_secret_name'] = f'{username}-jwt'
-        
-        table.insert(user_id, **user)
+        user = create_all(email, user_id, basename, google_project, kube_namespace, is_developer, is_service_account)
+        user['jwt_secret_name'] = f"{user['username']}-jwt"
+        print(user)
+        table.insert(**user)
         res = table.get(user_id)
         user['id'] = res['id']
+        print(user)
 
         ksa_secret_resp = create_user_kube_secret(user, kube_namespace)
     
@@ -310,10 +324,12 @@ def create_all_idempotent(username, google_project='hail-vdc', kube_namespace='d
 
 def delete_all_idempotent(user_id, google_project='hail-vdc',
                           kube_namespace='default'):
+    print('called delete', user_id)
     table = Table()
     existing = table.get(user_id)
-
+    print("Existing", user_id, existing)
     if existing is None:
+        print("NONE")
         return 404
 
     delete_all(existing, google_project, kube_namespace)
@@ -326,19 +342,22 @@ if __name__ == "__main__":
 
     if len(sys.argv) == 1:
         sys.exit(
-            f"\nUsage: {sys.argv[0]} email is_developer is_service_account create|delete <kube_namespace> ")
+            f"\nUsage: {sys.argv[0]} email user_id is_developer is_service_account kube_namespace create|delete")
+
 
     email = sys.argv[1]
-    is_developer = int(sys.argv[2])
-    is_service_account = int(sys.argv[3])
-    op = sys.argv[4]
+    user_id = sys.argv[2]
+    is_developer = int(sys.argv[3])
+
+    is_service_account = int(sys.argv[4])
     kube_namespace = sys.argv[5]
+    op = sys.argv[6]
 
     if op == 'create':
-        print(json.dumps((create_all_idempotent(email, 'hail-vdc',
+        print(json.dumps((create_all_idempotent(email, user_id, 'hail-vdc',
                                                 kube_namespace, is_developer, is_service_account))))
     elif op == 'delete':
-        error = delete_all_idempotent(email, 'hail-vdc', kube_namespace)
+        error = delete_all_idempotent(user_id, 'hail-vdc', kube_namespace)
 
         if error == 404:
             print(f"\nNothing to change for {email}\n")

@@ -1,15 +1,19 @@
 from table import Table
 import pymysql
+import os
+from secrets import get_secrets
 
+HOST = os.environ.get('SQL_HOST')
 
 class MigrateTable(Table):
     def __init__(self):
-        secrets = Table.getSecrets()
-
-        self.cnx = pymysql.connect(host=secrets['host'],
-                                   user=secrets['user'],
-                                   password=secrets['password'],
-                                   cursorclass=pymysql.cursors.DictCursor)
+        conn_props = get_secrets('create-users', 'default')
+        print(conn_props)
+        self.cnx = pymysql.connect(
+            password=conn_props['password'],
+            user=conn_props['user'],
+            host=HOST if HOST is not None else conn_props['host'],
+            cursorclass=pymysql.cursors.DictCursor)
 
     def up(self):
         with self.cnx.cursor() as cursor:
@@ -20,6 +24,7 @@ class MigrateTable(Table):
                     CREATE TABLE IF NOT EXISTS user_data (
                         id INT NOT NULL AUTO_INCREMENT,
                         username VARCHAR(255) NOT NULL,
+                        user_id VARCHAR(255) NOT NULL,
                         email VARCHAR(255) NOT NULL,
                         developer TINYINT,
                         service_account TINYINT,
@@ -30,7 +35,9 @@ class MigrateTable(Table):
                         gsa_key_secret_name VARCHAR(255) NOT NULL,
                         jwt_secret_name VARCHAR(255) NOT NULL,
                         PRIMARY KEY (id),
-                        UNIQUE INDEX auth0_id (user_id)
+                        INDEX email (email),
+                        INDEX username (username),
+                        UNIQUE KEY user_id (user_id)
                     ) ENGINE=INNODB;
                 """
             )

@@ -28,7 +28,7 @@ user: install-cloud-sql-proxy instance.cloudsql
 	./run-locally.sh "$(name)" $(kns) $(op)
 
 user-in-cluster:
-	python3 ./user_data.py $(name) $(op)
+	python3 ./user_data.py $(email) $(user_id) $(is_dev) $(is_sa) $(namespace) $(op)
 
 secret:
 	./make-secret.sh $(user) $(pass) $(db) $(host) $(instance)
