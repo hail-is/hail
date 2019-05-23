@@ -54,20 +54,10 @@ std::vector<long> strides_row_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
-    int end = shape.size() - 1;
+    strides[shape.size() - 1] = 1;
 
-    int prev_concrete_dim = -1;
-    for (int i = shape.size() - 1; i >= 0; --i) {
-      if (shape[i] == 1) {
-        strides[i] = 0;
-      } else {
-        if (prev_concrete_dim >= 0) {
-          strides[i] = shape[prev_concrete_dim] * strides[prev_concrete_dim];
-        } else {
-          strides[i] = 1;
-        }
-        prev_concrete_dim = i;
-      }
+    for (int i = shape.size() - 2; i >= 0; --i) {
+      strides[i] = shape[i + 1] * strides[i + 1];
     }
   }
   return strides;
@@ -92,19 +82,10 @@ std::vector<long> strides_col_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
+    strides[0] = 1;
 
-    int prev_concrete_dim = -1;
-    for (int i = 0; i < shape.size(); ++i) {
-      if (shape[i] == 1) {
-        strides[i] = 0;
-      } else {
-        if (prev_concrete_dim >= 0) {
-          strides[i] = shape[prev_concrete_dim] * strides[prev_concrete_dim];
-        } else {
-          strides[i] = 1;
-        }
-        prev_concrete_dim = i;
-      }
+    for (int i = 1; i < shape.size(); ++i) {
+      strides[i] = shape[i - 1] * strides[i - 1];
     }
   }
   return strides;

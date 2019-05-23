@@ -95,6 +95,18 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 }
 
 object NDArrayLoopEmitter {
+  def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {
+    IndexedSeq.tabulate(nDims) { dim =>
+      fb.variable(s"is_not_broadcast_$dim", "int", s"$shape[$dim] > 1 ? 1 : 0")
+    }
+  }
+
+  def nullifyBroadcastedLoopVars(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
+    broadcastFlags.zip(loopVars).map { case (flag, idxVar) =>
+      fb.variable("new_idx_var", "int", s"$flag * $idxVar")
+    }
+  }
+
   def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
     val index = linearizeIndices(idxs, s"$nd.strides")
     s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"

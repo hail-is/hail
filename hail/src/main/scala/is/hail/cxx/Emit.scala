@@ -10,7 +10,7 @@ import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object Emit {
 
@@ -1056,10 +1056,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val r = fb.variable("r", "NDArray", rt.v)
 
         val shape = fb.variable("shape", "std::vector<long>", s"matmul_shape($l.shape, $r.shape)")
-        val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define)
+        val lBroadcastFlags = NDArrayLoopEmitter.broadcastFlags(fb, if (lNDims > 2) lNDims else 0, s"$l.shape")
+        val rBroadcastFlags = NDArrayLoopEmitter.broadcastFlags(fb, if (rNDims > 2) rNDims else 0, s"$r.shape")
+        val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define,
+          Code.sequence(lBroadcastFlags.map(_.define)),
+          Code.sequence(rBroadcastFlags.map(_.define)))
 
         val emitter = new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
+            val broadcastingLoopVars = new ArrayBuffer[Variable]()
             val element = fb.variable("element", typeToCXXType(xType.elementType), "0")
             val k = fb.variable("k", "int")
 
@@ -1069,19 +1074,35 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
               case (1, 1) => (Seq(k), Seq(k))
               case (1, _) =>
                 val stackDims :+ m = idxVars
-                (Seq(k), stackDims :+ k :+ m)
+                val rStackVars =
+                  NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, rBroadcastFlags, stackDims)
+                rStackVars.foreach(broadcastingLoopVars += _)
+                (Seq(k), rStackVars :+ k :+ m)
               case (_, 1) =>
                 val stackDims :+ n = idxVars
-                (stackDims :+ n :+ k, Seq(k))
+                val lStackVars =
+                  NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, lBroadcastFlags, stackDims)
+                lStackVars.foreach(broadcastingLoopVars += _)
+
+                (lStackVars :+ n :+ k, Seq(k))
               case _ =>
                 val stackDims :+ n :+ m = idxVars
-                (stackDims :+ n :+ k, stackDims :+ k :+ m)
+
+                val lStackVars =
+                  NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, lBroadcastFlags, stackDims)
+                lStackVars.foreach(broadcastingLoopVars += _)
+                val rStackVars =
+                  NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, rBroadcastFlags, stackDims)
+                rStackVars.foreach(broadcastingLoopVars += _)
+
+                (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
             }
 
             val lElem = NDArrayLoopEmitter.loadElement(l, lIdxVars, xType.elementType)
             val rElem = NDArrayLoopEmitter.loadElement(r, rIdxVars, xType.elementType)
             s"""
                |({
+               |  ${ Code.sequence(broadcastingLoopVars.map(_.define)) }
                |  ${ element.define }
                |  ${ k.define }
                |  for ($k = 0; $k < $l.shape[${ lNDims - 1 }]; ++$k) {
@@ -1433,14 +1454,25 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val rEmitter = emitDeforestedNDArray(resultRegion, rChild, env)
 
         val shape = fb.variable("shape", "std::vector<long>", s"unify_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
-        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define)
+
+        val lBroadcastFlags = NDArrayLoopEmitter.broadcastFlags(fb, xType.nDims, lEmitter.shape.toString)
+        val rBroadcastFlags = NDArrayLoopEmitter.broadcastFlags(fb, xType.nDims, rEmitter.shape.toString)
+
+        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define,
+          Code.sequence(lBroadcastFlags.map(_.define)),
+          Code.sequence(rBroadcastFlags.map(_.define)))
 
         new NDArrayLoopEmitter(fb, resultRegion, lEmitter.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
+            val lIdxVars = NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, lBroadcastFlags, idxVars)
+            val rIdxVars = NDArrayLoopEmitter.nullifyBroadcastedLoopVars(fb, rBroadcastFlags, idxVars)
+
             s"""
                |({
-               | $lRef = ${ lEmitter.outputElement(idxVars) };
-               | $rRef = ${ rEmitter.outputElement(idxVars) };
+               | ${ Code.sequence(lIdxVars.map(_.define)) }
+               | ${ Code.sequence(rIdxVars.map(_.define)) }
+               | $lRef = ${ lEmitter.outputElement(lIdxVars) };
+               | $rRef = ${ rEmitter.outputElement(rIdxVars) };
                |
                | ${ bodyt.setup }
                | if (${ bodyt.m }) {

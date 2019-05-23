@@ -2932,6 +2932,11 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
         self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
 
+        np_broadcasted_mat = np.array([[[1, 2],
+                                        [3, 4]]])
+        self.ndarray_eq(hl._ndarray(np_broadcasted_mat) @ rect_prism,
+                        np_broadcasted_mat @ np_rect_prism)
+
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
         self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
