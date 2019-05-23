@@ -34,8 +34,8 @@ class K8s:
     def _wrap_k8s_delete(fun):
         k8s_fun = self._wrap_k8s(fun)
 
-        def wrapped(*args, **kwargs):
-            _, err = k8s_fun(args, kwargs)
+        async def wrapped(*args, **kwargs):
+            _, err = await k8s_fun(args, kwargs)
             if err is None or err.status is 404:
                 log.debug(f'ignore already deleted {fun.__name__}(*{args}, **{kwargs})')
                 return None
@@ -43,25 +43,25 @@ class K8s:
         wrapped.__name__ = fun.__name__
         return wrapped
 
-    def delete_pod(name):
+    async def delete_pod(name):
         assert name is not None
-        return self.__delete_pod(name=name)
+        return await self.__delete_pod(name=name)
 
-    def delete_pvc(name):
+    async def delete_pvc(name):
         assert name is not None
-        return self.__delete_pvc(name=name)
+        return await self.__delete_pvc(name=name)
 
-    def create_pod(*args, **kwargs):
-        return self.__create_pod(*args, **kwargs)
+    async def create_pod(*args, **kwargs):
+        return await self.__create_pod(*args, **kwargs)
 
-    def create_pvc(*args, **kwargs):
-        return self.__create_pvc(*args, **kwargs)
+    async def create_pvc(*args, **kwargs):
+        return await self.__create_pvc(*args, **kwargs)
 
-    def read_pod_log(*args, **kwargs):
-        return self.__read_pod_log(*args, **kwargs)
+    async def read_pod_log(*args, **kwargs):
+        return await self.__read_pod_log(*args, **kwargs)
 
-    def list_pods(*args, **kwargs):
-        return self.__list_pods(*args, **kwargs)
+    async def list_pods(*args, **kwargs):
+        return await self.__list_pods(*args, **kwargs)
 
-    def list_pvcs(*args, **kwargs):
-        return self.__list_pvcs(*args, **kwargs)
+    async def list_pvcs(*args, **kwargs):
+        return await self.__list_pvcs(*args, **kwargs)

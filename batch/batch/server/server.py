@@ -146,7 +146,7 @@ class Job:
         return self._task_idx < len(self._tasks)
 
     async def _create_pvc(self):
-        pvc, err = app['k8s'].create_pvc(
+        pvc, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
                     generate_name=f'job-{self.id}-',
@@ -214,7 +214,7 @@ class Job:
                         }),
             spec=pod_spec)
 
-        pod, err = app['k8s'].create_pod(body=pod_template)
+        pod, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.id} with the following error: {err}')
@@ -231,7 +231,7 @@ class Job:
             return
 
         log.info(f'deleting persistent volume claim {self._pvc_name}')
-        err = app['k8s'].delete_pvc(self._pvc_name)
+        err = await app['k8s'].delete_pvc(self._pvc_name)
         if err is not None:
             raise ValueError('could not delete {self._pvc_name}') from err
         await db.jobs.update_record(self.id, pvc_name=None)
@@ -256,7 +256,7 @@ class Job:
 
         if self._state == 'Ready':
             if self._pod_name:
-                log, err = app['k8s'].read_pod_log(self._pod_name)
+                log, err = await app['k8s'].read_pod_log(self._pod_name)
                 if err is not None:
                     logs[self._current_task.name] = log
             return logs
@@ -272,7 +272,7 @@ class Job:
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
 
-        await _delete_pod_by_name(self._pod_name)
+        await app['k8s'].delete_pod(self._pod_name)
         self._pod_name = None
 
         uri = None
@@ -450,7 +450,7 @@ class Job:
 
     async def mark_unscheduled(self):
         if self._pod_name:
-            await _delete_pod_by_name(self._pod_name)
+            await app['k8s'].delete_pod(self._pod_name)
             await db.jobs.update_record(self.id, pod_name=None)
             self._pod_name = None
         await self._create_pod()
@@ -473,7 +473,7 @@ class Job:
                 log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
                             f'terminated but has no timing information. {pod}')
                 self.duration = None
-            pod_log, err = app['k8s'].read_pod_log(pod.metadata.name)
+            pod_log, err = await app['k8s'].read_pod_log(pod.metadata.name)
             if err:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod')
@@ -959,7 +959,7 @@ async def refresh_k8s_pods():
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
 
-    pods = app['k8s'].list_pods(
+    pods = await app['k8s'].list_pods(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
 
     log.info(f'k8s had {len(pods.items)} pods')
@@ -983,7 +983,7 @@ async def refresh_k8s_pods():
 
 
 async def refresh_k8s_pvc():
-    pvcs = app['k8s'].list_pvcs(
+    pvcs = await app['k8s'].list_pvcs(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
 
     log.info(f'k8s had {len(pvcs.items)} pvcs')
@@ -997,7 +997,7 @@ async def refresh_k8s_pvc():
     for pvc in pvcs.items:
         if pvc.metadata.name not in seen_pvcs:
             log.info(f'deleting orphaned pvc {pvc.metadata.name}')
-            err = app['k8s'].delete_pvc(pvc.metadata.name)
+            err = await app['k8s'].delete_pvc(pvc.metadata.name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info('could not delete {pvc.metadata.name} due to {err}')
