@@ -409,7 +409,7 @@ def rbind(*exprs):
     >>> hl.eval(hl.rbind(1, lambda x: x + 1))
     2
 
-    :func:`.let` also can take multiple arguments:
+    :func:`.rbind` also can take multiple arguments:
 
     >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
     2.0
