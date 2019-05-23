@@ -41,18 +41,43 @@ steps:
      valueFrom: base_image.image
    script: |
      set -ex
+     # secret-key
      python3 -c "
      import secrets, jwt
      secret_key = secrets.token_urlsafe(64)
-     with open('secret-key', 'w') as f:
+     with open('secret-key', 'wb') as f:
        f.write(secret_key)
-     payload = {'ksa_name':'unused','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key'}
+     "
+     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
+     # batch
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':1,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
-     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
+     # ci2
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci2-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':2,'username':'ci2','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci2-gsa-key','jwt_secret_name':'ci2-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
      kubectl -n {{ default_ns.name }} create secret generic ci2-jwt --from-file=./jwt
+     # test
+     # test-gsa-key exists
+     python3 -c "
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':3,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
    serviceAccount: ci2-agent
    scopes:

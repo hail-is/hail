@@ -62,26 +62,18 @@ spec:
          secret:
            optional: false
            secretName: "{{ batch_database.user_secret_name }}"
-       - name: jwt-secret-key
+      - name: jwt-secret-key
          secret:
            optional: false
            secretName: jwt-secret-key
        - name: gsa-key
          secret:
            optional: false
-{% if deploy %}
-           secretName: gsa-key-n6hf9
-{% else %}
-           secretName: test-gsa-key
-{% endif %}
+           secretName: batch-gsa-key
        - name: batch-jwt
          secret:
            optional: false
-{% if deploy %}
-           secretName: user-jwt-fh7kp
-{% else %}
            secretName: batch-jwt
-{% endif %}
 ---
 apiVersion: v1
 kind: Service

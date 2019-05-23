@@ -6,12 +6,13 @@ RUN apt-get update && \
   apt-get -y install \
     git \
     htop \
-    unzip bzip2 zip \
+    unzip bzip2 zip tar \
     wget curl \
     rsync \
     emacs25-nox \
     mysql-client \
     xsltproc pandoc \
+    jq \
     openjdk-8-jdk-headless \
     python \
     python3 python3-pip && \
