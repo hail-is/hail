@@ -254,18 +254,27 @@ class Job:
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
         if self._pod_name is not None:
-            try:
-                v1.delete_namespaced_pod(
-                    self._pod_name,
-                    HAIL_POD_NAMESPACE,
-                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kube.client.rest.ApiException as err:
-                if err.status == 404:
-                    pass
-                raise
-            finally:
-                await db.jobs.update_record(self.id, pod_name=None)
-                self._pod_name = None
+            await _delete_pod_by_name(self._pod_name)
+            await db.jobs.update_record(self.id, pod_name=None)
+            self._pod_name = None
+
+    @staticmethod
+    async def _delete_pod_by_name(name):
+        assert name is not None
+        try:
+            await blocking_to_async(
+                app['blocking_pool'],
+                v1.delete_namespaced_pod,
+                name,
+                HAIL_POD_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        except kube.client.rest.ApiException as err:
+            if err.status == 404:
+                pass
+            else:
+                log.exception(f'pod deletion ({name}) threw {err}, but we will not fail')
+                return err
+        return None
 
     async def _read_logs(self):
         async def _read_log(jt):
@@ -298,6 +307,7 @@ class Job:
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
 
+        await _delete_pod_by_name(self._pod_name)
         if self._pod_name:
             self._pod_name = None
 
@@ -476,6 +486,7 @@ class Job:
 
     async def mark_unscheduled(self):
         if self._pod_name:
+            await _delete_pod_by_name(self._pod_name)
             await db.jobs.update_record(self.id, pod_name=None)
             self._pod_name = None
         await self._create_pod()
