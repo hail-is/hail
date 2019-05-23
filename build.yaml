@@ -54,7 +54,7 @@ steps:
      python3 -c "
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
-     payload = {'id':1,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
+     payload = {'id':1,'service_account':True,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
@@ -64,7 +64,7 @@ steps:
      python3 -c "
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
-     payload = {'id':2,'username':'ci2','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci2-gsa-key','jwt_secret_name':'ci2-jwt'}
+     payload = {'id':2,'service_account':True,'username':'ci2','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci2-gsa-key','jwt_secret_name':'ci2-jwt'}
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
@@ -74,7 +74,7 @@ steps:
      python3 -c "
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
-     payload = {'id':3,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
+     payload = {'id':3,'service_account':True,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
