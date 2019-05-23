@@ -842,12 +842,7 @@ class Batch:
         return result
 
 
-@routes.get('/batches')
-@authenticated_users_only
-async def get_batches_list(request, userdata):
-    params = request.query
-    user = userdata['ksa_name']
-
+async def _get_batches_list(params, user):
     batches = [Batch.from_record(record)
                for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
 
@@ -870,6 +865,14 @@ async def get_batches_list(request, userdata):
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
     return jsonify([await batch.to_dict(include_jobs=False) for batch in batches])
+
+
+@routes.get('/batches')
+@authenticated_users_only
+async def get_batches_list(request, userdata):
+    params = request.query
+    user = userdata['ksa_name']
+    return aweait _get_batches_list(params, user)
 
 
 @routes.post('/batches/create')
@@ -897,16 +900,19 @@ async def create_batch(request, userdata):
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
+async def _get_batch(batch_id, user):
+    batch = await Batch.from_db(batch_id, user)
+    if not batch:
+        abort(404)
+    return jsonify(await batch.to_dict(include_jobs=True))
+
+
 @routes.get('/batches/{batch_id}')
 @authenticated_users_only
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['ksa_name']
-
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    return jsonify(await batch.to_dict(include_jobs=True))
+    return await _get_batch(batch_id, user)
 
 
 @routes.patch('/batches/{batch_id}/cancel')
@@ -951,23 +957,27 @@ async def close_batch(request, userdata):
 @routes.get('/ui/batches/{batch_id}')
 @aiohttp_jinja2.template('batch.html')
 @authenticated_users_only
-async def batches_show(request, userdata):
-    jobs = await get_batch(request, userdata)
+async def ui_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['ksa_name']
+    jobs = await _get_batch(request, userdata)
     return {"job_list": jobs}
 
 
-@routes.get('/ui/batches', name='ui-batches')
+@routes.get('/ui/batches', name='ui_batches')
 @aiohttp_jinja2.template('batches.html')
 @authenticated_users_only
-async def batch_id(request, userdata):
-    batches = await get_batches_list(request, userdata)
+async def ui_batches(request, userdata):
+    params = request.query
+    user = userdata['ksa_name']
+    batches = await _get_batches_list(params, user)
     return {"batch_list": batches}
 
 
 @routes.get('/')
 @authenticated_users_only
 async def batch_id(request, userdata):
-    location = request.app.router['ui-batches'].url_for()
+    location = request.app.router['ui_batches'].url_for()
     raise web.HTTPFound(location=location)
 
 
