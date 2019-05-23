@@ -703,3 +703,47 @@ steps:
    dependsOn:
     - base_image
     - create_ci_test_repo
+ - kind: runImage:
+   name: deploy_hail
+   script: |
+     set -ex
+     gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+     SPARK_VERSION=2.4.0
+     BRANCH=0.2
+     CLOUDTOOLS_VERSION=4
+     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     SHA="{{ code.sha }}"
+     GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
+     gsutil cp /io/hail.jar ${GS_JAR}
+     gsutil acl set public-read ${GS_JAR}
+     GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
+     gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
+     gsutil acl set public-read ${GS_HAIL_ZIP}
+     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+     gsutil acl set public-read $CONFIG
+     DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
+     gsutil cp /io/www.tar.gz ${DOCS}
+     gsutil acl set public-read ${DOCS}
+     echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
+     # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+     # gsutil acl set public-read ${HASH_TARGET}
+   image:
+     valueFrom: base_image.image
+   secrets:
+    - name: ci-deploy-0-1--hail-is-hail
+      mountPath: /secret
+   inputs:
+    - from: /hail.jar
+      to: /io/hail.jar
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /www.tar.gz
+      to: /io/www.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
+   scopes:
+    - deploy
+   dependsOn:
+    - base_image
