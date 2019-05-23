@@ -3,7 +3,6 @@ import datetime
 import logging
 from base64 import b64encode
 import asyncio
-import aiohttp
 from aiohttp import web
 import jinja2
 import aiohttp_jinja2
@@ -15,8 +14,8 @@ uvloop.install()
 def make_logger():
     fmt = logging.Formatter(
         # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
+        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| '
+        '%(funcName)s:%(lineno)d | %(message)s')
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
@@ -29,6 +28,7 @@ def make_logger():
 
     return log
 
+
 log = make_logger()
 
 
@@ -36,16 +36,20 @@ async def read_int(reader):
     b = await reader.readexactly(4)
     return struct.unpack('>I', b)[0]
 
+
 def write_int(writer, i):
     writer.write(struct.pack('>I', i))
+
 
 async def read_bytes(reader):
     n = await read_int(reader)
     return await reader.readexactly(n)
 
+
 def write_bytes(writer, b):
     write_int(writer, len(b))
     writer.write(b)
+
 
 counter = 0
 
@@ -55,6 +59,7 @@ def create_id():
 
     counter = counter + 1
     return counter
+
 
 executors = set()
 apps = set()
@@ -69,6 +74,7 @@ task_index = {}
 
 
 scheduling = False
+
 
 async def schedule():
     global scheduling
@@ -106,7 +112,8 @@ class ExecutorConnection:
             t = task_index[task_id]
 
             duration = datetime.datetime.now() - t.start_time
-            log.info(f'client {self.id}: task {t.job.id}/{t.id} complete: {duration}')
+            log.info(f'client {self.id}: '
+                     f'task {t.job.id}/{t.id} complete: {duration}')
 
             t.set_result(res)
 
@@ -144,8 +151,9 @@ class ExecutorConnection:
                 else:
                     raise ValueError(f'unknown command {cmd}')
                 self.last_message_time = datetime.datetime.now()
-        except Exception as e:
-            log.exception(f'client {self.id}: error in handler loop, closing due to exception')
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'client {self.id}: '
+                          f'error in handler loop, closing due to exception')
             self.close()
 
     def close(self):
@@ -297,7 +305,7 @@ class AppSubmitConnection:
                     await self.handle_submit()
                 else:
                     raise ValueError(f'unknown command {cmd}')
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-except
             log.exception(f'error in handler loop')
         finally:
             self.close()
@@ -335,7 +343,7 @@ class AppResultConnection:
                     await self.handle_ack_task()
                 else:
                     raise ValueError(f'unknown command {cmd}')
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-except
             log.exception(f'error in handler loop')
         finally:
             self.close()
@@ -385,7 +393,8 @@ class App:
         asyncio.ensure_future(self.result_conn.handler_loop())
 
     def to_dict(self):
-        is_disconnected = (self.submit_conn is None) and (self.result_conn is None)
+        is_disconnected = ((self.submit_conn is None) and
+                           (self.result_conn is None))
         return {
             'id': self.id,
             'token': f'{b64encode(self.token)[:4].decode("ascii")}...',
@@ -422,7 +431,7 @@ routes = web.RouteTableDef()
 
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
-async def index(request):
+async def index(request):  # pylint: disable=unused-argument
     return {
         'executors': [e.to_dict() for e in executors],
         'apps': [app.to_dict() for app in apps],
@@ -435,7 +444,7 @@ app.add_routes(routes)
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('templates'))
 
 
-async def on_startup(app):
+async def on_startup(app):  # pylint: disable=unused-argument
     await asyncio.start_server(executor_connected_cb, host=None, port=5051)
     log.info(f'listening on port {5051} for clients')
 
