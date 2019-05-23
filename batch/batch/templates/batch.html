@@ -1,131 +1,26 @@
 <html>
-<head>
+  <head>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-<style>
-body {
-  font-family: Arial, Helvetica, sans-serif;
-}
-
-.navbar {
-  overflow: hidden;
-  background-color: #333;
-}
-
-.navbar a {
-  float: left;
-  font-size: 16px;
-  color: white;
-  text-align: center;
-  padding: 14px 16px;
-  text-decoration: none;
-}
-
-.MENU {
-  float: left;
-  overflow: hidden;
-}
-
-.MENU .dropbtn {
-  font-size: 16px;  
-  border: none;
-  outline: none;
-  color: white;
-  padding: 14px 16px;
-  background-color: inherit;
-  font-family: inherit;
-  margin: 0;
-}
-
-.navbar a:hover, .MENU:hover .dropbtn {
-  background-color: red;
-}
-
-.MENU-content {
-  display: none;
-  position: absolute;
-  background-color: #f9f9f9;
-  min-width: 160px;
-  box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
-  z-index: 1;
-}
-
-.MENU-content a {
-  float: none;
-  color: black;
-  padding: 12px 16px;
-  text-decoration: none;
-  display: block;
-  text-align: left;
-}
-
-.MENU-content a:hover {
-  background-color: #ddd;
-}
-
-.MENU:hover .MENU-content {
-  display: block;
-}
-table {
-  font-family: arial, sans-serif;
-  border-collapse: collapse;
-  width: 100%;
-}
-
-td, th {
-  border: 1px solid #dddddd;
-  text-align: left;
-  padding: 8px;
-}
-
-tr:nth-child(even) {
-  background-color: #dddddd;
-}
-</style>
-
-
-</html>
-</head>
-<body>
-
-<h2>Jobs</h2>
-
-<table>
-    <tr> 
-        <th> ID </th>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <h2>Jobs</h2>
+    <table>
+      <tr>
+        <th>ID</th>
         <th>State</th>
-        <th> Exit_code </th>
-        <th> log </th>
-    </tr>
-    {% for job in job_list %}
-    <td> {{job.id}}</td>
-  <td> {{job.state}} </td>
-  <td>{{job.exit_code}}</td>
-  <td> <a href="/logs/{{loop.index0}}">
-    log
-  </a>
-    {% endfor %}
-
-<tr>
-
-    <td> </td>
-    <td> </td>
-    <td></td>
-    <td> </td>
-
-
-    </td>
-</tr>
-
-</table>
-</body>
-
-
-
-
-
-
-
-
-
-
+        <th>Exit Code</th>
+        <th>Log</th>
+      </tr>
+      {% for job in job_list %}
+      <tr>
+        <td>{{job.id}}</td>
+        <td>{{job.state}}</td>
+        <td>{{job.exit_code}}</td>
+        <td><a href="/logs/{{loop.index0}}">log</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>
