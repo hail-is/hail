@@ -27,7 +27,7 @@
       <tbody>
 	{% for job in batch['jobs'] %}
         <tr>
-          <td align="right">{{ job['id'] }}</td>
+          <td align="right">{{ job['job_id'] }}</td>
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
@@ -41,7 +41,7 @@
             {% endif %}
           </td>
           <td align="left">
-	    <a href="/jobs/{{ job['id'] }}/log">log</a>
+	    <a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a>
 	  </td>
         </tr>
 	{% endfor %}

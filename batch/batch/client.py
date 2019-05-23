@@ -71,13 +71,13 @@ class Batch:
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                   service_account_name=None, attributes=None, callback=None, parents=None,
                    input_files=None, output_files=None, always_run=False, pvc_size=None):
         coroutine = self._async_batch.create_job(
             image, command=command, args=args, env=env, ports=ports,
             resources=resources, tolerations=tolerations, volumes=volumes,
             security_context=security_context, service_account_name=service_account_name,
-            attributes=attributes, callback=callback, parent_ids=parent_ids,
+            attributes=attributes, callback=callback, parents=parents,
             input_files=input_files, output_files=output_files, always_run=always_run,
             pvc_size=pvc_size)
         return Job.from_async_job(async_to_blocking(coroutine))

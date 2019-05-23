@@ -298,11 +298,11 @@ class BatchBackend(Backend):
         batch.close()
         status = batch.wait()
 
-        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
+        failed_jobs = [(j['job_id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            job = self._batch_client.get_job(jid)
+            job = self._batch_client.get_job(batch.id, jid)
             log = job.log()
             label = job.status()['attributes'].get('name', None)
             fail_msg += (
