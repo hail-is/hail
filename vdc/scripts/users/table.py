@@ -19,23 +19,53 @@ class Table:
     def __del__(self):
         self.cnx.close()
 
-    def get(self, user_id):
+    def get(self, username):
         with self.cnx.cursor() as cursor:
             cursor.execute(
-                "SELECT * FROM user_data WHERE user_id=%s", (user_id,))
+                "SELECT * FROM username WHERE username=%s", (user_id,))
             return cursor.fetchone()
 
-    def insert(self, user_id, gsa_email, ksa_name, bucket_name,
-               gsa_key_secret_name, user_jwt_secret_name):
+    def insert(self, username, email, namespace_name, gsa_email, ksa_name, bucket_name,
+               gsa_key_secret_name, jwt_secret_name, developer = 0, service_account = 0):
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO user_data
-                    (user_id, gsa_email, ksa_name, bucket_name,
-                    gsa_key_secret_name, user_jwt_secret_name)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (user_id, gsa_email, ksa_name, bucket_name,
-                      gsa_key_secret_name, user_jwt_secret_name))
+                    (   username,
+                        email,
+                        developer,
+                        service_account,
+                        namespace_name,
+                        gsa_email,
+                        ksa_name,
+                        bucket_name,
+                        gsa_key_secret_name,
+                        jwt_secret_name
+                    )
+                    VALUES (    
+                        %s, 
+                        %s,
+                        %d,
+                        %d,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                """, (
+                        username,
+                        email,
+                        developer,
+                        service_account,
+                        namespace_name,
+                        gsa_email,
+                        ksa_name,
+                        bucket_name,
+                        gsa_key_secret_name,
+                        jwt_secret_name,
+                    ))
             self.cnx.commit()
 
             assert cursor.rowcount == 1

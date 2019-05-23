@@ -19,12 +19,16 @@ class MigrateTable(Table):
                 """
                     CREATE TABLE IF NOT EXISTS user_data (
                         id INT NOT NULL AUTO_INCREMENT,
-                        user_id VARCHAR(255) NOT NULL,
+                        username VARCHAR(255) NOT NULL,
+                        email VARCHAR(255) NOT NULL,
+                        developer TINYINT,
+                        service_account TINYINT,
+                        namespace_name VARCHAR(255),
                         gsa_email VARCHAR(255) NOT NULL,
-                        ksa_name VARCHAR(255) NOT NULL,
+                        ksa_name VARCHAR(255),
                         bucket_name VARCHAR(255) NOT NULL,
                         gsa_key_secret_name VARCHAR(255) NOT NULL,
-                        user_jwt_secret_name VARCHAR(255) NOT NULL,
+                        jwt_secret_name VARCHAR(255) NOT NULL,
                         PRIMARY KEY (id),
                         UNIQUE INDEX auth0_id (user_id)
                     ) ENGINE=INNODB;
