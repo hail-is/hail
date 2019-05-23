@@ -511,6 +511,7 @@ class Job:
                 log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                 if exc.status == 400:
                     await self.mark_unscheduled()
+                    return
                 else:
                     raise
 
