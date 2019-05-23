@@ -216,7 +216,7 @@ def test_input_dependency(client):
                             output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data\\*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
                             parent_ids=[head.id])
     batch.close()
     tail.wait()
