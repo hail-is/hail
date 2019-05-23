@@ -2198,7 +2198,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
                                                 ).map(lambda j: split.PL[j]))))))
         update_entries_expression['PL'] = pl
         if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = hl.gq_from_pl(pl)
+            update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
     else:
         if 'GQ' in entry_fields:
             update_entries_expression['GQ'] = split.GQ
