@@ -77,7 +77,11 @@ spec:
        - name: batch-jwt
          secret:
            optional: false
+{% if deploy %}
+           secretName: user-jwt-fh7kp
+{% else %}
            secretName: batch-jwt
+{% endif %}
 ---
 apiVersion: v1
 kind: Service
