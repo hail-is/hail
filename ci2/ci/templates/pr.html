@@ -29,17 +29,15 @@
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-            {% if 'exit_code' in job %}
-            {% set exit_codes = [ec for ec in job['exit_code'] if ec is not None] %}
-            {% set ec = exit_codes[-1] if len(exit_codes) != 0 else None %}
-            {% if ec == 0 %}
+            {% if 'exit_code' in job and job['exit_code'] %}
+            {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
             Success 🎉
             {% else %}
             <span style="color: #a93333;">
             Failure 🤷‍♀️
             {% endif %}
-            ({{ ec }})
+            ({{ job['exit_code'] }})
             </span>
             {% endif %}
           </td>
