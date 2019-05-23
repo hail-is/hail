@@ -76,7 +76,7 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
-  implicit val execStrats = ExecStrategy.values
+  implicit val execStrats = ExecStrategy.nonLowering
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)

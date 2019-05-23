@@ -2,6 +2,7 @@ package is.hail.backend.spark
 
 import is.hail.{HailContext, cxx}
 import is.hail.annotations.{Region, SafeRow}
+import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
@@ -22,13 +23,35 @@ object SparkBackend {
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
 
+  def jvmLowerAndExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
+    val timer = new ExecutionTimer("JVMCompile")
+
+    val ir = LowerTableIR(ir0, Some(timer), optimize)
+
+    if (!Compilable(ir))
+      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
+
+    val v = Region.scoped { region =>
+      ir.typ match {
+        case TVoid =>
+          val (_, f) = timer.time(Compile[Unit](ir), "SparkBackend.execute - JVM compile")
+          timer.time(f(0)(region), "SparkBackend.execute - Runtime")
+        case _ =>
+          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "SparkBackend.execute - JVM compile")
+          timer.time(SafeRow(pt, region, f(0)(region)).get(0), "SparkBackend.execute - Runtime")
+      }
+    }
+
+    (v, timer.timings)
+  }
+
   def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
     val timer = new ExecutionTimer("CXX Compile")
 
     val ir = try {
-      LowerTableIR(ir0, timer, optimize)
+      LowerTableIR(ir0, Some(timer), optimize)
     } catch {
-      case e: SparkBackendUnsupportedOperation =>
+      case e: LowererUnsupportedOperation =>
         throw new CXXUnsupportedOperation(s"Failed lowering step:\n${e.getMessage}")
     }
 
@@ -58,7 +81,7 @@ object SparkBackend {
         throw new CXXUnsupportedOperation("'cpp' flag not enabled.")
       cxxExecute(hc.sc, ir, optimize)
     } catch {
-      case (_: CXXUnsupportedOperation | _: SparkBackendUnsupportedOperation) =>
+      case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
         CompileAndEvaluate(ir, optimize = optimize)
     }
   }
