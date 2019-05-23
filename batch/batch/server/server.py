@@ -240,9 +240,9 @@ class Job:
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
         if self._pod_name is not None:
+            await db.jobs.update_record(self.id, pod_name=None)
             await app['k8s'].delete_pod(name=self._pod_name,
                                         namespace=HAIL_POD_NAMESPACE)
-            await db.jobs.update_record(self.id, pod_name=None)
             self._pod_name = None
 
     async def _read_logs(self):
@@ -272,17 +272,16 @@ class Job:
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
 
-        await app['k8s'].delete_pod(self._pod_name)
-        self._pod_name = None
-
         uri = None
         if log is not None:
             uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
 
         await db.jobs.update_with_log_ec(self.id, task_name, uri, exit_code,
                                          task_idx=self._task_idx,
-                                         pod_name=self._pod_name,
+                                         pod_name=None,
                                          duration=self.duration)
+        await app['k8s'].delete_pod(self._pod_name)
+        self._pod_name = None
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -450,8 +449,8 @@ class Job:
 
     async def mark_unscheduled(self):
         if self._pod_name:
-            await app['k8s'].delete_pod(self._pod_name)
             await db.jobs.update_record(self.id, pod_name=None)
+            await app['k8s'].delete_pod(self._pod_name)
             self._pod_name = None
         await self._create_pod()
 
