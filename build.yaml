@@ -733,7 +733,7 @@ steps:
      valueFrom: base_image.image
    secrets:
     - name: ci-deploy-0-1--hail-is-hail
-      mountPath: /secret
+      mountPath: /secrets
    inputs:
     - from: /hail.jar
       to: /io/hail.jar
@@ -742,7 +742,7 @@ steps:
     - from: /www.tar.gz
       to: /io/www.tar.gz
     - from: /create_config_file.py
-      to: /io/create_config_file.py
+      to: /io/create_config_file.pywww.tar.gz
    scopes:
     - deploy
    dependsOn:
