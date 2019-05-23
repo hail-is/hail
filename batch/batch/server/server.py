@@ -450,7 +450,7 @@ class Job:
     async def mark_unscheduled(self):
         if self._pod_name:
             await _delete_pod_by_name(self._pod_name)
-                         await db.jobs.update_record(self.id, pod_name=None)
+            await db.jobs.update_record(self.id, pod_name=None)
             self._pod_name = None
         await self._create_pod()
 
