@@ -19,17 +19,13 @@ class JWTClient:
     
     @staticmethod
     def _verify_key_preqrequisites(secret_key):
-        if isinstance(secret_key, str):
-            key_bytes = secret_key.encode('utf-8')
-        else:
-            assert isinstance(secret_key, bytes), type(secret_key)
-            key_bytes = secret_key
         if len(key_bytes) < 32:
             raise ValueError(
                 f'found secret key with {len(key_bytes)} bytes, but secret key '
                 f'must have at least 32 bytes (i.e. 256 bits)')
 
     def __init__(self, secret_key):
+        assert isinstance(secret_key, bytes)
         JWTClient._verify_key_preqrequisites(secret_key)
         self.secret_key = secret_key
 
@@ -39,7 +35,7 @@ class JWTClient:
 
     def encode(self, payload):
         return jwt.encode(
-            payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
+            payload, self.secret_key, algorithm=JWTClient.__ALGORITHM).decode('ascii')
 
 
 def get_domain(host):
@@ -53,7 +49,7 @@ def authenticated_users_only(fun):
     global jwtclient
 
     if not jwtclient:
-        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key')) as f:
+        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE', '/jwt-secret/secret-key'), 'rb') as f:
             jwtclient = JWTClient(f.read())
 
     def wrapped(request, *args, **kwargs):

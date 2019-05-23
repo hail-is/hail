@@ -62,7 +62,7 @@ spec:
          secret:
            optional: false
            secretName: "{{ batch_database.user_secret_name }}"
-      - name: jwt-secret-key
+       - name: jwt-secret-key
          secret:
            optional: false
            secretName: jwt-secret-key
