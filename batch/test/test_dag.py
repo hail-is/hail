@@ -40,7 +40,7 @@ def test_simple(client):
     batch.close()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 2
-    assert batch_status_exit_codes(status) == [0, 0]
+    assert batch_status_exit_codes(status) == [{'main': 0}, {'main': 0}]
 
 
 def test_missing_parent_is_400(client):
@@ -67,7 +67,7 @@ def test_dag(client):
     for node in [head, left, right, tail]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
 
 
 def test_cancel_tail(client):
@@ -88,7 +88,7 @@ def test_cancel_tail(client):
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
     assert tail.status()['state'] == 'Cancelled'
 
 
@@ -110,7 +110,7 @@ def test_cancel_left_after_tail(client):
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
     for node in [left, tail]:
         assert node.status()['state'] == 'Cancelled'
 
@@ -126,7 +126,7 @@ def test_parent_already_done(client):
     for node in [head, tail]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
 
 
 def test_one_of_two_parent_ids_already_done(client):
@@ -141,7 +141,7 @@ def test_one_of_two_parent_ids_already_done(client):
     for node in [left, right, tail]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
 
 
 def test_callback(client):
@@ -171,7 +171,7 @@ def test_callback(client):
             if i > 14:
                 break
         assert len(output) == 4
-        assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
+        assert all([job_result['state'] == 'Complete' and job_result['exit_code']['main'] == 0
                     for job_result in output])
         assert output[0]['id'] == head.id
         middle_ids = (output[1]['id'], output[2]['id'])
@@ -216,11 +216,11 @@ def test_input_dependency(client):
                             output_files=[('/io/data*', f'gs://{user["bucket_name"]}')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{user["bucket_name"]}/data\\*', '/io/')],
+                            input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
                             parent_ids=[head.id])
     batch.close()
     tail.wait()
-    assert head.status()['exit_code'] == 0, head.cached_status()
+    assert head.status()['exit_code']['main'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
@@ -236,7 +236,7 @@ def test_input_dependency_directory(client):
                             parent_ids=[head.id])
     batch.close()
     tail.wait()
-    assert head.status()['exit_code'] == 0, head.cached_status()
+    assert head.status()['exit_code']['main'] == 0, head.cached_status()
     assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
 
 
@@ -260,7 +260,7 @@ def test_always_run_cancel(client):
     for node in [head, right, tail]:
         status = node.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == 0
+        assert status['exit_code']['main'] == 0
 
 
 def test_always_run_error(client):
@@ -277,4 +277,4 @@ def test_always_run_error(client):
     for job, ec in [(head, 1), (tail, 0)]:
         status = job.status()
         assert status['state'] == 'Complete'
-        assert status['exit_code'] == ec
+        assert status['exit_code']['main'] == ec
