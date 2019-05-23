@@ -9,12 +9,7 @@ steps:
     - notebook-secrets
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
-    # hail|ci2
-    - user-jwt-fzp4f
-    - gsa-key-hnmrj
-    # hail|batch
-    - user-jwt-fh7kp
-    - gsa-key-n6hf9
+    - test-gsa-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -31,9 +26,7 @@ steps:
        valueFrom: default_ns.name
    public: false
    secrets:
-    # hail|test-batch
-    - user-jwt-vkqfw
-    - gsa-key-2x975
+    - test-gsa-key
    dependsOn:
     - default_ns
     - deploy_batch_sa
@@ -42,6 +35,32 @@ steps:
    dockerFile: docker/Dockerfile.base
    contextPath: docker
    publishAs: base
+ - kind: runImage
+   name: create_accounts
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     python3 -c "
+     import secrets, jwt
+     secret_key = secrets.token_urlsafe(64)
+     with open('secret-key', 'w') as f:
+       f.write(secret_key)
+     payload = {'ksa_name':'unused','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
+     kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
+     kubectl -n {{ default_ns.name }} create secret generic ci2-jwt --from-file=./jwt
+     kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
+   serviceAccount: ci2-agent
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
@@ -534,12 +553,12 @@ steps:
      valueFrom: test_pipeline_image.image
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
-     gsutil -m cp -r /test/resources/*  gs://user-w6dducupsyt131fyppvkv2qd0/{{ token }}/pipeline/input/
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    secrets:
     # hail|test-batch
-    - name: gsa-key-2x975 
-      mountPath: /gsa-key-test-batch/
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
     - test_pipeline_image
  - kind: deploy
@@ -565,12 +584,12 @@ steps:
    alwaysRun: true     
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
-     gsutil rm -r gs://user-w6dducupsyt131fyppvkv2qd0/{{ setup_pipeline.token }}/pipeline
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
    secrets:
     # hail|test-batch
-    - name: gsa-key-2x975 
-      mountPath: /gsa-key-test-batch/
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
    dependsOn:
     - base_image
     - setup_pipeline    

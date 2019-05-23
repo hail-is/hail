@@ -72,7 +72,7 @@ INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
-SECRET_KEY = read_string('/notebook-secrets/secret-key')
+SECRET_KEY = read_string('/jwt-secret-key/secret-key')
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
     SECRET_KEY = SECRET_KEY,

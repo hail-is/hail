@@ -8,17 +8,17 @@ spec:
     image: "{{ test_pipeline_image.image }}"
     env:
      - name: HAIL_TOKEN_FILE
-       value: '/jwt/jwt'
+       value: '/test-jwt/jwt'
      - name: BATCH_URL
        value: http://batch.{{ default_ns.name }}
      - name: SCRATCH
-       value: gs://user-w6dducupsyt131fyppvkv2qd0/{{ setup_pipeline.token }}/pipeline
+       value: gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
     volumeMounts:
-      - mountPath: /jwt
+      - mountPath: /test-jwt
         readOnly: true
-        name: test-batch-jwt
+        name: test-jwt
   volumes:
-    - name: test-batch-jwt
+    - name: test-jwt
       secret:
-        secretName: user-jwt-vkqfw
+        secretName: test-jwt
   restartPolicy: Never
