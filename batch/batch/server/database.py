@@ -36,7 +36,7 @@ class JobsTable(Table):
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement({'id': ids, 'user': user})
-                sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS 
+                sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
                 await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
@@ -92,7 +92,8 @@ class JobsTable(Table):
             return records[0][uri_field]
         return None
 
-    def exit_code_field(self, task_name):
+    @staticmethod
+    def exit_code_field(task_name):
         return JobsTable.exit_code_mapping[task_name]
 
     async def get_parents(self, job_id):
