@@ -284,8 +284,8 @@ class Test(unittest.TestCase):
     def test_authorized_users_only(self):
         endpoints = [
             (requests.post, '/jobs/create'),
-            (requests.get, '/jobs/0'),
-            (requests.get, '/jobs/0/log'),
+            (requests.get, '/batches/0/jobs/0'),
+            (requests.get, '/batches/0/jobs/0/log'),
             (requests.get, '/batches'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),

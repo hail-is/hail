@@ -52,15 +52,15 @@ class API():
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
                    input_files, output_files, always_run):
+        assert batch_id is not None
         doc = {
             'spec': spec,
+            'batch_id': batch_id,
             'parent_ids': parent_ids,
             'always_run': always_run
         }
         if attributes:
             doc['attributes'] = attributes
-        if batch_id:
-            doc['batch_id'] = batch_id
         if callback:
             doc['callback'] = callback
         if input_files:
@@ -74,11 +74,11 @@ class API():
         params = filter_params(complete, success, attributes)
         return self.get(f'{url}/batches', params=params)
 
-    def get_job(self, url, job_id):
-        return self.get(f'{url}/jobs/{job_id}')
+    def get_job(self, url, batch_id, job_id):
+        return self.get(f'{url}/batches/{batch_id}/jobs/{job_id}')
 
-    def get_job_log(self, url, job_id):
-        return self.get(f'{url}/jobs/{job_id}/log')
+    def get_job_log(self, url, batch_id, job_id):
+        return self.get(f'{url}/batches/{batch_id}/jobs/{job_id}/log')
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}
