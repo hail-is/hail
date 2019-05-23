@@ -216,6 +216,7 @@ class Job:
 
         pod, err = app['k8s'].create_pod(body=pod_template)
         if err is not None:
+            traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.id} with the following error: {err}')
             return
         self._pod_name = pod.metadata.name
