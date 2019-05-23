@@ -509,6 +509,7 @@ class Job:
                 log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                 if exc.status == 400:
                     await self.mark_unscheduled()
+                    return
                 raise
 
         await self._mark_job_task_complete(task_name, pod_log, exit_code)
