@@ -32,7 +32,7 @@
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
 	    {% if 'exit_code' in job %}
-        {% set exit_codes = [ec for ec in job['exit_code'] if ec is not None] %}
+            {% set exit_codes = [ec for ec in job['exit_code'] if ec is not None] %}
 	    {{ exit_codes[-1] if len(exit_codes) != 0 else '' }}
 	    {% endif %}
 	  </td>
