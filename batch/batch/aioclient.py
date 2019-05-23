@@ -27,14 +27,16 @@ class Job:
             i += 1
         return 0
 
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
-        self._client = client
-        self.id = id
+        self.batch = batch
+        self.batch_id = self.batch.id
+        self.job_id = job_id
+        self.id = (self.batch_id, self.job_id)
         self.attributes = attributes
         self.parent_ids = parent_ids
         self._status = _status
@@ -49,7 +51,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self._client._get('/jobs/{}'.format(self.id))
+        self._status = await self.batch._client._get('/batches/{}/jobs/{}'.format(self.batch_id, self.job_id))
         return self._status
 
     async def wait(self):
@@ -64,7 +66,7 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self._client._get('/jobs/{}/log'.format(self.id))
+        return await self.batch._client._get('/batches/{}/jobs/{}/log'.format(self.batch_id, self.job_id))
 
 
 class Batch:
@@ -72,13 +74,17 @@ class Batch:
         self._client = client
         self.id = id
         self.attributes = attributes
+        self._job_idx = 0
 
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
                          service_account_name=None, attributes=None, callback=None, parent_ids=None,
                          input_files=None, output_files=None, always_run=False, pvc_size=None):
+        self._job_idx += 1
+
         if parent_ids is None:
             parent_ids = []
+        parent_ids = [pid[1] for pid in parent_ids]
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -132,7 +138,8 @@ class Batch:
             'spec': spec,
             'parent_ids': parent_ids,
             'always_run': always_run,
-            'batch_id': self.id
+            'batch_id': self.id,
+            'job_id': self._job_idx
         }
         if attributes:
             doc['attributes'] = attributes
@@ -147,8 +154,8 @@ class Batch:
 
         j = await self._client._post('/jobs/create', json=doc)
 
-        return Job(self._client,
-                   j['id'],
+        return Job(self,
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
@@ -228,10 +235,11 @@ class BatchClient:
                       attributes=b.get('attributes'))
                 for b in batches]
 
-    async def get_job(self, id):
-        j = await self._get('/jobs/{}'.format(id))
-        return Job(self,
-                   j['id'],
+    async def get_job(self, batch_id, job_id):
+        b = await self.get_batch(batch_id)
+        j = await self._get('/batches/{}/jobs/{}'.format(batch_id, job_id))
+        return Job(b,
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),
                    _status=j)

@@ -26,7 +26,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td>{{ job['id'] }}</td>
+          <td>{{ job['job_id'] }}</td>
           <td>
             {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
             {{ job['attributes']['name'] }}
@@ -35,7 +35,7 @@
           <td>{{ job['state'] }}</td>
           <td>{{ job['exit_code'] }}</td>
           <td>{{ job['duration'] }}</td>
-          <td><a href="/ui/jobs/{{ job['id'] }}/log">log</a></td>
+          <td><a href="/ui/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
         </tr>
         {% endfor %}
       </tbody>
