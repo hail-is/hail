@@ -2060,8 +2060,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     the minimum over multiallelic `PL` entries for genotypes that map to that
     genotype.
 
-    `GQ` is recomputed from `PL` if `PL` is provided. If not, it is copied from the
-    original GQ.
+    `GQ` is recomputed from `PL` if `PL` is provided and is not
+    missing. If not, it is copied from the original GQ.
 
     Here is a second example for a het non-ref
 
@@ -2143,6 +2143,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     -------
     :class:`.MatrixTable` or :class:`.Table`
         A biallelic variant dataset.
+
     """
 
     split = split_multi(ds, keep_star=keep_star, left_aligned=left_aligned)
