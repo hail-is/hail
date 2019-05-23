@@ -711,7 +711,6 @@ steps:
      SPARK_VERSION=2.4.0
      BRANCH=0.2
      CLOUDTOOLS_VERSION=4
-     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
      gsutil cp /io/hail.jar ${GS_JAR}
@@ -727,6 +726,7 @@ steps:
      gsutil cp /io/www.tar.gz ${DOCS}
      gsutil acl set public-read ${DOCS}
      echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
+     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
      # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
      # gsutil acl set public-read ${HASH_TARGET}
    image:
