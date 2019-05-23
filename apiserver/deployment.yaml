@@ -102,8 +102,8 @@ spec:
           volumeMounts:
           - mountPath: /hail-vdc-sa-key
             name: hail-vdc-sa-key
-          - name: jwt-secret
-            mountPath: /jwt-secret
+          - name: jwt-secret-key
+            mountPath: /jwt-secret-key
             readOnly: true
           resources:
             requests:
@@ -119,9 +119,9 @@ spec:
         - name: hail-vdc-sa-key
           secret:
             secretName: hail-vdc-sa-key
-        - name: jwt-secret
+        - name: jwt-secret-key
           secret:
-            secretName: notebook-secrets
+            secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service
