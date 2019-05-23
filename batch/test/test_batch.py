@@ -27,7 +27,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
-        self.assertEqual(status['exit_code'], 0)
+        self.assertEqual(status['exit_code']['main'], 0)
 
         self.assertEqual(j.log(), {'main': 'test\n'})
 
@@ -105,7 +105,7 @@ class Test(unittest.TestCase):
         j = b.create_job('alpine', ['false'])
         b.close()
         status = j.wait()
-        self.assertEqual(status['exit_code'], 1)
+        self.assertEqual(status['exit_code']['main'], 1)
 
     def test_deleted_job_log(self):
         b = self.batch.create_batch()
@@ -199,7 +199,7 @@ class Test(unittest.TestCase):
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
-        n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
+        n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
         self.assertTrue(n_failed == 1)
 
     def test_batch_status(self):
@@ -269,7 +269,7 @@ class Test(unittest.TestCase):
         status = j.wait()
         self.assertTrue('attributes' not in status)
         self.assertEqual(status['state'], 'Complete')
-        self.assertEqual(status['exit_code'], 127)
+        self.assertEqual(status['exit_code']['main'], 127)
 
         self.assertEqual(j.log(), {'main': 'test\n'})
 

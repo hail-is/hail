@@ -15,6 +15,10 @@ class JobsTable(Table):
                        'main': 'main_log_uri',
                        'output': 'output_log_uri'}
 
+    exit_code_mapping = {'input': 'input_exit_code',
+                         'main': 'main_exit_code',
+                         'output': 'output_exit_code'}
+
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
@@ -74,8 +78,11 @@ class JobsTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
-    async def update_log_uri(self, id, task_name, uri):
-        await self.update_record(id, **{JobsTable.log_uri_mapping[task_name]: uri})
+    async def update_with_log_ec(self, id, task_name, uri, exit_code, **items):
+        await self.update_record(id,
+                                 **{JobsTable.log_uri_mapping[task_name]: uri,
+                                    JobsTable.exit_code_mapping[task_name]: exit_code},
+                                 **items)
 
     async def get_log_uri(self, id, task_name):
         uri_field = JobsTable.log_uri_mapping[task_name]
@@ -84,6 +91,9 @@ class JobsTable(Table):
             assert len(records) == 1
             return records[0][uri_field]
         return None
+
+    def exit_code_field(self, task_name):
+        return JobsTable.exit_code_mapping[task_name]
 
     async def get_parents(self, job_id):
         async with self._db.pool.acquire() as conn:

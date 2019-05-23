@@ -20,7 +20,9 @@ CREATE INDEX batch_user ON batch (user);
 CREATE TABLE IF NOT EXISTS `jobs` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(40) NOT NULL,
-  `exit_code` INT,
+  `input_exit_code` INT,
+  `main_exit_code` INT,
+  `output_exit_code` INT,
   `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),
@@ -59,9 +61,9 @@ CREATE TRIGGER trigger_jobs_insert AFTER INSERT ON jobs
         UPDATE batch SET n_jobs = n_jobs + 1 WHERE id = new.batch_id;
         IF (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled') THEN
             UPDATE batch SET n_completed = n_completed + 1 WHERE id = NEW.batch_id;
-            IF (NEW.state LIKE 'Complete' AND NEW.exit_code > 0) THEN
+            IF (NEW.state LIKE 'Complete' AND (NEW.input_exit_code > 0 OR NEW.main_exit_code > 0 OR NEW.output_exit_code > 0)) THEN
 	        UPDATE batch SET n_failed = n_failed + 1 WHERE id = NEW.batch_id;
-            ELSEIF (NEW.state LIKE 'Complete' AND NEW.exit_code = 0) THEN
+            ELSEIF (NEW.state LIKE 'Complete') THEN
                 UPDATE batch SET n_succeeded = n_succeeded + 1 WHERE id = NEW.batch_id;
 	    ELSEIF (NEW.state LIKE 'Cancelled') THEN
                 UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = NEW.batch_id;
@@ -74,9 +76,9 @@ CREATE TRIGGER trigger_jobs_update AFTER UPDATE ON jobs
     FOR EACH ROW BEGIN
         IF (OLD.state NOT LIKE NEW.state) AND (NEW.state LIKE 'Complete' OR NEW.state LIKE 'Cancelled') THEN
             UPDATE batch SET n_completed = n_completed + 1 WHERE id = NEW.batch_id;
-            IF (NEW.state LIKE 'Complete' AND NEW.exit_code > 0) THEN
+            IF (NEW.state LIKE 'Complete' AND (NEW.input_exit_code > 0 OR NEW.main_exit_code > 0 OR NEW.output_exit_code > 0)) THEN
 	        UPDATE batch SET n_failed = n_failed + 1 WHERE id = NEW.batch_id;
-            ELSEIF (NEW.state LIKE 'Complete' AND NEW.exit_code = 0) THEN
+            ELSEIF (NEW.state LIKE 'Complete') THEN
                 UPDATE batch SET n_succeeded = n_succeeded + 1 WHERE id = NEW.batch_id;
 	    ELSEIF (NEW.state LIKE 'Cancelled') THEN
                 UPDATE batch SET n_cancelled = n_cancelled + 1 WHERE id = NEW.batch_id;

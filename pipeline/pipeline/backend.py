@@ -281,7 +281,7 @@ class BatchBackend(Backend):
         batch.close()
         status = batch.wait()
 
-        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
+        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
