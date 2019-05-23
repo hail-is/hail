@@ -584,7 +584,7 @@ steps:
    alwaysRun: true     
    script: |
      set -e
-     gcloud -q auth activate-service-account --key-file=/gsa-key-test-batch/privateKeyData
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
    secrets:
     # hail|test-batch

@@ -16,7 +16,7 @@ spec:
      - name: BATCH_URL
        value: http://batch.{{ default_ns.name }}
     volumeMounts:
-      - mountPath: /test-jwt/jwt
+      - mountPath: /test-jwt
         readOnly: true
         name: test-jwt
   volumes:
