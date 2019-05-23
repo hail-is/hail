@@ -954,12 +954,19 @@ async def batches_show(request, userdata):
     jobs = await get_batch(request, userdata)
     return {"job_list": jobs}
 
-@routes.get('/ui/batches')
+
+@routes.get('/ui/batches', name='ui-batches')
 @aiohttp_jinja2.template('batches.html')
 async def batch_id(request, userdata):
-    b= await get_batches_list(request, userdata)
-    return {"batch_list":b}
+    batches = await get_batches_list(request, userdata)
+    return {"batch_list": batches}
 
+
+@routes.get('/')
+@aiohttp_jinja2.template('batches.html')
+async def batch_id(request, userdata):
+    location = request.app.router['ui-batches'].url_for()
+    raise web.HTTPFound(location=location)
 
 
 async def update_job_with_pod(job, pod):
