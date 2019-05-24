@@ -31,7 +31,7 @@
           <td align="left">{{ job['attributes']['name'] }}</td>
           <td align="left">{{ job['state'] }}</td>
           <td align="right">
-	    {% if 'exit_code' in job and job['exit_code'] %}
+	    {% if 'exit_code' in job and job['exit_code'] is not none %}
 	    {{ job['exit_code'] }}
 	    {% endif %}
 	  </td>
