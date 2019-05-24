@@ -58,6 +58,9 @@ def delete_kube_service_acccount(ksa_name, namespace):
     return v1.delete_namespaced_service_account(name=ksa_name,
                                                 namespace=namespace, body={})
 
+def delete_kube_namespace(namespace):
+    return v1.delete_namespace(name=namespace, body={})
+
 
 def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project, kube_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
@@ -111,12 +114,14 @@ def create_bucket(bucket_name, gsa_email):
     }
 
     bucket.create()
-
-    acl = bucket.acl
-    acl.user(gsa_email).grant_owner()
-    acl.save()
+    grant_bucket_permissions(bucket, gsa_email)
 
     return bucket
+
+def grant_bucket_permissions(bucket, email):
+    acl = bucket.acl
+    acl.user(email).grant_owner()
+    acl.save()
 
 def create_kube_namespace(username):
     return v1.create_namespace(
@@ -244,7 +249,13 @@ def create_all(email, user_id, username, google_project, kube_namespace, is_deve
     out['gsa_email'] = gs_response['email']
 
     bucket_name = f'hail-{sa_name}'
-    create_bucket(bucket_name, out['gsa_email'])
+    bucket = create_bucket(bucket_name, out['gsa_email'])
+
+    # Asumes user is a google user
+    # TODO: Handle non-google users
+    if out['service_account'] == 0:
+        grant_bucket_permissions(bucket, email)
+
     out['bucket_name'] = bucket_name
     
     gsa_key_secret_name = f"{username}-gsa-key"
@@ -286,6 +297,15 @@ def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
         if e.status != 404:
             raise e
 
+    print('user obj', user_obj)
+    if user_obj['namespace_name'] != "":
+        try:
+            delete_kube_namespace(user_obj['namespace_name'])
+            modified += 1
+        except kube_client.rest.ApiException as e:
+            if e.status != 404:
+                raise e
+
     if modified == 0:
         return 404
 
@@ -294,9 +314,15 @@ def email_to_username(email):
     username = re.sub('^[^0-9a-zA-Z]', '', username)
     username = re.sub('[^0-9a-zA-Z\-]+', '', username)
 
-    if len(username) > 15:
+    length = len(username)
+
+    if length > 15:
         username = username[:15]
 
+    if length < 6:
+        username = username + "p" * (6 - length)
+        print("padded", username)
+    
     return username
 
 def create_all_idempotent(email, user_id, google_project='hail-vdc', kube_namespace='default', is_developer=0,is_service_account=0):
@@ -313,6 +339,11 @@ def create_all_idempotent(email, user_id, google_project='hail-vdc', kube_namesp
         res = table.get(user_id)
         user['id'] = res['id']
         print(user)
+
+        if user['developer'] == 0:
+            del user['developer']
+        if user['service_account'] == 0:
+            del user['service_account']
 
         ksa_secret_resp = create_user_kube_secret(user, kube_namespace)
     
