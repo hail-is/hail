@@ -12,20 +12,21 @@ from .poll_until import poll_until
 class Job:
     @staticmethod
     def exit_code(job_status):
-        if 'exit_code' in job_status and job_status['exit_code'] is not None:
-            exit_codes = job_status['exit_code']
-            exit_codes = [exit_codes.get(task) for task in ['input', 'main', 'output']]
+        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+            return None
 
-            i = 0
-            while i < len(exit_codes):
-                ec = exit_codes[i]
-                if ec is None:
-                    return None
-                if ec > 0:
-                    return ec
-                i += 1
-            return 0
-        return None
+        exit_codes = job_status['exit_code']
+        exit_codes = [exit_codes.get(task) for task in ['input', 'main', 'output']]
+
+        i = 0
+        while i < len(exit_codes):
+            ec = exit_codes[i]
+            if ec is None:
+                return None
+            if ec > 0:
+                return ec
+            i += 1
+        return 0
 
     def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
