@@ -1541,14 +1541,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |   ${ fb.nativeError("Cannot slice NDArray with missing slices.") }
              | }
              | ${ Code.sequence(defineSliceVars) }
-             | ${ Code.sequence(refVars.values.map(_.define).toSeq) }
+             | ${ Code.defineVars(refVars.values.toFastSeq) }
              | ${ shape.define }
            """.stripMargin
 
-        new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val newLoopVarsToDefine = mutable.ArrayBuffer[Variable]()
-            newLoopVarsToDefine.sizeHint(sliceVars.size)
+            val newLoopVars = mutable.ArrayBuffer[Variable]()
+            newLoopVars.sizeHint(sliceVars.size)
 
             val oldIdxVarsIter = idxVars.iterator
             val sliceIdxVarsIter = sliceVars.iterator
@@ -1562,14 +1562,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                 val (start, _, step) = sliceIdxVarsIter.next
                 val oldIdxVar = oldIdxVarsIter.next()
                 val shiftedIdx = fb.variable("slice_idx", "int", s"($start + ($oldIdxVar * $step))")
-                newLoopVarsToDefine += shiftedIdx
+                newLoopVars += shiftedIdx
                 shiftedIdx
               }
             }
 
             s"""
                |({
-               |  ${ Code.sequence(newLoopVarsToDefine.map(_.define)) }
+               |  ${ Code.defineVars(newLoopVars) }
                |  ${ childEmitter.outputElement(sliceIdxVars) };
                |})
              """.stripMargin

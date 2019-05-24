@@ -2730,6 +2730,7 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2])
         self.ndarray_eq(arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2])
         self.ndarray_eq(arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2])
+        self.ndarray_eq(arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2])
         self.ndarray_eq(mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
 
     @skip_unless_spark_backend()
