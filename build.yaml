@@ -745,7 +745,7 @@ steps:
     - from: /www.tar.gz
       to: /io/www.tar.gz
     - from: /create_config_file.py
-      to: /io/create_config_file.pywww.tar.gz
+      to: /io/create_config_file.py
    scopes:
     - deploy
    dependsOn:
