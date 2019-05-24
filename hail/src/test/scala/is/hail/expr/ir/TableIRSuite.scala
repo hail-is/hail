@@ -25,7 +25,7 @@ class TableIRSuite extends SparkSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
-  implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+  implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.LoweredJVMCompile)
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))
@@ -93,6 +93,7 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableMapWithLiterals() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     val t = TableRange(10, 2)
     val node = TableMapRows(t,
       InsertFields(Ref("row", t.typ.rowType),

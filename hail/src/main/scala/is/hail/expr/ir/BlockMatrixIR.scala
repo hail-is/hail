@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.types.BlockMatrixType
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
-import is.hail.utils.{FastIndexedSeq, fatal}
+import is.hail.utils._
 import breeze.linalg.DenseMatrix
 import is.hail.expr.types.virtual.Type
 
@@ -388,7 +388,7 @@ case class BlockMatrixAgg(
   assert(outIndexExpr.length < 2)
 
   override def typ: BlockMatrixType = {
-    val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toIndexedSeq
+    val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toFastIndexedSeq
     val isRowVector = outIndexExpr == FastIndexedSeq(1)
 
     BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize)

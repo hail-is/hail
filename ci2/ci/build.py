@@ -55,19 +55,34 @@ class Code(abc.ABC):
         """Bash script to checkout out the code in the current directory."""
 
 
+class StepParameters:
+    def __init__(self, code, deploy, json, name_step):
+        self.code = code
+        self.deploy = deploy
+        self.json = json
+        self.name_step = name_step
+
+
 class BuildConfiguration:
     def __init__(self, code, config_str, deploy):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
         for step_config in config['steps']:
-            step = Step.from_json(code, deploy, step_config, name_step)
+            step_params = StepParameters(code, deploy, step_config, name_step)
+            step = Step.from_json(step_params)
             self.steps.append(step)
             name_step[step.name] = step
 
     async def build(self, batch, code, deploy):
+        if deploy:
+            scope = 'deploy'
+        else:
+            scope = 'test'
+
         for step in self.steps:
-            await step.build(batch, code, deploy)
+            if step.scopes is None or scope in step.scopes:
+                await step.build(batch, code, deploy)
 
         ids = set()
         for step in self.steps:
@@ -80,13 +95,21 @@ class BuildConfiguration:
                                       parent_ids=ids)
 
         for step in self.steps:
-            await step.cleanup(batch, deploy, sink)
+            if step.scopes is None or scope in step.scopes:
+                await step.cleanup(batch, deploy, sink)
 
 
 class Step(abc.ABC):
-    def __init__(self, name, deps):
-        self.name = name
-        self.deps = deps
+    def __init__(self, params):
+        json = params.json
+
+        self.name = json['name']
+        if 'dependsOn' in json:
+            self.deps = [params.name_step[d] for d in json['dependsOn']]
+        else:
+            self.deps = None
+        self.scopes = json.get('scopes')
+
         self.token = generate_token()
 
     def input_config(self, code, deploy):
@@ -110,23 +133,18 @@ class Step(abc.ABC):
         return flatten([d.self_ids() for d in self.deps])
 
     @staticmethod
-    def from_json(code, deploy, json, name_step):
-        kind = json['kind']
-        name = json['name']
-        if 'dependsOn' in json:
-            deps = [name_step[d] for d in json['dependsOn']]
-        else:
-            deps = None
+    def from_json(params):
+        kind = params.json['kind']
         if kind == 'buildImage':
-            return BuildImageStep.from_json(code, deploy, name, deps, json)
+            return BuildImageStep.from_json(params)
         if kind == 'runImage':
-            return RunImageStep.from_json(code, deploy, name, deps, json)
+            return RunImageStep.from_json(params)
         if kind == 'createNamespace':
-            return CreateNamespaceStep.from_json(code, deploy, name, deps, json)
+            return CreateNamespaceStep.from_json(params)
         if kind == 'deploy':
-            return DeployStep.from_json(code, deploy, name, deps, json)
+            return DeployStep.from_json(params)
         if kind == 'createDatabase':
-            return CreateDatabaseStep.from_json(code, deploy, name, deps, json)
+            return CreateDatabaseStep.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
     @abc.abstractmethod
@@ -135,13 +153,13 @@ class Step(abc.ABC):
 
 
 class BuildImageStep(Step):
-    def __init__(self, code, deploy, name, deps, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
-        super().__init__(name, deps)
+    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+        super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
-        if deploy and publish_as:
+        if params.deploy and publish_as:
             self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
@@ -154,8 +172,9 @@ class BuildImageStep(Step):
         return []
 
     @staticmethod
-    def from_json(code, deploy, name, deps, json):
-        return BuildImageStep(code, deploy, name, deps,
+    def from_json(params):
+        json = params.json
+        return BuildImageStep(params,
                               json['dockerFile'],
                               json.get('contextPath'),
                               json.get('publishAs'),
@@ -318,12 +337,13 @@ true
 
 
 class RunImageStep(Step):
-    def __init__(self, code, deploy, name, deps, image, script, inputs, outputs, secrets, always_run):  # pylint: disable=unused-argument
-        super().__init__(name, deps)
-        self.image = expand_value_from(image, self.input_config(code, deploy))
+    def __init__(self, params, image, script, inputs, outputs, service_account, secrets, always_run):  # pylint: disable=unused-argument
+        super().__init__(params)
+        self.image = expand_value_from(image, self.input_config(params.code, params.deploy))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
+        self.service_account = service_account
         self.secrets = secrets
         self.always_run = always_run
         self.job = None
@@ -334,12 +354,14 @@ class RunImageStep(Step):
         return []
 
     @staticmethod
-    def from_json(code, deploy, name, deps, json):
-        return RunImageStep(code, deploy, name, deps,
+    def from_json(params):
+        json = params.json
+        return RunImageStep(params,
                             json['image'],
                             json['script'],
                             json.get('inputs'),
                             json.get('outputs'),
+                            json.get('serviceAccount'),
                             json.get('secrets'),
                             json.get('alwaysRun', False))
 
@@ -394,6 +416,7 @@ class RunImageStep(Step):
             input_files=input_files,
             output_files=output_files,
             volumes=volumes,
+            service_account_name=self.service_account,
             parent_ids=self.deps_parent_ids(),
             always_run=self.always_run)
 
@@ -402,23 +425,23 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, code, deploy, name, deps, namespace_name, admin_service_account, public, secrets):
-        super().__init__(name, deps)
+    def __init__(self, params, namespace_name, admin_service_account, public, secrets):
+        super().__init__(params)
         self.namespace_name = namespace_name
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],
-                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(code, deploy))
+                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(params.code, params.deploy))
             }
         else:
             self.admin_service_account = None
         self.public = public
         self.secrets = secrets
         self.job = None
-        if deploy:
+        if params.deploy:
             self._name = namespace_name
         else:
-            self._name = f'{code.short_str()}-{namespace_name}-{self.token}'
+            self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
 
     def self_ids(self):
         if self.job:
@@ -426,8 +449,9 @@ class CreateNamespaceStep(Step):
         return []
 
     @staticmethod
-    def from_json(code, deploy, name, deps, json):
-        return CreateNamespaceStep(code, deploy, name, deps,
+    def from_json(params):
+        json = params.json
+        return CreateNamespaceStep(params,
                                    json['namespaceName'],
                                    json.get('adminServiceAccount'),
                                    json.get('public', False),
@@ -553,9 +577,9 @@ true
 
 
 class DeployStep(Step):
-    def __init__(self, code, deploy, name, deps, namespace, config_file, link, wait):  # pylint: disable=unused-argument
-        super().__init__(name, deps)
-        self.namespace = get_namespace(namespace, self.input_config(code, deploy))
+    def __init__(self, params, namespace, config_file, link, wait):  # pylint: disable=unused-argument
+        super().__init__(params)
+        self.namespace = get_namespace(namespace, self.input_config(params.code, params.deploy))
         self.config_file = config_file
         self.link = link
         self.wait = wait
@@ -567,8 +591,9 @@ class DeployStep(Step):
         return []
 
     @staticmethod
-    def from_json(code, deploy, name, deps, json):
-        return DeployStep(code, deploy, name, deps,
+    def from_json(params):
+        json = params.json
+        return DeployStep(params,
                           json['namespace'],
                           # FIXME config_file
                           json['config'],
@@ -659,7 +684,7 @@ date
                                           service_account_name='ci2-agent',
                                           parent_ids=self.deps_parent_ids())
 
-    async def cleanup(self, batch, deploy, sink):
+    async def cleanup(self, batch, deploy, sink):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -683,20 +708,20 @@ date
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, code, deploy, name, deps, database_name, namespace):
-        super().__init__(name, deps)
+    def __init__(self, params, database_name, namespace):
+        super().__init__(params)
         # FIXME validate
         self.database_name = database_name
-        self.namespace = get_namespace(namespace, self.input_config(code, deploy))
+        self.namespace = get_namespace(namespace, self.input_config(params.code, params.deploy))
         self.job = None
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
-        if deploy:
+        if params.deploy:
             self._name = database_name
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
         else:
-            self._name = f'{code.short_str()}-{database_name}-{self.token}'
+            self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
             self.admin_username = generate_token()
             self.user_username = generate_token()
 
@@ -709,8 +734,9 @@ class CreateDatabaseStep(Step):
         return []
 
     @staticmethod
-    def from_json(code, deploy, name, deps, json):
-        return CreateDatabaseStep(code, deploy, name, deps,
+    def from_json(params):
+        json = params.json
+        return CreateDatabaseStep(params,
                                   json['databaseName'],
                                   json['namespace'])
 

@@ -35,6 +35,13 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
 
+By default, hail uses pre-compiled native libraries that are compatible with
+recent Mac OS X and Debian releases. If you're not using on of these OSes, you
+must rebuild the native libraries from source and move them into place before
+building a shadowJar::
+
+    ./gradlew nativeLibPrebuilt
+
 Build a Hail JAR compatible with Spark 2.4.0::
 
     ./gradlew -Dspark.version=2.4.0 shadowJar
@@ -42,6 +49,9 @@ Build a Hail JAR compatible with Spark 2.4.0::
 Should you wish to build a Hail JAR compatible with a different Spark version (2.2.0 here)::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar
+
+The end user documentation encourages users to use the `releaseJar` target which
+ensures that `nativeLibPrebuilt` is run before `shadowJar`.
 
 
 Environment Variables and Conda Environments

@@ -47,18 +47,23 @@ spec:
             - name: HAIL_DOMAIN
               value: "{{ global.domain }}"
             - name: HAIL_TOKEN_FILE
-              value: '/ci2-jwt/jwt'
+              value: '/ci-jwt/jwt'
             - name: HAIL_SELF_HOSTNAME
               value: ci2
+            - name: HAIL_JWT_SECRET_KEY_FILE
+              value: /jwt-secret-key/secret-key
           ports:
             - containerPort: 5000
           volumeMounts:
             - mountPath: /secrets/oauth-token
               readOnly: true
               name: hail-ci-0-1-github-oauth-token
-            - mountPath: /ci2-jwt
+            - mountPath: /ci-jwt
               readOnly: true
-              name: ci2-jwt
+              name: ci-jwt
+            - name: jwt-secret-key
+              mountPath: /jwt-secret-key
+              readOnly: true
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -75,9 +80,13 @@ spec:
         - name: hail-ci-0-1-github-oauth-token
           secret:
             secretName: hail-ci-0-1-github-oauth-token
-        - name: ci2-jwt
+        - name: ci-jwt
           secret:
-            secretName: user-jwt-fzp4f
+            secretName: ci-jwt
+        - name: jwt-secret-key
+          secret:
+            optional: false
+            secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service

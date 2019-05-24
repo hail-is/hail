@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.expr.types.virtual.TArray
 import is.hail.table.Ascending
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -39,23 +38,24 @@ object Pretty {
     sb.result()
   }
 
-  def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
-
-  def prettyLongs(x: IndexedSeq[Long]): String = x.mkString("(", " ", ")")
-
-  def prettyInts(x: IndexedSeq[Int]): String = x.mkString("(", " ", ")")
-
-  def prettyBooleans(bools: IndexedSeq[Boolean]): String = prettyIdentifiers(bools.map(prettyBooleanLiteral))
-
-  def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
-    x.map(prettyLongs).getOrElse("None")
-
-  def prettyIdentifiers(x: IndexedSeq[String]): String = x.map(prettyIdentifier).mkString("(", " ", ")")
-
-  def prettyIdentifiersOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyIdentifiers).getOrElse("None")
+  val MAX_VALUES_TO_LOG: Int = 25
 
   def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {
     val sb = new StringBuilder
+
+    def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
+
+    def prettyLongs(x: IndexedSeq[Long]): String = if (elideLiterals && x.length > MAX_VALUES_TO_LOG)
+      x.mkString("(", " ", s"... ${ x.length - MAX_VALUES_TO_LOG } more values... )")
+    else
+      x.mkString("(", " ", ")")
+
+    def prettyInts(x: IndexedSeq[Int]): String = if (elideLiterals && x.length > MAX_VALUES_TO_LOG)
+      x.mkString("(", " ", s"... ${ x.length - MAX_VALUES_TO_LOG } more values... )")
+    else
+      x.mkString("(", " ", ")")
+
+    def prettyIdentifiers(x: IndexedSeq[String]): String = x.map(prettyIdentifier).mkString("(", " ", ")")
 
     def prettySeq(xs: Seq[BaseIR], depth: Int) {
       sb.append(" " * depth)
@@ -226,13 +226,14 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case BlockMatrixFilter(_, indicesToKeepPerDim) =>
-              indicesToKeepPerDim.map(indices => prettyLongs(indices.toIndexedSeq)).mkString("(", " ", ")")
+              indicesToKeepPerDim.map(indices => prettyLongs(indices)).mkString("(", " ", ")")
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case MatrixRowsHead(_, n) => n.toString
+            case MatrixColsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid, product) =>
               prettyStringLiteral(uid) + " " + prettyBooleanLiteral(product)
             case MatrixAnnotateColsTable(_, _, uid) =>

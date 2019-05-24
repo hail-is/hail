@@ -1,5 +1,6 @@
 import builtins
 import functools
+from math import sqrt
 from typing import *
 
 import hail as hl
@@ -39,13 +40,56 @@ def _lower_bound(a, x):
 
 @typecheck(cdf=expr_struct(), q=expr_oneof(expr_float32, expr_float64))
 def _quantile_from_cdf(cdf, q):
-    n = cdf.ranks[cdf.ranks.length() - 1]
-    pos = int64(q*n) + 1
-    idx = (switch(q)
-            .when(0.0, 0)
-            .when(1.0, cdf.values.length() - 1)
-            .default(_lower_bound(cdf.ranks, pos) - 1))
-    return cdf.values[idx]
+    def compute(cdf):
+        n = cdf.ranks[cdf.ranks.length() - 1]
+        pos = hl.int64(q*n) + 1
+        idx = (hl.switch(q)
+                .when(0.0, 0)
+                .when(1.0, cdf.values.length() - 1)
+                .default(_lower_bound(cdf.ranks, pos) - 1))
+        return cdf.values[idx]
+    return hl.rbind(cdf, compute)
+
+
+@typecheck(cdf=expr_struct(), failure_prob=expr_oneof(expr_float32, expr_float64), all_quantiles=bool)
+def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
+    """Estimates error of approx_cdf aggregator, using Hoeffding's inequality.
+
+    Parameters
+    ----------
+    cdf : :class:`.StructExpression`
+        Result of :func:`.approx_cdf` aggregator
+    failure_prob: :class:`.NumericExpression`
+        Upper bound on probability of true error being greater than estimated error.
+    all_quantiles: :obj:`bool`
+        If ``True``, with probability 1 - `failure_prob`, error estimate applies
+        to all quantiles simultaneously.
+
+    Returns
+    -------
+    :class:`.NumericExpression`
+        Upper bound on error of quantile estimates.
+    """
+    def compute_sum(cdf):
+        s = hl.sum(hl.range(0, hl.len(cdf._compaction_counts)).map(lambda i: cdf._compaction_counts[i] * (2 ** (2*i))))
+        return s / (cdf.ranks[-1] ** 2)
+
+    def update_grid_size(p, s):
+        return 4 * hl.sqrt(hl.log(2 * p / failure_prob) / (2 * s))
+
+    def compute_grid_size(s):
+        return hl.fold(lambda p, i: update_grid_size(p, s), 1 / failure_prob, hl.range(0, 5))
+
+    def compute_single_error(s, failure_prob=failure_prob):
+        return hl.sqrt(hl.log(2 / failure_prob) * s / 2)
+
+    def compute_global_error(s):
+        return hl.rbind(compute_grid_size(s), lambda p: 1 / p + compute_single_error(s, failure_prob / p))
+
+    if all_quantiles:
+        return hl.rbind(cdf, lambda cdf: hl.rbind(compute_sum(cdf), compute_global_error))
+    else:
+        return hl.rbind(cdf, lambda cdf: hl.rbind(compute_sum(cdf), compute_single_error))
 
 
 @typecheck(t=hail_type)
@@ -365,7 +409,7 @@ def rbind(*exprs):
     >>> hl.eval(hl.rbind(1, lambda x: x + 1))
     2
 
-    :func:`.let` also can take multiple arguments:
+    :func:`.rbind` also can take multiple arguments:
 
     >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
     2.0

@@ -9,12 +9,7 @@ steps:
     - notebook-secrets
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
-    # hail|ci2
-    - user-jwt-fzp4f
-    - gsa-key-hnmrj
-    # hail|batch
-    - user-jwt-fh7kp
-    - gsa-key-n6hf9
+    - test-gsa-key
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -31,11 +26,7 @@ steps:
        valueFrom: default_ns.name
    public: false
    secrets:
-    # hail|test-batch
-    - user-jwt-vkqfw
-    - gsa-key-2x975
-    # pipeline|test-user
-    - pipeline-test-0-1--hail-is-service-account-key
+    - test-gsa-key
    dependsOn:
     - default_ns
     - deploy_batch_sa
@@ -44,6 +35,60 @@ steps:
    dockerFile: docker/Dockerfile.base
    contextPath: docker
    publishAs: base
+ - kind: runImage
+   name: create_accounts
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # secret-key
+     python3 -c "
+     import secrets, jwt
+     secret_key = secrets.token_bytes(64)
+     with open('secret-key', 'wb') as f:
+       f.write(secret_key)
+     "
+     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
+     # batch
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':1,'service_account':True,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
+     # ci
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':2,'service_account':True,'username':'ci','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci-gsa-key','jwt_secret_name':'ci-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./jwt
+     # test
+     # test-gsa-key exists
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':3,'service_account':True,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
+   serviceAccount: ci2-agent
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
@@ -215,6 +260,7 @@ steps:
    publishAs: hail-jupyter
    dependsOn:
     - hail_base_image
+    - default_ns
  - kind: buildImage
    name: spark_master_image
    dockerFile: apiserver/Dockerfile.spark-master
@@ -529,6 +575,20 @@ steps:
     - deploy_batch
     - deploy_batch_pods
     - test_batch_image
+ - kind: runImage
+   name: setup_pipeline
+   image:
+     valueFrom: test_pipeline_image.image
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
+   secrets:
+    # hail|test-batch
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   dependsOn:
+    - test_pipeline_image
  - kind: deploy
    name: test_pipeline
    namespace:
@@ -544,6 +604,24 @@ steps:
     - batch_pods_ns
     - deploy_batch
     - test_pipeline_image
+    - setup_pipeline
+ - kind: runImage
+   name: cleanup_pipeline
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true     
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
+   secrets:
+    # hail|test-batch
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   dependsOn:
+    - base_image
+    - setup_pipeline    
+    - test_pipeline
  - kind: deploy
    name: deploy_apiserver
    namespace:
@@ -628,3 +706,49 @@ steps:
    dependsOn:
     - base_image
     - create_ci_test_repo
+ - kind: runImage
+   name: deploy_hail
+   script: |
+     set -ex
+     gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+     SPARK_VERSION=2.4.0
+     BRANCH=0.2
+     CLOUDTOOLS_VERSION=4
+     SHA="{{ code.sha }}"
+     GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
+     gsutil cp /io/hail.jar ${GS_JAR}
+     gsutil acl set public-read ${GS_JAR}
+     GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
+     gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
+     gsutil acl set public-read ${GS_HAIL_ZIP}
+     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+     gsutil acl set public-read $CONFIG
+     DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
+     gsutil cp /io/www.tar.gz ${DOCS}
+     gsutil acl set public-read ${DOCS}
+     echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
+     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+     # gsutil acl set public-read ${HASH_TARGET}
+   image:
+     valueFrom: base_image.image
+   secrets:
+    - name: ci-deploy-0-1--hail-is-hail
+      mountPath: /secrets
+   inputs:
+    - from: /hail.jar
+      to: /io/hail.jar
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /www.tar.gz
+      to: /io/www.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.pywww.tar.gz
+   scopes:
+    - deploy
+   dependsOn:
+    - base_image
+    - make_docs
+    - build_hail

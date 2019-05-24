@@ -19,13 +19,13 @@ spec:
      - name: HAIL_APISERVER_URL
        value: http://apiserver.{{ default_ns.name }}:5000
      - name: HAIL_TOKEN_FILE
-       value: '/jwt/jwt'
+       value: '/test-jwt/jwt'
     volumeMounts:
-      - mountPath: /jwt
+      - mountPath: /test-jwt
         readOnly: true
-        name: test-batch-jwt
+        name: test-jwt
   volumes:
-    - name: test-batch-jwt
+    - name: test-jwt
       secret:
-        secretName: user-jwt-vkqfw
+        secretName: test-jwt
   restartPolicy: Never

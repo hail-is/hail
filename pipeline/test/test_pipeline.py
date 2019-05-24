@@ -3,13 +3,16 @@ import os
 import subprocess as sp
 import tempfile
 
-from pipeline import Pipeline, BatchBackend
+from pipeline import Pipeline, BatchBackend, LocalBackend
 
-gcs_input_dir = 'gs://hail-pipeline-test/data'
-gcs_output_dir = 'gs://hail-pipeline-test/output'
+gcs_input_dir = os.environ.get('SCRATCH') + '/input'
+gcs_output_dir = os.environ.get('SCRATCH') + '/output'
 
 
 class LocalTests(unittest.TestCase):
+    def pipeline(self):
+        return Pipeline(backend=LocalBackend())
+
     def read(self, file):
         with open(file, 'r') as f:
             result = f.read().rstrip()
@@ -24,7 +27,7 @@ class LocalTests(unittest.TestCase):
             input_file.write('abc')
             input_file.flush()
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input(input_file.name)
             p.write_output(input, output_file.name)
             p.run()
@@ -42,7 +45,7 @@ class LocalTests(unittest.TestCase):
             input_file1.flush()
             input_file2.flush()
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
 
@@ -58,7 +61,7 @@ class LocalTests(unittest.TestCase):
                 tempfile.NamedTemporaryFile('w') as input_file2, \
                 tempfile.TemporaryDirectory() as output_dir:
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
 
@@ -72,7 +75,7 @@ class LocalTests(unittest.TestCase):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
 
-            p = Pipeline()
+            p = self.pipeline()
             t = p.new_task()
             t.command(f'echo "{msg}" > {t.ofile}')
             p.write_output(t.ofile, output_file.name)
@@ -87,7 +90,7 @@ class LocalTests(unittest.TestCase):
             input_file.write(msg)
             input_file.flush()
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input(input_file.name)
             t = p.new_task()
             t.command(f'cat {input} > {t.ofile}')
@@ -108,7 +111,7 @@ class LocalTests(unittest.TestCase):
             input_file1.flush()
             input_file2.flush()
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input_group(in1=input_file1.name,
                                        in2=input_file2.name)
             t = p.new_task()
@@ -119,7 +122,7 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == msg1 + msg2
 
     def test_single_task_bad_command(self):
-        p = Pipeline()
+        p = self.pipeline()
         t = p.new_task()
         t.command("foo")  # this should fail!
         with self.assertRaises(sp.CalledProcessError):
@@ -128,7 +131,7 @@ class LocalTests(unittest.TestCase):
     def test_declare_resource_group(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
             msg = 'hello world'
-            p = Pipeline()
+            p = self.pipeline()
             t = p.new_task()
             t.declare_resource_group(ofile={'log': "{root}.txt"})
             t.command(f'echo "{msg}" > {t.ofile.log}')
@@ -138,7 +141,7 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == msg
 
     def test_resource_group_get_all_inputs(self):
-        p = Pipeline()
+        p = self.pipeline()
         input = p.read_input_group(fasta="foo",
                                    idx="bar")
         t = p.new_task()
@@ -147,7 +150,7 @@ class LocalTests(unittest.TestCase):
         assert input.idx in t._inputs
 
     def test_resource_group_get_all_mentioned(self):
-        p = Pipeline()
+        p = self.pipeline()
         t = p.new_task()
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat {t.foo.bed}")
@@ -155,7 +158,7 @@ class LocalTests(unittest.TestCase):
         assert t.foo.bim not in t._mentioned
 
     def test_resource_group_get_all_mentioned_dependent_tasks(self):
-        p = Pipeline()
+        p = self.pipeline()
         t = p.new_task()
         t.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t.command(f"cat")
@@ -163,7 +166,7 @@ class LocalTests(unittest.TestCase):
         t2.command(f"cat {t.foo}")
 
     def test_resource_group_get_all_outputs(self):
-        p = Pipeline()
+        p = self.pipeline()
         t1 = p.new_task()
         t1.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
         t1.command(f"cat {t1.foo.bed}")
@@ -183,7 +186,7 @@ class LocalTests(unittest.TestCase):
         assert t1.foo not in t1._mentioned
 
     def test_multiple_isolated_tasks(self):
-        p = Pipeline()
+        p = self.pipeline()
 
         output_files = []
         try:
@@ -204,7 +207,7 @@ class LocalTests(unittest.TestCase):
 
     def test_multiple_dependent_tasks(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
-            p = Pipeline()
+            p = self.pipeline()
             t = p.new_task()
             t.command(f'echo "0" >> {t.ofile}')
 
@@ -220,14 +223,14 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == "0\n1\n2"
 
     def test_select_tasks(self):
-        p = Pipeline()
+        p = self.pipeline()
         for i in range(3):
             t = p.new_task().label(f'foo{i}')
         self.assertTrue(len(p.select_tasks('foo')) == 3)
 
     def test_scatter_gather(self):
         with tempfile.NamedTemporaryFile('w') as output_file:
-            p = Pipeline()
+            p = self.pipeline()
 
             for i in range(3):
                 t = p.new_task().label(f'foo{i}')
@@ -245,7 +248,7 @@ class LocalTests(unittest.TestCase):
             assert self.read(output_file.name) == '2\n1\n0'
 
     def test_add_extension_task_resource_file(self):
-        p = Pipeline()
+        p = self.pipeline()
         t = p.new_task()
         t.command(f'echo "hello" > {t.ofile}')
         t.ofile.add_extension('.txt.bgz')
@@ -253,7 +256,7 @@ class LocalTests(unittest.TestCase):
 
     def test_add_extension_input_resource_file(self):
         input_file1 = '/tmp/data/example1.txt.bgz.foo'
-        p = Pipeline()
+        p = self.pipeline()
         in1 = p.read_input(input_file1, extension='.txt.bgz.foo')
         with self.assertRaises(Exception):
             in1.add_extension('.baz')
@@ -266,7 +269,7 @@ class LocalTests(unittest.TestCase):
             input_file.write('abc')
             input_file.flush()
 
-            p = Pipeline()
+            p = self.pipeline()
             input = p.read_input(input_file.name)
             t = p.new_task()
             t.command(f'cat {input} > {t.ofile}')
@@ -276,7 +279,7 @@ class LocalTests(unittest.TestCase):
             self.assert_same_file(input_file.name, output_file.name)
 
     def test_resource_group_mentioned(self):
-        p = Pipeline()
+        p = self.pipeline()
         t = p.new_task()
         t.declare_resource_group(foo={'bed': '{root}.bed'})
         t.command(f'echo "hello" > {t.foo}')
@@ -382,7 +385,7 @@ class BatchTests(unittest.TestCase):
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
-        p.run(delete_scratch_on_exit=False)
+        p.run()
 
     def test_file_name_space(self):
         p = self.pipeline()

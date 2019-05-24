@@ -182,6 +182,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         MatrixAggregate(normalizeMatrix(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
             .mapValuesWithKey({ case (k, _) => k })))
+      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+        val newC = gen()
+        val newG = gen()
+        CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.eval(cname -> newC, gname -> newG)))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

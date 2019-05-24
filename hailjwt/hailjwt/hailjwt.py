@@ -1,4 +1,9 @@
+import os
+import logging
+from aiohttp import web
 import jwt
+
+log = logging.getLogger('hailjwt')
 
 
 class JWTClient:
@@ -15,17 +20,13 @@ class JWTClient:
 
     @staticmethod
     def _verify_key_preqrequisites(secret_key):
-        if isinstance(secret_key, str):
-            key_bytes = secret_key.encode('utf-8')
-        else:
-            assert isinstance(secret_key, bytes), type(secret_key)
-            key_bytes = secret_key
-        if len(key_bytes) < 32:
+        if len(secret_key) < 32:
             raise ValueError(
-                f'found secret key with {len(key_bytes)} bytes, but secret key '
-                f'must have at least 32 bytes (i.e. 256 bits)')
+                f'found secret key with {len(secret_key)} bytes, but secret '
+                f'key must have at least 32 bytes (i.e. 256 bits)')
 
     def __init__(self, secret_key):
+        assert isinstance(secret_key, bytes)
         JWTClient._verify_key_preqrequisites(secret_key)
         self.secret_key = secret_key
 
@@ -34,10 +35,37 @@ class JWTClient:
             token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])
 
     def encode(self, payload):
-        return jwt.encode(
+        return (jwt.encode(
             payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
+                .decode('ascii'))
 
 
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
+
+jwtclient = None
+
+
+def authenticated_users_only(fun):
+    global jwtclient
+
+    if not jwtclient:
+        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
+                                 '/jwt-secret/secret-key'), 'rb') as f:
+            jwtclient = JWTClient(f.read())
+
+    def wrapped(request, *args, **kwargs):
+        encoded_token = request.cookies.get('user')
+        if encoded_token is not None:
+            try:
+                userdata = jwtclient.decode(encoded_token)
+                if 'userdata' in fun.__code__.co_varnames:
+                    return fun(request, *args, userdata=userdata, **kwargs)
+                return fun(request, *args, **kwargs)
+            except jwt.exceptions.InvalidTokenError as exc:
+                log.info(f'could not decode token: {exc}')
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+    wrapped.__name__ = fun.__name__
+    return wrapped
