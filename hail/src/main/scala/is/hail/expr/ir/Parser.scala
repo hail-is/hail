@@ -584,7 +584,7 @@ object IRParser {
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
-      case "PipelineRef" =>
+      case "RelationalRef" =>
         val id = identifier(it)
         val t = type_expr(it)
         RelationalRef(id, t)
