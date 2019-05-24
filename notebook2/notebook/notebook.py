@@ -72,10 +72,8 @@ INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
-SECRET_KEY = read_string('/jwt-secret-key/secret-key')
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = SECRET_KEY,
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
@@ -109,7 +107,8 @@ k8s = kube.client.CoreV1Api()
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
-jwtclient = JWTClient(SECRET_KEY)
+with open('/jwt-secret-key/secret-key', 'rb') as f:
+    jwtclient = JWTClient(f.read())
 
 
 def jwt_decode(token):
