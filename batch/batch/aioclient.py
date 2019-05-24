@@ -21,10 +21,10 @@ class Job:
             i = 0
             while i < len(exit_codes):
                 ec = exit_codes[i]
-                if ec > 0:
-                    return ec
                 if ec is None:
                     return None
+                if ec > 0:
+                    return ec
                 i += 1
             return 0
         return None
