@@ -547,8 +547,7 @@ class Job:
             'state': self._state
         }
         if self._state == 'Complete':
-            result['exit_code'] = {t.name: ec for idx, (ec, t) in enumerate(zip(self.exit_codes, self._tasks))
-                                   if idx < self._task_idx}
+            result['exit_code'] = {t.name: ec for ec, t in zip(self.exit_codes, self._tasks)}
             result['duration'] = self.duration
 
         if self.attributes:
