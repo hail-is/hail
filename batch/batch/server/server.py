@@ -10,7 +10,6 @@ from shlex import quote as shq
 
 from aiohttp import web
 import cerberus
-import jwt
 import kubernetes as kube
 import requests
 import uvloop
@@ -507,13 +506,11 @@ class Job:
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as exc:
-                pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
                 log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                 if exc.status == 400:
                     await self.mark_unscheduled()
                     return
-                else:
-                    raise
+                raise
 
         await self._mark_job_task_complete(task_name, pod_log, exit_code)
 

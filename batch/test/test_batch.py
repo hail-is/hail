@@ -295,7 +295,7 @@ class Test(unittest.TestCase):
             'jwt-test-user.json')
         with open(fname) as f:
             userdata = json.loads(f.read())
-        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata).decode('ascii')
+        token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata)
         bc = batch.client.BatchClient(url=os.environ.get('BATCH_URL'), token=token)
         try:
             b = bc.create_batch()
