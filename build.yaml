@@ -750,3 +750,5 @@ steps:
     - deploy
    dependsOn:
     - base_image
+    - make_docs
+    - build_hail
