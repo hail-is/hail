@@ -26,7 +26,7 @@ class Table:
             return cursor.fetchone()
 
     def insert(self, username, email, user_id, namespace_name, gsa_email, ksa_name, bucket_name,
-               gsa_key_secret_name, jwt_secret_name, developer = 0, service_account = 0):
+               gsa_key_secret_name, jwt_secret_name, developer = False, service_account = False):
         print("Developer is", developer, type(developer))
         print("Service account is", service_account, type(service_account))
         with self.cnx.cursor() as cursor:
