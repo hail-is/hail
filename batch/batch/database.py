@@ -65,20 +65,24 @@ class Table:  # pylint: disable=R0903
         self.name = name
         self._db = db
 
+    def new_record_template(self, *field_names):
+        names = ", ".join([f'`{name.replace("`", "``")}`' for name in field_names])
+        values = ", ".join([f"%({name})s" for name in field_names])
+        sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values})"
+        return sql
+
     async def new_record(self, **items):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                names = ", ".join([f'`{name.replace("`", "``")}`' for name in items])
-                values_template = ", ".join(["%s" for _ in items.values()])
-                sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values_template})"
-                await cursor.execute(sql, tuple(items.values()))
+                sql = self.new_record_template(*items)
+                await cursor.execute(sql, items)
                 id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
         return id
 
     async def update_record(self, where_items, set_items):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                if len(set_items) != 0:
+        if len(set_items) != 0:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
                     where_template, where_values = make_where_statement(where_items)
                     set_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in set_items.items()])
                     set_values = set_items.values()
@@ -92,7 +96,7 @@ class Table:  # pylint: disable=R0903
                 where_template, where_values = make_where_statement(where_items)
                 select_fields = ",".join(select_fields) if select_fields is not None else "*"
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, tuple(where_values))
+                await cursor.execute(sql, where_values)
                 result = await cursor.fetchall()
         return result
 
@@ -107,7 +111,7 @@ class Table:  # pylint: disable=R0903
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {where_template}"
-                count = await cursor.execute(sql, tuple(where_values))
+                count = await cursor.execute(sql, where_values)
         return count >= 1
 
     async def delete_record(self, where_items):
@@ -115,4 +119,4 @@ class Table:  # pylint: disable=R0903
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
                 sql = f"DELETE FROM `{self.name}` WHERE {where_template}"
-                await cursor.execute(sql, tuple(where_values))
+                await cursor.execute(sql, where_values)

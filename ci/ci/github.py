@@ -287,7 +287,7 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(self, f.read(), deploy=False)
 
             log.info(f'creating test batch for {self.number}')
-            batch = await batch_client.create_batch(
+            batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'test': '1',
@@ -297,8 +297,8 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/batch_callback')
-            await config.build(batch, self, deploy=False)
-            await batch.close()
+            config.build(batch, self, deploy=False)
+            await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -659,7 +659,7 @@ mkdir -p {shq(repo_dir)}
                 config = BuildConfiguration(self, f.read(), deploy=True)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
-            deploy_batch = await batch_client.create_batch(
+            deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
                     'deploy': '1',
@@ -667,9 +667,8 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/batch_callback')
-            # FIXME make build atomic
-            await config.build(deploy_batch, self, deploy=True)
-            await deploy_batch.close()
+            config.build(deploy_batch, self, deploy=True)
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
             raise

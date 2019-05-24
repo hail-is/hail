@@ -223,10 +223,10 @@ class BatchBackend(Backend):
                 j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
                                      command=['/bin/bash', '-c', write_cmd],
                                      attributes={'name': 'write_external_inputs'})
-                job_id_to_command[j.id] = write_cmd
+                job_id_to_command[j.job_id] = write_cmd
                 n_jobs_submitted += 1
                 if verbose:
-                    print(f"Submitted Job {j.id} with command: {write_cmd}")
+                    print(f"Submitted Job {j.job_id} with command: {write_cmd}")
 
         for task in pipeline._tasks:
             inputs = [x for r in task._inputs for x in copy_input(r)]
@@ -251,7 +251,7 @@ class BatchBackend(Backend):
                 commands.append(cmd)
                 continue
 
-            parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
+            parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
             if task._label:
@@ -265,7 +265,7 @@ class BatchBackend(Backend):
 
             j = batch.create_job(image=task._image if task._image else default_image,
                                  command=['/bin/bash', '-c', cmd],
-                                 parent_ids=parent_ids,
+                                 parents=parents,
                                  attributes=attributes,
                                  resources=resources,
                                  input_files=inputs if len(inputs) > 0 else None,
@@ -274,9 +274,9 @@ class BatchBackend(Backend):
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
-            job_id_to_command[j.id] = defs + cmd
+            job_id_to_command[j.job_id] = defs + cmd
             if verbose:
-                print(f"Submitted Job {j.id} with command: {defs + cmd}")
+                print(f"Submitted Job {j.job_id} with command: {defs + cmd}")
 
         if dry_run:
             print("\n\n".join(commands))
@@ -292,10 +292,10 @@ class BatchBackend(Backend):
                 parent_ids=parent_ids,
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True)
-            job_id_to_command[j.id] = cmd
+            job_id_to_command[j.job_id] = cmd
             n_jobs_submitted += 1
 
-        batch.close()
+        batch.submit()
         status = batch.wait()
 
         failed_jobs = [(j['job_id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
@@ -306,7 +306,7 @@ class BatchBackend(Backend):
             log = job.log()
             label = job.status()['attributes'].get('name', None)
             fail_msg += (
-                f"Job {jid} failed with exit code {ec}:\n"
+                f"Batch {batch.id}, Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")

@@ -21,7 +21,7 @@ from hailjwt import authenticated_users_only
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase
+from .database import BatchDatabase, BatchBuilder
 from .k8s import K8s
 
 from .. import schemas
@@ -279,7 +279,7 @@ class Job:
                 else:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'ignoring: could not read log for {self.id} '
-                             f'{jt.name}; will still try to load other tasks')
+                             f'{self._current_task.name}; will still try to load other tasks')
             return logs
         if self._state == 'Complete':
             return logs
@@ -350,8 +350,9 @@ class Job:
         return jobs
 
     @staticmethod
-    async def create_job(pod_spec, batch_id, job_id, attributes, callback, parent_ids,
-                         input_files, output_files, userdata, always_run, pvc_size):
+    def create_job(batch_builder, pod_spec, batch_id, job_id, attributes,
+                   callback, parent_ids, input_files, output_files, userdata,
+                   always_run, pvc_size):
         pvc_name = None
         pod_name = None
         duration = 0
@@ -366,40 +367,32 @@ class Job:
         tasks = [t for t in tasks if t is not None]
         exit_codes = [None for _ in tasks]
 
-        id = await db.jobs.new_record(batch_id=batch_id,
-                                      job_id=job_id,
-                                      state=state,
-                                      pod_name=pod_name,
-                                      pvc_name=pvc_name,
-                                      pvc_size=pvc_size,
-                                      callback=callback,
-                                      attributes=json.dumps(attributes),
-                                      tasks=json.dumps([jt.to_dict() for jt in tasks]),
-                                      task_idx=task_idx,
-                                      always_run=always_run,
-                                      duration=duration,
-                                      userdata=json.dumps(userdata),
-                                      user=user)
+        batch_builder.create_job(
+            batch_id=batch_id,
+            job_id=job_id,
+            state=state,
+            pod_name=pod_name,
+            pvc_name=pvc_name,
+            pvc_size=pvc_size,
+            callback=callback,
+            attributes=json.dumps(attributes),
+            tasks=json.dumps([jt.to_dict() for jt in tasks]),
+            task_idx=task_idx,
+            always_run=always_run,
+            duration=duration,
+            userdata=json.dumps(userdata),
+            user=user)
+
+        for parent in parent_ids:
+            batch_builder.create_job_parent(
+                batch_id=batch_id,
+                job_id=job_id,
+                parent_id=parent)
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
                   pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
                   task_idx=task_idx, state=state, pvc_size=pvc_size)
-
-        for parent in parent_ids:
-            await db.jobs_parents.new_record(
-                batch_id=batch_id,
-                job_id=job_id,
-                parent_id=parent)
-
-        log.info('created job {}'.format(job.id))
-
-        if not parent_ids:
-            await job.set_state('Ready')
-            await job._create_pod()
-        else:
-            await job.refresh_parents_and_maybe_create()
-
         return job
 
     def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
@@ -425,11 +418,9 @@ class Job:
         self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
         self._state = state
 
-    async def refresh_parents_and_maybe_create(self):
-        for record in await db.jobs.get_parents(*self.id):
-            parent_job = Job.from_record(record)
-            assert parent_job.batch_id == self.batch_id
-            await self.parent_new_state(parent_job._state, parent_job.id)
+    async def run(self):
+        assert self._current_task is not None
+        await self.create_if_ready()
 
     async def set_state(self, new_state):
         if self._state != new_state:
@@ -566,93 +557,6 @@ class Job:
         return result
 
 
-@routes.post('/jobs/create')
-@authenticated_users_only
-async def create_job(request, userdata):  # pylint: disable=R0912
-    parameters = await request.json()
-    user = userdata['username']
-
-    schema = {
-        # will be validated when creating pod
-        'spec': schemas.pod_spec,
-        'batch_id': {'required': True, 'type': 'integer'},
-        'job_id': {'required': True, 'type': 'integer'},
-        'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
-        'input_files': {
-            'type': 'list',
-            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
-        'output_files': {
-            'type': 'list',
-            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
-        'always_run': {'type': 'boolean'},
-        'pvc_size': {'type': 'string'},
-        'attributes': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
-        },
-        'callback': {'type': 'string'}
-    }
-    validator = cerberus.Validator(schema)
-    if not validator.validate(parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
-
-    pod_spec = v1.api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
-
-    batch_id = parameters.get('batch_id')
-    batch = await Batch.from_db(batch_id, user)
-    if batch is None:
-        abort(404, f'invalid request: batch_id {batch_id} not found')
-    if not batch.is_open:
-        abort(400, f'invalid request: batch_id {batch_id} is closed')
-
-    parent_ids = parameters.get('parent_ids', [])
-    parents = {job.id: job for job in await Job.from_db_multiple(batch_id, parent_ids, user)}
-    for parent_id in parent_ids:
-        parent_job = parents.get(parent_id)
-        if parent_job is None:
-            abort(400, f'invalid parent_id: no job with id {parent_id}')
-
-    input_files = parameters.get('input_files')
-    output_files = parameters.get('output_files')
-    pvc_size = parameters.get('pvc_size', POD_VOLUME_SIZE)
-    always_run = parameters.get('always_run', False)
-
-    if len(pod_spec.containers) != 1:
-        abort(400, f'only one container allowed in pod_spec {pod_spec}')
-
-    if pod_spec.containers[0].name != 'main':
-        abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
-
-    if not pod_spec.containers[0].resources:
-        pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
-    if not pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests = {}
-    if 'cpu' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['cpu'] = '100m'
-    if 'memory' not in pod_spec.containers[0].resources.requests:
-        pod_spec.containers[0].resources.requests['memory'] = '500M'
-
-    if not pod_spec.tolerations:
-        pod_spec.tolerations = []
-    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
-
-    job = await Job.create_job(
-        batch_id=batch_id,
-        job_id=parameters.get('job_id'),
-        pod_spec=pod_spec,
-        attributes=parameters.get('attributes'),
-        callback=parameters.get('callback'),
-        parent_ids=parent_ids,
-        input_files=input_files,
-        output_files=output_files,
-        userdata=userdata,
-        always_run=always_run,
-        pvc_size=pvc_size)
-    return jsonify(job.to_dict())
-
-
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
@@ -707,23 +611,22 @@ class Batch:
                 state = 'failure'
             elif record['n_cancelled'] > 0:
                 state = 'cancelled'
-            elif not record['is_open'] and (record['n_succeeded'] == record['n_jobs']):
+            elif record['n_succeeded'] == record['n_jobs']:
                 state = 'success'
             else:
                 state = 'running'
 
-            complete = not record['is_open'] and (record['n_completed'] == record['n_jobs'])
+            complete = record['n_completed'] == record['n_jobs']
 
             return Batch(id=record['id'],
                          attributes=attributes,
                          callback=record['callback'],
-                         ttl=record['ttl'],
-                         is_open=record['is_open'],
                          userdata=userdata,
                          user=record['user'],
                          state=state,
                          complete=complete,
-                         deleted=record['deleted'])
+                         deleted=record['deleted'],
+                         n_jobs=record['n_jobs'])
         return None
 
     @staticmethod
@@ -740,45 +643,38 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(attributes, callback, ttl, userdata):
-        is_open = True
+    async def create_batch(batch_builder, attributes, callback, userdata, n_jobs):
         user = userdata['username']
 
-        if ttl is None or ttl > Batch.MAX_TTL:
-            ttl = Batch.MAX_TTL
-
-        id = await db.batch.new_record(attributes=json.dumps(attributes),
-                                       callback=callback,
-                                       ttl=ttl,
-                                       is_open=is_open,
-                                       userdata=json.dumps(userdata),
-                                       user=user,
-                                       deleted=False)
+        id = await batch_builder.create_batch(
+            attributes=json.dumps(attributes),
+            callback=callback,
+            userdata=json.dumps(userdata),
+            user=user,
+            deleted=False,
+            n_jobs=n_jobs)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
-                      ttl=ttl, is_open=is_open, userdata=userdata, user=user,
-                      state='running', complete=False, deleted=False)
-        batch.close_ttl()
+                      userdata=userdata, user=user, state='running',
+                      complete=False, deleted=False, n_jobs=n_jobs)
         return batch
 
-    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user,
-                 state, complete, deleted):
+    def __init__(self, id, attributes, callback, userdata, user,
+                 state, complete, deleted, n_jobs):
         self.id = id
         self.attributes = attributes
         self.callback = callback
-        self.ttl = ttl
-        self.is_open = is_open
         self.userdata = userdata
         self.user = user
         self.state = state
         self.complete = complete
         self.deleted = deleted
+        self.n_jobs = n_jobs
 
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
-        await self.close()
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()
@@ -813,20 +709,6 @@ class Batch:
                 args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
-    def close_ttl(self):
-        async def _close():
-            await asyncio.sleep(self.ttl)
-            await self.close()
-        return asyncio.ensure_future(_close())
-
-    async def close(self):
-        if self.is_open:
-            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
-            await db.batch.update_record(self.id, is_open=False)
-            self.is_open = False
-        else:
-            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
-
     def is_complete(self):
         return self.complete
 
@@ -836,15 +718,15 @@ class Batch:
     async def to_dict(self, include_jobs=False):
         result = {
             'id': self.id,
-            'is_open': self.is_open,
             'state': self.state,
-            'complete': self.complete
+            'complete': self.complete,
+            'n_jobs': self.n_jobs
         }
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
             jobs = await self.get_jobs()
-            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['id'])
+            result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
 
 
@@ -886,23 +768,83 @@ async def get_batches_list(request, userdata):
 async def create_batch(request, userdata):
     parameters = await request.json()
 
-    schema = {
-        'attributes': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
-        },
-        'callback': {'type': 'string'},
-        'ttl': {'type': 'number'}
-    }
-    validator = cerberus.Validator(schema)
+    validator = cerberus.Validator(schemas.batch_schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = await Batch.create_batch(attributes=parameters.get('attributes'),
-                                     callback=parameters.get('callback'),
-                                     ttl=parameters.get('ttl'),
-                                     userdata=userdata)
+    job_parameters = parameters.get('jobs', [])
+    n_jobs = len(job_parameters)
+
+    batch_builder = BatchBuilder(db, n_jobs, log)
+
+    try:
+        batch = await Batch.create_batch(
+            batch_builder=batch_builder,
+            attributes=parameters.get('attributes'),
+            callback=parameters.get('callback'),
+            userdata=userdata,
+            n_jobs=n_jobs)
+
+        jobs = []
+        for idx, job_parameters in enumerate(parameters['jobs'], 1):
+            job_id = job_parameters['job_id']
+            if job_id != idx:
+                abort(400, f'invalid job_id {job_id} for job {idx}')
+
+            pod_spec = v1.api_client._ApiClient__deserialize(
+                job_parameters['spec'], kube.client.V1PodSpec)
+
+            parent_ids = job_parameters.get('parent_ids', [])
+            for parent_id in parent_ids:
+                if not 1 <= parent_id < idx:
+                    abort(400, f'invalid parent_id for job {job_id}: no job with id {parent_id}')
+
+            input_files = job_parameters.get('input_files')
+            output_files = job_parameters.get('output_files')
+            pvc_size = job_parameters.get('pvc_size', POD_VOLUME_SIZE)
+            always_run = job_parameters.get('always_run', False)
+
+            if len(pod_spec.containers) != 1:
+                abort(400, f'only one container allowed in pod_spec {pod_spec}')
+
+            if pod_spec.containers[0].name != 'main':
+                abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
+
+            if not pod_spec.containers[0].resources:
+                pod_spec.containers[0].resources = kube.client.V1ResourceRequirements()
+            if not pod_spec.containers[0].resources.requests:
+                pod_spec.containers[0].resources.requests = {}
+            if 'cpu' not in pod_spec.containers[0].resources.requests:
+                pod_spec.containers[0].resources.requests['cpu'] = '100m'
+            if 'memory' not in pod_spec.containers[0].resources.requests:
+                pod_spec.containers[0].resources.requests['memory'] = '500M'
+
+            if not pod_spec.tolerations:
+                pod_spec.tolerations = []
+            pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
+
+            j = Job.create_job(
+                batch_builder=batch_builder,
+                batch_id=batch.id,
+                job_id=job_parameters.get('job_id'),
+                pod_spec=pod_spec,
+                attributes=job_parameters.get('attributes'),
+                callback=job_parameters.get('callback'),
+                parent_ids=parent_ids,
+                input_files=input_files,
+                output_files=output_files,
+                userdata=userdata,
+                always_run=always_run,
+                pvc_size=pvc_size)
+            jobs.append(j)
+
+        await batch_builder.commit()
+    finally:
+        batch_builder.close()
+
+    for j in jobs:
+        await j.run()
+
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
@@ -947,19 +889,6 @@ async def delete_batch(request, userdata):
     return jsonify({})
 
 
-@routes.patch('/batches/{batch_id}/close')
-@authenticated_users_only
-async def close_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    await batch.close()
-    return jsonify({})
-
-
 @routes.get('/ui/batches/{batch_id}')
 @aiohttp_jinja2.template('batch.html')
 @authenticated_users_only
@@ -980,14 +909,15 @@ async def ui_batches(request, userdata):
     return {'batch_list': batches}
 
 
-@routes.get('/ui/jobs/{job_id}/log')
+@routes.get('/ui/batches/{batch_id}/jobs/{job_id}/log')
 @aiohttp_jinja2.template('job_log.html')
 @authenticated_users_only
 async def ui_get_job_log(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    job_log = await _get_job_log(job_id, user)
-    return {'job_id': job_id, 'job_log': job_log}
+    job_log = await _get_job_log(batch_id, job_id, user)
+    return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
 @routes.get('/')

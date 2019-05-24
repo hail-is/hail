@@ -7,7 +7,7 @@ from flask import Response
 
 import hailjwt as hj
 
-from batch.client import BatchClient
+from batch.client import BatchClient, Job
 from .serverthread import ServerThread
 
 
@@ -39,7 +39,7 @@ def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-    batch.close()
+    batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 2
     assert batch_status_exit_codes(status) == [{'main': 0}, {'main': 0}]
@@ -48,8 +48,8 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[100000])
-        batch.close()
+        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[Job(batch, 100000)])
+        batch.submit()
     except aiohttp.ClientResponseError as err:
         assert err.status == 400
         assert re.search('.*invalid parent_id: no job with id.*', err.message)
@@ -63,7 +63,7 @@ def test_dag(client):
     left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-    batch.close()
+    batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 4
     for node in [head, left, right, tail]:
@@ -81,7 +81,7 @@ def test_cancel_tail(client):
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[left.id, right.id])
-    batch.close()
+    batch.submit()
     left.wait()
     right.wait()
     batch.cancel()
@@ -103,7 +103,7 @@ def test_cancel_left_after_tail(client):
         parents=[head.id])
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-    batch.close()
+    batch.submit()
     head.wait()
     right.wait()
     batch.cancel()
@@ -122,7 +122,7 @@ def test_parent_already_done(client):
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     head.wait()
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-    batch.close()
+    batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 2
     for node in [head, tail]:
@@ -137,7 +137,7 @@ def test_one_of_two_parents_already_done(client):
     left.wait()
     right = batch.create_job('alpine:3.8', command=['echo', 'right'])
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-    batch.close()
+    batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 3
     for node in [left, right, tail]:
@@ -164,7 +164,7 @@ def test_callback(client):
         left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head])
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
-        batch.close()
+        batch.submit()
         batch.wait()
         i = 0
         while len(output) != 4:
@@ -175,10 +175,10 @@ def test_callback(client):
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code']['main'] == 0
                     for job_result in output])
-        assert output[0]['id'] == head.id
-        middle_ids = (output[1]['id'], output[2]['id'])
-        assert middle_ids in ((left.id, right.id), (right.id, left.id))
-        assert output[3]['id'] == tail.id
+        assert output[0]['job_id'] == head.job_id
+        middle_ids = (output[1]['job_id'], output[2]['job_id'])
+        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id))
+        assert output[3]['job_id'] == tail.job_id
     finally:
         if server:
             server.shutdown()
@@ -208,7 +208,7 @@ def test_input_dependency(client):
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
                             input_files=[(f'gs://{user["bucket_name"]}/data*', '/io/')],
                             parents=[head])
-    batch.close()
+    batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n'
@@ -224,7 +224,7 @@ def test_input_dependency_directory(client):
                             command=['/bin/sh', '-c', 'cat /io/test/data1 ; cat /io/test/data2'],
                             input_files=[(f'gs://{user["bucket_name"]}/test', '/io/')],
                             parents=[head])
-    batch.close()
+    batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
     assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
@@ -242,7 +242,7 @@ def test_always_run_cancel(client):
                             command=['echo', 'tail'],
                             parents=[left, right],
                             always_run=True)
-    batch.close()
+    batch.submit()
     right.wait()
     batch.cancel()
     status = batch.wait()
@@ -260,7 +260,7 @@ def test_always_run_error(client):
                             command=['echo', 'tail'],
                             parents=[head],
                             always_run=True)
-    batch.close()
+    batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Complete') == 2
 

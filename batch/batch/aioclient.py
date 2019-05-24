@@ -27,20 +27,30 @@ class Job:
             i += 1
         return 0
 
-    def __init__(self, client, batch, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
-        self._client = client
         self.batch = batch
-        self.id = id
+        self.job_id = job_id
         self.attributes = attributes
         self.parent_ids = parent_ids
         self._status = _status
 
+    @property
+    def batch_id(self):
+        return self.batch.id
+
+    @property
+    def id(self):
+        return self.batch_id, self.job_id
+
     async def is_complete(self):
+        if not self.batch._submitted:
+            raise ValueError('Cannot ask if a job is complete if the job is in an unsubmitted batch')
+
         if self._status:
             state = self._status['state']
             if state in ('Complete', 'Cancelled'):
@@ -50,10 +60,14 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self._client._get('/batches/{}/jobs/{}'.format(self.batch.id, self.id))
+        if not self.batch._submitted:
+            raise ValueError('Cannot get the status of a job in an unsubmitted batch')
+        self._status = await self.batch._client._get('/batches/{}/jobs/{}'.format(*self.id))
         return self._status
 
     async def wait(self):
+        if not self.batch._submitted:
+            raise ValueError('Cannot wait on a job in an unsubmitted batch')
         i = 0
         while True:
             if await self.is_complete():
@@ -65,22 +79,45 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self._client._get('/batches/{}/jobs/{}/log'.format(self.batch.id, self.id))
+        if not self.batch._submitted:
+            raise ValueError('Cannot get the log of a job in an unsubmitted batch')
+        return await self.batch._client._get('/batches/{}/jobs/{}/log'.format(*self.id))
 
 
 class Batch:
-    def __init__(self, client, id, attributes):
+    @staticmethod
+    def create_batch(client, attributes, callback):
+        doc = {'jobs': []}
+        if attributes:
+            doc['attributes'] = attributes
+        if callback:
+            doc['callback'] = callback
+
+        b = Batch(client, attributes=attributes)
+        b._doc = doc
+        b._submitted = False
+        return b
+
+    def __init__(self, client, id=None, attributes=None):
         self._client = client
         self.id = id
         self.attributes = attributes
+        self._doc = None
+        self._submitted = True
+        self._job_idx = 0
 
-    async def create_job(self, image, command=None, args=None, env=None, ports=None,
-                         resources=None, tolerations=None, volumes=None, security_context=None,
-                         service_account_name=None, attributes=None, callback=None, parents=None,
-                         input_files=None, output_files=None, always_run=False, pvc_size=None):
+    def create_job(self, image, command=None, args=None, env=None, ports=None,
+                   resources=None, tolerations=None, volumes=None, security_context=None,
+                   service_account_name=None, attributes=None, callback=None, parents=None,
+                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+        if self._submitted:
+            raise ValueError(f'Cannot create a new job in an already submitted batch.')
+
+        self._job_idx += 1
+
         if parents is None:
             parents = []
-        parent_ids = [p.id for p in parents]
+        parent_ids = [p.job_id for p in parents]
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -134,7 +171,8 @@ class Batch:
             'spec': spec,
             'parent_ids': parent_ids,
             'always_run': always_run,
-            'batch_id': self.id
+            'batch_id': self.id,
+            'job_id': self._job_idx
         }
         if attributes:
             doc['attributes'] = attributes
@@ -147,24 +185,26 @@ class Batch:
         if pvc_size:
             doc['pvc_size'] = pvc_size
 
-        j = await self._client._post('/jobs/create', json=doc)
+        self._doc['jobs'].append(doc)
 
-        return Job(self._client,
-                   self,
-                   j['job_id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []))
-
-    async def close(self):
-        await self._client._patch('/batches/{}/close'.format(self.id))
+        return Job(self,
+                   self._job_idx,
+                   attributes=attributes,
+                   parent_ids=parent_ids)
 
     async def cancel(self):
+        if not self._submitted:
+            raise ValueError('An unsubmitted batch cannot be cancelled.')
         await self._client._patch('/batches/{}/cancel'.format(self.id))
 
     async def status(self):
+        if not self._submitted:
+            raise ValueError('An unsubmitted batch has no status.')
         return await self._client._get('/batches/{}'.format(self.id))
 
     async def wait(self):
+        if not self._submitted:
+            raise ValueError('An unsubmitted batch cannot be waited on.')
         i = 0
         while True:
             status = await self.status()
@@ -177,7 +217,17 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
+        if not self._submitted:
+            raise ValueError('An unsubmitted batch cannot be deleted.')
         await self._client._delete('/batches/{}'.format(self.id))
+
+    async def submit(self):
+        if self._submitted:
+            raise ValueError('A submitted batch cannot be resubmitted.')
+        b = await self._client._post('/batches/create', json=self._doc)
+        self._submitted = True
+        self.id = b['id']
+        self.attributes = b.get('attributes')
 
 
 class BatchClient:
@@ -232,30 +282,22 @@ class BatchClient:
                 for b in batches]
 
     async def get_job(self, batch_id, job_id):
+        b = await self.get_batch(batch_id)
         j = await self._get('/batches/{}/jobs/{}'.format(batch_id, job_id))
-        return Job(self,
-                   Batch(self, j['batch_id'], None),  ## FIXME
+        return Job(b,
                    j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
 
-    async def get_batch(self, id):
-        b = await self._get(f'/batches/{id}')
+    async def get_batch(self, batch_id):
+        b = await self._get(f'/batches/{batch_id}')
         return Batch(self,
                      b['id'],
                      attributes=b.get('attributes'))
 
-    async def create_batch(self, attributes=None, callback=None, ttl=None):
-        doc = {}
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-        if ttl:
-            doc['ttl'] = ttl
-        b = await self._post('/batches/create', json=doc)
-        return Batch(self, b['id'], b.get('attributes'))
+    def create_batch(self, attributes=None, callback=None):
+        return Batch.create_batch(self, attributes, callback)
 
     async def close(self):
         await self._session.close()
