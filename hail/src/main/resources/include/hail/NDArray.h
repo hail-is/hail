@@ -45,7 +45,6 @@ int n_elements(std::vector<long> &shape) {
   return total;
 }
 
-// Length-1 dimensions have stride 0 for free broadcasting
 std::vector<long> make_strides(int row_major, std::vector<long> &shape) {
   return (row_major == 1) ? strides_row_major(shape) : strides_col_major(shape);
 }

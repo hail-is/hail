@@ -94,16 +94,16 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
   def emit(f: (Code, Code) => Code): Code
 }
 
-object NDArrayLoopEmitter {
+object NDArrayEmitter {
   def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {
     IndexedSeq.tabulate(nDims) { dim =>
       fb.variable(s"is_not_broadcast_$dim", "int", s"$shape[$dim] > 1 ? 1 : 0")
     }
   }
 
-  def nullifyBroadcastedLoopVars(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
-    broadcastFlags.zip(loopVars).map { case (flag, idxVar) =>
-      fb.variable("new_idx_var", "int", s"$flag * $idxVar")
+  def adjustBroadcastedDims(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
+    broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
+      fb.variable("new_loop_var", "int", s"$flag * $loopVar")
     }
   }
 
@@ -119,7 +119,7 @@ object NDArrayLoopEmitter {
   }
 }
 
-abstract class NDArrayLoopEmitter(
+abstract class NDArrayEmitter(
   fb: FunctionBuilder,
   resultRegion: EmitRegion,
   val nDims: Int,
