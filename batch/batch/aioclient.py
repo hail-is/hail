@@ -18,7 +18,7 @@ class Job:
             return None
 
         exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes.get(task) for task in ['input', 'main', 'output']]
+        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
 
         i = 0
         while i < len(exit_codes):
