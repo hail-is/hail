@@ -703,7 +703,7 @@ steps:
    dependsOn:
     - base_image
     - create_ci_test_repo
- - kind: runImage:
+ - kind: runImage
    name: deploy_hail
    script: |
      set -ex
