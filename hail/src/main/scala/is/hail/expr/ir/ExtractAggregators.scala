@@ -80,7 +80,7 @@ object ExtractAggregators {
     StagedExtractedAggregators(postAgg, rt, init, seq, newArray(fb, rvas))
   }
 
-  def apply[RVAgg](ir: IR,
+  def apply[RVAgg : ClassTag](ir: IR,
     resultName: String = "AGGR",
     newAggregator: ApplyAggOp => RVAgg,
     keyedAggregator: (Array[RVAgg], Type) => RVAgg,
@@ -102,7 +102,7 @@ object ExtractAggregators {
       aggs.map(_.rvAgg).toArray)
   }
 
-  private def extract[RVAgg](ir: IR, ab: ArrayBuilder[IRAgg[RVAgg]], ab2: ArrayBuilder[AggOps], ab3: ArrayBuilder[AggLet], result: IR,
+  private def extract[RVAgg : ClassTag](ir: IR, ab: ArrayBuilder[IRAgg[RVAgg]], ab2: ArrayBuilder[AggOps], ab3: ArrayBuilder[AggLet], result: IR,
     newAggregator: ApplyAggOp => RVAgg, keyedAggregator: (Array[RVAgg], Type) => RVAgg, arrayAggregator: Array[RVAgg] => RVAgg): IR = {
     def extract(node: IR): IR = this.extract[RVAgg](node, ab, ab2, ab3, result, newAggregator, keyedAggregator, arrayAggregator)
 
