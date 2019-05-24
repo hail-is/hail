@@ -47,8 +47,9 @@ class Table:
         with self.acquire_connection() as cursor:
             cursor.execute(
                 """
-                SELECT id, gsa_email, ksa_name, bucket_name,
-                gsa_key_secret_name, user_jwt_secret_name
+                SELECT id, username, developer, service_account, 
+                namespace_name, gsa_email, ksa_name, bucket_name,
+                gsa_key_secret_name, jwt_secret_name
                 FROM user_data
                 WHERE user_id=%s
                 """, (user_id,))
