@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `input_exit_code` INT,
   `main_exit_code` INT,
   `output_exit_code` INT,
-  `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),
   `callback` TEXT(65535),
