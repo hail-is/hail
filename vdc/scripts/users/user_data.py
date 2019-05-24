@@ -117,7 +117,7 @@ def create_bucket(bucket_name, gsa_email):
     }
 
     bucket.create()
-    grant_bucket_owner(bucket, gsa_email)
+    grant_bucket_read_write(bucket, gsa_email)
 
     return bucket
 
