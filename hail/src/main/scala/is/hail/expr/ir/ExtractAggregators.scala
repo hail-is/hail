@@ -81,7 +81,7 @@ object ExtractAggregators {
   }
 
   def apply[RVAgg : ClassTag](ir: IR,
-    resultName: String = "AGGR",
+    resultName: String,
     newAggregator: ApplyAggOp => RVAgg,
     keyedAggregator: (Array[RVAgg], Type) => RVAgg,
     arrayAggregator: Array[RVAgg] => RVAgg
