@@ -343,7 +343,7 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = user_id_transform(g.user['auth0_id']))
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(g.user['user_id']))
 
     # https://github.com/hail-is/hail/issues/5487
     assert len(notebooks) <= 1
@@ -375,7 +375,7 @@ def notebook_delete():
 def notebook_post():
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_id = user_id_transform(g.user['auth0_id'])
+    safe_id = user_id_transform(g.user['user_id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGE, name, safe_id, g.user)
     session['notebook'] = notebooks_for_ui([pod])[0]
@@ -524,9 +524,7 @@ def auth0_callback():
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     g.user = {
-        'auth0_id': userinfo['sub'],
         'name': userinfo['name'],
-        'email': email,
         'picture': userinfo['picture'],
         **user_table.get(userinfo['sub'])
     }
