@@ -1,7 +1,7 @@
 #!/bin/bash
-if [ $# -ne 6 ]
+if [ $# -ne 2 ]
   then
-    echo "Usage ./run-locally.sh <username> <kube_namespace> <create|delete>"
+    echo "Usage ./run-locally.sh <user.yml> <create|delete>"
     exit
 fi
 

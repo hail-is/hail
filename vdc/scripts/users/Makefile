@@ -24,14 +24,18 @@ test-local: check install-cloud-sql-proxy instance.cloudsql
 test-in-cluster: check
 	python3 -m pytest
 
-user: install-cloud-sql-proxy instance.cloudsql
-	./run-locally.sh "$(email)" "$(user_id)" $(is_dev) $(is_sa) $(namespace) $(op)
+create-user: install-cloud-sql-proxy instance.cloudsql
+	./run-locally.sh $(file) create
 
-user-in-cluster:
-	python3 ./user_data.py "$(email)" "$(user_id)" $(is_dev) $(is_sa) $(namespace) $(op)
+delete-user:
+	./run-locally.sh $(file) delete
 
 secret:
 	./make-secret.sh $(user) $(pass) $(db) $(host) $(instance)
 
+users.yml:
+	kubectl get secret users -o json | jq '.data["users.yml"]' -r | base64 -D > users.yml
+
 clean:
 	rm -rf instance.cloudsql
+	rm users.yml
