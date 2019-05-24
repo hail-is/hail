@@ -184,9 +184,9 @@ steps:
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
    outputs:
-     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
-     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
        to: /testng.xml
