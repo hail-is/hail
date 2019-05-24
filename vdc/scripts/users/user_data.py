@@ -117,15 +117,29 @@ def create_bucket(bucket_name, gsa_email):
     }
 
     bucket.create()
-    grant_bucket_permissions(bucket, gsa_email)
+    grant_bucket_owner(bucket, gsa_email)
 
     return bucket
 
 
-def grant_bucket_permissions(bucket, email):
+def grant_bucket_owner(bucket, email):
     acl = bucket.acl
     acl.user(email).grant_owner()
     acl.save()
+
+    bucket.default_object_acl.user(email).grant_owner()
+    bucket.default_object_acl.save()
+
+def grant_bucket_read_write(bucket, email):
+    acl = bucket.acl
+    acl.user(email).grant_write()
+    acl.user(email).grant_read()
+    acl.save()
+
+    bucket.acl.reload()
+
+    bucket.default_object_acl.user(email).grant_read()
+    bucket.default_object_acl.save()
 
 
 def create_kube_namespace(username):
@@ -184,7 +198,7 @@ def create_rbac(namespace, sa_name):
 
 
 def delete_bucket(bucket_name):
-    return storage.Client().get_bucket(bucket_name).delete()
+    return storage.Client().get_bucket(bucket_name).delete(force=True)
 
 
 def create_all(user_id, username, google_project, kube_namespace, email=None,
@@ -238,7 +252,7 @@ def create_all(user_id, username, google_project, kube_namespace, email=None,
     bucket = create_bucket(bucket_name, out['gsa_email'])
 
     if email is not None:
-        grant_bucket_permissions(bucket, email)
+        grant_bucket_read_write(bucket, email)
 
     out['bucket_name'] = bucket_name
 
@@ -369,7 +383,7 @@ if __name__ == "__main__":
     op = sys.argv[2]
 
     for user in users:
-        user_identifier = user.get('email', user['username'])
+        user_identifier = user.get('username', user.get('email'))
 
         if op == 'create':
             print(f"\n\nCreating {user_identifier}:")
