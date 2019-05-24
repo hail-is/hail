@@ -44,7 +44,7 @@ steps:
      # secret-key
      python3 -c "
      import secrets, jwt
-     secret_key = secrets.token_urlsafe(64)
+     secret_key = secrets.token_bytes(64)
      with open('secret-key', 'wb') as f:
        f.write(secret_key)
      "
