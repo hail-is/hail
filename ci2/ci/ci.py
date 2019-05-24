@@ -98,7 +98,9 @@ async def get_pr(request):
                 if 'duration' in j and j['duration'] is not None:
                     j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
                 if 'exit_code' in j and j['exit_code'] is not None:
-                    exit_codes = [ec for ec in j['exit_code'].values() if ec is not None]
+                    sorted_exit_codes = sorted(j['exit_code'].items(),
+                                               key=lambda x: ['input', 'main', 'output'].index(x[0]))
+                    exit_codes = [ec for _, ec in sorted_exit_codes if ec is not None]
                     j['exit_code'] = exit_codes[-1] if len(exit_codes) != 0 else None
                 attrs = j['attributes']
                 if 'link' in attrs:
@@ -144,7 +146,9 @@ async def get_batch(request):
         if 'duration' in j and j['duration'] is not None:
             j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
         if 'exit_code' in j and j['exit_code'] is not None:
-            exit_codes = [ec for ec in j['exit_code'].values() if ec is not None]
+            sorted_exit_codes = sorted(j['exit_code'].items(),
+                                       key=lambda x: ['input', 'main', 'output'].index(x[0]))
+            exit_codes = [ec for _, ec in sorted_exit_codes if ec is not None]
             j['exit_code'] = exit_codes[-1] if len(exit_codes) != 0 else None
     return {
         'batch': status
