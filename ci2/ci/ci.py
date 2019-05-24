@@ -97,11 +97,7 @@ async def get_pr(request):
             for j in status['jobs']:
                 if 'duration' in j and j['duration'] is not None:
                     j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-                if 'exit_code' in j and j['exit_code'] is not None:
-                    sorted_exit_codes = sorted(j['exit_code'].items(),
-                                               key=lambda x: ['input', 'main', 'output'].index(x[0]))
-                    exit_codes = [ec for _, ec in sorted_exit_codes if ec is not None]
-                    j['exit_code'] = exit_codes[-1] if len(exit_codes) != 0 else None
+                j['exit_code'] = batch.aioclient.Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
                     attrs['link'] = attrs['link'].split(',')
@@ -145,11 +141,7 @@ async def get_batch(request):
     for j in status['jobs']:
         if 'duration' in j and j['duration'] is not None:
             j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-        if 'exit_code' in j and j['exit_code'] is not None:
-            sorted_exit_codes = sorted(j['exit_code'].items(),
-                                       key=lambda x: ['input', 'main', 'output'].index(x[0]))
-            exit_codes = [ec for _, ec in sorted_exit_codes if ec is not None]
-            j['exit_code'] = exit_codes[-1] if len(exit_codes) != 0 else None
+        j['exit_code'] = batch.aioclient.Job.exit_code(j)
     return {
         'batch': status
     }

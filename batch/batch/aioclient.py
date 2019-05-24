@@ -12,6 +12,15 @@ from . import schemas
 
 
 class Job:
+    @staticmethod
+    def exit_code(job_status):
+        if 'exit_code' in job_status and job_status['exit_code'] is not None:
+            exit_codes = job_status['exit_code']
+            exit_codes = [exit_codes.get(task) for task in ['input', 'main', 'output']]
+            exit_codes = [ec for ec in exit_codes if ec is not None]
+            return exit_codes[-1] if len(exit_codes) != 0 else None
+        return None
+
     def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
