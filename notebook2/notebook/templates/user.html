@@ -11,7 +11,12 @@
         </div>
         <div id='profile-data'>
             <h5>Google Data</h5>
-            <p><b>Bucket Name: </b>{{user['bucket_name']}}</span></p>
+            <p>
+                <b>Bucket: </b>
+                <a href="https://console.cloud.google.com/storage/browser/{{user['bucket_name']}}" target='_blank'>
+                    {{user['bucket_name']}}
+                </a>
+            </p>
             <p><b>Service Account: </b>{{user['gsa_email']}}</p>
         </div>
     </div>
