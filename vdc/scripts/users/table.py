@@ -8,7 +8,6 @@ HOST = os.environ.get('SQL_HOST')
 class Table:
     def __init__(self):
         conn_props = get_secrets('create-users', 'default')
-        print(conn_props)
         self.cnx = pymysql.connect(
             db=conn_props['db'],
             password=conn_props['password'],
@@ -27,8 +26,6 @@ class Table:
 
     def insert(self, username, email, user_id, namespace_name, gsa_email, ksa_name, bucket_name,
                gsa_key_secret_name, jwt_secret_name, developer = False, service_account = False):
-        print("Developer is", developer, type(developer))
-        print("Service account is", service_account, type(service_account))
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 """
@@ -76,7 +73,6 @@ class Table:
             assert cursor.rowcount == 1
 
     def delete(self, user_id):
-        print("DELETIN", user_id)
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 "DELETE FROM user_data WHERE user_id=%s", (user_id,))
