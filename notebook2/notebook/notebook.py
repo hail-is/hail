@@ -2,6 +2,7 @@
 A Jupyter notebook service with local-mode Hail pre-installed
 """
 
+import secrets
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -74,6 +75,7 @@ POD_PORT = 8888
 
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
+    SECRET_KEY = secrets.token_bytes(16),
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
@@ -159,7 +161,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
     ksa_name = user_data['ksa_name']
     bucket = user_data['bucket_name']
     gsa_key_secret_name = user_data['gsa_key_secret_name']
-    jwt_secret_name = user_data['user_jwt_secret_name']
+    jwt_secret_name = user_data['jwt_secret_name']
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
