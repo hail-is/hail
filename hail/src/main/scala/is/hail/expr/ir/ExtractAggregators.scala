@@ -127,7 +127,7 @@ object ExtractAggregators {
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(io,
-          If(cond, addLets(Begin(seqOp), aggLetAB.result()), Begin(FastIndexedSeq())))
+          If(cond, addLets(Begin(seqOp), aggLetAB.result()), Begin(FastIndexedSeq[IR]())))
         transformed
       case AggExplode(array, name, aggBody, _) =>
         val newBuilder = new ArrayBuilder[AggOps]()
