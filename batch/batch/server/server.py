@@ -355,7 +355,7 @@ class Job:
         task_idx = 0
         state = 'Created'
         cancelled = False
-        user = userdata['ksa_name']
+        user = userdata['username']
 
         tasks = [JobTask.copy_task('input', input_files),
                  JobTask.from_spec('main', pod_spec),
@@ -560,7 +560,7 @@ class Job:
 @authenticated_users_only
 async def create_job(request, userdata):  # pylint: disable=R0912
     parameters = await request.json()
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     schema = {
         # will be validated when creating pod
@@ -647,7 +647,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @authenticated_users_only
 async def get_job(request, userdata):
     job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     job = await Job.from_db(job_id, user)
     if not job:
@@ -659,7 +659,7 @@ async def get_job(request, userdata):
 @authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     job = await Job.from_db(job_id, user)
     if not job:
@@ -721,7 +721,7 @@ class Batch:
     @staticmethod
     async def create_batch(attributes, callback, ttl, userdata):
         is_open = True
-        user = userdata['ksa_name']
+        user = userdata['username']
 
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
@@ -831,7 +831,7 @@ class Batch:
 @authenticated_users_only
 async def get_batches_list(request, userdata):
     params = request.query
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batches = [Batch.from_record(record)
                for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
@@ -886,7 +886,7 @@ async def create_batch(request, userdata):
 @authenticated_users_only
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -898,7 +898,7 @@ async def get_batch(request, userdata):
 @authenticated_users_only
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -911,7 +911,7 @@ async def cancel_batch(request, userdata):
 @authenticated_users_only
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -924,7 +924,7 @@ async def delete_batch(request, userdata):
 @authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
