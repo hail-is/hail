@@ -182,7 +182,7 @@ steps:
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
-     tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
+     tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
      - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
        to: /hail.jar
@@ -204,6 +204,8 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
+     - from: /io/repo/hail/create_config_file.py
+       to: /create_config_file.py
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -358,7 +360,7 @@ steps:
        /io/hail.zip \
        $SCRATCH/hail.zip
      tar xzf /io/cluster-tests.tar.gz
-     python3 ./create_config_file.py 0.2 config.json
+     python3 /io/create_config_file.py 0.2 config.json
      CLUSTER=ci-test-{{ token }}
      time cluster start $CLUSTER \
        --master-machine-type n1-standard-1 \
@@ -388,6 +390,8 @@ steps:
       to: /io/hail.jar
     - from: /cluster-tests.tar.gz
       to: /io/cluster-tests.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
    dependsOn:
     - base_image
     - build_hail
