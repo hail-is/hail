@@ -84,15 +84,15 @@ if role == 'Master':
     else:
         pip_pkgs.extend(user_pkgs.split('|'))
 
-    safe_call('/opt/conda/bin/conda', 'update', 'setuptools')
+    safe_call('/opt/conda/default/bin/conda', 'update', 'setuptools')
 
     print('conda packages are {}'.format(conda_pkgs))
-    command = ['/opt/conda/bin/conda', 'install']
+    command = ['/opt/conda/default/bin/conda', 'install']
     command.extend(conda_pkgs)
     safe_call(*command)
 
     print('pip packages are {}'.format(pip_pkgs))
-    command = ['/opt/conda/bin/pip', 'install']
+    command = ['/opt/conda/default/bin/pip', 'install']
     command.extend(pip_pkgs)
     safe_call(*command)
 
@@ -112,8 +112,8 @@ if role == 'Master':
         'PYTHONPATH':
             '/usr/lib/spark/python/:{}:/home/hail/hail.zip'.format(py4j),
         'SPARK_HOME': '/usr/lib/spark/',
-        'PYSPARK_PYTHON': '/opt/conda/bin/python',
-        'PYSPARK_DRIVER_PYTHON': '/opt/conda/bin/python'
+        'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
+        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python'
     }
 
     print('setting environment')
@@ -140,7 +140,7 @@ if role == 'Master':
     # create Jupyter kernel spec file
     kernel = {
         'argv': [
-            '/opt/conda/bin/python',
+            '/opt/conda/default/bin/python',
             '-m',
             'ipykernel',
             '-f',
@@ -186,7 +186,7 @@ if role == 'Master':
             'User=root',
             'Group=root',
             'WorkingDirectory=/home/hail/',
-            'ExecStart=/opt/conda/bin/python /opt/conda/bin/jupyter notebook --allow-root',
+            'ExecStart=/opt/conda/default/bin/python /opt/conda/default/bin/jupyter notebook --allow-root',
             'Restart=always',
             'RestartSec=1',
             '[Install]',
