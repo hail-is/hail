@@ -456,7 +456,6 @@ steps:
     - scorecard
     - notebook2
     - ci2
-    - upload
    dependsOn:
     - default_ns
     - router_image
