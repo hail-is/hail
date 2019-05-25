@@ -442,6 +442,24 @@ class TableMultiWayZipJoin(TableIR):
             child_typ.row_key)
 
 
+class TableFilterIntervals(TableIR):
+    def __init__(self, child, intervals, point_type, keep):
+        super().__init__(child)
+        self.child = child
+        self.intervals = intervals
+        self.point_type = point_type
+        self.keep = keep
+
+    def head_str(self):
+        return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
+
+    def _eq(self, other):
+        return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class TableToTableApply(TableIR):
     def __init__(self, child, config):
         super().__init__(child)
@@ -456,7 +474,7 @@ class TableToTableApply(TableIR):
 
     def _compute_type(self):
         name = self.config['name']
-        if name == 'TableFilterPartitions' or name == 'TableFilterIntervals':
+        if name == 'TableFilterPartitions':
             self._type = self.child.typ
         else:
             assert name in ('VEP', 'Nirvana'), name

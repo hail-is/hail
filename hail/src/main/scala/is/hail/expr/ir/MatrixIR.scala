@@ -1170,3 +1170,16 @@ case class MatrixRename(child: MatrixIR,
     MatrixRename(newChild, globalMap, colMap, rowMap, entryMap)
   }
 }
+
+case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval], keep: Boolean) extends MatrixIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixFilterIntervals(newChild, intervals, keep)
+  }
+
+  override lazy val typ: MatrixType = child.typ
+
+  override def columnCount: Option[Int] = child.columnCount
+}

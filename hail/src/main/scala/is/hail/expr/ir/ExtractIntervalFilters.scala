@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.virtual._
-import is.hail.methods.{MatrixFilterIntervals, TableFilterIntervals}
 import is.hail.utils.{FastSeq, Interval, IntervalEndpoint, _}
 import is.hail.variant.{Locus, ReferenceGenome}
 import org.apache.spark.sql.Row
@@ -205,9 +204,7 @@ object ExtractIntervalFilters {
               s"Intervals: ${ intervals.mkString(", ") }\n  " +
               s"Predicate: ${ Pretty(pred) }")
             TableFilter(
-              TableToTableApply(
-                child,
-                TableFilterIntervals(child.typ.keyType, wrapInRow(intervals), keep = true)),
+              TableFilterIntervals(child, wrapInRow(intervals), keep = true),
               newCond)
           }
       case MatrixFilterRows(child, pred) =>
@@ -217,9 +214,7 @@ object ExtractIntervalFilters {
               s"Intervals: ${ intervals.mkString(", ") }\n  " +
               s"Predicate: ${ Pretty(pred) }")
             MatrixFilterRows(
-              MatrixToMatrixApply(
-                child,
-                MatrixFilterIntervals(child.typ.rowKeyStruct, wrapInRow(intervals), keep = true)),
+              MatrixFilterIntervals(child, wrapInRow(intervals), keep = true),
               newCond)
           }
 
