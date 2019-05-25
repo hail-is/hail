@@ -3,12 +3,6 @@ import os
 import tempfile
 import zipfile
 
-try:
-    standard_scripts = os.environ['HAIL_SCRIPTS'].split(':')
-except Exception:
-    standard_scripts = None
-
-
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('script', type=str)
@@ -27,8 +21,7 @@ def main(args, pass_through_args):
     pyfiles = []
     if args.pyfiles:
         pyfiles.extend(args.pyfiles.split(','))
-    if standard_scripts:
-        pyfiles.extend(standard_scripts)
+    pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
     if pyfiles:
         tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
         zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)

@@ -1,6 +1,7 @@
 import argparse
-import hailctl
 import sys
+
+import hailctl
 
 
 def print_help():
@@ -11,18 +12,13 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
-    main_parser.add_argument('--version', action='store_true', help='print version information and exit')
     main_parser.print_help()
 
 
 def main():
-    modules = {
+    jmp = {
         'dataproc': hailctl.dataproc.cli,
     }
-
-    if '--version' in sys.argv:
-        print(hailctl.version())
-        sys.exit(0)
 
     if len(sys.argv) == 1:
         print_help()
@@ -30,13 +26,10 @@ def main():
     else:
         main_module = sys.argv[1]
         args = sys.argv[2:]
-        module = modules.get(main_module)
-        if not module:
+        mod = jmp.get(main_module)
+        if not mod:
             # no module by this name
             print_help()
             sys.exit(0)
-        module.main(args)
+        mod.main(args)
 
-
-if __name__ == '__main__':
-    main()
