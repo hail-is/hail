@@ -271,6 +271,8 @@ object LowerMatrixIR {
 
     case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child), n, shuffle)
 
+    case MatrixFilterIntervals(child, intervals, keep) => TableFilterIntervals(lower(child), intervals, keep)
+
     case MatrixUnionRows(children) =>
       // FIXME: this should check that all children have the same column keys.
       TableUnion(MatrixUnionRows.unify(children).map(lower))
