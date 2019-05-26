@@ -6,6 +6,10 @@ def decode_secret(b64str):
     return base64.b64decode(b64str).decode('utf-8')
 
 
+def decode_secret_bin(b64str):
+    return base64.b64decode(b64str)
+
+
 def fetch_secrets(secret_name, namespace):
     res = v1.read_namespaced_secret(secret_name, namespace)
     return res.data
@@ -26,3 +30,12 @@ def get_secret(secret_name, namespace, key):
         return None
 
     return decode_secret(data[key])
+
+
+def get_secret_bin(secret_name, namespace, key):
+    data = fetch_secrets(secret_name, namespace)
+
+    if key not in data:
+        return None
+
+    return decode_secret_bin(data[key])

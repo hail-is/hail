@@ -9,12 +9,12 @@ import re
 import sys
 
 from globals import v1, kube_client, gcloud_service
-from secrets import get_secret
+from secrets import get_secret_bin
 from hailjwt import JWTClient
 
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
-SECRET_KEY = get_secret('jwt-secret-key', 'default', 'secret-key')
+SECRET_KEY = get_secret_bin('jwt-secret-key', 'default', 'secret-key')
 jwtclient = JWTClient(SECRET_KEY)
 
 
@@ -99,7 +99,7 @@ def create_user_kube_secret(user_data, kube_namespace):
         namespace=kube_namespace,
         body=kube_client.V1Secret(
             api_version='v1',
-            string_data={'jwt': jwt.decode('utf-8')},
+            string_data={'jwt': jwt},
             metadata=kube_client.V1ObjectMeta(
                 name=user_data['jwt_secret_name'],
                 labels={
@@ -129,6 +129,7 @@ def grant_bucket_owner(bucket, email):
 
     bucket.default_object_acl.user(email).grant_owner()
     bucket.default_object_acl.save()
+
 
 def grant_bucket_read_write(bucket, email):
     acl = bucket.acl
