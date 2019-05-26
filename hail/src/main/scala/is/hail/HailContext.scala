@@ -4,7 +4,7 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.io.fs.{FS, HadoopFS}
+import is.hail.io.fs.{FS, HadoopFS, SerializableHadoopConfiguration}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
@@ -260,7 +260,7 @@ object HailContext {
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
-    val sFS: FS = new HadoopFS(sparkContext.hadoopConfiguration)
+    val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration))
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
@@ -386,7 +386,7 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  val sFS: FS = new HadoopFS(sc.hadoopConfiguration)
+  val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)
   val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
@@ -535,10 +535,12 @@ class HailContext private(val sc: SparkContext,
   }
 
   def parseVCFMetadata(file: String): Map[String, Map[String, Map[String, String]]] = {
+    println("CALLED parseVCFMetadata")
     LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
   }
 
   def pyParseVCFMetadataJSON(file: String): String = {
+    println("CALLED pyParseVCFMetadataJSON")
     val metadata = LoadVCF.parseHeaderMetadata(this, Set.empty, TFloat64(), file)
     implicit val formats = defaultJSONFormats
     JsonMethods.compact(Extraction.decompose(metadata))

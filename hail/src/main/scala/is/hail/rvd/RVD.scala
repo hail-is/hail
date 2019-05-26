@@ -8,7 +8,7 @@ import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
-import is.hail.io.fs.HadoopFS
+import is.hail.io.fs.{HadoopFS, SerializableHadoopConfiguration}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
@@ -670,7 +670,7 @@ class RVD(
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
-    rvdSpec(codecSpec, partFiles).write(new HadoopFS(sparkContext.hadoopConfiguration), path)
+    rvdSpec(codecSpec, partFiles).write(new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), path)
     partitionCounts
   }
 

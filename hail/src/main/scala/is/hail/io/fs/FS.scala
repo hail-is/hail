@@ -5,9 +5,11 @@ import java.util
 
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.hadoop.fs.FSDataInputStream
-
+import sun.reflect.generics.reflectiveObjects.NotImplementedException
+import org.apache.hadoop
 trait FileSystem {
   def open: FSDataInputStream
   def open(path: FilePath): FSDataInputStream
@@ -18,7 +20,7 @@ trait FileSystem {
   def deleteOnExit(path: FilePath): Boolean
 }
 
-trait FilePath extends Serializable {
+trait FilePath extends Serializable{
   type Configuration
 
   def toString: String
@@ -35,7 +37,7 @@ trait FileStatus extends Serializable {
   def getOwner: String
 }
 
-abstract class FS extends Serializable {
+trait FS extends Serializable{
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit

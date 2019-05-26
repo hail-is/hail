@@ -13,7 +13,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io._
-import is.hail.io.fs.HadoopFS
+import is.hail.io.fs.{HadoopFS, SerializableHadoopConfiguration}
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
@@ -761,7 +761,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def write(uri: String, overwrite: Boolean = false, forceRowMajor: Boolean = false, stageLocally: Boolean = false) {
-    val fs = new HadoopFS(blocks.sparkContext.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(blocks.sparkContext.hadoopConfiguration))
 
     if (overwrite)
       fs.delete(uri, recursive = true)
