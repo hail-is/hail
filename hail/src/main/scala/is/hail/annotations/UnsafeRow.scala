@@ -4,7 +4,6 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase}

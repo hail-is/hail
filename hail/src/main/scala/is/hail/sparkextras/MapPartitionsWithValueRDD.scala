@@ -1,7 +1,7 @@
 package is.hail.sparkextras
 
-import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.{Partition, TaskContext}
 
 import scala.annotation.meta.param
 import scala.reflect.ClassTag

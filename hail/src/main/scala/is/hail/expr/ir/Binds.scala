@@ -19,8 +19,10 @@ object Bindings {
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
+    case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> -coerce[TStreamable](a.typ).elementType, right -> -coerce[TStreamable](a.typ).elementType) else empty
+    case AggArrayPerElement(a, _, indexName, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32()) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> -coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> -coerce[TNDArray](l.typ).elementType, rName -> -coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
@@ -62,7 +64,7 @@ object AggBindings {
     x match {
       case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
       case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggArrayPerElement(a, elementName, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case ArrayAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) wrapped(child.typ.rowEnv.m) else throw new UnsupportedOperationException
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else throw new UnsupportedOperationException
@@ -104,7 +106,8 @@ object ScanBindings {
     x match {
       case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggArrayPerElement(a, elementName, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case ArrayAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case _ => base
     }
   }
@@ -158,6 +161,7 @@ object ChildEnvWithoutBindings {
   def apply[T](ir: IR, i: Int, env: BindingEnv[T]): BindingEnv[T] = {
     ir match {
       case ArrayAgg(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, agg = Some(env.eval)) else env
+      case ArrayAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval)) else env
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case _ => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env

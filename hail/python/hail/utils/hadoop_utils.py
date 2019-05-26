@@ -1,11 +1,7 @@
-from hail.utils.java import Env, info
-from hail.utils import local_path_uri
-from hail.typecheck import *
-import io
-import json
-import os
-import sys
+from hail.utils.java import Env
+from hail.typecheck import typecheck, enumeration
 from typing import Dict, List
+
 
 @typecheck(path=str,
            mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'),
@@ -13,16 +9,14 @@ from typing import Dict, List
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
-    
+
     Warning
     -------
-    
     Due to an implementation limitation, :func:`hadoop_open` may be quite
     slow for large data sets (anything larger than 50 MB).
 
     Examples
     --------
-
     Write a Pandas DataFrame as a CSV directly into Google Cloud Storage:
 
     >>> with hadoop_open('gs://my-bucket/df.csv', 'w') as f: # doctest: +SKIP
@@ -82,17 +76,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     -------
         Readable or writable file handle.
     """
-    if 'r' in mode:
-        handle = io.BufferedReader(HadoopReader(path, buffer_size), buffer_size=buffer_size)
-    elif 'w' in mode:
-        handle = io.BufferedWriter(HadoopWriter(path), buffer_size=buffer_size)
-    elif 'x' in mode:
-        handle = io.BufferedWriter(HadoopWriter(path, exclusive=True), buffer_size=buffer_size)
-
-    if 'b' in mode:
-        return handle
-    else:
-        return io.TextIOWrapper(handle, encoding='iso-8859-1')
+    return Env.fs().open(path, mode, buffer_size)
 
 
 @typecheck(src=str,
@@ -103,7 +87,6 @@ def hadoop_copy(src, dest):
 
     Examples
     --------
-    
     Copy a file from Google Cloud Storage to a local file:
 
     >>> hadoop_copy('gs://hail-common/LCR.interval_list',
@@ -128,44 +111,7 @@ def hadoop_copy(src, dest):
     dest: :obj:`str`
         Destination file URI.
     """
-    Env.jutils().copyFile(src, dest, Env.hc()._jhc)
-
-
-class HadoopReader(io.RawIOBase):
-    def __init__(self, path, buffer_size):
-        self._jfile = Env.jutils().readFile(path, Env.hc()._jhc, buffer_size)
-        super(HadoopReader, self).__init__()
-
-    def close(self):
-        self._jfile.close()
-
-    def readable(self):
-        return True
-
-    def readinto(self, b):
-        b_from_java = self._jfile.read(len(b))
-        n_read = len(b_from_java)
-        b[:n_read] = b_from_java
-        return n_read
-
-
-class HadoopWriter(io.RawIOBase):
-    def __init__(self, path, exclusive=False):
-        self._jfile = Env.jutils().writeFile(path, Env.hc()._jhc, exclusive)
-        super(HadoopWriter, self).__init__()
-
-    def writable(self):
-        return True
-
-    def close(self):
-        self._jfile.close()
-
-    def flush(self):
-        self._jfile.flush()
-
-    def write(self, b):
-        self._jfile.write(bytearray(b))
-        return len(b)
+    return Env.fs().copy(src, dest)
 
 
 def hadoop_exists(path: str) -> bool:
@@ -179,7 +125,7 @@ def hadoop_exists(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.jutils().exists(path, Env.hc()._jhc)
+    return Env.fs().exists(path)
 
 
 def hadoop_is_file(path: str) -> bool:
@@ -193,10 +139,10 @@ def hadoop_is_file(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.jutils().isFile(path, Env.hc()._jhc)
+    return Env.fs().is_file(path)
 
 
-def hadoop_is_dir(path) -> bool:
+def hadoop_is_dir(path: str) -> bool:
     """Returns ``True`` if `path` both exists and is a directory.
 
     Parameters
@@ -207,7 +153,7 @@ def hadoop_is_dir(path) -> bool:
     -------
     :obj:`.bool`
     """
-    return Env.jutils().isDir(path, Env.hc()._jhc)
+    return Env.fs().is_dir(path)
 
 
 def hadoop_stat(path: str) -> Dict:
@@ -234,7 +180,7 @@ def hadoop_stat(path: str) -> Dict:
     -------
     :obj:`Dict`
     """
-    return json.loads(Env.jutils().stat(path, Env.hc()._jhc))
+    return Env.fs().stat(path)
 
 
 def hadoop_ls(path: str) -> List[Dict]:
@@ -265,8 +211,7 @@ def hadoop_ls(path: str) -> List[Dict]:
     -------
     :obj:`List[Dict]`
     """
-    r = Env.jutils().ls(path, Env.hc()._jhc)
-    return json.loads(r)
+    return Env.fs().ls(path)
 
 
 def copy_log(path: str) -> None:
@@ -297,12 +242,4 @@ def copy_log(path: str) -> None:
     ----------
     path: :obj:`str`
     """
-    log = Env.hc()._log
-    try:
-        if hadoop_is_dir(path):
-            _, tail = os.path.split(log)
-            path = os.path.join(path, tail)
-        info(f"copying log to {repr(path)}...")
-        hadoop_copy(local_path_uri(Env.hc()._log), path)
-    except Exception as e:
-        sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
+    Env.fs().copy_log(path)

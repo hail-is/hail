@@ -1,9 +1,6 @@
 package is.hail.cxx
 
 import is.hail.expr.types.physical._
-import is.hail.utils.ArrayBuilder
-
-import scala.collection.mutable
 
 object EmitTriplet {
   def apply(pType: PType, setup: Code, m: Code, v: Code, region: EmitRegion): EmitTriplet =
@@ -85,74 +82,72 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
 
 object SparkFunctionContext {
   def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
-    SparkFunctionContext(s"$spark_context.spark_env_", EmitRegion(fb, s"$spark_context.region_"))
+    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.hadoop_conf_",
+      EmitRegion(fb, s"$spark_context.region_"))
 
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class SparkFunctionContext(sparkEnv: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, hadoopConfig: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
 }
 
+object NDArrayLoopEmitter {
+  def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
+    val index = linearizeIndices(idxs, s"$nd.strides")
+    s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
+  }
+
+  private def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
+    idxs.zipWithIndex.foldRight("0") { case ((idxVar, dim), linearIndex) =>
+      s"($idxVar * $strides[$dim] + $linearIndex)"
+    }
+  }
+}
+
 abstract class NDArrayLoopEmitter(
   fb: FunctionBuilder,
   resultRegion: EmitRegion,
-  resultElemType: PType,
-  resultShape: Variable,
-  rowMajor: Variable,
-  outputIndices: Seq[Int]) {
+  val nDims: Int,
+  val shape: Variable,
+  val setup: Code) {
 
   fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-  private[this] val container = PArray(resultElemType)
-  private[this] val builder = fb.variable("builder", StagedContainerBuilder.builderType(container))
-
-  private[this] val strides = fb.variable("strides", "std::vector<long>", s"make_strides($rowMajor, $resultShape)")
-  private[this] val idxVars = outputIndices.map{ i => fb.variable(s"dim${i}_", "int") }
 
   def outputElement(idxVars: Seq[Variable]): Code
 
-  def linearizeIndices(idxs: Seq[Variable], strides: Code): Code = {
-    idxVars.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-        s"$idx * $strides[$dim] + $linearIndex"
-    }
-  }
+  def emit(elemType: PType): Code = {
+    val container = PArray(elemType)
 
-  def emit(): Code = {
+    val builder = new StagedContainerBuilder(fb, resultRegion.region, container)
     val data = fb.variable("data", "const char *")
+    // Always stores the result as row-major
+    val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
+
     s"""
       |({
-      | ${ data.define }
-      | ${ rowMajor.define }
-      | ${ resultShape.define }
+      | ${ setup }
       | ${ strides.define }
       |
-      | ${ builder.defineWith(s"{ (int) n_elements($resultShape), $resultRegion }") }
-      | $builder.clear_missing_bits();
+      | ${ builder.start(s"(int) n_elements($shape)") }
+      | ${ emitLoops(builder) }
       |
-      | if ($rowMajor) {
-      |   ${ emitLoops(idxVars, leftToRight = true) }
-      | } else {
-      |   ${ emitLoops(idxVars, leftToRight = false) }
-      | }
-      |
-      | $data = ${container.cxxImpl}::elements_address($builder.offset());
-      | make_ndarray($rowMajor, ${resultElemType.byteSize}, $resultShape, $strides, $data);
+      | ${ data.defineWith(s"${ container.cxxImpl }::elements_address(${ builder.end() })") }
+      | make_ndarray(0, 0, ${elemType.byteSize}, $shape, $strides, $data);
       |})
     """.stripMargin
   }
 
-  private def emitLoops(idxs: Seq[Variable], leftToRight: Boolean): Code = {
-    val outIndex = linearizeIndices(idxs, strides.toString)
-    val dimIter = if (leftToRight) idxs.zipWithIndex else idxs.zipWithIndex.reverseIterator
+  private def emitLoops(builder: StagedContainerBuilder): Code = {
+    val idxVars = Seq.tabulate(nDims) { i => fb.variable(s"dim${i}_", "int") }
 
-    val body = s"$builder.set_element($outIndex, ${ outputElement(idxVars) });"
-
-    dimIter.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
+    val body = Code(builder.add(outputElement(idxVars)), builder.advance())
+    idxVars.zipWithIndex.foldRight(body) { case ((dimVar, dimIdx), innerLoops) =>
       s"""
          |${ dimVar.define }
-         |for ($dimVar = 0; $dimVar < $resultShape[$dimIdx]; ++$dimVar) {
+         |for ($dimVar = 0; $dimVar < $shape[$dimIdx]; ++$dimVar) {
          |  $innerLoops
          |}
          |""".stripMargin

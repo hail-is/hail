@@ -2,37 +2,49 @@ package is.hail.backend.local
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import org.json4s.jackson.JsonMethods
+import is.hail.utils.{ExecutionTimer, Timings}
+import org.json4s.DefaultFormats
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object LocalBackend {
   def executeJSON(ir: IR): String = {
     val t = ir.typ
-    val value = execute(ir)
-    JsonMethods.compact(
-      JSONAnnotationImpex.exportAnnotation(value, t))
+    val (value, timings) = execute(ir)
+    val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+    timings.logInfo()
+
+    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
   }
 
-  def execute(ir0: IR): Any = {
+  def execute(ir0: IR): (Any, Timings) = {
+    val timer = new ExecutionTimer("Just Interpret")
     var ir = ir0
 
-    println("LocalBackend.execute got", Pretty(ir))
+    println(("LocalBackend.execute got", Pretty(ir)))
 
     ir = ir.unwrap
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some("LocalBackend.execute - first pass"))
-    ir = LiftNonCompilable(ir).asInstanceOf[IR]
-    ir = LowerMatrixIR(ir)
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after MatrixIR lowering"))
+    ir = timer.time(
+      Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some(s"LocalBackend.execute - first pass")),
+      "optimize first pass")
+    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "lift non-compilable")
+    ir = timer.time(LowerMatrixIR(ir), "lower MatrixIR")
+    ir = timer.time(
+      Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after MatrixIR lowering")),
+      "optimize after matrix lowering")
 
-    println("LocalBackend.execute to lower", Pretty(ir))
+    println(("LocalBackend.execute to lower", Pretty(ir)))
 
-    ir = LowerTableIR.lower(ir)
+    ir = timer.time(LowerTableIR.lower(ir), "lowering TableIR")
 
-    println("LocalBackend.execute lowered", Pretty(ir))
+    println(("LocalBackend.execute lowered", Pretty(ir)))
 
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after TableIR lowering"))
+    ir = timer.time(
+      Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after TableIR lowering")),
+      "optimize after table lowering")
 
-    println("LocalBackend.execute", Pretty(ir))
+    println(("LocalBackend.execute", Pretty(ir)))
 
-    Interpret[Any](ir)
+    val value = timer.time(Interpret[Any](ir), "runtime")
+    (value, timer.timings)
   }
 }

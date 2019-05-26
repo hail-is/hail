@@ -1,14 +1,16 @@
 import copy
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
 from hail.typecheck import *
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
+from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 
+from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -234,6 +236,25 @@ class If(IR):
         self._type = self.cnsq.typ
 
 
+class Coalesce(IR):
+    @typecheck_method(values=IR)
+    def __init__(self, *values):
+        super().__init__(*values)
+        self.values = values
+
+    @typecheck_method(values=IR)
+    def copy(self, *values):
+        return Coalesce(*values)
+
+    def _compute_type(self, env, agg_env):
+        first, *rest = self.values
+        first._compute_type(env, agg_env)
+        for x in rest:
+            x._compute_type(env, agg_env)
+            assert x.typ == first.typ
+        self._type = first.typ
+
+
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
     def __init__(self, name, value, body):
@@ -452,26 +473,53 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(ndim=int, data=IR, shape=IR, row_major=IR)
-    def __init__(self, ndim, data, shape, row_major):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
         super().__init__(data, shape, row_major)
-        self.ndim = ndim
         self.data = data
         self.shape = shape
         self.row_major = row_major
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        return MakeNDArray(self.ndim, data, shape, row_major)
-
-    def head_str(self):
-        return f'{self.ndim}'
+        return MakeNDArray(data, shape, row_major)
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
         self.shape._compute_type(env, agg_env)
         self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type, self.ndim)
+        self._type = tndarray(self.data.typ.element_type, len(self.shape.typ))
+
+
+class NDArrayShape(IR):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
+        super().__init__(nd)
+        self.nd = nd
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayShape(nd)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self._type = ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
+
+
+class NDArrayReshape(IR):
+    @typecheck_method(nd=IR, shape=IR)
+    def __init__(self, nd, shape):
+        super().__init__(nd, shape)
+        self.nd = nd
+        self.shape = shape
+
+    def copy(self, nd, shape):
+        return NDArrayReshape(nd, shape)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
 class NDArrayMap(IR):
@@ -503,20 +551,103 @@ class NDArrayMap(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(nd=IR, idxs=IR)
+    @typecheck_method(nd=IR, idxs=sequenceof(IR))
     def __init__(self, nd, idxs):
-        super().__init__(nd, idxs)
+        super().__init__(nd, *idxs)
         self.nd = nd
         self.idxs = idxs
 
-    @typecheck_method(nd=IR, idxs=IR)
-    def copy(self, nd, idxs):
-        return NDArrayRef(nd, idxs)
+    def copy(self, *args):
+        return NDArrayRef(args[0], args[1:])
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.idxs._compute_type(env, agg_env)
+        [idx._compute_type(env, agg_env) for idx in self.idxs]
         self._type = self.nd.typ.element_type
+
+
+class NDArrayReindex(IR):
+    @typecheck_method(nd=IR, idx_expr=sequenceof(int))
+    def __init__(self, nd, idx_expr):
+        super().__init__(nd)
+        self.nd = nd
+        self.idx_expr = idx_expr
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayReindex(nd, self.idx_expr)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.idx_expr])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        n_input_dims = self.nd.typ.ndim
+        n_output_dims = len(self.idx_expr)
+        assert n_input_dims <= n_output_dims
+        assert all([i < n_output_dims for i in self.idx_expr])
+        assert all([i in self.idx_expr for i in range(n_output_dims)])
+
+        self._type = tndarray(self.nd.typ.element_type, n_output_dims)
+
+
+class NDArrayAgg(IR):
+    @typecheck_method(nd=IR, axes=sequenceof(int))
+    def __init__(self, nd, axes):
+        super().__init__(nd)
+        self.nd = nd
+        self.axes = axes
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayAgg(nd, self.axes)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.axes])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        assert len(set(self.axes)) == len(self.axes)
+        assert all([axis < self.nd.typ.ndim for axis in self.axes])
+
+        self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
+
+
+class NDArrayMatMul(IR):
+    @typecheck_method(l=IR, r=IR)
+    def __init__(self, l, r):
+        super().__init__(l, r)
+        self.l = l
+        self.r = r
+
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        return NDArrayMatMul(l, r)
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
+        from hail.expr.expressions import unify_types
+        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+
+
+class NDArrayWrite(IR):
+    @typecheck_method(nd=IR, path=IR)
+    def __init__(self, nd, path):
+        super().__init__(nd, path)
+        self.nd = nd
+        self.path = path
+
+    @typecheck_method(nd=IR, path=IR)
+    def copy(self, nd, path):
+        return NDArrayWrite(nd, path)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.path._compute_type(env, agg_env)
+        self._type = tvoid
 
 
 class ArraySort(IR):
@@ -918,42 +1049,40 @@ class AggGroupBy(IR):
 
 
 class AggArrayPerElement(IR):
-    @typecheck_method(array=IR, name=str, agg_ir=IR, is_scan=bool)
-    def __init__(self, array, name, agg_ir, is_scan):
+    @typecheck_method(array=IR, element_name=str, index_name=str, agg_ir=IR, is_scan=bool)
+    def __init__(self, array, element_name, index_name, agg_ir, is_scan):
         super().__init__(array, agg_ir)
         self.array = array
-        self.name = name
+        self.element_name = element_name
+        self.index_name = index_name
         self.agg_ir = agg_ir
         self.is_scan = is_scan
 
     @typecheck_method(array=IR, agg_ir=IR)
     def copy(self, array, agg_ir):
-        return AggArrayPerElement(array, self.name, agg_ir, self.is_scan)
+        return AggArrayPerElement(array, self.element_name, self.index_name, agg_ir, self.is_scan)
 
     def head_str(self):
-        return f'{escape_id(self.name)} {self.is_scan}'
+        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan}'
 
     def _eq(self, other):
-        return self.name == other.name and self.is_scan == other.is_scan
+        return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self.agg_ir._compute_type(_env_bind(env, self.index_name, tint32),
+                                  _env_bind(agg_env, self.element_name, self.array.typ.element_type))
         self._type = tarray(self.agg_ir.typ)
 
     @property
     def bound_variables(self):
-        return {self.name} | super().bound_variables
+        return {self.element_name, self.index_name} | super().bound_variables
 
 
 def _register(registry, name, f):
-    if name in registry:
-        registry[name].append(f)
-    else:
-        registry[name] = [f]
+    registry[name].append(f)
 
-
-_aggregator_registry = {}
+_aggregator_registry = defaultdict(list)
 
 
 def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
@@ -1280,9 +1409,29 @@ class Die(IR):
         self._type = self._typ
 
 
-_function_registry = {}
-_seeded_function_registry = {}
+_function_registry = defaultdict(list)
+_seeded_function_registry = defaultdict(list)
+_session_functions = set()
 
+def clear_session_functions():
+    global _session_functions
+    for name, param_types, ret_type in _session_functions:
+        remove_function(name, param_types, ret_type)
+
+    _session_functions = set()
+
+def remove_function(name, param_types, ret_type):
+    f = (param_types, ret_type)
+    bindings = _function_registry[name]
+    bindings = [b for b in bindings if b != f]
+    if not bindings:
+        del _function_registry[name]
+    else:
+        _function_registry[name] = bindings
+
+def register_session_function(name, param_types, ret_type):
+    _session_functions.add((name, param_types, ret_type))
+    register_function(name, param_types, ret_type)
 
 def register_function(name, param_types, ret_type):
     _register(_function_registry, name, (param_types, ret_type))
@@ -1293,15 +1442,13 @@ def register_seeded_function(name, param_types, ret_type):
 
 
 def _lookup_function_return_type(registry, fkind, name, arg_types):
-    if name in registry:
-        fns = registry[name]
-        for f in fns:
-            (param_types, ret_type) = f
-            for p in param_types:
-                p.clear()
-            ret_type.clear()
-            if all(p.unify(a) for p, a in zip(param_types, arg_types)):
-                return ret_type.subst()
+    for f in registry[name]:
+        (param_types, ret_type) = f
+        for p in param_types:
+            p.clear()
+        ret_type.clear()
+        if all(p.unify(a) for p, a in zip(param_types, arg_types)):
+            return ret_type.subst()
     raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
 
 
@@ -1475,75 +1622,25 @@ class MatrixAggregate(IR):
 
 
 class TableWrite(IR):
-    @typecheck_method(child=TableIR, path=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
-    def __init__(self, child, path, overwrite, stage_locally, _codec_spec):
+    @typecheck_method(child=TableIR, writer=TableWriter)
+    def __init__(self, child, writer):
         super().__init__(child)
         self.child = child
-        self.path = path
-        self.overwrite = overwrite
-        self.stage_locally = stage_locally
-        self._codec_spec = _codec_spec
+        self.writer = writer
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
-        return TableWrite(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
+        return TableWrite(child, self.writer)
 
     def head_str(self):
-        return '"{}" {} {} {}'.format(escape_str(self.path), self.overwrite, self.stage_locally,
-                                      "\"" + escape_str(
-                                          self._codec_spec) + "\"" if self._codec_spec else "None")
+        return f'"{self.writer.render()}"'
 
     def _eq(self, other):
-        return other.path == self.path and \
-               other.overwrite == self.overwrite and \
-               other.stage_locally == self.stage_locally and \
-               other._codec_spec == self._codec_spec
+        return other.writer == self.writer
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
         self._type = tvoid
-
-
-class TableExport(IR):
-    @typecheck_method(child=TableIR,
-                      path=str,
-                      types_file=nullable(str),
-                      header=bool,
-                      export_type=int,
-                      delimiter=str)
-    def __init__(self, child, path, types_file, header, export_type, delimiter):
-        super().__init__(child)
-        self.child = child
-        self.path = path
-        self.types_file = types_file
-        self.header = header
-        self.export_type = export_type
-        self.delimiter = delimiter
-
-    @typecheck_method(child=TableIR)
-    def copy(self, child):
-        return TableExport(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
-
-    def head_str(self):
-        return '"{}" {} {} {} "{}"'.format(
-            escape_str(self.path),
-            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
-            self.header,
-            self.export_type,
-            escape_str(self.delimiter),
-        )
-
-    def _eq(self, other):
-        return other.path == self.path and \
-               other.types_file == self.types_file and \
-               other.header == self.header and \
-               other.export_type == self.export_type and \
-               other.delimiter == self.delimiter
-
-    def _compute_type(self, env, agg_env):
-        self.child._compute_type()
-        self._type = tvoid
-
 
 class MatrixWrite(IR):
     @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
@@ -1606,6 +1703,28 @@ class BlockMatrixWrite(IR):
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
+        self._type = tvoid
+
+
+class BlockMatrixMultiWrite(IR):
+    @typecheck_method(block_matrices=sequenceof(BlockMatrixIR), writer=BlockMatrixMultiWriter)
+    def __init__(self, block_matrices, writer):
+        super().__init__(*block_matrices)
+        self.block_matrices = block_matrices
+        self.writer = writer
+
+    def copy(self, *block_matrices):
+        return BlockMatrixWrite(block_matrices, self.writer)
+
+    def head_str(self):
+        return f'"{self.writer.render()}"'
+
+    def _eq(self, other):
+        return self.writer == other.writer
+
+    def _compute_type(self, env, agg_env):
+        for x in self.block_matrices:
+            x._compute_type()
         self._type = tvoid
 
 

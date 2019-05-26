@@ -3,6 +3,7 @@ package is.hail
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
 import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
@@ -10,18 +11,18 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
-import is.hail.utils._
+import is.hail.utils.{ExecutionTimer, _}
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
-  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile, LoweredJVMCompile = Value
 
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
+  val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
 }
 
 object TestUtils {
@@ -146,7 +147,8 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        val (res, _) = SparkBackend.cxxExecute(HailContext.get.sc, x, optimize = false)
+        res
       } catch {
         case e: CXXUnsupportedOperation =>
           throw e
@@ -203,6 +205,12 @@ object TestUtils {
         SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }
+  }
+
+  def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    if (agg.isDefined || !env.isEmpty || !args.isEmpty)
+      throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
+    SparkBackend.jvmLowerAndExecute(HailContext.get.sc, x, optimize = false)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -406,7 +414,7 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.foreach { strat =>
+    ExecStrategy.values.intersect(execStrats).foreach { strat =>
       try {
         val res = strat match {
           case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
@@ -415,11 +423,13 @@ object TestUtils {
             assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
             eval(x, env, args, agg)
           case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+          case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
         }
         assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
+        assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
       } catch {
         case e: Exception =>
+          error(s"error from strategy $strat")
           if (execStrats.contains(strat)) throw e
       }
     }
@@ -493,28 +503,6 @@ object TestUtils {
     )
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
-
-  def importPlink(hc: HailContext,
-    bed: String,
-    bim: String,
-    fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    val reader = MatrixPLINKReader(bed, bim, fam,
-      nPartitions, delimiter, missing, quantPheno,
-      a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
-      skipInvalidLoci)
-
-    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropCols = false, dropRows = false, reader))
-  }
-
 
   def vdsFromCallMatrix(hc: HailContext)(
     callMat: Matrix[BoxedCall],

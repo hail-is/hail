@@ -124,22 +124,22 @@ class StringSliceSuite extends SparkSuite {
   }
 
   @Test def testStringIndex() {
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(0)), IndexedSeq("Baz" -> TString()), "B")
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(1)), IndexedSeq("Baz" -> TString()), "a")
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(2)), IndexedSeq("Baz" -> TString()), "z")
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(-1)), IndexedSeq("Baz" -> TString()), "z")
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(-2)), IndexedSeq("Baz" -> TString()), "a")
-    assertEvalsTo(invoke("[]", In(0, TString()), I32(-3)), IndexedSeq("Baz" -> TString()), "B")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(0)), FastIndexedSeq("Baz" -> TString()), "B")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(1)), FastIndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(2)), FastIndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-1)), FastIndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-2)), FastIndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-3)), FastIndexedSeq("Baz" -> TString()), "B")
 
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("[]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "B")
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(3)), FastIndexedSeq("Baz" -> TString()), "B")
     }
     interceptFatal("string index out of bounds") {
-      assertEvalsTo(invoke("[]", In(0, TString()), I32(-4)), IndexedSeq("Baz" -> TString()), "B")
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(-4)), FastIndexedSeq("Baz" -> TString()), "B")
     }
   }
 
   @Test def testStringCopy() {
-    assertEvalsTo(invoke("[:]", In(0, TString())), IndexedSeq("Baz" -> TString()), "Baz")
+    assertEvalsTo(invoke("[:]", In(0, TString())), FastIndexedSeq("Baz" -> TString()), "Baz")
   }
 }

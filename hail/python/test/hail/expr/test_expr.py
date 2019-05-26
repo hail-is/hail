@@ -3,10 +3,13 @@ import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
+import numpy as np
+import tempfile
 
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.types import *
+from hail.expr.functions import _error_from_cdf
 from ..helpers import *
 
 setUpModule = startTestHailContext
@@ -312,6 +315,24 @@ class Tests(unittest.TestCase):
         table.aggregate(hl.agg.approx_cdf(hl.int64(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float32(table.i)))
         table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
+
+    def test_approx_cdf_col_aggregate(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
+        mt = mt.annotate_cols(bar=hl.agg.approx_cdf(mt.foo))
+        mt.cols()._force_count()
+
+    def test_approx_quantiles(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
+        table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
+
+    def test_error_from_cdf(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001))
+        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001, all_quantiles=True))
 
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
@@ -705,6 +726,15 @@ class Tests(unittest.TestCase):
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    def test_aggregators_hist_neg0(self):
+        table = hl.utils.range_table(32)
+        table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
+        r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
+        self.assertEquals(r.bin_edges, [0, 2, 4, 6, 8, 10])
+        self.assertEquals(r.bin_freq, [6, 5, 6, 6, 7])
+        self.assertEquals(r.n_smaller, 1)
+        self.assertEquals(r.n_larger, 1)
+
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
     # x = c(0.2575928, -0.3445442, 1.6590146, -1.1688806, 0.5587043)
@@ -848,7 +878,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding[None].n_called, 3)
         self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
         self.assertEqual(r.inbreeding[None].observed_homs, 2)
-        
+
         self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
         self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
@@ -1012,6 +1042,38 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(d.get('missing_values')), None)
         self.assertEqual(hl.eval(d.get('missing_values', hl.null(hl.tint32))), None)
         self.assertEqual(hl.eval(d.get('missing_values', 5)), 5)
+
+    def test_functions_any_and_all(self):
+        x1 = hl.literal([], dtype='array<bool>')
+        x2 = hl.literal([True], dtype='array<bool>')
+        x3 = hl.literal([False], dtype='array<bool>')
+        x4 = hl.literal([None], dtype='array<bool>')
+        x5 = hl.literal([True, False], dtype='array<bool>')
+        x6 = hl.literal([True, None], dtype='array<bool>')
+        x7 = hl.literal([False, None], dtype='array<bool>')
+        x8 = hl.literal([True, False, None], dtype='array<bool>')
+
+        assert hl.eval(
+            (
+                (x1.any(lambda x: x), x1.all(lambda x: x)),
+                (x2.any(lambda x: x), x2.all(lambda x: x)),
+                (x3.any(lambda x: x), x3.all(lambda x: x)),
+                (x4.any(lambda x: x), x4.all(lambda x: x)),
+                (x5.any(lambda x: x), x5.all(lambda x: x)),
+                (x6.any(lambda x: x), x6.all(lambda x: x)),
+                (x7.any(lambda x: x), x7.all(lambda x: x)),
+                (x8.any(lambda x: x), x8.all(lambda x: x)),
+            )
+        ) == (
+                   (False, True),
+                   (True, True),
+                   (False, False),
+                   (None, None),
+                   (True, False),
+                   (True, None),
+                   (None, False),
+                   (True, False)
+               )
 
     def test_aggregator_any_and_all(self):
         df = hl.utils.range_table(10)
@@ -1976,6 +2038,18 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
+    def test_array_head(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.head()) == 1
+        assert hl.eval(a.filter(lambda x: x > 5).head()) is None
+
+    def test_array_index(self):
+        a = hl.array([1,2,3])
+        assert hl.eval(a.index(2) == 1)
+        assert hl.eval(a.index(4)) is None
+        assert hl.eval(a.index(lambda x: x % 2 == 0) == 1)
+        assert hl.eval(a.index(lambda x: x > 5)) is None
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
         self.assertTrue(hl.eval(True & hl.literal(True)))
@@ -2086,12 +2160,12 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 100))))
         self.assertTrue(hl.eval(li.contains(hl.locus("1", 109))))
         self.assertFalse(hl.eval(li.contains(hl.locus("1", 110))))
-    
+
         li2 = hl.parse_locus_interval("1:109-200")
         li3 = hl.parse_locus_interval("1:110-200")
         li4 = hl.parse_locus_interval("1:90-101")
         li5 = hl.parse_locus_interval("1:90-100")
-    
+
         self.assertTrue(hl.eval(li.overlaps(li2)))
         self.assertTrue(hl.eval(li.overlaps(li4)))
         self.assertFalse(hl.eval(li.overlaps(li3)))
@@ -2349,7 +2423,7 @@ class Tests(unittest.TestCase):
         res = hl.eval(hl.chi_squared_test(51, 43, 22, 92))
         self.assertAlmostEqual(res['p_value'] / 1.462626e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.95983087)
-        
+
         res = hl.eval(hl.chi_squared_test(61, 17493, 95, 84145))
         self.assertAlmostEqual(res['p_value'] / 4.74710374e-13, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 3.08866103)
@@ -2611,8 +2685,8 @@ class Tests(unittest.TestCase):
         np_scalar = np.array(scalar)
         h_scalar = hl._ndarray(scalar)
         h_np_scalar = hl._ndarray(np_scalar)
-        self.assertEqual(hl.eval(h_scalar[()]), 5.0)
-        self.assertEqual(hl.eval(h_np_scalar[()]), 5.0)
+        self.assert_evals_to(h_scalar[()], 5.0)
+        self.assert_evals_to(h_np_scalar[()], 5.0)
 
         cube = [[[0, 1],
                  [2, 3]],
@@ -2620,12 +2694,57 @@ class Tests(unittest.TestCase):
                  [6, 7]]]
         h_cube = hl._ndarray(cube)
         h_np_cube = hl._ndarray(np.array(cube))
-        self.assertEqual(hl.eval(h_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_cube[1, 1, 0]), 6)
-        self.assertEqual(hl.eval(h_np_cube[0, 0, 1]), 1)
-        self.assertEqual(hl.eval(h_np_cube[1, 1, 0]), 6)
+        self.assert_evals_to(h_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_cube[1, 1, 0], 6)
+        self.assert_evals_to(h_np_cube[0, 0, 1], 1)
+        self.assert_evals_to(h_np_cube[1, 1, 0], 6)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
+
+    def ndarray_eq(self, expr, expected):
+        self.assertTrue(np.array_equal(expr.to_numpy(), expected))
+
+    def ndarray_almost_eq(self, expr, expected):
+        self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_shape(self):
+        np_e = np.array(3)
+        np_row = np.array([1, 2, 3])
+        np_col = np.array([[1], [2], [3]])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_nd = np.arange(30).reshape((2, 5, 3))
+
+        e = hl._ndarray(np_e)
+        row = hl._ndarray(np_row)
+        col = hl._ndarray(np_col)
+        m = hl._ndarray(np_m)
+        nd = hl._ndarray(np_nd)
+        self.assert_evals_to(e.shape, np_e.shape)
+        self.assert_evals_to(row.shape, np_row.shape)
+        self.assert_evals_to(m.shape, np_m.shape)
+        self.assert_evals_to(nd.shape, np_nd.shape)
+        self.assert_evals_to((row + nd).shape, (np_row + np_nd).shape)
+        self.assert_evals_to((row + col).shape, (np_row + np_col).shape)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_reshape(self):
+        a = hl._ndarray([1, 2, 3, 4, 5, 6])
+        fat = a.reshape((2, 3))
+        skinny = a.reshape((3, 2))
+
+        a_three = a[2]
+        fat_three = fat[0, 2]
+        skinny_three = skinny[1, 0]
+        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three) == 3)
+
+        nums = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7])
+        cube = nums.reshape((2, 2, 2))
+        rect = cube.reshape((2, 4))
+        cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
+        self.assertTrue(hl.eval(cube[0, 1, 1]) == hl.eval(rect[0, 3]) == hl.eval(cube_t_to_rect[1, 1]) == 3)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2634,75 +2753,218 @@ class Tests(unittest.TestCase):
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
 
-        self.assertEqual(hl.eval(b[0, 0]), -2)
-        self.assertEqual(hl.eval(b[1, 2]), -7)
-        self.assertEqual(hl.eval(c[0, 0]), True)
-        self.assertEqual(hl.eval(c[1, 2]), True)
+        self.ndarray_eq(b, [[-2, -3, -4], [-5, -6, -7]])
+        self.ndarray_eq(c, [[True, True, True],
+                            [True, True, True]])
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_ops(self):
-        def expr_eq(expr, expected):
-            self.assertEqual(hl.eval(expr), expected)
-
-        def expr_almost_eq(expr, expected):
-            self.assertAlmostEqual(hl.eval(expr), expected)
 
         a = 2.0
         b = 3.0
-        x = [a, b]
-        y = [b, a]
-        cube1 = [[[1, 2],
-                  [3, 4]],
-                 [[5, 6],
-                  [7, 8]]]
-        cube2 = [[[9, 10],
-                  [11, 12]],
-                 [[13, 14],
-                  [15, 16]]]
+        x = np.array([a, b])
+        y = np.array([b, a])
+        row_vec = np.array([[1, 2]])
+        cube1 = np.array([[[1, 2],
+                           [3, 4]],
+                          [[5, 6],
+                           [7, 8]]])
+        cube2 = np.array([[[9, 10],
+                           [11, 12]],
+                          [[13, 14],
+                           [15, 16]]])
 
         na = hl._ndarray(a)
         nx = hl._ndarray(x)
         ny = hl._ndarray(y)
+        nrow_vec = hl._ndarray(row_vec)
         ncube1 = hl._ndarray(cube1)
         ncube2 = hl._ndarray(cube2)
 
         # with lists/numerics
-        expr_eq((na + b)[()], a + b)
-        expr_eq((b + na)[()], a + b)
-        expr_eq((nx + y)[0], a + b)
-        expr_eq((y + nx)[0], a + b)
-        expr_eq((ncube1 + cube2)[0, 0, 0], 10)
-        expr_eq((cube2 + ncube1)[0, 0, 0], 10)
-        expr_eq((ncube1 + cube2)[1, 1, 1], 24)
-        expr_eq((cube2 + ncube1)[1, 1, 1], 24)
+        self.ndarray_eq(na + b, np.array(a + b))
+        self.ndarray_eq(b + na, np.array(a + b))
+        self.ndarray_eq(nx + y, x + y)
+        self.ndarray_eq(ncube1 + cube2, cube1 + cube2)
 
         # Addition
-        expr_eq((na + na)[()], a + a)
-        expr_eq((nx + ny)[0], a + b)
-        expr_eq((ncube1 + ncube2)[0, 0, 0], 10)
-        expr_eq((ncube1 + ncube2)[1, 1, 1], 24)
+        self.ndarray_eq(na + na, np.array(a + a))
+        self.ndarray_eq(nx + ny, x + y)
+        self.ndarray_eq(ncube1 + ncube2, cube1 + cube2)
+        # Broadcasting
+        self.ndarray_eq(ncube1 + na, cube1 + a)
+        self.ndarray_eq(na + ncube1, a + cube1)
+        self.ndarray_eq(ncube1 + ny, cube1 + y)
+        self.ndarray_eq(ny + ncube1, y + cube1)
+        self.ndarray_eq(nrow_vec + ncube1, row_vec + cube1)
+        self.ndarray_eq(ncube1 + nrow_vec, cube1 + row_vec)
 
         # Subtraction
-        expr_eq((na - na)[()], a - a)
-        expr_eq((nx - nx)[0], a - a)
-        expr_eq((ncube1 - ncube2)[0, 0, 0], -8)
-        expr_eq((ncube1 - ncube2)[1, 1, 1], -8)
+        self.ndarray_eq(na - na, np.array(a - a))
+        self.ndarray_eq(nx - nx, x - x)
+        self.ndarray_eq(ncube1 - ncube2, cube1 - cube2)
+        # Broadcasting
+        self.ndarray_eq(ncube1 - na, cube1 - a)
+        self.ndarray_eq(na - ncube1, a - cube1)
+        self.ndarray_eq(ncube1 - ny, cube1 - y)
+        self.ndarray_eq(ny - ncube1, y - cube1)
+        self.ndarray_eq(ncube1 - nrow_vec, cube1 - row_vec)
+        self.ndarray_eq(nrow_vec - ncube1, row_vec - cube1)
 
         # Multiplication
-        expr_eq((na * na)[()], a * a)
-        expr_eq((nx * nx)[0], a * a)
-        expr_eq((ncube1 * ncube2)[0, 0, 0], 9)
-        expr_eq((ncube1 * ncube2)[1, 1, 1], 128)
+        self.ndarray_eq(na * na, np.array(a * a))
+        self.ndarray_eq(nx * nx, x * x)
+        self.ndarray_eq(nx * na, x * a)
+        self.ndarray_eq(na * nx, a * x)
+        self.ndarray_eq(ncube1 * ncube2, cube1 * cube2)
+        # Broadcasting
+        self.ndarray_eq(ncube1 * na, cube1 * a)
+        self.ndarray_eq(na * ncube1, a * cube1)
+        self.ndarray_eq(ncube1 * ny, cube1 * y)
+        self.ndarray_eq(ny * ncube1, y * cube1)
+        self.ndarray_eq(ncube1 * nrow_vec, cube1 * row_vec)
+        self.ndarray_eq(nrow_vec * ncube1, row_vec * cube1)
 
         # Division
-        expr_almost_eq((na / na)[()], a / a)
-        expr_almost_eq((nx / nx)[0], a / a)
-        expr_almost_eq((ncube1 / ncube2)[0, 0, 0], 1 / 9)
-        expr_almost_eq((ncube1 / ncube2)[1, 1, 1], 8 / 16)
+        self.ndarray_almost_eq(na / na, np.array(a / a))
+        self.ndarray_almost_eq(nx / nx, x / x)
+        self.ndarray_almost_eq(nx / na, x / a)
+        self.ndarray_almost_eq(na / nx, a / x)
+        self.ndarray_almost_eq(ncube1 / ncube2, cube1 / cube2)
+        # Broadcasting
+        self.ndarray_almost_eq(ncube1 / na, cube1 / a)
+        self.ndarray_almost_eq(na / ncube1, a / cube1)
+        self.ndarray_almost_eq(ncube1 / ny, cube1 / y)
+        self.ndarray_almost_eq(ny / ncube1, y / cube1)
+        self.ndarray_almost_eq(ncube1 / nrow_vec, cube1 / row_vec)
+        self.ndarray_almost_eq(nrow_vec / ncube1, row_vec / cube1)
 
         # Floor div
-        expr_eq((na // na)[()], a // a)
-        expr_eq((nx // nx)[0], a // a)
-        expr_eq((ncube1 // ncube2)[0, 0, 0], 0)
-        expr_eq((ncube1 // ncube2)[1, 1, 1], 0)
+        self.ndarray_eq(na // na, np.array(a // a))
+        self.ndarray_eq(nx // nx, x // x)
+        self.ndarray_eq(nx // na, x // a)
+        self.ndarray_eq(na // nx, a // x)
+        self.ndarray_eq(ncube1 // ncube2, cube1 // cube2)
+        # Broadcasting
+        self.ndarray_eq(ncube1 // na, cube1 // a)
+        self.ndarray_eq(na // ncube1, a // cube1)
+        self.ndarray_eq(ncube1 // ny, cube1 // y)
+        self.ndarray_eq(ny // ncube1, y // cube1)
+        self.ndarray_eq(ncube1 // nrow_vec, cube1 // row_vec)
+        self.ndarray_eq(nrow_vec // ncube1, row_vec // cube1)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_to_numpy(self):
+        nd = np.array([[1, 2, 3], [4, 5, 6]])
+        np.array_equal(hl._ndarray(nd).to_numpy(), nd)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_save(self):
+        arrs = [
+            np.array([[[1, 2, 3], [4, 5, 6]],
+                      [[7, 8, 9], [10, 11, 12]]], dtype=np.int32),
+            np.array([[1, 2, 3], [4, 5, 6]], dtype=np.int64),
+            np.array(3.0, dtype=np.float32),
+            np.array([3.0], dtype=np.float64),
+            np.array([True, False, True, True])
+        ]
+
+        for arr in arrs:
+            with tempfile.NamedTemporaryFile(suffix='.npy') as f:
+                hl._ndarray(arr).save(f.name)
+                self.assertTrue(np.array_equal(arr, np.load(f.name)))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_sum(self):
+        np_m = np.array([[1, 2], [3, 4]])
+        m = hl._ndarray(np_m)
+
+        self.ndarray_eq(m.sum(axis=0), np_m.sum(axis=0))
+        self.ndarray_eq(m.sum(axis=1), np_m.sum(axis=1))
+        self.ndarray_eq(m.sum(), np_m.sum())
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_transpose(self):
+        np_v = np.array([1, 2, 3])
+        np_m = np.array([[1, 2, 3], [4, 5, 6]])
+        np_cube = np.array([[[1, 2],
+                            [3, 4]],
+                           [[5, 6],
+                            [7, 8]]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        cube = hl._ndarray(np_cube)
+
+        self.ndarray_eq(v.T, np_v.T)
+        self.ndarray_eq(v.T, np_v)
+        self.ndarray_eq(m.T, np_m.T)
+        self.ndarray_eq(cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1)))
+        self.ndarray_eq(cube.T, np_cube.T)
+
+        self.assertRaises(ValueError, lambda: v.transpose((1,)))
+        self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_matmul(self):
+        np_v = np.array([1, 2])
+        np_m = np.array([[1, 2], [3, 4]])
+        np_cube = np.array([[[1, 2],
+                             [3, 4]],
+                            [[5, 6],
+                             [7, 8]]])
+        np_rect_prism = np.array([[[1, 2],
+                                   [3, 4]],
+                                  [[5, 6],
+                                   [7, 8]],
+                                  [[9, 10],
+                                   [11, 12]]])
+        v = hl._ndarray(np_v)
+        m = hl._ndarray(np_m)
+        cube = hl._ndarray(np_cube)
+        rect_prism = hl._ndarray(np_rect_prism)
+
+        self.assertEqual(hl.eval(v @ v), np_v @ np_v)
+        self.ndarray_eq(m @ m, np_m @ np_m)
+        self.ndarray_eq(m @ m.T, np_m @ np_m.T)
+        self.ndarray_eq(v @ m, np_v @ np_m)
+        self.ndarray_eq(m @ v, np_m @ np_v)
+        self.ndarray_eq(cube @ cube, np_cube @ np_cube)
+        self.ndarray_eq(cube @ v, np_cube @ np_v)
+        self.ndarray_eq(v @ cube, np_v @ np_cube)
+        self.ndarray_eq(cube @ m, np_cube @ np_m)
+        self.ndarray_eq(m @ cube, np_m @ np_cube)
+        self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
+        self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
+        self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        self.assertRaises(ValueError, lambda: m @ 5)
+        self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
+        self.assertRaises(ValueError, lambda: cube @ hl._ndarray(5))
+
+    def test_collection_getitem(self):
+        collection_types = [(hl.array, list), (hl.set, frozenset)]
+        for (htyp, pytyp) in collection_types:
+            x = htyp([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
+            assert hl.eval(x.a) == pytyp(['foo', 'bar'])
+
+        a = hl.array([hl.struct(b=[hl.struct(inner=1),
+                                   hl.struct(inner=2)]),
+                      hl.struct(b=[hl.struct(inner=3)])])
+        assert hl.eval(a.b) == [[hl.Struct(inner=1), hl.Struct(inner=2)],
+                                [hl.Struct(inner=3)]]
+        assert hl.eval(hl.flatten(a.b).inner) == [1, 2, 3]
+        assert hl.eval(a.b.inner) == [[1, 2], [3]]
+        assert hl.eval(a["b"].inner) == [[1, 2], [3]]
+        assert hl.eval(a["b"]["inner"]) == [[1, 2], [3]]
+        assert hl.eval(a.b["inner"]) == [[1, 2], [3]]
+
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3]).a)
+        self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
+        self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])

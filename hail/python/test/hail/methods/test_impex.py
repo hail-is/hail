@@ -289,6 +289,20 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    def test_vcf_parser_golden_master(self):
+        files = [(resource('ex.vcf'), 'GRCh37'),
+                 (resource('sample.vcf'), 'GRCh37'),
+                 (resource('gvcfs/HG00096.g.vcf.gz'), 'GRCh38')]
+        for vcf_path, rg in files:
+            vcf = hl.import_vcf(
+                vcf_path,
+                reference_genome=rg,
+                array_elements_required=False,
+                force_bgz=True)
+            mt = hl.read_matrix_table(vcf_path + '.mt')
+            self.assertTrue(mt._same(vcf))
+
+
     @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -1183,6 +1197,11 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
 
+    def test_import_bed_kwargs_to_import_table(self):
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', find_replace=('gene', ''))
+        self.assertFalse('gene1' in t.aggregate(hl.agg.collect_as_set(t.target)))
+
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
@@ -1190,6 +1209,14 @@ class LocusIntervalTests(unittest.TestCase):
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertTrue(t.count() == 4)
+
+    def test_pass_through_args(self):
+        interval_file = resource('example3.interval_list')
+        t = hl.import_locus_intervals(interval_file,
+                                      reference_genome='GRCh37',
+                                      skip_invalid_intervals=True,
+                                      filter=r'target_\d\d')
+        assert t.count() == 9
 
 
 class ImportMatrixTableTests(unittest.TestCase):

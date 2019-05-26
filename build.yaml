@@ -1,0 +1,757 @@
+steps:
+ - kind: createNamespace
+   name: default_ns
+   namespaceName: default
+   public: true
+   secrets:
+    - scorecard-github-access-token
+    - hail-vdc-sa-key
+    - notebook-secrets
+    - gcr-pull-key
+    - hail-ci-0-1-github-oauth-token
+    - test-gsa-key
+ - kind: deploy
+   name: deploy_batch_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: createNamespace
+   name: batch_pods_ns
+   namespaceName: batch-pods
+   adminServiceAccount:
+     name: batch
+     namespace:
+       valueFrom: default_ns.name
+   public: false
+   secrets:
+    - test-gsa-key
+   dependsOn:
+    - default_ns
+    - deploy_batch_sa
+ - kind: buildImage
+   name: base_image
+   dockerFile: docker/Dockerfile.base
+   contextPath: docker
+   publishAs: base
+ - kind: runImage
+   name: create_accounts
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # secret-key
+     python3 -c "
+     import secrets, jwt
+     secret_key = secrets.token_bytes(64)
+     with open('secret-key', 'wb') as f:
+       f.write(secret_key)
+     "
+     kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
+     # batch
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':1,'service_account':True,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
+     # ci
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':2,'service_account':True,'username':'ci','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci-gsa-key','jwt_secret_name':'ci-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./jwt
+     # test
+     # test-gsa-key exists
+     python3 -c "
+     import jwt
+     with open('secret-key', 'rb') as f:
+       secret_key = f.read()
+     payload = {'id':3,'service_account':True,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
+     with open('jwt', 'w') as f:
+       f.write(jwt.encode(payload, secret_key).decode('utf-8'))
+     "
+     kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
+   serviceAccount: ci2-agent
+   scopes:
+    - test
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - base_image
+ - kind: buildImage
+   name: hail_build_image
+   dockerFile: hail/Dockerfile.hail-build
+   contextPath: hail
+   publishAs: hail-build
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: hail_run_image
+   dockerFile: hail/Dockerfile.hail-run
+   contextPath: hail
+   publishAs: hail-run
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: scorecard_image
+   dockerFile: scorecard/Dockerfile
+   contextPath: scorecard
+   publishAs: scorecard
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: site_image
+   dockerFile: site/Dockerfile
+   contextPath: site
+   publishAs: site
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: router_image
+   dockerFile: router/Dockerfile
+   contextPath: router
+   publishAs: router
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: batch_image
+   dockerFile: batch/Dockerfile
+   contextPath: .
+   publishAs: batch
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: test_batch_image
+   dockerFile: batch/Dockerfile.test
+   contextPath: .
+   publishAs: test-batch
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: test_pipeline_image
+   dockerFile: pipeline/Dockerfile.test
+   contextPath: .
+   publishAs: test-pipeline
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: image_fetcher_image
+   dockerFile: image-fetcher/Dockerfile
+   contextPath: image-fetcher
+   publishAs: image-fetcher
+ - kind: buildImage
+   name: ci_image
+   dockerFile: ci2/Dockerfile
+   contextPath: .
+   publishAs: ci2
+   dependsOn:
+     - base_image
+ - kind: buildImage
+   name: ci_utils_image
+   dockerFile: ci2/Dockerfile.ci-utils
+   contextPath: ci2
+   publishAs: ci-utils
+   dependsOn:
+     - base_image
+ - kind: runImage
+   name: build_hail
+   image:
+     valueFrom: hail_build_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     make jars
+     (cd python && zip -r hail.zip hail)
+     tar czf test.tar.gz -C python test
+     tar czf resources.tar.gz -C src/test resources
+     tar czf data.tar.gz -C python/hail/docs data
+     tar czf www-src.tar.gz www
+     tar czf cluster-tests.tar.gz python/cluster-tests
+   outputs:
+     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+       to: /hail.jar
+     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
+       to: /hail-test.jar
+     - from: /io/repo/hail/testng.xml
+       to: /testng.xml
+     - from: /io/repo/hail/testng-cpp-codegen.xml
+       to: /testng-cpp-codegen.xml
+     - from: /io/repo/hail/python/hail.zip
+       to: /hail.zip
+     - from: /io/repo/hail/test.tar.gz
+       to: /test.tar.gz
+     - from: /io/repo/hail/resources.tar.gz
+       to: /resources.tar.gz
+     - from: /io/repo/hail/data.tar.gz
+       to: /data.tar.gz
+     - from: /io/repo/hail/www-src.tar.gz
+       to: /www-src.tar.gz
+     - from: /io/repo/hail/cluster-tests.tar.gz
+       to: /cluster-tests.tar.gz
+     - from: /io/repo/hail/create_config_file.py
+       to: /create_config_file.py
+   dependsOn:
+    - hail_build_image
+ - kind: runImage
+   name: test_hail_java
+   image:
+     valueFrom: hail_run_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     export HAIL_TEST_SKIP_R=1
+     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
+     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng.xml
+      to: /io/testng.xml
+    - from: /testng-cpp-codegen.xml
+      to: /io/testng-cpp-codegen.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: buildImage
+   name: hail_base_image
+   dockerFile: apiserver/Dockerfile.hail-base
+   contextPath: .
+   publishAs: hail-base
+   dependsOn:
+    - hail_run_image
+    - build_hail
+   inputs:
+    - from: /hail.jar
+      to: /hail.jar
+    - from: /hail.zip
+      to: /hail.zip
+ - kind: buildImage
+   name: apiserver_image
+   dockerFile: apiserver/Dockerfile.apiserver
+   contextPath: .
+   publishAs: apiserver
+   dependsOn:
+    - hail_base_image
+ - kind: buildImage
+   name: hail_jupyter_image
+   dockerFile: apiserver/Dockerfile.hail-jupyter
+   contextPath: .
+   publishAs: hail-jupyter
+   dependsOn:
+    - hail_base_image
+    - default_ns
+ - kind: buildImage
+   name: spark_master_image
+   dockerFile: apiserver/Dockerfile.spark-master
+   contextPath: apiserver
+   publishAs: spark-master
+   dependsOn:
+    - hail_base_image
+ - kind: buildImage
+   name: spark_worker_image
+   dockerFile: apiserver/Dockerfile.spark-worker
+   contextPath: apiserver
+   publishAs: spark-worker
+   dependsOn:
+    - hail_base_image
+ - kind: buildImage
+   name: test_apiserver_image
+   dockerFile: apiserver/Dockerfile.test-apiserver
+   contextPath: .
+   publishAs: test-apiserver
+   inputs:
+    - from: /test.tar.gz
+      to: /test.tar.gz
+    - from: /resources.tar.gz
+      to: /resources.tar.gz
+    - from: /data.tar.gz
+      to: /data.tar.gz
+   dependsOn:
+    - hail_base_image
+    - build_hail
+ - kind: buildImage
+   name: notebook2_image
+   dockerFile: notebook2/Dockerfile
+   contextPath: .
+   publishAs: notebook2
+   dependsOn:
+    - base_image
+ - kind: runImage
+   name: test_hail_python
+   image:
+     valueFrom: hail_run_image.image
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xzf resources.tar.gz
+     tar xzf data.tar.gz
+     export HAIL_TEST_RESOURCES_DIR=./resources
+     export HAIL_DOCTEST_DATA_DIR=./data
+     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
+     export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
+     python3 -m pytest test
+   inputs:
+     - from: /hail.jar
+       to: /io/hail.jar
+     - from: /hail.zip
+       to: /io/hail.zip
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
+     - from: /resources.tar.gz
+       to: /io/resources.tar.gz
+     - from: /data.tar.gz
+       to: /io/data.tar.gz
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_python_docs
+   image:
+     valueFrom: hail_base_image.image
+   script: |
+     set -ex
+     cd /hail/python/hail
+     python3 -m pytest \
+       --doctest-modules \
+       --doctest-glob='*.rst' \
+       --ignore=docs/conf.py \
+       --ignore=docs/doctest_write_data.py
+   dependsOn:
+    - hail_base_image
+ - kind: runImage
+   name: test_dataproc
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     # FIXME use local cloudtools
+     python3 -m pip install -U cloudtools==4.0.0
+     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
+     gcloud config set project broad-ctsa
+     SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
+     time gsutil cp \
+       /io/hail.jar \
+       $SCRATCH/hail.jar
+     time gsutil cp \
+       /io/hail.zip \
+       $SCRATCH/hail.zip
+     tar xzf /io/cluster-tests.tar.gz
+     python3 /io/create_config_file.py 0.2 config.json
+     CLUSTER=ci-test-{{ token }}
+     time cluster start $CLUSTER \
+       --master-machine-type n1-standard-1 \
+       --master-boot-disk-size 40 \
+       --worker-machine-type n1-standard-1 \
+       --worker-boot-disk-size 40 \
+       --version 0.2 \
+       --spark 2.4.0 \
+       --max-idle 10m \
+       --bucket hail-ci-0-1-dataproc-staging-bucket \
+       --config-file config.json \
+       --hash {{ code.sha }} \
+       --jar $SCRATCH/hail.jar \
+       --zip $SCRATCH/hail.zip
+     for SCRIPT in python/cluster-tests/*.py; do
+       time cluster submit $CLUSTER $SCRIPT
+     done
+     time gsutil rm -rf $SCRATCH
+     time cluster stop $CLUSTER --async
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secrets/ci-secrets
+   inputs:
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /hail.jar
+      to: /io/hail.jar
+    - from: /cluster-tests.tar.gz
+      to: /io/cluster-tests.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
+   dependsOn:
+    - base_image
+    - build_hail
+ - kind: runImage
+   name: cleanup_dataproc
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -x
+     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
+     gcloud config set project broad-ctsa
+     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ test_dataproc.token }}
+     time gcloud -q dataproc clusters delete --async ci-test-{{ test_dataproc.token }}
+     true
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   alwaysRun: true
+   dependsOn:
+    - base_image
+    - test_dataproc
+ - kind: runImage
+   name: make_docs
+   image:
+     valueFrom: hail_base_image.image
+   script: |
+     set -ex
+     export HAIL_SHORT_VERSION='0.2'
+     export SPHINXOPTS='-tchecktutorial'
+     cd /io
+     unzip -q hail.zip
+     # docs refer to www, maintain standard relationship
+     mkdir python
+     mv hail python
+     tar xzf www-src.tar.gz
+     sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+       < python/hail/docs/change_log.md \
+       | pandoc -o python/hail/docs/change_log.rst
+     make -C www
+     make -C python/hail/docs BUILDDIR=_build clean html
+     mkdir -p www/docs
+     mv python/hail/docs/_build/html www/docs/0.2
+     tar czf www.tar.gz www
+   inputs:
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /www-src.tar.gz
+      to: /io/www-src.tar.gz
+   outputs:
+    - from: /io/www.tar.gz
+      to: /www.tar.gz
+   dependsOn:
+    - hail_base_image
+    - build_hail
+ - kind: deploy
+   name: deploy_router
+   namespace:
+     valueFrom: default_ns.name
+   config: router/deployment.yaml
+   link:
+    - www
+    - scorecard
+    - notebook2
+    - ci2
+   dependsOn:
+    - default_ns
+    - router_image
+ - kind: deploy
+   name: deploy_site
+   namespace:
+     valueFrom: default_ns.name
+   config: site/deployment.yaml
+   dependsOn:
+    - default_ns
+    - site_image
+    - deploy_router
+ - kind: deploy
+   name: deploy_scorecard
+   namespace:
+     valueFrom: default_ns.name
+   config: scorecard/deployment.yaml
+   dependsOn:
+    - default_ns
+    - scorecard_image
+    - deploy_router
+ - kind: deploy
+   name: deploy_ci
+   namespace:
+     valueFrom: default_ns.name
+   config: ci2/deployment.yaml
+   wait:
+    - kind: Service
+      name: ci2
+      for: alive
+   dependsOn:
+    - default_ns
+    - ci_image
+    - ci_utils_image
+ - kind: createDatabase
+   name: batch_database
+   databaseName: batch
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: buildImage
+   name: create_batch_tables_image
+   dockerFile: batch/Dockerfile.create-tables
+   contextPath: batch
+   dependsOn:
+    - base_image
+ - kind: deploy
+   name: create_batch_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - create_batch_tables_image
+     - batch_database
+ - kind: deploy
+   name: create_batch_tables_2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/create-batch-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-batch-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - create_batch_tables_image
+     - batch_database
+     - create_batch_tables
+ - kind: deploy
+   name: deploy_batch
+   namespace:
+     valueFrom: default_ns.name
+   config: batch/deployment.yaml
+   wait:
+    - kind: Service
+      name: batch
+      for: alive
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - batch_image
+    - batch_database
+    - create_batch_tables
+ - kind: deploy
+   name: deploy_batch_pods
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/batch-pods-deployment.yaml
+   dependsOn:
+    - batch_pods_ns
+ - kind: deploy
+   name: deploy_image_fetcher
+   namespace:
+     valueFrom: default_ns.name
+   config: image-fetcher/deployment.yaml
+   dependsOn:
+    - default_ns
+    - image_fetcher_image
+ - kind: deploy
+   name: test_batch
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/test-batch-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-batch
+      for: completed
+      timeout: 900
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - deploy_batch_pods
+    - test_batch_image
+ - kind: runImage
+   name: setup_pipeline
+   image:
+     valueFrom: test_pipeline_image.image
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
+   secrets:
+    # hail|test-batch
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   dependsOn:
+    - test_pipeline_image
+ - kind: deploy
+   name: test_pipeline
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: pipeline/test-pipeline-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-pipeline
+      for: completed
+      timeout: 900
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - deploy_batch
+    - test_pipeline_image
+    - setup_pipeline
+ - kind: runImage
+   name: cleanup_pipeline
+   image:
+     valueFrom: base_image.image
+   alwaysRun: true     
+   script: |
+     set -e
+     gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
+     gsutil rm -r gs://hail-test-1c9nm/{{ setup_pipeline.token }}/pipeline
+   secrets:
+    # hail|test-batch
+    - name: test-gsa-key
+      mountPath: /test-gsa-key
+   dependsOn:
+    - base_image
+    - setup_pipeline    
+    - test_pipeline
+ - kind: deploy
+   name: deploy_apiserver
+   namespace:
+     valueFrom: default_ns.name
+   config: apiserver/deployment.yaml
+   wait:
+    - kind: Deployment
+      name: spark-master
+      for: available
+    - kind: Deployment
+      name: spark-worker
+      for: available
+    - kind: Service
+      name: apiserver
+      port: 5000
+      for: alive
+   dependsOn:
+    - default_ns
+    - test_batch_image
+    - spark_master_image
+    - spark_worker_image
+    - apiserver_image
+ - kind: deploy
+   name: test_apiserver
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: apiserver/test-apiserver-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-apiserver
+      for: completed
+      timeout: 180
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - test_apiserver_image
+    - deploy_apiserver
+ - kind: deploy
+   name: deploy_notebook2
+   namespace:
+     valueFrom: default_ns.name
+   config: notebook2/deployment.yaml
+   dependsOn:
+    - default_ns
+    - notebook2_image
+    - hail_jupyter_image
+    - deploy_router
+ - kind: runImage
+   name: create_ci_test_repo
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     TOKEN=$(cat /secret/ci-secrets/user1)
+     echo creating ci-test-{{ token }}...
+     curl -XPOST \
+       -i \
+       https://api.github.com/orgs/hail-ci-test/repos \
+       -H "Authorization: token ${TOKEN}" \
+       -d "{ \"name\" : \"ci-test-{{ token }}\" }"
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   dependsOn:
+    - base_image
+ - kind: runImage
+   name: cleanup_ci_test_repo
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -e
+     TOKEN=$(cat /secret/ci-secrets/user1)
+     echo deleting ci-test-{{ create_ci_test_repo.token }}...
+     curl -XDELETE \
+       -i \
+       https://api.github.com/repos/hail-ci-test/ci-test-{{ create_ci_test_repo.token }} \
+       -H "Authorization: token ${TOKEN}"
+   secrets:
+    - name: hail-ci-0-1-service-account-key
+      mountPath: /secret/ci-secrets
+   alwaysRun: true
+   dependsOn:
+    - base_image
+    - create_ci_test_repo
+ - kind: runImage
+   name: deploy_hail
+   script: |
+     set -ex
+     gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+     SPARK_VERSION=2.4.0
+     BRANCH=0.2
+     CLOUDTOOLS_VERSION=4
+     SHA="{{ code.sha }}"
+     GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
+     gsutil cp /io/hail.jar ${GS_JAR}
+     gsutil acl set public-read ${GS_JAR}
+     GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
+     gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
+     gsutil acl set public-read ${GS_HAIL_ZIP}
+     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+     gsutil acl set public-read $CONFIG
+     DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
+     gsutil cp /io/www.tar.gz ${DOCS}
+     gsutil acl set public-read ${DOCS}
+     echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
+     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+     # gsutil acl set public-read ${HASH_TARGET}
+   image:
+     valueFrom: base_image.image
+   secrets:
+    - name: ci-deploy-0-1--hail-is-hail
+      mountPath: /secrets
+   inputs:
+    - from: /hail.jar
+      to: /io/hail.jar
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /www.tar.gz
+      to: /io/www.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
+   scopes:
+    - deploy
+   dependsOn:
+    - base_image
+    - make_docs
+    - build_hail

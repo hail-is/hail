@@ -1,5 +1,5 @@
 MAKEFLAGS += --no-builtin-rules
-.PHONY: all clean debug prebuilt test
+.PHONY: all clean debug prebuilt test reset-prebuilt
 .SUFFIXES:
 .DEFAULT_GOAL := all
 
@@ -23,7 +23,7 @@ LIBSIMDPP := libsimdpp-2.1
 CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo to
-# this list
+# this list. Remember to rerun make prebuilt.
 OBJECTS := \
   davies \
   ibs \
@@ -39,6 +39,7 @@ OBJECTS := \
   PartitionIterators \
   Region \
   Upcalls \
+  Hadoop \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 
@@ -169,6 +170,10 @@ $(PREBUILT)/$(LIBHAIL): $(LIBHAIL)
 	cp -p -f $< $@
 
 prebuilt: $(PREBUILT)/$(LIBBOOT) $(PREBUILT)/$(LIBHAIL)
+
+reset-prebuilt:
+	git checkout HEAD -- $(PREBUILT)/$(LIBBOOT)
+	git checkout HEAD -- $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
 	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \

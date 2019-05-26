@@ -2,6 +2,7 @@
 A Jupyter notebook service with local-mode Hail pre-installed
 """
 
+import secrets
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -16,12 +17,11 @@ from functools import wraps
 
 import logging
 import os
-import re
 import requests
 import uuid
 import hashlib
 import kubernetes as kube
-import os
+import jwt
 
 from table import Table
 from hailjwt import JWTClient, get_domain
@@ -73,10 +73,9 @@ INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
-SECRET_KEY = read_string('/notebook-secrets/secret-key')
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = SECRET_KEY,
+    SECRET_KEY = secrets.token_bytes(16),
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
@@ -99,6 +98,8 @@ auth0 = oauth.register(
 
 user_table = Table()
 
+WORKER_IMAGE = os.environ['HAIL_NOTEBOOK2_WORKER_IMAGE']
+
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
@@ -108,18 +109,9 @@ k8s = kube.client.CoreV1Api()
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
-try:
-    with open('notebook-worker-images', 'r') as f:
-        def get_name(line):
-            return re.search("/([^/:]+):", line).group(1)
-        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
-except FileNotFoundError as e:
-    raise ValueError(
-        "working directory must contain a file called `notebook-worker-images' "
-        "containing the name of the docker image to use for worker pods.") from e
+with open('/jwt-secret-key/secret-key', 'rb') as f:
+    jwtclient = JWTClient(f.read())
 
-
-jwtclient = JWTClient(SECRET_KEY)
 
 def jwt_decode(token):
     if token is None:
@@ -130,6 +122,7 @@ def jwt_decode(token):
     except jwt.exceptions.InvalidTokenError as e:
         log.warn(f'found invalid token {e}')
         return None
+
 
 def attach_user():
     def attach_user(f):
@@ -162,8 +155,13 @@ def requires_auth(for_page = True):
     return auth
 
 
-def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name):
+def start_pod(jupyter_token, image, name, user_id, user_data):
     pod_id = uuid.uuid4().hex
+
+    ksa_name = user_data['ksa_name']
+    bucket = user_data['bucket_name']
+    gsa_key_secret_name = user_data['gsa_key_secret_name']
+    jwt_secret_name = user_data['jwt_secret_name']
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
@@ -174,10 +172,13 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{pod_id}/',
+                    f'--GoogleStorageContentManager.default_path="{bucket}"',
                     "--ip", "0.0.0.0", "--no-browser"
                 ],
                 name='default',
                 image=image,
+                env=[kube.client.V1EnvVar(name='HAIL_TOKEN_FILE',
+                                          value='/user-jwt/jwt')],
                 ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
@@ -188,8 +189,13 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
                         port=POD_PORT)),
                 volume_mounts=[
                     kube.client.V1VolumeMount(
-                        mount_path='/gsa-key-secret-name',
-                        name='gsa-key-secret-name',
+                        mount_path='/gsa-key',
+                        name='gsa-key',
+                        read_only=True
+                    ),
+                    kube.client.V1VolumeMount(
+                        mount_path='/user-jwt',
+                        name='user-jwt',
                         read_only=True
                     )
                 ]
@@ -197,9 +203,15 @@ def start_pod(jupyter_token, image, name, user_id, ksa_name, gsa_key_secret_name
         ],
         volumes=[
             kube.client.V1Volume(
-                name='gsa-key-secret-name',
+                name='gsa-key',
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name=gsa_key_secret_name
+                )
+            ),
+            kube.client.V1Volume(
+                name='user-jwt',
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=jwt_secret_name
                 )
             )
         ]
@@ -340,7 +352,6 @@ def notebook_page():
     if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
-                               images=list(WORKER_IMAGES),
                                default='hail-jupyter')
 
     session['notebook'] = notebooks[0]
@@ -363,17 +374,11 @@ def notebook_delete():
 @app.route('/notebook', methods=['POST'])
 @requires_auth()
 def notebook_post():
-    image = request.form['image']
-
-    if image not in WORKER_IMAGES:
-        return '', 404
-
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = user_id_transform(g.user['auth0_id'])
+    safe_id = user_id_transform(g.user['auth0_id'])
 
-    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name,
-                    safe_user_id, g.user['ksa_name'], g.user['gsa_key_secret_name'])
+    pod = start_pod(jupyter_token, WORKER_IMAGE, name, safe_id, g.user)
     session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
@@ -465,7 +470,7 @@ def admin_login_post():
 
 @app.route('/worker-image')
 def worker_image():
-    return '\n'.join(WORKER_IMAGES.values()), 200
+    return WORKER_IMAGE, 200
 
 
 @sockets.route('/wait')
@@ -515,9 +520,8 @@ def auth0_callback():
     userinfo = auth0.get('userinfo').json()
 
     email = userinfo['email']
-    workshop_user = session.get('workshop_user', False)
 
-    if AUTHORIZED_USERS.get(email) is None and workshop_user is False:
+    if AUTHORIZED_USERS.get(email) is None:
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     g.user = {
@@ -546,28 +550,14 @@ def error_page():
     return render_template('error.html', error = request.args.get('err'))
 
 
-@app.route('/login', methods=['GET'])
-@attach_user()
-def login_page():
-    return render_template('login.html')
-
-
 @app.route('/user', methods=['GET'])
 @requires_auth()
 def user_page():
     return render_template('user.html', user=g.user)
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET'])
 def login_auth0():
-    workshop_password = request.form['workshop-password']
-
-    if workshop_password != '':
-        if workshop_password != PASSWORD:
-            return redirect(external_url_for(f"error?err=Unauthorized"))
-
-        session['workshop_user'] = True
-
     return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
                                     audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 

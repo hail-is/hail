@@ -21,6 +21,11 @@ pylint
 PyMySQL==0.9.*
 pytest
 requests
+urllib3<1.25,>=1.21.1
 uvloop>=0.12
 werkzeug
 shortuuid==0.5.*
+parsimonious
+kubernetes_asyncio
+gcsfs==0.2.1
+hurry.filesize==0.9

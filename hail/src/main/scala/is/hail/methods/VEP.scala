@@ -6,8 +6,8 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._
@@ -17,7 +17,6 @@ import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 import org.apache.hadoop
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -83,7 +82,7 @@ object VEP {
     val env = pb.environment()
     confEnv.foreach { case (key, value) => env.put(key, value) }
 
-    val (jt, proc) = List((Locus("1", 13372), IndexedSeq("G", "C"))).iterator.pipe(pb,
+    val (jt, proc) = List((Locus("1", 13372), FastIndexedSeq("G", "C"))).iterator.pipe(pb,
       printContext,
       printElement,
       _ => ())
@@ -101,8 +100,8 @@ object VEP {
 }
 
 case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
-  private val vepSignature = conf.vep_json_schema
+  private lazy val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
+  private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
 

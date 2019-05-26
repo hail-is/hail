@@ -17,8 +17,8 @@ Regardless of installation method, you will need:
   <https://www.anaconda.com/download/>`_
 
 For all methods *other than using pip*, you will additionally need `Spark
-2.2.x
-<https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
+2.4.x
+<https://www.apache.org/dyn/closer.lua/spark/spark-2.4.0/spark-2.4.0-bin-hadoop2.7.tgz>`_.
 
 
 Installation
@@ -66,7 +66,7 @@ On Mac OS X, you might try::
 
 To build the Hail JAR compatible with Spark 2.3.0, execute this::
 
-    ./gradlew -Dspark.version=2.3.0 shadowJar
+    ./gradlew -Dspark.version=2.3.0 releaseJar
 
 The Spark version in this command should match whichever version of Spark you
 would like to build against.
@@ -74,7 +74,7 @@ would like to build against.
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.2 cluster. For example, Google and Amazon offer
+Hail can run on any Spark 2.4 cluster. For example, Google and Amazon offer
 optimized Spark performance and exceptional scalability to thousands of cores
 without the overhead of installing and managing an on-premesis cluster.
 
@@ -104,7 +104,7 @@ profile file for your shell (e.g. ``~/.bash_profile``).
 
 .. code-block:: sh
 
-    export SPARK_HOME=/path/to/spark-2.2.0/
+    export SPARK_HOME=/path/to/spark-2.4.0/
     export HAIL_HOME=/path/to/hail/
     export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$HAIL_HOME/build/distributions/hail-python.zip"
     export PYTHONPATH="$PYTHONPATH:$SPARK_HOME/python"
@@ -188,9 +188,9 @@ the same as above, except:
  - On a Cloudera cluster, when building a Hail JAR, you must specify a Cloudera
    version of Spark and the associated py4j version. The following example
    builds a Hail JAR for Cloudera's
-   2.2.0 version of Spark::
+   2.4.0 version of Spark::
 
-    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera -Dpy4j.version=0.10.4
+    ./gradlew releaseJar -Dspark.version=2.4.0.cloudera -Dpy4j.version=0.10.7
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,

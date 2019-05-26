@@ -1,7 +1,11 @@
-FROM hail-base
+FROM {{ hail_base_image.image }}
 
-COPY apiserver /apiserver
+COPY apiserver/apiserver /apiserver
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt/ /hailjwt/hailjwt/
+RUN python3 -m pip install --no-cache-dir /hailjwt \
+  && rm -rf /hailjwt
 
-ENV HAIL_SPARK_PROPERTIES "spark.driver.port=9001,spark.blockManager.port=9002"
+ENV HAIL_SPARK_PROPERTIES "spark.driver.host=apiserver,spark.driver.bindAddress=0.0.0.0,spark.driver.port=9001,spark.blockManager.port=9002"
 
-CMD ["/bin/bash", "-c", "source activate hail; python /apiserver/apiserver.py"]
+CMD ["python3", "/apiserver/apiserver.py"]

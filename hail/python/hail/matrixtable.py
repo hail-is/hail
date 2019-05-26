@@ -10,7 +10,7 @@ from hail.expr.types import *
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir import *
-from hail.table import Table, ExprContainer
+from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
 from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
@@ -2493,6 +2493,96 @@ class MatrixTable(ExprContainer):
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
         Env.backend().execute(MatrixWrite(self._mir, writer))
 
+    class _Show:
+        def __init__(self, table, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types):
+            self.table_show = table._show(n_rows, width, truncate, types)
+            self.actual_n_cols = actual_n_cols
+            self.displayed_n_cols = displayed_n_cols
+
+        def __str__(self):
+            s = self.table_show.__str__()
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
+            return s
+
+        def __repr__(self):
+            return self.__str__()
+
+        def _repr_html_(self):
+            s = self.table_show._repr_html_()
+            if self.displayed_n_cols != self.actual_n_cols:
+                s += '<p>'
+                s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
+                s += '</p>\n'
+            return s
+
+    @typecheck_method(n_rows=nullable(int),
+                      n_cols=nullable(int),
+                      include_row_fields=bool,
+                      width=nullable(int),
+                      truncate=nullable(int),
+                      types=bool,
+                      handler=nullable(anyfunc))
+    def show(self,
+             n_rows=None,
+             n_cols=None,
+             include_row_fields=False,
+             width=None,
+             truncate=None,
+             types=True,
+             handler=None):
+        """Print the first few rows of the table to the console.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        n_rows : :obj:`int`
+            Maximum number of rows to show.
+        n_cols : :obj:`int`
+            Maximum number of rows to show.
+        width : :obj:`int`
+            Horizontal width at which to break fields.
+        truncate : :obj:`int`, optional
+            Truncate each field to the given number of characters. If
+            ``None``, truncate fields to the given `width`.
+        types : :obj:`bool`
+            Print an extra header line with the type of each field.
+        handler : Callable[[str], Any]
+            Handler function for data string.
+        """
+
+        def estimate_size(struct_expression):
+            return sum(max(len(f), len(str(x.dtype))) + 3
+                       for f, x in struct_expression.flatten().items())
+
+        if n_cols is None:
+            import shutil
+            (characters, _) = shutil.get_terminal_size((80, 10))
+            characters -= 6 # borders
+            key_characters = estimate_size(self.row_key)
+            characters -= key_characters
+            if include_row_fields:
+                characters -= estimate_size(self.row_value)
+            characters = max(characters, 0)
+            n_cols = characters // (estimate_size(self.entry) + 4) # 4 for the column index
+        actual_n_cols = self.count_cols()
+        displayed_n_cols = min(actual_n_cols, n_cols)
+
+        t = self.localize_entries('entries', 'cols')
+        t = t.key_by()
+        t = t.select(
+            **{f: t[f] for f in self.row_key},
+            **{f: t[f] for f in self.row_value if include_row_fields},
+            **{str(i): t.entries[i] for i in range(0, displayed_n_cols)})
+        if handler is None:
+            try:
+                from IPython.display import display
+                handler = display
+            except ImportError:
+                handler = print
+        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
+
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
 
@@ -2585,6 +2675,12 @@ class MatrixTable(ExprContainer):
         To preserve the original row-major entry order as the table row order,
         first unkey the columns using :meth:`key_cols_by` with no arguments.
 
+        Warning
+        -------
+        If the matrix table has no row key, but has a column key, this operation
+        may require a full shuffle to sort by the column key, depending on the
+        pipeline.
+
         Returns
         -------
         :class:`.Table`
@@ -2614,7 +2710,7 @@ class MatrixTable(ExprContainer):
         """
         return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
-    def index_rows(self, *exprs) -> 'StructExpression':
+    def index_rows(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2623,13 +2719,15 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.locus, dataset.alleles).qual)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.row_key).qual)
 
         Parameters
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Notes
         -----
@@ -2641,61 +2739,18 @@ class MatrixTable(ExprContainer):
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
-        exprs = [to_expr(e) for e in exprs]
-        indices, aggregations = unify_all(*exprs)
-        src = indices.source
+        try:
+            return self.rows()._index(*exprs, all_matches=all_matches)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(
+                f"Key type mismatch: cannot index matrix table with given expressions:\n"
+                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
-        if aggregations:
-            raise ExpressionException('Cannot join using an aggregated field')
-        uid = Env.get_uid()
-        uids_to_delete = [uid]
-
-        if src is None:
-            raise ExpressionException('Cannot index with a scalar expression')
-
-        if not types_match(self.row_key.values(), exprs):
-            if (len(exprs) == 1
-                    and isinstance(exprs[0], TupleExpression)
-                    and types_match(self.row_key.values(), exprs[0])):
-                return self.index_rows(*exprs[0])
-            elif (len(exprs) == 1
-                  and isinstance(exprs[0], StructExpression)
-                  and types_match(self.row_key.values(), exprs[0].values())):
-                return self.index_rows(*exprs[0].values())
-            else:
-                raise ExpressionException(
-                    f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
-
-        if isinstance(src, Table):
-            # join table with matrix.rows_table()
-            right = self.rows()
-            return right.index(*exprs)
-        else:
-            assert isinstance(src, MatrixTable)
-            right = self
-
-            # fast path
-            is_row_key = len(exprs) == len(src.row_key) and all(
-                exprs[i] is src._fields[list(src.row_key)[i]] for i in range(len(exprs)))
-
-            if is_row_key:
-                def joiner(left):
-                    return MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right.rows()._tir, uid))
-                schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                ir = Join(GetField(TopLevelReference('va'), uid),
-                          uids_to_delete,
-                          exprs,
-                          joiner)
-                return construct_expr(ir, schema, indices, aggregations)
-            else:
-                return self.rows().index(*exprs)
-
-    def index_cols(self, *exprs) -> 'StructExpression':
+    def index_cols(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the column values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2704,13 +2759,15 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.s).pheno)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.col_key).pheno)
 
         Parameters
         ----------
         exprs : variable-length args of :class:`.Expression`
             Index expressions.
+        all_matches : bool
+            Experimental. If ``True``, value of expression is array of all matches.
 
         Notes
         -----
@@ -2722,9 +2779,16 @@ class MatrixTable(ExprContainer):
 
         Returns
         -------
-        :class:`.StructExpression`
+        :class:`.Expression`
         """
-        return self.cols().index(*exprs)
+        try:
+            return self.cols()._index(*exprs, all_matches=all_matches)
+        except TableIndexKeyError as err:
+            key_type, exprs = err.args
+            raise ExpressionException(
+                f"Key type mismatch: cannot index matrix table with given expressions:\n"
+                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_entries(self, row_exprs, col_exprs):
         """Expose the entries as if looked up in a dictionary, indexing
@@ -2735,7 +2799,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2.index_entries(dataset.row_key, dataset.col_key).GQ)
 
         Or equivalently:
-        
+
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
 
         Parameters
@@ -2859,22 +2923,16 @@ class MatrixTable(ExprContainer):
 
         >>> mt = hl.utils.range_matrix_table(3,3)
         >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
-        >>> mt.x.show()
-        +---------+---------+-------+
-        | row_idx | col_idx |     x |
-        +---------+---------+-------+
-        |   int32 |   int32 | int32 |
-        +---------+---------+-------+
-        |       0 |       0 |     0 |
-        |       0 |       1 |     0 |
-        |       0 |       2 |     0 |
-        |       1 |       0 |     0 |
-        |       1 |       1 |     1 |
-        |       1 |       2 |     2 |
-        |       2 |       0 |     0 |
-        |       2 |       1 |     2 |
-        |       2 |       2 |     4 |
-        +---------+---------+-------+
+        >>> mt.show()
+        +---------+-------+-------+-------+
+        | row_idx |   0.x |   1.x |   2.x |
+        +---------+-------+-------+-------+
+        |   int32 | int32 | int32 | int32 |
+        +---------+-------+-------+-------+
+        |       0 |     0 |     0 |     0 |
+        |       1 |     0 |     1 |     2 |
+        |       2 |     0 |     2 |     4 |
+        +---------+-------+-------+-------+
 
         >>> t = mt.localize_entries('entry_structs', 'columns')
         >>> t.describe()
@@ -2882,13 +2940,13 @@ class MatrixTable(ExprContainer):
         Global fields:
             'columns': array<struct {
                 col_idx: int32
-            }> 
+            }>
         ----------------------------------------
         Row fields:
-            'row_idx': int32 
+            'row_idx': int32
             'entry_structs': array<struct {
                 x: int32
-            }> 
+            }>
         ----------------------------------------
         Key: ['row_idx']
         ----------------------------------------
@@ -3154,7 +3212,7 @@ class MatrixTable(ExprContainer):
         can allow one to take advantage of more cores. Partitions are a core
         concept of distributed computation in Spark, see `their documentation
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
-        for details. 
+        for details.
 
         When ``shuffle=True``, Hail does a full shuffle of the data
         and creates equal sized partitions.  When ``shuffle=False``,
@@ -3210,7 +3268,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
-        
+
         return MatrixTable(MatrixRepartition(
             self._mir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
@@ -3525,7 +3583,7 @@ class MatrixTable(ExprContainer):
             raise ValueError(f'row key types differ:\n'
                              f'    left: {", ".join(self.row_key.dtype.values())}\n'
                              f'    right: {", ".join(other.row_key.dtype.values())}')
-        
+
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
     @typecheck_method(n=nullable(int), n_cols=nullable(int))
@@ -3582,11 +3640,11 @@ class MatrixTable(ExprContainer):
         if n is not None:
             if n < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(MatrixRowsHead(self._mir, n))
+            mt = MatrixTable(MatrixRowsHead(mt._mir, n))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
-            mt = mt.filter_cols(hl.scan.count() < n_cols)
+            mt = MatrixTable(MatrixColsHead(mt._mir, n_cols))
         return mt
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
@@ -3786,19 +3844,19 @@ class MatrixTable(ExprContainer):
         .. code-block:: text
 
           Global fields:
-              'batch': str 
+              'batch': str
           Column fields:
-              's': str 
+              's': str
           Row fields:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
           Entry fields:
-              'GT': call 
-              'GQ': int32 
+              'GT': call
+              'GQ': int32
           Column key:
-              's': str 
+              's': str
           Row key:
-              'locus': locus<GRCh37> 
+              'locus': locus<GRCh37>
               'alleles': array<str>
 
         and three sample IDs: `A`, `B` and `C`.  Then the result of
@@ -3812,19 +3870,19 @@ class MatrixTable(ExprContainer):
         .. code-block:: text
 
           Global fields:
-              'batch': str 
+              'batch': str
           Row fields:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
-              'A.GT': call 
-              'A.GQ': int32 
-              'B.GT': call 
-              'B.GQ': int32 
-              'C.GT': call 
-              'C.GQ': int32 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
+              'A.GT': call
+              'A.GQ': int32
+              'B.GT': call
+              'B.GQ': int32
+              'C.GT': call
+              'C.GQ': int32
           Key:
-              'locus': locus<GRCh37> 
-              'alleles': array<str> 
+              'locus': locus<GRCh37>
+              'alleles': array<str>
 
         Notes
         -----
@@ -3851,14 +3909,14 @@ class MatrixTable(ExprContainer):
 
         col_key_field = list(self.col_key)[0]
         col_keys = [k[col_key_field] for k in self.col_key.collect()]
-        
+
         duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
         if duplicates:
             raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
-        
+
         entries_uid = Env.get_uid()
         cols_uid = Env.get_uid()
-        
+
         t = self
         t = t._localize_entries(entries_uid, cols_uid)
 

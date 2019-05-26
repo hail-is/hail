@@ -1,6 +1,6 @@
 import abc
 
-from .utils import escape_string
+from shlex import quote as shq
 
 
 class Resource:
@@ -15,7 +15,7 @@ class Resource:
         pass
 
     def _declare(self, directory):
-        return f"{self._uid}={escape_string(self._get_path(directory))}"
+        return f"{self._uid}={shq(self._get_path(directory))}"
 
 
 class ResourceFile(Resource, str):
@@ -60,7 +60,7 @@ class ResourceFile(Resource, str):
     def _add_output_path(self, path):
         self._output_paths.add(path)
         if self._source is not None:
-            self._source._add_outputs(self)
+            self._source._external_outputs.add(self)
 
     def _add_resource_group(self, rg):
         self._resource_group = rg
@@ -126,7 +126,7 @@ class InputResourceFile(ResourceFile):
 
     def _get_path(self, directory):
         assert self._value is not None
-        return directory + '/inputs/' + self._value
+        return shq(directory + '/inputs/' + self._value)
 
 
 class TaskResourceFile(ResourceFile):
@@ -143,7 +143,7 @@ class TaskResourceFile(ResourceFile):
     def _get_path(self, directory):
         assert self._source is not None
         assert self._value is not None
-        return directory + '/' + self._source._uid + '/' + self._value
+        return shq(directory + '/' + self._source._uid + '/' + self._value)
 
 
 class ResourceGroup(Resource):
@@ -202,7 +202,6 @@ class ResourceGroup(Resource):
         self._resources = {}  # dict of name to resource uid
         self._root = root
         self._uid = ResourceGroup._new_uid()
-        self._output_paths = set()
 
         for name, resource_file in values.items():
             assert isinstance(resource_file, ResourceFile)
@@ -214,9 +213,8 @@ class ResourceGroup(Resource):
         return directory + '/' + subdir + '/' + self._root
 
     def _add_output_path(self, path):
-        self._output_paths.add(path)
-        if self._source is not None:
-            self._source._add_outputs(self)
+        for name, rf in self._resources.items():
+            rf._add_output_path(path + '.' + name)
 
     def _get_resource(self, item):
         if item not in self._resources:

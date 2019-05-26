@@ -3,8 +3,8 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}

@@ -5,7 +5,7 @@ build: build-stmp
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push deploy
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT := $(shell gcloud config get-value project)
 BASE_LATEST = gcr.io/$(PROJECT)/base:latest
 BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
 

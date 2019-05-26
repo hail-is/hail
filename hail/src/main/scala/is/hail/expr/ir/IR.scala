@@ -16,7 +16,7 @@ sealed trait IR extends BaseIR {
 
   def pType: PType = {
     if (_ptype == null)
-      _ptype = InferPType(this)
+      _ptype = PType.canonical(typ)
     _ptype
   }
 
@@ -86,9 +86,27 @@ final case class False() extends IR
 final case class Void() extends IR
 
 final case class Cast(v: IR, _typ: Type) extends IR
+final case class CastRename(v: IR, _typ: Type) extends IR
 
 final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
 final case class IsNA(value: IR) extends IR
+
+object Coalesce {
+  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
+    require(values.nonEmpty)
+    val t1 = values.head.typ
+    if (values.forall(_.typ == t1))
+      Coalesce(values)
+    else {
+      val t = unifyType.getOrElse(t1.deepOptional())
+      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
+    }
+  }
+}
+
+final case class Coalesce(values: Seq[IR]) extends IR {
+  require(values.nonEmpty)
+}
 
 object If {
   def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
@@ -196,12 +214,19 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
 
-final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+final case class NDArrayShape(nd: IR) extends IR
+
+final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
+  require(shape.typ.asInstanceOf[TTuple].size > 0)
+}
+
+final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
@@ -213,13 +238,19 @@ final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: I
   def elementTyp: Type = typ.elementType
 }
 
+final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
+final case class NDArrayWrite(nd: IR, path: IR) extends IR
+
+final case class NDArrayMatMul(l: IR, r: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -321,20 +352,7 @@ final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
-final case class TableWrite(
-  child: TableIR,
-  path: String,
-  overwrite: Boolean = true,
-  stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null) extends IR
-
-final case class TableExport(
-  child: TableIR,
-  path: String,
-  typesFile: String = null,
-  header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED,
-  delimiter: String) extends IR
+final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
@@ -351,6 +369,8 @@ final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunc
 final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
 
 final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
+
+final case class BlockMatrixMultiWrite(blockMatrices: IndexedSeq[BlockMatrixIR], writer: BlockMatrixMultiWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
 final case class ReadPartition(path: IR, spec: CodecSpec, encodedType: TStruct, rowType: TStruct) extends IR

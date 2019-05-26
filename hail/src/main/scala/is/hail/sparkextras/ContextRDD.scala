@@ -49,7 +49,7 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
 object ContextRDD {
   def apply[C <: AutoCloseable : Pointed, T: ClassTag](
     rdd: RDD[C => Iterator[T]]
-  ): ContextRDD[C, T] = new ContextRDD(rdd, point[C])
+  ): ContextRDD[C, T] = new ContextRDD(rdd, () => point[C]())
 
   def empty[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
@@ -60,7 +60,7 @@ object ContextRDD {
   def empty[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext
   ): ContextRDD[C, T] =
-    new ContextRDD(sc.emptyRDD[C => Iterator[T]], point[C])
+    new ContextRDD(sc.emptyRDD[C => Iterator[T]], () => point[C]())
 
   // this one weird trick permits the caller to specify T without C
   sealed trait Empty[T] {
@@ -76,7 +76,7 @@ object ContextRDD {
   def union[C <: AutoCloseable : Pointed, T: ClassTag](
     sc: SparkContext,
     xs: Seq[ContextRDD[C, T]]
-  ): ContextRDD[C, T] = union(sc, xs, point[C])
+  ): ContextRDD[C, T] = union(sc, xs, () => point[C]())
 
   def union[C <: AutoCloseable, T: ClassTag](
     sc: SparkContext,
@@ -180,7 +180,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   private[this] def sparkManagedContext(): C = {
     val c = mkc()
-    TaskContext.get().addTaskCompletionListener { _ =>
+    TaskContext.get().addTaskCompletionListener { (_: TaskContext) =>
       c.close()
     }
     c
@@ -600,7 +600,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
   def preferredLocations(partition: Partition): Seq[String] =
     rdd.preferredLocations(partition)
 
-  private[this] def clean[T <: AnyRef](value: T): T =
+  private[this] def clean[U <: AnyRef](value: U): U =
     ExposedUtils.clean(sparkContext, value)
 
   def partitions: Array[Partition] = rdd.partitions

@@ -10,6 +10,18 @@ import scala.collection.mutable._
 //
 
 object Exists {
+  def inIR(node: IR, visitor: IR => Boolean): Boolean = {
+    if (visitor(node))
+      true
+    else
+      node.children.exists {
+        case child: TableAggregate => visitor(child)
+        case child: MatrixAggregate => visitor(child)
+        case child: IR => inIR(child, visitor)
+        case _ => false
+      }
+  }
+
   def apply(node: BaseIR, visitor: BaseIR => Boolean): Boolean = {
     if (visitor(node))
       true

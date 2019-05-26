@@ -9,14 +9,13 @@ import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.utils._
-import org.apache.spark.storage.StorageLevel
 
 case class LogisticRegression(
   test: String,
-  yFields: Array[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: Array[String],
-  passThrough: Array[String]) extends MatrixToTableFunction {
+  covFields: Seq[String],
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
   def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val logRegTest = LogisticRegressionTest.tests(test)
@@ -34,7 +33,7 @@ case class LogisticRegression(
 
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
 
-    val (yVecs, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields, covFields)
+    val (yVecs, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     (0 until yVecs.cols).foreach(col => {
       if (!yVecs(::, col).forall(yi => yi == 0d || yi == 1d))

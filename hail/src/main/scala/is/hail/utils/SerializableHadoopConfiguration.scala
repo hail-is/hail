@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream, Serializable}
+import java.io.{ObjectInputStream, ObjectOutputStream, Serializable}
 
 import org.apache.hadoop
 

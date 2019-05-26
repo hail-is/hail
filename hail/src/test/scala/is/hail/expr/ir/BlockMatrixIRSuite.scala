@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
+import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends SparkSuite {
@@ -58,10 +59,10 @@ class BlockMatrixIRSuite extends SparkSuite {
 
 
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), Apply("sqrt", IndexedSeq(Ref("element", TFloat64()))))
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), Apply("sqrt", FastIndexedSeq(Ref("element", TFloat64()))))
     val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), Apply("log", IndexedSeq(Ref("element", TFloat64()))))
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), Apply("abs", IndexedSeq(Ref("element", TFloat64()))))
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), Apply("log", FastIndexedSeq(Ref("element", TFloat64()))))
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), Apply("abs", FastIndexedSeq(Ref("element", TFloat64()))))
 
     assertBmEq(sqrtFoursIR.execute(hc), twos)
     assertBmEq(negFoursIR.execute(hc), negFours)
@@ -72,14 +73,14 @@ class BlockMatrixIRSuite extends SparkSuite {
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
       ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), Array[Long](1, 1), 0),
-        IndexedSeq(), shape, 0)
+      FastIndexedSeq(), shape, 0)
 
     val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add())
     val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
     val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
     val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
     val twosPowTwo = BlockMatrixMap2(new BlockMatrixLiteral(twos), broadcastTwo,
-      Apply("**", IndexedSeq(Ref("l", TFloat64()), Ref("r", TFloat64()))))
+      Apply("**", FastIndexedSeq(Ref("l", TFloat64()), Ref("r", TFloat64()))))
 
     assertBmEq(onesAddTwo.execute(hc), threes)
     assertBmEq(threesSubTwo.execute(hc), ones)
@@ -92,9 +93,9 @@ class BlockMatrixIRSuite extends SparkSuite {
     val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64()))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
-      0), IndexedSeq(1), shape, 0)
+      0), FastIndexedSeq(1), shape, 0)
     val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](3, 1),
-      0), IndexedSeq(0), shape, 0)
+      0), FastIndexedSeq(0), shape, 0)
 
     // Addition
     val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add())

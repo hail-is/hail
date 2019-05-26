@@ -1,6 +1,6 @@
 package is.hail.annotations.aggregators
 
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 

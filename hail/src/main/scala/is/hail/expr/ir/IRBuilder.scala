@@ -87,6 +87,10 @@ object IRBuilder {
     def mapRows(newRow: IRProxy): TableIR =
       TableMapRows(tir, newRow(env))
 
+    def explode(sym: Symbol): TableIR = TableExplode(tir, FastIndexedSeq(sym.name))
+
+    def aggregateByKey(aggIR: IRProxy): TableIR = TableAggregateByKey(tir, aggIR(env))
+
     def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
       TableKeyBy(tir, keys, isSorted)
 
@@ -107,7 +111,8 @@ object IRBuilder {
       val uid = genUID()
       val keyFields = tir.typ.key
       val valueFields = tir.typ.valueType.fieldNames
-      collect()
+      keyBy(FastIndexedSeq())
+        .collect()
         .apply('rows)
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
         .toDict
@@ -201,6 +206,8 @@ object IRBuilder {
       }
     }
 
+    def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
@@ -237,6 +244,11 @@ object IRBuilder {
       ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      AggExplode(array, f.s.name, f.body(env.bind(f.s.name, array.typ.asInstanceOf[TStreamable].elementType)), isScan = false)
+    }
+
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
@@ -247,6 +259,17 @@ object IRBuilder {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
+    def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      AggArrayPerElement(
+        array,
+        elementsSym.name,
+        indexSym.name,
+        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        isScan = false)
     }
 
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)

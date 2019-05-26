@@ -145,7 +145,11 @@ object IRParser {
     try {
       Serialization.read[T](str)
     } catch {
-      case e: MappingException => throw e.cause
+      case e: MappingException =>
+        if (e.cause != null)
+          throw e.cause
+        else
+          throw e
     }
   }
 
@@ -552,8 +556,15 @@ object IRParser {
         val typ = type_expr(it)
         val v = ir_value_expr(env)(it)
         Cast(v, typ)
+      case "CastRename" =>
+        val typ = type_expr(it)
+        val v = ir_value_expr(env)(it)
+        CastRename(v, typ)
       case "NA" => NA(type_expr(it))
       case "IsNA" => IsNA(ir_value_expr(env)(it))
+      case "Coalesce" =>
+        val children = ir_value_children(env)(it)
+        Coalesce.unify(children)
       case "If" =>
         val cond = ir_value_expr(env)(it)
         val consq = ir_value_expr(env)(it)
@@ -586,7 +597,7 @@ object IRParser {
         val opName = identifier(it)
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
-        val op = ComparisonOp.fromStringAndTypes(opName, l.typ, r.typ)
+        val op = ComparisonOp.fromStringAndTypes((opName, l.typ, r.typ))
         ApplyComparisonOp(op, l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr).map(_.asInstanceOf[TArray]).orNull
@@ -619,11 +630,17 @@ object IRParser {
         val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         ArraySort(a, l, r, body)
       case "MakeNDArray" =>
-        val nDim = int32_literal(it)
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         val rowMajor = ir_value_expr(env)(it)
-        MakeNDArray(nDim, data, shape, rowMajor)
+        MakeNDArray(data, shape, rowMajor)
+      case "NDArrayShape" =>
+        val nd = ir_value_expr(env)(it)
+        NDArrayShape(nd)
+      case "NDArrayReshape" =>
+        val nd = ir_value_expr(env)(it)
+        val shape = ir_value_expr(env)(it)
+        NDArrayReshape(nd, shape)
       case "NDArrayMap" =>
         val name = identifier(it)
         val nd = ir_value_expr(env)(it)
@@ -636,10 +653,26 @@ object IRParser {
         val r = ir_value_expr(env)(it)
         val body = ir_value_expr(env)(it)
         NDArrayMap2(l, r, lName, rName, body)
+      case "NDArrayReindex" =>
+        val indexExpr = int32_literals(it)
+        val nd = ir_value_expr(env)(it)
+        NDArrayReindex(nd, indexExpr)
+      case "NDArrayAgg" =>
+        val axes = int32_literals(it)
+        val nd = ir_value_expr(env)(it)
+        NDArrayAgg(nd, axes)
       case "NDArrayRef" =>
         val nd = ir_value_expr(env)(it)
-        val idxs = ir_value_expr(env)(it)
+        val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
+      case "NDArrayMatMul" =>
+        val l = ir_value_expr(env)(it)
+        val r = ir_value_expr(env)(it)
+        NDArrayMatMul(l, r)
+      case "NDArrayWrite" =>
+        val nd = ir_value_expr(env)(it)
+        val path = ir_value_expr(env)(it)
+        NDArrayWrite(nd, path)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
@@ -696,13 +729,18 @@ object IRParser {
       case "ArrayFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayFor(a, name, body)
       case "ArrayAgg" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val query = ir_value_expr(env + (name, coerce[TStreamable](a.typ).elementType))(it)
+        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
         ArrayAgg(a, name, query)
+      case "ArrayAggScan" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val query = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        ArrayAggScan(a, name, query)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)
@@ -720,11 +758,14 @@ object IRParser {
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR, isScan)
       case "AggArrayPerElement" =>
-        val name = identifier(it)
+        val elementName = identifier(it)
+        val indexName = identifier(it)
         val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
-        AggArrayPerElement(a, name, aggBody, isScan)
+        val aggBody = ir_value_expr(env
+          + (elementName -> coerce[TStreamable](a.typ).elementType)
+          + (indexName -> TInt32()))(it)
+        AggArrayPerElement(a, elementName, indexName, aggBody, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -823,21 +864,11 @@ object IRParser {
         val config = string_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
-      case "TableExport" =>
-        val path = string_literal(it)
-        val typesFile = opt(it, string_literal).orNull
-        val header = boolean_literal(it)
-        val exportType = int32_literal(it)
-        val delimiter = string_literal(it)
-        val child = table_ir(env.withRefMap(Map.empty))(it)
-        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
-        val path = string_literal(it)
-        val overwrite = boolean_literal(it)
-        val shuffleLocally = boolean_literal(it)
-        val codecSpecJsonStr = opt(it, string_literal)
-        val child = table_ir(env.withRefMap(Map.empty))(it)
-        TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
+        implicit val formats = TableWriter.formats
+        val writerStr = string_literal(it)
+        val child = table_ir(env)(it)
+        TableWrite(child, deserialize[TableWriter](writerStr))
       case "MatrixAggregate" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
@@ -851,11 +882,7 @@ object IRParser {
       case "MatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats = MatrixNativeMultiWriter.formats
-        val writer = try{
-          Serialization.read[MatrixNativeMultiWriter](writerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        val writer = deserialize[MatrixNativeMultiWriter](writerStr)
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
       case "BlockMatrixWrite" =>
@@ -864,12 +891,18 @@ object IRParser {
         val writer = deserialize[BlockMatrixWriter](writerStr)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixWrite(child, writer)
+      case "BlockMatrixMultiWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixWriter.formats
+        val writer = deserialize[BlockMatrixMultiWriter](writerStr)
+        val blockMatrices = repUntil(it, blockmatrix_ir(env), PunctuationToken(")"))
+        BlockMatrixMultiWrite(blockMatrices.toFastIndexedSeq, writer)
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)
         val ctxs = ir_value_expr(env)(it)
         val globals = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (cname, coerce[TStreamable](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        val body = ir_value_expr(env + (cname -> coerce[TStreamable](ctxs.typ).elementType) + (gname -> globals.typ))(it)
         CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)
@@ -966,9 +999,10 @@ object IRParser {
         TableLeftJoinRightDistinct(left, right, root)
       case "TableIntervalJoin" =>
         val root = identifier(it)
+        val product = boolean_literal(it)
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
-        TableIntervalJoin(left, right, root)
+        TableIntervalJoin(left, right, root, product)
       case "TableZipUnchecked" =>
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
@@ -1032,6 +1066,15 @@ object IRParser {
         val globalV = string_literals(it)
         val child = table_ir(env)(it)
         TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
+      case "TableFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = table_ir(env)(it)
+        TableFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.keyType)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
       case "JavaTable" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[TableIR]
@@ -1106,17 +1149,14 @@ object IRParser {
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
         implicit val formats: Formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
-        val reader = try {
-          Serialization.read[MatrixReader](readerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        val reader = deserialize[MatrixReader](readerStr)
         MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
+        val product = boolean_literal(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
-        MatrixAnnotateRowsTable(child, table, root)
+        MatrixAnnotateRowsTable(child, table, root, product)
       case "MatrixAnnotateColsTable" =>
         val root = string_literal(it)
         val child = matrix_ir(env)(it)
@@ -1152,6 +1192,10 @@ object IRParser {
         val n = int64_literal(it)
         val child = matrix_ir(env)(it)
         MatrixRowsHead(child, n)
+      case "MatrixColsHead" =>
+        val n = int32_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixColsHead(child, n)
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)
@@ -1173,6 +1217,15 @@ object IRParser {
         val entryV = string_literals(it)
         val child = matrix_ir(env)(it)
         MatrixRename(child, globalK.zip(globalV).toMap, colK.zip(colV).toMap, rowK.zip(rowV).toMap, entryK.zip(entryV).toMap)
+      case "MatrixFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.rowKeyStruct)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]

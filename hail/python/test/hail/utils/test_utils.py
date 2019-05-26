@@ -9,6 +9,7 @@ from ..helpers import *
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+
 class Tests(unittest.TestCase):
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
@@ -57,6 +58,12 @@ class Tests(unittest.TestCase):
     def test_hadoop_exists(self):
         self.assertTrue(hl.hadoop_exists(resource('ls_test')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
+
+    def test_hadoop_copy_log(self):
+        r = resource('copy_log_test.txt')
+        hl.copy_log(r)
+        stats = hl.hadoop_stat(r)
+        self.assertTrue(stats['size_bytes'] > 0)
 
     def test_hadoop_is_file(self):
         self.assertTrue(hl.hadoop_is_file(resource('ls_test/f_50')))
@@ -137,11 +144,12 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(s.annotate(), s)
         self.assertEqual(s.annotate(x=5), Struct(a=1, b=2, c=3, x=5))
-        self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}), Struct(a=5, b=2, c=3, x=10, y=15))
+        self.assertEqual(s.annotate(**{'a': 5, 'x': 10, 'y': 15}),
+                         Struct(a=5, b=2, c=3, x=10, y=15))
 
     def test_expr_exception_results_in_fatal_error(self):
         df = range_table(10)
-        df = df.annotate(x=[1,2])
+        df = df.annotate(x=[1, 2])
         with self.assertRaises(FatalError):
             df.filter(df.x[5] == 0).count()
 

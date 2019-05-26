@@ -1,10 +1,8 @@
 package is.hail.annotations
 
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 
-import scala.reflect.ClassTag
-import scala.reflect.classTag
+import scala.reflect.{ClassTag, classTag}
 
 object RegionValueToScala {
   def classTagHail(t: Type): ClassTag[_] = t match {

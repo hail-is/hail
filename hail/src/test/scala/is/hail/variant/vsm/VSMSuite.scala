@@ -19,17 +19,6 @@ import org.testng.annotations.Test
 import scala.language.postfixOps
 
 class VSMSuite extends SparkSuite {
-
-  @Test def testSkipDropSame() {
-    val f = tmpDir.createTempFile("sample", extension = ".vds")
-
-    TestUtils.importVCF(hc, "src/test/resources/sample2.vcf")
-      .write(f)
-
-    assert(hc.readVDS(f, dropSamples = true)
-      .same(hc.readVDS(f).dropCols()))
-  }
-
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 
@@ -80,7 +69,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testInvalidMetadata() {
     TestUtils.interceptFatal("metadata does not contain file version") {
-      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
+      hc.readVDS("src/test/resources/0.1-1fd5cc7.vds")
     }
   }
 

@@ -43,7 +43,7 @@ package object experimental {
     val nSamples = sum(_gtCounts)
 
     //Needs some non-ref samples to compute
-    if(_gtCounts(0) >= nSamples){ return IndexedSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
+    if(_gtCounts(0) >= nSamples){ return FastIndexedSeq(_gtCounts(0),0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0)}
 
     val nHaplotypes = 2.0*nSamples.toDouble
 
@@ -62,25 +62,25 @@ package object experimental {
     ))
 
     //Initial estimate with AaBb contributing equally to each haplotype
-    var p_next = (const_counts :+ new DenseVector(Array.fill[Double](4)(_gtCounts(4)/2.0))) :/ nHaplotypes
-    var p_cur = p_next :+ 1.0
+    var p_next = (const_counts +:+ new DenseVector(Array.fill[Double](4)(_gtCounts(4)/2.0))) /:/ nHaplotypes
+    var p_cur = p_next +:+ 1.0
 
     //EM
-    while(max(abs(p_next :- p_cur)) > 1e-7){
+    while(max(abs(p_next -:- p_cur)) > 1e-7){
       p_cur = p_next
 
-      p_next = (const_counts :+
+      p_next = (const_counts +:+
         (new DenseVector(Array[Double](
           p_cur(0)*p_cur(3), //n.AB
           p_cur(1)*p_cur(2), //n.Ab
           p_cur(1)*p_cur(2), //n.aB
           p_cur(0)*p_cur(3)  //n.ab
-        )) :* _gtCounts(4) / ((p_cur(0)*p_cur(3))+(p_cur(1)*p_cur(2))) )
-        ) :/ nHaplotypes
+        )) * (_gtCounts(4) / ((p_cur(0)*p_cur(3))+(p_cur(1)*p_cur(2)))))
+        ) / nHaplotypes
 
     }
 
-    return (p_next :* nHaplotypes).toArray.toFastIndexedSeq
+    return (p_next *:* nHaplotypes).toArray.toFastIndexedSeq
   }
 
 }

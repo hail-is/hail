@@ -179,7 +179,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array, aggregated))
-        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir, self._as_scan),
+        return construct_expr(AggArrayPerElement(array._ir, var, 'unused', aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
                               aggregated._indices,
                               aggregations)
@@ -219,6 +219,9 @@ def approx_cdf(expr, k=100):
     with the value `values(i)` occupying indices `ranks(i)` (inclusive) to
     `ranks(i+1)` (exclusive).
 
+    The returned struct also contains an array `_compaction_counts`, which is
+    used internally to support downstream error estimation.
+
     Warning
     -------
     This is an approximate and nondeterministic method.
@@ -235,15 +238,48 @@ def approx_cdf(expr, k=100):
     :class:`.StructExpression`
         Struct containing `values` and `ranks` arrays.
     """
-    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64)), constructor_args=[k])
+    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64), _compaction_counts=tarray(tint32)), constructor_args=[k])
 
 
 @typecheck(expr=expr_numeric, qs=expr_oneof(expr_numeric, expr_array(expr_numeric)), k=int)
-def approx_quantiles(expr, qs, k=100) -> NumericExpression:
+def approx_quantiles(expr, qs, k=100) -> Expression:
+    """Compute an array of approximate quantiles.
+
+    .. include: _templates/experimental.rst
+
+    Examples
+    --------
+    Estimate the median of the `HT` field.
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, 0.5)) # doctest: +NOTEST
+    64
+
+    Estimate the quartiles of the `HT` field.
+    >>> table1.aggregate(hl.agg.approx_quantiles(table1.HT, [0, 0.25, 0.5, 0.75, 1])) # doctest: +NOTEST
+    [50, 60, 64, 71, 86]
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    qs : :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+        Number or array of numbers between 0 and 1.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff.
+
+    Returns
+    -------
+    :class:`.NumericExpression` or :class:`.ArrayNumericExpression`
+        If `qs` is a single number, returns the estimated quantile.
+        If `qs` is an array, returns the array of estimated quantiles.
+    """
     if isinstance(qs.dtype, tarray):
         return rbind(approx_cdf(expr, k), lambda cdf: qs.map(lambda q: _quantile_from_cdf(cdf, float32(q))))
     else:
-        return rbind(approx_cdf(expr, k), lambda cdf: _quantile_from_cdf(cdf, qs))
+        return _quantile_from_cdf(approx_cdf(expr, k), qs)
 
 
 @typecheck(expr=expr_any)

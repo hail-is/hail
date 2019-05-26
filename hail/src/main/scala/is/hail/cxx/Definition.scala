@@ -1,7 +1,6 @@
 package is.hail.cxx
 
 import is.hail.cxx
-import is.hail.utils.ArrayBuilder
 
 trait Definition {
   def name: String

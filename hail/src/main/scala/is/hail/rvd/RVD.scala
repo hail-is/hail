@@ -4,19 +4,18 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.{Partitioner, SparkContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -516,7 +515,7 @@ class RVD(
       .filter(i => intervals.overlaps(partitioner.rangeBounds(i)))
       .toArray
 
-    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+    info(s"reading ${ newPartitionIndices.length } of $nPartitions data partitions")
 
     if (newPartitionIndices.isEmpty)
       RVD.empty(sparkContext, typ)
@@ -776,6 +775,20 @@ class RVD(
     joinedType: RVDType
   ): RVD =
     keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
+
+  def orderedLeftIntervalJoin(
+    right: RVD,
+    joiner: (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoin(right.keyBy(1), joiner, joinedType)
+
+  def orderedLeftIntervalJoinDistinct(
+    right: RVD,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoinDistinct(right.keyBy(1), joiner, joinedType)
 
   def orderedZipJoin(right: RVD): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
     orderedZipJoin(right, typ.key.length)

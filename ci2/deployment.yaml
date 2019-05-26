@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci2
+  labels:
+    app: ci2
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: ci2
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ci2
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      containers:
+        - name: ci2
+          image: "{{ ci_image.image }}"
+          resources:
+            requests:
+              memory: "1G"
+              cpu: "1"
+          env:
+            - name: HAIL_CI2_OAUTH_TOKEN
+              value: /secrets/oauth-token/oauth-token
+{% if deploy %}
+            - name: HAIL_WATCHED_BRANCHES
+              value: '[["hail-is/hail:master",true]]'
+{% else %}
+            - name: HAIL_WATCHED_BRANCHES
+              value: '[]'
+{% endif %}
+            - name: BATCH_SERVER_URL
+              value: http://batch.{{ default_ns.name }}
+            - name: HAIL_GCP_PROJECT
+              value: "{{ global.project }}"
+            - name: HAIL_CI_UTILS_IMAGE
+              value: "{{ ci_utils_image.image }}"
+            - name: HAIL_IP
+              value: "{{ global.ip }}"
+            - name: HAIL_DOMAIN
+              value: "{{ global.domain }}"
+            - name: HAIL_TOKEN_FILE
+              value: '/ci-jwt/jwt'
+            - name: HAIL_SELF_HOSTNAME
+              value: ci2
+            - name: HAIL_JWT_SECRET_KEY_FILE
+              value: /jwt-secret-key/secret-key
+          ports:
+            - containerPort: 5000
+          volumeMounts:
+            - mountPath: /secrets/oauth-token
+              readOnly: true
+              name: hail-ci-0-1-github-oauth-token
+            - mountPath: /ci-jwt
+              readOnly: true
+              name: ci-jwt
+            - name: jwt-secret-key
+              mountPath: /jwt-secret-key
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: hail-ci-0-1-github-oauth-token
+          secret:
+            secretName: hail-ci-0-1-github-oauth-token
+        - name: ci-jwt
+          secret:
+            secretName: ci-jwt
+        - name: jwt-secret-key
+          secret:
+            optional: false
+            secretName: jwt-secret-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci2
+  labels:
+    app: ci2
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: ci2

@@ -1,11 +1,16 @@
 package is.hail.nativecode;
 
-import java.io.*;
-import java.util.*;
-import java.util.zip.*;
-import java.nio.file.*;
-
 import org.apache.spark.TaskContext;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.Enumeration;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 
 public class NativeCode {
     private static String includeDir;

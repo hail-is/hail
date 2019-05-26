@@ -320,6 +320,22 @@ class MatrixRowsHead(MatrixIR):
         self._type = self.child.typ
 
 
+class MatrixColsHead(MatrixIR):
+    def __init__(self, child, n):
+        super().__init__(child)
+        self.child = child
+        self.n = n
+
+    def head_str(self):
+        return self.n
+
+    def _eq(self, other):
+        return self.n == other.n
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
         super().__init__(child)
@@ -376,25 +392,30 @@ class CastTableToMatrix(MatrixIR):
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
-    def __init__(self, child, table, root):
+    def __init__(self, child, table, root, product=False):
         super().__init__(child, table)
         self.child = child
         self.table = table
         self.root = root
+        self.product = product
 
     def head_str(self):
-        return f'"{escape_str(self.root)}"'
+        return f'"{escape_str(self.root)}" {self.product}'
 
     def _eq(self, other):
-        return self.root == other.root
+        return self.root == other.root and self.product == other.product
 
     def _compute_type(self):
         child_typ = self.child.typ
+        if self.product:
+            value_type = hl.tarray(self.table.typ.value_type)
+        else:
+            value_type = self.table.typ.value_type
         self._type = hl.tmatrix(
             child_typ.global_type,
             child_typ.col_type,
             child_typ.col_key,
-            child_typ.row_type._insert_field(self.root, self.table.typ.value_type),
+            child_typ.row_type._insert_field(self.root, value_type),
             child_typ.row_key,
             child_typ.entry_type)
 
@@ -438,8 +459,7 @@ class MatrixToMatrixApply(MatrixIR):
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
-        if (name == 'MatrixFilterPartitions'
-                or name == 'MatrixFilterIntervals'):
+        if name == 'MatrixFilterPartitions':
             self._type = child_typ
         else:
             assert name == 'WindowByLocus', name
@@ -479,6 +499,24 @@ class MatrixRename(MatrixIR):
 
     def _compute_type(self):
         self._type = self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
+
+
+class MatrixFilterIntervals(MatrixIR):
+    def __init__(self, child, intervals, point_type, keep):
+        super().__init__(child)
+        self.child = child
+        self.intervals = intervals
+        self.point_type = point_type
+        self.keep = keep
+
+    def head_str(self):
+        return f'{dump_json(hl.tarray(hl.tinterval(self.point_type))._convert_to_json(self.intervals))} {self.keep}'
+
+    def _eq(self, other):
+        return self.intervals == other.intervals and self.point_type == other.point_type and self.keep == other.keep
+
+    def _compute_type(self):
+        self._type = self.child.typ
 
 
 class JavaMatrix(MatrixIR):

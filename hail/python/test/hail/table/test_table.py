@@ -395,6 +395,17 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    def test_interval_product_join(self):
+        left = hl.utils.range_table(50, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        left = left.annotate(interval_matches=intervals.index(left.key, all_matches=True))
+        self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
+
     def test_join_with_empty(self):
         kt = hl.utils.range_table(10)
         kt2 = kt.head(0)
@@ -404,6 +415,14 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
+
+    def test_product_join(self):
+        left = hl.utils.range_table(5)
+        right = hl.utils.range_table(5)
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate(matches=right.index(left.key, all_matches=True))
+        self.assertTrue(left.all(left.matches.length() == left.idx))
+        self.assertTrue(left.all(left.matches.map(lambda x: x.idx) == hl.range(0, left.idx)))
 
     def test_multiple_entry_joins(self):
         mt = hl.utils.range_matrix_table(4, 4)
@@ -536,8 +555,8 @@ class Tests(unittest.TestCase):
 
     @skip_unless_spark_backend()
     def test_from_spark_works(self):
-        sql_context = Env.sql_context()
-        df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
+        spark_session = Env.spark_session()
+        df = spark_session.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
         t = hl.Table.from_spark(df)
         rows = t.collect()
         self.assertEqual(len(rows), 1)
@@ -760,6 +779,28 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
+
+    def test_union_unify(self):
+        t1 = hl.utils.range_table(2)
+        t2 = t1.annotate(x=hl.int32(1), y='A')
+        t3 = t1.annotate(z=(1, 2, 3), x=hl.float64(1.5))
+        t4 = t1.key_by(idx=t1.idx + 10)
+
+        u = t1.union(t2, t3, t4, unify=True)
+
+        assert u.x.dtype == hl.tfloat64
+        assert list(u.row) == ['idx', 'x', 'y', 'z']
+
+        assert u.collect() == [
+            hl.utils.Struct(idx=0, x=None, y=None, z=None),
+            hl.utils.Struct(idx=0, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=0, x=1.5, y=None, z=(1, 2, 3)),
+            hl.utils.Struct(idx=1, x=None, y=None, z=None),
+            hl.utils.Struct(idx=1, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=1, x=1.5, y=None, z=(1, 2, 3)),
+            hl.utils.Struct(idx=10, x=None, y=None, z=None),
+            hl.utils.Struct(idx=11, x=None, y=None, z=None),
+        ]
 
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
@@ -1025,6 +1066,11 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(1, 1)
         ht = ht.annotate(fd=hl.sorted(a))
         assert ht.fd.collect()[0] == ["e", "é"]
+
+    def test_physical_key_truncation(self):
+        path = new_temp_file(suffix='ht')
+        hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
+        hl.read_table(path).select()._force_count()
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)

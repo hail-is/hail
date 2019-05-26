@@ -210,7 +210,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val Row(rows: IndexedSeq[Row], globals: Row) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    val (Row(_rows: IndexedSeq[_], globals: Row), _) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    val rows = _rows.asInstanceOf[IndexedSeq[Row]]
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
@@ -551,16 +552,22 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
-case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extends TableIR {
+case class TableIntervalJoin(
+  left: TableIR,
+  right: TableIR,
+  root: String,
+  product: Boolean
+) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
-  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(right.typ.valueType.physicalType, List(root))
+  val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
+  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(rightType.physicalType, List(root))
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
 
   override def rvdType: RVDType = RVDType(newRowPType, typ.key)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
-    TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root)
+    TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
@@ -568,32 +575,61 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
     val leftValue = left.execute(hc)
     val rightValue = right.execute(hc)
 
-    val leftRVDType = leftValue.rvd.typ
     val rightRVDType = rightValue.rvd.typ
 
     val localNewRowPType = newRowPType
     val localIns = ins
 
-    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightRVDType, intervals, ctx))
-        .map { case Muple(rv, i) =>
-          rvb.set(rv.region)
-          rvb.start(localNewRowPType)
-          localIns(
-            rv.region,
-            rv.offset,
-            rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-          rv2.set(rv.region, rvb.end())
+    val joinedType = RVDType(newRowPType, typ.key)
+    val newRVD =
+      if (product) {
+        val joiner = (_: RVDContext, it: Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => {
+          val rvb = new RegionValueBuilder()
+          val rv2 = RegionValue()
+          it.map { case Muple(rv, is) =>
+            rvb.set(rv.region)
+            rvb.start(localNewRowPType)
+            localIns(
+              rv.region,
+              rv.offset,
+              rvb,
+              () => {
+                rvb.startArray(is.size)
+                is.foreach(i => rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
+                rvb.endArray()
+              })
+            rv2.set(rv.region, rvb.end())
 
-          rv2
+            rv2
+          }
         }
-    }
 
-    val newRVD = leftValue.rvd.intervalAlignAndZipPartitions(RVDType(newRowPType, typ.key), rightValue.rvd)(zipper)
+        leftValue.rvd.orderedLeftIntervalJoin(rightValue.rvd, joiner, joinedType)
+      } else {
+        val joiner = (_: RVDContext, it: Iterator[JoinedRegionValue]) => {
+          val rvb = new RegionValueBuilder()
+          val rv2 = RegionValue()
+          it.map { case Muple(rv, i) =>
+            rvb.set(rv.region)
+            rvb.start(localNewRowPType)
+            localIns(
+              rv.region,
+              rv.offset,
+              rvb,
+              () =>
+                if (i == null)
+                  rvb.setMissing()
+                else
+                  rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
+            rv2.set(rv.region, rvb.end())
+
+            rv2
+          }
+        }
+
+        leftValue.rvd.orderedLeftIntervalJoinDistinct(rightValue.rvd, joiner, joinedType)
+      }
+
     TableValue(typ, leftValue.globals, newRVD)
   }
 }
@@ -662,11 +698,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val first = children.head
   private val rest = children.tail
 
-  require(
-    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
-    "all keys must be the same type"
-  )
   require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
@@ -948,8 +981,8 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val newGlobalValue = CompileAndEvaluate[Row](newGlobals,
-      Env("global" -> (tv.globals.value, tv.globals.t)),
+    val (newGlobalValue, _) = CompileAndEvaluate[Row](newGlobals,
+      Env("global" -> (tv.globals.value -> tv.globals.t)),
       FastIndexedSeq(),
       optimize = false)
     tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
@@ -1022,7 +1055,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
           new Iterator[RegionValue] {
             private[this] var i = 0
 
-            def hasNext(): Boolean = i < len
+            def hasNext: Boolean = i < len
 
             def next(): RegionValue = {
               rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
@@ -1088,13 +1121,6 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.entriesTableType
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    val mv = child.execute(hc)
-    val etv = mv.entriesTableValue
-    assert(etv.typ == typ)
-    etv
-  }
 }
 
 case class TableDistinct(child: TableIR) extends TableIR {
@@ -1482,13 +1508,7 @@ case class CastMatrixToTable(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val prev = child.execute(hc)
-    val newGlobals = BroadcastRow(
-      Row.merge(prev.globals.safeValue, Row(prev.colValues.safeValue)),
-      typ.globalType,
-      hc.sc)
-
-    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType.physicalType))
+    child.execute(hc).toTableValue(colsFieldName, entriesFieldName)
   }
 }
 
@@ -1524,6 +1544,27 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     val prev = child.execute(hc)
 
     TableValue(typ, prev.globals.copy(t = typ.globalType), prev.rvd.cast(typ.rowType.physicalType))
+  }
+}
+
+case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean) extends TableIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableFilterIntervals(newChild, intervals, keep)
+  }
+
+  override lazy val typ: TableType = child.typ
+  override lazy val rvdType: RVDType = child.rvdType
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    val tv = child.execute(hc)
+    val partitioner = RVDPartitioner.union(
+      tv.typ.keyType,
+      intervals,
+      tv.rvd.typ.key.length - 1)
+    TableValue(tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
   }
 }
 

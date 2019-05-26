@@ -4,14 +4,9 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.check.Arbitrary._
-import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
-import is.hail.utils._
-import org.apache.spark.SparkEnv
-import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -349,7 +344,55 @@ class UnsafeSuite extends SparkSuite {
     }
     p.check()
   }
-  
+
+  @Test def testRegionAllocation() {
+    val pool = RegionPool.get
+
+    case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
+      def allocateRegion(): Counts =
+        if (freeRegions == 0)
+          copy(regions = regions + 1)
+        else copy(freeRegions = freeRegions - 1)
+
+      def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
+        if (freeRegions == 0)
+          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks)
+        else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
+    }
+    def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+
+    var counts = getCurrentCounts
+
+    val region = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    val region2 = Region()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.reference(region2)
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion())
+    counts = getCurrentCounts
+
+    region.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(1))
+
+    val region3 = Region()
+    region3.reference(region)
+    region3.reference(region2)
+
+    counts = getCurrentCounts
+    region.refreshRegion()
+    region2.refreshRegion()
+    assert(getCurrentCounts == counts.allocateRegion().allocateRegion())
+
+    counts = getCurrentCounts
+    region3.refreshRegion()
+    assert(getCurrentCounts == counts.refreshRegion(2))
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.

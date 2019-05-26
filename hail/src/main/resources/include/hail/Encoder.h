@@ -39,6 +39,48 @@ class StreamOutputBlockBuffer {
     void close() { output_stream_->close(); }
 };
 
+class StreamOutputBuffer {
+  private:
+    std::shared_ptr<OutputStream> os_;
+
+  public:
+    StreamOutputBuffer() = delete;
+    StreamOutputBuffer(StreamOutputBuffer &buf) = delete;
+    StreamOutputBuffer(std::shared_ptr<OutputStream> os) : os_(os) {}
+
+    void flush() {
+      os_->flush();
+    }
+
+    void write_byte(char c) {
+      os_->write(reinterpret_cast<char const*>(&c), 1);
+    }
+
+    void write_boolean(bool b) { write_byte(b ? 1 : 0); };
+
+    void write_int(int i) {
+      os_->write(reinterpret_cast<char const*>(&i), 4);
+    }
+
+    void write_long(long l) {
+      os_->write(reinterpret_cast<char const*>(&l), 8);
+    }
+
+    void write_float(float f) {
+      os_->write(reinterpret_cast<char const*>(&f), 4);
+    }
+
+    void write_double(double d) {
+      os_->write(reinterpret_cast<char const*>(&d), 8);
+    }
+
+    void write_bytes(char const* buf, int n) {
+      os_->write(buf, n);
+    }
+
+    void close() { flush(); os_->close(); }
+};
+
 template <int BUFSIZE, typename OutputBlockBuffer>
 class LZ4OutputBlockBuffer {
   private:

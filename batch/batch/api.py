@@ -1,9 +1,9 @@
 import requests
-from .requests_helper import raise_on_failure
+from .requests_helper import raise_on_failure, filter_params
 
 
 class API():
-    def __init__(self, timeout=60):
+    def __init__(self, timeout=None, cookies=None, headers=None):
         """
         Python API for accessing the batch server's HTTP endpoints.
 
@@ -12,11 +12,46 @@ class API():
         timeout : :obj:`int` or :obj:`float`
             timeout, in seconds, passed to ``requests`` calls
         """
+        if timeout is None:
+            timeout = 60
         self.timeout = timeout
+        if cookies is None:
+            cookies = {}
+        self.cookies = cookies
+        if headers is None:
+            headers = {}
+        self.headers = headers
+
+    def http(self, verb, url, json=None, timeout=None, cookies=None, headers=None, json_response=True, params=None):
+        if timeout is None:
+            timeout = self.timeout
+        if cookies is None:
+            cookies = self.cookies
+        if headers is None:
+            headers = self.headers
+        if json is not None:
+            response = verb(url, json=json, timeout=timeout, cookies=cookies, headers=headers, params=params)
+        else:
+            response = verb(url, timeout=timeout, cookies=cookies, headers=headers, params=params)
+        raise_on_failure(response)
+        if json_response:
+            return response.json()
+        return response
+
+    def post(self, *args, **kwargs):
+        return self.http(requests.post, *args, **kwargs)
+
+    def get(self, *args, **kwargs):
+        return self.http(requests.get, *args, **kwargs)
+
+    def patch(self, *args, **kwargs):
+        return self.http(requests.patch, *args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        return self.http(requests.delete, *args, **kwargs)
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   scratch_folder, input_files, output_files, copy_service_account_name,
-                   always_run):
+                   input_files, output_files, always_run):
         doc = {
             'spec': spec,
             'parent_ids': parent_ids,
@@ -28,43 +63,22 @@ class API():
             doc['batch_id'] = batch_id
         if callback:
             doc['callback'] = callback
-        if scratch_folder:
-            doc['scratch_folder'] = scratch_folder
         if input_files:
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
-        if copy_service_account_name:
-            doc['copy_service_account_name'] = copy_service_account_name
 
-        response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        return self.post(f'{url}/jobs/create', json=doc)
 
-    def list_jobs(self, url):
-        response = requests.get(url + '/jobs', timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+    def list_batches(self, url, complete, success, attributes):
+        params = filter_params(complete, success, attributes)
+        return self.get(f'{url}/batches', params=params)
 
     def get_job(self, url, job_id):
-        response = requests.get(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        return self.get(f'{url}/jobs/{job_id}')
 
     def get_job_log(self, url, job_id):
-        response = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
-
-    def delete_job(self, url, job_id):
-        response = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
-
-    def cancel_job(self, url, job_id):
-        response = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        return self.get(f'{url}/jobs/{job_id}/log')
 
     def create_batch(self, url, attributes, callback, ttl):
         doc = {}
@@ -74,76 +88,16 @@ class API():
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        response = requests.post(url + '/batches/create', json=doc, timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        return self.post(f'{url}/batches/create', json=doc)
 
     def get_batch(self, url, batch_id):
-        response = requests.get(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        return self.get(f'{url}/batches/{batch_id}')
 
     def close_batch(self, url, batch_id):
-        response = requests.post(url + '/batches/{}/close'.format(batch_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        self.patch(f'{url}/batches/{batch_id}/close', json_response=False)
 
     def delete_batch(self, url, batch_id):
-        response = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
-        raise_on_failure(response)
-        return response.json()
+        self.delete(f'{url}/batches/{batch_id}', json_response=False)
 
-    def refresh_k8s_state(self, url):
-        response = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
-        raise_on_failure(response)
-
-
-DEFAULT_API = API()
-
-
-def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder,
-               input_files, output_files, copy_service_account_name, always_run):
-    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback,
-                                  parent_ids, scratch_folder, input_files,
-                                  output_files, copy_service_account_name,
-                                  always_run)
-
-
-def list_jobs(url):
-    return DEFAULT_API.list_jobs(url)
-
-
-def get_job(url, job_id):
-    return DEFAULT_API.get_job(url, job_id)
-
-
-def get_job_log(url, job_id):
-    return DEFAULT_API.get_job_log(url, job_id)
-
-
-def delete_job(url, job_id):
-    return DEFAULT_API.delete_job(url, job_id)
-
-
-def cancel_job(url, job_id):
-    return DEFAULT_API.cancel_job(url, job_id)
-
-
-def create_batch(url, attributes, callback, ttl):
-    return DEFAULT_API.create_batch(url, attributes, callback, ttl)
-
-
-def get_batch(url, batch_id):
-    return DEFAULT_API.get_batch(url, batch_id)
-
-
-def close_batch(url, batch_id):
-    return DEFAULT_API.close_batch(url, batch_id)
-
-
-def delete_batch(url, batch_id):
-    return DEFAULT_API.delete_batch(url, batch_id)
-
-
-def refresh_k8s_state(url):
-    return DEFAULT_API.refresh_k8s_state(url)
+    def cancel_batch(self, url, batch_id):
+        self.patch(f'{url}/batches/{batch_id}/cancel', json_response=False)

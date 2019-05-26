@@ -29,10 +29,6 @@ object Type {
     Gen.oneOfSeq(rgDependents ++ others)
   }
 
-  val optionalComplex: Gen[Type] = genComplexType(false)
-
-  val requiredComplex: Gen[Type] = genComplexType(true)
-
   def genFields(required: Boolean, genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
       Gen.zip(Gen.identifier, genFieldType))
@@ -283,6 +279,34 @@ abstract class Type extends BaseType with Serializable {
         t.asInstanceOf[TNDArray].nDims == t2.nDims
       case TVoid => t == TVoid
     }
+  }
+
+  def canCastTo(t: Type): Boolean = this match {
+    case TInterval(tt1, required) => t match {
+      case TInterval(tt2, `required`) => tt1.canCastTo(tt2)
+      case _ => false
+    }
+    case TStruct(f1, required) => t match {
+      case TStruct(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
+      case _ => false
+    }
+    case TTuple(f1, required) => t match {
+      case TTuple(f2, `required`) => f1.size == f2.size && f1.indices.forall(i => f1(i).canCastTo(f2(i)))
+      case _ => false
+    }
+    case TArray(t1, required) => t match {
+      case TArray(t2, `required`) => t1.canCastTo(t2)
+      case _ => false
+    }
+    case TSet(t1, required) => t match {
+      case TSet(t2, `required`) => t1.canCastTo(t2)
+      case _ => false
+    }
+    case TDict(k1, v1, required) => t match {
+      case TDict(k2, v2, `required`) => k1.canCastTo(k2) && v1.canCastTo(v2)
+      case _ => false
+    }
+    case _ => this == t
   }
 
   def deepOptional(): Type =

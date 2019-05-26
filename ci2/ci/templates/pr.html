@@ -1,0 +1,103 @@
+<html lang="en">
+  <head>
+    <title>CI | PR {{ number }}</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <p><a href="/">ci</a> : pr #{{ number }}</p>
+
+    <h1>PR {{ number }}</h1>
+    {% if batch is defined %}
+    <h2>Batch {{ batch['id'] }} Jobs</h2>
+    <p>artifacts: {{ artifacts }}</p>
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="left">name</th>
+          <th align="left">state</th>
+          <th align="right">exit_code</th>
+          <th align="right">duration</th>
+          <th align="left">log</th>
+          <th align="left">links</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in batch['jobs'] %}
+        <tr>
+          <td align="right">{{ job['id'] }}</td>
+          <td align="left">{{ job['attributes']['name'] }}</td>
+          <td align="left">{{ job['state'] }}</td>
+          <td align="right">
+            {% if 'exit_code' in job and job['exit_code'] is not none %}
+            {% if job['exit_code'] == 0 %}
+            <span style="color: #55aa33;">
+            Success 🎉
+            {% else %}
+            <span style="color: #a93333;">
+            Failure 🤷‍♀️
+            {% endif %}
+            ({{ job['exit_code'] }})
+            </span>
+            {% endif %}
+          </td>
+          <td align="right">
+            {% if 'duration' in job and job['duration'] %}
+            {{ job['duration'] }}
+            {% endif %}
+          </td>
+          <td align="left">
+            <a href="/jobs/{{ job['id'] }}/log">log</a>
+          </td>
+          <td>
+            {% if 'link' in job['attributes'] %}
+            {% for name in job['attributes']['link'] %}
+            <a href="https://{{ name }}.{{ job['attributes']['domain'] }}">{{ name }}</a>
+            {% endfor %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% elif exception is defined %}
+    <p>Build error:</p>
+    <pre>
+      {{ exception }}
+    </pre>
+    {% else %}
+    No build running.
+    {% endif %}
+    
+    <h2>Build History</h2>
+    {% if history %}
+    <table>
+      <thead>
+        <tr>
+          <th align="right">id</th>
+          <th align="left">state</th>
+        </tr>
+      </thead>
+      <tbody>
+	{% for batch in history %}
+        <tr>
+          <td align="right">
+            <a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+          </td>
+          <td align="left">
+            {% if 'state' in batch and batch['state'] %}
+            {{ batch['state'] }}
+            {% endif %}
+            {% if not batch['complete'] %}
+            running
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    No builds.
+    {% endif %}
+</body>
+</html>

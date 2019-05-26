@@ -199,7 +199,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 
-    val rightFieldIdx = other.fields.map { f => f.name -> (f.index, f.typ) }.toMap
+    val rightFieldIdx = other.fields.map { f => f.name -> (f.index -> f.typ) }.toMap
     val leftFields = fieldNames.toSet
 
     fields.foreach { f =>
@@ -269,7 +269,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
     fields.foreach { fd =>
       val n = fd.name
-      newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
+      newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
     }
     TStruct(newFieldsBuilder.result(): _*)
   }

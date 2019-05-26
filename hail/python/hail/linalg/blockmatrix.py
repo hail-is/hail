@@ -355,8 +355,9 @@ class BlockMatrix(object):
                       mean_impute=bool,
                       center=bool,
                       normalize=bool,
+                      axis=nullable(enumeration('rows', 'cols')),
                       block_size=nullable(int))
-    def from_entry_expr(cls, entry_expr, mean_impute=False, center=False, normalize=False, block_size=None):
+    def from_entry_expr(cls, entry_expr, mean_impute=False, center=False, normalize=False, axis='rows', block_size=None):
         """Creates a block matrix using a matrix table entry expression.
 
         Examples
@@ -401,12 +402,14 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
+        axis: :obj:`str`
+            One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
         path = new_temp_file()
         cls.write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=mean_impute,
-                                  center=center, normalize=normalize, block_size=block_size)
+                                  center=center, normalize=normalize, axis=axis, block_size=block_size)
         return cls.read(path)
 
     @classmethod
@@ -582,9 +585,10 @@ class BlockMatrix(object):
                mean_impute=bool,
                center=bool,
                normalize=bool,
+               axis=nullable(enumeration('rows', 'cols')),
                block_size=nullable(int))
     def write_from_entry_expr(entry_expr, path, overwrite=False, mean_impute=False,
-                              center=False, normalize=False, block_size=None):
+                              center=False, normalize=False, axis='rows', block_size=None):
         """Writes a block matrix from a matrix table entry expression.
 
         Examples
@@ -647,6 +651,8 @@ class BlockMatrix(object):
             If true and ``center=False``, divide by the row magnitude.
             If true and ``center=True``, divide the centered value by the
             centered row magnitude.
+        axis: :obj:`str`
+            One of "rows" or "cols": axis by which to normalize or center.
         block_size: :obj:`int`, optional
             Block size. Default given by :meth:`.BlockMatrix.default_block_size`.
         """
@@ -664,17 +670,30 @@ class BlockMatrix(object):
                 field = Env.get_uid()
                 mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
-            n_cols = mt.count_cols()
-            mt = mt.select_entries(__x=entry_expr)
-            mt = mt.select_rows(__count=agg.count_where(hl.is_defined(mt['__x'])),
-                                __sum=agg.sum(mt['__x']),
-                                __sum_sq=agg.sum(mt['__x'] * mt['__x']))
-            mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                __centered_length=hl.sqrt(mt['__sum_sq'] -
-                                                          (mt['__sum'] ** 2) / mt['__count']),
-                                __length=hl.sqrt(mt['__sum_sq'] +
-                                                 (n_cols - mt['__count']) *
-                                                 ((mt['__sum'] / mt['__count']) ** 2)))
+            mt = mt.select_entries(__x=entry_expr).unfilter_entries()
+            compute = {
+                '__count': agg.count_where(hl.is_defined(mt['__x'])),
+                '__sum': agg.sum(mt['__x']),
+                '__sum_sq': agg.sum(mt['__x'] * mt['__x'])
+            }
+            if axis == 'rows':
+                n_elements = mt.count_cols()
+                mt = mt.select_rows(**compute)
+            else:
+                n_elements = mt.count_rows()
+                mt = mt.select_cols(**compute)
+            compute = {
+                '__mean': mt['__sum'] / mt['__count'],
+                '__centered_length': hl.sqrt(mt['__sum_sq'] -
+                                             (mt['__sum'] ** 2) / mt['__count']),
+                '__length': hl.sqrt(mt['__sum_sq'] +
+                                    (n_elements - mt['__count']) *
+                                    ((mt['__sum'] / mt['__count']) ** 2))
+            }
+            if axis == 'rows':
+                mt = mt.select_rows(**compute)
+            else:
+                mt = mt.select_cols(**compute)
             expr = mt['__x']
             if normalize:
                 if center:
@@ -1154,10 +1173,17 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(BlockMatrixBroadcast(self._bmir,
-                                                [1, 0],
-                                                [self.n_cols, self.n_rows],
-                                                self.block_size))
+        if self.n_rows == 1 and self.n_cols == 1:
+            return self
+
+        if self.n_rows == 1:
+            index_expr = [0]
+        elif self.n_cols == 1:
+            index_expr = [1]
+        else:
+            index_expr = [1, 0]
+
+        return BlockMatrix(BlockMatrixBroadcast(self._bmir, index_expr, [self.n_cols, self.n_rows], self.block_size))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.

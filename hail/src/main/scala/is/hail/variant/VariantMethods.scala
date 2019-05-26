@@ -20,16 +20,6 @@ object VariantMethods {
     (Locus(contig, elts(size - 3).toInt, rg), elts(size - 2) +: elts(size - 1).split(","))
   }
 
-  def variantID(contig: String, start: Int, alleles: IndexedSeq[String]): String = {
-    require(alleles.length >= 2)
-    s"$contig:$start:${alleles(0)}:${alleles.tail.mkString(",")}"
-  }
-
-  def nGenotypes(nAlleles: Int): Int = {
-    require(nAlleles > 0, s"called nGenotypes with invalid number of alternates: $nAlleles")
-    nAlleles * (nAlleles + 1) / 2
-  }
-
   def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
     s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
 
@@ -68,7 +58,7 @@ object VariantMethods {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
         (Locus(locus.contig, locus.position + ns),
           ref.substring(ns, ref.length - ne) +:
-          altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray)
+            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray)
       }
     }
   }

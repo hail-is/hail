@@ -2,9 +2,10 @@
 #define HAIL_NDARRAY_H 1
 
 #include <vector>
+#include <sstream>
 
 struct NDArray {
-  int flags; // least sig. bit denotes if row major
+  int flags; // Not currently used. Will store metadata for numpy compatibility
   int offset;
   size_t elem_size;
   std::vector<long> shape;
@@ -12,40 +13,23 @@ struct NDArray {
   const char *data;
 };
 
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
-char const *load_indices(NDArray &nd, std::vector<long> indices);
+NDArray make_ndarray(int flags, int offset, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data);
 char const *load_index(NDArray &nd, int index);
 int n_elements(std::vector<long> &shape);
 std::vector<long> make_strides(int row_major, std::vector<long> &shape);
 std::vector<long> strides_row_major(std::vector<long> &shape);
 std::vector<long> strides_col_major(std::vector<long> &shape);
 
-NDArray make_ndarray(int flags, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data) {
+NDArray make_ndarray(int flags, int offset, size_t elem_size, std::vector<long> shape, std::vector<long> strides, const char *data) {
   NDArray nd;
   nd.flags = flags;
-  nd.offset = 0;
+  nd.offset = offset;
   nd.elem_size = elem_size;
   nd.shape = shape;
   nd.data = data;
   nd.strides = strides;
 
   return nd;
-}
-
-char const *load_indices(NDArray nd, std::vector<long> indices) {
-  if (indices.size() != nd.shape.size()) {
-    throw new FatalError("Number of indices must match number of dimensions.");
-  }
-
-  int index = 0;
-  for (int i = 0; i < indices.size(); ++i) {
-    if (indices[i] < 0 || indices[i] >= nd.shape[i]) {
-      throw new FatalError(("Invalid index: " + std::to_string(indices[i])).c_str());
-    }
-    index += nd.strides[i] * indices[i];
-  }
-
-  return load_index(nd, index);
 }
 
 char const *load_index(NDArray &nd, int index) {
@@ -69,24 +53,112 @@ std::vector<long> strides_row_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
-    strides[shape.size() - 1] = 1;
+    long prev_stride = 1;
+    int end = shape.size() - 1;
+    if (shape[end] == 1) {
+      strides[end] = 0;
+    } else {
+      strides[end] = prev_stride;
+    }
+
     for (int i = shape.size() - 2; i >= 0; --i) {
-      strides[i] = shape[i + 1] * strides[i + 1];
+      if (shape[i] == 1) {
+        strides[i] = 0;
+      } else {
+        strides[i] = shape[i + 1] * prev_stride;
+        prev_stride = strides[i];
+      }
     }
   }
   return strides;
+}
+
+std::string npy_header(NDArray &nd, const char * numpy_dtype) {
+  std::stringstream s;
+
+  s << "{";
+  s << "'descr': " << "'" << numpy_dtype << "'" << ", ";
+  s << "'fortran_order': False" << ", ";
+  s << "'shape': " << "(";
+  for (int i = 0; i < nd.shape.size(); ++i) {
+    s << nd.shape[i] << ", ";
+  }
+  s << ")" << "}";
+
+  return s.str();
 }
 
 std::vector<long> strides_col_major(std::vector<long> &shape) {
   std::vector<long> strides(shape.size());
 
   if (shape.size() > 0) {
-    strides[0] = 1;
+    long prev_stride = 1;
+    if (shape[0] == 1) {
+      strides[0] = 0;
+    } else {
+      strides[0] = prev_stride;
+    }
+
     for (int i = 1; i < shape.size(); ++i) {
-      strides[i] = shape[i - 1] * strides[i - 1];
+      if (shape[i] == 1) {
+        strides[i] = 0;
+      } else {
+        strides[i] = shape[i - 1] * prev_stride;
+        prev_stride = strides[i];
+      }
     }
   }
   return strides;
 }
 
+std::vector<long> unify_shapes(std::vector<long> &left, std::vector<long> &right) {
+  std::vector<long> result(left.size());
+
+  for (int i = 0; i < left.size(); ++i) {
+    if (!(left[i] == right[i] || left[i] == 1 || right[i] == 1)) {
+      throw new FatalError("Incompatible shapes for element-wise map");
+    }
+    result[i] = std::max(left[i], right[i]);
+  }
+
+  return result;
+}
+
+std::vector<long> matmul_shape(std::vector<long> &left, std::vector<long> &right) {
+  int l_size = left.size();
+  int r_size = right.size();
+  assert(l_size >= 1);
+  assert(r_size >= 1);
+
+  int left_inner_dim = l_size - 1;
+  int right_inner_dim = std::max(0, r_size - 2);
+  if (left[left_inner_dim] != right[right_inner_dim]) {
+    throw new FatalError("Invalid shapes for matrix multiplication");
+  }
+
+  std::vector<long> result;
+  if (l_size == 1 && r_size == 1) {
+    return result;
+  } else if (l_size == 1) {
+    result.assign(right.begin(), right.begin() + right_inner_dim);
+    result.push_back(right[r_size - 1]);
+  } else if (r_size == 1) {
+    result.assign(left.begin(), left.begin() + left_inner_dim);
+  } else {
+    assert(l_size == r_size);
+
+    for (int i = 0; i < l_size - 2; ++i) {
+      if (left[i] != right[i] && left[i] != 1 && right[i] != 1) {
+        throw new FatalError("Invalid shapes for matrix multiplication");
+      }
+      result.push_back(std::max(left[i], right[i]));
+    }
+    long n = left[l_size - 2];
+    long m = right[r_size - 1];
+    result.push_back(n);
+    result.push_back(m);
+  }
+
+  return result;
+}
 #endif
