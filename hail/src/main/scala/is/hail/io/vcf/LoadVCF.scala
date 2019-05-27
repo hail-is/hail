@@ -1045,7 +1045,7 @@ object LoadVCF {
       fatal("arguments refer to no files")
 
     inputs.foreach { input =>
-      if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || !input.endsWith(".vcf.gz")))
+      if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || input.endsWith(".vcf.gz")))
         warn(s"expected input file '$input' to end in .vcf[.bgz, .gz]")
       if (input.endsWith(".gz"))
         checkGzippedFile(fs, input, forceGZ, gzAsBGZ)

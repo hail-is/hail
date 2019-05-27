@@ -2,6 +2,7 @@
 A Jupyter notebook service with local-mode Hail pre-installed
 """
 
+import secrets
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -16,12 +17,11 @@ from functools import wraps
 
 import logging
 import os
-import re
 import requests
 import uuid
 import hashlib
 import kubernetes as kube
-import os
+import jwt
 
 from table import Table
 from hailjwt import JWTClient, get_domain
@@ -73,10 +73,9 @@ INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
-SECRET_KEY = read_string('/notebook-secrets/secret-key')
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = SECRET_KEY,
+    SECRET_KEY = secrets.token_bytes(16),
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
@@ -110,7 +109,9 @@ k8s = kube.client.CoreV1Api()
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
-jwtclient = JWTClient(SECRET_KEY)
+with open('/jwt-secret-key/secret-key', 'rb') as f:
+    jwtclient = JWTClient(f.read())
+
 
 def jwt_decode(token):
     if token is None:
@@ -121,6 +122,7 @@ def jwt_decode(token):
     except jwt.exceptions.InvalidTokenError as e:
         log.warn(f'found invalid token {e}')
         return None
+
 
 def attach_user():
     def attach_user(f):
@@ -159,7 +161,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
     ksa_name = user_data['ksa_name']
     bucket = user_data['bucket_name']
     gsa_key_secret_name = user_data['gsa_key_secret_name']
-    jwt_secret_name = user_data['user_jwt_secret_name']
+    jwt_secret_name = user_data['jwt_secret_name']
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
@@ -518,9 +520,8 @@ def auth0_callback():
     userinfo = auth0.get('userinfo').json()
 
     email = userinfo['email']
-    workshop_user = session.get('workshop_user', False)
 
-    if AUTHORIZED_USERS.get(email) is None and workshop_user is False:
+    if AUTHORIZED_USERS.get(email) is None:
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     g.user = {
@@ -549,28 +550,14 @@ def error_page():
     return render_template('error.html', error = request.args.get('err'))
 
 
-@app.route('/login', methods=['GET'])
-@attach_user()
-def login_page():
-    return render_template('login.html')
-
-
 @app.route('/user', methods=['GET'])
 @requires_auth()
 def user_page():
     return render_template('user.html', user=g.user)
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET'])
 def login_auth0():
-    workshop_password = request.form['workshop-password']
-
-    if workshop_password != '':
-        if workshop_password != PASSWORD:
-            return redirect(external_url_for(f"error?err=Unauthorized"))
-
-        session['workshop_user'] = True
-
     return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
                                     audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 

@@ -2,12 +2,10 @@
 
 set -ex
 
-cd $(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd $(CDPATH= cd -- "$(dirname -- "$0")"/.. && pwd)
 
 cleanup() {
     trap "" INT TERM
-    rm hail/hail-all-spark.jar
-    rm README.md
     rm -rf build/lib
 }
 trap cleanup EXIT
@@ -20,15 +18,37 @@ published=$(
      | grep '^hail ' \
      | sed 's/hail (//' \
      | sed 's/).*//')
-current=$(cat hail/hail_pip_version)
+current=$(cat python/hail/hail_pip_version)
 
 if [[ "${published}" != "${current}" ]]
 then
     echo deploying ${current}, was ${published}
-    cp ../build/libs/hail-all-spark.jar hail/
-    cp ../../README.md .
-    rm -f dist/*
-    $python3 setup.py sdist bdist_wheel
+    rm -rf build/deploy_pypi
+    mkdir -p build/deploy_pypi
+    mkdir -p build/deploy_pypi/src
+
+    cp ../README.md build/deploy_pypi/
+    cp deploy_scripts/setup.py build/deploy_pypi/
+    cp deploy_scripts/setup.cfg build/deploy_pypi/
+
+    rsync -rv \
+      --exclude '__pycache__/' \
+      --exclude 'docs/' \
+      --exclude '*.log' \
+      python/hail build/deploy_pypi/src/
+
+    rsync -rv \
+      --exclude '__pycache__/' \
+      --exclude '*.log' \
+      ../hailctl/python/hailctl build/deploy_pypi/src/
+
+    cp build/libs/hail-all-spark.jar build/deploy_pypi/src/hail/
+
+    cd build/deploy_pypi
+    cp src/hail/hail_pip_version src/hailctl/hail_pip_version
+    cp src/hail/hail_version src/hailctl/hail_version
+    ${python3} setup.py sdist bdist_wheel
+
     if [[ -e /secrets/pypi-username && -e /secrets/pypi-password ]]
     then
         set +x

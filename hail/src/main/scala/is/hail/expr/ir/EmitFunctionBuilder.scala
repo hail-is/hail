@@ -4,6 +4,8 @@ import java.io.PrintWriter
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
+import is.hail.backend.spark.SparkBackendUtils
+import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
@@ -49,6 +51,10 @@ trait FunctionWithFS {
 
 trait FunctionWithSeededRandomness {
   def setPartitionIndex(idx: Int): Unit
+}
+
+trait FunctionWithSparkBackend {
+  def setSparkBackend(spark: SparkBackendUtils): Unit
 }
 
 class EmitMethodBuilder(
@@ -145,6 +151,24 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] var _fs: FS = _
   private[this] var _fsField: ClassFieldRef[FS] = _
+  private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _sparkField: ClassFieldRef[SparkBackendUtils] = _
+
+  def sparkBackend(): Code[SparkBackendUtils] = {
+    if (_sparkField == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSparkBackend].iname)
+      val sparkField = newField[SparkBackendUtils]
+      val mb = new EmitMethodBuilder(this, "setSparkBackend", Array(typeInfo[SparkBackendUtils]), typeInfo[Unit])
+      methods.append(mb)
+      mb.emit(sparkField := mb.getArg[SparkBackendUtils](1))
+      _sparkField = sparkField
+    }
+    _sparkField
+  }
+
+  def addModule(name: String, mod: Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+    _mods += name -> mod
+  }
 
   def addFS(fs: FS): Unit = {
     assert(fs != null)
@@ -337,6 +361,9 @@ class EmitFunctionBuilder[F >: Null](
     val n = name.replace("/",".")
     val localFs = _fs
 
+    val useSpark = _sparkField != null
+    val spark = if (useSpark) new SparkBackendUtils(_mods.result()) else null
+
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
@@ -356,6 +383,8 @@ class EmitFunctionBuilder[F >: Null](
           val f = theClass.newInstance().asInstanceOf[F]
           if (localFs != null)
             f.asInstanceOf[FunctionWithFS].addFS(localFs)
+          if (useSpark)
+            f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

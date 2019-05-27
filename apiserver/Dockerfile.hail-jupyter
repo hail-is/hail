@@ -28,6 +28,7 @@ WORKDIR /home/jovian
 ENV HOME /home/jovian
 ENV PATH "/home/jovian/bin:$PATH"
 ENV HAIL_APISERVER_URL "http://apiserver:5000"
+ENV BATCH_URL "http://batch.{{ default_ns.name }}"
 
 COPY apiserver/jupyter_notebook_config.py.in /home/jovian/
 RUN sed -e "s,@project@,{{ global.project }},g" \

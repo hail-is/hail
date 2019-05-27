@@ -516,7 +516,7 @@ class RVD(
       .filter(i => intervals.overlaps(partitioner.rangeBounds(i)))
       .toArray
 
-    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+    info(s"reading ${ newPartitionIndices.length } of $nPartitions data partitions")
 
     if (newPartitionIndices.isEmpty)
       RVD.empty(sparkContext, typ)

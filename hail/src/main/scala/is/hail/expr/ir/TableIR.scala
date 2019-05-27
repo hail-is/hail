@@ -1547,6 +1547,27 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   }
 }
 
+case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval], keep: Boolean) extends TableIR {
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableFilterIntervals(newChild, intervals, keep)
+  }
+
+  override lazy val typ: TableType = child.typ
+  override lazy val rvdType: RVDType = child.rvdType
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    val tv = child.execute(hc)
+    val partitioner = RVDPartitioner.union(
+      tv.typ.keyType,
+      intervals,
+      tv.rvd.typ.key.length - 1)
+    TableValue(tv.typ, tv.globals, tv.rvd.filterIntervals(partitioner, keep))
+  }
+}
+
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 

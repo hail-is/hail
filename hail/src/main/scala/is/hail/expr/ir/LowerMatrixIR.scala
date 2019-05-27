@@ -271,6 +271,8 @@ object LowerMatrixIR {
 
     case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child), n, shuffle)
 
+    case MatrixFilterIntervals(child, intervals, keep) => TableFilterIntervals(lower(child), intervals, keep)
+
     case MatrixUnionRows(children) =>
       // FIXME: this should check that all children have the same column keys.
       TableUnion(MatrixUnionRows.unify(children).map(lower))
@@ -278,6 +280,10 @@ object LowerMatrixIR {
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
     case MatrixRowsHead(child, n) => TableHead(lower(child), n)
+
+    case MatrixColsHead(child, n) => lower(child)
+      .mapGlobals('global.insertFields(colsField -> 'global (colsField).invoke("[:*]", n)))
+      .mapRows('row.insertFields(entriesField -> 'row (entriesField).invoke("[:*]", n)))
 
     case MatrixExplodeCols(child, path) =>
       val loweredChild = lower(child)

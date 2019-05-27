@@ -10,6 +10,24 @@ from .poll_until import poll_until
 
 
 class Job:
+    @staticmethod
+    def exit_code(job_status):
+        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+            return None
+
+        exit_codes = job_status['exit_code']
+        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
+
+        i = 0
+        while i < len(exit_codes):
+            ec = exit_codes[i]
+            if ec is None:
+                return None
+            if ec > 0:
+                return ec
+            i += 1
+        return 0
+
     def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
@@ -104,7 +122,7 @@ class BatchClient:
             with open(token_file) as f:
                 token = f.read()
         userdata = hj.JWTClient.unsafe_decode(token)
-        assert "bucket_name" in userdata, userdata
+        assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]
         self.api = api.API(timeout=timeout,
                            cookies={'user': token},

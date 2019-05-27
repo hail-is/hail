@@ -2,7 +2,7 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations._
 import is.hail.expr.types.virtual._
-import is.hail.utils.ArrayBuilder
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -659,7 +659,7 @@ abstract class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Dou
 
   def result(rvb: RegionValueBuilder): Unit = {
     val cdf = makeCdf()
-    val res = Row(cdf._1, cdf._2, combiner.compactionCounts.toIndexedSeq)
+    val res = Row(cdf._1, cdf._2, combiner.compactionCounts.toFastIndexedSeq)
     rvb.addAnnotation(QuantilesAggregator.resultType(helper.hailType), res)
   }
 

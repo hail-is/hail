@@ -9,6 +9,7 @@ import tempfile
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.types import *
+from hail.expr.functions import _error_from_cdf
 from ..helpers import *
 
 setUpModule = startTestHailContext
@@ -320,6 +321,18 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
         mt = mt.annotate_cols(bar=hl.agg.approx_cdf(mt.foo))
         mt.cols()._force_count()
+
+    def test_approx_quantiles(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(hl.agg.approx_quantiles(table.i, hl.float32(0.5)))
+        table.aggregate(hl.agg.approx_quantiles(table.i, [0.0, 0.1, 0.5, 0.9, 1.0]))
+
+    def test_error_from_cdf(self):
+        table = hl.utils.range_table(100)
+        table = table.annotate(i=table.idx)
+        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001))
+        table.aggregate(_error_from_cdf(hl.agg.approx_cdf(table.i), .001, all_quantiles=True))
 
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)
@@ -2955,3 +2968,9 @@ class Tests(unittest.TestCase):
         self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
+
+    def test_binary_search(self):
+        a = hl.array([0, 2, 4, 8])
+        values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
+        expected = [0, 0, 1, 1, 2, 2, 4, None]
+        assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected

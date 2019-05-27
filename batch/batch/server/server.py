@@ -6,10 +6,10 @@ import os
 import threading
 import json
 import uuid
+from shlex import quote as shq
 
 from aiohttp import web
 import cerberus
-import jwt
 import kubernetes as kube
 import requests
 import uvloop
@@ -99,20 +99,20 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def from_dict(d):
         name = d['name']
-        pod_template = v1.api_client._ApiClient__deserialize(d['pod_template'], kube.client.V1Pod)
-        return JobTask(name, pod_template)
+        pod_spec_dict = d['pod_spec_dict']
+        return JobTask(name, pod_spec_dict)
 
     @staticmethod
-    def copy_task(job_id, task_name, files):
+    def copy_task(task_name, files):
         if files is not None:
             authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):
-                    mkdirs = f'mkdir -p {os.path.dirname(dst)};'
+                    mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
                 else:
                     mkdirs = ""
-                return f'{mkdirs} gsutil -m cp -R {src} {dst}'
+                return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
             copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
             sh_expression = f'{authenticate} && {copies}'
@@ -123,97 +123,133 @@ class JobTask:  # pylint: disable=R0903
             spec = kube.client.V1PodSpec(
                 containers=[container],
                 restart_policy='Never')
-            return JobTask.from_spec(job_id, task_name, spec)
+            return JobTask.from_spec(task_name, spec)
         return None
 
     @staticmethod
-    def from_spec(job_id, name, pod_spec):
-        return JobTask(name, kube.client.V1Pod(
-            metadata=kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
-                                              labels={
-                                                  'app': 'batch-job',
-                                                  'hail.is/batch-instance': INSTANCE_ID,
-                                                  'uuid': uuid.uuid4().hex
-                                              }),
-            spec=pod_spec))
+    def from_spec(name, pod_spec):
+        assert pod_spec is not None
+        return JobTask(name, v1.api_client.sanitize_for_serialization(pod_spec))
 
-    def __init__(self, name, pod_template):
-        assert pod_template is not None
-        self.pod_template = pod_template
+    def __init__(self, name, pod_spec_dict):
+        self.pod_spec_dict = pod_spec_dict
         self.name = name
 
     def to_dict(self):
         return {'name': self.name,
-                'pod_template': v1.api_client.sanitize_for_serialization(self.pod_template)}
+                'pod_spec_dict': self.pod_spec_dict}
 
 
 class Job:
-    async def _next_task(self):
-        self._task_idx += 1
-        await db.jobs.update_record(self.id, task_idx=self._task_idx)
-        if self._task_idx < len(self._tasks):
-            self._current_task = self._tasks[self._task_idx]
-
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
     async def _create_pvc(self):
-        pvc = v1.create_namespaced_persistent_volume_claim(
-            HAIL_POD_NAMESPACE,
-            kube.client.V1PersistentVolumeClaim(
-                metadata=kube.client.V1ObjectMeta(
-                    generate_name=f'job-{self.id}-',
-                    labels={'app': 'batch-job',
-                            'hail.is/batch-instance': INSTANCE_ID}),
-                spec=kube.client.V1PersistentVolumeClaimSpec(
-                    access_modes=['ReadWriteOnce'],
-                    volume_mode='Filesystem',
-                    resources=kube.client.V1ResourceRequirements(
-                        requests={'storage': POD_VOLUME_SIZE}),
-                    storage_class_name=STORAGE_CLASS_NAME)),
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
-        pvc_serialized = json.dumps(v1.api_client.sanitize_for_serialization(pvc.to_dict()))
-        await db.jobs.update_record(self.id,
-                                    pvc=pvc_serialized)
-        log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
-        return pvc
+        try:
+            pvc = v1.create_namespaced_persistent_volume_claim(
+                HAIL_POD_NAMESPACE,
+                kube.client.V1PersistentVolumeClaim(
+                    metadata=kube.client.V1ObjectMeta(
+                        generate_name=f'job-{self.id}-',
+                        labels={'app': 'batch-job',
+                                'hail.is/batch-instance': INSTANCE_ID}),
+                    spec=kube.client.V1PersistentVolumeClaimSpec(
+                        access_modes=['ReadWriteOnce'],
+                        volume_mode='Filesystem',
+                        resources=kube.client.V1ResourceRequirements(
+                            requests={'storage': POD_VOLUME_SIZE}),
+                        storage_class_name=STORAGE_CLASS_NAME)),
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            pvc_name = pvc.metadata.name
+            await db.jobs.update_record(self.id, pvc_name=pvc_name)
+            log.info(f'created pvc name: {pvc_name} for job {self.id}')
+            return pvc_name
+        except kube.client.rest.ApiException as err:
+            log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
+            return None
 
     # may be called twice with the same _current_task
     async def _create_pod(self):
         assert self._pod_name is None
         assert self._current_task is not None
+        assert self.userdata is not None
 
-        pod = v1.create_namespaced_pod(
-            HAIL_POD_NAMESPACE,
-            self._current_task.pod_template,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        self._pod_name = pod.metadata.name
+        volumes = [
+            kube.client.V1Volume(
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=self.userdata['gsa_key_secret_name']),
+                name='gsa-key')]
+        volume_mounts = [
+            kube.client.V1VolumeMount(
+                mount_path='/gsa-key',
+                name='gsa-key')]
 
-        await db.jobs.update_record(self.id,
-                                    pod_name=self._pod_name)
+        if len(self._tasks) > 1:
+            if self._pvc_name is None:
+                self._pvc_name = await self._create_pvc()
+                if self._pvc_name is None:
+                    log.info(f'could not create pod for job {self.id} due to pvc creation failure')
+                    return
+            volumes.append(kube.client.V1Volume(
+                persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
+                    claim_name=self._pvc_name),
+                name=self._pvc_name))
+            volume_mounts.append(kube.client.V1VolumeMount(
+                mount_path='/io',
+                name=self._pvc_name))
 
-        log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
-                                                                   self.id,
-                                                                   self._current_task.name))
+        pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec_dict, kube.client.V1PodSpec)
+        if pod_spec.volumes is None:
+            pod_spec.volumes = []
+        pod_spec.volumes.extend(volumes)
+        for container in pod_spec.containers:
+            if container.volume_mounts is None:
+                container.volume_mounts = []
+            container.volume_mounts.extend(volume_mounts)
+
+        pod_template = kube.client.V1Pod(
+            metadata=kube.client.V1ObjectMeta(
+                generate_name='job-{}-{}-'.format(self.id, self._current_task.name),
+                labels={'app': 'batch-job',
+                        'hail.is/batch-instance': INSTANCE_ID,
+                        'uuid': uuid.uuid4().hex
+                        }),
+            spec=pod_spec)
+
+        try:
+            pod = v1.create_namespaced_pod(
+                HAIL_POD_NAMESPACE,
+                pod_template,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            self._pod_name = pod.metadata.name
+
+            await db.jobs.update_record(self.id,
+                                        pod_name=self._pod_name)
+
+            log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
+                                                                       self.id,
+                                                                       self._current_task.name))
+        except kube.client.rest.ApiException as err:
+            log.info(f'pod creation failed for job {self.id} with the following error: {err}')
 
     async def _delete_pvc(self):
-        if self._pvc is not None:
-            log.info(f'deleting persistent volume claim {self._pvc.metadata.name} in '
-                     f'{self._pvc.metadata.namespace}')
-            try:
-                v1.delete_namespaced_persistent_volume_claim(
-                    self._pvc.metadata.name,
-                    HAIL_POD_NAMESPACE,
-                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kube.client.rest.ApiException as err:
-                if err.status == 404:
-                    log.info(f'persistent volume claim {self._pvc.metadata.name} in '
-                             f'{self._pvc.metadata.namespace} is already deleted')
-                    return
-                raise
-            finally:
-                await db.jobs.update_record(self.id, pvc=None)
+        if self._pvc_name is None:
+            return
+
+        log.info(f'deleting persistent volume claim {self._pvc_name}')
+        try:
+            v1.delete_namespaced_persistent_volume_claim(
+                self._pvc_name,
+                HAIL_POD_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        except kube.client.rest.ApiException as err:
+            if err.status == 404:
+                log.info(f'persistent volume claim {self._pvc_name} is already deleted')
+                return
+            raise
+        finally:
+            await db.jobs.update_record(self.id, pvc_name=None)
+            self._pvc_name = None
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
@@ -227,8 +263,9 @@ class Job:
                 if err.status == 404:
                     pass
                 raise
-            await db.jobs.update_record(self.id, pod_name=None)
-            self._pod_name = None
+            finally:
+                await db.jobs.update_record(self.id, pod_name=None)
+                self._pod_name = None
 
     async def _read_logs(self):
         async def _read_log(jt):
@@ -255,9 +292,23 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Created'
         return None
 
-    async def _write_log(self, task_name, log):
-        uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
-        await db.jobs.update_log_uri(self.id, task_name, uri)
+    async def _mark_job_task_complete(self, task_name, log, exit_code):
+        self.exit_codes[self._task_idx] = exit_code
+
+        self._task_idx += 1
+        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
+
+        if self._pod_name:
+            self._pod_name = None
+
+        uri = None
+        if log is not None:
+            uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
+
+        await db.jobs.update_with_log_ec(self.id, task_name, uri, exit_code,
+                                         task_idx=self._task_idx,
+                                         pod_name=self._pod_name,
+                                         duration=self.duration)
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -268,21 +319,18 @@ class Job:
     def from_record(record):
         if record is not None:
             tasks = [JobTask.from_dict(item) for item in json.loads(record['tasks'])]
-
-            if record['pvc'] is not None:
-                pvc = v1.api_client._ApiClient__deserialize(json.loads(record['pvc']),
-                                                            kube.client.V1PersistentVolumeClaim)
-            else:
-                pvc = None
-
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
+            exit_codes = [record[db.jobs.exit_code_field(t.name)] for t in tasks]
+            ec_indices = [idx for idx, ec in enumerate(exit_codes) if ec is not None]
+            assert record['task_idx'] == 1 + (ec_indices[-1] if len(ec_indices) else -1)
+
             return Job(id=record['id'], batch_id=record['batch_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
-                       always_run=record['always_run'], pvc=pvc, pod_name=record['pod_name'],
-                       exit_code=record['exit_code'], duration=record['duration'], tasks=tasks,
-                       task_idx=record['task_idx'], state=record['state'], cancelled=record['cancelled'])
+                       always_run=record['always_run'], pvc_name=record['pvc_name'], pod_name=record['pod_name'],
+                       exit_codes=exit_codes, duration=record['duration'], tasks=tasks,
+                       task_idx=record['task_idx'], state=record['state'])
         return None
 
     @staticmethod
@@ -301,75 +349,37 @@ class Job:
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
                          input_files, output_files, userdata, always_run):
-        pvc = None
+        pvc_name = None
         pod_name = None
-        exit_code = None
-        duration = None
-        task_idx = -1
+        duration = 0
+        task_idx = 0
         state = 'Created'
-        cancelled = False
-        user = userdata['ksa_name']
+        user = userdata['username']
+
+        tasks = [JobTask.copy_task('input', input_files),
+                 JobTask.from_spec('main', pod_spec),
+                 JobTask.copy_task('output', output_files)]
+
+        tasks = [t for t in tasks if t is not None]
+        exit_codes = [None for _ in tasks]
 
         id = await db.jobs.new_record(state=state,
-                                      exit_code=exit_code,
                                       batch_id=batch_id,
                                       pod_name=pod_name,
-                                      pvc=pvc,
+                                      pvc_name=pvc_name,
                                       callback=callback,
                                       attributes=json.dumps(attributes),
+                                      tasks=json.dumps([jt.to_dict() for jt in tasks]),
                                       task_idx=task_idx,
                                       always_run=always_run,
-                                      cancelled=cancelled,
                                       duration=duration,
                                       userdata=json.dumps(userdata),
                                       user=user)
 
-        tasks = [JobTask.copy_task(id, 'input', input_files),
-                 JobTask.from_spec(id, 'main', pod_spec),
-                 JobTask.copy_task(id, 'output', output_files)]
-
-        tasks = [t for t in tasks if t is not None]
-
         job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
-                  userdata=userdata, user=user, always_run=always_run, pvc=pvc,
-                  pod_name=pod_name, exit_code=exit_code, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state, cancelled=cancelled)
-
-        for task in tasks:
-            volumes = [
-                kube.client.V1Volume(
-                    secret=kube.client.V1SecretVolumeSource(
-                        secret_name=userdata['gsa_key_secret_name']),
-                    name='gsa-key')]
-            volume_mounts = [
-                kube.client.V1VolumeMount(
-                    mount_path='/gsa-key',
-                    name='gsa-key')]
-
-            if len(job._tasks) > 1:
-                if job._pvc is None:
-                    job._pvc = await job._create_pvc()
-                volumes.append(kube.client.V1Volume(
-                    persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=job._pvc.metadata.name),
-                    name=job._pvc.metadata.name))
-                volume_mounts.append(kube.client.V1VolumeMount(
-                    mount_path='/io',
-                    name=job._pvc.metadata.name))
-
-            current_pod_spec = task.pod_template.spec
-            if current_pod_spec.volumes is None:
-                current_pod_spec.volumes = []
-            current_pod_spec.volumes.extend(volumes)
-            for container in current_pod_spec.containers:
-                if container.volume_mounts is None:
-                    container.volume_mounts = []
-                container.volume_mounts.extend(volume_mounts)
-
-        await db.jobs.update_record(id, tasks=json.dumps([jt.to_dict() for jt in job._tasks]))
-
-        await job._next_task()
-        assert job._current_task is not None
+                  userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
+                  pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
+                  task_idx=task_idx, state=state)
 
         for parent in parent_ids:
             await db.jobs_parents.new_record(job_id=id,
@@ -386,7 +396,7 @@ class Job:
         return job
 
     def __init__(self, id, batch_id, attributes, callback, userdata, user, always_run,
-                 pvc, pod_name, exit_code, duration, tasks, task_idx, state, cancelled):
+                 pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state):
         self.id = id
         self.batch_id = batch_id
         self.attributes = attributes
@@ -394,16 +404,15 @@ class Job:
         self.always_run = always_run
         self.userdata = userdata
         self.user = user
-        self.exit_code = exit_code
+        self.exit_codes = exit_codes
         self.duration = duration
 
-        self._pvc = pvc
+        self._pvc_name = pvc_name
         self._pod_name = pod_name
         self._tasks = tasks
         self._task_idx = task_idx
         self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
         self._state = state
-        self._cancelled = cancelled
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(self.id):
@@ -437,8 +446,7 @@ class Job:
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(self.id)
         if self._state == 'Created' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(self.id)]
-            if (self.always_run or
-                    (all(p.is_successful() for p in parents) and not self._cancelled)):
+            if self.always_run or all(p.is_successful() for p in parents):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 await self.set_state('Ready')
@@ -452,18 +460,19 @@ class Job:
         if self.is_complete():
             return
         if self._state == 'Created':
-            self._cancelled = True
-            await db.jobs.update_record(self.id, cancelled=True)
+            if not self.always_run:
+                await self.set_state('Cancelled')
         else:
             assert self._state == 'Ready', self._state
-            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-            await self._delete_k8s_resources()
+            if not self.always_run:
+                await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
+                await self._delete_k8s_resources()
 
     def is_complete(self):
         return self._state in ('Complete', 'Cancelled')
 
     def is_successful(self):
-        return self._state == 'Complete' and self.exit_code == 0
+        return self._state == 'Complete' and all([ec == 0 for ec in self.exit_codes])
 
     async def mark_unscheduled(self):
         if self._pod_name:
@@ -475,42 +484,34 @@ class Job:
         task_name = self._current_task.name
 
         if failed:
-            await db.jobs.update_record(self.id,
-                                        # FIXME hack
-                                        exit_code=999,
-                                        pod_name=None)
+            exit_code = 999  # FIXME hack
+            pod_log = None
         else:
             terminated = pod.status.container_statuses[0].state.terminated
-            self.exit_code = terminated.exit_code
+            exit_code = terminated.exit_code
             if terminated.finished_at is not None and terminated.started_at is not None:
-                self.duration = (terminated.finished_at - terminated.started_at).total_seconds()
+                duration = (terminated.finished_at - terminated.started_at).total_seconds()
+                if self.duration is not None:
+                    self.duration += duration
             else:
                 log.warning(f'job {self.id} has pod {pod.metadata.name} which is '
                             f'terminated but has no timing information. {pod}')
                 self.duration = None
-            await db.jobs.update_record(self.id,
-                                        exit_code=self.exit_code,
-                                        duration=self.duration,
-                                        pod_name=None)
-
             try:
                 pod_log = v1.read_namespaced_pod_log(
                     pod.metadata.name,
                     HAIL_POD_NAMESPACE,
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as exc:
+                log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
                 if exc.status == 400:
-                    log.exception(f'could not get logs for {pod.metadata.name} due to {exc}')
-                    pod_log = f'could not get logs for {pod.metadata.name} due to {exc}'
-                else:
-                    raise
-            await self._write_log(task_name, pod_log)
+                    await self.mark_unscheduled()
+                    return
+                raise
 
-        if self._pod_name:
-            self._pod_name = None
+        await self._mark_job_task_complete(task_name, pod_log, exit_code)
 
-        await self._next_task()
-        if self.exit_code == 0:
+        if exit_code == 0:
             if self._has_next_task():
                 await self._create_pod()
                 return
@@ -520,7 +521,7 @@ class Job:
 
         await self.set_state('Complete')
 
-        log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
+        log.info('job {} complete, exit_codes {}'.format(self.id, self.exit_codes))
 
         if self.callback:
             def handler(id, callback, json):
@@ -543,7 +544,7 @@ class Job:
             'state': self._state
         }
         if self._state == 'Complete':
-            result['exit_code'] = self.exit_code
+            result['exit_code'] = {t.name: ec for ec, t in zip(self.exit_codes, self._tasks)}
             result['duration'] = self.duration
 
         if self.attributes:
@@ -555,7 +556,7 @@ class Job:
 @authenticated_users_only
 async def create_job(request, userdata):  # pylint: disable=R0912
     parameters = await request.json()
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     schema = {
         # will be validated when creating pod
@@ -642,7 +643,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 @authenticated_users_only
 async def get_job(request, userdata):
     job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     job = await Job.from_db(job_id, user)
     if not job:
@@ -654,7 +655,7 @@ async def get_job(request, userdata):
 @authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     job = await Job.from_db(job_id, user)
     if not job:
@@ -716,7 +717,7 @@ class Batch:
     @staticmethod
     async def create_batch(attributes, callback, ttl, userdata):
         is_open = True
-        user = userdata['ksa_name']
+        user = userdata['username']
 
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
@@ -826,7 +827,7 @@ class Batch:
 @authenticated_users_only
 async def get_batches_list(request, userdata):
     params = request.query
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batches = [Batch.from_record(record)
                for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
@@ -881,7 +882,7 @@ async def create_batch(request, userdata):
 @authenticated_users_only
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -893,7 +894,7 @@ async def get_batch(request, userdata):
 @authenticated_users_only
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -906,7 +907,7 @@ async def cancel_batch(request, userdata):
 @authenticated_users_only
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -919,7 +920,7 @@ async def delete_batch(request, userdata):
 @authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
 
     batch = await Batch.from_db(batch_id, user)
     if not batch:
@@ -1025,11 +1026,10 @@ async def refresh_k8s_pvc():
     log.info(f'k8s had {len(pvcs.items)} pvcs')
 
     seen_pvcs = set()
-
-    for record in await db.jobs.get_records_where({'pvc': 'NOT NULL'}):
+    for record in await db.jobs.get_records_where({'pvc_name': 'NOT NULL'}):
         job = Job.from_record(record)
-        assert job._pvc
-        seen_pvcs.add(job._pvc.metadata.name)
+        assert job._pvc_name
+        seen_pvcs.add(job._pvc_name)
 
     for pvc in pvcs.items:
         if pvc.metadata.name not in seen_pvcs:
@@ -1047,6 +1047,19 @@ async def refresh_k8s_pvc():
                 raise
             except Exception as e:  # pylint: disable=broad-except
                 log.exception(f'Delete pvc {pvc.metadata.name} failed due to exception: {e}')
+
+
+async def create_pods_if_ready():
+    await asyncio.sleep(30)
+    while True:
+        for record in await db.jobs.get_records_where({'state': 'Ready',
+                                                       'pod_name': None}):
+            job = Job.from_record(record)
+            try:
+                await job._create_pod()
+            except Exception as exc:  # pylint: disable=W0703
+                log.exception(f'Could not create pod for job {job.id} due to exception: {exc}')
+        await asyncio.sleep(30)
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
@@ -1085,4 +1098,5 @@ def serve(port=5000):
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())
         asyncio.ensure_future(db_cleanup_event_loop())
+        asyncio.ensure_future(create_pods_if_ready())
         web.run_app(app, host='0.0.0.0', port=port)

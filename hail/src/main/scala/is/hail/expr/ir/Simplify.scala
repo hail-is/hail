@@ -475,6 +475,9 @@ object Simplify {
       val uid = genUID()
       TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
 
+    case TableHead(MatrixColsTable(child), n) if child.typ.colKey.isEmpty =>
+      if (n > Int.MaxValue) MatrixColsTable(child) else MatrixColsTable(MatrixColsHead(child, n.toInt))
+
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
 
@@ -530,6 +533,33 @@ object Simplify {
         right
       else
         TableMapGlobals(right, TableGetGlobals(left))
+
+    // push down filter intervals nodes
+    case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
+      TableFilter(TableFilterIntervals(child, intervals, keep), pred)
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) =>
+      TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
+      TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
+    case TableFilterIntervals(TableRepartition(child, n, strategy), intervals, keep) =>
+      TableRepartition(TableFilterIntervals(child, intervals, keep), n, strategy)
+    case TableFilterIntervals(TableLeftJoinRightDistinct(child, right, root), intervals, true) =>
+      TableLeftJoinRightDistinct(TableFilterIntervals(child, intervals, true), TableFilterIntervals(right, intervals, true), root)
+    case TableFilterIntervals(TableIntervalJoin(child, right, root, product), intervals, keep) =>
+      TableIntervalJoin(TableFilterIntervals(child, intervals, keep), right, root, product)
+    case TableFilterIntervals(TableExplode(child, path), intervals, keep) =>
+      TableExplode(TableFilterIntervals(child, intervals, keep), path)
+    case TableFilterIntervals(TableAggregateByKey(child, expr), intervals, keep) =>
+      TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
+    case TableFilterIntervals(TableFilterIntervals(child, i1, keep1), i2, keep2) if keep1 == keep2 =>
+      val ord = child.typ.keyType.ordering.intervalEndpointOrdering
+      val intervals = if (keep1)
+      // keep means intersect intervals
+        Interval.intersection(i1.toArray[Interval], i2.toArray[Interval], ord)
+      else
+      // remove means union intervals
+        Interval.union(i1.toArray[Interval] ++ i2.toArray[Interval], ord)
+      TableFilterIntervals(child, intervals.toFastIndexedSeq, keep1)
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
@@ -604,6 +634,30 @@ object Simplify {
           agg = Some(Env.empty[IR]),
           scan = Some(Env.empty[IR])))),
         if (nk2.isDefined) nk2 else nk1)
+
+    // bubble up MatrixColsHead node
+    case MatrixColsHead(MatrixMapCols(child, newCol, newKey), n) => MatrixMapCols(MatrixColsHead(child, n), newCol, newKey)
+    case MatrixColsHead(MatrixMapEntries(child, newEntries), n) => MatrixMapEntries(MatrixColsHead(child, n), newEntries)
+    case MatrixColsHead(MatrixFilterEntries(child, newEntries), n) => MatrixFilterEntries(MatrixColsHead(child, n), newEntries)
+    case MatrixColsHead(MatrixKeyRowsBy(child, keys, isSorted), n) => MatrixKeyRowsBy(MatrixColsHead(child, n), keys, isSorted)
+    case MatrixColsHead(MatrixAggregateRowsByKey(child, rowExpr, entryExpr), n) => MatrixAggregateRowsByKey(MatrixColsHead(child, n), rowExpr, entryExpr)
+    case MatrixColsHead(MatrixChooseCols(child, oldIndices), n) => MatrixChooseCols(child, oldIndices.take(n))
+    case MatrixColsHead(MatrixColsHead(child, n1), n2) => MatrixColsHead(child, math.min(n1, n2))
+    case MatrixColsHead(MatrixFilterRows(child, pred), n) => MatrixFilterRows(MatrixColsHead(child, n), pred)
+    case MatrixColsHead(MatrixRead(t, dr, dc, MatrixRangeReader(nRows, nCols, nPartitions)), n) =>
+      MatrixRead(t, dr, dc, MatrixRangeReader(nRows, math.min(nCols, n), nPartitions))
+    case MatrixColsHead(MatrixMapRows(child, newRow), n) if !Mentions.inAggOrScan(newRow, "sa") =>
+      MatrixMapRows(MatrixColsHead(child, n), newRow)
+    case MatrixColsHead(MatrixMapGlobals(child, newGlobals), n) => MatrixMapGlobals(MatrixColsHead(child, n), newGlobals)
+    case MatrixColsHead(MatrixAnnotateColsTable(child, table, root), n) => MatrixAnnotateColsTable(MatrixColsHead(child, n), table, root)
+    case MatrixColsHead(MatrixAnnotateRowsTable(child, table, root, product), n) => MatrixAnnotateRowsTable(MatrixColsHead(child, n), table, root, product)
+    case MatrixColsHead(MatrixRepartition(child, nPar, strategy), n) => MatrixRepartition(MatrixColsHead(child, n), nPar, strategy)
+    case MatrixColsHead(MatrixExplodeRows(child, path), n) => MatrixExplodeRows(MatrixColsHead(child, n), path)
+    case MatrixColsHead(MatrixUnionRows(children), n) =>
+      // could prevent a dimension mismatch error, but we view errors as undefined behavior, so this seems OK.
+      MatrixUnionRows(children.map(MatrixColsHead(_, n)))
+    case MatrixColsHead(MatrixDistinctByRow(child), n) => MatrixDistinctByRow(MatrixColsHead(child, n))
+    case MatrixColsHead(MatrixRename(child, glob, col, row, entry), n) => MatrixRename(MatrixColsHead(child, n), glob, col, row, entry)
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {

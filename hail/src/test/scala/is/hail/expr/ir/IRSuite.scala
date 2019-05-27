@@ -76,7 +76,7 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
-  implicit val execStrats = ExecStrategy.values
+  implicit val execStrats = ExecStrategy.nonLowering
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
@@ -1655,7 +1655,8 @@ class IRSuite extends SparkSuite {
         TableExplode(read, Array("mset")),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
-        TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
+        TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
+        TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
       )
       xs.map(x => Array(x))
     } catch {
@@ -1733,6 +1734,7 @@ class IRSuite extends SparkSuite {
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
         MatrixDistinctByRow(range1),
         MatrixRowsHead(range1, 3),
+        MatrixColsHead(range1, 3),
         MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
         CastTableToMatrix(
           CastMatrixToTable(read, " # entries", " # cols"),
@@ -1741,7 +1743,8 @@ class IRSuite extends SparkSuite {
           read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", product=false),
-        MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam"))
+        MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam")),
+        MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
       )
 
       xs.map(x => Array(x))
@@ -2043,7 +2046,6 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(TableFilterIntervals(TInt32(), Array(Interval(1, 1, true, false)), keep = true)),
     Array(VEP("foo", false, 1)),
     Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "bar", "baz", "qux", FastIndexedSeq("ck"))),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
@@ -2056,7 +2058,6 @@ class IRSuite extends SparkSuite {
     Array(PCA("x", 1, false)),
     Array(WindowByLocus(1)),
     Array(MatrixFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(MatrixFilterIntervals(TInt32(), Array(Interval(1, 1, true, false)), keep = true)),
     Array(ForceCountTable()),
     Array(ForceCountMatrixTable()),
     Array(NPartitionsTable()),

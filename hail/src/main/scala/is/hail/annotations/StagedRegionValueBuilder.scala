@@ -78,7 +78,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
   def start(init: Boolean): Code[Unit] = {
     val t = ftype.asInstanceOf[PBaseStruct]
     var c = if (pOffset == null)
-      startOffset.store(region.allocate(t.alignment, t.byteSize))
+        startOffset.store(region.allocate(t.alignment, t.byteSize))
     else
       startOffset.store(pOffset)
     assert(staticIdx == 0)

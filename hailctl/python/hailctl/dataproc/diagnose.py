@@ -21,7 +21,6 @@ def init_parser(parser):
 def main(args, pass_through_args):
     print("Diagnosing cluster '{}'...".format(args.name))
 
-
     is_local = not args.dest.startswith("gs://")
 
     if args.overwrite:
@@ -29,7 +28,6 @@ def main(args, pass_through_args):
             call('rm -r {dir}'.format(dir=args.dest), shell=True)
         else:
             call('gsutil -m rm -r {dir}'.format(dir=args.dest), shell=True)
-
 
     master_dest = args.dest.rstrip('/') + "/master/"
     worker_dest = args.dest.rstrip('/') + "/workers/"
@@ -58,21 +56,20 @@ def main(args, pass_through_args):
         workers = args.workers
 
     if args.take:
-        assert args.take > 0 and args.take <= len(workers), "Number of workers to take must be in the range of [0, nWorkers]. Found " + args.take + "."
+        assert args.take > 0 and args.take <= len(
+            workers), "Number of workers to take must be in the range of [0, nWorkers]. Found " + args.take + "."
         workers = workers[:args.take]
 
-
     def gcloud_ssh(remote, command):
-        return 'gcloud compute ssh {remote} --zone {zone} --command "{command}"'.format(remote=remote, zone=zone, command=command)
-
+        return 'gcloud compute ssh {remote} --zone {zone} --command "{command}"'.format(remote=remote, zone=zone,
+                                                                                        command=command)
 
     def gcloud_copy_files(remote, src, dest):
-        return 'gcloud compute copy-files {remote}:{src} {dest} --zone {zone}'.format(remote=remote, src=src, dest=dest, zone=zone)
-
+        return 'gcloud compute copy-files {remote}:{src} {dest} --zone {zone}'.format(remote=remote, src=src, dest=dest,
+                                                                                      zone=zone)
 
     def gsutil_cp(src, dest):
         return 'gsutil -m cp -r {src} {dest}'.format(src=src, dest=dest)
-
 
     def copy_files_tmp(remote, files, dest, tmp):
         init_cmd = ['mkdir -p {tmp}; rm -r {tmp}/*'.format(tmp=tmp)]
@@ -92,7 +89,6 @@ def main(args, pass_through_args):
 
         call(copy_dest_cmd, shell=True)
 
-
     if not args.no_diagnose:
         diagnose_tar_path = re.search('Diagnostic results saved in: (?P<tarfile>gs:\/\/\S+diagnostic\.tar)',
                                       str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
@@ -102,18 +98,16 @@ def main(args, pass_through_args):
 
         call(gsutil_cp(diagnose_tar_path, args.dest), shell=True)
 
-
-    master_log_files = [ '/var/log/hive/hive-*',
-                         '/var/log/google-dataproc-agent.0.log',
-                         '/var/log/dataproc-initialization-script-0.log',
-                         '/var/log/hadoop-mapreduce/mapred-mapred-historyserver*',
-                         '/var/log/hadoop-hdfs/*-m.*',
-                         '/var/log/hadoop-yarn/yarn-yarn-resourcemanager-*-m.*',
-                         args.hail_log
-                         ]
+    master_log_files = ['/var/log/hive/hive-*',
+                        '/var/log/google-dataproc-agent.0.log',
+                        '/var/log/dataproc-initialization-script-0.log',
+                        '/var/log/hadoop-mapreduce/mapred-mapred-historyserver*',
+                        '/var/log/hadoop-hdfs/*-m.*',
+                        '/var/log/hadoop-yarn/yarn-yarn-resourcemanager-*-m.*',
+                        args.hail_log
+                        ]
 
     copy_files_tmp(master, master_log_files, master_dest, '/tmp/' + master + '/')
-
 
     worker_log_files = ['/var/log/hadoop-hdfs/hadoop-hdfs-datanode-*.*',
                         '/var/log/dataproc-startup-script.log',
