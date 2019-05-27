@@ -128,6 +128,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     argmin
     argmax
     corr
+    binary_search
 
 .. rubric:: String functions
 
