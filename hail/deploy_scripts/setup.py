@@ -2,7 +2,7 @@
 
 from setuptools import setup, find_packages
 
-with open('hail/hail_pip_version') as f:
+with open('src/hail/hail_pip_version') as f:
     hail_pip_version = f.read().strip()
 
 with open("README.md", "r") as fh:
@@ -17,9 +17,13 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://hail.is",
-    packages=find_packages(),
+    packages=find_packages('./src'),
+    package_dir={
+        'hail': 'src/hail',
+        'hailctl': 'src/hailctl'},
     package_data={
-        '': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version']},
+        'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
+        'hailctl': ['hail_pip_version', 'hail_version']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -38,5 +42,8 @@ setup(
         'requests>=2.21.0,<2.21.1',
         'gcsfs==0.2.1',
         'hurry.filesize==0.9'
-    ]
+    ],
+    entry_points={
+        'console_scripts': ['hailctl = hailctl.__main__:main']
+    },
 )

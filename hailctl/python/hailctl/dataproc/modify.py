@@ -17,8 +17,8 @@ def init_parser(parser):
     parser.add_argument('--zone', '-z', default='us-central1-b', type=str,
                         help='Compute zone for Dataproc cluster (default: %(default)s).')
 
-def main(args, pass_through_args):
 
+def main(args, pass_through_args):
     modify_args = []
     if args.num_workers is not None:
         modify_args.append('--num-workers={}'.format(args.num_workers))
@@ -36,11 +36,11 @@ def main(args, pass_through_args):
 
     if modify_args:
         cmd = [
-            'gcloud',
-            'dataproc',
-            'clusters',
-            'update',
-            args.name] + modify_args
+                  'gcloud',
+                  'dataproc',
+                  'clusters',
+                  'update',
+                  args.name] + modify_args
 
         if args.max_idle or args.graceful_decommission_timeout:
             cmd.insert(1, 'beta')

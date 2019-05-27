@@ -1066,6 +1066,15 @@ object IRParser {
         val globalV = string_literals(it)
         val child = table_ir(env)(it)
         TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
+      case "TableFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = table_ir(env)(it)
+        TableFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.keyType)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
       case "JavaTable" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[TableIR]
@@ -1208,6 +1217,15 @@ object IRParser {
         val entryV = string_literals(it)
         val child = matrix_ir(env)(it)
         MatrixRename(child, globalK.zip(globalV).toMap, colK.zip(colV).toMap, rowK.zip(rowV).toMap, entryK.zip(entryV).toMap)
+      case "MatrixFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.rowKeyStruct)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]

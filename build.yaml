@@ -44,7 +44,7 @@ steps:
      # secret-key
      python3 -c "
      import secrets, jwt
-     secret_key = secrets.token_urlsafe(64)
+     secret_key = secrets.token_bytes(64)
      with open('secret-key', 'wb') as f:
        f.write(secret_key)
      "
@@ -52,6 +52,7 @@ steps:
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      python3 -c "
+     import jwt
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
      payload = {'id':1,'service_account':True,'username':'batch','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'batch-gsa-key','jwt_secret_name':'batch-jwt'}
@@ -62,6 +63,7 @@ steps:
      # ci
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
      python3 -c "
+     import jwt
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
      payload = {'id':2,'service_account':True,'username':'ci','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'ci-gsa-key','jwt_secret_name':'ci-jwt'}
@@ -72,6 +74,7 @@ steps:
      # test
      # test-gsa-key exists
      python3 -c "
+     import jwt
      with open('secret-key', 'rb') as f:
        secret_key = f.read()
      payload = {'id':3,'service_account':True,'username':'test','gsa_email':'hail-test@hail-vdc.iam.gserviceaccount.com','bucket_name':'hail-test-1c9nm','gsa_key_secret_name':'test-gsa-key','jwt_secret_name':'test-jwt'}
@@ -179,7 +182,7 @@ steps:
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
-     tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
+     tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
      - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
        to: /hail.jar
@@ -201,6 +204,8 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
+     - from: /io/repo/hail/create_config_file.py
+       to: /create_config_file.py
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -355,7 +360,7 @@ steps:
        /io/hail.zip \
        $SCRATCH/hail.zip
      tar xzf /io/cluster-tests.tar.gz
-     python3 ./create_config_file.py 0.2 config.json
+     python3 /io/create_config_file.py 0.2 config.json
      CLUSTER=ci-test-{{ token }}
      time cluster start $CLUSTER \
        --master-machine-type n1-standard-1 \
@@ -385,6 +390,8 @@ steps:
       to: /io/hail.jar
     - from: /cluster-tests.tar.gz
       to: /io/cluster-tests.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
    dependsOn:
     - base_image
     - build_hail
@@ -449,7 +456,6 @@ steps:
     - scorecard
     - notebook2
     - ci2
-    - upload
    dependsOn:
     - default_ns
     - router_image
@@ -703,3 +709,49 @@ steps:
    dependsOn:
     - base_image
     - create_ci_test_repo
+ - kind: runImage
+   name: deploy_hail
+   script: |
+     set -ex
+     gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
+     SPARK_VERSION=2.4.0
+     BRANCH=0.2
+     CLOUDTOOLS_VERSION=4
+     SHA="{{ code.sha }}"
+     GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
+     gsutil cp /io/hail.jar ${GS_JAR}
+     gsutil acl set public-read ${GS_JAR}
+     GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
+     gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
+     gsutil acl set public-read ${GS_HAIL_ZIP}
+     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
+     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
+     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
+     gsutil acl set public-read $CONFIG
+     DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
+     gsutil cp /io/www.tar.gz ${DOCS}
+     gsutil acl set public-read ${DOCS}
+     echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
+     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
+     # gsutil acl set public-read ${HASH_TARGET}
+   image:
+     valueFrom: base_image.image
+   secrets:
+    - name: ci-deploy-0-1--hail-is-hail
+      mountPath: /secrets
+   inputs:
+    - from: /hail.jar
+      to: /io/hail.jar
+    - from: /hail.zip
+      to: /io/hail.zip
+    - from: /www.tar.gz
+      to: /io/www.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
+   scopes:
+    - deploy
+   dependsOn:
+    - base_image
+    - make_docs
+    - build_hail

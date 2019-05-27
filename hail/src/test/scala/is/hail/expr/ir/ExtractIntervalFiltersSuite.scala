@@ -251,7 +251,7 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
         ApplyComparisonOp(LTEQ(TInt32()), k, I32(9))
       ), False())))
 
-    assert(ExtractIntervalFilters(tf).asInstanceOf[TableFilter].child.isInstanceOf[TableToTableApply])
+    assert(ExtractIntervalFilters(tf).asInstanceOf[TableFilter].child.isInstanceOf[TableFilterIntervals])
     assertEvalsTo(TableCount(tf), 6L)(ExecStrategy.interpretOnly)
   }
 }

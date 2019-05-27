@@ -1,5 +1,6 @@
 import json
 
+
 class ClusterConfig:
     def __init__(self, json_str):
         params = json.loads(json_str)
