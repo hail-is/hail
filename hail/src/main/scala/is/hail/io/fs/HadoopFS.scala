@@ -5,7 +5,6 @@ import java.io._
 import java.util.Map
 import scala.collection.JavaConverters._
 
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{Context, TextInputFilterAndReplace, WithContext, readableBytes}
@@ -14,7 +13,6 @@ import org.apache.hadoop
 import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.hadoop.io.IOUtils.copyBytes
 import org.apache.hadoop.io.compress.CompressionCodecFactory
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import scala.io.Source
 
@@ -82,36 +80,17 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
 
 class SerializableHadoopConfiguration(@transient var conf: hadoop.conf.Configuration) {
   private def writeObject(out: ObjectOutputStream) {
-    println("CALLED writeObject")
     out.defaultWriteObject()
     conf.write(out)
   }
 
   private def readObject(in: ObjectInputStream) {
-        println("CALLED readObject")
-
     conf = new hadoop.conf.Configuration(false)
     conf.readFields(in)
   }
 }
 
 class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
-  // override def write (kryo: Kryo, output: Output): Unit = {
-  //   println("CALLED WRITE")
-  // }
-
-  // override def read(kryo: Kryo, input: Input): Unit = {
-  //   println("CALLED READ")
-  // }
-  // private def writeObject(out: ObjectOutputStream) {
-  //   out.defaultWriteObject()
-  //   conf.write(out)
-  // }
-
-  // private def readObject(in: ObjectInputStream) {
-  //   throw NotImplementedException()
-  // }
-
   private def create(filename: String): OutputStream = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
@@ -163,8 +142,6 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   }
 
   private def _fileSystem(filename: String): hadoop.fs.FileSystem = {
-    println("conf")
-    println(conf)
     new hadoop.fs.Path(filename).getFileSystem(conf.conf)
   }
 

@@ -5,11 +5,9 @@ import java.util
 
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.hadoop.fs.FSDataInputStream
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
-import org.apache.hadoop
+
 trait FileSystem {
   def open: FSDataInputStream
   def open(path: FilePath): FSDataInputStream
