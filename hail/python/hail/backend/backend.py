@@ -184,7 +184,6 @@ class SparkBackend(Backend):
             name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        print("CALLING parse_vcf_metadata")
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
 
