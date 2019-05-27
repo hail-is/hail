@@ -11,7 +11,7 @@ import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.fatal
-import is.hail.io.fs.HadoopFS
+import is.hail.io.fs.{HadoopFS, SerializableHadoopConfiguration}
 
 import scala.reflect.classTag
 
@@ -141,7 +141,7 @@ object Compile {
     mod.close()
     st.close()
 
-    val fs = new HadoopFS(HailContext.get.sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration))
 
     { (region: Long) =>
       val st2 = new NativeStatus()
@@ -169,7 +169,7 @@ object Compile {
     mod.close()
     st.close()
 
-    val fs = new HadoopFS(HailContext.get.sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration))
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()

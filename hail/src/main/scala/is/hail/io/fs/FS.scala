@@ -18,7 +18,7 @@ trait FileSystem {
   def deleteOnExit(path: FilePath): Boolean
 }
 
-trait FilePath extends Serializable {
+trait FilePath extends Serializable{
   type Configuration
 
   def toString: String
@@ -35,7 +35,7 @@ trait FileStatus extends Serializable {
   def getOwner: String
 }
 
-abstract class FS extends Serializable {
+trait FS extends Serializable{
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit

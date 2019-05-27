@@ -4,7 +4,7 @@ import is.hail.SparkSuite
 import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
-import is.hail.io.fs.HadoopFS
+import is.hail.io.fs.{HadoopFS, SerializableHadoopConfiguration}
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -79,7 +79,7 @@ class IndexBTreeSuite extends SparkSuite {
     val index = Array(24.toLong)
     val fileSize = 30 //made-up value greater than index
     val idxFile = tmpDir.createTempFile(prefix = "testBtree_1variant", extension = ".idx")
-    val fs = new HadoopFS(sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     fs.delete(idxFile, recursive = true)
     IndexBTree.write(index, idxFile, fs)
