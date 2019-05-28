@@ -7,6 +7,8 @@ object FoldConstants {
     RewriteBottomUp(ir, {
       case _: Ref |
            _: In |
+           _: RelationalRef |
+           _: RelationalLet |
            _: ApplySeeded |
            _: ApplyAggOp |
            _: ApplyScanOp |

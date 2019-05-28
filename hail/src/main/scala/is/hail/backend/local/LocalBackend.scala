@@ -26,11 +26,11 @@ object LocalBackend {
     ir = timer.time(
       Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some(s"LocalBackend.execute - first pass")),
       "optimize first pass")
-    ir = timer.time(LiftNonCompilable(ir).asInstanceOf[IR], "lift non-compilable")
     ir = timer.time(LowerMatrixIR(ir), "lower MatrixIR")
     ir = timer.time(
       Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after MatrixIR lowering")),
       "optimize after matrix lowering")
+    ir = timer.time(LiftNonCompilable(EvaluateRelationalLets(ir)).asInstanceOf[IR], "lifting non-compilable")
 
     println(("LocalBackend.execute to lower", Pretty(ir)))
 

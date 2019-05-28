@@ -6,7 +6,17 @@ import is.hail.expr.types.virtual._
 import is.hail.table.Ascending
 import is.hail.utils._
 
+import scala.collection.mutable
+
+
 object PruneDeadFields {
+
+  case class ComputeMutableState(requestedType: Memo[BaseType], relationalRefs: mutable.HashMap[String, ArrayBuilder[Type]]) {
+    def rebuildState: RebuildMutableState = RebuildMutableState(requestedType, mutable.HashMap.empty)
+  }
+
+  case class RebuildMutableState(requestedType: Memo[BaseType], relationalRefs: mutable.HashMap[String, Type])
+
   def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {
     if (index == path.length)
       PruneDeadFields.minimal(t)
@@ -63,50 +73,24 @@ object PruneDeadFields {
 
     try {
       val irCopy = ir.deepCopy()
-      val memo = Memo.empty[BaseType]
+      val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
       irCopy match {
         case mir: MatrixIR =>
-          memoizeMatrixIR(mir, mir.typ, memo)
-          rebuild(mir, memo)
+          memoizeMatrixIR(mir, mir.typ, ms)
+          rebuild(mir, ms.rebuildState)
         case tir: TableIR =>
-          memoizeTableIR(tir, tir.typ, memo)
-          rebuild(tir, memo)
+          memoizeTableIR(tir, tir.typ, ms)
+          rebuild(tir, ms.rebuildState)
         case bmir: BlockMatrixIR =>
-          memoizeBlockMatrixIR(bmir, bmir.typ, memo)
-          rebuild(bmir, memo)
+          memoizeBlockMatrixIR(bmir, bmir.typ, ms)
+          rebuild(bmir, ms.rebuildState)
         case vir: IR =>
-          memoizeValueIR(vir, vir.typ, memo)
-          rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), memo)
+          memoizeValueIR(vir, vir.typ, ms)
+          rebuildIR(vir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
       }
     } catch {
       case e: Throwable => fatal(s"error trying to rebuild IR:\n${ Pretty(ir) }", e)
     }
-  }
-
-  def pruneColValues(mv: MatrixValue, valueIR: IR, isArray: Boolean = false): (Type, BroadcastIndexedSeq, IR) = {
-    val matrixType = mv.typ
-    val oldColType = matrixType.colType
-    val memo = Memo.empty[BaseType]
-    val valueIRCopy = valueIR.deepCopy()
-    val irEnv = memoizeValueIR(valueIRCopy, valueIR.typ, memo)
-    val colDepUnified = concatEnvs(FastIndexedSeq(irEnv.eval) ++ FastIndexedSeq(irEnv.agg, irEnv.scan).flatten)
-    val colDep = unify[Type](if (isArray) TArray(mv.typ.colType) else mv.typ.colType,
-      colDepUnified.lookupOption("sa").map(_.result()).getOrElse(Array()): _*)
-      .asInstanceOf[TStruct]
-    if (colDep != oldColType)
-      log.info(s"pruned col values:\n  From: $oldColType\n  To: ${ colDep }")
-    val newColsType = if (isArray) colDep.asInstanceOf[TArray] else TArray(colDep)
-    val newIndexedSeq = Interpret[IndexedSeq[Annotation]](
-      upcast(Ref("values", TArray(oldColType)), newColsType),
-      Env.empty[(Any, Type)]
-        .bind("values", (mv.colValues.value, TArray(oldColType))),
-      FastIndexedSeq(),
-      None,
-      optimize = false)
-    (colDep,
-      BroadcastIndexedSeq(newIndexedSeq, newColsType, mv.sparkContext),
-      rebuildIR(valueIRCopy, relationalTypeToEnv(matrixType.copy(colType = colDep, colKey = FastIndexedSeq())), memo)
-    )
   }
 
   def selectKey(t: TStruct, k: IndexedSeq[String]): TStruct = t.filterSet(k.toSet)._1
@@ -258,8 +242,8 @@ object PruneDeadFields {
     BindingEnv(e, Some(e), Some(e))
   }
 
-  def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: Memo[BaseType]) {
-    memo.bind(tir, requestedType)
+  def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: ComputeMutableState) {
+    memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
       case TableLiteral(_) =>
@@ -513,11 +497,15 @@ object PruneDeadFields {
       case TableToTableApply(child, f) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
       case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
+      case RelationalLetTable(name, value, body) =>
+        memoizeTableIR(body, requestedType, memo)
+        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        memoizeValueIR(value, unifySeq(value.typ, usages), memo)
     }
   }
 
-  def memoizeMatrixIR(mir: MatrixIR, requestedType: MatrixType, memo: Memo[BaseType]) {
-    memo.bind(mir, requestedType)
+  def memoizeMatrixIR(mir: MatrixIR, requestedType: MatrixType, memo: ComputeMutableState) {
+    memo.requestedType.bind(mir, requestedType)
     mir match {
       case MatrixFilterCols(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
@@ -768,20 +756,31 @@ object PruneDeadFields {
           rvRowType = unify(child.typ.rvRowType, requestedType.rowType.rename(rowMapRev),
             TStruct(MatrixType.entriesIdentifier -> TArray(requestedType.entryType.rename(entryMapRev)))))
         memoizeMatrixIR(child, childDep, memo)
+      case RelationalLetMatrixTable(name, value, body) =>
+        memoizeMatrixIR(body, requestedType, memo)
+        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        memoizeValueIR(value, unifySeq(value.typ, usages), memo)
     }
   }
 
-  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: Memo[BaseType]): Unit = {
-    memo.bind(bmir, requestedType)
-    bmir.children.foreach {
-      case mir: MatrixIR => memoizeMatrixIR(mir, mir.typ, memo)
-      case tir: TableIR => memoizeTableIR(tir, tir.typ, memo)
-      case bmir: BlockMatrixIR => memoizeBlockMatrixIR(bmir, bmir.typ, memo)
-      case ir: IR => memoizeValueIR(ir, ir.typ, memo)
+  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: ComputeMutableState): Unit = {
+    memo.requestedType.bind(bmir, requestedType)
+    bmir match {
+      case RelationalLetBlockMatrix(name, value, body) =>
+        memoizeBlockMatrixIR(body, requestedType, memo)
+        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        memoizeValueIR(value, unifySeq(value.typ, usages), memo)
+      case _ =>
+        bmir.children.foreach {
+          case mir: MatrixIR => memoizeMatrixIR(mir, mir.typ, memo)
+          case tir: TableIR => memoizeTableIR(tir, tir.typ, memo)
+          case bmir: BlockMatrixIR => memoizeBlockMatrixIR(bmir, bmir.typ, memo)
+          case ir: IR => memoizeValueIR(ir, ir.typ, memo)
+        }
     }
   }
 
-  def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: Memo[BaseType]): TableType = {
+  def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: ComputeMutableState): TableType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
@@ -803,7 +802,7 @@ object PruneDeadFields {
       globalType = globalType.asInstanceOf[TStruct])
   }
 
-  def memoizeAndGetDep(ir: IR, requestedType: Type, base: MatrixType, memo: Memo[BaseType]): MatrixType = {
+  def memoizeAndGetDep(ir: IR, requestedType: Type, base: MatrixType, memo: ComputeMutableState): MatrixType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastIndexedSeq(depEnv.eval) ++ FastIndexedSeq(depEnv.agg, depEnv.scan).flatten)
 
@@ -847,8 +846,8 @@ object PruneDeadFields {
     * any of the "b" dependencies in order to create its own requested type,
     * which only contains "a".
     */
-  def memoizeValueIR(ir: IR, requestedType: Type, memo: Memo[BaseType]): BindingEnv[ArrayBuilder[Type]] = {
-    memo.bind(ir, requestedType)
+  def memoizeValueIR(ir: IR, requestedType: Type, memo: ComputeMutableState): BindingEnv[ArrayBuilder[Type]] = {
+    memo.requestedType.bind(ir, requestedType)
     ir match {
       case IsNA(value) => memoizeValueIR(value, minimal(value.typ), memo)
       case CastRename(v, _typ) =>
@@ -919,6 +918,14 @@ object PruneDeadFields {
         val ab = new ArrayBuilder[Type]()
         ab += requestedType
         BindingEnv.empty.bindEval(name -> ab)
+      case RelationalLet(name, value, body) =>
+        val e = memoizeValueIR(body, requestedType, memo)
+        val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
+        memoizeValueIR(value, unifySeq(value.typ, usages), memo)
+        e
+      case RelationalRef(name, _) =>
+        memo.relationalRefs.getOrElseUpdate(name, new ArrayBuilder[Type]) += requestedType
+        BindingEnv.empty
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TStreamable].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
@@ -1250,13 +1257,13 @@ object PruneDeadFields {
     }
   }
 
-  def rebuild(tir: TableIR, memo: Memo[BaseType]): TableIR = {
-    val requestedType = memo.lookup(tir).asInstanceOf[TableType]
+  def rebuild(tir: TableIR, memo: RebuildMutableState): TableIR = {
+    val requestedType = memo.requestedType.lookup(tir).asInstanceOf[TableType]
     tir match {
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         TableParallelize(
           upcast(rebuildIR(rowsAndGlobal, BindingEnv.empty, memo),
-            memo.lookup(rowsAndGlobal).asInstanceOf[TStruct]),
+            memo.requestedType.lookup(rowsAndGlobal).asInstanceOf[TStruct]),
           nPartitions)
       case TableRead(typ, dropRows, tr) =>
         // FIXME: remove this when all readers know how to read without keys
@@ -1286,11 +1293,11 @@ object PruneDeadFields {
         val keys2 = requestedType.key
         // fully upcast before shuffle
         if (!isSorted && keys2.nonEmpty)
-          child2 = upcastTable(child2, memo.lookup(child).asInstanceOf[TableType])
+          child2 = upcastTable(child2, memo.requestedType.lookup(child).asInstanceOf[TableType])
         TableKeyBy(child2, keys2, isSorted)
       case TableOrderBy(child, sortFields) =>
         // fully upcast before shuffle
-        val child2 = upcastTable(rebuild(child, memo), memo.lookup(child).asInstanceOf[TableType])
+        val child2 = upcastTable(rebuild(child, memo), memo.requestedType.lookup(child).asInstanceOf[TableType])
         TableOrderBy(child2, sortFields)
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (requestedType.rowType.hasField(root))
@@ -1304,12 +1311,12 @@ object PruneDeadFields {
           rebuild(left, memo)
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val rebuilt = children.map { c => rebuild(c, memo) }
-        val upcasted = rebuilt.map { t => upcastTable(t, memo.lookup(children(0)).asInstanceOf[TableType]) }
+        val upcasted = rebuilt.map { t => upcastTable(t, memo.requestedType.lookup(children(0)).asInstanceOf[TableType]) }
         TableMultiWayZipJoin(upcasted, fieldName, globalName)
       case TableZipUnchecked(left, right) =>
-        if (!memo.contains(right))
+        if (!memo.requestedType.contains(right))
           rebuild(left, memo)
-        else if (!memo.contains(left))
+        else if (!memo.requestedType.contains(left))
           rebuild(right, memo)
         else
           TableZipUnchecked(rebuild(left, memo), rebuild(right, memo))
@@ -1328,11 +1335,15 @@ object PruneDeadFields {
           rowMap.filterKeys(child2.typ.rowType.hasField),
           globalMap.filterKeys(child2.typ.globalType.hasField))
       case TableUnion(children) =>
-        val requestedType = memo.lookup(tir).asInstanceOf[TableType]
+        val requestedType = memo.requestedType.lookup(tir).asInstanceOf[TableType]
         val rebuilt = children.map { c =>
           upcastTable(rebuild(c, memo), requestedType, upcastGlobals = false)
         }
         TableUnion(rebuilt)
+      case RelationalLetTable(name, value, body) =>
+        val value2 = rebuildIR(value, BindingEnv.empty, memo)
+        memo.relationalRefs += name -> value2.typ
+        RelationalLetTable(name, value2, rebuild(body, memo))
       case _ => tir.copy(tir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
@@ -1342,8 +1353,8 @@ object PruneDeadFields {
     }
   }
 
-  def rebuild(mir: MatrixIR, memo: Memo[BaseType]): MatrixIR = {
-    val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
+  def rebuild(mir: MatrixIR, memo: RebuildMutableState): MatrixIR = {
+    val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
     mir match {
       case x@MatrixRead(typ, dropCols, dropRows, reader) =>
         // FIXME: remove this when all readers know how to read without keys
@@ -1408,7 +1419,7 @@ object PruneDeadFields {
           rebuildIR(entryExpr, BindingEnv(child2.typ.rowEnv, agg = Some(child2.typ.entryEnv)), memo),
           rebuildIR(colExpr, BindingEnv(child2.typ.globalEnv, agg = Some(child2.typ.colEnv)), memo))
       case MatrixUnionRows(children) =>
-        val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
+        val requestedType = memo.requestedType.lookup(mir).asInstanceOf[MatrixType]
         MatrixUnionRows(children.map { child =>
           upcast(rebuild(child, memo), requestedType,
             upcastCols = false,
@@ -1440,6 +1451,10 @@ object PruneDeadFields {
           colMap.filterKeys(child2.typ.colType.hasField),
           rowMap.filterKeys(child2.typ.rowType.hasField),
           entryMap.filterKeys(child2.typ.entryType.hasField))
+      case RelationalLetMatrixTable(name, value, body) =>
+        val value2 = rebuildIR(value, BindingEnv.empty, memo)
+        memo.relationalRefs += name -> value2.typ
+        RelationalLetMatrixTable(name, value2, rebuild(body, memo))
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         CastTableToMatrix(rebuild(child, memo), entriesFieldName, colsFieldName, requestedType.colKey)
       case _ => mir.copy(mir.children.map {
@@ -1450,17 +1465,24 @@ object PruneDeadFields {
     }
   }
 
-  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir.copy(
-    bmir.children.map {
-      case tir: TableIR => rebuild(tir, memo)
-      case mir: MatrixIR => rebuild(mir, memo)
-      case ir: IR => rebuildIR(ir, BindingEnv.empty[Type], memo)
-      case bmir: BlockMatrixIR => rebuild(bmir, memo)
-    }
-  )
+  def rebuild(bmir: BlockMatrixIR, memo: RebuildMutableState): BlockMatrixIR = bmir match {
+    case RelationalLetBlockMatrix(name, value, body) =>
+      val value2 = rebuildIR(value, BindingEnv.empty, memo)
+      memo.relationalRefs += name -> value2.typ
+      RelationalLetBlockMatrix(name, value2, rebuild(body, memo))
+    case _ =>
+      bmir.copy(
+        bmir.children.map {
+          case tir: TableIR => rebuild(tir, memo)
+          case mir: MatrixIR => rebuild(mir, memo)
+          case ir: IR => rebuildIR(ir, BindingEnv.empty[Type], memo)
+          case bmir: BlockMatrixIR => rebuild(bmir, memo)
+        }
+      )
+  }
 
-  def rebuildIR(ir: IR, env: BindingEnv[Type], memo: Memo[BaseType]): IR = {
-    val requestedType = memo.lookup(ir).asInstanceOf[Type]
+  def rebuildIR(ir: IR, env: BindingEnv[Type], memo: RebuildMutableState): IR = {
+    val requestedType = memo.requestedType.lookup(ir).asInstanceOf[Type]
     ir match {
       case NA(_) => NA(requestedType)
       case CastRename(v, _typ) =>
@@ -1513,6 +1535,11 @@ object PruneDeadFields {
         )
       case Ref(name, t) =>
         Ref(name, env.eval.lookupOption(name).getOrElse(t))
+      case RelationalLet(name, value, body) =>
+        val value2 = rebuildIR(value, BindingEnv.empty, memo)
+        memo.relationalRefs += name -> value2.typ
+        RelationalLet(name, value2, rebuildIR(body, env, memo))
+      case RelationalRef(name, _) => RelationalRef(name, memo.relationalRefs(name))
       case MakeArray(args, _) =>
         val depArray = requestedType.asInstanceOf[TArray]
         MakeArray(args.map(a => upcast(rebuildIR(a, env, memo), depArray.elementType)), depArray)
