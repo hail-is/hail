@@ -429,6 +429,11 @@ app = web.Application()
 routes = web.RouteTableDef()
 
 
+@routes.get('/healthcheck')
+async def healthcheck(request):  # pylint: disable=unused-argument
+    return web.Response(status=200)
+
+
 @routes.get('/')
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
