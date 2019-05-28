@@ -1087,14 +1087,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                 val stackDims :+ m = idxVars
 
                 val rStackVars =
-                  NDArrayEmitter.adjustBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
+                  NDArrayEmitter.zeroBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
                 rStackVars.foreach(broadcastingLoopVars += _)
                 (Seq(k), rStackVars :+ k :+ m)
               case (_, 1) =>
                 val stackDims :+ n = idxVars
 
                 val lStackVars =
-                  NDArrayEmitter.adjustBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
+                  NDArrayEmitter.zeroBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
                 lStackVars.foreach(broadcastingLoopVars += _)
 
                 (lStackVars :+ n :+ k, Seq(k))
@@ -1102,10 +1102,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                 val stackDims :+ n :+ m = idxVars
 
                 val lStackVars =
-                  NDArrayEmitter.adjustBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
+                  NDArrayEmitter.zeroBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
                 lStackVars.foreach(broadcastingLoopVars += _)
                 val rStackVars =
-                  NDArrayEmitter.adjustBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
+                  NDArrayEmitter.zeroBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
                 rStackVars.foreach(broadcastingLoopVars += _)
 
                 (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
@@ -1476,8 +1476,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         new NDArrayEmitter(fb, resultRegion, lEmitter.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val lIdxVars = NDArrayEmitter.adjustBroadcastedDims(fb, lBroadcastFlags, idxVars)
-            val rIdxVars = NDArrayEmitter.adjustBroadcastedDims(fb, rBroadcastFlags, idxVars)
+            val lIdxVars = NDArrayEmitter.zeroBroadcastedDims(fb, lBroadcastFlags, idxVars)
+            val rIdxVars = NDArrayEmitter.zeroBroadcastedDims(fb, rBroadcastFlags, idxVars)
 
             s"""
                |({

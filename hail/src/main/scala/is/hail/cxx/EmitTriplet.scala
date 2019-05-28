@@ -96,12 +96,14 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 
 object NDArrayEmitter {
   def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {
+    val broadcasted = 0
+    val notBroadcasted = 1
     IndexedSeq.tabulate(nDims) { dim =>
-      fb.variable(s"is_not_broadcast_$dim", "int", s"$shape[$dim] > 1 ? 1 : 0")
+      fb.variable(s"not_broadcasted_$dim", "int", s"$shape[$dim] > 1 ? $notBroadcasted : $broadcasted")
     }
   }
 
-  def adjustBroadcastedDims(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
+  def zeroBroadcastedDims(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
     broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
       fb.variable("new_loop_var", "int", s"$flag * $loopVar")
     }
