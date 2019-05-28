@@ -856,7 +856,7 @@ async def _get_batches_list(params, user):
 async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['username']
-    return aweait _get_batches_list(params, user)
+    return await _get_batches_list(params, user)
 
 
 @routes.post('/batches/create')
