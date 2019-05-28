@@ -1764,8 +1764,13 @@ class IRSuite extends SparkSuite {
     val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
     val transpose = BlockMatrixBroadcast(read, FastIndexedSeq(1, 0), FastIndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
+    val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot, RelationalLetBlockMatrix("x", I32(0), read))
+    val blockMatrixIRs = Array[BlockMatrixIR](read,
+      transpose,
+      dot,
+      RelationalLetBlockMatrix("x", I32(0), read),
+      slice)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
