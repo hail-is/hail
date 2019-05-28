@@ -662,5 +662,8 @@ object Simplify {
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
     case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
+    case BlockMatrixSlice(BlockMatrixMap(child, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), f)
+    case BlockMatrixSlice(BlockMatrixMap2(l, r, f), slices) =>
+      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), f)
   }
 }

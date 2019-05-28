@@ -1090,7 +1090,7 @@ class LinearMixedModel(object):
 
         if low_rank:
             assert np.all(np.isfinite(s))
-            r = np.searchsorted(-s, -max_condition_number * s[0])
+            r = int(np.searchsorted(-s, -max_condition_number * s[0]))
             if r < m:
                 info(f'from_random_effects: model rank reduced from {m} to {r} '
                      f'due to ill-condition.'
