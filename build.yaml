@@ -217,9 +217,7 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzvf resources.tar.gz -C src/test
-     export HAIL_TEST_SKIP_R=1
-     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
-     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+     HAIL_TEST_SKIP_R=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
@@ -227,11 +225,32 @@ steps:
       to: /io/hail-test.jar
     - from: /testng.xml
       to: /io/testng.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_cpp_codegen
+   image:
+     valueFrom: hail_run_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     HAIL_ENABLE_CPP_CODEGEN=1 HAIL_TEST_SKIP_R=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
    outputs:
     - from: /io/test-output
-      to: /test-output
+      to: /test-cpp-codegen-output
    dependsOn:
     - hail_run_image
     - build_hail
