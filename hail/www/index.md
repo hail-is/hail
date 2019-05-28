@@ -67,21 +67,14 @@ Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ##### Acknowledgements
 
 The Hail team has several sources of funding at the Broad Institute:
-
  * The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
- 
  * Principal Investigators Benjamin Neale and Daniel MacArthur, whose scientific leadership has been essential for solving the right problems.
- 
  * Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
 
 We are grateful for generous support from:
-
  * The National Institute of Diabetes and Digestive and Kidney Diseases
- 
  * The National Institute of Mental Health
- 
  * The National Human Genome Research Institute
- 
  * The Chan Zuckerburg Initiative
 
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
