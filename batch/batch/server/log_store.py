@@ -38,6 +38,6 @@ class LogStore:
         path = self._gs_log_path(job_id, task_name)
         err = self.gcs.delete_gs_file(self.batch_bucket_name, path)
         if isinstance(err, google.api_core.exceptions.NotFound):
-            self.log.info(f'ignoring: cannot delete nonextant log file: {err}')
+            self.log.info(f'ignoring: cannot delete log file that does not exist: {err}')
             err = None
         return err

@@ -243,8 +243,7 @@ class Job:
         await self._delete_pvc()
         if self._pod_name is not None:
             await db.jobs.update_record(self.id, pod_name=None)
-            err = await app['k8s'].delete_pod(name=self._pod_name,
-                                              namespace=HAIL_POD_NAMESPACE)
+            err = await app['k8s'].delete_pod(name=self._pod_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
