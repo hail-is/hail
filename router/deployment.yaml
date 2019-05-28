@@ -26,13 +26,12 @@ spec:
     targetPort: 5000
   selector:
     app: scorecard
----
 apiVersion: v1
 kind: Service
 metadata:
-  name: hail-ci
+  name: ci
   labels:
-    app: hail-ci
+    app: ci
 spec:
   ports:
     - name: http
@@ -40,22 +39,7 @@ spec:
       protocol: TCP
       targetPort: 5000
   selector:
-    app: hail-ci
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: ci2
-  labels:
-    app: ci2
-spec:
-  ports:
-    - name: http
-      port: 80
-      protocol: TCP
-      targetPort: 5000
-  selector:
-    app: ci2
+    app: ci
 ---
 apiVersion: v1
 kind: Service

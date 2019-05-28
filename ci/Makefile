@@ -27,8 +27,8 @@ PROJECT := $(shell gcloud config get-value project)
 CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
 CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
 
-CI2_LATEST = gcr.io/$(PROJECT)/ci2:latest
-CI2_IMAGE = gcr.io/$(PROJECT)/ci2:$(shell docker images -q --no-trunc ci2 | sed -e 's,[^:]*:,,')
+CI_LATEST = gcr.io/$(PROJECT)/ci:latest
+CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
 build-ci-utils:
 	make -C ../docker build
@@ -44,18 +44,18 @@ push-ci-utils: build-ci-utils
 
 build:
 	make -C ../docker build
-	-docker	pull $(CI2_LATEST)
+	-docker	pull $(CI_LATEST)
 	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-	docker build -t ci2 -f Dockerfile.out --cache-from ci2,$(CI2_LATEST),base ..
+	docker build -t ci -f Dockerfile.out --cache-from ci,$(CI_LATEST),base ..
 
 push: build
-	docker tag ci2 $(CI2_LATEST)
-	docker push $(CI2_LATEST)
-	docker tag ci2 $(CI2_IMAGE)
-	docker push $(CI2_IMAGE)
+	docker tag ci $(CI_LATEST)
+	docker push $(CI_LATEST)
+	docker tag ci $(CI_IMAGE)
+	docker push $(CI_IMAGE)
 
 deploy: push push-ci-utils
-	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI2_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"}}' deployment.yaml deployment.yaml.out
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 else
 build-ci-utils:
@@ -64,7 +64,7 @@ build-ci-utils:
 
 build:
 	make -C ../docker build
-	docker build -t ci2 -f Dockerfile.ci2 ..
+	docker build -t ci -f Dockerfile.ci ..
 endif
 
 PROXY_REMOTE_PORT = 3001
@@ -86,7 +86,7 @@ restart-proxy:
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
-# Paradox: can't push locally, but ci2 needs ci-utils.  Just use the latest.
+# Paradox: can't push locally, but ci needs ci-utils.  Just use the latest.
 run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-proxy
 	HAIL_GCP_PROJECT=$(PROJECT) \
@@ -96,7 +96,7 @@ run-local: restart-proxy
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
-	docker run -p 5000:5000 ci2
+	docker run -p 5000:5000 ci
 
 clean:
 	rm -f flake8-stmp pylint-stmp
