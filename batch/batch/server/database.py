@@ -175,7 +175,7 @@ class BatchTable(Table):
             else:
                 wheres.append(f"not ({condition})")
         if attributes:
-            joins.append("inner join {self._db.batch_attributes.name} as attr using (batch_id)")
+            joins.append(f'inner join {self._db.batch_attributes.name} as attr using (batch_id)')
             groups.append("batch.id")
             for k, v in attributes.items():
                 values.append(v)
