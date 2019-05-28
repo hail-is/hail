@@ -875,7 +875,7 @@ async def _get_batches_list(params, user):
         attributes[k[2:]] = v
     return jsonify(
         [await Batch.from_record(batch).to_dict(include_jobs=False)
-         for batch in await db.batch.find_records(user=user,
+         for batch in await db.batch.find_records(user=userdata['username'],
                                                   complete=complete,
                                                   success=success,
                                                   deleted=False,
