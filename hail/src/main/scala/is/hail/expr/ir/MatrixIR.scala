@@ -1183,3 +1183,14 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
 
   override def columnCount: Option[Int] = child.columnCount
 }
+
+case class RelationalLetMatrixTable(name: String, value: IR, body: MatrixIR) extends MatrixIR {
+  def typ: MatrixType = body.typ
+
+  def children: IndexedSeq[BaseIR] = Array(value, body)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
+    val IndexedSeq(newValue: IR, newBody: MatrixIR) = newChildren
+    RelationalLetMatrixTable(name, newValue, newBody)
+  }
+}

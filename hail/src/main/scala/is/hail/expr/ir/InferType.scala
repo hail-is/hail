@@ -22,6 +22,8 @@ object InferType {
       case IsNA(_) => TBoolean()
       case Coalesce(values) => values.head.typ
       case Ref(_, t) => t
+      case RelationalRef(_, t) => t
+      case RelationalLet(_, _, body) => body.typ
       case In(_, t) => t
       case MakeArray(_, t) => t
       case MakeStream(_, t) => t

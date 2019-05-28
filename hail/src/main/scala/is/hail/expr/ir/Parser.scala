@@ -584,6 +584,15 @@ object IRParser {
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
+      case "RelationalRef" =>
+        val id = identifier(it)
+        val t = type_expr(it)
+        RelationalRef(id, t)
+      case "RelationalLet" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (name -> value.typ))(it)
+        RelationalLet(name, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         val l = ir_value_expr(env)(it)
@@ -1075,6 +1084,11 @@ object IRParser {
             TArray(TInterval(child.typ.keyType)),
             padNulls = false).asInstanceOf[IndexedSeq[Interval]],
           keep)
+      case "RelationalLetTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = table_ir(env)(it)
+        RelationalLetTable(name, value, body)
       case "JavaTable" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[TableIR]
@@ -1226,6 +1240,11 @@ object IRParser {
             TArray(TInterval(child.typ.rowKeyStruct)),
             padNulls = false).asInstanceOf[IndexedSeq[Interval]],
           keep)
+      case "RelationalLetMatrixTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = matrix_ir(env)(it)
+        RelationalLetMatrixTable(name, value, body)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
@@ -1288,6 +1307,11 @@ object IRParser {
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         BlockMatrixRandom(seed, gaussian, shape, blockSize)
+      case "RelationalLetBlockMatrix" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = blockmatrix_ir(env)(it)
+        RelationalLetBlockMatrix(name, value, body)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]

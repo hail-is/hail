@@ -19,6 +19,7 @@ object Optimize {
       ir = Simplify(ir)
       ir = ForwardLets(ir)
       ir = ExtractIntervalFilters(ir)
+      ir = ForwardRelationalLets(ir)
       ir = PruneDeadFields(ir)
 
       iter += 1

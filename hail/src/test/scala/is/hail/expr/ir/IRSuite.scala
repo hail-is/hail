@@ -1601,7 +1601,8 @@ class IRSuite extends SparkSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32()))
+      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32())),
+      RelationalLet("x", I32(0), I32(0))
     )
     irs.map(x => Array(x))
   }
@@ -1656,7 +1657,8 @@ class IRSuite extends SparkSuite {
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
-        TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
+        TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
+        RelationalLetTable("x", I32(0), read)
       )
       xs.map(x => Array(x))
     } catch {
@@ -1744,7 +1746,8 @@ class IRSuite extends SparkSuite {
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", product=false),
         MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam")),
-        MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
+        MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
+        RelationalLetMatrixTable("x", I32(0), read)
       )
 
       xs.map(x => Array(x))
@@ -1762,7 +1765,7 @@ class IRSuite extends SparkSuite {
     val transpose = BlockMatrixBroadcast(read, FastIndexedSeq(1, 0), FastIndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot)
+    val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot, RelationalLetBlockMatrix("x", I32(0), read))
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -2042,6 +2045,45 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(ir, 61L)
   }
+
+  @Test def testRelationalLet() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val ir = RelationalLet("x", NA(TInt32()), RelationalRef("x", TInt32()))
+    assertEvalsTo(ir, null)
+  }
+
+
+  @Test def testRelationalLetTable() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val t = TArray(TStruct("x" -> TInt32()))
+    val ir = TableAggregate(RelationalLetTable("x",
+      Literal(t, FastIndexedSeq(Row(1))),
+      TableParallelize(MakeStruct(FastSeq("rows" -> RelationalRef("x", t), "global" -> MakeStruct(FastSeq()))))),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), None, FastIndexedSeq())))
+    assertEvalsTo(ir, 1L)
+  }
+
+  @Test def testRelationalLetMatrixTable() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val t = TArray(TStruct("x" -> TInt32()))
+    val m = CastTableToMatrix(
+      TableMapGlobals(
+        TableMapRows(
+          TableRange(1, 1), InsertFields(Ref("row", TStruct("idx" -> TInt32())), FastSeq("entries" -> RelationalRef("x", t)))),
+        MakeStruct(FastSeq("cols" -> MakeArray(FastSeq(MakeStruct(FastSeq("s" -> I32(0)))), TArray(TStruct("s" -> TInt32())))))),
+      "entries",
+      "cols",
+      FastIndexedSeq())
+    val ir = MatrixAggregate(RelationalLetMatrixTable("x",
+      Literal(t, FastIndexedSeq(Row(1))),
+      m),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), None, FastIndexedSeq())))
+    assertEvalsTo(ir, 1L)
+  }
+
 
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(

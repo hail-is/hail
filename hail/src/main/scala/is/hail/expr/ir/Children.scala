@@ -27,9 +27,13 @@ object Children {
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>
       Array(value, body)
+    case RelationalLet(name, value, body) =>
+      Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
     case Ref(name, typ) =>
+      none
+    case RelationalRef(_, _) =>
       none
     case ApplyBinaryPrimOp(op, l, r) =>
       Array(l, r)

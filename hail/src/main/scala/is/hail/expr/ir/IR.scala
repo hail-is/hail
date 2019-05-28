@@ -22,7 +22,11 @@ sealed trait IR extends BaseIR {
 
   def typ: Type = {
     if (_typ == null)
-      _typ = InferType(this)
+      try {
+        _typ = InferType(this)
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+      }
     _typ
   }
 
@@ -126,6 +130,9 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
+
+final case class RelationalLet(name: String, value: IR, body: IR) extends IR
+final case class RelationalRef(name: String, _typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR

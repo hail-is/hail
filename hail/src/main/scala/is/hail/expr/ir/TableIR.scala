@@ -1621,3 +1621,14 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
     child.execute(hc).entriesTable()
   }
 }
+
+case class RelationalLetTable(name: String, value: IR, body: TableIR) extends TableIR {
+  def typ: TableType = body.typ
+
+  def children: IndexedSeq[BaseIR] = Array(value, body)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newValue: IR, newBody: TableIR) = newChildren
+    RelationalLetTable(name, newValue, newBody)
+  }
+}
