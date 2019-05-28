@@ -108,20 +108,32 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
+  private[this] val literalsMap: mutable.Map[Any, Code[_]] =
+    mutable.Map[Any, Code[_]]()
+
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElse(rg, {
+    rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
       val field = addField[ReferenceGenome](fromParent)
       field.load()
     })
 
   override def getType(t: Type): Code[Type] =
-    typMap.getOrElse(t, {
+    typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
       val field = addField[Type](fromParent)
       field.load()
     })
 
+  override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    literalsMap.getOrElseUpdate(v, {
+      val fromParent = parentfb.addLiteral(v, t, region)
+      val ti: TypeInfo[_] = typeToTypeInfo(t)
+      val field = addField(fromParent, dummy = true)(ti)
+      field.load()
+    })
+  }
 }
 
 class EmitFunctionBuilder[F >: Null](
