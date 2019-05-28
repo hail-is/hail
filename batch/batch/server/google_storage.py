@@ -1,6 +1,6 @@
 import os
 
-import google
+import google.api_core.exceptions
 import google.oauth2.service_account
 import google.cloud.storage
 
