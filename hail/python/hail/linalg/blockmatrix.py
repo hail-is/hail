@@ -814,7 +814,7 @@ class BlockMatrix(object):
         else:
             raise ValueError(f'slice {start}:{stop}:{step} is empty')
 
-    @typecheck_method(indices=tupleof(oneof(int, slice)))
+    @typecheck_method(indices=tupleof(oneof(int, sliceof(nullable(int), nullable(int), nullable(int)))))
     def __getitem__(self, indices):
         if len(indices) != 2:
             raise ValueError(f'tuple of indices or slices must have length two, found {len(indices)}')
