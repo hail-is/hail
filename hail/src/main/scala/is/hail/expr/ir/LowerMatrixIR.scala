@@ -376,7 +376,7 @@ object LowerMatrixIR {
         Env(("global", 'global.dropFields(colsField, keyMap))),
         agg = Some(Env(("global", 'global.dropFields(colsField, keyMap)))))
       val ceSub = subst(colExpr, substEnv)
-      val eeSub = subst(entryExpr, substEnv.bindAgg("va", 'row))
+      val eeSub = subst(entryExpr, substEnv.bindEval("va", 'row).bindAgg("va", 'row))
 
       lower(child)
         .mapGlobals('global.insertFields(keyMap ->
