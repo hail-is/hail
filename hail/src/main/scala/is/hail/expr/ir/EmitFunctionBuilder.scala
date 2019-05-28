@@ -158,15 +158,15 @@ class EmitFunctionBuilder[F >: Null](
     mutable.Map[Any, (Type, ClassFieldRef[_])]()
   private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
   private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
-  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Unit]
+  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Region, Unit]
 
-  def addLiteral(v: Any, t: Type): Code[_] = {
+  def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
     assert(v != null)
     val f = literalsMap.getOrElseUpdate(v, t -> newField("literal")(typeToTypeInfo(t)))._2
     Code(
       litDecoded.mux(
         Code._empty,
-        decodeLiterals.invoke()),
+        decodeLiterals.invoke(region)),
       f.load())
   }
 
@@ -184,11 +184,11 @@ class EmitFunctionBuilder[F >: Null](
     val ib = spec.child.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))
     val off = decodeLiterals.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case ((_, (_, f)), i) =>
-      f.storeAny(baseRegion.load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
     }
 
     decodeLiterals.emit(Code(
-      off := dec.invoke(baseRegion, ib),
+      off := dec.invoke(decodeLiterals.getArg[Region](1), ib),
       Code(storeFields: _*)))
 
     val baos = new ByteArrayOutputStream()
@@ -323,8 +323,6 @@ class EmitFunctionBuilder[F >: Null](
   def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
     getCodeOrdering[T](t, t, op, ignoreMissingness)
 
-  val baseRegion: ClassFieldRef[Region] = newField[Region]
-
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)
     if (parameterTypeInfo.exists(_.isGeneric) || returnTypeInfo.isGeneric) {
@@ -343,7 +341,6 @@ class EmitFunctionBuilder[F >: Null](
     }
     m
   }
-  apply_method.emit(baseRegion := apply_method.getArg[Region](1))
 
   override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
     val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
