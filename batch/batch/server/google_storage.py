@@ -21,14 +21,15 @@ class GCS:
             GCS._download_gs_file_as_string)
         self._wrapped_delete_gs_file = self._wrap_nonreturning_network_call(GCS._delete_gs_file)
 
-    def upload_private_gs_file_from_string(self, bucket, target_path, string):
-        return self._wrapped_upload_private_gs_file_from_string(self, bucket, target_path, string)
+    async def upload_private_gs_file_from_string(self, bucket, target_path, string):
+        return await self._wrapped_upload_private_gs_file_from_string(
+            self, bucket, target_path, string)
 
-    def download_gs_file_as_string(self, bucket, path):
-        return self._wrapped_download_gs_file_as_string(self, bucket, path)
+    async def download_gs_file_as_string(self, bucket, path):
+        return await self._wrapped_download_gs_file_as_string(self, bucket, path)
 
-    def delete_gs_file(self, bucket, path):
-        return self._wrapped_delete_gs_file(self, bucket, path)
+    async def delete_gs_file(self, bucket, path):
+        return await self._wrapped_delete_gs_file(self, bucket, path)
 
     def _wrap_returning_network_call(self, fun):
         async def wrapped(*args, **kwargs):

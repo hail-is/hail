@@ -22,7 +22,7 @@ class LogStore:
 
     async def write_gs_log_file(self, job_id, task_name, log):
         path = self._gs_log_path(job_id, task_name)
-        err = self.gcs.upload_private_gs_file_from_string(self.batch_bucket_name, path, log)
+        err = await self.gcs.upload_private_gs_file_from_string(self.batch_bucket_name, path, log)
         if err is None:
             return (f'gs://{self.batch_bucket_name}/{path}', err)
         return (None, err)
@@ -32,11 +32,11 @@ class LogStore:
         uri = uri.lstrip('gs://').split('/')
         bucket_name = uri[0]
         path = '/'.join(uri[1:])
-        return self.gcs.download_gs_file_as_string(bucket_name, path)
+        return await self.gcs.download_gs_file_as_string(bucket_name, path)
 
     async def delete_gs_log_file(self, job_id, task_name):
         path = self._gs_log_path(job_id, task_name)
-        err = self.gcs.delete_gs_file(self.batch_bucket_name, path)
+        err = await self.gcs.delete_gs_file(self.batch_bucket_name, path)
         if isinstance(err, google.api_core.exceptions.NotFound):
             self.log.info(f'ignoring: cannot delete log file that does not exist: {err}')
             err = None
