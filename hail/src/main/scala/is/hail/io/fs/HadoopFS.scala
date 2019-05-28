@@ -78,7 +78,7 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   def getOwner: String = fs.getOwner
 }
 
-class SerializableHadoopConfiguration(@transient var conf: hadoop.conf.Configuration) {
+class SerializableHadoopConfiguration(@transient var conf: hadoop.conf.Configuration) extends Serializable {
   private def writeObject(out: ObjectOutputStream) {
     out.defaultWriteObject()
     conf.write(out)
