@@ -10,7 +10,7 @@ class Test(unittest.TestCase):
         self.session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = batch.aioclient.BatchClient(self.session, url=os.environ.get('BATCH_URL'))
+        self.client = batch.client.AsyncBatchClient(self.session, url=os.environ.get('BATCH_URL'))
 
     def tearDown(self):
         loop = asyncio.get_event_loop()

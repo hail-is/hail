@@ -18,7 +18,7 @@ from .serverthread import ServerThread
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+        self.batch = batch.client.SyncBatchClient(url=os.environ.get('BATCH_URL'))
 
     def test_job(self):
         b = self.batch.create_batch()
