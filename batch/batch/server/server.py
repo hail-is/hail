@@ -254,10 +254,12 @@ class Job:
             log_uri = await db.jobs.get_log_uri(self.id, jt.name)
             if log_uri is None:
                 return None
-            log, err = app['log_store'].read_gs_log_file(log_uri)
+            log, err = await app['log_store'].read_gs_log_file(log_uri)
             if err is not None:
+                traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.id} '
-                         f'{jt.name}; will still try to load other tasks')
+                         f'{jt.name} due to {err}; will still try to load '
+                         f'other tasks')
             return jt.name, log
 
         future_logs = asyncio.gather(*[_read_log(jt) for idx, jt in enumerate(self._tasks)
@@ -267,8 +269,12 @@ class Job:
         if self._state == 'Ready':
             if self._pod_name:
                 log, err = await app['k8s'].read_pod_log(self._pod_name)
-                if err is not None:
+                if err is None:
                     logs[self._current_task.name] = log
+                else:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'ignoring: could not read log for {self.id} '
+                             f'{jt.name}; will still try to load other tasks')
             return logs
         if self._state == 'Complete':
             return logs

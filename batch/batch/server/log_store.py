@@ -32,11 +32,7 @@ class LogStore:
         uri = uri.lstrip('gs://').split('/')
         bucket_name = uri[0]
         path = '/'.join(uri[1:])
-        log, err = self.gcs.download_gs_file_as_string(bucket_name, path)
-        if isinstance(err, google.api_core.exceptions.NotFound):
-            self.log.info(f'ignoring: could not find log file due to {err}')
-            err = None
-        return (log, err)
+        return self.gcs.download_gs_file_as_string(bucket_name, path)
 
     async def delete_gs_log_file(self, job_id, task_name):
         path = self._gs_log_path(job_id, task_name)
