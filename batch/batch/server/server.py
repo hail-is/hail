@@ -234,7 +234,8 @@ class Job:
         log.info(f'deleting persistent volume claim {self._pvc_name}')
         err = await app['k8s'].delete_pvc(self._pvc_name)
         if err is not None:
-            raise ValueError('could not delete {self._pvc_name}') from err
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring: could not delete {self._pvc_name} due to {err}')
         await db.jobs.update_record(self.id, pvc_name=None)
         self._pvc_name = None
 
