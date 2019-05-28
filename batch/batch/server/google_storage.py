@@ -1,8 +1,8 @@
 import os
 
 import google
-import google.oauth2
-import google.cloud
+import google.oauth2.service_account
+import google.cloud.storage
 
 from .blocking_to_async import blocking_to_async
 
