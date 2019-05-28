@@ -46,8 +46,8 @@ class GCS:
     def _wrap_nonreturning_network_call(self, fun):
         fun = self._wrap_returning_network_call(fun)
 
-        def wrapped(*args, **kwargs):
-            _, err = fun(*args, *kwargs)
+        async def wrapped(*args, **kwargs):
+            _, err = await fun(*args, *kwargs)
             return err
         wrapped.__name__ = fun.__name__
         return wrapped

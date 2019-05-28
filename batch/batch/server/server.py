@@ -986,8 +986,12 @@ async def refresh_k8s_pods():
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'pod_name': 'NOT NULL'})]
 
-    pods = await app['k8s'].list_pods(
+    pods, err = await app['k8s'].list_pods(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
+    if err is not None:
+        traceback.print_tb(err.__traceback__)
+        log.info('could not refresh pods due to {err}, will try again later')
+        return
 
     log.info(f'k8s had {len(pods.items)} pods')
 
@@ -1010,8 +1014,12 @@ async def refresh_k8s_pods():
 
 
 async def refresh_k8s_pvc():
-    pvcs = await app['k8s'].list_pvcs(
+    pvcs, err = await app['k8s'].list_pvcs(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
+    if err is not None:
+        traceback.print_tb(err.__traceback__)
+        log.info('could not refresh pvcs due to {err}, will try again later')
+        return
 
     log.info(f'k8s had {len(pvcs.items)} pvcs')
 
