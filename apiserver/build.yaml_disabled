@@ -1,0 +1,51 @@
+ - kind: buildImage
+   name: apiserver_image
+   dockerFile: apiserver/Dockerfile.apiserver
+   contextPath: .
+   publishAs: apiserver
+   dependsOn:
+    - hail_base_image
+ - kind: buildImage
+   name: test_apiserver_image
+   dockerFile: apiserver/Dockerfile.test-apiserver
+   contextPath: .
+   publishAs: test-apiserver
+   inputs:
+    - from: /test.tar.gz
+      to: /test.tar.gz
+    - from: /resources.tar.gz
+      to: /resources.tar.gz
+    - from: /data.tar.gz
+      to: /data.tar.gz
+   dependsOn:
+    - hail_base_image
+    - build_hail
+ - kind: deploy
+   name: deploy_apiserver
+   namespace:
+     valueFrom: default_ns.name
+   config: apiserver/deployment.yaml
+   wait:
+    - kind: Service
+      name: apiserver
+      port: 5000
+      for: alive
+   dependsOn:
+    - default_ns
+    - test_batch_image
+    - apiserver_image
+ - kind: deploy
+   name: test_apiserver
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: apiserver/test-apiserver-pod.yaml
+   wait:
+    - kind: Pod
+      name: test-apiserver
+      for: completed
+      timeout: 180
+   dependsOn:
+    - default_ns
+    - batch_pods_ns
+    - test_apiserver_image
+    - deploy_apiserver
