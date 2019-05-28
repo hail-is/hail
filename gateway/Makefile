@@ -1,4 +1,4 @@
-.PHONY: build clean
+.PHONY: build push deploy
 
 PROJECT = $(shell gcloud config get-value project)
 GATEWAY_LATEST = gcr.io/$(PROJECT)/gateway:latest
@@ -6,17 +6,6 @@ GATEWAY_IMAGE = gcr.io/$(PROJECT)/gateway:$(shell docker images -q --no-trunc ga
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
-service.yaml: service.yaml.in
-	sed -e "s,@ip@,$(IP),g" \
-	  < $< > $@
-
-deployment.yaml: deployment.yaml.in build
-	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
-	  -e "s,@image@,$(GATEWAY_IMAGE)," \
-	  < $< > $@
-
-ifeq ($(IN_HAIL_CI),1)
-.PHONY: push deploy
 build:
 	docker pull ubuntu:18.04
 	-docker pull $(GATEWAY_LATEST)
@@ -28,13 +17,8 @@ push: build
 	docker tag gateway $(GATEWAY_IMAGE)
 	docker push $(GATEWAY_IMAGE)
 
-deploy: push service.yaml deployment.yaml
-	kubectl -n default apply -f service.yaml
-	kubectl -n default apply -f deployment.yaml
-else
-build:
-	docker build -t gateway .
-endif
-
-clean:
-	rm -rf service.yaml deployment.yaml
+deploy: push
+	python3 ../ci2/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"ip":"$(IP)"}' service.yaml service.yaml.out
+	kubectl -n default apply -f service.yaml.out
+	python3 ../ci2/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"gateway_image":{"image":"$(GATEWAY_IMAGE)"}}' service.yaml service.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
