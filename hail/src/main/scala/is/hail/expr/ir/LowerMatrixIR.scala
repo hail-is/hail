@@ -37,27 +37,15 @@ object LowerMatrixIR {
   private[this] def lowerChildren(ir: BaseIR, ab: ArrayBuilder[(String, IR)]): BaseIR = {
     val loweredChildren = ir.children.map {
       case tir: TableIR => lower(tir, ab)
-      case mir: MatrixIR => lower(mir, ab)
+      case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
+        s"${ ir.getClass.getName }\n  Found MatrixIR child $mir")
       case bmir: BlockMatrixIR => bmir // FIXME wrong
       case vir: IR => lower(vir, ab)
     }
     if ((ir.children, loweredChildren).zipped.forall(_ eq _))
       ir
-    else {
-      val newChildren = ir.children.zip(loweredChildren).map {
-        case (_: MatrixIR, CastMatrixToTable(childMIR, _, _)) =>
-          childMIR
-        case (mir: MatrixIR, loweredChild: TableIR) =>
-          CastTableToMatrix(
-            loweredChild,
-            entriesFieldName,
-            colsFieldName,
-            mir.typ.colKey)
-        case (_, loweredChild) =>
-          loweredChild
-      }
-      ir.copy(newChildren)
-    }
+    else
+      ir.copy(loweredChildren)
   }
 
   def colVals(tir: TableIR): IR =
@@ -86,6 +74,9 @@ object LowerMatrixIR {
 
   private[this] def lower(mir: MatrixIR, ab: ArrayBuilder[(String, IR)]): TableIR = {
     val lowered = mir match {
+      case RelationalLetMatrixTable(name, value, body) =>
+        RelationalLetTable(name, lower(value, ab), lower(body, ab))
+
       case CastTableToMatrix(child, entries, cols, colKey) =>
         TableRename(lower(child, ab), Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
@@ -236,14 +227,20 @@ object LowerMatrixIR {
             MapIR(lift)(ir)
         }
 
-        var b0 = lift(newCol)
+        val e = Env[IR]("global" -> SelectFields(Ref("global", loweredChild.typ.globalType),
+          child.typ.globalType.fieldNames))
+        val substEnv = BindingEnv(e, Some(e), Some(e))
+
+        var b0 = lift(Subst(newCol, substEnv))
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
         val idx = Ref(genUID(), TInt32())
         val idxSym = Symbol(idx.name)
 
-        val aggTransformer: IRProxy => IRProxy = if (aggs.nonEmpty) {
+        val aggTransformer: IRProxy => IRProxy = if (aggs.isEmpty)
+          identity
+        else {
           val aggStruct = MakeStruct(aggs)
           val aggResultArray = loweredChild.aggregate(
             aggLet(va = 'row) {
@@ -266,7 +263,7 @@ object LowerMatrixIR {
           b0 = Let(aggResultElementRef.name, ArrayRef(aggResultRef, idx), b0)
 
           x: IRProxy => let.applyDynamicNamed("apply")((aggResultRef.name, RelationalRef(ident, aggResultArray.typ))).apply(x)
-        } else identity
+        }
 
         val scanTransformer: IRProxy => IRProxy = if (scans.nonEmpty) {
           val scanStruct = MakeStruct(scans)
@@ -497,6 +494,7 @@ object LowerMatrixIR {
                     ))
               }
             ).dropFields(keyMap))
+
       case MatrixLiteral(value) => TableLiteral(value.toTableValue(colsFieldName, entriesFieldName))
     }
 
@@ -569,6 +567,7 @@ object LowerMatrixIR {
               }
           makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
         }.parallelize(None).keyBy(child.typ.colKey)
+
       case table => lowerChildren(table, ab).asInstanceOf[TableIR]
     }
 
