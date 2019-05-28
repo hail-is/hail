@@ -23,7 +23,7 @@ setup(
         'hailctl': 'src/hailctl'},
     package_data={
         'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
-        'hailctl': ['hail_pip_version', 'hail_version']},
+        'hailctl': ['deploy.yaml', 'hail_pip_version', 'hail_version']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
