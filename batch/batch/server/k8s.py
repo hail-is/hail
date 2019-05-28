@@ -1,6 +1,6 @@
 import kubernetes as kube
 
-from .globals import blocking_to_async
+from .blocking_to_async import blocking_to_async
 
 
 class K8s:
@@ -9,13 +9,36 @@ class K8s:
         self.timeout = timeout
         self.namespace = namespace
         self.log = log
-        self.__delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
-        self.__delete_pvc = self._wrap_k8s_delete(k8s_api.delete_namespaced_persistent_volume_claim)
-        self.__create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
-        self.__create_pvc = self._wrap_k8s(k8s_api.create_namespaced_persistent_volume_claim)
-        self.__read_pod_log = self._wrap_k8s(k8s_api.read_namespaced_pod_log)
-        self.__list_pods = self._wrap_k8s(k8s_api.list_namespaced_pod)
-        self.__list_pvcs = self._wrap_k8s(k8s_api.list_namespaced_persistent_volume_claim)
+        self._delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
+        self._delete_pvc = self._wrap_k8s_delete(k8s_api.delete_namespaced_persistent_volume_claim)
+        self._create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
+        self._create_pvc = self._wrap_k8s(k8s_api.create_namespaced_persistent_volume_claim)
+        self._read_pod_log = self._wrap_k8s(k8s_api.read_namespaced_pod_log)
+        self._list_pods = self._wrap_k8s(k8s_api.list_namespaced_pod)
+        self._list_pvcs = self._wrap_k8s(k8s_api.list_namespaced_persistent_volume_claim)
+
+    async def delete_pod(self, name):
+        assert name is not None
+        return await self._delete_pod(name=name)
+
+    async def delete_pvc(self, name):
+        assert name is not None
+        return await self._delete_pvc(name=name)
+
+    async def create_pod(self, *args, **kwargs):
+        return await self._create_pod(*args, **kwargs)
+
+    async def create_pvc(self, *args, **kwargs):
+        return await self._create_pvc(*args, **kwargs)
+
+    async def read_pod_log(self, *args, **kwargs):
+        return await self._read_pod_log(*args, **kwargs)
+
+    async def list_pods(self, *args, **kwargs):
+        return await self._list_pods(*args, **kwargs)
+
+    async def list_pvcs(self, *args, **kwargs):
+        return await self._list_pvcs(*args, **kwargs)
 
     def _wrap_k8s(self, fun):
         async def wrapped(*args, **kwargs):
@@ -45,26 +68,3 @@ class K8s:
             return err
         wrapped.__name__ = fun.__name__
         return wrapped
-
-    async def delete_pod(self, name):
-        assert name is not None
-        return await self.__delete_pod(name=name)
-
-    async def delete_pvc(self, name):
-        assert name is not None
-        return await self.__delete_pvc(name=name)
-
-    async def create_pod(self, *args, **kwargs):
-        return await self.__create_pod(*args, **kwargs)
-
-    async def create_pvc(self, *args, **kwargs):
-        return await self.__create_pvc(*args, **kwargs)
-
-    async def read_pod_log(self, *args, **kwargs):
-        return await self.__read_pod_log(*args, **kwargs)
-
-    async def list_pods(self, *args, **kwargs):
-        return await self.__list_pods(*args, **kwargs)
-
-    async def list_pvcs(self, *args, **kwargs):
-        return await self.__list_pvcs(*args, **kwargs)

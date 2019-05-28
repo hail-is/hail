@@ -17,7 +17,8 @@ import uvloop
 
 from hailjwt import authenticated_users_only
 
-from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file, blocking_to_async
+from .blocking_to_async import blocking_to_async
+from .log_store import LogStore
 from .database import BatchDatabase
 from .k8s import K8s
 
@@ -241,14 +242,23 @@ class Job:
         await self._delete_pvc()
         if self._pod_name is not None:
             await db.jobs.update_record(self.id, pod_name=None)
-            await app['k8s'].delete_pod(name=self._pod_name,
-                                        namespace=HAIL_POD_NAMESPACE)
+            err = await app['k8s'].delete_pod(name=self._pod_name,
+                                              namespace=HAIL_POD_NAMESPACE)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
             self._pod_name = None
 
     async def _read_logs(self):
         async def _read_log(jt):
             log_uri = await db.jobs.get_log_uri(self.id, jt.name)
-            return jt.name, await read_gs_log_file(app['blocking_pool'], log_uri)
+            if log_uri is None:
+                return None
+            log, err = app['log_store'].read_gs_log_file(log_uri)
+            if err is not None:
+                log.info(f'ignoring: could not read log for {self.id} '
+                         f'{jt.name}; will still try to load other tasks')
+            return jt.name, log
 
         future_logs = asyncio.gather(*[_read_log(jt) for idx, jt in enumerate(self._tasks)
                                        if idx < self._task_idx])
@@ -274,19 +284,28 @@ class Job:
 
         uri = None
         if log is not None:
-            uri = await write_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, task_name, log)
+            uri, err = await app['log_store'].write_gs_log_file(self.id, task_name, log)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'job {self.id} task {task_name} will have a missing log due to {err}')
 
         await db.jobs.update_with_log_ec(self.id, task_name, uri, exit_code,
                                          task_idx=self._task_idx,
                                          pod_name=None,
                                          duration=self.duration)
-        await app['k8s'].delete_pod(self._pod_name)
+        err = await app['k8s'].delete_pod(self._pod_name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
         self._pod_name = None
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
             if idx < self._task_idx:
-                await delete_gs_log_file(app['blocking_pool'], INSTANCE_ID, self.id, jt.name)
+                err = await app['log_store'].delete_gs_log_file(self.id, jt.name)
+                if err is not None:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'could not delete log {idx} due to {err}')
 
     @staticmethod
     def from_record(record):
@@ -450,7 +469,10 @@ class Job:
     async def mark_unscheduled(self):
         if self._pod_name:
             await db.jobs.update_record(self.id, pod_name=None)
-            await app['k8s'].delete_pod(self._pod_name)
+            err = await app['k8s'].delete_pod(self._pod_name)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
             self._pod_name = None
         await self._create_pod()
 
@@ -1049,6 +1071,7 @@ def serve(port=5000):
     with concurrent.futures.ThreadPoolExecutor() as pool:
         app['blocking_pool'] = pool
         app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
+        app['log_store'] = LogStore(pool, INSTANCE_ID, log)
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())
         asyncio.ensure_future(db_cleanup_event_loop())
