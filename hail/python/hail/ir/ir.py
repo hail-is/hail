@@ -1412,13 +1412,18 @@ class Die(IR):
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
 _session_functions = set()
+_udf_registry = dict()
 
 def clear_session_functions():
-    global _session_functions
+    global _session_functions, _udf_registry
     for name, param_types, ret_type in _session_functions:
         remove_function(name, param_types, ret_type)
 
+    for f in _udf_registry.values():
+        remove_function(f._name, f._param_types, f._ret_type)
+
     _session_functions = set()
+    _udf_registry = dict()
 
 def remove_function(name, param_types, ret_type):
     f = (param_types, ret_type)

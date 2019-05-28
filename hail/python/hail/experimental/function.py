@@ -2,21 +2,43 @@ from hail.utils.java import Env
 from hail.ir import Apply, Ref, Renderer, register_session_function
 from hail.expr.types import HailType
 from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
-from hail.typecheck import typecheck
+from hail.typecheck import typecheck, nullable
+import hail
 
+from decorator import decorator
 
 class Function(object):
-    def __init__(self, f, name):
+    def __init__(self, f, param_types, ret_type, name):
         self._f = f
         self._name = name
+        self._param_types = param_types
+        self._ret_type = ret_type
 
     def __call__(self, *args):
         return self._f(*args)
 
 
-@typecheck(f=anytype, param_types=HailType)
-def define_function(f, *param_types):
-    mname = Env.get_uid()
+@typecheck(param_types=hail.expr.types.hail_type)
+def udf(*param_types):
+
+    uid = Env.get_uid()
+
+    @decorator
+    def wrapper(__original_func, *args, **kwargs):
+        registry = hail.ir.ir._udf_registry
+        if uid in registry:
+            f = registry[uid]
+        else:
+            f = define_function(__original_func, *param_types, _name=uid)
+            registry[uid] = f
+        return f(*args, **kwargs)
+
+    return wrapper
+
+
+@typecheck(f=anytype, param_types=HailType, _name=nullable(str))
+def define_function(f, *param_types, _name):
+    mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid() for _ in param_types]
     body = f(*(construct_expr(Ref(pn), pt) for pn, pt in zip(param_names, param_types)))
     ret_type = body.dtype
@@ -35,4 +57,4 @@ def define_function(f, *param_types):
         indices, aggregations = unify_all(*args)
         return construct_expr(Apply(mname, *(a._ir for a in args)), ret_type, indices, aggregations)
 
-    return Function(f, mname)
+    return Function(f, param_types, ret_type, mname)
