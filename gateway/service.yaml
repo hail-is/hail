@@ -16,5 +16,5 @@ spec:
     targetPort: 443
   selector:
     app: gateway
-  loadBalancerIP: "{{ code.ip }}"
+  loadBalancerIP: "{{ global.ip }}"
   type: LoadBalancer
