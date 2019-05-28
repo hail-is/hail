@@ -17,7 +17,7 @@ import uvloop
 
 from hailjwt import authenticated_users_only
 
-from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file
+from .globals import write_gs_log_file, read_gs_log_file, delete_gs_log_file, blocking_to_async
 from .database import BatchDatabase
 from .k8s import K8s
 
@@ -1047,7 +1047,8 @@ async def db_cleanup_event_loop():
 def serve(port=5000):
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
-        app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
+        app['blocking_pool'] = pool
+        app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
         asyncio.ensure_future(polling_event_loop())
         asyncio.ensure_future(kube_event_loop())
         asyncio.ensure_future(db_cleanup_event_loop())
