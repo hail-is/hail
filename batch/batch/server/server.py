@@ -8,6 +8,7 @@ import json
 import uuid
 from shlex import quote as shq
 
+import aiohttp_jinja2
 from aiohttp import web
 import cerberus
 import kubernetes as kube
@@ -944,7 +945,7 @@ async def close_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['ksa_name']
-    jobs = await _get_batch(request, userdata)
+    jobs = await _get_batch(batch_id, user)
     return {"job_list": jobs}
 
 
