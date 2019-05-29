@@ -3,10 +3,9 @@ from __future__ import print_function
 import re
 import sys
 from subprocess import check_call
+import hailctl
 
 from .utils import latest_sha, load_config, load_config_file
-
-init_script = 'gs://hail-common/cloudtools/init_notebook1.py'
 
 # master machine type to memory map, used for setting spark.driver.memory property
 MACHINE_MEM = {
@@ -130,7 +129,7 @@ def main(args, pass_through_args):
 
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
-                     [init_script])
+                     [hailctl._deploy_metadata['dataproc']['init_notebook.py']])
 
     # add VEP init script
     if args.vep:
