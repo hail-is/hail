@@ -124,4 +124,4 @@ deploy: pypi-deploy tag
 
 clean:
 	./gradlew clean
-  rm -rf build/deploy
+	rm -rf build/deploy
