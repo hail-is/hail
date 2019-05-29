@@ -49,7 +49,9 @@ object EmitRegion {
   def default(mb: EmitMethodBuilder): EmitRegion = EmitRegion(mb, mb.getArg[Region](1))
 }
 
-case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region])
+case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region]) {
+  def baseRegion: Code[Region] = mb.getArg[Region](1)
+}
 
 case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def value[T]: Code[T] = coerce[T](v)
@@ -279,7 +281,12 @@ private class Emit(
       case F64(x) =>
         present(const(x))
       case Str(x) =>
-        present(region.appendString(const(x)))
+        present(mb.fb.addLiteral(x, TString(), er.baseRegion))
+      case Literal(t, v) =>
+        if (v == null)
+          emit(NA(t))
+        else
+          present(mb.fb.addLiteral(v, t, er.baseRegion))
       case True() =>
         present(const(true))
       case False() =>
