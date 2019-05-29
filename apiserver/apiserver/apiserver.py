@@ -62,7 +62,7 @@ async def healthcheck(request):
 def blocking_execute(code):
     jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
     typ = hl.dtype(jir.typ().toString())
-    result = Env.hail().backend.spark.SparkBackend.executeJSON(jir)
+    result = Env.hc().backend().executeJSON(jir)
     return {
         'type': str(typ),
         'result': result

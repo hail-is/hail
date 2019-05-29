@@ -105,7 +105,7 @@ class SparkBackend(Backend):
         return ir._jir
 
     def execute(self, ir, timed=False):
-        result = json.loads(Env.hail().backend.spark.SparkBackend.executeJSON(self._to_java_ir(ir)))
+        result = json.loads(Env.hc().backend().executeJSON(self._to_java_ir(ir)))
         value = ir.typ._from_json(result['value'])
         timings = result['timings']
 
