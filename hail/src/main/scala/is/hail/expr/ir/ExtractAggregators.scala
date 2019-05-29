@@ -183,12 +183,13 @@ object ExtractAggregators {
         val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
 
-        val (knownLengthSig, knownLengthIRSeq) = knownLength.map(l => (FastSeq(TInt32()), FastSeq(l)))
-          .getOrElse((FastSeq(), FastSeq()))
-        val aggSigCheck = AggSignature(AggElementsLengthCheck(), FastSeq(),
-          Some(FastSeq(TVoid) ++ knownLengthSig),
+        val (knownLengthSig, knownLengthIRSeq) = knownLength
+          .map(l => (FastIndexedSeq[Type](TInt32()), FastIndexedSeq[IR](l)))
+          .getOrElse((FastIndexedSeq[Type](), FastIndexedSeq[IR]()))
+        val aggSigCheck = AggSignature(AggElementsLengthCheck(), FastSeq[Type](),
+          Some(FastSeq[Type](TVoid) ++ knownLengthSig),
           FastSeq(TInt32()))
-        val aggSig = AggSignature(AggElements(), FastSeq(), None, FastSeq(TInt32(), TVoid))
+        val aggSig = AggSignature(AggElements(), FastSeq[Type](), None, FastSeq(TInt32(), TVoid))
 
         val aUID = genUID()
         val iUID = genUID()
@@ -197,7 +198,7 @@ object ExtractAggregators {
         val i = ab.length
         ab += IRAgg[RVAgg](i, agg, rt)
         ab2 += AggOps(
-          Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)) ++ knownLengthIRSeq, aggSigCheck)),
+          Some(InitOp(i, FastIndexedSeq[IR](Begin(initOp.flatten.toFastIndexedSeq)) ++ knownLengthIRSeq, aggSigCheck)),
           Let(
             aUID,
             a,
