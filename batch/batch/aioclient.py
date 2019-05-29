@@ -76,7 +76,7 @@ class Batch:
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
                          service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                         input_files=None, output_files=None, always_run=False):
+                         input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parent_ids is None:
             parent_ids = []
 
@@ -142,6 +142,8 @@ class Batch:
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
+        if pvc_size:
+            doc['pvc_size'] = pvc_size
 
         j = await self.client._post('/jobs/create', json=doc)
 

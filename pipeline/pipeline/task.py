@@ -64,6 +64,7 @@ class Task:
         self._label = label
         self._cpu = None
         self._memory = None
+        self._storage = None
         self._image = None
         self._command = []
 
@@ -294,6 +295,31 @@ class Task:
                                handler,
                                command)
         self._command.append(subst_command)
+        return self
+
+    def storage(self, storage):
+        """
+        Set the task's storage size.
+
+        Examples
+        --------
+
+        Set the task's disk requirements to 1 Gi:
+
+        >>> t1 = p.new_task()
+        >>> (t1.storage('1Gi')
+        ...    .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        storage: :obj:`str`
+
+        Returns
+        -------
+        :class:`.Task`
+            Same task object with storage set.
+        """
+        self._storage = storage
         return self
 
     def label(self, label):

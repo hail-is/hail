@@ -142,7 +142,8 @@ class BatchClient:
                     parent_ids,
                     input_files,
                     output_files,
-                    always_run):
+                    always_run,
+                    pvc_size):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -192,7 +193,8 @@ class BatchClient:
             spec['serviceAccountName'] = service_account_name
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
-                                parent_ids, input_files, output_files, always_run)
+                                parent_ids, input_files, output_files, always_run,
+                                pvc_size)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),

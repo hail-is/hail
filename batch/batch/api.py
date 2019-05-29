@@ -51,7 +51,7 @@ class API():
         return self.http(requests.delete, *args, **kwargs)
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   input_files, output_files, always_run):
+                   input_files, output_files, always_run, pvc_size):
         doc = {
             'spec': spec,
             'parent_ids': parent_ids,
@@ -67,6 +67,8 @@ class API():
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
+        if pvc_size:
+            doc['pvc_size'] = pvc_size
 
         return self.post(f'{url}/jobs/create', json=doc)
 
