@@ -165,9 +165,6 @@ class BatchBackend(Backend):
         self._batch_client = batch.client.BatchClient(url)
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
-        if dry_run:
-            raise NotImplementedError
-
         bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
@@ -182,6 +179,7 @@ class BatchBackend(Backend):
 
         task_to_job_mapping = {}
         job_id_to_command = {}
+        commands = []
 
         activate_service_account = 'set -ex; gcloud -q auth activate-service-account ' \
                                    '--key-file=/gsa-key/privateKeyData'
@@ -212,13 +210,16 @@ class BatchBackend(Backend):
             write_cmd = activate_service_account + ' && ' + \
                         ' && '.join([_cp(*files) for files in write_external_inputs])
 
-            j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
-                                 command=['/bin/bash', '-c', write_cmd],
-                                 attributes={'name': 'write_external_inputs'})
-            job_id_to_command[j.id] = write_cmd
-            n_jobs_submitted += 1
-            if verbose:
-                print(f"Submitted Job {j.id} with command: {write_cmd}")
+            if dry_run:
+                commands.append(write_cmd)
+            else:
+                j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
+                                     command=['/bin/bash', '-c', write_cmd],
+                                     attributes={'name': 'write_external_inputs'})
+                job_id_to_command[j.id] = write_cmd
+                n_jobs_submitted += 1
+                if verbose:
+                    print(f"Submitted Job {j.id} with command: {write_cmd}")
 
         for task in pipeline._tasks:
             inputs = [x for r in task._inputs for x in copy_input(r)]
@@ -239,6 +240,10 @@ class BatchBackend(Backend):
             task_command = [cmd.strip() for cmd in task._command]
 
             cmd = " && ".join(task_command)
+            if dry_run:
+                commands.append(cmd)
+                continue
+
             parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
@@ -264,6 +269,10 @@ class BatchBackend(Backend):
             job_id_to_command[j.id] = defs + cmd
             if verbose:
                 print(f"Submitted Job {j.id} with command: {defs + cmd}")
+
+        if dry_run:
+            print("\n\n".join(commands))
+            return
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parent_ids = list(job_id_to_command.keys())
