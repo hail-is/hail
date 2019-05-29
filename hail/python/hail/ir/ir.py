@@ -1,16 +1,18 @@
 import copy
+from collections import defaultdict
+
+import decorator
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
-from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import *
+from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
+from .table_writer import TableWriter
 
-from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -1463,6 +1465,23 @@ def lookup_function_return_type(name, arg_types):
 
 def lookup_seeded_function_return_type(name, arg_types):
     return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
+
+
+def udf(*param_types):
+
+    uid = Env.get_uid()
+
+    @decorator.decorator
+    def wrapper(__original_func, *args, **kwargs):
+        registry = hail.ir.ir._udf_registry
+        if uid in registry:
+            f = registry[uid]
+        else:
+            f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
+            registry[uid] = f
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 class Apply(IR):

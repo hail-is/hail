@@ -11,7 +11,7 @@ from .write_multiple import write_matrix_tables, block_matrices_tofiles, export_
 from .export_entries_by_col import export_entries_by_col
 from .densify import densify
 from .sparse_split_multi import sparse_split_multi
-from .function import define_function, udf
+from .function import define_function
 from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
 from .tidyr import gather, separate, spread
@@ -37,7 +37,6 @@ __all__ = ['ld_score',
            'densify',
            'sparse_split_multi',
            'define_function',
-           'udf',
            'simulate_phenotypes',
            'full_outer_join_mt',
            'gather',
