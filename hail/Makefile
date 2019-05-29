@@ -1,7 +1,7 @@
 .PHONY: shadowJar build-info jars wheel install-wheel clean \
   src/main/resources/build-info.properties \
   python/hail/hail_version python/hail/hail_pip_version \
-  ../hailctl/python/hailctl/deploy.yaml
+  python/hailctl/deploy.yaml
 
 REVISION=$(shell git rev-parse HEAD)
 SHORT_REVISION=$(shell git rev-parse --short=12 HEAD)
@@ -44,7 +44,7 @@ jars: build-info
 	make -C src/main/c
 	mvn -B compile test-compile jar:jar jar:test-jar assembly:single
 
-wheel: build-info init-scripts shadowJar
+wheel: build-info shadowJar init-scripts
 	rm -rf build/deploy
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
@@ -60,7 +60,7 @@ wheel: build-info init-scripts shadowJar
 	rsync -rv \
 	    --exclude '__pycache__/' \
 	    --exclude '*.log' \
-	    ../hailctl/python/hailctl build/deploy/src/
+	    python/hailctl build/deploy/src/
 
 	cp build/libs/hail-all-spark.jar build/deploy/src/hail/
 	cp build/deploy/src/hail/hail_pip_version build/deploy/src/hailctl/hail_pip_version
@@ -77,17 +77,17 @@ DEV_SALT := $(shell whoami)-dev
 endif
 
 CLOUD_LOC = gs://hail-common/hailctl/dataproc/$(DEV_SALT)/$(HAIL_PIP_VERSION)/$(SHORT_REVISION)/$(FILENAME)
-RESOURCES_TO_COPY = $(shell ls ../hailctl/python/hailctl/dataproc/resources)
-../hailctl/python/hailctl/deploy.yaml:
-	rm -f ../hailctl/python/hailctl/deploy.yaml
-	echo "dataproc:" >> ../hailctl/python/hailctl/deploy.yaml
+RESOURCES_TO_COPY = $(shell ls python/hailctl/dataproc/resources)
+python/hailctl/deploy.yaml:
+	rm -f python/hailctl/deploy.yaml
+	echo "dataproc:" >> python/hailctl/deploy.yaml
 	$(foreach FILENAME, $(RESOURCES_TO_COPY), \
-	    gsutil cp ../hailctl/python/hailctl/dataproc/resources/$(FILENAME) $(CLOUD_LOC); \
+	    gsutil cp python/hailctl/dataproc/resources/$(FILENAME) $(CLOUD_LOC); \
 	    gsutil acl set public-read $(CLOUD_LOC); \
-	    echo "  $(FILENAME): $(CLOUD_LOC)" >> ../hailctl/python/hailctl/deploy.yaml;)
+	    echo "  $(FILENAME): $(CLOUD_LOC)" >> python/hailctl/deploy.yaml;)
 
 .PHONY: pypi-deploy
-init-scripts: ../hailctl/python/hailctl/deploy.yaml
+init-scripts: python/hailctl/deploy.yaml
 
 DEPLOYED_VERSION=$(shell \
   pip --no-cache-dir search hail \

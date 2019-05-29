@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 import json
 import os
 import subprocess as sp
@@ -170,10 +170,10 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     # setup jupyter-spark extension
-    safe_call('/opt/conda/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark')
-    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark')
-    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark')
-    safe_call('/opt/conda/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
+    safe_call('/opt/conda/default/bin/jupyter', 'serverextension', 'enable', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'jupyter_spark')
+    safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
 
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'w') as f:
