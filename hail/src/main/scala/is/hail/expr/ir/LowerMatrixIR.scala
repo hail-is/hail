@@ -245,7 +245,7 @@ object LowerMatrixIR {
           val aggResultArray = loweredChild.aggregate(
             aggLet(va = 'row) {
               irRange(0, 'global (colsField).len)
-                .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
+                .aggElements('__element_idx, '__result_idx, Some('global (colsField).len))(
                   let(sa = 'global (colsField)('__result_idx)) {
                     aggLet(sa = 'global (colsField)('__element_idx),
                       g = 'row (entriesField)('__element_idx)) {
@@ -265,7 +265,9 @@ object LowerMatrixIR {
           x: IRProxy => let.applyDynamicNamed("apply")((aggResultRef.name, RelationalRef(ident, aggResultArray.typ))).apply(x)
         }
 
-        val scanTransformer: IRProxy => IRProxy = if (scans.nonEmpty) {
+        val scanTransformer: IRProxy => IRProxy = if (scans.isEmpty)
+          identity
+        else {
           val scanStruct = MakeStruct(scans)
           val scanResultArray = ArrayAggScan(
             GetField(Ref("global", loweredChild.typ.globalType), colsFieldName),
@@ -279,8 +281,7 @@ object LowerMatrixIR {
           b0 = Let(scanResultElementRef.name, ArrayRef(scanResultRef, idx), b0)
 
           x: IRProxy => let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(x)
-
-        } else identity
+        }
 
         loweredChild.mapGlobals('global.insertFields(colsField -> scanTransformer(aggTransformer(
           irRange(0, 'global (colsField).len).map(idxSym ~> let(__cols_array = 'global (colsField), sa = '__cols_array (idxSym)) {
@@ -403,7 +404,7 @@ object LowerMatrixIR {
         lower(child, ab)
           .aggregateByKey(
             reSub.insertFields(entriesField -> irRange(0, 'global (colsField).len)
-              .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
+              .aggElements('__element_idx, '__result_idx, Some('global (colsField).len))(
                 let(sa = 'global (colsField)('__result_idx)) {
                   aggLet(sa = 'global (colsField)('__element_idx),
                     g = 'row (entriesField)('__element_idx)) {
