@@ -182,7 +182,7 @@ steps:
      tar czf resources.tar.gz -C src/test resources
      tar czf data.tar.gz -C python/hail/docs data
      tar czf www-src.tar.gz www
-     tar czf cluster-tests.tar.gz create_config_file.py python/cluster-tests
+     tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
      - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
@@ -204,6 +204,8 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
+     - from: /io/repo/hail/create_config_file.py
+       to: /create_config_file.py
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -215,9 +217,7 @@ steps:
      cd /io
      mkdir -p src/test
      tar xzvf resources.tar.gz -C src/test
-     export HAIL_TEST_SKIP_R=1
-     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
-     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+     HAIL_TEST_SKIP_R=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
@@ -225,11 +225,32 @@ steps:
       to: /io/hail-test.jar
     - from: /testng.xml
       to: /io/testng.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_cpp_codegen
+   image:
+     valueFrom: hail_run_image.image
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     HAIL_ENABLE_CPP_CODEGEN=1 HAIL_TEST_SKIP_R=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
    outputs:
     - from: /io/test-output
-      to: /test-output
+      to: /test-cpp-codegen-output
    dependsOn:
     - hail_run_image
     - build_hail
@@ -358,7 +379,7 @@ steps:
        /io/hail.zip \
        $SCRATCH/hail.zip
      tar xzf /io/cluster-tests.tar.gz
-     python3 ./create_config_file.py 0.2 config.json
+     python3 /io/create_config_file.py 0.2 config.json
      CLUSTER=ci-test-{{ token }}
      time cluster start $CLUSTER \
        --master-machine-type n1-standard-1 \
@@ -388,6 +409,8 @@ steps:
       to: /io/hail.jar
     - from: /cluster-tests.tar.gz
       to: /io/cluster-tests.tar.gz
+    - from: /create_config_file.py
+      to: /io/create_config_file.py
    dependsOn:
     - base_image
     - build_hail
@@ -452,7 +475,6 @@ steps:
     - scorecard
     - notebook2
     - ci2
-    - upload
    dependsOn:
     - default_ns
     - router_image
@@ -745,8 +767,10 @@ steps:
     - from: /www.tar.gz
       to: /io/www.tar.gz
     - from: /create_config_file.py
-      to: /io/create_config_file.pywww.tar.gz
+      to: /io/create_config_file.py
    scopes:
     - deploy
    dependsOn:
     - base_image
+    - make_docs
+    - build_hail

@@ -21,5 +21,6 @@ AUTHORIZED_USERS = set([
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
-    'daniel-goldstein'
+    'daniel-goldstein',
+    'ahiduchick'
 ])

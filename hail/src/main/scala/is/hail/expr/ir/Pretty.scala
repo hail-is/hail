@@ -2,8 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.types.virtual.{TArray, TInterval}
 import is.hail.table.Ascending
 import is.hail.utils._
+import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -165,6 +167,8 @@ object Pretty {
             case Let(name, _, _) => prettyIdentifier(name)
             case AggLet(name, _, _, isScan) => prettyIdentifier(name) + " " + prettyBooleanLiteral(isScan)
             case Ref(name, _) => prettyIdentifier(name)
+            case RelationalRef(name, t) => prettyIdentifier(name) + " " + t.parsableString()
+            case RelationalLet(name, _, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
             case ApplyComparisonOp(op, _, _) => prettyClass(op)
@@ -222,6 +226,7 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " "
             case BlockMatrixAgg(_, outIndexExpr) => prettyInts(outIndexExpr)
+            case BlockMatrixSlice(_, slices) => slices.map(slice => prettyLongs(slice)).mkString("(", " ", ")")
             case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " "
@@ -295,6 +300,17 @@ object Pretty {
                 s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
                 s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+            case TableFilterIntervals(child, intervals, keep) =>
+              prettyStringLiteral(Serialization.write(
+                JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
+              )(RelationalSpec.formats)) + " " + prettyBooleanLiteral(keep)
+            case MatrixFilterIntervals(child, intervals, keep) =>
+              prettyStringLiteral(Serialization.write(
+                JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
+              )(RelationalSpec.formats)) + " " + prettyBooleanLiteral(keep)
+            case RelationalLetTable(name, _, _) => prettyIdentifier(name)
+            case RelationalLetMatrixTable(name, _, _) => prettyIdentifier(name)
+            case RelationalLetBlockMatrix(name, _, _) => prettyIdentifier(name)
             case ReadPartition(path, spec, encodedType, rowType) =>
               s"${ prettyStringLiteral(spec.toString) } ${ encodedType.parsableString() } ${ rowType.parsableString() }"
 

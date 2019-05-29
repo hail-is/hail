@@ -164,6 +164,7 @@ object ChildEnvWithoutBindings {
       case ArrayAggScan(_, _, _) => if (i == 1) BindingEnv(eval = env.eval, scan = Some(env.eval)) else env
       case MatrixAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
       case TableAggregate(_, _) => BindingEnv(Env.empty, agg = Some(Env.empty))
+      case RelationalLet(_, _, _) => if (i == 0) BindingEnv.empty else env
       case _ => if (UsesAggEnv(ir, i)) env.promoteAgg else if (UsesScanEnv(ir, i)) env.promoteScan else env
     }
   }

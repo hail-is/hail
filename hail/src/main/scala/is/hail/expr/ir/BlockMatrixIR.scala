@@ -12,6 +12,8 @@ import scala.collection.mutable.ArrayBuffer
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
+import scala.collection.immutable.NumericRange
+
 object BlockMatrixIR {
   def toBlockMatrix(
     hc: HailContext,
@@ -448,6 +450,49 @@ case class BlockMatrixFilter(
   }
 }
 
+case class BlockMatrixSlice(child: BlockMatrixIR, slices: IndexedSeq[IndexedSeq[Long]]) extends BlockMatrixIR {
+  assert(slices.length == 2)
+  assert(slices.forall(_.length == 3))
+
+  override def typ: BlockMatrixType = {
+    val matrixShape: IndexedSeq[Long] = slices.map { s =>
+      val IndexedSeq(start, stop, step) = s
+      1 + (stop - start - 1) / step
+    }
+
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize)
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
+    assert(newChildren.length == 1)
+    BlockMatrixSlice(newChildren(0).asInstanceOf[BlockMatrixIR], slices)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val bm = child.execute(hc)
+    val IndexedSeq(rowKeep, colKeep) = slices.map { s =>
+      val IndexedSeq(start, stop, step) = s
+      start until stop by step
+    }
+
+    val (childNRows, childNCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
+    if (isFullRange(rowKeep, childNRows)) {
+      bm.filterCols(colKeep.toArray)
+    } else if (isFullRange(colKeep, childNCols)) {
+      bm.filterRows(rowKeep.toArray)
+    } else {
+      bm.filter(rowKeep.toArray, colKeep.toArray)
+    }
+  }
+
+  private def isFullRange(r: NumericRange[Long], dimLength: Long): Boolean = {
+    r.start == 0 && r.end == dimLength && r.step == 1
+  }
+}
+
 case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],
@@ -507,5 +552,16 @@ case class BlockMatrixRandom(
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian)
+  }
+}
+
+case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR) extends BlockMatrixIR {
+  def typ: BlockMatrixType = body.typ
+
+  def children: IndexedSeq[BaseIR] = Array(value, body)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR = {
+    val IndexedSeq(newValue: IR, newBody: BlockMatrixIR) = newChildren
+    RelationalLetBlockMatrix(name, newValue, newBody)
   }
 }

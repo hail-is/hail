@@ -4,8 +4,9 @@ from subprocess import check_output
 from statistics import median, mean, stdev
 from collections import OrderedDict
 
-SECTION_SEPARATOR = '-'*40
-IDENT = ' '*4
+SECTION_SEPARATOR = '-' * 40
+IDENT = ' ' * 4
+
 
 def parse_schema(s):
     def parse_type(s, end_delimiter, element_type):
@@ -43,7 +44,7 @@ def parse_schema(s):
         raise Exception('End of {} not found'.format(element_type))
 
     start_schema_index = s.index('{')
-    return parse_type(s[start_schema_index+1:], "}", s[:start_schema_index])[0]
+    return parse_type(s[start_schema_index + 1:], "}", s[:start_schema_index])[0]
 
 
 def type_str(t, depth=1):
@@ -72,6 +73,7 @@ def type_str(t, depth=1):
         for k, v in t.items()
     )
 
+
 def key_str(k):
     if isinstance(k, dict):
         return '[{}]'.format(', '.join([key_str(x) for x in k['value']]))
@@ -82,10 +84,10 @@ def key_str(k):
 def get_partitions_info_str(j):
     partitions = j['components']['partition_counts']['counts']
     partitions_info = {
-                          'Partitions': len(partitions),
-                          'Rows': sum(partitions),
-                          'Empty partitions': len([p for p in partitions if p == 0])
-                      }
+        'Partitions': len(partitions),
+        'Rows': sum(partitions),
+        'Empty partitions': len([p for p in partitions if p == 0])
+    }
     if partitions_info['Partitions'] > 1:
         partitions_info.update({
             'Min(rows/partition)': min(partitions),
@@ -95,7 +97,6 @@ def get_partitions_info_str(j):
             'StdDev(rows/partition)': int(stdev(partitions))
         })
 
-
     return "\n{}".format(IDENT).join(['{}: {}'.format(k, v) for k, v in partitions_info.items()])
 
 
@@ -103,14 +104,14 @@ def init_parser(parser):
     # arguments with default parameters
     parser.add_argument('file', type=str, help='Path to hail file (either MatrixTable or Table).')
 
-def main(args, pass_through_args):
 
+def main(args, pass_through_args):
     command = ['gsutil'] if args.file.startswith('gs://') else []
 
     j = json.loads(
         decompress(
             check_output(command + ['cat', args.file + '/metadata.json.gz']),
-            16+MAX_WBITS
+            16 + MAX_WBITS
         )
     )
 
@@ -157,4 +158,5 @@ def main(args, pass_through_args):
     try:
         check_output(command + ['ls', args.file + '/_SUCCESS'])
     except:
-        print("\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))
+        print(
+            "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))

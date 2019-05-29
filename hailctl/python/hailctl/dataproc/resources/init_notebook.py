@@ -5,15 +5,9 @@ import subprocess as sp
 import sys
 from subprocess import check_output
 
+assert sys.version_info > (3, 0), sys.version_info
 
-if sys.version_info >= (3,0):
-    decode = lambda s: s.decode()
-    # Python 3 check_output returns a byte string
-else:
-    # In Python 2, bytes and str are the same
-    decode = lambda s: s
-
-if sys.version_info >= (3,7):
+if sys.version_info >= (3, 7):
     def safe_call(*args):
         sp.run(args, capture_output=True, check=True)
 else:
@@ -21,11 +15,13 @@ else:
         try:
             sp.check_output(args, stderr=sp.STDOUT)
         except sp.CalledProcessError as e:
-            print(decode(e.output))
+            print(e.output).decode()
             raise e
 
+
 def get_metadata(key):
-    return decode(check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]))
+    return check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]).decode()
+
 
 def mkdir_if_not_exists(path):
     try:
@@ -33,6 +29,7 @@ def mkdir_if_not_exists(path):
     except OSError as e:
         if e.errno != os.errno.EEXIST:
             raise
+
 
 # get role of machine (master or worker)
 role = get_metadata('dataproc-role')
@@ -56,14 +53,14 @@ if role == 'Master':
         'nbconvert<6',
         'notebook<6',
         'qtconsole<5',
-        'jupyter', 'tornado<6', # https://github.com/hail-is/hail/issues/5505
+        'jupyter', 'tornado<6',  # https://github.com/hail-is/hail/issues/5505
         'lxml<5',
         'jupyter-spark<0.5',
         'bokeh<0.14',
         'google-cloud==0.32.0',
         'jgscm<0.2'
     ]
-    if sys.version_info < (3,5):
+    if sys.version_info < (3, 5):
         pip_pkgs.extend([
             'matplotlib<3',
             # ipython 6 requires python>=3.3
@@ -87,19 +84,19 @@ if role == 'Master':
     else:
         pip_pkgs.extend(user_pkgs.split('|'))
 
-    safe_call('/opt/conda/bin/conda', 'update', 'setuptools')
+    safe_call('/opt/conda/default/bin/conda', 'update', 'setuptools')
 
     print('conda packages are {}'.format(conda_pkgs))
-    command = ['/opt/conda/bin/conda', 'install']
+    command = ['/opt/conda/default/bin/conda', 'install']
     command.extend(conda_pkgs)
     safe_call(*command)
 
     print('pip packages are {}'.format(pip_pkgs))
-    command = ['/opt/conda/bin/pip', 'install']
+    command = ['/opt/conda/default/bin/pip', 'install']
     command.extend(pip_pkgs)
     safe_call(*command)
 
-    py4j = decode(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
+    py4j = check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip().decode()
 
     print('getting metadata')
 
@@ -113,17 +110,17 @@ if role == 'Master':
     env_to_set = {
         'PYTHONHASHSEED': '0',
         'PYTHONPATH':
-         '/usr/lib/spark/python/:{}:/home/hail/hail.zip'.format(py4j),
+            '/usr/lib/spark/python/:{}:/home/hail/hail.zip'.format(py4j),
         'SPARK_HOME': '/usr/lib/spark/',
-        'PYSPARK_PYTHON': '/opt/conda/bin/python',
-        'PYSPARK_DRIVER_PYTHON': '/opt/conda/bin/python'
+        'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
+        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python'
     }
 
     print('setting environment')
 
     for e, value in env_to_set.items():
         safe_call('/bin/sh', '-c',
-                   'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
+                  'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
 
     conf_to_set = [
         'spark.jars=/home/hail/hail.jar',
@@ -143,7 +140,7 @@ if role == 'Master':
     # create Jupyter kernel spec file
     kernel = {
         'argv': [
-            '/opt/conda/bin/python',
+            '/opt/conda/default/bin/python',
             '-m',
             'ipykernel',
             '-f',
@@ -189,7 +186,7 @@ if role == 'Master':
             'User=root',
             'Group=root',
             'WorkingDirectory=/home/hail/',
-            'ExecStart=/opt/conda/bin/python /opt/conda/bin/jupyter notebook --allow-root',
+            'ExecStart=/opt/conda/default/bin/python /opt/conda/default/bin/jupyter notebook --allow-root',
             'Restart=always',
             'RestartSec=1',
             '[Install]',

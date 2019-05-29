@@ -126,8 +126,6 @@ object RelationalFunctions {
     classOf[NPartitionsMatrixTable],
     classOf[LogisticRegression],
     classOf[MatrixWriteBlockMatrix],
-    classOf[TableFilterIntervals],
-    classOf[MatrixFilterIntervals],
     classOf[PoissonRegression],
     classOf[Skat],
     classOf[LocalLDPrune],
@@ -139,9 +137,7 @@ object RelationalFunctions {
     classOf[WrappedMatrixToTableFunction],
     classOf[WrappedMatrixToMatrixFunction],
     classOf[WrappedMatrixToValueFunction]
-  )) +
-    new MatrixFilterIntervalsSerializer +
-    new TableFilterIntervalsSerializer
+  ))
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)

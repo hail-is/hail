@@ -584,6 +584,15 @@ object IRParser {
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
+      case "RelationalRef" =>
+        val id = identifier(it)
+        val t = type_expr(it)
+        RelationalRef(id, t)
+      case "RelationalLet" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (name -> value.typ))(it)
+        RelationalLet(name, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         val l = ir_value_expr(env)(it)
@@ -1066,6 +1075,20 @@ object IRParser {
         val globalV = string_literals(it)
         val child = table_ir(env)(it)
         TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
+      case "TableFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = table_ir(env)(it)
+        TableFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.keyType)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
+      case "RelationalLetTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = table_ir(env)(it)
+        RelationalLetTable(name, value, body)
       case "JavaTable" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[TableIR]
@@ -1208,6 +1231,20 @@ object IRParser {
         val entryV = string_literals(it)
         val child = matrix_ir(env)(it)
         MatrixRename(child, globalK.zip(globalV).toMap, colK.zip(colV).toMap, rowK.zip(rowV).toMap, entryK.zip(entryV).toMap)
+      case "MatrixFilterIntervals" =>
+        val intervals = string_literal(it)
+        val keep = boolean_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixFilterIntervals(child,
+          JSONAnnotationImpex.importAnnotation(JsonMethods.parse(intervals),
+            TArray(TInterval(child.typ.rowKeyStruct)),
+            padNulls = false).asInstanceOf[IndexedSeq[Interval]],
+          keep)
+      case "RelationalLetMatrixTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = matrix_ir(env)(it)
+        RelationalLetMatrixTable(name, value, body)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
@@ -1259,6 +1296,10 @@ object IRParser {
         val indices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixFilter(child, indices)
+      case "BlockMatrixSlice" =>
+        val slices = literals(literals(int64_literal))(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixSlice(child, slices.map(_.toFastIndexedSeq).toFastIndexedSeq)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
@@ -1270,6 +1311,11 @@ object IRParser {
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         BlockMatrixRandom(seed, gaussian, shape, blockSize)
+      case "RelationalLetBlockMatrix" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = blockmatrix_ir(env)(it)
+        RelationalLetBlockMatrix(name, value, body)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]

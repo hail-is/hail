@@ -13,41 +13,51 @@ from . import submit
 
 
 def parser():
-    main_parser = argparse.ArgumentParser(prog='hailctl dataproc',
-                                          description='Manage and monitor Hail deployments.')
+    main_parser = argparse.ArgumentParser(
+        prog='hailctl dataproc',
+        description='Manage and monitor Hail deployments.')
     subparsers = main_parser.add_subparsers()
 
-    start_parser = subparsers.add_parser('start',
-                                         help='Start a Dataproc cluster configured for Hail.',
-                                         description='Start a Dataproc cluster configured for Hail.')
-    submit_parser = subparsers.add_parser('submit',
-                                          help='Submit a Python script to a running Dataproc cluster.',
-                                          description='Submit a Python script to a running Dataproc cluster.')
-    connect_parser = subparsers.add_parser('connect',
-                                           help='Connect to a running Dataproc cluster.',
-                                           description='Connect to a running Dataproc cluster.')
-    diagnose_parser = subparsers.add_parser('diagnose',
-                                            help='Diagnose problems in a Dataproc cluster.',
-                                            description='Diagnose problems in a Dataproc cluster.')
-    stop_parser = subparsers.add_parser('stop',
-                                        help='Shut down a Dataproc cluster.',
-                                        description='Shut down a Dataproc cluster.')
+    start_parser = subparsers.add_parser(
+        'start',
+        help='Start a Dataproc cluster configured for Hail.',
+        description='Start a Dataproc cluster configured for Hail.')
+    submit_parser = subparsers.add_parser(
+        'submit',
+        help='Submit a Python script to a running Dataproc cluster.',
+        description='Submit a Python script to a running Dataproc cluster.')
+    connect_parser = subparsers.add_parser(
+        'connect',
+        help='Connect to a running Dataproc cluster.',
+        description='Connect to a running Dataproc cluster.')
+    diagnose_parser = subparsers.add_parser(
+        'diagnose',
+        help='Diagnose problems in a Dataproc cluster.',
+        description='Diagnose problems in a Dataproc cluster.')
+    stop_parser = subparsers.add_parser(
+        'stop',
+        help='Shut down a Dataproc cluster.',
+        description='Shut down a Dataproc cluster.')
 
-    list_parser = subparsers.add_parser('list',
-                                        help='List active Dataproc clusters.',
-                                        description='List active Dataproc clusters.')
+    list_parser = subparsers.add_parser(
+        'list',
+        help='List active Dataproc clusters.',
+        description='List active Dataproc clusters.')
 
-    modify_parser = subparsers.add_parser('modify',
-                                          help='Modify active Dataproc clusters.',
-                                          description='Modify active Dataproc clusters.')
+    modify_parser = subparsers.add_parser(
+        'modify',
+        help='Modify active Dataproc clusters.',
+        description='Modify active Dataproc clusters.')
 
-    describe_parser = subparsers.add_parser('describe',
-                                            help='Gather information about a hail file (including the schema)',
-                                            description='Gather information about a hail file (including the schema)')
+    describe_parser = subparsers.add_parser(
+        'describe',
+        help='Gather information about a hail file (including the schema)',
+        description='Gather information about a hail file (including the schema)')
 
-    latest_parser = subparsers.add_parser('latest',
-                                          help='Find the newest deployed SHA and the locations of the newest JARs and ZIPs',
-                                          description='Find the newest deployed SHA and the locations of the newest JARs and ZIPs')
+    latest_parser = subparsers.add_parser(
+        'latest',
+        help='Find the newest deployed SHA and the locations of the newest JARs and ZIPs',
+        description='Find the newest deployed SHA and the locations of the newest JARs and ZIPs')
 
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)

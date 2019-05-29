@@ -271,6 +271,8 @@ object LowerMatrixIR {
 
     case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child), n, shuffle)
 
+    case MatrixFilterIntervals(child, intervals, keep) => TableFilterIntervals(lower(child), intervals, keep)
+
     case MatrixUnionRows(children) =>
       // FIXME: this should check that all children have the same column keys.
       TableUnion(MatrixUnionRows.unify(children).map(lower))
@@ -317,17 +319,22 @@ object LowerMatrixIR {
         .mapGlobals('global.dropFields(lengths))
 
     case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
+
+      val substEnv = BindingEnv[IRProxy](
+        Env(("global", 'global.dropFields(colsField))),
+        agg = Some(Env(("va", 'row), ("global", 'global.dropFields(colsField)))))
+      val eeSub = subst(entryExpr, substEnv)
+      val reSub = subst(rowExpr, substEnv)
       lower(child)
         .aggregateByKey(
-          aggLet(va = 'row) {
-            rowExpr.insertFields(entriesField -> irRange(0, 'global (colsField).len)
-              .aggElements('__element_idx, '__result_idx)(
-                  let(sa = 'global(colsField)('__result_idx)) {
-                    aggLet(sa = 'global (colsField)('__element_idx),
-                      g = 'row (entriesField)('__element_idx)) {
-                      entryExpr
-                    }
-                  }))})
+          reSub.insertFields(entriesField -> irRange(0, 'global (colsField).len)
+            .aggElements('__element_idx, '__result_idx)(
+              let(sa = 'global (colsField)('__result_idx)) {
+                aggLet(sa = 'global (colsField)('__element_idx),
+                  g = 'row (entriesField)('__element_idx)) {
+                  eeSub
+                }
+              })))
 
     case MatrixCollectColsByKey(child) =>
       lower(child)
@@ -364,6 +371,13 @@ object LowerMatrixIR {
       val colsAggIdx = Symbol(genUID())
       val keyMap = Symbol(genUID())
       val aggElementIdx = Symbol(genUID())
+
+      val substEnv = BindingEnv[IRProxy](
+        Env(("global", 'global.dropFields(colsField, keyMap))),
+        agg = Some(Env(("global", 'global.dropFields(colsField, keyMap)))))
+      val ceSub = subst(colExpr, substEnv)
+      val eeSub = subst(entryExpr, substEnv.bindEval("va", 'row).bindAgg("va", 'row))
+
       lower(child)
         .mapGlobals('global.insertFields(keyMap ->
           let(__cols_field = 'global (colsField)) {
@@ -375,13 +389,13 @@ object LowerMatrixIR {
               .toArray
           }))
         .mapRows('row.insertFields(entriesField ->
-          let(__entries = 'row (entriesField), __key_map = 'global (keyMap), va = 'row) {
+          let(__entries = 'row (entriesField), __key_map = 'global (keyMap)) {
             irRange(0, '__key_map.len)
               .map(newColIdx1 ~> '__key_map (newColIdx1)
                 .apply('value)
                 .arrayAgg(aggElementIdx ~>
-                  aggLet(va = 'row, g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
-                    entryExpr
+                  aggLet(g = '__entries (aggElementIdx), sa = 'global (colsField)(aggElementIdx)) {
+                    eeSub
                   }))}))
         .mapGlobals(
           'global.insertFields(colsField ->
@@ -392,7 +406,7 @@ object LowerMatrixIR {
                     '__key_map (newColIdx2)('key),
                     '__key_map (newColIdx2)('value)
                       .arrayAgg(colsAggIdx ~> aggLet(sa = 'global (colsField)(colsAggIdx)) {
-                        colExpr
+                        ceSub
                       })
                   )
                 )

@@ -185,7 +185,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
             ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
-            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True})
+            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return table_irs
@@ -241,7 +242,9 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
             ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo'),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
-            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
+            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.MatrixRename(matrix_read, {'global_f32': 'global_foo'}, {'col_f32': 'col_foo'}, {'row_aset': 'row_aset2'}, {'entry_f32': 'entry_foo'}),
+            ir.MatrixFilterIntervals(matrix_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return matrix_irs
@@ -286,6 +289,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+        slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
         return [
             read,
@@ -300,7 +304,8 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_row,
             squared_bm,
             transpose,
-            matmul
+            matmul,
+            slice_bm
         ]
 
     def test_parses(self):

@@ -1,24 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: site-deployment
+  name: gateway-deployment
   labels:
-    app: site
+    app: gateway
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: site
+      app: gateway
   replicas: 3
   template:
     metadata:
       labels:
-        app: site
+        app: gateway
         hail.is/sha: "{{ code.sha }}"
     spec:
-{% if deploy %}
-      priorityClassName: production
-{% endif %}
+      serviceAccountName: gateway
+      priorityClassName: infrastructure
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -27,49 +26,42 @@ spec:
                   - key: "app"
                     operator: In
                     values:
-                    - site
+                    - gateway
               topologyKey: "kubernetes.io/hostname"
       tolerations:
        - key: preemptible
          value: "true"
       containers:
-       - name: site
-         image: "{{ site_image.image }}"
+       - name: gateway
+         image: "{{ gateway_image.image }}"
          resources:
            requests:
              memory: "250M"
              cpu: "100m"
-           limits:
-             memory: "1G"
-             cpu: "1"
          ports:
           - containerPort: 80
-         livenessProbe:
-           httpGet:
-             path: /health
-             port: 80
-           initialDelaySeconds: 5
-           periodSeconds: 5
-         readinessProbe:
-           httpGet:
-             path: /
-             port: 80
-           initialDelaySeconds: 5
-           periodSeconds: 5
+          - containerPort: 443
+         volumeMounts:
+          - mountPath: /etc/letsencrypt
+            name: letsencrypt-config
+      volumes:
+        - name: letsencrypt-config
+          secret:
+            secretName: letsencrypt-config
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: site
+  name: gateway
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: site
+    name: gateway
   minReplicas: 3
   maxReplicas: 10
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      targetAverageUtilization: 80
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80

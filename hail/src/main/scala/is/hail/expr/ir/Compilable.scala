@@ -18,6 +18,8 @@ object Compilable {
       case _: Literal => false
       case _: CollectDistributedArray => false
       case _: ReadPartition => false
+      case _: RelationalRef => false
+      case _: RelationalLet => false
 
       case _ => true
     }

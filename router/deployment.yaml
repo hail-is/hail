@@ -110,7 +110,7 @@ spec:
   selector:
     matchLabels:
       app: router
-  replicas: 1
+  replicas: 3
   template:
     metadata:
       labels:
@@ -120,9 +120,29 @@ spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - router
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
       containers:
        - name: router
          image: {{ router_image.image }}
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "100m"
+           limits:
+             memory: "1G"
+             cpu: "1"
          env:
           - name: DOMAIN
             value: {{ default_ns.domain }}
@@ -149,3 +169,20 @@ spec:
     targetPort: 80
   selector:
     app: router
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: router
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: router
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 80
