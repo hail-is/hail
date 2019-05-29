@@ -400,20 +400,23 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('org.scala-lang:scala-library:' + scalaVersion))
+        include(dependency('org.scala-lang:scala-reflect:' + scalaVersion))
+
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 
         include(dependency('org.lz4:lz4-java:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
 
-	include(dependency('com.github.fommil.netlib:core:1.1.2'))
-	include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
-	include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
-	include(dependency('com.github.fommil:jniloader:1.1'))
-	include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:core:1.1.2'))
+        include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
+        include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
+        include(dependency('com.github.fommil:jniloader:1.1'))
+        include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
 
         include(dependency('com.github.samtools:htsjdk:.*'))
 
