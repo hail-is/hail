@@ -44,7 +44,6 @@ __all__ = [
     'hts_entry_schema',
 ]
 
-@functools.lru_cache(256)
 def dtype(type_str):
     r"""Parse a type from its string representation.
 
