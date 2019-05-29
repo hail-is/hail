@@ -12,4 +12,5 @@ RUN pip3 install --no-cache-dir /batch && \
 
 EXPOSE 5000
 
+WORKDIR "/"
 CMD ["python3", "-c", "import batch.server; batch.server.serve()"]
