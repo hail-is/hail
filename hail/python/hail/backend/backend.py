@@ -10,10 +10,9 @@ from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 
-import requests
-
-import pyspark
-
+def requests():
+    import requests
+    return requests
 
 class Backend(abc.ABC):
     @abc.abstractmethod
@@ -146,6 +145,7 @@ class SparkBackend(Backend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
+        import pyspark
         return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
@@ -239,7 +239,7 @@ class ServiceBackend(Backend):
 
     def execute(self, ir, timed=False):
         code = self._render(ir)
-        resp = requests.post(f'{self.url}/execute', json=code, cookies=self.cookies)
+        resp = requests().post(f'{self.url}/execute', json=code, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -255,7 +255,7 @@ class ServiceBackend(Backend):
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
-        resp = requests.post(f'{self.url}/type/{kind}', json=code, cookies=self.cookies)
+        resp = requests().post(f'{self.url}/type/{kind}', json=code, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
@@ -280,14 +280,14 @@ class ServiceBackend(Backend):
         return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
-        resp = requests.post(f'{self.url}/references/create', json=config, cookies=self.cookies)
+        resp = requests().post(f'{self.url}/references/create', json=config, cookies=self.cookies)
         if resp.status_code == 400:
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
 
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        resp = requests.post(f'{self.url}/references/create/fasta', json={
+        resp = requests().post(f'{self.url}/references/create/fasta', json={
             'name': name,
             'fasta_file': fasta_file,
             'index_file': index_file,
@@ -302,7 +302,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def remove_reference(self, name):
-        resp = requests.delete(f'{self.url}/references/delete',
+        resp = requests().delete(f'{self.url}/references/delete',
                                json={'name': name},
                                cookies=self.cookies)
         if resp.status_code == 400:
@@ -311,7 +311,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def get_reference(self, name):
-        resp = requests.get(f'{self.url}/references/get',
+        resp = requests().get(f'{self.url}/references/get',
                             json={'name': name},
                             cookies=self.cookies)
         if resp.status_code == 400:
@@ -321,7 +321,7 @@ class ServiceBackend(Backend):
         return resp.json()
 
     def add_sequence(self, name, fasta_file, index_file):
-        resp = requests.post(f'{self.url}/references/sequence/set',
+        resp = requests().post(f'{self.url}/references/sequence/set',
                              json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file},
                              cookies=self.cookies)
         if resp.status_code == 400:
@@ -330,7 +330,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def remove_sequence(self, name):
-        resp = requests.delete(f'{self.url}/references/sequence/delete',
+        resp = requests().delete(f'{self.url}/references/sequence/delete',
                                json={'name': name},
                                cookies=self.cookies)
         if resp.status_code == 400:
@@ -339,7 +339,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        resp = requests.post(f'{self.url}/references/liftover/add',
+        resp = requests().post(f'{self.url}/references/liftover/add',
                              json={'name': name, 'chain_file': chain_file,
                                    'dest_reference_genome': dest_reference_genome},
                              cookies=self.cookies)
@@ -349,7 +349,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def remove_liftover(self, name, dest_reference_genome):
-        resp = requests.delete(f'{self.url}/references/liftover/remove',
+        resp = requests().delete(f'{self.url}/references/liftover/remove',
                                json={'name': name, 'dest_reference_genome': dest_reference_genome},
                                cookies=self.cookies)
         if resp.status_code == 400:
@@ -358,7 +358,7 @@ class ServiceBackend(Backend):
         resp.raise_for_status()
 
     def parse_vcf_metadata(self, path):
-        resp = requests.post(f'{self.url}/parse-vcf-metadata',
+        resp = requests().post(f'{self.url}/parse-vcf-metadata',
                              json={'path': path},
                              cookies=self.cookies)
         if resp.status_code == 400:

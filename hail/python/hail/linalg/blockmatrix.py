@@ -3,7 +3,6 @@ import os
 import itertools
 import numpy as np
 import re
-import scipy.linalg as spla
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -2426,6 +2425,7 @@ def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite
     GR: https://software.intel.com/en-us/mkl-developer-reference-fortran-gesvd
     DC (gesdd) is faster but uses O(elements) memory; lwork may overflow int32
     """
+    import scipy.linalg as spla
     try:
         return spla.svd(a, full_matrices=full_matrices, compute_uv=compute_uv, overwrite_a=overwrite_a,
                         check_finite=check_finite, lapack_driver='gesdd')
@@ -2445,4 +2445,5 @@ def _eigh(a):
     SciPy uses RRR: https://software.intel.com/en-us/mkl-developer-reference-fortran-syevr
     DC (syevd) is faster but uses O(elements) memory; lwork overflows int32 for dim_a > 32766
     """
+    import scipy.linalg as spla
     return np.linalg.eigh(a) if a.shape[0] <= 32766 else spla.eigh(a)

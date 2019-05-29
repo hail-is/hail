@@ -1,7 +1,6 @@
 import unittest
 
 import pandas as pd
-import pyspark.sql
 import pytest
 
 import hail as hl
@@ -556,6 +555,7 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_from_spark_works(self):
         spark_session = Env.spark_session()
+        import pyspark.sql
         df = spark_session.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
         t = hl.Table.from_spark(df)
         rows = t.collect()

@@ -5,7 +5,6 @@ import sys
 import re
 from threading import Thread
 
-import py4j
 import hail
 
 
@@ -224,6 +223,7 @@ def info(msg):
 def handle_java_exception(f):
     def deco(*args, **kwargs):
         import pyspark
+        import py4j
         try:
             return f(*args, **kwargs)
         except py4j.protocol.Py4JJavaError as e:
@@ -254,6 +254,7 @@ def install_exception_handler():
     global _installed
     global _original
     if not _installed:
+        import py4j
         _original = py4j.protocol.get_return_value
         _installed = True
         # The original `get_return_value` is not patched, it's idempotent.
@@ -267,6 +268,7 @@ def uninstall_exception_handler():
     global _original
     if _installed:
         _installed = False
+        import py4j
         py4j.protocol.get_return_value = _original
 
 

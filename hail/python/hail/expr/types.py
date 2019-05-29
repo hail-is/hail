@@ -11,6 +11,8 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
 from hail.utils.java import scala_object, jset, Env, escape_parsable
 
+import functools
+
 __all__ = [
     'dtype',
     'HailType',
@@ -42,7 +44,7 @@ __all__ = [
     'hts_entry_schema',
 ]
 
-
+@functools.lru_cache(256)
 def dtype(type_str):
     r"""Parse a type from its string representation.
 

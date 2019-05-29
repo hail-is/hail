@@ -1,10 +1,8 @@
 import pkg_resources
-from pyspark import SparkContext, SparkConf
-from pyspark.sql import SparkSession
 
 import hail
 from hail.genetics.reference_genome import ReferenceGenome
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
+from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, anytype
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
 from hail.backend import Backend, ServiceBackend, SparkBackend
@@ -14,7 +12,7 @@ import os
 
 
 class HailContext(object):
-    @typecheck_method(sc=nullable(SparkContext),
+    @typecheck_method(sc=anytype,
                       app_name=str,
                       master=nullable(str),
                       local=str,
@@ -42,19 +40,22 @@ class HailContext(object):
                 raise FatalError('Hail has already been initialized, restart session '
                                  'or stop Hail to change configuration.')
 
+        import pkg_resources
+        import pyspark
+
         if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
-            conf = SparkConf()
+            conf = pyspark.SparkConf()
             conf.set('spark.driver.extraClassPath', hail_jar_path)
             conf.set('spark.executor.extraClassPath', hail_jar_path)
-            SparkContext._ensure_initialized(conf=conf)
+            pyspark.SparkContext._ensure_initialized(conf=conf)
         else:
-            SparkContext._ensure_initialized()
+            pyspark.SparkContext._ensure_initialized()
 
-        self._gateway = SparkContext._gateway
-        self._jvm = SparkContext._jvm
+        self._gateway = pyspark.SparkContext._gateway
+        self._jvm = pyspark.SparkContext._jvm
 
         # hail package
         self._hail = getattr(self._jvm, 'is').hail
@@ -99,9 +100,9 @@ class HailContext(object):
                 min_block_size, branching_factor, tmp_dir, optimizer_iterations)
 
         self._jsc = self._jhc.sc()
-        self.sc = sc if sc else SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
+        self.sc = sc if sc else pyspark.SparkContext(gateway=self._gateway, jsc=self._jvm.JavaSparkContext(self._jsc))
         self._jspark_session = self._jhc.sparkSession()
-        self._spark_session = SparkSession(self.sc, self._jhc.sparkSession())
+        self._spark_session = pyspark.sql.SparkSession(self.sc, self._jhc.sparkSession())
 
         super(HailContext, self).__init__()
 
@@ -170,7 +171,7 @@ class HailContext(object):
     def upload_log(self):
         self._jhc.uploadLog()
 
-@typecheck(sc=nullable(SparkContext),
+@typecheck(sc=anytype,
            app_name=str,
            master=nullable(str),
            local=str,

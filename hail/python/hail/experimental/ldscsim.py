@@ -27,10 +27,8 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.utils.java import Env
 import numpy as np
-import pandas as pd
 import random
 import string
-import scipy.stats as stats
 
 @typecheck(mt=MatrixTable, 
            genotype=oneof(expr_int32,
@@ -229,6 +227,8 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     cov_matrix = (1/M)*cov_matrix
     randstate = np.random.RandomState(int(seed)) #seed random state for replicability
     betas = randstate.multivariate_normal(mean=np.zeros(n_phens),cov=cov_matrix,size=[M,])
+
+    import pandas as pd
     df = pd.DataFrame([0]*M,columns=['beta'])
     tb = hl.Table.from_pandas(df)
     tb = tb.add_index().key_by('idx')
@@ -288,6 +288,8 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
     betas = beta_matrix[range(int(M)),idx,:]
     betas[:,0] *= (h2[0]/M)**(1/2)
     betas[:,1] *= (h2[1]/M)**(1/2)
+
+    import pandas as pd
     df = pd.DataFrame([0]*M,columns=['beta'])
     tb = hl.Table.from_pandas(df)
     tb = tb.add_index().key_by('idx')
@@ -587,7 +589,8 @@ def binarize(mt,y,K,exact=False):
         mt = mt.key_cols_by(*map(lambda x: mt[x],key))
     else: #use inverse CDF
         y_stats = mt.aggregate_cols(hl.agg.stats(y))
-        threshold = stats.norm.ppf(1-K,loc=y_stats.mean,scale=y_stats.stdev)
+        import scipy
+        threshold = scipy.stats.norm.ppf(1-K,loc=y_stats.mean,scale=y_stats.stdev)
         mt = mt.annotate_cols(y_binarized = y > threshold)
     return mt
 

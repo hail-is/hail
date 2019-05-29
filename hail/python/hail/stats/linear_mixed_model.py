@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 import hail as hl
 from hail.linalg import BlockMatrix
@@ -784,6 +783,7 @@ class LinearMixedModel(object):
         else:
             data = [(i,) + self._fit_alternative_numpy(pa[:, i], None) for i in range(n_cols)]
 
+        import pandas as pd
         df = pd.DataFrame.from_records(data, columns=['idx', 'beta', 'sigma_sq', 'chi_sq', 'p_value'])
 
         if return_pandas:

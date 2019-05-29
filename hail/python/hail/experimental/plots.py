@@ -1,6 +1,5 @@
 import json
 import numpy as np
-import pandas as pd
 
 import hail as hl
 from bokeh.layouts import gridplot
@@ -11,6 +10,9 @@ from bokeh.transform import factor_cmap
 from hail.typecheck import *
 from hail.utils.hadoop_utils import *
 
+def pd():
+    import pandas
+    return pandas
 
 def plot_roc_curve(ht, scores, tp_label='tp', fp_label='fp', colors=None, title='ROC Curve', hover_mode='mouse'):
     """Create ROC curve from Hail Table.
@@ -206,7 +208,7 @@ def hail_metadata(t_path):
 
     tools = "hover,save,pan,box_zoom,reset,wheel_zoom"
 
-    source = ColumnDataSource(pd.DataFrame(all_data))
+    source = ColumnDataSource(pd().DataFrame(all_data))
     p = figure(tools=tools, plot_width=panel_size, plot_height=panel_size)
     p.title.text = title
     p.xaxis.axis_label = 'Number of rows'
@@ -239,7 +241,7 @@ def hail_metadata(t_path):
         if success_file[0]:
             msg += success_file[0]
 
-        source = ColumnDataSource(pd.DataFrame(all_data))
+        source = ColumnDataSource(pd().DataFrame(all_data))
         p = figure(tools=tools, plot_width=panel_size, plot_height=panel_size)
         p.title.text = title
         p.xaxis.axis_label = 'Number of rows'

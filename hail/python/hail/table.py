@@ -1,8 +1,6 @@
 from collections import Counter
 
 import itertools
-import pandas
-import pyspark
 from typing import *
 
 from hail.expr.expressions import *
@@ -2925,7 +2923,7 @@ class Table(ExprContainer):
         return self._row.drop(*self.key.keys())
 
     @staticmethod
-    @typecheck(df=pyspark.sql.DataFrame,
+    @typecheck(df=anytype,
                key=table_key_type)
     def from_spark(df, key=[]) -> 'Table':
         """Convert PySpark SQL DataFrame to a table.
@@ -3009,7 +3007,7 @@ class Table(ExprContainer):
         return Env.spark_backend('to_pandas').to_pandas(self, flatten)
 
     @staticmethod
-    @typecheck(df=pandas.DataFrame,
+    @typecheck(df=anytype,
                key=oneof(str, sequenceof(str)))
     def from_pandas(df, key=[]) -> 'Table':
         """Create table from Pandas DataFrame
