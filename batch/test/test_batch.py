@@ -310,7 +310,7 @@ class Test(unittest.TestCase):
 
     def test_ui_batches(self):
         # just check successful response
-        r = requests.get(f'{os.environ.get('BATCH_URL')}/ui/batches')
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches')
         assert (r.status_code >= 200) and (r.status_code < 300)
 
     def test_ui_batch(self):
@@ -320,5 +320,5 @@ class Test(unittest.TestCase):
         status = j.wait()
 
         # just check successful response
-        r = requests.get(f'{os.environ.get('BATCH_URL')}/ui/batches/{b.id}')
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches/{b.id}')
         assert (r.status_code >= 200) and (r.status_code < 300)
