@@ -183,18 +183,6 @@ def test_callback(client):
             server.join()
 
 
-def test_from_file(client):
-        fname = pkg_resources.resource_filename(
-            __name__,
-            'diamond_dag.yml')
-        with open(fname) as f:
-            batch = client.create_batch_from_file(f)
-
-        batch.close()
-        status = batch.wait()
-        assert batch_status_job_counter(status, 'Complete') == 4
-
-
 def test_no_parents_allowed_in_other_batches(client):
     b1 = client.create_batch()
     b2 = client.create_batch()

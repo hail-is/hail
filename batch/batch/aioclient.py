@@ -2,13 +2,10 @@ import os
 import math
 import time
 import random
-import yaml
-import cerberus
 
 import hailjwt as hj
 
 from .requests_helper import filter_params
-from . import schemas
 
 
 class Job:
@@ -253,40 +250,6 @@ class BatchClient:
             doc['ttl'] = ttl
         j = await self._post('/batches/create', json=doc)
         return Batch(self, j['id'], j.get('attributes'))
-
-    job_yaml_schema = {
-        'spec': schemas.pod_spec,
-        'type': {'type': 'string', 'allowed': ['execute']},
-        'name': {'type': 'string'},
-        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
-    }
-    job_yaml_validator = cerberus.Validator(job_yaml_schema)
-
-    async def create_batch_from_file(self, file):
-        job_id_by_name = {}
-
-        # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
-            job = job_id_by_name.get(id)
-            if job:
-                return job
-            raise ValueError(
-                '"{self_id}" must appear in the file after its dependency "{id}"')
-
-        batch = await self.create_batch()
-        for doc in yaml.load(file):
-            if not BatchClient.job_yaml_validator.validate(doc):
-                raise BatchClient.job_yaml_validator.errors
-            spec = doc['spec']
-            type = doc['type']
-            name = doc['name']
-            dependsOn = doc.get('dependsOn', [])
-            if type == 'execute':
-                job = await batch.create_job(
-                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
-                    **spec)
-                job_id_by_name[name] = job.id
-        return batch
 
     async def close(self):
         await self._session.close()
