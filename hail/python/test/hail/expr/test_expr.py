@@ -2698,6 +2698,8 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(h_cube[1, 1, 0], 6)
         self.assert_evals_to(h_np_cube[0, 0, 1], 1)
         self.assert_evals_to(h_np_cube[1, 1, 0], 6)
+        self.assert_evals_to(hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1)
+        self.assert_evals_to(hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2942,6 +2944,11 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
         self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
         self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        np_broadcasted_mat = np.array([[[1, 2],
+                                        [3, 4]]])
+        self.ndarray_eq(hl._ndarray(np_broadcasted_mat) @ rect_prism,
+                        np_broadcasted_mat @ np_rect_prism)
 
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
