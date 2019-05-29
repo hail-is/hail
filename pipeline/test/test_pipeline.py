@@ -311,6 +311,7 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
         input = p.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
         t = p.new_task()
+        t.storage('0.25Gi')
         t.command(f'cat {input.foo}')
         p.run()
 
