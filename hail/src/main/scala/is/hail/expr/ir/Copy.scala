@@ -233,6 +233,8 @@ object Copy {
       case TableWrite(_, writer) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableWrite(child, writer)
+      case TableMultiWrite(_, writer) =>
+        TableMultiWrite(newChildren.map(_.asInstanceOf[TableIR]), writer)
       case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)

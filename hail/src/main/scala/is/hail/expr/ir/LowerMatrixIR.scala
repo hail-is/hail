@@ -495,5 +495,7 @@ object LowerMatrixIR {
                 query
               })
           })
+    case MatrixMultiWrite(children, writer) =>
+      TableMultiWrite(children.map(lower), WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
   }
 }

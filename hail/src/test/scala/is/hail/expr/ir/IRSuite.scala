@@ -1597,6 +1597,7 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),

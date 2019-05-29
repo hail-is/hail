@@ -309,6 +309,7 @@ object TypeCheck {
         assert(x.typ == query.typ)
       case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
+      case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

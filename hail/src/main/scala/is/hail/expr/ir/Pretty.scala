@@ -257,6 +257,8 @@ object Pretty {
                 '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
             case TableWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"'
+            case TableMultiWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats)) + '"'
             case TableKeyBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
