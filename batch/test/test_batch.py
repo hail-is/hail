@@ -305,7 +305,10 @@ class Test(unittest.TestCase):
         with open(fname) as f:
             userdata = json.loads(f.read())
         token = hj.JWTClient(hj.JWTClient.generate_key()).encode(userdata)
-        bc = batch.client.BatchClient(url=os.environ.get('BATCH_URL'), token=token)
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        bc = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
@@ -316,6 +319,8 @@ class Test(unittest.TestCase):
                 pass
             else:
                 assert False, e
+        finally:
+            bc.close()
 
     def test_ui_batches(self):
         with open(os.environ['HAIL_TOKEN_FILE']) as f:

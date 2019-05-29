@@ -8,6 +8,10 @@ def async_to_blocking(coro):
 
 
 class Job:
+    @staticmethod
+    def exit_code(job_status):
+        return aioclient.Job.exit_code(job_status)
+    
     @classmethod
     def from_async_job(cls, job):
         j = object.__new__(cls)
@@ -17,6 +21,18 @@ class Job:
     def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
         self._async_job = aioclient.Job(client, id, attributes=attributes,
                                         parent_ids=parent_ids, _status=_status)
+
+    @property
+    def id(self):
+        return self._async_job.id
+
+    @property
+    def attributes(self):
+        return self._async_job.attributes
+
+    @property
+    def parent_ids(self):
+        return self._async_job.parent_ids
 
     def is_complete(self):
         return async_to_blocking(self._async_job.is_complete())
@@ -40,6 +56,14 @@ class Batch:
 
     def __init__(self, client, id, attributes):
         self._async_batch = aioclient.Batch(client, id, attributes)
+
+    @property
+    def id(self):
+        return self._async_batch.id
+
+    @property
+    def attributes(self):
+        return self._async_batch.attributes
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
@@ -73,6 +97,14 @@ class BatchClient:
     def __init__(self, session, url=None, token_file=None, token=None, headers=None):
         self._async_client = aioclient.BatchClient(session, url=url, token_file=token_file,
                                                    token=token, headers=headers)
+
+    @property
+    def url(self):
+        return self._async_client.url
+
+    @property
+    def bucket(self):
+        return self._async_client.bucket
 
     def _refresh_k8s_state(self):
         async_to_blocking(self._async_client._refresh_k8s_state())
