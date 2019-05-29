@@ -337,12 +337,13 @@ true
 
 
 class RunImageStep(Step):
-    def __init__(self, params, image, script, inputs, outputs, service_account, secrets, always_run):  # pylint: disable=unused-argument
+    def __init__(self, params, image, script, inputs, outputs, resources, service_account, secrets, always_run):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.deploy))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
+        self.resources = resources
         self.service_account = service_account
         self.secrets = secrets
         self.always_run = always_run
@@ -361,6 +362,7 @@ class RunImageStep(Step):
                             json['script'],
                             json.get('inputs'),
                             json.get('outputs'),
+                            json.get('resources'),
                             json.get('serviceAccount'),
                             json.get('secrets'),
                             json.get('alwaysRun', False))
@@ -412,6 +414,7 @@ class RunImageStep(Step):
         self.job = await batch.create_job(
             self.image,
             command=['bash', '-c', rendered_script],
+            resources=self.resources,
             attributes={'name': self.name},
             input_files=input_files,
             output_files=output_files,

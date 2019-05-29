@@ -168,6 +168,10 @@ steps:
    name: build_hail
    image:
      valueFrom: hail_build_image.image
+   resources:
+     requests:
+       memory: "4G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -212,6 +216,10 @@ steps:
    name: test_hail_java
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -235,6 +243,10 @@ steps:
    name: test_hail_java_cpp_codegen
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -286,6 +298,10 @@ steps:
    name: test_hail_python
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
