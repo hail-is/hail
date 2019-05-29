@@ -307,3 +307,18 @@ class Test(unittest.TestCase):
                 pass
             else:
                 assert False, e
+
+    def test_ui_batches(self):
+        # just check successful response
+        r = requests.get(f'{os.environ.get('BATCH_URL')}/ui/batches')
+        assert (r.status_code >= 200) and (r.status_code < 300)
+
+    def test_ui_batch(self):
+        b = self.batch.create_batch()
+        j = b.create_job('alpine', ['true'])
+        b.close()
+        status = j.wait()
+
+        # just check successful response
+        r = requests.get(f'{os.environ.get('BATCH_URL')}/ui/batches/{b.id}')
+        assert (r.status_code >= 200) and (r.status_code < 300)

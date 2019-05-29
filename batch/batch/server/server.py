@@ -844,7 +844,7 @@ async def _get_batches_list(params, user):
             batches = [batch for batch in batches
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
-    return jsonify([await batch.to_dict(include_jobs=False) for batch in batches])
+    return [await batch.to_dict(include_jobs=False) for batch in batches]
 
 
 @routes.get('/batches')
@@ -852,7 +852,7 @@ async def _get_batches_list(params, user):
 async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['username']
-    return await _get_batches_list(params, user)
+    return jsonify(await _get_batches_list(params, user))
 
 
 @routes.post('/batches/create')
@@ -884,7 +884,7 @@ async def _get_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return jsonify(await batch.to_dict(include_jobs=True))
+    return await batch.to_dict(include_jobs=True)
 
 
 @routes.get('/batches/{batch_id}')
@@ -892,7 +892,7 @@ async def _get_batch(batch_id, user):
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return await _get_batch(batch_id, user)
+    return jsonify(await _get_batch(batch_id, user))
 
 
 @routes.patch('/batches/{batch_id}/cancel')
@@ -941,7 +941,7 @@ async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['ksa_name']
     jobs = await _get_batch(batch_id, user)
-    return {"job_list": jobs}
+    return {'job_list': jobs}
 
 
 @routes.get('/ui/batches', name='ui_batches')
@@ -951,7 +951,7 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['ksa_name']
     batches = await _get_batches_list(params, user)
-    return {"batch_list": batches}
+    return {'batch_list': batches}
 
 
 @routes.get('/')
