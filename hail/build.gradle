@@ -171,10 +171,6 @@ task generateBuildInfo(type: Exec) {
     outputs.upToDateWhen { false }
 }
 
-task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
-    commandLine 'bash', 'deploy_scripts/deploy_pypi.sh'
-    outputs.upToDateWhen { false }
-}
 
 task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
     commandLine 'bash', 'python/pipinstall.sh'
