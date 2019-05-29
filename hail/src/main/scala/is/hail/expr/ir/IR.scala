@@ -361,6 +361,11 @@ final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
 final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
 
+final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
+}
+
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
 

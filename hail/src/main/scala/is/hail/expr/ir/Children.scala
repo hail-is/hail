@@ -158,6 +158,7 @@ object Children {
     case TableAggregate(child, query) => Array(child, query)
     case MatrixAggregate(child, query) => Array(child, query)
     case TableWrite(child, _) => Array(child)
+    case TableMultiWrite(children, _) => children
     case TableToValueApply(child, _) => Array(child)
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR

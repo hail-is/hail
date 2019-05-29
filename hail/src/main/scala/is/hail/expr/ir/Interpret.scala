@@ -755,10 +755,10 @@ object Interpret {
       case TableCollect(child) =>
         val tv = child.execute(HailContext.get)
         Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
-      case MatrixMultiWrite(children, writer) =>
+      case TableMultiWrite(children, writer) =>
         val hc = HailContext.get
-        val mvs = children.map(_.execute(hc))
-        writer(mvs)
+        val tvs = children.map(_.execute(hc))
+        writer(tvs)
       case TableWrite(child, writer) =>
         writer(child.execute(HailContext.get))
       case BlockMatrixWrite(child, writer) =>
