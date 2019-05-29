@@ -2,28 +2,39 @@ package is.hail.backend.spark
 
 import is.hail.{HailContext, cxx}
 import is.hail.annotations.{Region, SafeRow}
-import is.hail.backend.{LowerTableIR, LowererUnsupportedOperation}
+import is.hail.backend.{Backend, BroadcastValue, LowerTableIR, LowererUnsupportedOperation}
 import is.hail.cxx.CXXUnsupportedOperation
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
 import org.apache.spark.SparkContext
-import org.json4s.DefaultFormats
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.apache.spark.broadcast.Broadcast
+
+import scala.reflect.ClassTag
 
 object SparkBackend {
-  def executeJSON(ir: IR): String = {
-    val t = ir.typ
-    val (value, timings) = execute(ir)
-    val jsonValue = JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
-    timings.logInfo()
+  def executeJSON(ir: IR): String = HailContext.backend.executeJSON(ir)
+}
 
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
+class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
+  def value: T = bc.value
+}
+
+case class SparkBackend(sc: SparkContext) extends Backend {
+
+  def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
+
+  def parallelizeAndComputeWithIndex[T : ClassTag, U : ClassTag](collection: Array[T])(f: (T, Int) => U): Array[U] = {
+    val rdd = sc.parallelize[T](collection, numSlices = collection.length)
+    rdd.mapPartitionsWithIndex { (i, it) =>
+      val elt = it.next()
+      assert(!it.hasNext)
+      Iterator.single(f(elt, i))
+    }.collect()
   }
 
-  def jvmLowerAndExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
+  def jvmLowerAndExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
     val timer = new ExecutionTimer("JVMCompile")
 
     val ir = LowerTableIR(ir0, Some(timer), optimize)
@@ -45,7 +56,7 @@ object SparkBackend {
     (v, timer.timings)
   }
 
-  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): (Any, Timings) = {
+  def cxxExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
     val timer = new ExecutionTimer("CXX Compile")
 
     val ir = try {
@@ -75,14 +86,15 @@ object SparkBackend {
   }
 
   def execute(ir: IR, optimize: Boolean = true): (Any, Timings) = {
-    val hc = HailContext.get
     try {
-      if (hc.flags.get("cpp") == null)
-        throw new CXXUnsupportedOperation("'cpp' flag not enabled.")
-      cxxExecute(hc.sc, ir, optimize)
+      if (HailContext.get.flags.get("cpp") == null)
+        jvmLowerAndExecute(ir, optimize)
+      cxxExecute(ir, optimize)
     } catch {
       case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
         CompileAndEvaluate(ir, optimize = optimize)
     }
   }
+
+  override def asSpark(): SparkBackend = this
 }
