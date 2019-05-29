@@ -1,22 +1,26 @@
 import os
 import time
-import pkg_resources
+import aiohttp
 import pytest
-import json
 import re
-import requests
 from flask import Response
 
 import hailjwt as hj
 
 from batch.client import BatchClient
+from batch.aioclient import BatchClient
 
 from .serverthread import ServerThread
 
 
 @pytest.fixture
 def client():
-    return BatchClient(url=os.environ.get('BATCH_URL'))
+    session = aiohttp.ClientSession(
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
+    bc = BatchClient(session, url=os.environ.get('BATCH_URL'))
+    yield bc
+    bc.close()
 
 
 def test_user():
@@ -48,9 +52,9 @@ def test_missing_parent_is_400(client):
         batch = client.create_batch()
         batch.create_job('alpine:3.8', command=['echo', 'head'], parent_ids=[100000])
         batch.close()
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid parent_id: no job with id.*', err.response.text)
+    except aiohttp.ClientResponseError as err:
+        assert err.status == 400
+        assert re.search('.*invalid parent_id: no job with id.*', err.message)
         return
     assert False
 
@@ -189,9 +193,9 @@ def test_no_parents_allowed_in_other_batches(client):
     head = b1.create_job('alpine:3.8', command=['echo', 'head'])
     try:
         b2.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
-    except requests.exceptions.HTTPError as err:
-        assert err.response.status_code == 400
-        assert re.search('.*invalid parent batch: .*', err.response.text)
+    except aiohttp.ClientResponseError as err:
+        assert err.status == 400
+        assert re.search('.*invalid parent batch: .*', err.message)
         return
     assert False
 
