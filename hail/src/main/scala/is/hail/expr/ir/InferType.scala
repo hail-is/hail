@@ -171,6 +171,7 @@ object InferType {
       case MatrixAggregate(child, query) =>
         query.typ
       case _: TableWrite => TVoid
+      case _: TableMultiWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixWrite => TVoid

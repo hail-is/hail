@@ -878,6 +878,11 @@ object IRParser {
         val writerStr = string_literal(it)
         val child = table_ir(env)(it)
         TableWrite(child, deserialize[TableWriter](writerStr))
+      case "TableMultiWrite" =>
+        implicit val formats = WrappedMatrixNativeMultiWriter.formats
+        val writerStr = string_literal(it)
+        val children = table_ir_children(env)(it)
+        TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
       case "MatrixAggregate" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
