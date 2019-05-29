@@ -290,8 +290,14 @@ class LocalTests(unittest.TestCase):
 
 
 class BatchTests(unittest.TestCase):
+    def setUp(self):
+        self.backend = BatchBackend(os.environ.get('BATCH_URL'))
+
+    def tearDown(self):
+        self.backend.close()
+
     def pipeline(self):
-        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
+        return Pipeline(backend=self.backend,
                         default_image='google/cloud-sdk:237.0.0-alpine')
 
     def test_single_task_no_io(self):

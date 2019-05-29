@@ -4,6 +4,7 @@ import subprocess as sp
 import uuid
 from shlex import quote as shq
 import batch.client
+import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
 
@@ -162,7 +163,13 @@ class BatchBackend(Backend):
     """
 
     def __init__(self, url):
-        self._batch_client = batch.client.BatchClient(url)
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self._batch_client = batch.client.BatchClient(session, url)
+
+    def close(self):
+        self._batch_client.close()
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
         bucket = self._batch_client.bucket
