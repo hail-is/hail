@@ -12,3 +12,4 @@ pytest-xdist==1.28
 sphinx==2.0
 nbsphinx==0.4
 sphinx_rtd_theme==0.4.2
+scipy==1.3
