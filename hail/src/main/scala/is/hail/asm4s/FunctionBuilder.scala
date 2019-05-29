@@ -144,6 +144,17 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
     cfr
   }
 
+  def addField[T](value: Code[_], dummy: Boolean)(implicit ti: TypeInfo[T]): ClassFieldRef[T] = {
+    val cfr = newField[T]
+    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
+      il += new TypeInsnNode(CHECKCAST, name)
+      value.emit(il)
+      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
+    }
+    definedFields += add
+    cfr
+  }
+
   def newInstance()(implicit fct: ClassTag[F]): Code[F] = {
     val instance: Code[F] =
       new Code[F] {

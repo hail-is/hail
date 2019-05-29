@@ -1382,7 +1382,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
@@ -1398,6 +1398,12 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Literal(types(0), values(0)), values(0))
     assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
+  }
+
+  @Test def testSameLiteralsWithDifferentTypes() {
+    assertEvalsTo(ApplyComparisonOp(EQ(TArray(TInt32())),
+      ArrayMap(Literal(TArray(TFloat64()), FastIndexedSeq(1.0, 2.0)), "elt", Cast(Ref("elt", TFloat64()), TInt32())),
+      Literal(TArray(TInt32()), FastIndexedSeq(1, 2))), true)
   }
 
   @Test def testTableCount() {
