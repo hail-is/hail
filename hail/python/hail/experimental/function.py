@@ -16,7 +16,7 @@ class Function(object):
 
 
 @typecheck(f=anytype, param_types=hail_type, _name=nullable(str))
-def define_function(f, *param_types, _name):
+def define_function(f, *param_types, _name=None):
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid() for _ in param_types]
     body = f(*(construct_expr(Ref(pn), pt) for pn, pt in zip(param_names, param_types)))
