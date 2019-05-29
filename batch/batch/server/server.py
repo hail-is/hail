@@ -939,7 +939,7 @@ async def close_batch(request, userdata):
 @authenticated_users_only
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
     jobs = await _get_batch(batch_id, user)
     return {'job_list': jobs}
 
@@ -949,7 +949,7 @@ async def ui_batch(request, userdata):
 @authenticated_users_only
 async def ui_batches(request, userdata):
     params = request.query
-    user = userdata['ksa_name']
+    user = userdata['username']
     batches = await _get_batches_list(params, user)
     return {'batch_list': batches}
 
