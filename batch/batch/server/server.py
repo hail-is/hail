@@ -1129,7 +1129,8 @@ async def db_cleanup_event_loop():
 
 
 def serve(port=5000):
-    routes.static('/static', 'batch/batch/static')
+    routes.static('/static',
+                  os.path.join(os.path.dirname(os.path.abspath(__file__)), '../static'))
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
         app['blocking_pool'] = pool
