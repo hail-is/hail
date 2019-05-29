@@ -192,7 +192,7 @@ class BatchClient:
             with open(token_file) as f:
                 token = f.read()
         userdata = hj.JWTClient.unsafe_decode(token)
-        assert "bucket_name" in userdata, userdata
+        assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]
         self.cookies = {'user': token}
         self.headers = headers

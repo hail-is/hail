@@ -1,256 +1,83 @@
-import os
-import math
-import time
-import random
+import asyncio
 
-import hailjwt as hj
-
-from .requests_helper import filter_params
+from . import aioclient
 
 
-class Job:
+def async_to_blocking(coroutine):
+    return asyncio.get_event_loop().run_until_complete(coroutine)
+
+
+class Job(aioclient.Job):
     @staticmethod
-    def exit_code(job_status):
-        if 'exit_code' not in job_status or job_status['exit_code'] is None:
-            return None
+    def from_async_job(client, job):
+        return Job(client, job.id, job.attributes, job.parent_ids, job._status)
 
-        exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
+    def is_complete(self):
+        return async_to_blocking(super().is_complete())
 
-        i = 0
-        while i < len(exit_codes):
-            ec = exit_codes[i]
-            if ec is None:
-                return None
-            if ec > 0:
-                return ec
-            i += 1
-        return 0
+    def status(self):
+        return async_to_blocking(super().status())
 
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
-        if parent_ids is None:
-            parent_ids = []
-        if attributes is None:
-            attributes = {}
+    def wait(self):
+        return async_to_blocking(super().wait())
 
-        self.client = client
-        self.id = id
-        self.attributes = attributes
-        self.parent_ids = parent_ids
-        self._status = _status
-
-    async def is_complete(self):
-        if self._status:
-            state = self._status['state']
-            if state in ('Complete', 'Cancelled'):
-                return True
-        await self.status()
-        state = self._status['state']
-        return state in ('Complete', 'Cancelled')
-
-    async def status(self):
-        self._status = await self.client._get('/jobs/{}'.format(self.id))
-        return self._status
-
-    async def wait(self):
-        i = 0
-        while True:
-            if await self.is_complete():
-                return self._status
-            j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
-                i = i + 1
-
-    async def log(self):
-        return await self.client._get('/jobs/{}/log'.format(self.id))
+    def log(self):
+        return async_to_blocking(super().log())
 
 
-class Batch:
-    def __init__(self, client, id, attributes):
-        self.client = client
-        self.id = id
-        self.attributes = attributes
+class Batch(aioclient.Batch):
+    @staticmethod
+    def from_async_batch(client, batch):
+        return Batch(client, batch.id, batch.attributes)
 
-    async def create_job(self, image, command=None, args=None, env=None, ports=None,
+    def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
                          service_account_name=None, attributes=None, callback=None, parent_ids=None,
                          input_files=None, output_files=None, always_run=False):
-        if parent_ids is None:
-            parent_ids = []
+        coroutine = super().create_job(image, command=command, args=args, env=env, ports=ports,
+                                       resources=resources, tolerations=tolerations, volumes=volumes,
+                                       security_context=security_context, service_account_name=service_account_name,
+                                       attributes=attributes, callback=callback, parent_ids=parent_ids,
+                                       input_files=input_files, output_files=output_files, always_run=always_run)
+        return Job.from_async_job(self.client, async_to_blocking(coroutine))
 
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
+    def close(self):
+        async_to_blocking(super().close())
 
-        container = {
-            'image': image,
-            'name': 'main'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
+    def cancel(self):
+        async_to_blocking(super().cancel())
 
-        doc = {
-            'spec': spec,
-            'parent_ids': parent_ids,
-            'always_run': always_run,
-            'batch_id': self.id
-        }
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-        if input_files:
-            doc['input_files'] = input_files
-        if output_files:
-            doc['output_files'] = output_files
+    def status(self):
+        return async_to_blocking(super().status())
 
-        j = await self.client._post('/jobs/create', json=doc)
+    def wait(self):
+        return async_to_blocking(super().wait())
 
-        return Job(self.client,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []))
-
-    async def close(self):
-        await self.client._patch('/batches/{}/close'.format(self.id))
-
-    async def cancel(self):
-        await self.client._patch('/batches/{}/cancel'.format(self.id))
-
-    async def status(self):
-        return await self.client._get('/batches/{}'.format(self.id))
-
-    async def wait(self):
-        i = 0
-        while True:
-            status = await self.status()
-            if status['complete']:
-                return status
-            j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
-                i = i + 1
-
-    async def delete(self):
-        await self.client._delete('/batches/{}/delete'.format(self.id))
+    def delete(self):
+        async_to_blocking(super().delete())
 
 
-class BatchClient:
-    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
-        if not url:
-            url = 'http://batch.default'
-        self.url = url
-        self._session = session
-        if token is None:
-            token_file = (token_file or
-                          os.environ.get('HAIL_TOKEN_FILE') or
-                          os.path.expanduser('~/.hail/token'))
-            if not os.path.exists(token_file):
-                raise ValueError(
-                    f'Cannot create a client without a token. No file was '
-                    f'found at {token_file}')
-            with open(token_file) as f:
-                token = f.read()
-        userdata = hj.JWTClient.unsafe_decode(token)
-        assert "bucket_name" in userdata, userdata
-        self.bucket = userdata["bucket_name"]
-        self.cookies = {'user': token}
-        self.headers = headers
+class BatchClient(aioclient.BatchClient):
+    def _refresh_k8s_state(self):
+        async_to_blocking(super()._refresh_k8s_state())
 
-    async def _get(self, path, params=None):
-        response = await self._session.get(
-            self.url + path, params=params, cookies=self.cookies, headers=self.headers)
-        return await response.json()
+    def list_batches(self, complete=None, success=None, attributes=None):
+        batches = async_to_blocking(
+            super().list_batches(complete=complete, success=success, attributes=attributes))
+        return [Batch.from_async_batch(self, b) for b in batches]
 
-    async def _post(self, path, json=None):
-        response = await self._session.post(
-            self.url + path, json=json, cookies=self.cookies, headers=self.headers)
-        return await response.json()
+    def get_job(self, id):
+        j = async_to_blocking(super().get_job(id))
+        return Job.from_async_job(self, j)
 
-    async def _patch(self, path):
-        await self._session.patch(
-            self.url + path, cookies=self.cookies, headers=self.headers)
+    def get_batch(self, id):
+        b = async_to_blocking(super().get_batch(id))
+        return Batch.from_async_batch(self, b)
 
-    async def _delete(self, path):
-        await self._session.delete(
-            self.url + path, cookies=self.cookies, headers=self.headers)
+    def create_batch(self, attributes=None, callback=None, ttl=None):
+        b = async_to_blocking(
+            super().create_batch(attributes=attributes, callback=callback, ttl=ttl))
+        return Batch.from_async_batch(b)
 
-    async def _refresh_k8s_state(self):
-        await self._post('/refresh_k8s_state')
-
-    async def list_batches(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        batches = await self._get('/batches', params=params)
-        return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
-
-    async def get_job(self, id):
-        j = await self._get('/jobs/{}'.format(id))
-        return Job(self,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []),
-                   _status=j)
-
-    async def get_batch(self, id):
-        j = await self._get(f'/batches/{id}')
-        return Batch(self,
-                     j['id'],
-                     attributes=j.get('attributes'))
-
-    async def create_batch(self, attributes=None, callback=None, ttl=None):
-        doc = {}
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-        if ttl:
-            doc['ttl'] = ttl
-        j = await self._post('/batches/create', json=doc)
-        return Batch(self, j['id'], j.get('attributes'))
-
-    async def close(self):
-        await self._session.close()
-        self._session = None
+    def close(self):
+        async_to_blocking(super().close())
