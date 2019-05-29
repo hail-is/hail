@@ -40,18 +40,7 @@ server {
     }
 
     location / {
-        proxy_pass http://hail-ci/;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
-
-server {
-    server_name ci2.@domain@;
-
-    location / {
-        proxy_pass http://ci2/;
+        proxy_pass http://ci/;
     }
 
     listen 80;

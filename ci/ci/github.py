@@ -229,7 +229,7 @@ class PR(Code):
         data = {
             'state': gh_status,
             # FIXME should be this build, not the pr
-            'target_url': f'https://ci2.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
+            'target_url': f'https://ci.hail.is/watched_branches/{self.target_branch.index}/pr/{self.number}',
             # FIXME improve
             'description': gh_status,
             'context': 'ci-test'
