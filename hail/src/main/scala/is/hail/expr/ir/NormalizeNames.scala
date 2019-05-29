@@ -153,14 +153,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg
         AggGroupBy(normalize(key, keyEnv), normalize(aggIR), isScan)
-      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()
         val (aEnv, bodyEnv) = if (isScan)
           env.promoteScan -> env.bindScan(elementName, newElementName)
         else
           env.promoteAgg -> env.bindAgg(elementName, newElementName)
-        AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), isScan)
+        AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), knownLength.map(normalize(_, env)), isScan)
       case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
         ApplyAggOp(ctorArgs.map(a => normalize(a)),
           initOpArgs.map(_.map(a => normalize(a))),

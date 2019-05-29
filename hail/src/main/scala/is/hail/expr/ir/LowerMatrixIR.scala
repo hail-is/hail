@@ -328,7 +328,7 @@ object LowerMatrixIR {
       lower(child)
         .aggregateByKey(
           reSub.insertFields(entriesField -> irRange(0, 'global (colsField).len)
-            .aggElements('__element_idx, '__result_idx)(
+            .aggElements('__element_idx, '__result_idx, Some('global(colsField).len))(
               let(sa = 'global (colsField)('__result_idx)) {
                 aggLet(sa = 'global (colsField)('__element_idx),
                   g = 'row (entriesField)('__element_idx)) {

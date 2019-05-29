@@ -243,8 +243,9 @@ object TypeCheck {
         assert(x.typ == aggBody.typ)
       case x@AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x@AggArrayPerElement(a, _, _, aggBody, _) =>
+      case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
+        assert(knownLength.forall(_.typ == TInt32()))
       case x@InitOp(i, args, aggSig) =>
         assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
         assert(i.typ.isInstanceOf[TInt32])

@@ -6,7 +6,7 @@ object UsesAggEnv {
     case AggGroupBy(_, _, false) => i == 0
     case AggFilter(_, _, false) => i == 0
     case AggExplode(_, _, _, false) => i == 0
-    case AggArrayPerElement(_, _, _, _, false) => i == 0
+    case AggArrayPerElement(_, _, _, _, _, false) => i == 0
     case ApplyAggOp(ctor, initOp, _, _) => i >= ctor.length + initOp.map(_.length).getOrElse(0)
     case _ => false
   }
@@ -18,7 +18,7 @@ object UsesScanEnv {
     case AggGroupBy(_, _, true) => i == 0
     case AggFilter(_, _, true) => i == 0
     case AggExplode(_, _, _, true) => i == 0
-    case AggArrayPerElement(_, _, _, _, true) => i == 0
+    case AggArrayPerElement(_, _, _, _, _, true) => i == 0
     case ApplyScanOp(ctor, initOp, _, _) => i >= ctor.length + initOp.map(_.length).getOrElse(0)
     case _ => false
   }

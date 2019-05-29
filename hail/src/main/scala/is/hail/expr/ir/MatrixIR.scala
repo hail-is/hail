@@ -316,12 +316,14 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   override def lower(mr: MatrixRead): TableIR = {
     val uid1 = Symbol(genUID())
 
-    TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+    val nRowsAdj = if (mr.dropRows) 0 else nRows
+    val nColsAdj = if (mr.dropCols) 0 else nCols
+    TableRange(nRowsAdj, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
       .rename(Map("idx" -> "row_idx"))
       .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
-        irRange(0, nCols).map('i ~> makeStruct('col_idx -> 'i))))
+        irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))))
       .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
-        irRange(0, nCols).map('i ~> makeStruct())))
+        irRange(0, nColsAdj).map('i ~> makeStruct())))
   }
 }
 

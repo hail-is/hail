@@ -22,7 +22,7 @@ object Bindings {
     case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
     case ArrayLeftJoinDistinct(ll, rr, l, r, _, _) => if (i == 2 || i == 3) Array(l -> -coerce[TStreamable](ll.typ).elementType, r -> -coerce[TStreamable](rr.typ).elementType) else empty
     case ArraySort(a, left, right, _) => if (i == 1) Array(left -> -coerce[TStreamable](a.typ).elementType, right -> -coerce[TStreamable](a.typ).elementType) else empty
-    case AggArrayPerElement(a, _, indexName, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32()) else empty
+    case AggArrayPerElement(a, _, indexName, _, _, _) => if (i == 1) FastIndexedSeq(indexName -> TInt32()) else empty
     case NDArrayMap(nd, name, _) => if (i == 1) Array(name -> -coerce[TNDArray](nd.typ).elementType) else empty
     case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> -coerce[TNDArray](l.typ).elementType, rName -> -coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
@@ -64,7 +64,7 @@ object AggBindings {
     x match {
       case AggLet(name, value, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
       case AggExplode(a, name, _, false) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, elementName, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggArrayPerElement(a, elementName, _, _, _, false) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case ArrayAgg(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case TableAggregate(child, _) => if (i == 1) wrapped(child.typ.rowEnv.m) else throw new UnsupportedOperationException
       case MatrixAggregate(child, _) => if (i == 1) Some(child.typ.entryEnv.m) else throw new UnsupportedOperationException
@@ -106,7 +106,7 @@ object ScanBindings {
     x match {
       case AggLet(name, value, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> value.typ)) else base
       case AggExplode(a, name, _, true) => if (i == 1) wrapped(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
-      case AggArrayPerElement(a, elementName, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
+      case AggArrayPerElement(a, elementName, _, _, _, true) => if (i == 1) wrapped(FastIndexedSeq(elementName -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case ArrayAggScan(a, name, _) => if (i == 1) Some(FastIndexedSeq(name -> a.typ.asInstanceOf[TIterable].elementType)) else base
       case _ => base
     }
