@@ -61,7 +61,7 @@ class K8s:
         k8s_fun = self._wrap_k8s(fun)
 
         async def wrapped(*args, **kwargs):
-            _, err = await k8s_fun(args, kwargs)
+            _, err = await k8s_fun(*args, **kwargs)
             if err is None or err.status == 404:
                 self.log.debug(f'ignore already deleted {fun.__name__}(*{args}, **{kwargs})')
                 return None
