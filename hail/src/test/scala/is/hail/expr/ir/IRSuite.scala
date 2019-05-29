@@ -1400,6 +1400,12 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
   }
 
+  @Test def testSameLiteralsWithDifferentTypes() {
+    assertEvalsTo(ApplyComparisonOp(EQ(TArray(TInt32())),
+      ArrayMap(Literal(TArray(TFloat64()), FastIndexedSeq(1.0, 2.0)), "elt", Cast(Ref("elt", TFloat64()), TInt32())),
+      Literal(TArray(TInt32()), FastIndexedSeq(1, 2))), true)
+  }
+
   @Test def testTableCount() {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)

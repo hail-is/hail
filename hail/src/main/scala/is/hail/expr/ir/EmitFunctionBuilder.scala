@@ -108,8 +108,8 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
-  private[this] val literalsMap: mutable.Map[Any, Code[_]] =
-    mutable.Map[Any, Code[_]]()
+  private[this] val literalsMap: mutable.Map[(Type, Any), Code[_]] =
+    mutable.Map[(Type, Any), Code[_]]()
 
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
     rgMap.getOrElseUpdate(rg, {
@@ -127,7 +127,7 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
 
   override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
     assert(v != null)
-    literalsMap.getOrElseUpdate(v, {
+    literalsMap.getOrElseUpdate(t -> v, {
       val fromParent = parentfb.addLiteral(v, t, region)
       val ti: TypeInfo[_] = typeToTypeInfo(t)
       val field = addField(fromParent, dummy = true)(ti)
@@ -166,15 +166,15 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] val literalsMap: mutable.Map[Any, (Type, ClassFieldRef[_])] =
-    mutable.Map[Any, (Type, ClassFieldRef[_])]()
+  private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
+    mutable.Map[(Type, Any), ClassFieldRef[_]]()
   private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
   private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
   private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Region, Unit]
 
   def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
     assert(v != null)
-    val f = literalsMap.getOrElseUpdate(v, t -> newField("literal")(typeToTypeInfo(t)))._2
+    val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
     Code(
       litDecoded.mux(
         Code._empty,
@@ -185,7 +185,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] def encodeLiterals(): Array[Byte] = {
     val spec = CodecSpec.defaultUncompressed
     val literals = literalsMap.toArray
-    val litType = TTuple(literals.map { case (_, (t, _)) => t }: _*)
+    val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
 
     val dec = spec.buildEmitDecoderMethod(litType.physicalType, litType.physicalType, this)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
@@ -195,7 +195,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val ib = spec.child.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))
     val off = decodeLiterals.newLocal[Long]
-    val storeFields = literals.zipWithIndex.map { case ((_, (_, f)), i) =>
+    val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
       f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
     }
 
@@ -209,7 +209,7 @@ class EmitFunctionBuilder[F >: Null](
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType.physicalType)
       rvb.startTuple()
-      literals.foreach { case (a, (typ, _)) => rvb.addAnnotation(typ, a) }
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
       rvb.endTuple()
       enc.writeRegionValue(region, rvb.end())
     }
