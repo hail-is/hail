@@ -1,0 +1,26 @@
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <h2>Jobs</h2>
+    <table>
+      <tr>
+        <th>ID</th>
+        <th>State</th>
+        <th>Exit Code</th>
+        <th>Log</th>
+      </tr>
+      {% for job in job_list %}
+      <tr>
+        <td>{{job.id}}</td>
+        <td>{{job.state}}</td>
+        <td>{{job.exit_code}}</td>
+        <td><a href="/logs/{{loop.index0}}">log</a></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>
