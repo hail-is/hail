@@ -2,10 +2,26 @@ import os
 import math
 import time
 import random
+import inspect
+import sys
+import asyncio
 
 import hailjwt as hj
 
 from .requests_helper import filter_params
+
+
+def adaptive_sync(func):
+    is_async = inspect.iscoroutinefunction(func)
+
+    def wrapped(*args, **kwargs):
+        called_async = sys._getframe(1).f_code.co_flags & 0x80
+        if is_async and not called_async:
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(func(*args, **kwargs))
+        else:
+            return func(*args, **kwargs)
+    return wrapped
 
 
 class Job:
@@ -39,6 +55,7 @@ class Job:
         self.parent_ids = parent_ids
         self._status = _status
 
+    @adaptive_sync
     async def is_complete(self):
         if self._status:
             state = self._status['state']
@@ -48,10 +65,12 @@ class Job:
         state = self._status['state']
         return state in ('Complete', 'Cancelled')
 
+    @adaptive_sync
     async def status(self):
         self._status = await self.client._get('/jobs/{}'.format(self.id))
         return self._status
 
+    @adaptive_sync
     async def wait(self):
         i = 0
         while True:
@@ -63,6 +82,7 @@ class Job:
             if i < 64:
                 i = i + 1
 
+    @adaptive_sync
     async def log(self):
         return await self.client._get('/jobs/{}/log'.format(self.id))
 
@@ -73,6 +93,7 @@ class Batch:
         self.id = id
         self.attributes = attributes
 
+    @adaptive_sync
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
                          service_account_name=None, attributes=None, callback=None, parent_ids=None,
@@ -150,15 +171,19 @@ class Batch:
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
+    @adaptive_sync
     async def close(self):
         await self.client._patch('/batches/{}/close'.format(self.id))
 
+    @adaptive_sync
     async def cancel(self):
         await self.client._patch('/batches/{}/cancel'.format(self.id))
 
+    @adaptive_sync
     async def status(self):
         return await self.client._get('/batches/{}'.format(self.id))
 
+    @adaptive_sync
     async def wait(self):
         i = 0
         while True:
@@ -171,6 +196,7 @@ class Batch:
             if i < 64:
                 i = i + 1
 
+    @adaptive_sync
     async def delete(self):
         await self.client._delete('/batches/{}/delete'.format(self.id))
 
@@ -218,6 +244,7 @@ class BatchClient:
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')
 
+    @adaptive_sync
     async def list_batches(self, complete=None, success=None, attributes=None):
         params = filter_params(complete, success, attributes)
         batches = await self._get('/batches', params=params)
@@ -226,6 +253,7 @@ class BatchClient:
                       attributes=j.get('attributes'))
                 for j in batches]
 
+    @adaptive_sync
     async def get_job(self, id):
         j = await self._get('/jobs/{}'.format(id))
         return Job(self,
@@ -234,12 +262,14 @@ class BatchClient:
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
 
+    @adaptive_sync
     async def get_batch(self, id):
         j = await self._get(f'/batches/{id}')
         return Batch(self,
                      j['id'],
                      attributes=j.get('attributes'))
 
+    @adaptive_sync
     async def create_batch(self, attributes=None, callback=None, ttl=None):
         doc = {}
         if attributes:
@@ -251,6 +281,7 @@ class BatchClient:
         j = await self._post('/batches/create', json=doc)
         return Batch(self, j['id'], j.get('attributes'))
 
+    @adaptive_sync
     async def close(self):
         await self._session.close()
         self._session = None

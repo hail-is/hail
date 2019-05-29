@@ -8,6 +8,7 @@ import re
 import secrets
 import time
 import unittest
+import aiohttp
 from flask import Flask, Response, request
 import requests
 
@@ -17,8 +18,17 @@ from .serverthread import ServerThread
 
 
 class Test(unittest.TestCase):
+    # def setUp(self):
+        # self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+
     def setUp(self):
-        self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+        self.session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self.batch = batch.aioclient.BatchClient(self.session, url=os.environ.get('BATCH_URL'))
+
+    def tearDown(self):
+        self.batch.close()
 
     def test_job(self):
         b = self.batch.create_batch()
