@@ -1,6 +1,6 @@
 from hail.utils.java import Env
 from hail.ir import Apply, Ref, Renderer, register_session_function
-from hail.expr.types import HailType
+from hail.expr.types import hail_type
 from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
 from hail.typecheck import typecheck, nullable
 
@@ -15,7 +15,7 @@ class Function(object):
         return self._f(*args)
 
 
-@typecheck(f=anytype, param_types=HailType, _name=nullable(str))
+@typecheck(f=anytype, param_types=hail_type, _name=nullable(str))
 def define_function(f, *param_types, _name):
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid() for _ in param_types]
