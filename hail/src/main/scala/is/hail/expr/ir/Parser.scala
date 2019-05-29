@@ -770,11 +770,13 @@ object IRParser {
         val elementName = identifier(it)
         val indexName = identifier(it)
         val isScan = boolean_literal(it)
+        val hasKnownLength = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env
           + (elementName -> coerce[TStreamable](a.typ).elementType)
           + (indexName -> TInt32()))(it)
-        AggArrayPerElement(a, elementName, indexName, aggBody, isScan)
+        val knownLength = if (hasKnownLength) Some(ir_value_expr(env)(it)) else None
+        AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)

@@ -1085,7 +1085,7 @@ object PruneDeadFields {
             BindingEnv(agg = Some(keyEnv.eval)),
           memoizeValueIR(aggIR, requestedType.asInstanceOf[TDict].valueType, memo)
         )
-      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val aType = a.typ.asInstanceOf[TStreamable]
         val bodyEnv = memoizeValueIR(aggBody,
           requestedType.asInstanceOf[TStreamable].elementType,
@@ -1096,20 +1096,20 @@ object PruneDeadFields {
             bodyEnv.scanOrEmpty.lookupOption(elementName).map(_.result()).getOrElse(Array()))
 
           val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
-          unifyEnvs(
+          unifyEnvsSeq(FastSeq(
             bodyEnv.copy(eval = bodyEnv.eval.delete(indexName), scan = bodyEnv.scan.map(_.delete(elementName))),
             BindingEnv(scan = Some(aEnv.eval))
-          )
+          ) ++ knownLength.map(x => memoizeValueIR(x, x.typ, memo)))
         } else {
           val valueType = unifySeq(
             aType.elementType,
             bodyEnv.aggOrEmpty.lookupOption(elementName).map(_.result()).getOrElse(Array()))
 
           val aEnv = memoizeValueIR(a, aType.copyStreamable(valueType), memo)
-          unifyEnvs(
+          unifyEnvsSeq(FastSeq(
             bodyEnv.copy(eval = bodyEnv.eval.delete(indexName), agg = bodyEnv.agg.map(_.delete(elementName))),
             BindingEnv(agg = Some(aEnv.eval))
-          )
+          ) ++ knownLength.map(x => memoizeValueIR(x, x.typ, memo)))
         }
       case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, _) =>
         val constructorEnv = unifyEnvsSeq(constructorArgs.map(c => memoizeValueIR(c, c.typ, memo)))
@@ -1657,12 +1657,13 @@ object PruneDeadFields {
         val key2 = rebuildIR(key, if (isScan) env.promoteScan else env.promoteAgg, memo)
         val aggIR2 = rebuildIR(aggIR, env, memo)
         AggGroupBy(key2, aggIR2, isScan)
-      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
-        val a2 = rebuildIR(a, if (isScan) env.promoteScan else env.promoteAgg, memo)
+      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
+        val aEnv = if (isScan) env.promoteScan else env.promoteAgg
+        val a2 = rebuildIR(a, aEnv, memo)
         val a2t = a2.typ.asInstanceOf[TStreamable].elementType
         val env_ = env.bindEval(indexName -> TInt32())
         val aggBody2 = rebuildIR(aggBody, if (isScan) env_.bindScan(elementName, a2t) else env_.bindAgg(elementName, a2t), memo)
-        AggArrayPerElement(a2, elementName, indexName, aggBody2, isScan)
+        AggArrayPerElement(a2, elementName, indexName, aggBody2, knownLength.map(rebuildIR(_, aEnv, memo)), isScan)
       case ArrayAgg(a, name, query) =>
         val a2 = rebuildIR(a, env, memo)
         val query2 = rebuildIR(query, env.copy(agg = Some(env.eval.bind(name -> a2.typ.asInstanceOf[TArray].elementType))), memo)

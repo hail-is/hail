@@ -261,7 +261,7 @@ object IRBuilder {
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
-    def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
+    def aggElements(elementsSym: Symbol, indexSym: Symbol, knownLength: Option[IRProxy])(aggBody: IRProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
       AggArrayPerElement(
@@ -269,6 +269,7 @@ object IRBuilder {
         elementsSym.name,
         indexSym.name,
         aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        knownLength.map(_ (env)),
         isScan = false)
     }
 

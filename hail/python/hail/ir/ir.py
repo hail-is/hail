@@ -1063,7 +1063,7 @@ class AggArrayPerElement(IR):
         return AggArrayPerElement(array, self.element_name, self.index_name, agg_ir, self.is_scan)
 
     def head_str(self):
-        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan}'
+        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan} False'
 
     def _eq(self, other):
         return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
