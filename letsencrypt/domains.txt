@@ -1,6 +1,5 @@
 @domain@
 ci.@domain@
-ci2.@domain@
 notebook.@domain@
 notebook2.@domain@
 app.@domain@

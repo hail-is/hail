@@ -82,7 +82,7 @@ steps:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
-   serviceAccount: ci2-agent
+   serviceAccount: ci-agent
    scopes:
     - test
    dependsOn:
@@ -152,15 +152,15 @@ steps:
    publishAs: image-fetcher
  - kind: buildImage
    name: ci_image
-   dockerFile: ci2/Dockerfile
+   dockerFile: ci/Dockerfile
    contextPath: .
-   publishAs: ci2
+   publishAs: ci
    dependsOn:
      - base_image
  - kind: buildImage
    name: ci_utils_image
-   dockerFile: ci2/Dockerfile.ci-utils
-   contextPath: ci2
+   dockerFile: ci/Dockerfile.ci-utils
+   contextPath: ci
    publishAs: ci-utils
    dependsOn:
      - base_image
@@ -438,7 +438,7 @@ steps:
     - www
     - scorecard
     - notebook2
-    - ci2
+    - ci
    dependsOn:
     - default_ns
     - router_image
@@ -464,15 +464,16 @@ steps:
    name: deploy_ci
    namespace:
      valueFrom: default_ns.name
-   config: ci2/deployment.yaml
+   config: ci/deployment.yaml
    wait:
     - kind: Service
-      name: ci2
+      name: ci
       for: alive
    dependsOn:
     - default_ns
     - ci_image
     - ci_utils_image
+    - create_accounts
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -527,6 +528,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_accounts
     - batch_image
     - batch_database
     - create_batch_tables
@@ -570,7 +572,6 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    secrets:
-    # hail|test-batch
     - name: test-gsa-key
       mountPath: /test-gsa-key
    dependsOn:

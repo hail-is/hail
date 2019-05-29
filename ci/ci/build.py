@@ -551,7 +551,7 @@ date
                                           command=['bash', '-c', script],
                                           attributes={'name': self.name},
                                           # FIXME configuration
-                                          service_account_name='ci2-agent',
+                                          service_account_name='ci-agent',
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):
@@ -571,7 +571,7 @@ true
         self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
-                                          service_account_name='ci2-agent',
+                                          service_account_name='ci-agent',
                                           parent_ids=[sink.id],
                                           always_run=True)
 
@@ -681,7 +681,7 @@ date
                                           command=['bash', '-c', script],
                                           attributes=attrs,
                                           # FIXME configuration
-                                          service_account_name='ci2-agent',
+                                          service_account_name='ci-agent',
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):  # pylint: disable=unused-argument
@@ -702,7 +702,7 @@ date
                                               command=['bash', '-c', script],
                                               attributes={'name': self.name + '_logs'},
                                               # FIXME configuration
-                                              service_account_name='ci2-agent',
+                                              service_account_name='ci-agent',
                                               parent_ids=[sink.id],
                                               always_run=True)
 
@@ -832,7 +832,7 @@ echo done.
                                           command=['bash', '-c', script],
                                           attributes={'name': self.name},
                                           # FIXME configuration
-                                          service_account_name='ci2-agent',
+                                          service_account_name='ci-agent',
                                           parent_ids=self.deps_parent_ids())
 
     async def cleanup(self, batch, deploy, sink):
@@ -857,6 +857,6 @@ true
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
                                           # FIXME configuration
-                                          service_account_name='ci2-agent',
+                                          service_account_name='ci-agent',
                                           parent_ids=[sink.id],
                                           always_run=True)

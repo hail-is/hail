@@ -1,33 +1,33 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ci2
+  name: ci
   labels:
-    app: ci2
+    app: ci
     hail.is/sha: "{{ code.sha }}"
 spec:
   selector:
     matchLabels:
-      app: ci2
+      app: ci
   replicas: 1
   template:
     metadata:
       labels:
-        app: ci2
+        app: ci
         hail.is/sha: "{{ code.sha }}"
     spec:
 {% if deploy %}
       priorityClassName: production
 {% endif %}
       containers:
-        - name: ci2
+        - name: ci
           image: "{{ ci_image.image }}"
           resources:
             requests:
               memory: "1G"
               cpu: "1"
           env:
-            - name: HAIL_CI2_OAUTH_TOKEN
+            - name: HAIL_CI_OAUTH_TOKEN
               value: /secrets/oauth-token/oauth-token
 {% if deploy %}
             - name: HAIL_WATCHED_BRANCHES
@@ -49,7 +49,7 @@ spec:
             - name: HAIL_TOKEN_FILE
               value: '/ci-jwt/jwt'
             - name: HAIL_SELF_HOSTNAME
-              value: ci2
+              value: ci
             - name: HAIL_JWT_SECRET_KEY_FILE
               value: /jwt-secret-key/secret-key
           ports:
@@ -91,9 +91,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: ci2
+  name: ci
   labels:
-    app: ci2
+    app: ci
 spec:
   ports:
     - name: http
@@ -101,4 +101,4 @@ spec:
       protocol: TCP
       targetPort: 5000
   selector:
-    app: ci2
+    app: ci
