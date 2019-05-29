@@ -148,7 +148,7 @@ class BatchTable(Table):
         return await super().get_records(condition)
 
     async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
-        sql = "select batch.* from {self.name} as batch"
+        sql = "select batch.* from `{self.name}` as batch"
         values = []
         joins = []
         wheres = []
@@ -156,7 +156,7 @@ class BatchTable(Table):
         groups = []
 
         values.append(user)
-        wheres.append("job.user = %s")
+        wheres.append("batch.user = %s")
         if deleted is not None:
             if deleted:
                 wheres.append("batch.deleted")
@@ -181,14 +181,22 @@ class BatchTable(Table):
                 values.append(v)
                 values.append(len(attributes))
                 havings.append(f"sum(attr.`{k}` = %s) = %s")
-        sql += " " + " ".join(joins)
-        sql += " where " + " and ".join(wheres)
-        sql += " having " + " and ".join(havings)
-        sql += " group by " + ", ".join(groups)
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(sql, tuple(values))
-                return await cursor.fetchall()
+        if joins:
+            sql += " " + " ".join(joins)
+        if wheres:
+            sql += " where " + " and ".join(wheres)
+        if havings:
+            sql += " having " + " and ".join(havings)
+        if groups:
+            sql += " group by " + ", ".join(groups)
+        try:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, tuple(values))
+                    return await cursor.fetchall()
+        except Exception as err:
+            print(f'error encountered while executing: {sql}')
+            raise err
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
