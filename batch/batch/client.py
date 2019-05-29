@@ -77,7 +77,7 @@ class BatchClient(aioclient.BatchClient):
     def create_batch(self, attributes=None, callback=None, ttl=None):
         b = async_to_blocking(
             super().create_batch(attributes=attributes, callback=callback, ttl=ttl))
-        return Batch.from_async_batch(b)
+        return Batch.from_async_batch(self, b)
 
     def close(self):
         async_to_blocking(super().close())
