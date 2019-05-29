@@ -14,7 +14,7 @@ class Test(unittest.TestCase):
 
     def tearDown(self):
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(self.session.close())
+        loop.run_until_complete(self.client.close())
 
     def test_job(self):
         async def f():

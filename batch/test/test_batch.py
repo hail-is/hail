@@ -8,6 +8,7 @@ import re
 import secrets
 import time
 import unittest
+import aiohttp
 from flask import Flask, Response, request
 import requests
 
@@ -18,10 +19,16 @@ from .serverthread import ServerThread
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self.client = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'))
+
+    def tearDown(self):
+        self.client.close()
 
     def test_job(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
         b.close()
         status = j.wait()
@@ -34,18 +41,18 @@ class Test(unittest.TestCase):
         self.assertTrue(j.is_complete())
 
     def test_create_fails_for_closed_batch(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         b.close()
         try:
             b.create_job('alpine', ['echo', 'test'])
-        except requests.exceptions.HTTPError as err:
-            assert err.response.status_code == 400
-            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.response.text)
+        except aiohttp.ClientResponseError as err:
+            assert err.status == 400
+            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.message)
             return
         assert False
 
     def test_batch_ttl(self):
-        b = self.batch.create_batch(ttl=1)
+        b = self.client.create_batch(ttl=1)
         t = 1
         while b.status()['is_open']:
             if t > 64:
@@ -58,23 +65,23 @@ class Test(unittest.TestCase):
             'name': 'test_attributes',
             'foo': 'bar'
         }
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['true'], attributes=a)
         status = j.status()
         assert(status['attributes'] == a)
 
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
-        b1 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b1'})
+        b1 = self.client.create_batch(attributes={'tag': tag, 'name': 'b1'})
         b1.create_job('alpine', ['sleep', '30'])
         b1.close()
 
-        b2 = self.batch.create_batch(attributes={'tag': tag, 'name': 'b2'})
+        b2 = self.client.create_batch(attributes={'tag': tag, 'name': 'b2'})
         b2.create_job('alpine', ['echo', 'test'])
         b2.close()
 
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
-            batches = self.batch.list_batches(complete=complete, success=success, attributes=attributes)
+            batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
             # list_batches returns all batches for all prev run tests
             actual = set([batch.id for batch in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
@@ -101,30 +108,29 @@ class Test(unittest.TestCase):
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
     def test_fail(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['false'])
         b.close()
         status = j.wait()
         self.assertEqual(status['exit_code']['main'], 1)
 
     def test_deleted_job_log(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['echo', 'test'])
         b.close()
-        id = j.id
         j.wait()
         b.delete()
 
         try:
-            self.batch._get_job_log(id)
-        except requests.HTTPError as e:
-            if e.response.status_code == 404:
+            j.log()
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 pass
             else:
-                self.assertTrue(False, f"batch should not have deleted log {e}")
+                self.assertTrue(False, f"batch should have deleted log {e}")
 
     def test_delete_batch(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
         b.close()
         id = j.id
@@ -132,15 +138,15 @@ class Test(unittest.TestCase):
 
         # verify doesn't exist
         try:
-            self.batch._get_job(id)
-        except requests.HTTPError as e:
-            if e.response.status_code == 404:
+            self.client.get_job(id)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 pass
             else:
                 raise
 
     def test_cancel_batch(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
         b.close()
 
@@ -156,32 +162,32 @@ class Test(unittest.TestCase):
         # cancelled job has no log
         try:
             j.log()
-        except requests.HTTPError as e:
-            if e.response.status_code == 404:
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 pass
             else:
                 raise
 
     def test_get_nonexistent_job(self):
         try:
-            self.batch._get_job(666)
-        except requests.HTTPError as e:
-            if e.response.status_code == 404:
+            self.client.get_job(666)
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
                 pass
             else:
                 raise
 
     def test_get_job(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['true'])
         b.close()
 
-        j2 = self.batch.get_job(j.id)
+        j2 = self.client.get_job(j.id)
         status2 = j2.status()
         assert(status2['id'] == j.id)
 
     def test_batch(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j1 = b.create_job('alpine', ['false'])
         j2 = b.create_job('alpine', ['sleep', '1'])
         j3 = b.create_job('alpine', ['sleep', '30'])
@@ -203,14 +209,14 @@ class Test(unittest.TestCase):
         self.assertTrue(n_failed == 1)
 
     def test_batch_status(self):
-        b1 = self.batch.create_batch()
+        b1 = self.client.create_batch()
         b1.create_job('alpine', ['true'])
         b1.close()
         b1.wait()
         b1s = b1.status()
         assert b1s['complete'] and b1s['state'] == 'success', b1s
 
-        b2 = self.batch.create_batch()
+        b2 = self.client.create_batch()
         b2.create_job('alpine', ['false'])
         b2.create_job('alpine', ['true'])
         b2.close()
@@ -218,13 +224,13 @@ class Test(unittest.TestCase):
         b2s = b2.status()
         assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
-        b3 = self.batch.create_batch()
+        b3 = self.client.create_batch()
         b3.create_job('alpine', ['sleep', '30'])
         b3.close()
         b3s = b3.status()
         assert not b3s['complete'] and b3s['state'] == 'running', b3s
 
-        b4 = self.batch.create_batch()
+        b4 = self.client.create_batch()
         b4.create_job('alpine', ['sleep', '30'])
         b4.close()
         b4.cancel()
@@ -245,7 +251,7 @@ class Test(unittest.TestCase):
         server = ServerThread(app)
         try:
             server.start()
-            b = self.batch.create_batch()
+            b = self.client.create_batch()
             j = b.create_job(
                 'alpine',
                 ['echo', 'test'],
@@ -263,7 +269,7 @@ class Test(unittest.TestCase):
             server.join()
 
     def test_log_after_failing_job(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
         b.close()
         status = j.wait()
