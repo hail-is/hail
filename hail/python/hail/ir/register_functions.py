@@ -12,8 +12,8 @@ def register_reference_genome_functions(rg):
     register_session_function(f"Locus({rg})", (dtype("str"),), dtype(f"locus<{rg}>"))
     register_session_function(f"Locus({rg})", (dtype("str"),dtype("int32"),), dtype(f"locus<{rg}>"))
     register_session_function(f"LocusAlleles({rg})", (dtype("str"),), tvariant)
-    register_session_function(f"LocusInterval({rg})", (dtype("str"),), tinterval)
-    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("bool"),), tinterval)
+    register_session_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),dtype("bool"),), tinterval)
     register_session_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
     register_session_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
 

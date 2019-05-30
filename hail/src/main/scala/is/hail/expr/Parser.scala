@@ -54,8 +54,8 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseLocusInterval(input: String, rg: RGBase): Interval = {
-    parseAll[Interval](locusInterval(rg), input) match {
+  def parseLocusInterval(input: String, rg: RGBase, invalidMissing: Boolean): Interval = {
+    parseAll[Interval](locusInterval(rg, invalidMissing), input) match {
       case Success(r, _) => r
       case NoSuccess(msg, next) => fatal(
         s"""invalid interval expression: '$input': $msg
@@ -139,7 +139,7 @@ object Parser extends JavaTokenParsers {
       bounds ^^ { int => Interval(int._1, int._2, int._3, int._4) }
   }
 
-  def locusInterval(rgBase: RGBase): Parser[Interval] = {
+  def locusInterval(rgBase: RGBase, invalidMissing: Boolean): Parser[Interval] = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
     val contig = rg.contigParser
 
@@ -157,11 +157,7 @@ object Parser extends JavaTokenParsers {
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |
         contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c)), true, true) }
 
-    intervalWithEndpoints(valueParser) ^^ { i =>
-      val normInterval = rg.normalizeLocusInterval(i)
-      rg.checkLocusInterval(normInterval)
-      normInterval
-    }
+    intervalWithEndpoints(valueParser) ^^ { i => rg.toLocusInterval(i, invalidMissing) }
   }
 
   def locusUnchecked(rg: RGBase): Parser[Locus] =

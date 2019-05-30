@@ -56,6 +56,9 @@ class LiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String
     val startPos = if (interval.includesStart) start.position else start.position + 1
     val endPos = if (interval.includesEnd) end.position else end.position - 1
 
+    if (startPos == endPos)
+      fatal(s"Cannot liftover a 0-length interval: ${ interval.toString }.\nDid you mean to use 'liftover_locus'?")
+
     val result = lo.value.liftOver(new htsjdk.samtools.util.Interval(contig, startPos, endPos), minMatch)
     if (result != null)
       (Interval(

@@ -20,22 +20,13 @@ _cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
-    if reference_genome:
-        if skip_invalid_intervals:
-            is_valid_locus_interval = (
-                (hl.is_valid_contig(contig, reference_genome) &
-                 (hl.is_valid_locus(contig, start, reference_genome) |
-                  (~hl.bool(includes_start) & (start == 0))) &
-                 (hl.is_valid_locus(contig, end, reference_genome) |
-                  (~hl.bool(includes_end) & hl.is_valid_locus(contig, end - 1, reference_genome)))))
+    includes_start = hl.bool(includes_start)
+    includes_end = hl.bool(includes_end)
 
-            return hl.or_missing(is_valid_locus_interval,
-                                 hl.locus_interval(contig, start, end,
-                                                   includes_start, includes_end,
-                                                   reference_genome))
-        else:
-            return hl.locus_interval(contig, start, end, includes_start,
-                                     includes_end, reference_genome)
+    if reference_genome:
+        return hl.locus_interval(contig, start, end, includes_start,
+                                 includes_end, reference_genome,
+                                 skip_invalid_intervals)
     else:
         return hl.interval(hl.struct(contig=contig, position=start),
                            hl.struct(contig=contig, position=end),
@@ -651,8 +642,9 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
 
     Warning
     -------
-    UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
-    will contain locus ``5:105`` but not ``5:100``. Details
+    Intervals in UCSC BED files are 0-indexed and half open.
+    The line "5  100  105" correpsonds to the interval ``[5:101-5:106)`` in Hail's
+    1-indexed notation. Details
     `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
@@ -688,18 +680,18 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
                                                   t['f1'] + 1,
-                                                  t['f2'],
+                                                  t['f2'] + 1,
                                                   True,
-                                                  True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
         t = t.select(interval=locus_interval_expr(t['f0'],
                                                   t['f1'] + 1,
-                                                  t['f2'],
+                                                  t['f2'] + 1,
                                                   True,
-                                                  True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals),
                      target=t['f3'])
