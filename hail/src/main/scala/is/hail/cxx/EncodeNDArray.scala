@@ -70,7 +70,7 @@ object EncodeNDArray {
 
     val dims = Array.tabulate(t.nDims){ i => tub.variable(s"dim${i}_", "int") }
 
-    val element = Expression(NDArrayLoopEmitter.loadElement(nd, dims, t.elementType))
+    val element = Expression(NDArrayEmitter.loadElement(nd, dims, t.elementType))
     val body = PackEncoder.encode(tub, t.elementType, output_buf_ptr, element)
     dims.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
       s"""
