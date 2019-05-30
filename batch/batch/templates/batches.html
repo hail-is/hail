@@ -5,14 +5,28 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
-    <h2>Jobs</h2>
+    <h1>Batches</h1>
     <table>
-      <tr><th>ID</th></tr>
-      {% for batch in batch_list %}
-      <tr>
-        <td><a href="/batches/{{batch.id}}">{{batch.id}}</a></td>
-      </tr>
-      {% endfor %}
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for batch in batch_list %}
+        <tr>
+          <td><a href="/ui/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td>
+            {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
+            {{ batch['attributes']['name'] }}
+            {% endif %}
+          </td>
+          <td>{{ batch['state'] }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </body>
 </html>

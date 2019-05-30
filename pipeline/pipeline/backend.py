@@ -214,7 +214,7 @@ class BatchBackend(Backend):
 
             j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
                                  command=['/bin/bash', '-c', write_cmd],
-                                 attributes={'label': 'write_external_inputs'})
+                                 attributes={'name': 'write_external_inputs'})
             job_id_to_command[j.id] = write_cmd
             n_jobs_submitted += 1
             if verbose:
@@ -243,7 +243,7 @@ class BatchBackend(Backend):
 
             attributes = {'task_uid': task._uid}
             if task._label:
-                attributes['label'] = task._label
+                attributes['name'] = task._label
 
             resources = {'requests': {}}
             if task._cpu:
@@ -273,7 +273,7 @@ class BatchBackend(Backend):
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
                 parent_ids=parent_ids,
-                attributes={'label': 'remove_tmpdir'},
+                attributes={'name': 'remove_tmpdir'},
                 always_run=True)
             job_id_to_command[j.id] = cmd
             n_jobs_submitted += 1
@@ -287,7 +287,7 @@ class BatchBackend(Backend):
         for jid, ec in failed_jobs:
             job = self._batch_client.get_job(jid)
             log = job.log()
-            label = job.status()['attributes'].get('label', None)
+            label = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
