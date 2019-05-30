@@ -444,7 +444,6 @@ async def index(request):  # pylint: disable=unused-argument
     }
 
 
-routes.static('/static', 'static')
 app.add_routes(routes)
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('templates'))
