@@ -2208,8 +2208,9 @@ class Tests(unittest.TestCase):
         li2 = hl.locus_interval('1', 0, 1, True, False, invalid_missing=True)
         li3 = hl.locus_interval('1', 20, 20, False, False, invalid_missing=True)
         li4 = hl.locus_interval('1', 249250621, 249250622, False, True, invalid_missing=True)
+        li5 = hl.locus_interval('1', 20, 19, True, True, invalid_missing=True)
 
-        for expr in [li1, li2, li3, li4]:
+        for expr in [li1, li2, li3, li4, li5]:
             self.assertTrue(hl.eval(expr) is None)
 
         li_parsed = hl.parse_locus_interval('(1:20-20)', invalid_missing=True)

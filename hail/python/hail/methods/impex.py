@@ -642,8 +642,9 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
 
     Warning
     -------
-    UCSC BED files are 0-indexed, exclusive of the start, and inclusive of the end.
-    The line "5  100  105" will contain locus ``5:105`` but not ``5:100``. Details
+    Intervals in UCSC BED files are 0-indexed and half open.
+    The line "5  100  105" correpsonds to the interval ``[5:101-5:106)`` in Hail's
+    1-indexed notation. Details
     `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
@@ -678,19 +679,19 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
-                                                  t['f1'],
-                                                  t['f2'],
-                                                  False,
+                                                  t['f1'] + 1,
+                                                  t['f2'] + 1,
                                                   True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
         t = t.select(interval=locus_interval_expr(t['f0'],
-                                                  t['f1'],
-                                                  t['f2'],
-                                                  False,
+                                                  t['f1'] + 1,
+                                                  t['f2'] + 1,
                                                   True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals),
                      target=t['f3'])
