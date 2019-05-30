@@ -53,8 +53,6 @@ def split_multi_hts():
 def concordance():
     mt = get_mt()
     mt = mt.filter_rows(mt.alleles.length() == 2)
-    mt._force_count_rows()
     g, r, c = hl.methods.qc.concordance(mt, mt, _localize_global_statistics=False)
-    print(g)
     r._force_count()
     c._force_count()
