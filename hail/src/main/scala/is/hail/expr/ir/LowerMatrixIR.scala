@@ -317,8 +317,8 @@ object LowerMatrixIR {
         val rightEntries = genUID()
         val rightCols = genUID()
         TableJoin(
-          lower(left, ab),
-          lower(right, ab)
+          lower(left, ab).distinct(),
+          lower(right, ab).distinct()
             .mapRows('row
               .insertFields(Symbol(rightEntries) -> 'row (entriesField))
               .selectFields(right.typ.rowKey :+ rightEntries: _*))

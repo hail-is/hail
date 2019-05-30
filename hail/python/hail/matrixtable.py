@@ -3552,7 +3552,9 @@ class MatrixTable(ExprContainer):
         first dataset; the row schemas do not need to match.
 
         This method performs an inner join on rows and concatenates entries
-        from the two datasets for each row.
+        from the two datasets for each row. Only distinct keys from each
+        dataset are included (equivalent to calling :meth:`.distinct_by_row`
+        on each dataset first).
 
         This method does not deduplicate; if a column key exists identically in
         two datasets, then it will be duplicated in the result.
