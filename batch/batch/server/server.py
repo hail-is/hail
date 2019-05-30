@@ -9,6 +9,7 @@ import json
 import uuid
 from shlex import quote as shq
 
+import jinja2
 import aiohttp_jinja2
 from aiohttp import web
 import cerberus
@@ -844,7 +845,7 @@ async def _get_batches_list(params, user):
             batches = [batch for batch in batches
                        if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
 
-    return jsonify([await batch.to_dict(include_jobs=False) for batch in batches])
+    return [await batch.to_dict(include_jobs=False) for batch in batches]
 
 
 @routes.get('/batches')
@@ -852,7 +853,7 @@ async def _get_batches_list(params, user):
 async def get_batches_list(request, userdata):
     params = request.query
     user = userdata['username']
-    return await _get_batches_list(params, user)
+    return jsonify(await _get_batches_list(params, user))
 
 
 @routes.post('/batches/create')
@@ -884,7 +885,7 @@ async def _get_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return jsonify(await batch.to_dict(include_jobs=True))
+    return await batch.to_dict(include_jobs=True)
 
 
 @routes.get('/batches/{batch_id}')
@@ -892,7 +893,7 @@ async def _get_batch(batch_id, user):
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return await _get_batch(batch_id, user)
+    return jsonify(await _get_batch(batch_id, user))
 
 
 @routes.patch('/batches/{batch_id}/cancel')
@@ -939,9 +940,9 @@ async def close_batch(request, userdata):
 @authenticated_users_only
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['ksa_name']
+    user = userdata['username']
     jobs = await _get_batch(batch_id, user)
-    return {"job_list": jobs}
+    return {'job_list': jobs}
 
 
 @routes.get('/ui/batches', name='ui_batches')
@@ -949,9 +950,9 @@ async def ui_batch(request, userdata):
 @authenticated_users_only
 async def ui_batches(request, userdata):
     params = request.query
-    user = userdata['ksa_name']
+    user = userdata['username']
     batches = await _get_batches_list(params, user)
-    return {"batch_list": batches}
+    return {'batch_list': batches}
 
 
 @routes.get('/')
@@ -1116,7 +1117,7 @@ async def db_cleanup_event_loop():
 
 def serve(port=5000):
     batch_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-    aiohttp_jinja2.setup(app, loader=os.path.join(batch_root, 'templates'))
+    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
     routes.static('/static', os.path.join(batch_root, 'static'))
     app.add_routes(routes)
     with concurrent.futures.ThreadPoolExecutor() as pool:
