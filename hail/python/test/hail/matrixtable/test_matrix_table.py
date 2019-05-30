@@ -138,6 +138,11 @@ class Tests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
                                               y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
 
+    def test_col_agg_no_rows(self):
+        mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
+        mt = mt.annotate_cols(x = hl.agg.count())
+        assert mt.x.collect() == [0, 0, 0]
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)

@@ -32,6 +32,11 @@ def sample_qc():
 def variant_qc():
     hl.variant_qc(get_mt()).rows()._force_count()
 
+@benchmark
+def variant_and_sample_qc():
+    mt = get_mt()
+    hl.sample_qc(hl.variant_qc(mt))._force_count_rows()
+
 
 @benchmark
 def hwe_normalized_pca():
