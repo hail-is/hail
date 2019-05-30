@@ -239,7 +239,7 @@ class BatchBackend(Backend):
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
-            cmd = " && ".join(task_command)
+            cmd = make_local_tmpdir + defs + " && ".join(task_command)
             if dry_run:
                 commands.append(cmd)
                 continue
@@ -257,7 +257,7 @@ class BatchBackend(Backend):
                 resources['requests']['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
-                                 command=['/bin/bash', '-c', make_local_tmpdir + defs + cmd],
+                                 command=['/bin/bash', '-c', cmd],
                                  parent_ids=parent_ids,
                                  attributes=attributes,
                                  resources=resources,
