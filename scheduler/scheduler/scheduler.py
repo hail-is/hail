@@ -469,7 +469,7 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('templates'))
 
 async def on_startup(app):  # pylint: disable=unused-argument
     await asyncio.start_server(executor_connected_cb, host=None, port=5051)
-    log.info(f'listening on port {5051} for clients')
+    log.info(f'listening on port {5051} for executors')
 
     await asyncio.start_server(client_submit_cb, host=None, port=5052)
     log.info(f'listening on port {5052} for clients, submit')
