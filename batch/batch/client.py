@@ -11,7 +11,7 @@ class Job:
     @staticmethod
     def exit_code(job_status):
         return aioclient.Job.exit_code(job_status)
-    
+
     @classmethod
     def from_async_job(cls, job):
         j = object.__new__(cls)

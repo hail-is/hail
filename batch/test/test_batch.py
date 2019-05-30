@@ -134,6 +134,7 @@ class Test(unittest.TestCase):
         j = b.create_job('alpine', ['sleep', '30'])
         b.close()
         id = j.id
+        print(b.id)
         b.delete()
 
         # verify doesn't exist
@@ -314,8 +315,8 @@ class Test(unittest.TestCase):
             j = b.create_job('alpine', ['false'])
             b.close()
             assert False, j
-        except requests.HTTPError as e:
-            if e.response.status_code == 401:
+        except aiohttp.ClientResponseError as e:
+            if e.status == 401:
                 pass
             else:
                 assert False, e
