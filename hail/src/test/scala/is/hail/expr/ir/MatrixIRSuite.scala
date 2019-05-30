@@ -208,7 +208,7 @@ class MatrixIRSuite extends SparkSuite {
     val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
-    interceptSpark("incorrect entry array length") {
+    interceptSpark("length mismatch between entry array and column array") {
       Interpret(mir).rvd.count()
     }
 
