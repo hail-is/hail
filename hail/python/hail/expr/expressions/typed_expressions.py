@@ -3272,7 +3272,9 @@ class NDArrayExpression(Expression):
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
         return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
-    @typecheck_method(item=oneof(expr_int64, slice, tupleof(oneof(expr_int64, slice))))
+    opt_long_slice_ = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
+
+    @typecheck_method(item=oneof(expr_int64, opt_long_slice_, tupleof(oneof(expr_int64, opt_long_slice_))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
@@ -3286,12 +3288,10 @@ class NDArrayExpression(Expression):
             slices = []
             for i, s in enumerate(item):
                 if isinstance(s, slice):
-                    start = s.start if s.start is not None else 0
+                    start = s.start if s.start is not None else to_expr(0, tint64)
                     stop = s.stop if s.stop is not None else self.shape[i]
-                    step = s.step if s.step is not None else 1
-                    slices.append(hl.tuple((to_expr(start, tint64),
-                                            to_expr(stop, tint64),
-                                            to_expr(step, tint64))))
+                    step = s.step if s.step is not None else to_expr(1, tint64)
+                    slices.append(hl.tuple((start, stop, step)))
                 else:
                     slices.append(s)
             return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),

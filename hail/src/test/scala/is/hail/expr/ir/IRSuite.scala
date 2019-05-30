@@ -1562,6 +1562,8 @@ class IRSuite extends SparkSuite {
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       NDArrayMatMul(nd, nd),
+      NDArraySlice(nd, MakeTuple(FastSeq(MakeTuple(FastSeq(F64(0), F64(2), F64(1))),
+                                         MakeTuple(FastSeq(F64(0), F64(2), F64(1)))))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
