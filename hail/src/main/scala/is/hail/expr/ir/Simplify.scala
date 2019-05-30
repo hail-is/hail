@@ -516,7 +516,6 @@ object Simplify {
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableDistinct(TableDistinct(child)) => TableDistinct(child)
-    case TableDistinct(TableExplode(child, path)) => TableExplode(TableDistinct(child), path)
     case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
     case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
     case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
