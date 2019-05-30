@@ -1297,10 +1297,13 @@ class Table(ExprContainer):
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
-        rows = t.take(n + 1)
-
-        has_more = len(rows) > n
-        rows = rows[:n]
+        if n < 0:
+            rows = t.collect()
+            has_more = False
+        else:
+            rows = t.take(n + 1)
+            has_more = len(rows) > n
+            rows = rows[:n]
 
         rows = [[row[f] for f in fields] for row in rows]
 
@@ -1372,10 +1375,13 @@ class Table(ExprContainer):
         fields = list(t.row)
 
         formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
-        rows = formatted_t.take(n + 1)
-
-        has_more = len(rows) > n
-        rows = rows[:n]
+        if n < 0:
+            rows = formatted_t.collect()
+            has_more = False
+        else:
+            rows = formatted_t.take(n + 1)
+            has_more = len(rows) > n
+            rows = rows[:n]
 
         def format_line(values):
             return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
