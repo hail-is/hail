@@ -638,7 +638,7 @@ steps:
    wait:
     - kind: Service
       name: scheduler
-      port: 5000
+      port: 80
       for: alive
    dependsOn:
     - default_ns
