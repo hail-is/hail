@@ -463,6 +463,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(left.union_cols(right)._same(joined))
 
+    def test_union_cols_distinct(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(x = mt.row_idx // 2)
+        assert mt.union_cols(mt).count_rows() == 5
+
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
         self.assertEqual(ds.n_partitions(), 8)
