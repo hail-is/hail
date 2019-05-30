@@ -16,6 +16,8 @@ object IRBuilder {
 
   implicit def irToProxy(ir: IR): IRProxy = (_: E) => ir
 
+  implicit def strToProxy(s: String): IRProxy = Str(s)
+
   implicit def intToProxy(i: Int): IRProxy = I32(i)
 
   implicit def booleanToProxy(b: Boolean): IRProxy = if (b) True() else False()
@@ -41,6 +43,9 @@ object IRBuilder {
 
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
+
+  def irDie(message: IRProxy, typ: Type): IRProxy = (env: E) =>
+    Die(message(env), typ)
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
 

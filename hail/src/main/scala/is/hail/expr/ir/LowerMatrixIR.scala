@@ -75,7 +75,18 @@ object LowerMatrixIR {
         RelationalLetTable(name, lower(value, ab), lower(body, ab))
 
       case CastTableToMatrix(child, entries, cols, colKey) =>
-        TableRename(lower(child, ab), Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
+        val lc = lower(child, ab)
+        lc.mapRows(
+          irIf('row (Symbol(entries)).isNA) {
+            irDie("missing entry array unsupported in 'to_matrix_table_row_major'", lc.typ.rowType)
+          } {
+            irIf('row (Symbol(entries)).len.cne( 'global (Symbol(cols)).len)) {
+              irDie("length mismatch between entry array and column array in 'to_matrix_table_row_major'", lc.typ.rowType)
+            } {
+              'row
+            }
+          }
+        ).rename(Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
 
       case MatrixToMatrixApply(child, function) =>
         val loweredChild = lower(child, ab)
