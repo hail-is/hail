@@ -126,7 +126,10 @@ class JobTask:  # pylint: disable=R0903
                 command=['/bin/sh', '-c', sh_expression])
             spec = kube.client.V1PodSpec(
                 containers=[container],
-                restart_policy='Never')
+                restart_policy='Never',
+                tolerations=[
+                    kube.client.V1Toleration(key='preemptible', value='true')
+                ])
             return JobTask.from_spec(task_name, spec)
         return None
 
@@ -620,6 +623,10 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         pod_spec.containers[0].resources.requests['cpu'] = '100m'
     if 'memory' not in pod_spec.containers[0].resources.requests:
         pod_spec.containers[0].resources.requests['memory'] = '500M'
+
+    if not pod_spec.tolerations:
+        pod_spec.tolerations = []
+    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
     job = await Job.create_job(
         pod_spec=pod_spec,
