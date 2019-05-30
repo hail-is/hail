@@ -284,7 +284,10 @@ class Test(unittest.TestCase):
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
             (requests.delete, '/batches/0'),
-            (requests.patch, '/batches/0/close')]
+            (requests.patch, '/batches/0/close'),
+            (requests.get, '/ui/batches'),
+            (requests.get, '/ui/batches/0'),
+            (requests.get, '/ui/jobs/0/log')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
@@ -316,7 +319,7 @@ class Test(unittest.TestCase):
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
 
-    def test_ui_batch(self):
+    def test_ui_batch_and_job_log(self):
         b = self.batch.create_batch()
         j = b.create_job('alpine', ['true'])
         b.close()
@@ -324,7 +327,13 @@ class Test(unittest.TestCase):
 
         with open(os.environ['HAIL_TOKEN_FILE']) as f:
             token = f.read()
+
         # just check successful response
         r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches/{b.id}',
+                         cookies={'user': token})
+        assert (r.status_code >= 200) and (r.status_code < 300)
+
+        # just check successful response
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/jobs/{j.id}/log',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
