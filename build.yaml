@@ -285,7 +285,7 @@ steps:
    contextPath: scheduler
    publishAs: scheduler
    dependsOn:
-    - hail_base_image
+    - base_image
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
@@ -645,6 +645,14 @@ steps:
    dependsOn:
     - default_ns
     - scheduler_image
+ - kind: deploy
+   name: deploy_executors
+   namespace:
+     valueFrom: default_ns.name
+   config: scheduler/executors.yaml
+   dependsOn:
+    - default_ns
+    - hail_base_image
  - kind: deploy
    name: deploy_apiserver
    namespace:
