@@ -103,9 +103,6 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def columnCount: Option[Int] = None
 
-  protected[ir] def execute(hc: HailContext): MatrixValue =
-    fatal("tried to execute unexecutable IR")
-
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 
   def persist(storageLevel: StorageLevel): MatrixIR = {
@@ -137,8 +134,6 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
   override val rvdType: RVDType = value.rvd.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = value
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
@@ -848,20 +843,6 @@ case class CastTableToMatrix(
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val entries = GetField(Ref("row", child.typ.rowType), entriesFieldName)
-    val cols = GetField(Ref("global", child.typ.globalType), colsFieldName)
-    val checkedRow =
-      ir.If(ir.IsNA(entries),
-        ir.Die("missing entry array value in argument to CastTableToMatrix", child.typ.rowType),
-        ir.If(ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.ArrayLen(entries), ir.ArrayLen(cols)),
-          Ref("row", child.typ.rowType),
-          Die("incorrect entry array length in argument to CastTableToMatrix", child.typ.rowType)))
-    val checkedChild = ir.TableMapRows(child, checkedRow)
-
-    checkedChild.execute(hc).toMatrixValue(colsFieldName, entriesFieldName, colKey)
-  }
 }
 
 case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
@@ -876,10 +857,6 @@ case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    function.execute(child.execute(hc))
-  }
 }
 
 case class MatrixRename(child: MatrixIR,

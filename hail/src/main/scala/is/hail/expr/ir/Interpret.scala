@@ -45,13 +45,13 @@ object Interpret {
     else
       mir
 
-    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(miropt)).asInstanceOf[MatrixIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(miropt)).asInstanceOf[TableIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
       lowered
 
-    lowopt.execute(HailContext.get)
+    lowopt.execute(HailContext.get).toMatrixValue(LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, mir.typ.colKey)
   }
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]

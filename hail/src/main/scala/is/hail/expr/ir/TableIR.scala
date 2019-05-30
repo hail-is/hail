@@ -1506,10 +1506,6 @@ case class CastMatrixToTable(
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    child.execute(hc).toTableValue(colsFieldName, entriesFieldName)
-  }
 }
 
 case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String]) extends TableIR {
@@ -1580,10 +1576,6 @@ case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) 
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    function.execute(child.execute(hc))
-  }
 }
 
 case class TableToTableApply(child: TableIR, function: TableToTableFunction) extends TableIR {
