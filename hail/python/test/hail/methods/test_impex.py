@@ -1195,7 +1195,7 @@ class LocusIntervalTests(unittest.TestCase):
                     hl.interval(hl.locus('20', 2), hl.locus('20', 14000001), True, False),  # 20    1          14000000  gene1
                     hl.interval(hl.locus('20', 17000001), hl.locus('20', 18000001), True, False),  # 20    17000000   18000000  gene2
                     hl.interval(hl.locus('20', 63025511), hl.locus('20', 63025520), True, True),  # 20    63025510   63025520  gene3
-                    hl.interval(hl.locus('20', 6), hl.locus('20', 6), True, False)]  # 20    5   5   gene4
+                    hl.interval(hl.locus('20', 5), hl.locus('20', 6), False, False)]  # 20    5   5   gene4
 
         print(t.interval.collect())
         print(expected)
