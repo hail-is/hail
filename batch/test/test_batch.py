@@ -331,7 +331,7 @@ class Test(unittest.TestCase):
         assert (r.status_code >= 200) and (r.status_code < 300)
 
     def test_ui_batch_and_job_log(self):
-        b = self.batch.create_batch()
+        b = self.client.create_batch()
         j = b.create_job('alpine', ['true'])
         b.close()
         status = j.wait()
