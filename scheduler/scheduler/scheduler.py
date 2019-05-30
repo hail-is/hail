@@ -90,6 +90,15 @@ async def schedule():
     scheduling = False
 
 
+# executor messages
+# scheduler => executor
+EXECUTE = 2
+
+# executor => scheduler
+PING = 1
+TASKRESULT = 4
+
+
 class ExecutorConnection:
     def __init__(self, reader, writer, n_cores):
         self.id = create_id()
@@ -135,7 +144,7 @@ class ExecutorConnection:
 
         # don't need to lock becuase only called by schedule and
         # schedule is serial
-        write_int(self.writer, 2)
+        write_int(self.writer, EXECUTE)
         write_int(self.writer, t.id)
         write_bytes(self.writer, t.f)
         await self.writer.drain()
@@ -144,9 +153,9 @@ class ExecutorConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
-                if cmd == 1:
+                if cmd == PING:
                     await self.handle_ping()
-                elif cmd == 4:
+                elif cmd == TASKRESULT:
                     await self.handle_result()
                 else:
                     raise ValueError(f'unknown command {cmd}')
@@ -270,6 +279,15 @@ class Task:
         del task_index[self.id]
 
 
+# client messages
+# client => scheduler
+SUBMIT = 5
+
+# scheduler => client
+APPTASKRESULT = 6
+ACKTASKRESULT = 7
+
+
 class ClientSubmitConnection:
     def __init__(self, client, reader, writer):
         self.client = client
@@ -301,7 +319,7 @@ class ClientSubmitConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
-                if cmd == 5:
+                if cmd == SUBMIT:
                     await self.handle_submit()
                 else:
                     raise ValueError(f'unknown command {cmd}')
@@ -330,7 +348,7 @@ class ClientResultConnection:
             j.ack_task(index)
 
     async def task_result(self, index, result):
-        write_int(self.writer, 6)
+        write_int(self.writer, APPTASKRESULT)
         write_int(self.writer, index)
         write_bytes(self.writer, result)
         await self.writer.drain()
@@ -339,7 +357,7 @@ class ClientResultConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
-                if cmd == 7:
+                if cmd == ACKTASKRESULT:
                     await self.handle_ack_task()
                 else:
                     raise ValueError(f'unknown command {cmd}')
