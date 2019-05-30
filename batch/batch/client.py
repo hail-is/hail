@@ -18,8 +18,8 @@ class Job:
         j._async_job = job
         return j
 
-    def __init__(self, client, batch, id, attributes=None, parent_ids=None, _status=None):
-        self._async_job = aioclient.Job(client, batch, id, attributes=attributes,
+    def __init__(self, batch, id, attributes=None, parent_ids=None, _status=None):
+        self._async_job = aioclient.Job(batch, id, attributes=attributes,
                                         parent_ids=parent_ids, _status=_status)
 
     @property

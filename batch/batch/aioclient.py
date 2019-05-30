@@ -27,13 +27,12 @@ class Job:
             i += 1
         return 0
 
-    def __init__(self, client, batch, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, batch, id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
-        self._client = client
         self.batch = batch
         self.id = id
         self.attributes = attributes
@@ -50,7 +49,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self._client._get('/batches/{}/jobs/{}'.format(self.batch.id, self.id))
+        self._status = await self.batch._client._get('/batches/{}/jobs/{}'.format(self.batch.id, self.id))
         return self._status
 
     async def wait(self):
@@ -65,7 +64,7 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self._client._get('/batches/{}/jobs/{}/log'.format(self.batch.id, self.id))
+        return await self.batch._client._get('/batches/{}/jobs/{}/log'.format(self.batch.id, self.id))
 
 
 class Batch:
@@ -147,8 +146,7 @@ class Batch:
 
         j = await self._client._post('/jobs/create', json=doc)
 
-        return Job(self._client,
-                   self,
+        return Job(self,
                    j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
@@ -230,9 +228,9 @@ class BatchClient:
                 for b in batches]
 
     async def get_job(self, batch_id, job_id):
+        b = await self.get_batch(batch_id)
         j = await self._get('/batches/{}/jobs/{}'.format(batch_id, job_id))
-        return Job(self,
-                   Batch(self, j['batch_id'], None),  ## FIXME
+        return Job(b,
                    j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),

@@ -48,7 +48,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[Job(client, batch, 100000)])
+        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[Job(batch, 100000)])
         batch.close()
     except aiohttp.ClientResponseError as err:
         assert err.status == 400
