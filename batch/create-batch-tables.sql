@@ -51,7 +51,6 @@ CREATE TABLE IF NOT EXISTS `jobs-parents` (
   PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX jobs_parents_job_id ON `jobs-parents` (batch_id, job_id);
 CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
 
 DELIMITER $$
