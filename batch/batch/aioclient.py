@@ -172,7 +172,7 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
-        await self._client._delete('/batches/{}/delete'.format(self.id))
+        await self._client._delete('/batches/{}'.format(self.id))
 
 
 class BatchClient:
@@ -222,9 +222,9 @@ class BatchClient:
         params = filter_params(complete, success, attributes)
         batches = await self._get('/batches', params=params)
         return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
+                      b['id'],
+                      attributes=b.get('attributes'))
+                for b in batches]
 
     async def get_job(self, id):
         j = await self._get('/jobs/{}'.format(id))
@@ -235,10 +235,10 @@ class BatchClient:
                    _status=j)
 
     async def get_batch(self, id):
-        j = await self._get(f'/batches/{id}')
+        b = await self._get(f'/batches/{id}')
         return Batch(self,
-                     j['id'],
-                     attributes=j.get('attributes'))
+                     b['id'],
+                     attributes=b.get('attributes'))
 
     async def create_batch(self, attributes=None, callback=None, ttl=None):
         doc = {}
@@ -248,8 +248,8 @@ class BatchClient:
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        j = await self._post('/batches/create', json=doc)
-        return Batch(self, j['id'], j.get('attributes'))
+        b = await self._post('/batches/create', json=doc)
+        return Batch(self, b['id'], b.get('attributes'))
 
     async def close(self):
         await self._session.close()

@@ -134,7 +134,6 @@ class Test(unittest.TestCase):
         j = b.create_job('alpine', ['sleep', '30'])
         b.close()
         id = j.id
-        print(b.id)
         b.delete()
 
         # verify doesn't exist
