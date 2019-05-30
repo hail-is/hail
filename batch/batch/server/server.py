@@ -781,7 +781,7 @@ class Batch:
 
     async def mark_deleted(self):
         await self.cancel()
-        await db.batch.update_record(self.id,
+        await db.batch.update_record(*self.id,
                                      deleted=True)
         self.deleted = True
         log.info(f'batch {self.id} marked for deletion')
@@ -817,7 +817,7 @@ class Batch:
     async def close(self):
         if self.is_open:
             log.info(f'closing batch {self.id}, ttl was {self.ttl}')
-            await db.batch.update_record(self.id, is_open=False)
+            await db.batch.update_record(*self.id, is_open=False)
             self.is_open = False
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
