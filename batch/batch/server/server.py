@@ -651,20 +651,24 @@ async def get_job(request, userdata):
     return jsonify(job.to_dict())
 
 
-@routes.get('/jobs/{job_id}/log')
-@authenticated_users_only
-async def get_job_log(request, userdata):  # pylint: disable=R1710
-    job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
+def _get_job_log(job_id, user):
     job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
 
     job_log = await job._read_logs()
     if job_log:
-        return jsonify(job_log)
+        return job_log
     abort(404)
+
+
+@routes.get('/jobs/{job_id}/log')
+@authenticated_users_only
+async def get_job_log(request, userdata):  # pylint: disable=R1710
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    job_log = _get_job_log(job_id, user)
+    return jsonify(job_log)
 
 
 class Batch:
@@ -953,6 +957,16 @@ async def ui_batches(request, userdata):
     user = userdata['username']
     batches = await _get_batches_list(params, user)
     return {'batch_list': batches}
+
+
+@routes.get('/ui/jobs/{job_id}/log')
+@aiohttp_jinja2.template('job_log.html')
+@authenticated_users_only
+async def ui_get_job_log(request, userdata):
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    job_log = _get_job_log(job_id, user)
+    return {'job_id': job_id, 'job_log': job_log}
 
 
 @routes.get('/')

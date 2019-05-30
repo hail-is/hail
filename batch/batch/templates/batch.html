@@ -5,22 +5,40 @@
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
   <body>
+    <h1>Batch {{ batch['id'] }}</h1>
+    {% if 'attributes' in batch %}
+    {% for name, value in batch['attributes'].items() %}
+    <p>{{ name }}: {{ value }}</p>
+    {% endfor %}
+    {% endif %}
     <h2>Jobs</h2>
     <table>
-      <tr>
-        <th>ID</th>
-        <th>State</th>
-        <th>Exit Code</th>
-        <th>Log</th>
-      </tr>
-      {% for job in job_list %}
-      <tr>
-        <td>{{job.id}}</td>
-        <td>{{job.state}}</td>
-        <td>{{job.exit_code}}</td>
-        <td><a href="/logs/{{loop.index0}}">log</a></td>
-      </tr>
-      {% endfor %}
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>State</th>
+          <th>Exit Code</th>
+          <th>Duration</th>
+          <th>Log</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for job in batch['jobs'] %}
+        <tr>
+          <td>{{ job['id'] }}</td>
+          <td>
+            {% if 'attributes' in job and 'name' in job['attributes'] and job['attributes']['name'] is not none %}
+            {{ job['attributes']['name'] }}
+            {% endif %}
+          </td>
+          <td>{{ job['state'] }}</td>
+          <td>{{ job['exit_code'] }}</td>
+          <td>{{ job['duration'] }}</td>
+          <td><a href="/ui/jobs/{{ job['id'] }}/log">log</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
   </body>
 </html>
