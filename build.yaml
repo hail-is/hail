@@ -651,6 +651,7 @@ steps:
    dependsOn:
     - default_ns
     - hail_base_image
+ - kind: deploy
    name: deploy_notebook2
    namespace:
      valueFrom: default_ns.name
