@@ -23,14 +23,11 @@ object LowerMatrixIR {
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
-  def apply(mir: MatrixIR): MatrixIR = {
+  def apply(mir: MatrixIR): TableIR = {
     val ab = new ArrayBuilder[(String, IR)]
 
-    val l1 = CastTableToMatrix(lower(mir, ab),
-      entriesFieldName,
-      colsFieldName,
-      mir.typ.colKey)
-    ab.result().foldRight[MatrixIR](l1) { case ((ident, value), body) => RelationalLetMatrixTable(ident, value, body) }
+    val l1 = lower(mir, ab)
+    ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
 
