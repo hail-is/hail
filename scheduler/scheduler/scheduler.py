@@ -62,7 +62,7 @@ def create_id():
 
 
 executors = set()
-apps = set()
+clients = set()
 
 jobs = []
 
@@ -192,9 +192,9 @@ async def executor_connected_cb(reader, writer):
 
 
 class Job:
-    def __init__(self, app, n_tasks):
+    def __init__(self, client, n_tasks):
         self.id = create_id()
-        self.app = app
+        self.client = client
 
         self.n_tasks = n_tasks
         self.n_submitted = 0
@@ -225,7 +225,7 @@ class Job:
         t.ack()
 
         if self.is_complete():
-            self.app.end_job()
+            self.client.end_job()
 
     def is_complete(self):
         return (self.n_submitted == self.n_tasks) and (not self.index_task)
@@ -260,7 +260,7 @@ class Task:
         self.result = result
         self.job.complete_tasks.add(self)
 
-        result_conn = self.job.app.result_conn
+        result_conn = self.job.client.result_conn
         if result_conn:
             asyncio.ensure_future(
                 result_conn.task_result(self.index, self.result))
@@ -270,16 +270,16 @@ class Task:
         del task_index[self.id]
 
 
-class AppSubmitConnection:
-    def __init__(self, app, reader, writer):
-        self.app = app
+class ClientSubmitConnection:
+    def __init__(self, client, reader, writer):
+        self.client = client
         self.reader = reader
         self.writer = writer
 
     async def handle_submit(self):
         n = await read_int(self.reader)
 
-        j = self.app.start_job(n)
+        j = self.client.start_job(n)
         write_int(self.writer, j.n_submitted)
         await self.writer.drain()
 
@@ -312,20 +312,20 @@ class AppSubmitConnection:
 
     def close(self):
         self.writer.close()
-        self.app.submit_conn = None
+        self.client.submit_conn = None
         # new in 3.7
         # await self.writer.wait_closed()
 
 
-class AppResultConnection:
-    def __init__(self, app, reader, writer):
-        self.app = app
+class ClientResultConnection:
+    def __init__(self, client, reader, writer):
+        self.client = client
         self.reader = reader
         self.writer = writer
 
     async def handle_ack_task(self):
         index = await read_int(self.reader)
-        j = self.app.job
+        j = self.client.job
         if j:
             j.ack_task(index)
 
@@ -350,15 +350,15 @@ class AppResultConnection:
 
     def close(self):
         self.writer.close()
-        self.app.result_conn = None
+        self.client.result_conn = None
         # new in 3.7
         # await self.writer.wait_closed()
 
 
-token_app = {}
+token_client = {}
 
 
-class App:
+class Client:
     def __init__(self, token):
         self.id = create_id()
         self.token = token
@@ -367,8 +367,8 @@ class App:
 
         self.job = None
 
-        apps.add(self)
-        log.info(f'app {self.id} created')
+        clients.add(self)
+        log.info(f'client {self.id} created')
 
     def start_job(self, n):
         if self.job is None:
@@ -381,15 +381,15 @@ class App:
     def set_submit_conn(self, reader, writer):
         if self.submit_conn:
             self.submit_conn.close()
-        self.submit_conn = AppSubmitConnection(self, reader, writer)
-        log.info(f'app {self.id} submit connected')
+        self.submit_conn = ClientSubmitConnection(self, reader, writer)
+        log.info(f'client {self.id} submit connected')
         asyncio.ensure_future(self.submit_conn.handler_loop())
 
     def set_result_conn(self, reader, writer):
         if self.result_conn:
             self.result_conn.close()
-        self.result_conn = AppResultConnection(self, reader, writer)
-        log.info(f'app {self.id} result connected')
+        self.result_conn = ClientResultConnection(self, reader, writer)
+        log.info(f'client {self.id} result connected')
         asyncio.ensure_future(self.result_conn.handler_loop())
 
     def to_dict(self):
@@ -403,27 +403,27 @@ class App:
         }
 
 
-async def app_submit_cb(reader, writer):
+async def client_submit_cb(reader, writer):
     token = await read_bytes(reader)
 
-    app = token_app.get(token)
-    if app is None:
-        app = App(token)
-        token_app[token] = app
+    client = token_client.get(token)
+    if client is None:
+        client = Client(token)
+        token_client[token] = client
 
-    app.set_submit_conn(reader, writer)
+    client.set_submit_conn(reader, writer)
 
 
-async def app_result_cb(reader, writer):
+async def client_result_cb(reader, writer):
     log.info('here')
     token = await read_bytes(reader)
 
-    app = token_app.get(token)
-    if app is None:
-        app = App(token)
-        token_app[token] = app
+    client = token_client.get(token)
+    if client is None:
+        client = Client(token)
+        token_client[token] = client
 
-    app.set_result_conn(reader, writer)
+    client.set_result_conn(reader, writer)
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -439,9 +439,10 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 async def index(request):  # pylint: disable=unused-argument
     return {
         'executors': [e.to_dict() for e in executors],
-        'apps': [app.to_dict() for app in apps],
+        'clients': [client.to_dict() for client in clients],
         'jobs': [j.to_dict() for j in reversed(jobs)]
     }
+
 
 routes.static('/static', 'static')
 app.add_routes(routes)
@@ -453,11 +454,11 @@ async def on_startup(app):  # pylint: disable=unused-argument
     await asyncio.start_server(executor_connected_cb, host=None, port=5051)
     log.info(f'listening on port {5051} for clients')
 
-    await asyncio.start_server(app_submit_cb, host=None, port=5052)
-    log.info(f'listening on port {5052} for applications, submit')
+    await asyncio.start_server(client_submit_cb, host=None, port=5052)
+    log.info(f'listening on port {5052} for clients, submit')
 
-    await asyncio.start_server(app_result_cb, host=None, port=5053)
-    log.info(f'listening on port {5053} for applications, result')
+    await asyncio.start_server(client_result_cb, host=None, port=5053)
+    log.info(f'listening on port {5053} for clients, result')
 
 app.on_startup.append(on_startup)
 

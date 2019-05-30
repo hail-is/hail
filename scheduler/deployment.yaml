@@ -28,6 +28,9 @@ spec:
              cpu: "1"
          ports:
           - containerPort: 5000
+          - containerPort: 5051
+          - containerPort: 5052
+          - containerPort: 5053
          readinessProbe:
            httpGet:
              path: /healthcheck
@@ -46,5 +49,14 @@ spec:
   - port: 80
     protocol: TCP
     targetPort: 5000
+  - port: 5051
+    protocol: TCP
+    targetPort: 5051
+  - port: 5052
+    protocol: TCP
+    targetPort: 5052
+  - port: 5053
+    protocol: TCP
+    targetPort: 5053
   selector:
     app: scheduler
