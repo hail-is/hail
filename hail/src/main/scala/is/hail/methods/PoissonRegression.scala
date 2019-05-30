@@ -17,18 +17,18 @@ case class PoissonRegression(
   covFields: Seq[String],
   passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val poisRegTest = PoissonRegressionTest.tests(test)
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
-    val tableType = TableType(childType.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, childType.rowKey, TStruct())
-    (tableType, tableType.canonicalRVDType)
+    TableType(childType.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, childType.rowKey, TStruct())
   }
 
   def preservesPartitionCounts: Boolean = true
 
   def execute(mv: MatrixValue): TableValue = {
     val poisRegTest = PoissonRegressionTest.tests(test)
-    val (tableType, newRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val newRVDType = tableType.canonicalRVDType
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields.toArray)
 
