@@ -651,7 +651,7 @@ async def get_job(request, userdata):
     return jsonify(job.to_dict())
 
 
-def _get_job_log(job_id, user):
+async def _get_job_log(job_id, user):
     job = await Job.from_db(job_id, user)
     if not job:
         abort(404)
@@ -667,7 +667,7 @@ def _get_job_log(job_id, user):
 async def get_job_log(request, userdata):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    job_log = _get_job_log(job_id, user)
+    job_log = await _get_job_log(job_id, user)
     return jsonify(job_log)
 
 
@@ -965,7 +965,7 @@ async def ui_batches(request, userdata):
 async def ui_get_job_log(request, userdata):
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    job_log = _get_job_log(job_id, user)
+    job_log = await _get_job_log(job_id, user)
     return {'job_id': job_id, 'job_log': job_log}
 
 
