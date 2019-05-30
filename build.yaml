@@ -422,7 +422,7 @@ steps:
      export SPHINXOPTS='-tchecktutorial'
      mkdir -p {{ token }}/python
      cd {{ token }}
-     unzip -q -d python /io/hail.zip)
+     unzip -q -d python /io/hail.zip
      tar xzf /io/www-src.tar.gz
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
