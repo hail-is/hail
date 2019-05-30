@@ -420,12 +420,11 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
-     cd /io
-     unzip -q hail.zip
+     unzip -q /io/hail.zip
      # docs refer to www, maintain standard relationship
      mkdir python
      mv hail python
-     tar xzf www-src.tar.gz
+     tar xzf /io/www-src.tar.gz
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
@@ -433,7 +432,7 @@ steps:
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      mv python/hail/docs/_build/html www/docs/0.2
-     tar czf www.tar.gz www
+     tar czf /io/www.tar.gz www
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
