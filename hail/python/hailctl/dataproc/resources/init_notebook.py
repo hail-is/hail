@@ -45,7 +45,6 @@ if role == 'Master':
         'pandas<0.24'
     ]
     pip_pkgs = [
-        'seaborn<0.10',
         'decorator==4.2.1',
         'parsimonious<0.9',
         'ipywidgets<8',

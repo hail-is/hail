@@ -33,7 +33,6 @@ setup(
         'numpy<2',
         'pandas>0.22,<0.24',
         'matplotlib<3',
-        'seaborn<0.9',
         'bokeh<0.14',
         'pyspark>=2.4,<2.4.2',
         'parsimonious<0.9',
