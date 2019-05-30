@@ -975,14 +975,15 @@ async def ui_batches(request, userdata):
     return {'batch_list': batches}
 
 
-@routes.get('/ui/jobs/{job_id}/log')
+@routes.get('/ui/batches/{batch_id}/jobs/{job_id}/log')
 @aiohttp_jinja2.template('job_log.html')
 @authenticated_users_only
 async def ui_get_job_log(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     user = userdata['username']
-    job_log = await _get_job_log(job_id, user)
-    return {'job_id': job_id, 'job_log': job_log}
+    job_log = await _get_job_log(batch_id, job_id, user)
+    return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
 @routes.get('/')
