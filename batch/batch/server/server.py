@@ -945,8 +945,8 @@ async def close_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    jobs = await _get_batch(batch_id, user)
-    return {'job_list': jobs}
+    batch = await _get_batch(batch_id, user)
+    return {'batch': batch}
 
 
 @routes.get('/ui/batches', name='ui_batches')
