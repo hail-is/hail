@@ -625,7 +625,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
 
     if not pod_spec.tolerations:
         pod_spec.tolerations = []
-    pod_spec.tolerations.extend(kube.client.V1Toleration(key='preemptible', value='true'))
+    pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
     job = await Job.create_job(
         pod_spec=pod_spec,
