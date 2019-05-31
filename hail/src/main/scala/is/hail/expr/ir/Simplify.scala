@@ -494,10 +494,9 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key)
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
-      val uid = genUID()
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
       val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
