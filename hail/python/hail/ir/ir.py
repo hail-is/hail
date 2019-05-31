@@ -568,6 +568,24 @@ class NDArrayRef(IR):
         self._type = self.nd.typ.element_type
 
 
+class NDArraySlice(IR):
+    @typecheck_method(nd=IR, slices=IR)
+    def __init__(self, nd, slices):
+        super().__init__(nd, slices)
+        self.nd = nd
+        self.slices = slices
+
+    def copy(self, nd, slices):
+        return NDArraySlice(nd, slices)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.slices._compute_type(env, agg_env)
+
+        self._type = tndarray(self.nd.typ.element_type,
+                              len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+
+
 class NDArrayReindex(IR):
     @typecheck_method(nd=IR, idx_expr=sequenceof(int))
     def __init__(self, nd, idx_expr):

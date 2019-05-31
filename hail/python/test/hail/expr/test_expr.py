@@ -2745,6 +2745,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(h_np_cube[1, 1, 0], 6)
         self.assert_evals_to(hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1)
         self.assert_evals_to(hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3)
+        self.assert_evals_to(h_np_cube[0, :, :][:, 0][1], 2)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2753,6 +2754,29 @@ class Tests(unittest.TestCase):
 
     def ndarray_almost_eq(self, expr, expected):
         self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_slice(self):
+        np_arr = np.array([[[0, 1, 2, 3],
+                            [4, 5, 6, 7],
+                            [8, 9, 10, 11]],
+                           [[12, 13, 14, 15],
+                            [16, 17, 18, 19],
+                            [20, 21, 22, 23]]])
+        arr = hl._ndarray(np_arr)
+        np_mat = np.array([[1, 2, 3, 4],
+                           [5, 6, 7, 8]])
+        mat = hl._ndarray(np_mat)
+
+        self.ndarray_eq(arr[:, :, :], np_arr[:, :, :])
+        self.ndarray_eq(arr[:, :, 1], np_arr[:, :, 1])
+        self.ndarray_eq(arr[:, :, 1:4:2], np_arr[:, :, 1:4:2])
+        self.ndarray_eq(arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2])
+        self.ndarray_eq(arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2])
+        self.ndarray_eq(arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2])
+        self.ndarray_eq(arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2])
+        self.ndarray_eq(mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
