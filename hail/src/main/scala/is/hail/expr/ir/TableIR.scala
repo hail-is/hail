@@ -69,8 +69,6 @@ abstract sealed class TableIR extends BaseIR {
 case class TableLiteral(value: TableValue) extends TableIR {
   val typ: TableType = value.typ
 
-  def rvdType: RVDType = value.rvd.typ
-
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableLiteral = {
@@ -1072,7 +1070,6 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.rowsTableType
-  def rvdType: RVDType = throw new NotImplementedError()
 }
 
 case class MatrixColsTable(child: MatrixIR) extends TableIR {
@@ -1084,7 +1081,6 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.colsTableType
-  def rvdType: RVDType = throw new NotImplementedError()
 }
 
 case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
@@ -1096,7 +1092,6 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.entriesTableType
-  def rvdType: RVDType = throw new NotImplementedError()
 }
 
 case class TableDistinct(child: TableIR) extends TableIR {
@@ -1470,7 +1465,6 @@ case class CastMatrixToTable(
 ) extends TableIR {
 
   lazy val typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
-  def rvdType: RVDType = throw new NotImplementedError()
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1539,7 +1533,6 @@ case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) 
     val IndexedSeq(newChild: MatrixIR) = newChildren
     MatrixToTableApply(newChild, function)
   }
-  def rvdType: RVDType = throw new NotImplementedError()
   override lazy val typ: TableType = function.typ(child.typ)
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
@@ -1555,7 +1548,6 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
   }
 
   override lazy val typ: TableType = function.typ(child.typ)
-  def rvdType: RVDType = typ.canonicalRVDType
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
@@ -1567,8 +1559,6 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
 case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
-
-  def rvdType: RVDType = typ.canonicalRVDType
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren
@@ -1587,8 +1577,6 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
 
 case class RelationalLetTable(name: String, value: IR, body: TableIR) extends TableIR {
   def typ: TableType = body.typ
-
-  def rvdType: RVDType = typ.canonicalRVDType
 
   def children: IndexedSeq[BaseIR] = Array(value, body)
 
