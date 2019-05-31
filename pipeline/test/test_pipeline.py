@@ -394,3 +394,10 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input} > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
         p.run()
+
+    def test_dry_run(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command(f'echo hello > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
+        p.run(dry_run=True)
