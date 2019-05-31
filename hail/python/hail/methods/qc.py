@@ -285,47 +285,6 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     return mt.annotate_rows(**{name: result})
 
 
-def concordance2(left, right, *, _localize_global_statistics=True):
-    print('conc2')
-    require_col_key_str(left, 'concordance, left')
-    require_col_key_str(right, 'concordance, right')
-    left = require_biallelic(left, 'concordance, left')
-    right = require_biallelic(right, 'concordance, right')
-
-    left = left.select_entries('GT').select_rows().select_cols()
-    right = right.select_entries('GT').select_rows().select_cols()
-
-    joined = hl.experimental.full_outer_join_mt(left, right)
-
-    def get_idx(struct):
-        return hl.cond(
-            hl.is_missing(struct),
-            0,
-            hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
-
-    aggr = hl.agg.counter(get_idx(joined.left_entry) + 5 * get_idx(joined.right_entry))
-
-    def concordance_array(counter):
-        return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
-
-    def n_discordant(counter):
-        return hl.sum(hl.array(counter)
-                      .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
-                      .map(lambda tup: tup[1]))
-
-    glob: Tuple[Tuple[int]] = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
-
-    per_variant = joined.annotate_rows(concordance=aggr)
-    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
-                                            n_discordant=n_discordant(per_variant.concordance))
-
-    per_sample = joined.annotate_cols(concordance=aggr)
-    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
-                                          n_discordant=n_discordant(per_sample.concordance))
-
-    return glob, per_variant.rows(), per_sample.cols()
-
-
 @typecheck(left=MatrixTable,
            right=MatrixTable,
            _localize_global_statistics=bool)
