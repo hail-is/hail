@@ -34,8 +34,6 @@ object TableIR {
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
-  def rvdType: RVDType
-
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   protected[ir] def execute(hc: HailContext): TableValue =
@@ -172,8 +170,6 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
   assert(PruneDeadFields.isSupertype(typ, tr.fullType),
     s"\n  original:  ${ tr.fullType }\n  requested: $typ")
 
-  override lazy val rvdType: RVDType = tr.fullRVDType.subsetTo(typ.rowType)
-
   override def partitionCounts: Option[IndexedSeq[Long]] = tr.partitionCounts
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -192,12 +188,6 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   private val rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
   private val globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
-
-  override lazy val rvdType: RVDType = RVDType(rowsType
-    .elementType
-    .asInstanceOf[TStruct]
-    .physicalType, // FIXME: Canonical() when that arrives
-    FastIndexedSeq())
 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobal)
 
@@ -249,9 +239,6 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   val typ: TableType = child.typ.copy(key = keys)
 
-  private lazy val (rvdType_, f) = child.rvdType.enforceKey(keys, isSorted)
-  override def rvdType: RVDType = rvdType_
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
@@ -259,7 +246,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    tv.copy(typ = typ, rvd = f(tv.rvd))
+    tv.copy(typ = typ, rvd = tv.rvd.enforceKey(keys, isSorted))
   }
 }
 
@@ -282,8 +269,6 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct("idx" -> TInt32()),
     Array("idx"),
     TStruct.empty())
-
-  override lazy val rvdType: RVDType = RVDType(typ.rowType.physicalType, FastIndexedSeq()) // FIXME: Canonical() when that arrives
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val localRowType = typ.rowType
@@ -325,8 +310,6 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   val typ: TableType = child.typ
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
     assert(newChildren.length == 2)
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -355,8 +338,6 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 
   def typ: TableType = child.typ
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
@@ -381,13 +362,6 @@ object RepartitionStrategy {
 
 case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends TableIR {
   def typ: TableType = child.typ
-
-  override lazy val rvdType: RVDType = {
-    if (strategy == RepartitionStrategy.SHUFFLE)
-      typ.canonicalRVDType
-    else
-      child.rvdType
-  }
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -567,8 +541,6 @@ case class TableIntervalJoin(
   val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(rightType.physicalType, List(root))
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
 
-  override def rvdType: RVDType = RVDType(newRowPType, typ.key)
-
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
 
@@ -643,12 +615,6 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
 
   val typ: TableType = left.typ.copy(rowType = left.typ.rowType ++ right.typ.rowType)
 
-  private val inserter = InsertFields(
-    Ref("left", left.typ.rowType),
-    right.typ.rowType.fieldNames.map(f => f -> GetField(Ref("right", right.typ.rowType), f)))
-
-  override val rvdType: RVDType = RVDType(inserter.pType, left.rvdType.key)
-
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
@@ -661,6 +627,12 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
   override def execute(hc: HailContext): TableValue = {
     val tv1 = left.execute(hc)
     val tv2 = right.execute(hc)
+
+    val inserter = InsertFields(
+      Ref("left", left.typ.rowType),
+      right.typ.rowType.fieldNames.map(f => f -> GetField(Ref("right", right.typ.rowType), f)))
+
+    val rvdType: RVDType = RVDType(inserter.pType, tv1.rvd.typ.key)
 
     val (t2, makeF) = ir.Compile[Long, Long, Long](
       "left", tv1.rvd.typ.rowType,
@@ -826,8 +798,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
 
-  override lazy val rvdType: RVDType = RVDType(newRow.pType.asInstanceOf[PStruct], typ.key)
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
     TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -975,8 +945,6 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   val typ: TableType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
     TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -1029,11 +997,6 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
   val typ: TableType = child.typ.copy(rowType = newRow.typ)
 
-  override lazy val rvdType: RVDType = RVDType(
-    newRow.pType,
-    child.rvdType.key.takeWhile(_ != path.head)
-  )
-
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
     TableExplode(newChildren(0).asInstanceOf[TableIR], path)
@@ -1049,6 +1012,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       newRow)
     assert(t.virtualType == typ.rowType)
 
+    val rvdType: RVDType = RVDType(
+      newRow.pType,
+      prev.rvd.typ.key.takeWhile(_ != path.head)
+    )
     TableValue(typ,
       prev.globals,
       prev.rvd.boundary.mapPartitionsWithIndex(rvdType, { (i, ctx, it) =>
@@ -1134,8 +1101,6 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
 
 case class TableDistinct(child: TableIR) extends TableIR {
   lazy val children: IndexedSeq[BaseIR] = Array(child)
-
-  override lazy val rvdType: RVDType = child.rvdType
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableDistinct = {
     val IndexedSeq(newChild) = newChildren
@@ -1468,8 +1433,6 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
-  override lazy val rvdType: RVDType = RVDType(typ.rowType.physicalType, FastIndexedSeq()) // FIXME: Canonical() when that arrives
-
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
@@ -1533,11 +1496,6 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     key = child.typ.key.map(k => rowMap.getOrElse(k, k))
   )
 
-  override lazy val rvdType: RVDType = child.rvdType.copy(
-    rowType = child.rvdType.rowType.rename(rowMap),
-    key = child.rvdType.key.map(k => rowMap.getOrElse(k, k))
-  )
-
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
@@ -1563,7 +1521,6 @@ case class TableFilterIntervals(child: TableIR, intervals: IndexedSeq[Interval],
   }
 
   override lazy val typ: TableType = child.typ
-  override lazy val rvdType: RVDType = child.rvdType
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)

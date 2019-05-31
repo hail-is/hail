@@ -138,21 +138,6 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
     sb += '}'
     sb.result()
   }
-
-  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
-  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): (RVDType, RVD => RVD) = {
-    require(newKey.forall(rowType.hasField))
-    val nPreservedFields = key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
-
-    if (nPreservedFields == newKey.length)
-      (this, identity[RVD])
-    else if (isSorted)
-      (RVDType(rowType, newKey), _.truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey))
-    else
-      // FIXME this should be a union type when we have that
-      (RVDType(PType.canonical(rowType).asInstanceOf[PStruct], newKey), _.changeKey(newKey))
-  }
 }
 
 object RVDType {
