@@ -31,6 +31,14 @@ class Job:
         return self._async_job.id
 
     @property
+    def batch_id(self):
+        return self._async_job.batch_id
+
+    @property
+    def job_id(self):
+        return self._async_job.job_id
+
+    @property
     def attributes(self):
         return self._async_job.attributes
 
