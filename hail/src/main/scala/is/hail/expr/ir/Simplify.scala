@@ -494,7 +494,7 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key) // FIXME: https://github.com/hail-is/hail/issues/6234
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val row = Ref("row", child.typ.rowType)
