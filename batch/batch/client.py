@@ -72,13 +72,13 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   input_files=None, output_files=None, always_run=False):
+                   input_files=None, output_files=None, always_run=False, pvc_size=None):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids, input_files,
-            output_files, always_run)
+            output_files, always_run, pvc_size)
 
     def close(self):
         self.client._close_batch(self.id)
@@ -142,7 +142,8 @@ class BatchClient:
                     parent_ids,
                     input_files,
                     output_files,
-                    always_run):
+                    always_run,
+                    pvc_size):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -192,7 +193,8 @@ class BatchClient:
             spec['serviceAccountName'] = service_account_name
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
-                                parent_ids, input_files, output_files, always_run)
+                                parent_ids, input_files, output_files, always_run,
+                                pvc_size)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
