@@ -33,7 +33,7 @@ class Job:
         if attributes is None:
             attributes = {}
 
-        self.client = client
+        self._client = client
         self.id = id
         self.attributes = attributes
         self.parent_ids = parent_ids
@@ -49,7 +49,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self.client._get('/jobs/{}'.format(self.id))
+        self._status = await self._client._get('/jobs/{}'.format(self.id))
         return self._status
 
     async def wait(self):
@@ -64,12 +64,12 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self.client._get('/jobs/{}/log'.format(self.id))
+        return await self._client._get('/jobs/{}/log'.format(self.id))
 
 
 class Batch:
     def __init__(self, client, id, attributes):
-        self.client = client
+        self._client = client
         self.id = id
         self.attributes = attributes
 
@@ -145,21 +145,21 @@ class Batch:
         if pvc_size:
             doc['pvc_size'] = pvc_size
 
-        j = await self.client._post('/jobs/create', json=doc)
+        j = await self._client._post('/jobs/create', json=doc)
 
-        return Job(self.client,
+        return Job(self._client,
                    j['id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
     async def close(self):
-        await self.client._patch('/batches/{}/close'.format(self.id))
+        await self._client._patch('/batches/{}/close'.format(self.id))
 
     async def cancel(self):
-        await self.client._patch('/batches/{}/cancel'.format(self.id))
+        await self._client._patch('/batches/{}/cancel'.format(self.id))
 
     async def status(self):
-        return await self.client._get('/batches/{}'.format(self.id))
+        return await self._client._get('/batches/{}'.format(self.id))
 
     async def wait(self):
         i = 0
@@ -174,7 +174,7 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
-        await self.client._delete('/batches/{}/delete'.format(self.id))
+        await self._client._delete('/batches/{}'.format(self.id))
 
 
 class BatchClient:
@@ -194,28 +194,28 @@ class BatchClient:
             with open(token_file) as f:
                 token = f.read()
         userdata = hj.JWTClient.unsafe_decode(token)
-        assert "bucket_name" in userdata, userdata
+        assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]
-        self.cookies = {'user': token}
-        self.headers = headers
+        self._cookies = {'user': token}
+        self._headers = headers
 
     async def _get(self, path, params=None):
         response = await self._session.get(
-            self.url + path, params=params, cookies=self.cookies, headers=self.headers)
+            self.url + path, params=params, cookies=self._cookies, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):
         response = await self._session.post(
-            self.url + path, json=json, cookies=self.cookies, headers=self.headers)
+            self.url + path, json=json, cookies=self._cookies, headers=self._headers)
         return await response.json()
 
     async def _patch(self, path):
         await self._session.patch(
-            self.url + path, cookies=self.cookies, headers=self.headers)
+            self.url + path, cookies=self._cookies, headers=self._headers)
 
     async def _delete(self, path):
         await self._session.delete(
-            self.url + path, cookies=self.cookies, headers=self.headers)
+            self.url + path, cookies=self._cookies, headers=self._headers)
 
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')
@@ -224,9 +224,9 @@ class BatchClient:
         params = filter_params(complete, success, attributes)
         batches = await self._get('/batches', params=params)
         return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
+                      b['id'],
+                      attributes=b.get('attributes'))
+                for b in batches]
 
     async def get_job(self, id):
         j = await self._get('/jobs/{}'.format(id))
@@ -237,10 +237,10 @@ class BatchClient:
                    _status=j)
 
     async def get_batch(self, id):
-        j = await self._get(f'/batches/{id}')
+        b = await self._get(f'/batches/{id}')
         return Batch(self,
-                     j['id'],
-                     attributes=j.get('attributes'))
+                     b['id'],
+                     attributes=b.get('attributes'))
 
     async def create_batch(self, attributes=None, callback=None, ttl=None):
         doc = {}
@@ -250,8 +250,8 @@ class BatchClient:
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        j = await self._post('/batches/create', json=doc)
-        return Batch(self, j['id'], j.get('attributes'))
+        b = await self._post('/batches/create', json=doc)
+        return Batch(self, b['id'], b.get('attributes'))
 
     async def close(self):
         await self._session.close()
