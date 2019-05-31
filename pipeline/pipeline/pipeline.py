@@ -45,6 +45,9 @@ class Pipeline:
         CPU setting to use by default if not specified by a task. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
         or the :class:`.BatchBackend`.
+    default_storage: :obj:`str`, optional
+        Storage setting to use by default if not specified by a task. Only
+        applicable for the :class:`.BatchBackend`.
     """
 
     _counter = 0
@@ -58,7 +61,7 @@ class Pipeline:
         return uid
 
     def __init__(self, backend=None, default_image=None, default_memory=None,
-                 default_cpu=None):
+                 default_cpu=None, default_storage=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
@@ -67,6 +70,7 @@ class Pipeline:
         self._default_image = default_image
         self._default_memory = default_memory
         self._default_cpu = default_cpu
+        self._default_storage = default_storage
 
         if backend:
             self._backend = backend
@@ -98,6 +102,8 @@ class Pipeline:
             t.memory(self._default_memory)
         if self._default_cpu is not None:
             t.cpu(self._default_cpu)
+        if self._default_storage is not None:
+            t.storage(self._default_storage)
         return t
 
     def _tmp_file(self, prefix=None, suffix=None):

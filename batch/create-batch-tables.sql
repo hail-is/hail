@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),
+  `pvc_size` TEXT(65535),
   `callback` TEXT(65535),
   `task_idx` INT NOT NULL,
   `always_run` BOOLEAN NOT NULL,

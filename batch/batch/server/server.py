@@ -162,7 +162,7 @@ class Job:
                     access_modes=['ReadWriteOnce'],
                     volume_mode='Filesystem',
                     resources=kube.client.V1ResourceRequirements(
-                        requests={'storage': POD_VOLUME_SIZE}),
+                        requests={'storage': self._pvc_size}),
                     storage_class_name=STORAGE_CLASS_NAME)))
         if err is not None:
             log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
@@ -333,7 +333,7 @@ class Job:
                        callback=record['callback'], userdata=userdata, user=record['user'],
                        always_run=record['always_run'], pvc_name=record['pvc_name'], pod_name=record['pod_name'],
                        exit_codes=exit_codes, duration=record['duration'], tasks=tasks,
-                       task_idx=record['task_idx'], state=record['state'])
+                       task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'])
         return None
 
     @staticmethod
@@ -351,7 +351,7 @@ class Job:
 
     @staticmethod
     async def create_job(pod_spec, batch_id, attributes, callback, parent_ids,
-                         input_files, output_files, userdata, always_run):
+                         input_files, output_files, userdata, always_run, pvc_size):
         pvc_name = None
         pod_name = None
         duration = 0
@@ -370,6 +370,7 @@ class Job:
                                       batch_id=batch_id,
                                       pod_name=pod_name,
                                       pvc_name=pvc_name,
+                                      pvc_size=pvc_size,
                                       callback=callback,
                                       attributes=json.dumps(attributes),
                                       tasks=json.dumps([jt.to_dict() for jt in tasks]),
@@ -382,7 +383,7 @@ class Job:
         job = Job(id=id, batch_id=batch_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
                   pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state)
+                  task_idx=task_idx, state=state, pvc_size=pvc_size)
 
         for parent in parent_ids:
             await db.jobs_parents.new_record(job_id=id,
@@ -399,7 +400,8 @@ class Job:
         return job
 
     def __init__(self, id, batch_id, attributes, callback, userdata, user, always_run,
-                 pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state):
+                 pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state,
+                 pvc_size):
         self.id = id
         self.batch_id = batch_id
         self.attributes = attributes
@@ -411,6 +413,7 @@ class Job:
         self.duration = duration
 
         self._pvc_name = pvc_name
+        self._pvc_size = pvc_size
         self._pod_name = pod_name
         self._tasks = tasks
         self._task_idx = task_idx
@@ -573,6 +576,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
             'type': 'list',
             'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
         'always_run': {'type': 'boolean'},
+        'pvc_size': {'type': 'string'},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -607,6 +611,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
 
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
+    pvc_size = parameters.get('pvc_size', POD_VOLUME_SIZE)
     always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
@@ -637,7 +642,8 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         input_files=input_files,
         output_files=output_files,
         userdata=userdata,
-        always_run=always_run)
+        always_run=always_run,
+        pvc_size=pvc_size)
     return jsonify(job.to_dict())
 
 
