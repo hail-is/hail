@@ -1,5 +1,4 @@
 import warnings
-from math import log, isnan, log10, sqrt
 import math
 
 import collections
@@ -7,7 +6,9 @@ import numpy as np
 import pandas as pd
 import bokeh
 import bokeh.io
-from bokeh.models import *
+from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
+    ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
+    Select, Column, Span
 from bokeh.plotting import figure
 from bokeh.transform import transform
 from bokeh.layouts import gridplot
@@ -122,7 +123,7 @@ def _cdf_single_error(cdf, failure_prob):
     for i in range(len(cdf._compaction_counts)):
         s += cdf._compaction_counts[i] << (2*i)
     s = s / (cdf.ranks[-1] ** 2)
-    return sqrt(math.log(2 / failure_prob) * s / 2)
+    return math.sqrt(math.log(2 / failure_prob) * s / 2)
 
 
 def _cdf_error(cdf, failure_prob):
@@ -132,13 +133,13 @@ def _cdf_error(cdf, failure_prob):
     s = s / (cdf.ranks[-1] ** 2)
 
     def update_grid_size(p):
-        return 4 * sqrt(math.log(2 * p / failure_prob) / (2 * s))
+        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
 
     p = 1 / failure_prob
     for i in range(5):
         p = update_grid_size(p)
 
-    return 1 / p + sqrt(math.log(2 * p / failure_prob) * s / 2)
+    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
 
 
 def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False):
@@ -401,9 +402,9 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
 
     if log:
-        data.bin_freq = [log10(x) for x in data.bin_freq]
-        data.n_larger = log10(data.n_larger)
-        data.n_smaller = log10(data.n_smaller)
+        data.bin_freq = [math.log10(x) for x in data.bin_freq]
+        data.n_larger = math.log10(data.n_larger)
+        data.n_smaller = math.log10(data.n_smaller)
         y_axis_label = 'log10 Frequency'
     else:
         y_axis_label = 'Frequency'
@@ -1217,9 +1218,9 @@ def qq(pvals, collect_all=False, n_divisions=500):
         if source is not None:
             if collect_all:
                 pvals = pvals.collect()
-                spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
-                exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-                obs = [-log(p, 10) for p in spvals]
+                spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
+                exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+                obs = [-math.log(p, 10) for p in spvals]
             else:
                 if isinstance(source, Table):
                     ht = source.select(pval=pvals).key_by().persist().key_by('pval')
@@ -1230,14 +1231,14 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
                 pvals = ht.aggregate(
                     aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
-                exp = [point[0] for point in pvals if not isnan(point[1])]
-                obs = [point[1] for point in pvals if not isnan(point[1])]
+                exp = [point[0] for point in pvals if not math.isnan(point[1])]
+                obs = [point[1] for point in pvals if not math.isnan(point[1])]
         else:
             return ValueError('Invalid input: expression has no source')
     else:
-        spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
-        exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-        obs = [-log(p, 10) for p in spvals]
+        spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
+        exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+        obs = [-math.log(p, 10) for p in spvals]
 
     p = figure(
         title='Q-Q Plot',
@@ -1316,7 +1317,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     p.select_one(HoverTool).tooltips = [t for t in p.select_one(HoverTool).tooltips if not t[0].startswith('_')]
 
     if significance_line is not None:
-        p.renderers.append(Span(location=-log10(significance_line),
+        p.renderers.append(Span(location=-math.log10(significance_line),
                                 dimension='width',
                                 line_color='red',
                                 line_dash='dashed',
