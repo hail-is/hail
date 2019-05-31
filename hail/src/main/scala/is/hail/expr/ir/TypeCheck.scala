@@ -155,7 +155,6 @@ object TypeCheck {
       case x@NDArraySlice(nd, slices) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         val childTyp =nd.typ.asInstanceOf[TNDArray]
-        assert(childTyp.nDims > 0)
         val slicesTuple = slices.typ.asInstanceOf[TTuple]
         assert(slicesTuple.size == childTyp.nDims)
         assert(slicesTuple.types.forall { t =>

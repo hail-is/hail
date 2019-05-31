@@ -1131,6 +1131,9 @@ class IRSuite extends SparkSuite {
       MakeTuple(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
     assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(0)), 1.0)
     assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(1)), 2.0)
+
+    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple(FastSeq()))
+    assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
   }
 
   @Test def testNDArrayWrite() {
