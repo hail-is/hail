@@ -36,7 +36,7 @@ object LowerMatrixIR {
       case tir: TableIR => lower(tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
         s"${ ir.getClass.getName }\n  Found MatrixIR child $mir")
-      case bmir: BlockMatrixIR => bmir // FIXME wrong
+      case bmir: BlockMatrixIR => lower(bmir, ab)
       case vir: IR => lower(vir, ab)
     }
     if ((ir.children, loweredChildren).zipped.forall(_ eq _))
@@ -580,8 +580,15 @@ object LowerMatrixIR {
       case table => lowerChildren(table, ab).asInstanceOf[TableIR]
     }
 
-    if (lowered.typ != tir.typ)
-      fatal(s"lowering changed type:\n  before: ${ tir.typ }\n  after: ${ lowered.typ }")
+    assertTypeUnchanged(tir, lowered)
+    lowered
+  }
+
+  private[this] def lower(bmir: BlockMatrixIR, ab: ArrayBuilder[(String, IR)]): BlockMatrixIR = {
+    val lowered = bmir match {
+      case noMatrixChildren => lowerChildren(noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
+    }
+    assertTypeUnchanged(bmir, lowered)
     lowered
   }
 
@@ -608,8 +615,12 @@ object LowerMatrixIR {
             })
       case _ => lowerChildren(ir, ab).asInstanceOf[IR]
     }
-    if (lowered.typ != ir.typ)
-      fatal(s"lowering changed type:\n  before: ${ ir.typ }\n  after: ${ lowered.typ }")
+    assertTypeUnchanged(ir, lowered)
     lowered
+  }
+
+  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR) {
+    if (lowered.typ != original.typ)
+      fatal(s"lowering changed type:\n  before: ${ original.typ }\n after: ${ lowered.typ }\n")
   }
 }
