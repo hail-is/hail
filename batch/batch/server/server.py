@@ -435,10 +435,7 @@ class Job:
     async def notify_children(self, new_state):
         children = [Job.from_record(record) for record in await db.jobs.get_children(*self.id)]
         for child in children:
-            if child:
-                await child.parent_new_state(new_state, *self.id)
-            else:
-                log.info(f'missing child: {child.id}')
+            await child.parent_new_state(new_state, *self.id)
 
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
@@ -448,6 +445,7 @@ class Job:
 
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
+        log.info(f'incomplete parent ids for job {self.id}: {incomplete_parent_ids}')
         if self._state == 'Created' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if self.always_run or all(p.is_successful() for p in parents):
@@ -456,7 +454,7 @@ class Job:
                 await self.set_state('Ready')
                 await self._create_pod()
             else:
-                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
+                log.info(f'parents deleted, cancelled, or failed: cancelling job {self.id}')
                 await self.set_state('Cancelled')
 
     async def cancel(self):
@@ -701,7 +699,7 @@ class Batch:
                     requests.post(callback, json=json, timeout=120)
                 except requests.exceptions.RequestException as exc:
                     log.warning(
-                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
+                        f'callback for job {job_id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
             threading.Thread(
@@ -838,7 +836,9 @@ async def create_batch(request, userdata):
                 pvc_size=pvc_size)
             jobs.append(j)
 
-        await batch_builder.commit()
+        success = await batch_builder.commit()
+        if not success:
+            abort(500, f'creating batch {batch.id} failed')
     finally:
         batch_builder.close()
 
@@ -961,6 +961,8 @@ class DeblockedIterator:
 
 
 async def pod_changed(pod):
+    if pod.metadata.name is None:
+        return
     job = Job.from_record(await db.jobs.get_record_by_pod(pod.metadata.name))
 
     if job and not job.is_complete():

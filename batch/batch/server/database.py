@@ -141,7 +141,7 @@ class JobsTable(Table):
         elif len(records) == 1:
             return records[0]
         else:
-            jobs_w_pod = [record['id'] for record in records]
+            jobs_w_pod = [f"{(record['batch_id'], record['job_id'])}" for record in records]
             raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
                             f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
 
