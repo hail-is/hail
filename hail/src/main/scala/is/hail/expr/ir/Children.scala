@@ -93,6 +93,8 @@ object Children {
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
+    case NDArraySlice(nd, slices) =>
+      Array(nd, slices)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>

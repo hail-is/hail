@@ -917,7 +917,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
@@ -1492,6 +1492,85 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                | }
                |
                | ${ bodyt.v };
+               |})
+             """.stripMargin
+          }
+        }
+
+      case ir.NDArraySlice(ndIR, slicesIR) =>
+        val slicesPType = slicesIR.pType.asInstanceOf[PTuple]
+        val slicePType = PTuple(IndexedSeq(PInt64(), PInt64(), PInt64()))
+
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+
+        val slicest = emit(resultRegion, slicesIR, env)
+        val slicesTup = fb.variable("slices_tuple", "const char *", slicest.v)
+        val slicesMissing = Seq.tabulate(slicesPType.size) { slicesPType.cxxIsFieldMissing(slicesTup.toString, _) }
+
+        val sliceVars = mutable.ArrayBuffer[(Variable, Variable, Variable)]()
+        val refVars = mutable.Map[Int, Variable]()
+        coerce[TTuple](slicesIR.typ).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
+          val slice = slicesPType.cxxLoadField(slicesTup.toString, dim)
+          sliceOrIndex match {
+            case _: TTuple =>
+              val startVar = fb.variable(s"start_$dim", "int", slicePType.cxxLoadField(slice, 0))
+              val stopVar  = fb.variable(s"stop_$dim",  "int", slicePType.cxxLoadField(slice, 1))
+              val stepVar  = fb.variable(s"step_$dim",  "int", slicePType.cxxLoadField(slice, 2))
+
+              sliceVars += ((startVar, stopVar, stepVar))
+            case _: TInt64 =>
+              val idx = fb.variable(s"ref_$dim", "int", slice)
+              refVars += dim -> idx
+          }
+        }
+
+        val defineSliceVars = sliceVars.map { case (start, stop, step) =>
+          Code(start.define, stop.define, step.define)
+        }
+        val newShapeSeq = sliceVars.map { case (start, stop, step) => s"(1 + (($stop - $start) - 1) / $step)" }
+        val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
+        val setup =
+          s"""
+             | ${ childEmitter.setup }
+             | ${ slicest.setup }
+             | if (${ slicest.m }) {
+             |   ${ fb.nativeError("Cannot slice NDArray with missing tuple of slices.") }
+             | }
+             | ${ slicesTup.define }
+             | if (${ slicesMissing.foldRight("false") { (m, b) => s"$m || $b" } }) {
+             |   ${ fb.nativeError("Cannot slice NDArray with missing slices.") }
+             | }
+             | ${ Code.sequence(defineSliceVars) }
+             | ${ Code.defineVars(refVars.values.toFastSeq) }
+             | ${ shape.define }
+           """.stripMargin
+
+        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val newLoopVars = mutable.ArrayBuffer[Variable]()
+            newLoopVars.sizeHint(sliceVars.size)
+
+            val oldIdxVarsIter = idxVars.iterator
+            val sliceIdxVarsIter = sliceVars.iterator
+            val sliceIdxVars = IndexedSeq.tabulate(childEmitter.nDims) { dim =>
+              if (refVars.contains(dim)) {
+                refVars(dim)
+              } else {
+                assert(oldIdxVarsIter.hasNext)
+                assert(sliceIdxVarsIter.hasNext)
+
+                val (start, _, step) = sliceIdxVarsIter.next
+                val oldIdxVar = oldIdxVarsIter.next()
+                val shiftedIdx = fb.variable("slice_idx", "int", s"($start + ($oldIdxVar * $step))")
+                newLoopVars += shiftedIdx
+                shiftedIdx
+              }
+            }
+
+            s"""
+               |({
+               |  ${ Code.defineVars(newLoopVars) }
+               |  ${ childEmitter.outputElement(sliceIdxVars) };
                |})
              """.stripMargin
           }

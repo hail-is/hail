@@ -1118,6 +1118,24 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
+  @Test def testNDArraySlice() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple(Seq(MakeTuple(Seq(I64(0), I64(2), I64(1))), I64(1))))
+    assertEvalsTo(NDArrayShape(rightCol), Row(2L))
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(1)), 4.0)
+
+    val topRow = NDArraySlice(matrixRowMajor,
+      MakeTuple(Seq(I64(0),
+      MakeTuple(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(1)), 2.0)
+
+    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple(FastSeq()))
+    assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
+  }
+
   @Test def testNDArrayWrite() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
@@ -1547,6 +1565,8 @@ class IRSuite extends SparkSuite {
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       NDArrayMatMul(nd, nd),
+      NDArraySlice(nd, MakeTuple(FastSeq(MakeTuple(FastSeq(F64(0), F64(2), F64(1))),
+                                         MakeTuple(FastSeq(F64(0), F64(2), F64(1)))))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
