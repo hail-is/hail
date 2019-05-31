@@ -2033,7 +2033,7 @@ class MatrixTable(ExprContainer):
             return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
-    def aggregate_entries(self, expr, _localize=True) -> Any:
+    def aggregate_entries(self, expr, _localize=True):
         """Aggregate over entries to a local value.
 
         Examples
