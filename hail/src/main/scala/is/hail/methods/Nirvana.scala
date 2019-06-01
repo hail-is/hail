@@ -483,11 +483,10 @@ object Nirvana {
 }
 
 case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTableFunction {
-  def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: TableType): TableType = {
     assert(childType.key == FastIndexedSeq("locus", "alleles"))
     assert(childType.rowType.size == 2)
-    val t = TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
-    (t, t.canonicalRVDType)
+    TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
   }
 
   def preservesPartitionCounts: Boolean = false

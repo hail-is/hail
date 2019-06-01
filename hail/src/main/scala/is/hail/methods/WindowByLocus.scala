@@ -17,17 +17,16 @@ import scala.collection.mutable
 case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
   def preservesPartitionCounts: Boolean = false
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (MatrixType, RVDType) = {
-    val newType = childType.copyParts(
+  def typ(childType: MatrixType): MatrixType = {
+    childType.copyParts(
       rowType = childType.rowType ++ TStruct("prev_rows" -> TArray(childType.rowType)),
       entryType = childType.entryType ++ TStruct("prev_entries" -> TArray(childType.entryType))
     )
-
-    newType -> newType.canonicalRVDType
   }
 
   def execute(mv: MatrixValue): MatrixValue = {
-    val (newType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+    val newType = typ(mv.typ)
+    val rvdType = newType.canonicalRVDType
 
     val oldBounds = mv.rvd.partitioner.rangeBounds
     val adjBounds = oldBounds.map { interval =>

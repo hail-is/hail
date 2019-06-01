@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt64, PStruct}
+import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
@@ -94,6 +94,20 @@ class RVD(
         (keys, bytes)
       }
     }.clearingRun
+  }
+
+  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
+  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): RVD = {
+    require(newKey.forall(rowType.hasField))
+    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
+    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+
+    if (nPreservedFields == newKey.length)
+      this
+    else if (isSorted)
+      truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey)
+    else
+      changeKey(newKey)
   }
 
   // Key and partitioner manipulation
