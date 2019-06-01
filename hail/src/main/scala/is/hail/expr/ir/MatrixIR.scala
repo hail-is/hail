@@ -84,22 +84,7 @@ object MatrixIR {
 abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
-  def rvdType: RVDType = typ.canonicalRVDType
-
   def partitionCounts: Option[IndexedSeq[Long]] = None
-
-  def getOrComputePartitionCounts(): IndexedSeq[Long] = {
-    partitionCounts
-      .getOrElse(
-        Interpret(
-          TableMapRows(
-            TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
-            MakeStruct(FastIndexedSeq())
-          ))
-          .rvd
-          .countPerPartition()
-          .toFastIndexedSeq)
-  }
 
   def columnCount: Option[Int] = None
 
@@ -130,8 +115,6 @@ abstract sealed class MatrixIR extends BaseIR {
 
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
   val typ: MatrixType = value.typ
-
-  override val rvdType: RVDType = value.rvd.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -328,8 +311,6 @@ case class MatrixRead(
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
 
-  override lazy val rvdType: RVDType = reader.fullRVDType.subsetTo(typ.rvRowType)
-
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
@@ -525,10 +506,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct])
   }
 
-  override lazy val rvdType: RVDType = RVDType(
-      newRVRow.pType.asInstanceOf[PStruct],
-      typ.rowKey)
-
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
@@ -548,8 +525,6 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     child.typ.copy(colKey = newColKey, colType = newColType)
   }
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
@@ -560,8 +535,6 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
 
   val typ: MatrixType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
-
-  override lazy val rvdType: RVDType = child.rvdType
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
@@ -603,8 +576,6 @@ case class MatrixAnnotateColsTable(
   private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
   val typ: MatrixType = child.typ.copy(colType = colType)
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
     MatrixAnnotateColsTable(
       newChildren(0).asInstanceOf[MatrixIR],
@@ -629,7 +600,7 @@ case class MatrixAnnotateRowsTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  val annotationType =
+  private val annotationType =
     if (product)
       TArray(table.typ.valueType)
     else
@@ -637,14 +608,6 @@ case class MatrixAnnotateRowsTable(
 
   val typ: MatrixType =
     child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> annotationType))
-
-  val annotationRVDType =
-    if (product)
-      PArray(table.rvdType.rowType.dropFields(table.typ.key.toSet))
-    else
-      table.rvdType.rowType.dropFields(table.typ.key.toSet)
-  override lazy val rvdType: RVDType = child.rvdType.copy(
-    rowType = child.rvdType.rowType.appendKey(root, annotationRVDType))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
@@ -829,8 +792,6 @@ case class CastTableToMatrix(
     child.typ.key,
     child.typ.rowType.rename(m))
 
-  override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType.rename(m))
-
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastTableToMatrix = {
@@ -853,7 +814,7 @@ case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction
     MatrixToMatrixApply(newChild, function)
   }
 
-  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+  override lazy val typ: MatrixType = function.typ(child.typ)
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None

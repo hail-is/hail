@@ -15,12 +15,11 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
 case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends MatrixToTableFunction {
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
-    val typ = TableType(
+  override def typ(childType: MatrixType): TableType = {
+    TableType(
       childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64())),
       childType.rowKey,
       TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(childType.colKeyStruct ++ TStruct("scores" -> TArray(TFloat64())))))
-    (typ, typ.canonicalRVDType)
   }
 
   def preservesPartitionCounts: Boolean = false
