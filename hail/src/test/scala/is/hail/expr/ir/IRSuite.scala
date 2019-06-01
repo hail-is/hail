@@ -1726,9 +1726,9 @@ class IRSuite extends SparkSuite {
           GetField(Ref("sa", read.typ.colType), "col_f32"),
           F32(-5.2f))))
       val newRow = MakeStruct(FastIndexedSeq(
-        "row_idx" -> GetField(Ref("va", read.typ.rvRowType), "row_idx"),
+        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
         "new_f32" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rvRowType), "row_f32"),
+          GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f)))
       )
 
@@ -2121,7 +2121,7 @@ class IRSuite extends SparkSuite {
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
     Array(VEP("foo", false, 1)),
-    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "bar", "baz", "qux", FastIndexedSeq("ck"))),
+    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "baz", FastIndexedSeq("ck"))),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),

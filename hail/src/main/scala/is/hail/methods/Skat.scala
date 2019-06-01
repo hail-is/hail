@@ -324,7 +324,7 @@ case class Skat(
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
@@ -335,13 +335,13 @@ case class Skat(
 
     val sc = mv.sparkContext
 
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length

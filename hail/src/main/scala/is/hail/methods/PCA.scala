@@ -46,9 +46,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
           s"but user requested ${ k } principal components.")
 
     def collectRowKeys(): Array[Annotation] = {
-      val fullRowType = mv.typ.rvRowType.physicalType
       val rowKeyIdx = mv.typ.rowKeyFieldIdx
-      val localKeyStruct = mv.typ.rowKeyStruct
 
       mv.rvd.toRows.map[Any] { r =>
         Row.fromSeq(rowKeyIdx.map(r.get))

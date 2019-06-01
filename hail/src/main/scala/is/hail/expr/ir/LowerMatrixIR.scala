@@ -58,16 +58,20 @@ object LowerMatrixIR {
   def entries(tir: TableIR): IR =
     GetField(Ref("row", tir.typ.rowType), entriesFieldName)
 
-  def loweredType(
-    typ: MatrixType,
-    entriesFieldName: String = entriesFieldName,
-    colsFieldName: String = colsFieldName
-  ): TableType = TableType(
-    rowType = typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
-    key = typ.rowKey,
-    globalType = typ.globalType.appendKey(colsFieldName, TArray(typ.colType)))
-
   import is.hail.expr.ir.IRBuilder._
+
+  def matrixSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
+    val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+      "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))
+    BindingEnv(e, agg = Some(e), scan = Some(e))
+  }
+
+  def matrixSubstEnvIR(child: MatrixIR, lowered: TableIR): BindingEnv[IR] = {
+    val e = Env[IR]("global" -> SelectFields(Ref("global", lowered.typ.globalType), child.typ.globalType.fieldNames),
+      "va" -> SelectFields(Ref("row", lowered.typ.rowType), child.typ.rowType.fieldNames))
+    BindingEnv(e, agg = Some(e), scan = Some(e))
+  }
+
 
   private[this] def lower(mir: MatrixIR, ab: ArrayBuilder[(String, IR)]): TableIR = {
     val lowered = mir match {
@@ -92,8 +96,8 @@ object LowerMatrixIR {
         val loweredChild = lower(child, ab)
         TableToTableApply(loweredChild, function.lower()
           .getOrElse(WrappedMatrixToMatrixFunction(function,
-            colsFieldName, colsFieldName,
-            entriesFieldName, entriesFieldName,
+            colsFieldName,
+            entriesFieldName,
             child.typ.colKey)))
 
       case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
@@ -105,7 +109,7 @@ object LowerMatrixIR {
         }
 
         if (entryMap.nonEmpty) {
-          val newEntriesType = child.typ.entryArrayType.copy(elementType = child.typ.entryType.rename(entryMap))
+          val newEntriesType = TArray(child.typ.entryType.rename(entryMap))
           t = t.mapRows('row.castRename(t.typ.rowType.insertFields(FastSeq((entriesFieldName, newEntriesType)))))
         }
 
@@ -116,20 +120,15 @@ object LowerMatrixIR {
 
       case MatrixFilterRows(child, pred) =>
         lower(child, ab)
-          .rename(Map(entriesFieldName -> MatrixType.entriesIdentifier))
-          .filter(let(va = 'row,
-            global = 'global.dropFields(colsField))
-            in pred)
-          .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName))
+          .filter(subst(pred, matrixSubstEnv(child)))
 
       case MatrixFilterCols(child, pred) =>
         lower(child, ab)
           .mapGlobals('global.insertFields('newColIdx ->
             irRange(0, 'global (colsField).len)
               .filter('i ~>
-                (let(sa = 'global (colsField)('i),
-                  global = 'global.dropFields(colsField))
-                  in pred))))
+                (let(sa = 'global (colsField)('i))
+                  in subst(pred, matrixSubstEnv(child))))))
           .mapRows('row.insertFields(entriesField -> 'global ('newColIdx).map('i ~> 'row (entriesField)('i))))
           .mapGlobals('global
             .insertFields(colsField ->
@@ -167,9 +166,8 @@ object LowerMatrixIR {
       case MatrixMapGlobals(child, newGlobals) =>
         lower(child, ab)
           .mapGlobals(
-            let(global = 'global.dropFields(colsField)) {
-              newGlobals
-            }
+            subst(newGlobals, BindingEnv(Env[IRProxy](
+              "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))))
               .insertFields(colsField -> 'global (colsField)))
 
       case MatrixMapRows(child, newRow) => {
@@ -207,10 +205,8 @@ object LowerMatrixIR {
         }
 
         val lc = lower(child, ab)
-        val e = Env[IR]("va" -> Ref("row", lc.typ.rowType),
-          "global" -> SelectFields(Ref("global", lc.typ.globalType), child.typ.globalType.fieldNames))
         lc.mapRows(
-          liftScans(Subst(newRow, BindingEnv(e, scan = Some(e), agg = Some(e))))
+          liftScans(Subst(newRow, matrixSubstEnvIR(child, lc)))
             .insertFields(entriesField -> 'row (entriesField)))
       }
 
@@ -235,11 +231,7 @@ object LowerMatrixIR {
             MapIR(lift)(ir)
         }
 
-        val e = Env[IR]("global" -> SelectFields(Ref("global", loweredChild.typ.globalType),
-          child.typ.globalType.fieldNames))
-        val substEnv = BindingEnv(e, Some(e), Some(e))
-
-        var b0 = lift(Subst(newCol, substEnv))
+        var b0 = lift(Subst(newCol, matrixSubstEnvIR(child,loweredChild)))
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
@@ -251,7 +243,7 @@ object LowerMatrixIR {
         else {
           val aggStruct = MakeStruct(aggs)
           val aggResultArray = loweredChild.aggregate(
-            aggLet(va = 'row) {
+            aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
               irRange(0, 'global (colsField).len)
                 .aggElements('__element_idx, '__result_idx, Some('global (colsField).len))(
                   let(sa = 'global (colsField)('__result_idx)) {
@@ -298,14 +290,13 @@ object LowerMatrixIR {
         ))))
 
       case MatrixFilterEntries(child, pred) =>
-        lower(child, ab).mapRows('row.insertFields(entriesField ->
+        val lc = lower(child, ab)
+          lc.mapRows('row.insertFields(entriesField ->
           irRange(0, 'global (colsField).len).map {
             'i ~>
               let(g = 'row (entriesField)('i)) {
-                irIf(let(sa = 'global (colsField)('i),
-                  va = 'row,
-                  global = 'global.dropFields(colsField))
-                  in !irToProxy(pred)) {
+                irIf(let(sa = 'global (colsField)('i))
+                  in !subst(pred, matrixSubstEnv(child))) {
                   NA(child.typ.entryType)
                 } {
                   'g
@@ -316,8 +307,9 @@ object LowerMatrixIR {
       case MatrixUnionCols(left, right) =>
         val rightEntries = genUID()
         val rightCols = genUID()
+        val ll = lower(left, ab).distinct()
         TableJoin(
-          lower(left, ab).distinct(),
+          ll,
           lower(right, ab).distinct()
             .mapRows('row
               .insertFields(Symbol(rightEntries) -> 'row (entriesField))
@@ -330,7 +322,7 @@ object LowerMatrixIR {
             .insertFields(entriesField ->
               makeArray('row (entriesField), 'row (Symbol(rightEntries))).flatMap('a ~> 'a))
             // TableJoin puts keys first; drop rightEntries, but also restore left row field order
-            .selectFields(left.typ.rvRowType.fieldNames: _*))
+            .selectFields(ll.typ.rowType.fieldNames: _*))
           .mapGlobals('global
             .insertFields(colsField ->
               makeArray('global (colsField), 'global (Symbol(rightCols))).flatMap('a ~> 'a))
@@ -341,10 +333,10 @@ object LowerMatrixIR {
           irRange(0, 'global (colsField).len).map {
             'i ~>
               let(g = 'row (entriesField)('i),
-                sa = 'global (colsField)('i),
-                va = 'row,
-                global = 'global.dropFields(colsField)) {
-                newEntries
+                sa = 'global (colsField)('i)) {
+                subst(newEntries, BindingEnv(Env(
+                  "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+                  "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*))))
               }
           }))
 
@@ -354,7 +346,10 @@ object LowerMatrixIR {
 
       case MatrixUnionRows(children) =>
         // FIXME: this should check that all children have the same column keys.
-        TableUnion(MatrixUnionRows.unify(children).map(lower(_, ab)))
+        val first = lower(children.head, ab)
+        TableUnion(FastIndexedSeq(first) ++
+          children.tail.map(lower(_, ab)
+            .mapRows('row.selectFields(first.typ.rowType.fieldNames: _*))))
 
       case MatrixDistinctByRow(child) => TableDistinct(lower(child, ab))
 
@@ -404,9 +399,7 @@ object LowerMatrixIR {
 
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
 
-        val substEnv = BindingEnv[IRProxy](
-          Env(("global", 'global.dropFields(colsField))),
-          agg = Some(Env(("va", 'row), ("global", 'global.dropFields(colsField)))))
+        val substEnv = matrixSubstEnv(child)
         val eeSub = subst(entryExpr, substEnv)
         val reSub = subst(rowExpr, substEnv)
         lower(child, ab)
@@ -463,11 +456,10 @@ object LowerMatrixIR {
         val keyMap = Symbol(genUID())
         val aggElementIdx = Symbol(genUID())
 
-        val substEnv = BindingEnv[IRProxy](
-          Env(("global", 'global.dropFields(colsField, keyMap))),
-          agg = Some(Env(("global", 'global.dropFields(colsField, keyMap)))))
+        val substEnv = matrixSubstEnv(child)
         val ceSub = subst(colExpr, substEnv)
-        val eeSub = subst(entryExpr, substEnv.bindEval("va", 'row).bindAgg("va", 'row))
+        val vaBinding = 'row.selectFields(child.typ.rowType.fieldNames: _*)
+        val eeSub = subst(entryExpr, substEnv.bindEval("va", vaBinding).bindAgg("va", vaBinding))
 
         lower(child, ab)
           .mapGlobals('global.insertFields(keyMap ->
@@ -504,12 +496,11 @@ object LowerMatrixIR {
               }
             ).dropFields(keyMap))
 
-      case MatrixLiteral(value) => TableLiteral(value.toTableValue(colsFieldName, entriesFieldName))
+      case MatrixLiteral(value) => TableLiteral(value.toTableValue)
     }
 
-    assert(lowered.typ == loweredType(mir.typ),
-      s"\n  ACTUAL: ${ lowered.typ }\n  EXPECT: ${ loweredType(mir.typ) }" +
-        s"\n  BEFORE: ${ Pretty(mir) }\n  AFTER: ${ Pretty(lowered) }")
+    if (!mir.typ.isCompatibleWith(lowered.typ))
+      throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${ Pretty(mir) }\n  AFTER: ${ Pretty(lowered) }")
     lowered
   }
 
@@ -517,7 +508,9 @@ object LowerMatrixIR {
   private[this] def lower(tir: TableIR, ab: ArrayBuilder[(String, IR)]): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
-        TableRename(lower(child, ab), Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
+        lower(child, ab)
+          .mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
+          .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
       case MatrixEntriesTable(child) =>
         val oldColIdx = Symbol(genUID())
@@ -601,16 +594,17 @@ object LowerMatrixIR {
       case MatrixMultiWrite(children, writer) =>
         TableMultiWrite(children.map(lower(_, ab)), WrappedMatrixNativeMultiWriter(writer, children.head.typ.colKey))
       case MatrixAggregate(child, query) =>
+        val lc = lower(child, ab)
         val idx = Symbol(genUID())
-        lower(child, ab)
+        lc
           .aggregate(
             aggLet(
               __entries_field = 'row (entriesField),
               __cols_field = 'global (colsField)) {
               irRange(0, '__entries_field.len)
                 .filter(idx ~> !'__entries_field (idx).isNA)
-                .aggExplode(idx ~> aggLet(va = 'row, sa = '__cols_field (idx), g = '__entries_field (idx)) {
-                  query
+                .aggExplode(idx ~> aggLet(sa = '__cols_field (idx), g = '__entries_field (idx)) {
+                  subst(query, matrixSubstEnv(child))
                 })
             })
       case _ => lowerChildren(ir, ab).asInstanceOf[IR]

@@ -369,9 +369,9 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
 
-    val fullRowType = typ.rvRowType.physicalType
-    val localEntriesIndex = typ.entriesIdx
-    val localEntriesType = typ.entryArrayType.physicalType
+    val fullRowType = mv.rvRowPType
+    val localEntriesIndex = mv.entriesIdx
+    val localEntriesType = mv.entryArrayPType
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
