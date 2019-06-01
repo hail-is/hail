@@ -41,8 +41,7 @@ python/hail/hail_pip_version:
 	echo $(HAIL_PIP_VERSION) > python/hail/hail_pip_version
 
 jars: build-info
-	make -C src/main/c
-	mvn -B compile test-compile jar:jar jar:test-jar assembly:single
+	./gradlew shadowTestJar shadowJar
 
 wheel: build-info shadowJar init-scripts
 	rm -rf build/deploy
@@ -124,6 +123,5 @@ tag: check-tag
 deploy: pypi-deploy tag
 
 clean:
-	make -C src/main/c clean
-	mvn -B clean
+	./gradlew clean
 	rm -rf build/deploy
