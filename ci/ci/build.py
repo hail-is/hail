@@ -43,7 +43,7 @@ class Code(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def config(self, deploy):
+    def config(self):
         pass
 
     @abc.abstractmethod
