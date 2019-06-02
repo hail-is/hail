@@ -295,7 +295,7 @@ class BatchBackend(Backend):
             jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
-        batch.close()
+        batch = batch.submit()
         status = batch.wait()
 
         failed_jobs = [(j['job_id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
