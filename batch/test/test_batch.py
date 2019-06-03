@@ -133,12 +133,11 @@ class Test(unittest.TestCase):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['sleep', '30'])
         b.close()
-        id = j.id
         b.delete()
 
         # verify doesn't exist
         try:
-            self.client.get_job(id)
+            self.client.get_job(*j.id)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -170,7 +169,7 @@ class Test(unittest.TestCase):
 
     def test_get_nonexistent_job(self):
         try:
-            self.client.get_job(666)
+            self.client.get_job(1, 666)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 pass
@@ -182,9 +181,9 @@ class Test(unittest.TestCase):
         j = b.create_job('alpine', ['true'])
         b.close()
 
-        j2 = self.client.get_job(j.id)
+        j2 = self.client.get_job(*j.id)
         status2 = j2.status()
-        assert(status2['id'] == j.id)
+        assert (status2['batch_id'], status2['job_id']) == j.id
 
     def test_batch(self):
         b = self.client.create_batch()
@@ -284,8 +283,8 @@ class Test(unittest.TestCase):
     def test_authorized_users_only(self):
         endpoints = [
             (requests.post, '/jobs/create'),
-            (requests.get, '/jobs/0'),
-            (requests.get, '/jobs/0/log'),
+            (requests.get, '/batches/0/jobs/0'),
+            (requests.get, '/batches/0/jobs/0/log'),
             (requests.get, '/batches'),
             (requests.post, '/batches/create'),
             (requests.get, '/batches/0'),
@@ -293,7 +292,7 @@ class Test(unittest.TestCase):
             (requests.patch, '/batches/0/close'),
             (requests.get, '/ui/batches'),
             (requests.get, '/ui/batches/0'),
-            (requests.get, '/ui/jobs/0/log')]
+            (requests.get, '/ui/batches/0/jobs/0/log')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
@@ -345,6 +344,6 @@ class Test(unittest.TestCase):
         assert (r.status_code >= 200) and (r.status_code < 300)
 
         # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/jobs/{j.id}/log',
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches/{j.batch_id}/jobs/{j.job_id}/log',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)

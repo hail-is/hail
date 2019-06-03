@@ -147,14 +147,16 @@ async def get_batch(request):
     }
 
 
-@routes.get('/jobs/{job_id}/log')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @authenticated_users_only
 @aiohttp_jinja2.template('job_log.html')
 async def get_job_log(request):
+    batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
     batch_client = request.app['batch_client']
-    job = await batch_client.get_job(job_id)
+    job = await batch_client.get_job(batch_id, job_id)
     return {
+        'batch_id': batch_id,
         'job_id': job_id,
         'job_log': await job.log()
     }

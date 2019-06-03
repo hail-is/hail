@@ -18,13 +18,21 @@ class Job:
         j._async_job = job
         return j
 
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
-        self._async_job = aioclient.Job(client, id, attributes=attributes,
+    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
+        self._async_job = aioclient.Job(batch, job_id, attributes=attributes,
                                         parent_ids=parent_ids, _status=_status)
 
     @property
     def _status(self):
         return self._async_job._status
+
+    @property
+    def batch_id(self):
+        return self._async_job.batch_id
+
+    @property
+    def job_id(self):
+        return self._async_job.job_id
 
     @property
     def id(self):
@@ -115,8 +123,8 @@ class BatchClient:
             self._async_client.list_batches(complete=complete, success=success, attributes=attributes))
         return [Batch.from_async_batch(b) for b in batches]
 
-    def get_job(self, id):
-        j = async_to_blocking(self._async_client.get_job(id))
+    def get_job(self, batch_id, job_id):
+        j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
         return Job.from_async_job(j)
 
     def get_batch(self, id):
