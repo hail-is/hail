@@ -1326,7 +1326,7 @@ object PruneDeadFields {
           rowKey = typ.rowKey,
           colKey = typ.colKey,
           rowType = unify(typ.rowType, selectKey(typ.rowType, typ.rowKey), requestedType.rowType),
-          entryType = typ.entryType,
+          entryType = requestedType.entryType,
           colType = unify(typ.colType, selectKey(typ.colType, typ.colKey), requestedType.colType),
           globalType = requestedType.globalType
         )
