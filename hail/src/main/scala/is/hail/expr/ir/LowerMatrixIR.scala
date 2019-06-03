@@ -500,7 +500,7 @@ object LowerMatrixIR {
     }
 
     if (!mir.typ.isCompatibleWith(lowered.typ))
-      throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${ Pretty(mir) }\n  AFTER: ${ Pretty(lowered) }")
+      throw new RuntimeException(s"Lowering changed type:\n  BEFORE: ${ Pretty(mir) }\n    ${ mir.typ }\n    ${ mir.typ.canonicalTableType}\n  AFTER: ${ Pretty(lowered) }\n    ${ lowered.typ }")
     lowered
   }
 

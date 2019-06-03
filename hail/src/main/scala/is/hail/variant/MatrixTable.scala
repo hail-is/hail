@@ -311,7 +311,7 @@ object VSMSubgen {
         "alleles" -> TArray(TString()))),
     rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
-    globalSigGen = Type.genInsertable,
+    globalSigGen = Type.genInsertable.map(_.setRequired(false).asInstanceOf[TStruct]),
     tSigGen = Gen.const(Genotype.htsGenotypeType),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
