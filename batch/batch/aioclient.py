@@ -51,7 +51,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self.batch._client._get('/batches/{}/jobs/{}'.format(self.batch_id, self.job_id))
+        self._status = await self.batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}')
         return self._status
 
     async def wait(self):
@@ -66,7 +66,7 @@ class Job:
                 i = i + 1
 
     async def log(self):
-        return await self.batch._client._get('/batches/{}/jobs/{}/log'.format(self.batch_id, self.job_id))
+        return await self.batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}/log')
 
 
 class Batch:
@@ -160,13 +160,13 @@ class Batch:
                    parent_ids=j.get('parent_ids', []))
 
     async def close(self):
-        await self._client._patch('/batches/{}/close'.format(self.id))
+        await self._client._patch(f'/batches/{self.id}/close')
 
     async def cancel(self):
-        await self._client._patch('/batches/{}/cancel'.format(self.id))
+        await self._client._patch(f'/batches/{self.id}/cancel')
 
     async def status(self):
-        return await self._client._get('/batches/{}'.format(self.id))
+        return await self._client._get(f'/batches/{self.id}')
 
     async def wait(self):
         i = 0
@@ -181,7 +181,7 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
-        await self._client._delete('/batches/{}'.format(self.id))
+        await self._client._delete(f'/batches/{self.id}')
 
 
 class BatchClient:
@@ -237,7 +237,7 @@ class BatchClient:
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
-        j = await self._get('/batches/{}/jobs/{}'.format(batch_id, job_id))
+        j = await self._get(f'/batches/{batch_id}/jobs/{job_id}')
         return Job(b,
                    j['job_id'],
                    attributes=j.get('attributes'),
