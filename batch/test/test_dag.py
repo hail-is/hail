@@ -53,9 +53,8 @@ def test_missing_parent_is_400(client):
         fake_job = Job.from_async_job(fake_job)
         batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[fake_job])
         batch.submit()
-    except aiohttp.ClientResponseError as err:
-        assert err.status == 400
-        assert re.search('.*invalid parent_id: no job with id.*', err.message)
+    except ValueError as err:
+        assert re.search('parents with invalid job ids', str(err))
         return
     assert False
 
@@ -168,7 +167,7 @@ def test_no_parents_allowed_in_other_batches(client):
     try:
         b2.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
     except ValueError as err:
-        assert re.search('found parents from another batch', str(err))
+        assert re.search('parents from another batch', str(err))
         return
     assert False
 
