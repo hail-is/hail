@@ -81,7 +81,10 @@ object LowerTableIR {
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
-      
+
+    case node if node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
+      throw new LowererUnsupportedOperation(s"BlockMatrixIR nodes are not supported: \n${ Pretty(node) }")
+
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })
   }
