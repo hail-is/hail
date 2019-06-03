@@ -78,13 +78,13 @@ class Batch:
 
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
-                         service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                         service_account_name=None, attributes=None, callback=None, parents=None,
                          input_files=None, output_files=None, always_run=False, pvc_size=None):
         self._job_idx += 1
 
-        if parent_ids is None:
-            parent_ids = []
-        parent_ids = [pid[1] for pid in parent_ids]
+        if parents is None:
+            parents = []
+        parent_ids = [parent.job_id for parent in parents]
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
