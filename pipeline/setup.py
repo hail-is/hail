@@ -8,5 +8,7 @@ setup(
     author_email = 'hail@broadinstitute.org',
     description = 'Pipeline builder',
     packages = find_packages(),
-    install_requires=[],
+    install_requires=[
+        'nest_asyncio'
+    ],
 )
