@@ -1,6 +1,11 @@
 FROM {{ base_image.image }}
 
-COPY router-resolver /router-resolver
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt/
+RUN pip3 install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
+
+COPY router-resolver/router-resolver /router-resolver
 
 EXPOSE 5000
 

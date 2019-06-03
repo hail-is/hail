@@ -1,5 +1,6 @@
 import os
 import logging
+from functools import wraps
 from aiohttp import web
 import jwt
 
@@ -53,19 +54,27 @@ def authenticated_users_only(fun):
 
     if not jwtclient:
         with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
-                                 '/jwt-secret/secret-key'), 'rb') as f:
+                                 '/jwt-secret-key/secret-key'), 'rb') as f:
             jwtclient = JWTClient(f.read())
 
+    @wraps(fun)
     def wrapped(request, *args, **kwargs):
         encoded_token = request.cookies.get('user')
         if encoded_token is not None:
             try:
                 userdata = jwtclient.decode(encoded_token)
-                if 'userdata' in fun.__code__.co_varnames:
-                    return fun(request, *args, userdata=userdata, **kwargs)
-                return fun(request, *args, **kwargs)
+                return fun(request, userdata, *args, **kwargs)
             except jwt.exceptions.InvalidTokenError as exc:
                 log.info(f'could not decode token: {exc}')
         raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-    wrapped.__name__ = fun.__name__
+    return wrapped
+
+
+def authenticated_developers_only(fun):
+    @authenticated_users_only
+    @wraps(fun)
+    def wrapped(request, userdata, *args, **kwargs):
+        if ('developer' in userdata) and userdata['developer'] is 1:
+            return fun(request, *args, **kwargs)
+        raise web.HTTPNotFound()
     return wrapped
