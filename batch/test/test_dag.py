@@ -7,7 +7,7 @@ from flask import Response
 
 import hailjwt as hj
 
-from batch.client import BatchClient
+from batch.client import BatchClient, Job
 from .serverthread import ServerThread
 
 
@@ -48,7 +48,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        batch.create_job('alpine:3.8', command=['echo', 'head'], parent_ids=[100000])
+        batch.create_job('alpine:3.8', command=['echo', 'head'], parent_ids=[(batch.id, 100000)])
         batch.close()
     except aiohttp.ClientResponseError as err:
         assert err.status == 400
@@ -175,17 +175,17 @@ def test_callback(client):
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code']['main'] == 0
                     for job_result in output])
-        assert output[0]['id'] == head.id
-        middle_ids = (output[1]['id'], output[2]['id'])
-        assert middle_ids in ((left.id, right.id), (right.id, left.id))
-        assert output[3]['id'] == tail.id
+        assert output[0]['job_id'] == head.job_id
+        middle_ids = (output[1]['job_id'], output[2]['job_id'])
+        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id))
+        assert output[3]['job_id'] == tail.job_id
     finally:
         if server:
             server.shutdown()
             server.join()
 
 
-def test_no_parents_allowed_in_other_batches(client):
+def test_no_parent_ids_allowed_in_other_batches(client):
     b1 = client.create_batch()
     b2 = client.create_batch()
     head = b1.create_job('alpine:3.8', command=['echo', 'head'])
@@ -193,7 +193,7 @@ def test_no_parents_allowed_in_other_batches(client):
         b2.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
     except aiohttp.ClientResponseError as err:
         assert err.status == 400
-        assert re.search('.*invalid parent batch: .*', err.message)
+        assert re.search('.*invalid parent_id: no job with id .*', err.message)
         return
     assert False
 
