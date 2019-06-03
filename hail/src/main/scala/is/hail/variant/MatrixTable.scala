@@ -12,6 +12,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
+import is.hail.io.fs.FS
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -85,18 +86,18 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def rvdSpec(hadoopConf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(hadoopConf, path + "/" + rel_path)
+  def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
+    AbstractRVDSpec.read(fs, path + "/" + rel_path)
 
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
@@ -442,8 +443,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
   def sparkContext: SparkContext = hc.sc
-
-  def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true
