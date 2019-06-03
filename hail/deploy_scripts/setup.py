@@ -33,15 +33,15 @@ setup(
         'numpy<2',
         'pandas>0.22,<0.24',
         'matplotlib<3',
-        'seaborn<0.9',
-        'bokeh<0.14',
+        'bokeh>1.1,<1.3',
         'pyspark>=2.4,<2.4.2',
         'parsimonious<0.9',
         'ipykernel<5',
         'decorator<5',
         'requests>=2.21.0,<2.21.1',
         'gcsfs==0.2.1',
-        'hurry.filesize==0.9'
+        'hurry.filesize==0.9',
+        'scipy>1.2, <1.4'
     ],
     entry_points={
         'console_scripts': ['hailctl = hailctl.__main__:main']
