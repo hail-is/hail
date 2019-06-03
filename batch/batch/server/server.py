@@ -166,6 +166,8 @@ class Job:
                     storage_class_name=STORAGE_CLASS_NAME)))
         if err is not None:
             log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
+            if err.status == 403:
+                await self.mark_complete(None, failed=True)
             return None
         pvc_name = pvc.metadata.name
         await db.jobs.update_record(*self.id, pvc_name=pvc_name)
@@ -499,7 +501,9 @@ class Job:
         await self._create_pod()
 
     async def mark_complete(self, pod, failed=False):
-        assert pod.metadata.name == self._pod_name
+        if pod is not None:
+            assert pod.metadata.name == self._pod_name
+
         task_name = self._current_task.name
 
         if failed:
