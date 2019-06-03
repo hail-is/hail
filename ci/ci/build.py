@@ -84,15 +84,15 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 await step.build(batch, code, deploy)
 
-        ids = set()
+        parents = set()
         for step in self.steps:
-            ids.update(step.self_ids())
-        ids = list(ids)
+            parents.update(step.wrapped_job())
+        parents = list(parents)
 
         sink = await batch.create_job('ubuntu:18.04',
                                       command=['/bin/true'],
                                       attributes={'name': 'sink'},
-                                      parent_ids=ids)
+                                      parents=parents)
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
@@ -127,10 +127,10 @@ class Step(abc.ABC):
                 config[d.name] = d.config(deploy)
         return config
 
-    def deps_parent_ids(self):
+    def deps_parents(self):
         if not self.deps:
             return None
-        return flatten([d.self_ids() for d in self.deps])
+        return flatten([d.wrapped_job() for d in self.deps])
 
     @staticmethod
     def from_json(params):
@@ -166,9 +166,9 @@ class BuildImageStep(Step):
         self.image = f'{self.base_image}:{self.token}'
         self.job = None
 
-    def self_ids(self):
+    def wrapped_job(self):
         if self.job:
-            return [self.job.id]
+            return [self.job]
         return []
 
     @staticmethod
@@ -294,7 +294,7 @@ date
                                           attributes={'name': self.name},
                                           volumes=volumes,
                                           input_files=input_files,
-                                          parent_ids=self.deps_parent_ids())
+                                          parents=self.deps_parents())
 
     async def cleanup(self, batch, deploy, sink):
         if deploy and self.publish_as:
@@ -332,7 +332,7 @@ true
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
                                           volumes=volumes,
-                                          parent_ids=[sink.id],
+                                          parents=[sink],
                                           always_run=True)
 
 
@@ -349,9 +349,9 @@ class RunImageStep(Step):
         self.always_run = always_run
         self.job = None
 
-    def self_ids(self):
+    def wrapped_job(self):
         if self.job:
-            return [self.job.id]
+            return [self.job]
         return []
 
     @staticmethod
@@ -420,7 +420,7 @@ class RunImageStep(Step):
             output_files=output_files,
             volumes=volumes,
             service_account_name=self.service_account,
-            parent_ids=self.deps_parent_ids(),
+            parents=self.deps_parents(),
             always_run=self.always_run)
 
     async def cleanup(self, batch, deploy, sink):
@@ -446,9 +446,9 @@ class CreateNamespaceStep(Step):
         else:
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
 
-    def self_ids(self):
+    def wrapped_job(self):
         if self.job:
-            return [self.job.id]
+            return [self.job]
         return []
 
     @staticmethod
@@ -555,7 +555,7 @@ date
                                           attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci-agent',
-                                          parent_ids=self.deps_parent_ids())
+                                          parents=self.deps_parents())
 
     async def cleanup(self, batch, deploy, sink):
         if deploy:
@@ -575,7 +575,7 @@ true
                                           command=['bash', '-c', script],
                                           attributes={'name': f'cleanup_{self.name}'},
                                           service_account_name='ci-agent',
-                                          parent_ids=[sink.id],
+                                          parents=[sink],
                                           always_run=True)
 
 
@@ -588,9 +588,9 @@ class DeployStep(Step):
         self.wait = wait
         self.job = None
 
-    def self_ids(self):
+    def wrapped_job(self):
         if self.job:
-            return [self.job.id]
+            return [self.job]
         return []
 
     @staticmethod
@@ -685,7 +685,7 @@ date
                                           attributes=attrs,
                                           # FIXME configuration
                                           service_account_name='ci-agent',
-                                          parent_ids=self.deps_parent_ids())
+                                          parents=self.deps_parents())
 
     async def cleanup(self, batch, deploy, sink):  # pylint: disable=unused-argument
         if self.wait:
@@ -706,7 +706,7 @@ date
                                               attributes={'name': self.name + '_logs'},
                                               # FIXME configuration
                                               service_account_name='ci-agent',
-                                              parent_ids=[sink.id],
+                                              parents=[sink],
                                               always_run=True)
 
 
@@ -731,9 +731,9 @@ class CreateDatabaseStep(Step):
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
-    def self_ids(self):
+    def wrapped_job(self):
         if self.job:
-            return [self.job.id]
+            return [self.job]
         return []
 
     @staticmethod
@@ -836,7 +836,7 @@ echo done.
                                           attributes={'name': self.name},
                                           # FIXME configuration
                                           service_account_name='ci-agent',
-                                          parent_ids=self.deps_parent_ids())
+                                          parents=self.deps_parents())
 
     async def cleanup(self, batch, deploy, sink):
         if deploy:
@@ -861,5 +861,5 @@ true
                                           attributes={'name': f'cleanup_{self.name}'},
                                           # FIXME configuration
                                           service_account_name='ci-agent',
-                                          parent_ids=[sink.id],
+                                          parents=[sink],
                                           always_run=True)

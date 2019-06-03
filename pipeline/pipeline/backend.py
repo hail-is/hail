@@ -185,7 +185,7 @@ class BatchBackend(Backend):
         used_remote_tmpdir = False
 
         task_to_job_mapping = {}
-        job_id_to_command = {}
+        jobs_to_command = {}
         commands = []
 
         activate_service_account = 'set -ex; gcloud -q auth activate-service-account ' \
@@ -223,7 +223,7 @@ class BatchBackend(Backend):
                 j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
                                      command=['/bin/bash', '-c', write_cmd],
                                      attributes={'name': 'write_external_inputs'})
-                job_id_to_command[j.id] = write_cmd
+                jobs_to_command[j] = write_cmd
                 n_jobs_submitted += 1
                 if verbose:
                     print(f"Submitted Job {j.id} with command: {write_cmd}")
@@ -251,7 +251,7 @@ class BatchBackend(Backend):
                 commands.append(cmd)
                 continue
 
-            parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
+            parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
             if task._label:
@@ -265,7 +265,7 @@ class BatchBackend(Backend):
 
             j = batch.create_job(image=task._image if task._image else default_image,
                                  command=['/bin/bash', '-c', cmd],
-                                 parent_ids=parent_ids,
+                                 parents=parents,
                                  attributes=attributes,
                                  resources=resources,
                                  input_files=inputs if len(inputs) > 0 else None,
@@ -274,7 +274,7 @@ class BatchBackend(Backend):
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
-            job_id_to_command[j.id] = defs + cmd
+            jobs_to_command[j] = defs + cmd
             if verbose:
                 print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
@@ -283,16 +283,16 @@ class BatchBackend(Backend):
             return
 
         if delete_scratch_on_exit and used_remote_tmpdir:
-            parent_ids = list(job_id_to_command.keys())
+            parents = list(jobs_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
             cmd = f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
-                parent_ids=parent_ids,
+                parents=parents,
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True)
-            job_id_to_command[j.id] = cmd
+            jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
         batch.close()
@@ -308,7 +308,7 @@ class BatchBackend(Backend):
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
-                f"  Command:\t{job_id_to_command[jid]}\n"
+                f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
         n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
