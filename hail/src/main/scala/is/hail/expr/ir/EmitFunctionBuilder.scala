@@ -12,6 +12,7 @@ import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -45,8 +46,8 @@ object EmitFunctionBuilder {
     new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-trait FunctionWithHadoopConfiguration {
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -149,8 +150,8 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] var _hconf: SerializableHadoopConfiguration = _
-  private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+  private[this] var _hfs: FS = _
+  private[this] var _hfield: ClassFieldRef[FS] = _
 
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _sparkField: ClassFieldRef[SparkBackendUtils] = _
@@ -171,22 +172,22 @@ class EmitFunctionBuilder[F >: Null](
     _mods += name -> mod
   }
 
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    assert(hConf != null)
-    if (_hconf == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
-      val confField = newField[SerializableHadoopConfiguration]
-      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+  def addFS(fs: FS): Unit = {
+    assert(fs != null)
+    if (_hfs == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
+      val confField = newField[FS]
+      val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-      _hconf = hConf
+      mb.emit(confField := mb.getArg[FS](1))
+      _hfs = fs
       _hfield = confField
     }
-    assert(_hconf.value == hConf.value && _hfield != null)
+    assert(_hfs == fs && _hfield != null)
   }
 
-  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+  def getFS: Code[FS] = {
+    assert(_hfs != null && _hfield != null, s"${_hfield == null}")
     _hfield.load()
   }
 
@@ -360,7 +361,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
-    val localHConf = _hconf
+    val localFS = _hfs
 
     val useSpark = _sparkField != null
     val spark = if (useSpark) new SparkBackendUtils(_mods.result()) else null
@@ -382,8 +383,8 @@ class EmitFunctionBuilder[F >: Null](
             }
           }
           val f = theClass.newInstance().asInstanceOf[F]
-          if (localHConf != null)
-            f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+          if (localFS != null)
+            f.asInstanceOf[FunctionWithFS].addFS(localFS)
           if (useSpark)
             f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)

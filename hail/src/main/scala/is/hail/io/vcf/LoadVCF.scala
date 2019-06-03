@@ -30,6 +30,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 
+import is.hail.io.fs.FS
+
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
   override def peek(): String = bit.head
 
@@ -1036,10 +1038,10 @@ object LoadVCF {
   }
 
   def globAllVCFs(arguments: Array[String],
-    hConf: hadoop.conf.Configuration,
+    fs: FS,
     forceGZ: Boolean = false,
     gzAsBGZ: Boolean = false): Array[String] = {
-    val inputs = hConf.globAll(arguments)
+    val inputs = fs.globAll(arguments)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
@@ -1048,7 +1050,7 @@ object LoadVCF {
       if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || input.endsWith(".vcf.gz")))
         warn(s"expected input file '$input' to end in .vcf[.bgz, .gz]")
       if (input.endsWith(".gz"))
-        checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
+        checkGzippedFile(fs, input, forceGZ, gzAsBGZ)
     }
     inputs
   }
@@ -1187,9 +1189,9 @@ object LoadVCF {
   }
 
   def getHeaderLines[T](
-    hConf: Configuration,
+    fs: FS,
     file: String,
-    filterAndReplace: TextInputFilterAndReplace): Array[String] = hConf.readLines(file, filterAndReplace) { lines =>
+    filterAndReplace: TextInputFilterAndReplace): Array[String] = fs.readLines(file, filterAndReplace) { lines =>
       lines
       .takeWhile { line => line.value(0) == '#' }
       .map(_.value)
@@ -1270,8 +1272,8 @@ object LoadVCF {
   }
 
   def parseHeaderMetadata(hc: HailContext, callFields: Set[String], entryFloatType: TNumeric, headerFile: String): VCFMetadata = {
-    val hConf = hc.hadoopConf
-    val headerLines = getHeaderLines(hConf, headerFile, TextInputFilterAndReplace())
+    val fs = hc.sFS
+    val headerLines = getHeaderLines(fs, headerFile, TextInputFilterAndReplace())
     val VCFHeaderInfo(_, _, _, _, filterAttrs, infoAttrs, formatAttrs, _) = parseHeader(callFields, entryFloatType, headerLines)
 
     Map("filter" -> filterAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
@@ -1418,19 +1420,20 @@ case class MatrixVCFReader(
   private val hc = HailContext.get
   private val sc = hc.sc
   private val hConf = sc.hadoopConfiguration
+  private val fs = hc.sFS
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, forceGZ, gzAsBGZ)
+  private val inputs = LoadVCF.globAllVCFs(fs.globAll(files), fs, forceGZ, gzAsBGZ)
 
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
 
-  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head), filterAndReplace)
+  private val headerLines1 = getHeaderLines(fs, headerFile.getOrElse(inputs.head), filterAndReplace)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
-    val confBc = HailContext.hadoopConfBc
+    val bcFS = HailContext.bcFS
     val header1Bc = sc.broadcast(header1)
 
     val localCallFields = callFields
@@ -1439,9 +1442,9 @@ case class MatrixVCFReader(
     val localArrayElementsRequired = arrayElementsRequired
     val localFilterAndReplace = filterAndReplace
     sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
-      val hConf = confBc.value.value
+      val fs = bcFS.value
       val hd = parseHeader(
-        localCallFields, localFloatType, getHeaderLines(hConf, file, localFilterAndReplace),
+        localCallFields, localFloatType, getHeaderLines(fs, file, localFilterAndReplace),
         arrayElementsRequired = localArrayElementsRequired)
       val hd1 = header1Bc.value
 
@@ -1619,6 +1622,9 @@ class VCFsReader(
   private val sc = hc.sc
   private val hConf = hc.hadoopConf
   private val hConfBc = hc.hadoopConfBc
+  private val fs = hc.sFS
+  private val bcFS = hc.bcFS
+
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
@@ -1627,7 +1633,7 @@ class VCFsReader(
   private val rowKeyType = TStruct("locus" -> locusType)
 
   private val file1 = files.head
-  private val headerLines1 = getHeaderLines(hConf, externalHeader.getOrElse(file1), filterAndReplace)
+  private val headerLines1 = getHeaderLines(fs, externalHeader.getOrElse(file1), filterAndReplace)
   private val headerLines1Bc = sc.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
@@ -1671,7 +1677,7 @@ class VCFsReader(
   }
 
   private val fileInfo: Array[Array[String]] = externalSampleIds.getOrElse {
-    val localHConfBc = hConfBc
+    val localBcFS = bcFS
     val localFile1 = file1
     val localEntryFloatType = entryFloatType
     val localCallFields = callFields
@@ -1681,8 +1687,8 @@ class VCFsReader(
     val localVASignature = header1.vaSignature
 
     sc.parallelize(files, files.length).map { file =>
-      val hConf = localHConfBc.value.value
-      val headerLines = getHeaderLines(hConf, file, localFilterAndReplace)
+      val fs = localBcFS.value
+      val headerLines = getHeaderLines(fs, file, localFilterAndReplace)
       val header = parseHeader(
         localCallFields, localEntryFloatType, headerLines, arrayElementsRequired = localArrayElementsRequired)
 

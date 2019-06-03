@@ -35,10 +35,10 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def read(hc: HailContext, path: String): RelationalSpec = {
-    if (!hc.hadoopConf.isDir(path))
+    if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
+    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -56,7 +56,7 @@ object RelationalSpec {
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -75,8 +75,8 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def write(hadoopConf: org.apache.hadoop.conf.Configuration, path: String) {
-    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+  def write(fs: is.hail.io.fs.FS, path: String) {
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }

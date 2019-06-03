@@ -11,6 +11,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
@@ -71,7 +72,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
+    val fs = hc.sFS
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -82,22 +83,22 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         CodecSpec.default
 
     if (overwrite)
-      hadoopConf.delete(path, recursive = true)
-    else if (hadoopConf.exists(path))
+      fs.delete(path, recursive = true)
+    else if (fs.exists(path))
       fatal(s"file already exists: $path")
 
-    hadoopConf.mkDir(path)
+    fs.mkDir(path)
 
     val globalsPath = path + "/globals"
-    hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(hadoopConf, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
+    fs.mkDir(globalsPath)
+    AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
-    hadoopConf.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.globalType)
+    fs.mkDir(referencesPath)
+    ReferenceGenome.exportReferences(fs, referencesPath, typ.rowType)
+    ReferenceGenome.exportReferences(fs, referencesPath, typ.globalType)
 
     val spec = TableSpec(
       FileFormat.version.rep,
@@ -107,11 +108,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hadoopConf, path)
+    spec.write(fs, path)
 
     writeNativeFileReadMe(path)
 
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    fs.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +

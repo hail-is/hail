@@ -9,6 +9,7 @@ import is.hail.expr.types.virtual.{TStructSerializer, _}
 import is.hail.io._
 import is.hail.utils._
 import org.apache.hadoop
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -27,22 +28,22 @@ object AbstractRVDSpec {
     new TStructSerializer +
     new RVDTypeSerializer
 
-  def read(conf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec = {
+  def read(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    fs.readFile(metadataFile) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.hadoopConf, path)
+  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.sFS, path)
 
   def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
     assert(partFiles.length == 1)
 
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
     partFiles.flatMap { p =>
       val f = path + "/parts/" + p
-      hConf.readFile(f) { in =>
+      fs.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
             .map { rv =>
@@ -56,14 +57,14 @@ object AbstractRVDSpec {
   }
 
   def writeSingle(
-    hConf: org.apache.hadoop.conf.Configuration,
+    fs: is.hail.io.fs.FS,
     path: String,
     rowType: PStruct,
     codecSpec: CodecSpec,
     rows: IndexedSeq[Annotation]
   ): Array[Long] = {
     val partsPath = path + "/parts"
-    hConf.mkDir(partsPath)
+    fs.mkDir(partsPath)
 
     val filePath = if (TaskContext.get == null)
       "part-0"
@@ -71,7 +72,7 @@ object AbstractRVDSpec {
       partFile(0, 0, TaskContext.get)
 
     val part0Count =
-      hConf.writeFile(partsPath + "/" + filePath) { os =>
+      fs.writeFile(partsPath + "/" + filePath) { os =>
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
@@ -90,7 +91,7 @@ object AbstractRVDSpec {
       codecSpec,
       Array(filePath),
       RVDPartitioner.unkeyed(1))
-    spec.write(hConf, path)
+    spec.write(fs, path)
 
     Array(part0Count)
   }
@@ -152,8 +153,8 @@ abstract class AbstractRVDSpec {
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
     AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)
 
-  def write(hadoopConf: hadoop.conf.Configuration, path: String) {
-    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+  def write(fs: FS, path: String) {
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       implicit val formats = AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
