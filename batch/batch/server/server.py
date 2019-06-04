@@ -273,9 +273,9 @@ class Job:
 
         if self._state == 'Ready':
             if self._pod_name:
-                log, err = await app['k8s'].read_pod_log(self._pod_name)
+                pod_log, err = await app['k8s'].read_pod_log(self._pod_name)
                 if err is None:
-                    logs[self._current_task.name] = log
+                    logs[self._current_task.name] = pod_log
                 else:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'ignoring: could not read log for {self.id} '
