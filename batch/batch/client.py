@@ -19,8 +19,8 @@ class Job:
         return j
 
     def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
-        self._async_job = aioclient.Job(batch, job_id, attributes=attributes,
-                                        parent_ids=parent_ids, _status=_status)
+        j = aioclient.SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+        self._async_job = aioclient.Job(j)
 
     @property
     def _status(self):
@@ -99,10 +99,6 @@ class BatchBuilder:
 
     def __init__(self, client, attributes, callback):
         self._async_builder = aioclient.BatchBuilder(client, attributes, callback)
-
-    @property
-    def _batch(self):
-        return Batch.from_async_batch(self._async_builder._batch)
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,

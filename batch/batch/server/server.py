@@ -55,12 +55,6 @@ log = make_logger()
 uvloop.install()
 
 
-def schedule(ttl, fun, args=(), kwargs=None):
-    if kwargs is None:
-        kwargs = {}
-    asyncio.get_event_loop().call_later(ttl, functools.partial(fun, *args, **kwargs))
-
-
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
@@ -663,8 +657,6 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
 
 
 class Batch:
-    MAX_TTL = 30 * 60
-
     @staticmethod
     def from_record(record, deleted=False):
         if record is not None:
@@ -881,19 +873,6 @@ async def delete_batch(request, userdata):
     if not batch:
         abort(404)
     await batch.mark_deleted()
-    return jsonify({})
-
-
-@routes.patch('/batches/{batch_id}/close')
-@authenticated_users_only
-async def close_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    await batch.close()
     return jsonify({})
 
 
