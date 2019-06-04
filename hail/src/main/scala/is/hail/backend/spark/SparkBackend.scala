@@ -48,7 +48,6 @@ case class SparkBackend(sc: SparkContext) extends Backend {
           val (_, f) = timer.time(Compile[Unit](ir), "SparkBackend.execute - JVM compile")
           timer.time(f(0)(region), "SparkBackend.execute - Runtime")
         case _ =>
-          println(Pretty(ir))
           val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "SparkBackend.execute - JVM compile")
           timer.time(SafeRow(pt, region, f(0)(region)).get(0), "SparkBackend.execute - Runtime")
       }
@@ -95,9 +94,6 @@ case class SparkBackend(sc: SparkContext) extends Backend {
     } catch {
       case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
         CompileAndEvaluate(ir, optimize = optimize)
-//      case e: Throwable =>
-//        println(Pretty(ir))
-//        CompileAndEvaluate(ir, optimize = optimize)
     }
   }
 
