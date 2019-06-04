@@ -188,7 +188,9 @@ class BatchBackend(Backend):
         jobs_to_command = {}
         commands = []
 
-        activate_service_account = 'set -ex; gcloud -q auth activate-service-account ' \
+        bash_flags = 'set -e' + ('x' if verbose else '') + '; '
+
+        activate_service_account = 'gcloud -q auth activate-service-account ' \
                                    '--key-file=/gsa-key/privateKeyData'
 
         def copy_input(r):
@@ -214,7 +216,7 @@ class BatchBackend(Backend):
             def _cp(src, dst):
                 return f'gsutil -m cp -R {src} {dst}'
 
-            write_cmd = activate_service_account + ' && ' + \
+            write_cmd = bash_flags + activate_service_account + ' && ' + \
                         ' && '.join([_cp(*files) for files in write_external_inputs])
 
             if dry_run:
@@ -246,7 +248,7 @@ class BatchBackend(Backend):
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
-            cmd = make_local_tmpdir + defs + " && ".join(task_command)
+            cmd = bash_flags + make_local_tmpdir + defs + " && ".join(task_command)
             if dry_run:
                 commands.append(cmd)
                 continue
@@ -274,9 +276,9 @@ class BatchBackend(Backend):
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
-            jobs_to_command[j] = defs + cmd
+            jobs_to_command[j] = cmd
             if verbose:
-                print(f"Submitted Job {j.id} with command: {defs + cmd}")
+                print(f"Submitted Job {j.id} with command: {cmd}")
 
         if dry_run:
             print("\n\n".join(commands))
@@ -285,7 +287,7 @@ class BatchBackend(Backend):
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            cmd = f'{activate_service_account} && {rm_cmd}'
+            cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
