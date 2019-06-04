@@ -27,6 +27,18 @@ class Job:
             i += 1
         return 0
 
+    @staticmethod
+    def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):
+        assert isinstance(batch_builder, BatchBuilder)
+        _job = UnsubmittedJob(batch_builder, job_id, attributes, parent_ids)
+        return Job(_job)
+
+    @staticmethod
+    def submitted_job(batch, job_id, attributes=None, parent_ids=None, _status=None):
+        assert isinstance(batch, Batch)
+        _job = SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+        return Job(_job)
+
     def __init__(self, job):
         self._job = job
 
@@ -208,10 +220,14 @@ class BatchBuilder:
 
         if parents is None:
             parents = []
-        parent_ids = [parent.job_id for parent in parents]
 
-        invalid_parents = list(filter(lambda parent: parent._batch_builder != self, parents))
-        if len(invalid_parents) != 0:
+        parent_ids = []
+        for parent in parents:
+            job = parent._job
+            if isinstance(job, UnsubmittedJob) and job._batch_builder == self:
+                parent_ids.append(job._job_id)
+
+        if len(parent_ids) != len(parents):
             raise ValueError("found parents from another batch")
 
         if env:
@@ -281,8 +297,7 @@ class BatchBuilder:
 
         self._job_docs.append(doc)
 
-        j = UnsubmittedJob(self, self._job_idx, attributes, parent_ids)
-        j = Job(j)
+        j = Job.unsubmitted_job(self, self._job_idx, attributes, parent_ids)
         self._jobs.append(j)
         return j
 
@@ -298,7 +313,7 @@ class BatchBuilder:
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         for j in self._jobs:
-            j._job = j._job._submit()
+            j._job = j._job._submit(batch)
 
         self._job_docs = []
         self._jobs = []
@@ -361,11 +376,12 @@ class BatchClient:
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
         j = await self._get(f'/batches/{batch_id}/jobs/{job_id}')
-        return Job(b,
-                   j['job_id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []),
-                   _status=j)
+        return Job.submitted_job(
+            b,
+            j['job_id'],
+            attributes=j.get('attributes'),
+            parent_ids=j.get('parent_ids', []),
+            _status=j)
 
     async def get_batch(self, id):
         b = await self._get(f'/batches/{id}')

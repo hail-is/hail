@@ -49,7 +49,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        fake_job = aioclient.Job(aioclient.UnsubmittedJob(batch, 10000))
+        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
         fake_job = Job.from_async_job(fake_job)
         batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[fake_job])
         batch.submit()

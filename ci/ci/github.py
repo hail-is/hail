@@ -667,7 +667,6 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/batch_callback')
-            # FIXME make build atomic
             config.build(deploy_batch, self, deploy=True)
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
