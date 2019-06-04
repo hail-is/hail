@@ -271,6 +271,7 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
+      val fs = HailContext.sFS
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -312,7 +313,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        mv.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        fs.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
