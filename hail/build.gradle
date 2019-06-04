@@ -193,8 +193,9 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     bundled 'org.lz4:lz4-java:1.4.0'
-    bundled 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
-    bundled 'com.github.samtools:htsjdk:2.18.0'
+    bundled('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion) { transitive = false }
+    bundled 'com.github.fommil.netlib:all:1.1.2'
+    bundled('com.github.samtools:htsjdk:2.18.0') { transitive = false }
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
