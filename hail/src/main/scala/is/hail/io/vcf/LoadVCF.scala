@@ -14,8 +14,6 @@ import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.hadoop
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -1356,17 +1354,17 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
-  val confBc = HailContext.hadoopConfBc
+  val bcFS = HailContext.bcFS
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
     val reg = {
-      val r = new TabixReader(file, confBc.value.value)
+      val r = new TabixReader(file, bcFS.value)
       val tid = r.chr2tid(p.chrom)
       r.queryPairs(tid, p.start - 1, p.end)
     }
-    val lines = new TabixLineIterator(confBc, file, reg)
+    val lines = new TabixLineIterator(bcFS, file, reg)
 
     // clean up
     val context = TaskContext.get
@@ -1419,7 +1417,6 @@ case class MatrixVCFReader(
 
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val hConf = sc.hadoopConfiguration
   private val fs = hc.sFS
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
@@ -1620,8 +1617,6 @@ class VCFsReader(
 
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val hConf = hc.hadoopConf
-  private val hConfBc = hc.hadoopConfBc
   private val fs = hc.sFS
   private val bcFS = hc.bcFS
 

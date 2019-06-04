@@ -123,12 +123,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
-    hc.hadoopConf.delete(path, recursive = true)
+    hc.sFS.delete(path, recursive = true)
 
     val fields = typ.rowType.fields
 
     Option(typesFile).foreach { file =>
-      exportTypes(file, hc.hadoopConf, fields.map(f => (f.name, f.typ)).toArray)
+      exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     val localSignature = typ.rowType.physicalType

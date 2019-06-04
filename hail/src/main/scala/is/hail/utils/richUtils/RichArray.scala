@@ -1,6 +1,6 @@
 package is.hail.utils.richUtils
 
-import org.apache.hadoop
+import is.hail.io.fs.FS
 import is.hail.HailContext
 import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer}
 import is.hail.utils._
@@ -15,18 +15,18 @@ object RichArray {
   }
   
   def importFromDoubles(hc: HailContext, path: String, a: Array[Double], bufSize: Int): Unit = {
-    hc.hadoopConf.readFile(path) { is =>
+    hc.sFS.readFile(path) { is =>
       val in = new DoubleInputBuffer(is, bufSize)
 
       in.readDoubles(a)
     }
   }
 
-  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, a: Array[Double]): Unit =
-    exportToDoubles(hadoopConf, path, a, defaultBufSize)
+  def exportToDoubles(fs: FS, path: String, a: Array[Double]): Unit =
+    exportToDoubles(fs, path, a, defaultBufSize)
 
-  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, a: Array[Double], bufSize: Int): Unit = {
-    hadoopConf.writeFile(path) { os =>
+  def exportToDoubles(fs: FS, path: String, a: Array[Double], bufSize: Int): Unit = {
+    fs.writeFile(path) { os =>
       val out = new DoubleOutputBuffer(os, bufSize)
 
       out.writeDoubles(a)

@@ -57,12 +57,6 @@ object HailContext {
 
   def sc: SparkContext = get.sc
 
-  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
-
-  def sHadoopConf: SerializableHadoopConfiguration = get.sHadoopConf
-
-  def hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = get.hadoopConfBc
-
   def sFS: FS = get.sFS
 
   def bcFS: Broadcast[FS] = get.bcFS
@@ -390,9 +384,6 @@ class HailContext private(val sc: SparkContext,
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
-  val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
-  val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
-  val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
   val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)

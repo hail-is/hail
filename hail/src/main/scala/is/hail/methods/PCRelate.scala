@@ -262,7 +262,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(phiFile)
+    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
     val phi = BlockMatrix.read(hc, phiFile)
 
     if (statistics >= PhiK2) {
