@@ -15,7 +15,7 @@ Hail is actively developed with new features and performance improvements integr
 
 ### Maintainer
 
-Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
+Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
 Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
