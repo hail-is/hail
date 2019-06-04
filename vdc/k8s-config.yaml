@@ -357,8 +357,8 @@ metadata:
   namespace: batch-pods
 spec:
   hard:
-    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
-    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100
+    batch.storageclass.storage.k8s.io/requests.storage: 1Ti
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 1000
 ---
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
