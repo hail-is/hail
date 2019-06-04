@@ -1667,9 +1667,9 @@ private class Emit(
 
       case _ =>
         val t: PArray = coerce[PStreamable](ir.pType).asPArray
-        val i = mb.newLocal[Int]("i")
-        val len = mb.newLocal[Int]("len")
-        val aoff = mb.newLocal[Long]("aoff")
+        val i = mb.newField[Int]("i")
+        val len = mb.newField[Int]("len")
+        val aoff = mb.newField[Long]("aoff")
         val codeV = emit(ir, env)
         val calcLength = Code(
           aoff := coerce[Long](codeV.v),
