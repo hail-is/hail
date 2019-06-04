@@ -470,7 +470,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
-  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.sc.broadcast(this)
+  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.get.sc.broadcast(this)
 
   override def hashCode: Int = {
     import org.apache.commons.lang.builder.HashCodeBuilder

@@ -13,21 +13,17 @@ class SparkBackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[B
   def getModule(id: String): Int => F = loadedModules(id)
 
   def collectDArray(modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
-    val sc = HailContext.get.sc
-    val rdd = sc.parallelize[Array[Byte]](contexts, numSlices = contexts.length)
+    val backend = HailContext.backend
+    val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    val globalsBC = sc.broadcast(globals)
-
-    rdd.mapPartitionsWithIndex { case (i, ctxIt) =>
-      val ctx = ctxIt.next()
-      assert(!ctxIt.hasNext)
+    if (contexts.isEmpty) { return Array() }
+    backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
       val gs = globalsBC.value
-
       Region.scoped { region =>
         val res = f(i)(region, ctx, gs)
-        Iterator.single(res)
+        res
       }
-    }.collect()
+    }
   }
 }

@@ -19,15 +19,12 @@ class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
 
   def parallelizeComputeCollect(modID: String, bodyf: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
 
-    val sc = HailContext.get.sc
-    val rdd = sc.parallelize[Array[Byte]](contexts, numSlices = contexts.length)
+
+    val backend = HailContext.backend
+    val globalsBC = backend.broadcast(globals)
     val (lit, key, bin) = getModule(modID)
 
-    val globalsBC = sc.broadcast(globals)
-
-    rdd.mapPartitionsWithIndex { case (i, ctxIt) =>
-      val ctx = ctxIt.next()
-      assert(!ctxIt.hasNext)
+    backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
       val gs = globalsBC.value
 
       val st = new NativeStatus()
@@ -44,10 +41,10 @@ class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
           assert(st.ok, st.toString())
           objs.close()
           st.close()
-          Iterator.single(baos.toByteArray)
+          baos.toByteArray
         }
       }
-    }.collect()
+    }
   }
 
 }

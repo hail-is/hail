@@ -1355,7 +1355,7 @@ object RVD {
     val first = rvds.head
     require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
 
-    val sc = HailContext.sc
+    val sc = HailContext.get.sc
     val hConf = HailContext.hadoopConf
     val hConfBc = HailContext.hadoopConfBc
 
