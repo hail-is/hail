@@ -17,6 +17,7 @@ trait FileSystem {
   def makeQualified(path: String): FilePath
   def makeQualified(path: FilePath): FilePath
   def deleteOnExit(path: FilePath): Boolean
+  // def getFileBlockLocations
 }
 
 trait FilePath extends Serializable{

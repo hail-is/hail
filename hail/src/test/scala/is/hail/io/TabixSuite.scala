@@ -92,7 +92,7 @@ class TabixSuite extends SparkSuite {
     val vcfFile = "src/test/resources/sample.vcf.bgz"
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
-    val hailrdr = new TabixReader(vcfFile, hc.hadoopConf)
+    val hailrdr = new TabixReader(vcfFile, hc.sFS)
     val tid = hailrdr.chr2tid(chr)
 
     for ((start, end) <-

@@ -3,6 +3,7 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
+import is.hail.utils.SerializableHadoopConfiguration
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
@@ -84,7 +85,7 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val fs = new HadoopFS(sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fileSystem => getPartNumber(fileSystem.getPath.getName)).map(_.getPath.getName)
 
