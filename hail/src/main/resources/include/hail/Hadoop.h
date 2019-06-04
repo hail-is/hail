@@ -9,14 +9,14 @@ namespace hail {
 class HadoopConfig {
   private:
     UpcallEnv up_;
-    jobject jhadoop_config_;
+    jobject jfs_;
 
-    jclass rich_hadoop_conf_class_ = up_.env()->FindClass("is/hail/utils/richUtils/RichHadoopConfiguration");
-    jmethodID unsafe_writer_method_id_ = up_.env()->GetMethodID(rich_hadoop_conf_class_, "unsafeWriter",
+    jclass fs_class = up_.env()->FindClass("is/hail/io/fs/FS");
+    jmethodID unsafe_writer_method_id_ = up_.env()->GetMethodID(fs_class, "unsafeWriter",
         "(Ljava/lang/String;)Ljava/io/OutputStream;");
 
   public:
-    HadoopConfig(jobject jhadoop_config);
+    HadoopConfig(jobject jfs);
     ~HadoopConfig();
     std::shared_ptr<OutputStream> unsafe_writer(std::string path);
 };

@@ -13,8 +13,8 @@ class TabixSuite extends SparkSuite {
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
-  lazy val bcConf = hc.hadoopConfBc
-  lazy val reader = new TabixReader(vcfGzFile, hc.hadoopConf)
+  lazy val bcFS = hc.bcFS
+  lazy val reader = new TabixReader(vcfGzFile, hc.sFS)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -51,7 +51,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
-      val hailIter = new TabixLineIterator(bcConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -66,7 +66,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 350, 400);
-      val hailIter = new TabixLineIterator(bcConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -79,7 +79,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 100, 100);
-      val hailIter = new TabixLineIterator(bcConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(bcFS, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 100, 100);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -107,7 +107,7 @@ class TabixSuite extends SparkSuite {
         (12703588, 16751726))) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
-      val hailIter = new TabixLineIterator(bcConf, hailrdr.filePath, pairs)
+      val hailIter = new TabixLineIterator(bcFS, hailrdr.filePath, pairs)
       var htsStr = htsIter.next()
       var test = false
       while (htsStr != null) {

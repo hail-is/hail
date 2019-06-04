@@ -164,7 +164,7 @@ class RowMatrix(val hc: HailContext,
         writeRow(sb, index, v)
         sb.result()
       }.filter(_.nonEmpty)
-    }.writeTable(path, hc.tmpDir, header, exportType)
+    }.writeTable(hc.sFS, path, hc.tmpDir, header, exportType)
   }
 }
 

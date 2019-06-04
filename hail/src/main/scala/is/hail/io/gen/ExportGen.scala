@@ -100,7 +100,7 @@ object ExportGen {
         }
         sb.result()
       }
-    }.writeTable(path + ".gen", hc.tmpDir, None)
+    }.writeTable(hc.sFS, path + ".gen", hc.tmpDir, None)
   }
 }
 

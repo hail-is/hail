@@ -71,7 +71,7 @@ class RowMatrixSuite extends SparkSuite {
   }
   
   private def readCSV(fname: String): Array[Array[Double]] =
-    hc.hadoopConf.readLines(fname)( it =>
+    hc.sFS.readLines(fname)( it =>
       it.map(_.value)
         .map(_.split(",").map(_.toDouble))
         .toArray[Array[Double]]

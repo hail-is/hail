@@ -373,7 +373,10 @@ object ExportVCF {
     val fullRowType = typ.rvRowType.physicalType
     val localEntriesIndex = typ.entriesIdx
     val localEntriesType = typ.entryArrayType.physicalType
-
+    
+    val hc = HailContext.get
+    val fs = hc.sFS
+    val tmpDir = hc.tmpDir
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
       var m: Region = null
@@ -464,6 +467,6 @@ object ExportVCF {
 
         sb.result()
       }
-    }.writeTable(path, HailContext.get.tmpDir, Some(header), exportType = exportType)
+    }.writeTable(fs, path, tmpDir, Some(header), exportType = exportType)
   }
 }

@@ -147,7 +147,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
         sb.result()
       }
-    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+    }.writeTable(hc.sFS, path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
   }
 
   def persist(storageLevel: StorageLevel): TableValue = copy(rvd = rvd.persist(storageLevel))

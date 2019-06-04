@@ -1,7 +1,7 @@
 package is.hail
 
 import is.hail.utils.TempDir
-import org.apache.hadoop
+import is.hail.io.fs.FS
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.scalatest.testng.TestNGSuite
@@ -34,7 +34,7 @@ class SparkSuite extends TestNGSuite {
     hc
   }
 
-  def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
+  def sFS: FS = hc.sFS
 
-  lazy val tmpDir: TempDir = TempDir(hadoopConf)
+  lazy val tmpDir: TempDir = TempDir(sFS)
 }
