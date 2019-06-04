@@ -95,6 +95,9 @@ case class SparkBackend(sc: SparkContext) extends Backend {
     } catch {
       case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
         CompileAndEvaluate(ir, optimize = optimize)
+//      case e: Throwable =>
+//        println(Pretty(ir))
+//        CompileAndEvaluate(ir, optimize = optimize)
     }
   }
 

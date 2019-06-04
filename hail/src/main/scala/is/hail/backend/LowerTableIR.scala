@@ -45,7 +45,6 @@ object LowerTableIR {
 
     var ir = ir0
 
-    ir = ir.unwrap
     if (optimize) { ir = time( "first pass", opt(_, ir)) }
 
     ir = time("lowering MatrixIR", _ => LowerMatrixIR(ir))
@@ -158,7 +157,9 @@ object LowerTableIR {
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
 
-      val fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      var fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      if (!fieldRef.typ.isInstanceOf[TArray])
+        fieldRef = ToArray(fieldRef)
       val elt = Ref(genUID(), coerce[TContainer](fieldRef.typ).elementType)
 
       val refs = path.scanLeft(row)((struct, name) =>

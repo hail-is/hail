@@ -1306,6 +1306,7 @@ private class Emit(
             baos := Code.newInstance[ByteArrayOutputStream](),
             buf := spec.child.buildCodeOutputBuffer(baos),
             ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
+            contextAE.calcLength,
             contextT.addElements,
             baos.invoke[Unit]("reset"),
             addGlobals,
