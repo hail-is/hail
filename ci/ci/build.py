@@ -649,7 +649,7 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
-kubectl -n {self.namespace} logs -l app={name}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name}
 set -e
 (exit $EC)
 '''
@@ -663,7 +663,7 @@ kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name} && \
   python3 wait-for.py {timeout} {self.namespace} Service -p {port} {name}
 EC=$?
-kubectl -n {self.namespace} logs -l app={name}
+kubectl -n {self.namespace} logs --tail=999999 -l app={name}
 set -e
 (exit $EC)
 '''
@@ -703,10 +703,10 @@ date
             for w in self.wait:
                 name = w['name']
                 if w['kind'] == 'Deployment':
-                    script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name}\n'
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
-                    script += f'kubectl -n {self.namespace} logs -l app={name}\n'
+                    script += f'kubectl -n {self.namespace} logs --tail=999999 -l app={name}\n'
                 else:
                     assert w['kind'] == 'Pod', w['kind']
                     script += f'kubectl -n {self.namespace} logs {name}\n'
