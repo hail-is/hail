@@ -7,7 +7,6 @@ dependencies:
 - conda-forge::sphinx_rtd_theme=0.4.2
 - numpy=1.14.0
 - pandas=0.23.4
-- matplotlib=2.2.3
 - bokeh=0.12.13
 - jupyter=1.0.0
 - pip=10.0.1
