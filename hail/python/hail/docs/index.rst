@@ -1,8 +1,11 @@
-.. Hail documentation master file, created by
-   sphinx-quickstart on Fri Nov  4 10:55:10 2016.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+========
+Hail 0.2
+========
 
+Hail is an open-source library for scalable data exploration and analysis, with
+a particular emphasis on genomics. See the `overview <overview/index.html>`_ for a
+high-level walkthrough of the library, or the `installation <getting_started.html>`_
+page to get started.
 
 ========
 Contents
