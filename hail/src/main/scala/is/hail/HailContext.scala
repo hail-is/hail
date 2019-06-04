@@ -4,6 +4,8 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
+import is.hail.backend.Backend
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
@@ -53,7 +55,11 @@ object HailContext {
     theContext
   }
 
-  def sc: SparkContext = get.sc
+  def backend: Backend = get.backend
+
+  def getFlag(flag: String): String = get.flags.get(flag)
+
+  def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
 
   def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
 
@@ -267,7 +273,7 @@ object HailContext {
 
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
     info(s"Hail temporary directory: $hailTempDir")
-    val hc = new HailContext(sparkContext, logFile, hailTempDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(SparkBackend(sparkContext), logFile, hailTempDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -381,11 +387,15 @@ object HailContext {
   }
 }
 
-class HailContext private(val sc: SparkContext,
+class HailContext private(
+  val backend: Backend,
   val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
+
+  lazy val sc: SparkContext = backend.asSpark().sc
+
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
   val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
   val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
