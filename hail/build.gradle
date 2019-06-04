@@ -206,19 +206,23 @@ dependencies {
     bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:6.2.4'
 
     bundled 'org.apache.httpcomponents:httpcore:4.4.3'
-    bundled 'org.apache.httpcomponents:httpclient:4.5.1'
+    bundled('org.apache.httpcomponents:httpclient:4.5.1') {
+        transitive = false
+    }
 
     bundled group: 'org.ow2.asm', name: 'asm', version: '5.1'
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '5.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '5.1'
 
     bundled 'net.java.dev.jna:jna:4.2.2'
-    bundled 'net.sourceforge.jdistlib:jdistlib:0.4.5'
+    bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
+        transitive = false
+    }
 
     hailTest 'org.testng:testng:6.8.21'
     hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 
-    bundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    unbundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
     bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
 }
 
