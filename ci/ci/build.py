@@ -251,7 +251,7 @@ gcloud -q auth configure-docker
 
 docker pull $FROM_IMAGE
 {pull_published_latest}
-docker build -t {shq(self.image)} \
+docker build --memory="1.5g" --cpus="1.0" -t {shq(self.image)} \
   -f {dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
   {context}
@@ -291,6 +291,16 @@ date
 
         self.job = await batch.create_job(CI_UTILS_IMAGE,
                                           command=['bash', '-c', script],
+                                          resources={
+                                              'requests': {
+                                                  'memory': '2G',
+                                                  'cpu': '1'
+                                              },
+                                              'limits': {
+                                                  'memory': '2G',
+                                                  'cpu': '1'
+                                              }
+                                          },
                                           attributes={'name': self.name},
                                           volumes=volumes,
                                           input_files=input_files,
