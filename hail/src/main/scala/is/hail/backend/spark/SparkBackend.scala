@@ -89,7 +89,8 @@ case class SparkBackend(sc: SparkContext) extends Backend {
     try {
       if (HailContext.get.flags.get("cpp") == null)
         jvmLowerAndExecute(ir, optimize)
-      cxxExecute(ir, optimize)
+      else
+        cxxExecute(ir, optimize)
     } catch {
       case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
         CompileAndEvaluate(ir, optimize = optimize)

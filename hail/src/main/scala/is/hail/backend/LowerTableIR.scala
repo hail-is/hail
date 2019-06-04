@@ -143,11 +143,12 @@ object LowerTableIR {
     case TableFilter(child, cond) =>
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
-      val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
       loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, BindingEnv(env))))
 
     case TableMapRows(child, newRow) =>
+      if (ContainsScan(newRow))
+        throw new LowererUnsupportedOperation(s"scans are not supported: \n${ Pretty(newRow) }")
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
