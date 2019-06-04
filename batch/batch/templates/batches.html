@@ -4,6 +4,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
+  <script type="text/javascript">
+    function cancel(batch_id) {
+      if confirm(`Are you sure you want to cancel batch ${batch_id}?`) {
+        var req = new XMLHttpRequest();
+        req.open('patch', `/batches/${batch_id}/cancel`);
+        req.send(null);
+      }
+    }
+  </script>
   <body>
     <h1>Batches</h1>
     <table>
@@ -12,6 +21,7 @@
           <th>ID</th>
           <th>Name</th>
           <th>State</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -24,6 +34,7 @@
             {% endif %}
           </td>
           <td>{{ batch['state'] }}</td>
+          <td><button onclick="cancel({{ batch['id'] }})">Cancel</button></td>
         </tr>
         {% endfor %}
       </tbody>
