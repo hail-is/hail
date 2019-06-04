@@ -204,9 +204,9 @@ compileScala {
 
 configurations {
     compile.extendsFrom bundled, unbundled
-    testCompile.extendsFrom compile, testdep
-    runtime.extendsFrom bundled
-    testRuntime.extendsFrom runtime, testdep
+    testCompile.extendsFrom compile, hailTest
+    hailJar.extendsFrom bundled
+    hailTestJar.extendsFrom hailJar, hailTest
 }
 
 dependencies {
@@ -248,21 +248,11 @@ dependencies {
     bundled 'net.java.dev.jna:jna:4.2.2'
     bundled 'net.sourceforge.jdistlib:jdistlib:0.4.5'
 
-    testdep 'org.testng:testng:6.8.21'
-    testdep 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
+    hailTest 'org.testng:testng:6.8.21'
+    hailTest 'org.scalatest:scalatest_' + scalaMajorVersion + ':2.2.4'
 
-    compile group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
-    compile group: 'commons-codec', name: 'commons-codec', version: '1.11'
-
-    runtime 'com.github.fommil.netlib:core:1.1.2'
-    runtime 'net.sourceforge.f2j:arpack_combined_all:0.1'
-    runtime 'com.github.fommil.netlib:native_system-java:1.1'
-    runtime 'com.github.fommil:jniloader:1.1'
-    runtime 'com.github.fommil.netlib:native_ref-java:1.1'
-    runtime 'com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'
-    runtime 'com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'
-    runtime 'com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'
-    runtime 'com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'
+    bundled group: 'org.apache.commons', name: 'commons-math3', version: '3.6.1'
+    bundled group: 'commons-codec', name: 'commons-codec', version: '1.11'
 }
 
 task(checkSettings) doLast {
@@ -355,6 +345,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
+
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
     exclude 'META-INF/*.DSA'
@@ -363,13 +354,13 @@ tasks.withType(ShadowJar) {
 shadowJar {
     classifier = 'spark'
     from project.sourceSets.main.output
-    configurations = [project.configurations.runtime]
+    configurations = [project.configurations.hailJar]
 }
 
 task shadowTestJar(type: ShadowJar) {
     classifier = 'spark-test'
     from project.sourceSets.main.output, project.sourceSets.test.output
-    configurations = [project.configurations.testRuntime]
+    configurations = [project.configurations.hailTestJar]
 }
 
 jacocoTestReport {
