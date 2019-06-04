@@ -167,7 +167,7 @@ class Job:
         if err is not None:
             log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
             if err.status == 403:
-                await self.mark_complete(None, failed=True)
+                await self.mark_complete(None, failed=True, failure_reason=str(err))
             return None
         pvc_name = pvc.metadata.name
         await db.jobs.update_record(*self.id, pvc_name=pvc_name)
@@ -500,7 +500,7 @@ class Job:
             self._pod_name = None
         await self._create_pod()
 
-    async def mark_complete(self, pod, failed=False):
+    async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
 
@@ -508,7 +508,7 @@ class Job:
 
         if failed:
             exit_code = 999  # FIXME hack
-            pod_log = None
+            pod_log = failure_reason
         else:
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
@@ -1028,7 +1028,7 @@ async def update_job_with_pod(job, pod):
             elif (container_status.state.waiting
                   and container_status.state.waiting.reason == 'ImagePullBackOff'):
                 log.info(f'job {job.id} mark failed: ImagePullBackOff')
-                await job.mark_complete(pod, failed=True)
+                await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
 
 
 class DeblockedIterator:
