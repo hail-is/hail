@@ -36,7 +36,7 @@ Create a `conda enviroment
 
 .. code-block:: sh
 
-    conda create --name hail python>=3.6
+    conda create -n hail python==3.6
     conda activate hail
     pip install hail
 
