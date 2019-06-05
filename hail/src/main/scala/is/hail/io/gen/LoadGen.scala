@@ -2,6 +2,7 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
@@ -23,7 +24,7 @@ object LoadGen {
     genFile: String,
     sampleFile: String,
     sc: SparkContext,
-    rgBc: Option[Broadcast[ReferenceGenome]],
+    rgBc: Option[BroadcastValue[ReferenceGenome]],
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.02,
     chromosome: Option[String] = None,

@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
@@ -1202,7 +1203,7 @@ object LoadVCF {
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
   )(lines: ContextRDD[RVDContext, WithContext[String]],
     t: Type,
-    rgBc: Option[Broadcast[ReferenceGenome]],
+    rgBc: Option[BroadcastValue[ReferenceGenome]],
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
