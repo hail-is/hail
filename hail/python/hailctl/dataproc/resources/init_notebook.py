@@ -112,13 +112,13 @@ if role == 'Master':
     }
 
     # write kernel spec file to default Jupyter kernel directory
-    mkdir_if_not_exists('/opt/conda/share/jupyter/kernels/hail/')
-    with open('/opt/conda/share/jupyter/kernels/hail/kernel.json', 'w') as f:
+    mkdir_if_not_exists('/opt/conda/default/share/jupyter/kernels/hail/')
+    with open('/opt/conda/default/share/jupyter/kernels/hail/kernel.json', 'w') as f:
         json.dump(kernel, f)
 
     # create Jupyter configuration file
-    mkdir_if_not_exists('/opt/conda/etc/jupyter/')
-    with open('/opt/conda/etc/jupyter/jupyter_notebook_config.py', 'w') as f:
+    mkdir_if_not_exists('/opt/conda/default/etc/jupyter/')
+    with open('/opt/conda/default/etc/jupyter/jupyter_notebook_config.py', 'w') as f:
         opts = [
             'c.Application.log_level = "DEBUG"',
             'c.NotebookApp.ip = "127.0.0.1"',
