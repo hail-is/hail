@@ -382,7 +382,7 @@ case class MatrixBGENReader(
 
   val fullMatrixType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
 
-  val fullRVDType: RVDType = RVDType(fullMatrixType.rvRowType.physicalType, fullMatrixType.rowKey)
+  val fullRVDType: RVDType = fullMatrixType.canonicalRVDType
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 

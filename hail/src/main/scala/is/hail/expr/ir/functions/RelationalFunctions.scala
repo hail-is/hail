@@ -50,20 +50,17 @@ case class WrappedMatrixToTableFunction(
 
 case class WrappedMatrixToMatrixFunction(function: MatrixToMatrixFunction,
   inColsFieldName: String,
-  outColsFieldName: String,
   inEntriesFieldName: String,
-  outEntriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableToTableFunction {
   override def typ(childType: TableType): TableType = {
     val mType = MatrixType.fromTableType(childType, inColsFieldName, inEntriesFieldName, colKey)
     val outMatrixType = function.typ(mType)
-
-    LowerMatrixIR.loweredType(outMatrixType, outEntriesFieldName, outColsFieldName)
+    outMatrixType.canonicalTableType
   }
 
   def execute(tv: TableValue): TableValue = function.execute(tv
     .toMatrixValue(inColsFieldName, inEntriesFieldName, colKey))
-    .toTableValue(outColsFieldName, outEntriesFieldName)
+    .toTableValue
 
   def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
 }

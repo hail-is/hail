@@ -351,13 +351,15 @@ object LoadMatrix {
          """.stripMargin
       )
 
-    val matrixType = MatrixType.fromParts(
+    val matrixType = MatrixType(
       TStruct.empty(),
       colType = TStruct("col_id" -> (if (noHeader) TInt32() else TString())),
       colKey = Array("col_id"),
       rowType = rowType,
       rowKey = rowKey.toFastIndexedSeq,
       entryType = cellType)
+
+    val rvdType = matrixType.canonicalRVDType
 
     val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))
       .cmapPartitionsWithIndex { (i, ctx, it) =>
@@ -373,7 +375,7 @@ object LoadMatrix {
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row
           v.wrap { line =>
-            rvb.start(matrixType.rvRowType.physicalType)
+            rvb.start(rvdType.rowType)
             rvb.startStruct()
             if (useIndex) {
               rvb.addLong(partitionCounts(i) + row)
@@ -387,10 +389,10 @@ object LoadMatrix {
       }
 
     val rvd = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.canonicalRVDType.kType.virtualType)
-      RVD(matrixType.canonicalRVDType, partitioner, rdd.subsetPartitions(keepPartitions))
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, rvdType.kType.virtualType)
+      RVD(rvdType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
-      RVD.coerce(matrixType.canonicalRVDType, rdd)
+      RVD.coerce(rvdType, rdd)
 
     MatrixLiteral(MatrixValue(matrixType,
       BroadcastRow(Row(), matrixType.globalType, hc.sc),

@@ -79,17 +79,17 @@ case class LogisticRegression(
     val logRegTestBc = sc.broadcast(logRegTest)
     val resultSchemaBc = sc.broadcast(logRegTest.schema)
 
-    val fullRowType = mv.typ.rvRowType.physicalType
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val fullRowType = mv.rvRowPType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.typ.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()

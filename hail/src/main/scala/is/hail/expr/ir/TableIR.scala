@@ -1464,7 +1464,7 @@ case class CastMatrixToTable(
   colsFieldName: String
 ) extends TableIR {
 
-  lazy val typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
+  lazy val typ: TableType = child.typ.toTableType(entriesFieldName, colsFieldName)
 
   lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
