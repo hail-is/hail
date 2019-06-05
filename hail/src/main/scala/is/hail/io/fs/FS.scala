@@ -19,21 +19,21 @@ trait FileSystem {
   def deleteOnExit(path: FilePath): Boolean
 }
 
-trait FilePath extends Serializable{
-  type Configuration
-
-  def toString: String
-  def getName: String
-  def getFileSystem(conf: Configuration): FileSystem
-}
-
-trait FileStatus extends Serializable {
+trait FileStatus {
   def getPath: FilePath
   def getModificationTime: Long
   def getLen: Long
   def isDirectory: Boolean
   def isFile: Boolean
   def getOwner: String
+}
+
+trait FilePath extends Serializable{
+  type Configuration
+
+  def toString: String
+  def getName: String
+  def getFileSystem(conf: Configuration): FileSystem
 }
 
 trait FS extends Serializable{
