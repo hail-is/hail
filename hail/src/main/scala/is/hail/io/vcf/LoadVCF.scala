@@ -1128,7 +1128,7 @@ object LoadVCF {
     line: VCFCompoundHeaderLine,
     i: Int,
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
@@ -1137,7 +1137,7 @@ object LoadVCF {
 
     val baseType = (line.getType, isCall, isEntry) match {
       case (VCFHeaderLineType.Integer, false, _) => TInt32()
-      case (VCFHeaderLineType.Float, false, true) => entryFloatType
+      case (VCFHeaderLineType.Float, false, true) => floatType
       case (VCFHeaderLineType.Float, false, false) => TFloat64()
       case (VCFHeaderLineType.String, true, _) => TCall()
       case (VCFHeaderLineType.String, false, _) => TString()
@@ -1165,12 +1165,12 @@ object LoadVCF {
   def headerSignature[T <: VCFCompoundHeaderLine](
     lines: java.util.Collection[T],
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (TStruct, VCFAttributes, Set[String]) = {
     val (fields, attrs, flags) = lines
       .zipWithIndex
-      .map { case (line, i) => headerField(line, i, callFields, entryFloatType, arrayElementsRequired) }
+      .map { case (line, i) => headerField(line, i, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
     val flagFieldNames = fields.zip(flags)
@@ -1182,7 +1182,7 @@ object LoadVCF {
 
   def parseHeader(
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     lines: Array[String],
     arrayElementsRequired: Boolean = true
   ): VCFHeaderInfo = {
@@ -1202,10 +1202,10 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, entryFloatType)
+    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, floatType)
 
     val formatHeader = header.getFormatHeaderLines
-    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, entryFloatType, arrayElementsRequired = arrayElementsRequired)
+    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, floatType, arrayElementsRequired = arrayElementsRequired)
 
     val vaSignature = TStruct(Array(
       Field("rsid", TString(), 0),
