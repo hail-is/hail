@@ -43,6 +43,7 @@ python/hail/hail_pip_version:
 jars: build-info
 	./gradlew shadowTestJar shadowJar
 
+.PHONY: wheel
 wheel: build-info shadowJar init-scripts
 	rm -rf build/deploy
 	mkdir -p build/deploy
@@ -76,9 +77,9 @@ endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
-get_cloud_loc = $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/$(1)
-jar_cloud_path = $(call get_cloud_loc,hail.jar)
-wheel_cloud_path = $(call get_cloud_loc,hail-$(HAIL_PIP_VERSION)-py3-none-any.whl)
+cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
+jar_cloud_path := $(cloud_base)/hail.jar
+wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl)
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 .PHONY: python/hailctl/deploy.yaml
 python/hailctl/deploy.yaml:
@@ -92,25 +93,30 @@ python/hailctl/deploy.yaml:
 	echo "  jar: $(jar_cloud_path)" >> python/hailctl/deploy.yaml
 	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
 
+.PHONY: upload-deferred-artifacts
 upload-deferred-artifacts: wheel
 	gsutil -m cp build/libs/hail-all-spark.jar $(jar_cloud_path)
 	gsutil acl set public-read $(jar_cloud_path)
 	gsutil -m cp $(wheel_path) $(wheel_cloud_path)
 	gsutil acl set public-read $(wheel_cloud_path)
 
+.PHONY: install-wheel
 install-wheel: wheel
 	pip uninstall -y hail
 	pip install $(wheel_path)
 
+.PHONY: install-hailctl-wheel
 install-hailctl-wheel: install-wheel upload-deferred-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+.PHONY: test-dataproc
 test-dataproc: install-hailctl-wheel
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
 	for FILE in `ls python/cluster-tests`; do \
 	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || break; done || exit
 
+.PHONY: init-scripts
 init-scripts: python/hailctl/deploy.yaml
 
 DEPLOYED_VERSION=$(shell \
@@ -121,7 +127,7 @@ DEPLOYED_VERSION=$(shell \
 .PHONY: check-pypi
 check-pypi:
 	if [ -z "$$DEPLOY_PROD" ]; then \
-	  echo "require flag DEPLOY_PROD to be set to deploy to PyPI"; exit 1; fi
+	  echo "DEPLOY_PROD must be set to deploy to PyPI"; exit 1; fi
 	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
 	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
@@ -132,6 +138,7 @@ TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 pypi-deploy: \
   TWINE_USERNAME=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
   TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+.PHONY: pypi-deploy
 pypi-deploy: check-pypi wheel
 	twine upload build/deploy/dist/*
 
@@ -144,6 +151,7 @@ tag: check-tag
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 
+.PHONY: deploy
 deploy: pypi-deploy tag
 
 clean:
