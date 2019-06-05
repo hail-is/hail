@@ -1129,7 +1129,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | }
              | ${ stdStringPath.define }
              |
-             | $nativeEncoderClass enc { ${ ctx.hadoopConfig }.unsafe_writer($stdStringPath) };
+             | $nativeEncoderClass enc { ${ ctx.fs }.unsafe_writer($stdStringPath) };
              |
              | enc.encode_row(${ ndt.v });
              | enc.close();

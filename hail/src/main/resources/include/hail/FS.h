@@ -16,7 +16,7 @@ class FS {
         "(Ljava/lang/String;)Ljava/io/OutputStream;");
 
   public:
-    FS(jobject fs);
+    FS(jobject jfs);
     ~FS();
     std::shared_ptr<OutputStream> unsafe_writer(std::string path);
 };

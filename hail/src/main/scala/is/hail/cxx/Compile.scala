@@ -26,7 +26,7 @@ object Compile {
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
     tub.include("hail/Upcalls.h")
-    tub.include("hail/Hadoop.h")
+    tub.include("hail/FS.h")
     tub.include("hail/SparkUtils.h")
     tub.include("hail/ObjectArray.h")
 

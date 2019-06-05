@@ -3,7 +3,7 @@ package is.hail.misc
 import java.io.InputStream
 
 import is.hail.io.compress.BGzipInputStream
-import org.apache.hadoop
+import is.hail.io.fs.FS
 
 object BGZipBlocks {
   //Print block starts of block gzip (bgz) file

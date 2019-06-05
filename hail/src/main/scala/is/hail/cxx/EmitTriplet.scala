@@ -82,13 +82,13 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
 
 object SparkFunctionContext {
   def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
-    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.hadoop_conf_",
+    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.fs_",
       EmitRegion(fb, s"$spark_context.region_"))
 
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class SparkFunctionContext(sparkEnv: Code, hadoopConfig: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, fs: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code

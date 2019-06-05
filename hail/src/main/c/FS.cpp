@@ -1,10 +1,10 @@
-#include "hail/Hadoop.h"
+#include "hail/FS.h"
 #include "hail/Upcalls.h"
 #include <jni.h>
 
 namespace hail {
 
-FS::FS(jobject fs) : jfs_(up_.env()->NewGlobalRef(fs)) { }
+FS::FS(jobject jfs) : jfs_(up_.env()->NewGlobalRef(jfs)) { }
 
 FS::~FS() { up_.env()->DeleteGlobalRef(jfs_); }
 
