@@ -26,32 +26,32 @@ object FASTAReader {
   def getLocalIndexFileName(fastaFile: String): String =
     ReferenceSequenceFileFactory.getFastaIndexFileName(new java.io.File(fastaFile).toPath).toString
 
-  def getLocalFastaFileName(sFS: FS, fastaFile: String, indexFile: String): String =
-    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(sFS, fastaFile, indexFile))
+  def getLocalFastaFileName(fs: FS, fastaFile: String, indexFile: String): String =
+    localFastaFiles.getOrElseUpdate(fastaFile, FASTAReader.setup(fs, fastaFile, indexFile))
 
-  def getUriLocalIndexFile(sFS: FS, indexFile: String): String = {
-    val tmpDir = TempDir(sFS)
+  def getUriLocalIndexFile(fs: FS, indexFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localIndexFile = tmpDir.createLocalTempFile(extension = "fai")
-    sFS.copy(indexFile, localIndexFile)
+    fs.copy(indexFile, localIndexFile)
     uriPath(localIndexFile)
   }
 
-  def setup(sFS: FS, fastaFile: String, indexFile: String): String = {
-    val tmpDir = TempDir(sFS)
+  def setup(fs: FS, fastaFile: String, indexFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localFastaFile = tmpDir.createLocalTempFile(extension = "fasta")
     val uriLocalFastaFile = uriPath(localFastaFile)
 
-    sFS.readFile(fastaFile) { in =>
-      sFS.writeFile(localFastaFile) { out =>
+    fs.readFile(fastaFile) { in =>
+      fs.writeFile(localFastaFile) { out =>
         IOUtils.copy(in, out)
       }}
 
     val localIndexFile = "file://" + getLocalIndexFileName(uriLocalFastaFile)
-    sFS.copy(indexFile, localIndexFile)
+    fs.copy(indexFile, localIndexFile)
 
-    if (!sFS.exists(localFastaFile))
+    if (!fs.exists(localFastaFile))
       fatal(s"Error while copying FASTA file to local file system. Did not find '$localFastaFile'.")
-    if (!sFS.exists(localIndexFile))
+    if (!fs.exists(localIndexFile))
       fatal(s"Error while copying FASTA index file to local file system. Did not find '$localIndexFile'.")
 
     uriLocalFastaFile
@@ -68,10 +68,10 @@ object FASTAReader {
   }
 }
 
-class FASTAReader(val sFS: FS, val rg: ReferenceGenome,
+class FASTAReader(val fs: FS, val rg: ReferenceGenome,
   val fastaFile: String, val indexFile: String, val blockSize: Int, val capacity: Int) extends Serializable {
 
-  val reader = new SerializableReferenceSequenceFile(sFS, fastaFile, indexFile)
+  val reader = new SerializableReferenceSequenceFile(fs, fastaFile, indexFile)
   assert(reader.value.isIndexed)
 
   @transient private[this] lazy val cache = new util.LinkedHashMap[Int, String](capacity, 0.75f, true) {

@@ -10,9 +10,9 @@ import scala.collection.JavaConverters._
 import scala.collection.concurrent
 import scala.language.implicitConversions
 
-class SerializableHtsjdkLiftOver(val sFS: FS, val chainFile: String) extends Serializable {
+class SerializableHtsjdkLiftOver(val fs: FS, val chainFile: String) extends Serializable {
   @transient lazy val value = {
-    val localChainFile = LiftOver.getLocalChainFileName(sFS, chainFile)
+    val localChainFile = LiftOver.getLocalChainFileName(fs, chainFile)
     new htsjdk.samtools.liftover.LiftOver(new java.io.File(localChainFile))
   }
 }
@@ -20,19 +20,19 @@ class SerializableHtsjdkLiftOver(val sFS: FS, val chainFile: String) extends Ser
 object LiftOver {
   private[this] val localChainFiles: concurrent.Map[String, String] = new concurrent.TrieMap()
 
-  def getLocalChainFileName(sFS: FS, chainFile: String): String =
-    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(sFS, chainFile))
+  def getLocalChainFileName(fs: FS, chainFile: String): String =
+    localChainFiles.getOrElseUpdate(chainFile, LiftOver.setup(fs, chainFile))
 
-  def setup(sFS: FS, chainFile: String): String = {
-    val tmpDir = TempDir(sFS)
+  def setup(fs: FS, chainFile: String): String = {
+    val tmpDir = TempDir(fs)
     val localChainFile = tmpDir.createLocalTempFile(extension = "chain")
 
-    sFS.readFile(chainFile) { in =>
-      sFS.writeFile(localChainFile) { out =>
+    fs.readFile(chainFile) { in =>
+      fs.writeFile(localChainFile) { out =>
         IOUtils.copy(in, out)
       }}
 
-    if (!sFS.exists(localChainFile))
+    if (!fs.exists(localChainFile))
       fatal(s"Error while copying chain file to local file system. Did not find '$localChainFile'.")
 
     uriPath(localChainFile)
@@ -42,8 +42,8 @@ object LiftOver {
     new LiftOver(hc.sFS, chainFile)
 }
 
-class LiftOver(val sFS: FS, val chainFile: String) extends Serializable {
-  val lo = new SerializableHtsjdkLiftOver(sFS, chainFile)
+class LiftOver(val fs: FS, val chainFile: String) extends Serializable {
+  val lo = new SerializableHtsjdkLiftOver(fs, chainFile)
 
   def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]

@@ -1,9 +1,9 @@
 import json
 import hail as hl
 
-gvcfs = ['gs://hail-akotlar-syvst/HG00096.g.vcf.gz',
-         'gs://hail-akotlar-syvst/HG00268.g.vcf.gz']
-hl.init(master='spark://spark-master:7077', default_reference='GRCh38')
+gvcfs = ['gs://hail-ci/gvcfs/HG00096.g.vcf.gz',
+         'gs://hail-ci/gvcfs/HG00268.g.vcf.gz']
+hl.init(default_reference='GRCh38')
 parts = [
     {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
      'end': {'locus': {'contig': 'chr20', 'position': 18708366}},
