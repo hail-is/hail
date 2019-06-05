@@ -6,7 +6,7 @@
 
 namespace hail {
 
-class HadoopConfig {
+class FS {
   private:
     UpcallEnv up_;
     jobject jfs_;
@@ -16,8 +16,8 @@ class HadoopConfig {
         "(Ljava/lang/String;)Ljava/io/OutputStream;");
 
   public:
-    HadoopConfig(jobject jfs);
-    ~HadoopConfig();
+    FS(jobject fs);
+    ~FS();
     std::shared_ptr<OutputStream> unsafe_writer(std::string path);
 };
 

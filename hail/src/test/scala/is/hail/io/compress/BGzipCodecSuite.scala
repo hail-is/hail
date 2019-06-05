@@ -98,7 +98,7 @@ class BGzipCodecSuite extends SparkSuite {
 
     val p = forAll(g) { splits =>
 
-      val jobConf = new hd.conf.Configuration(hadoopConf)
+      val jobConf = new hd.conf.Configuration(sc.hadoopConfiguration)
       jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
         compPath,

@@ -3,7 +3,6 @@ package is.hail.utils
 import is.hail.SparkSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
-import is.hail.utils.SerializableHadoopConfiguration
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
