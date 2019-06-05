@@ -224,6 +224,7 @@ class Job:
         self._pod_name = pod.metadata.name
         await db.jobs.update_record(*self.id,
                                     pod_name=self._pod_name)
+        await self.set_state('Running')
         log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
                                                                    self.id,
                                                                    self._current_task.name))
@@ -267,7 +268,7 @@ class Job:
                                        if idx < self._task_idx])
         logs = {k: v for k, v in await future_logs}
 
-        if self._state == 'Ready':
+        if self._state in ('Running', 'Ready'):
             if self._pod_name:
                 pod_log, err = await app['k8s'].read_pod_log(self._pod_name)
                 if err is None:
@@ -277,9 +278,9 @@ class Job:
                     log.info(f'ignoring: could not read log for {self.id} '
                              f'{self._current_task.name}; will still try to load other tasks')
             return logs
-        if self._state == 'Complete':
+        if self.is_complete():
             return logs
-        assert self._state == 'Cancelled' or self._state == 'Created'
+        assert self._state == 'Cancelled' or self._state == 'Pending'
         return None
 
     async def _mark_job_task_complete(self, task_name, log, exit_code):
@@ -352,7 +353,7 @@ class Job:
         pod_name = None
         duration = 0
         task_idx = 0
-        state = 'Created'
+        state = 'Pending'
         user = userdata['username']
 
         tasks = [JobTask.copy_task('input', input_files),
@@ -449,12 +450,12 @@ class Job:
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
         assert await db.jobs_parents.has_record(*self.id, parent_job_id)
-        if new_state in ('Cancelled', 'Complete'):
+        if new_state in ('Cancelled', 'Error', 'Failed', 'Success'):
             await self.create_if_ready()
 
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
-        if self._state == 'Created' and not incomplete_parent_ids:
+        if self._state == 'Pending' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if self.always_run or all(p.is_successful() for p in parents):
                 log.info(f'all parents complete for {self.id},'
@@ -466,23 +467,23 @@ class Job:
                 await self.set_state('Cancelled')
 
     async def cancel(self):
-        # Cancelled, Complete
+        # Cancelled, Error, Failed, Success
         if self.is_complete():
             return
-        if self._state == 'Created':
+        if self._state in ('Pending', 'Ready'):
             if not self.always_run:
                 await self.set_state('Cancelled')
         else:
-            assert self._state == 'Ready', self._state
+            assert self._state in 'Running', self._state
             if not self.always_run:
                 await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
                 await self._delete_k8s_resources()
 
     def is_complete(self):
-        return self._state in ('Complete', 'Cancelled')
+        return self._state in ('Cancelled', 'Error', 'Failed', 'Success')
 
     def is_successful(self):
-        return self._state == 'Complete' and all([ec == 0 for ec in self.exit_codes])
+        return self._state == 'Success'
 
     async def mark_unscheduled(self):
         if self._pod_name:
@@ -492,6 +493,7 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
             self._pod_name = None
+        await self.set_state('Ready')
         await self._create_pod()
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
@@ -525,15 +527,19 @@ class Job:
 
         if exit_code == 0:
             if self._has_next_task():
+                await self.set_state('Ready')
                 await self._create_pod()
                 return
-            await self._delete_pvc()
+            new_state = 'Success'
+        elif exit_code == 999:
+            new_state = 'Error'
         else:
-            await self._delete_pvc()
+            new_state = 'Failed'
 
-        await self.set_state('Complete')
+        await self._delete_pvc()
+        await self.set_state(new_state)
 
-        log.info('job {} complete, exit_codes {}'.format(self.id, self.exit_codes))
+        log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
 
         if self.callback:
             def handler(id, callback, json):
@@ -556,7 +562,7 @@ class Job:
             'job_id': self.job_id,
             'state': self._state
         }
-        if self._state == 'Complete':
+        if self.is_complete():
             result['exit_code'] = {t.name: ec for ec, t in zip(self.exit_codes, self._tasks)}
             result['duration'] = self.duration
 

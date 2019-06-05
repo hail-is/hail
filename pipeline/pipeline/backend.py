@@ -327,6 +327,7 @@ class BatchBackend(Backend):
 
         fail_msg = ''
         for jid, ec in failed_jobs:
+            ec = batch.client.Job.exit_code(ec)
             job = self._batch_client.get_job(*jid)
             log = job.log()
             label = job.status()['attributes'].get('name', None)
@@ -336,7 +337,7 @@ class BatchBackend(Backend):
                 f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
-        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
+        n_complete = sum([j['state'] in ('Error', 'Failed', 'Success', 'Cancelled') for j in status['jobs']])
         if failed_jobs or n_complete != n_jobs_submitted:
             raise Exception(fail_msg)
 
