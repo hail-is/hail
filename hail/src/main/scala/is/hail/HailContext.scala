@@ -510,7 +510,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = bcFS.value.unsafeReader(filename)
+        val in = localFS.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
