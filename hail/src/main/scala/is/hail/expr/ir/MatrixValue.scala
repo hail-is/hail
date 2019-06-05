@@ -26,7 +26,17 @@ case class MatrixValue(
   colValues: BroadcastIndexedSeq,
   rvd: RVD) {
 
-  require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${ typ.rowType }\nrvd rowType: ${ rvd.rowType }")
+  lazy val rvRowPType: PStruct = rvd.typ.rowType
+  lazy val rvRowType: TStruct = rvRowPType.virtualType
+  lazy val entriesIdx: Int = rvRowPType.fieldIdx(MatrixType.entriesIdentifier)
+  lazy val entryArrayPType: PArray = rvRowPType.types(entriesIdx).asInstanceOf[PArray]
+  lazy val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
+  lazy val entryPType: PStruct = entryArrayPType.elementType.asInstanceOf[PStruct]
+  lazy val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
+
+  lazy val entriesRVType: TStruct = TStruct(
+    MatrixType.entriesIdentifier -> TArray(entryType))
+
   require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${ typ.rowKey }\nrvd key: ${ rvd.typ.key }")
 
   def sparkContext: SparkContext = rvd.sparkContext
@@ -113,7 +123,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
+      TableType(entriesRVType, FastIndexedSeq(), typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -126,7 +136,7 @@ case class MatrixValue(
 
     val refPath = path + "/references"
     fs.mkDir(refPath)
-    Array(typ.colType, typ.rowType, typ.entryType, typ.globalType).foreach { t =>
+    Array(typ.colType, typ.rowType, entryType, typ.globalType).foreach { t =>
       ReferenceGenome.exportReferences(fs, refPath, t)
     }
 
@@ -218,14 +228,14 @@ case class MatrixValue(
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val rvRowType = typ.rvRowType.physicalType
-    val entryArrayType = typ.entryArrayType.physicalType
-    val entryType = typ.entryType.physicalType
-    val fieldType = entryType.field(entryField).typ
+    val localRvRowPType = rvRowPType
+    val localEntryArrayPType = entryArrayPType
+    val localEntryPType = entryPType
+    val fieldType = entryPType.field(entryField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = typ.entriesIdx
+    val localEntryArrayIdx = entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = nCols
 
@@ -234,13 +244,13 @@ case class MatrixValue(
       it.map { rv =>
         val region = rv.region
         val data = new Array[Double](numColsLocal)
-        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+        val entryArrayOffset = localRvRowPType.loadField(rv, localEntryArrayIdx)
         var j = 0
         while (j < numColsLocal) {
-          if (entryArrayType.isElementDefined(region, entryArrayOffset, j)) {
-            val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, j)
-            if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-              val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+          if (localEntryArrayPType.isElementDefined(region, entryArrayOffset, j)) {
+            val entryOffset = localEntryArrayPType.loadElement(region, entryArrayOffset, j)
+            if (localEntryPType.isFieldDefined(region, entryOffset, fieldIdx)) {
+              val fieldOffset = localEntryPType.loadField(region, entryOffset, fieldIdx)
               data(j) = region.loadDouble(fieldOffset)
             } else
               fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
@@ -260,7 +270,7 @@ case class MatrixValue(
   def typeCheck(): Unit = {
     assert(typ.globalType.typeCheck(globals.value))
     assert(TArray(typ.colType).typeCheck(colValues.value))
-    val localRVRowType = typ.rvRowType
+    val localRVRowType = rvRowType
     assert(rvd.toRows.forall(r => localRVRowType.typeCheck(r)))
   }
 
@@ -268,13 +278,8 @@ case class MatrixValue(
 
   def unpersist(): MatrixValue = copy(rvd = rvd.unpersist())
 
-  def filterCols(p: (Annotation, Int) => Boolean): MatrixValue = {
-    val (_, filterF) = MatrixIR.filterCols(typ)
-    Interpret(MatrixLiteral(filterF(this, p)))
-  }
-
-  def toTableValue(colsFieldName: String, entriesFieldName: String): TableValue = {
-    val tt: TableType = LowerMatrixIR.loweredType(typ, entriesFieldName, colsFieldName)
+  def toTableValue: TableValue = {
+    val tt: TableType = typ.canonicalTableType
     val newGlobals = BroadcastRow(
       Row.merge(globals.safeValue, Row(colValues.safeValue)),
       tt.globalType,

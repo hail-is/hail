@@ -18,14 +18,15 @@ CREATE TABLE IF NOT EXISTS `batch` (
 CREATE INDEX batch_user ON batch (user);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
-  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
   `input_exit_code` INT,
   `main_exit_code` INT,
   `output_exit_code` INT,
-  `batch_id` BIGINT NOT NULL,
   `pod_name` VARCHAR(1024),
   `pvc_name` TEXT(65535),
+  `pvc_size` TEXT(65535),
   `callback` TEXT(65535),
   `task_idx` INT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
@@ -38,20 +39,19 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `input_log_uri` VARCHAR(1024),
   `main_log_uri` VARCHAR(1024),
   `output_log_uri` VARCHAR(1024),
-  PRIMARY KEY (`id`),
+  PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_user ON jobs (user);
-CREATE INDEX jobs_batch ON jobs (batch_id);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
-  `job_id` BIGINT NOT NULL,
-  `parent_id` BIGINT NOT NULL,
-  PRIMARY KEY (`job_id`, `parent_id`),
-  FOREIGN KEY (`job_id`) REFERENCES jobs(id) ON DELETE CASCADE,
-  FOREIGN KEY (`parent_id`) REFERENCES jobs(id) ON DELETE CASCADE
+  `batch_id` BIGINT NOT NULL,
+  `job_id` INT NOT NULL,
+  `parent_id` INT NOT NULL,
+  PRIMARY KEY (`batch_id`, `job_id`, `parent_id`),
+  FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (parent_id);
+CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
 
 DELIMITER $$
 

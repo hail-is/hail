@@ -1608,7 +1608,7 @@ class MatrixTable(ExprContainer):
         caller = 'MatrixTable.filter_cols'
         analyze(caller, expr, self._col_indices, {self._row_axis})
 
-        if expr._ir.aggregations:
+        if expr._aggregations:
             bool_uid = Env.get_uid()
             mt = self._select_cols(caller, self.col.annotate(**{bool_uid: expr}))
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
@@ -2033,7 +2033,7 @@ class MatrixTable(ExprContainer):
             return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(expr=expr_any, _localize=bool)
-    def aggregate_entries(self, expr, _localize=True) -> Any:
+    def aggregate_entries(self, expr, _localize=True):
         """Aggregate over entries to a local value.
 
         Examples
@@ -3552,7 +3552,9 @@ class MatrixTable(ExprContainer):
         first dataset; the row schemas do not need to match.
 
         This method performs an inner join on rows and concatenates entries
-        from the two datasets for each row.
+        from the two datasets for each row. Only distinct keys from each
+        dataset are included (equivalent to calling :meth:`.distinct_by_row`
+        on each dataset first).
 
         This method does not deduplicate; if a column key exists identically in
         two datasets, then it will be duplicated in the result.

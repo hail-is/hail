@@ -234,6 +234,7 @@ final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
@@ -257,7 +258,7 @@ final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolea
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -360,6 +361,11 @@ final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
 final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
+
+final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
+}
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

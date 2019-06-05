@@ -51,7 +51,7 @@ object Interpret {
     else
       lowered
 
-    lowopt.execute(HailContext.get)
+    lowopt.execute(HailContext.get).toMatrixValue(LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, mir.typ.colKey)
   }
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
@@ -515,7 +515,7 @@ object Interpret {
           interpret(aggIR, agg=Some((row, aggElementType)))
         }
 
-      case x@AggArrayPerElement(a, elementName, indexName, aggBody, isScan) => ???
+      case x@AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
@@ -755,10 +755,10 @@ object Interpret {
       case TableCollect(child) =>
         val tv = child.execute(HailContext.get)
         Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
-      case MatrixMultiWrite(children, writer) =>
+      case TableMultiWrite(children, writer) =>
         val hc = HailContext.get
-        val mvs = children.map(_.execute(hc))
-        writer(mvs)
+        val tvs = children.map(_.execute(hc))
+        writer(tvs)
       case TableWrite(child, writer) =>
         writer(child.execute(HailContext.get))
       case BlockMatrixWrite(child, writer) =>

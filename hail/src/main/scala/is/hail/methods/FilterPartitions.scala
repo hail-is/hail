@@ -8,7 +8,7 @@ import is.hail.rvd.RVDType
 case class TableFilterPartitions(parts: Seq[Int], keep: Boolean) extends TableToTableFunction {
   override def preservesPartitionCounts: Boolean = false
 
-  override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = (childType, childRVDType)
+  override def typ(childType: TableType): TableType = childType
 
   override def execute(tv: TableValue): TableValue = {
     val newRVD = if (keep)
@@ -24,7 +24,7 @@ case class TableFilterPartitions(parts: Seq[Int], keep: Boolean) extends TableTo
 case class MatrixFilterPartitions(parts: Seq[Int], keep: Boolean) extends MatrixToMatrixFunction {
   override def preservesPartitionCounts: Boolean = false
 
-  override def typeInfo(childType: MatrixType, childRVDType: RVDType): (MatrixType, RVDType) = (childType, childRVDType)
+  override def typ(childType: MatrixType): MatrixType = childType
 
   override def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
 

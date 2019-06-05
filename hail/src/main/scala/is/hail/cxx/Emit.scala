@@ -10,7 +10,7 @@ import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object Emit {
 
@@ -302,7 +302,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |$setup
              |${ m.define }
              |${ v.define }
-             |${ Code.sequence(mbs.map(_.define)) }
+             |${ Code.defineVars(mbs) }
              |${ computeMissingAndValue }
              |""".stripMargin,
           m.toString,
@@ -917,7 +917,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 =>
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
@@ -1007,7 +1007,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
 
         val setup = Code(ndt.setup, nd.define, Code.sequence(shapeBuilder))
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
+        val emitter = new NDArrayEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
           override def outputElement(resultIdxVars: Seq[Variable]): Code = {
             val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
             val resultIdxVarsIter = resultIdxVars.iterator
@@ -1022,7 +1022,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             assert(!resultIdxVarsIter.hasNext)
 
             val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
-            val body = s"$acc += ${ NDArrayLoopEmitter.loadElement(nd, joinedIdxVars, childTyp.elementType) };"
+            val body = s"$acc += ${ NDArrayEmitter.loadElement(nd, joinedIdxVars, childTyp.elementType) };"
             val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
               s"""
                  |${ dimVar.define }
@@ -1056,10 +1056,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val r = fb.variable("r", "NDArray", rt.v)
 
         val shape = fb.variable("shape", "std::vector<long>", s"matmul_shape($l.shape, $r.shape)")
-        val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define)
 
-        val emitter = new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        val lStackDimsBroadcastFlags =
+          if (lNDims > 2)
+            NDArrayEmitter.broadcastFlags(fb, lNDims, s"$l.shape")
+          else
+            Seq[Variable]()
+
+        val rStackDimsBroadcastFlags =
+          if (rNDims > 2)
+            NDArrayEmitter.broadcastFlags(fb, rNDims, s"$r.shape")
+          else
+            Seq[Variable]()
+
+        val setup = Code(lt.setup, rt.setup, l.define, r.define, shape.define,
+          Code.defineVars(lStackDimsBroadcastFlags),
+          Code.defineVars(rStackDimsBroadcastFlags))
+
+        val emitter = new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
+            val broadcastingLoopVars = new ArrayBuffer[Variable]()
             val element = fb.variable("element", typeToCXXType(xType.elementType), "0")
             val k = fb.variable("k", "int")
 
@@ -1069,19 +1085,37 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
               case (1, 1) => (Seq(k), Seq(k))
               case (1, _) =>
                 val stackDims :+ m = idxVars
-                (Seq(k), stackDims :+ k :+ m)
+
+                val rStackVars =
+                  NDArrayEmitter.zeroBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
+                rStackVars.foreach(broadcastingLoopVars += _)
+                (Seq(k), rStackVars :+ k :+ m)
               case (_, 1) =>
                 val stackDims :+ n = idxVars
-                (stackDims :+ n :+ k, Seq(k))
+
+                val lStackVars =
+                  NDArrayEmitter.zeroBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
+                lStackVars.foreach(broadcastingLoopVars += _)
+
+                (lStackVars :+ n :+ k, Seq(k))
               case _ =>
                 val stackDims :+ n :+ m = idxVars
-                (stackDims :+ n :+ k, stackDims :+ k :+ m)
+
+                val lStackVars =
+                  NDArrayEmitter.zeroBroadcastedDims(fb, lStackDimsBroadcastFlags, stackDims)
+                lStackVars.foreach(broadcastingLoopVars += _)
+                val rStackVars =
+                  NDArrayEmitter.zeroBroadcastedDims(fb, rStackDimsBroadcastFlags, stackDims)
+                rStackVars.foreach(broadcastingLoopVars += _)
+
+                (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
             }
 
-            val lElem = NDArrayLoopEmitter.loadElement(l, lIdxVars, xType.elementType)
-            val rElem = NDArrayLoopEmitter.loadElement(r, rIdxVars, xType.elementType)
+            val lElem = NDArrayEmitter.loadElement(l, lIdxVars, xType.elementType)
+            val rElem = NDArrayEmitter.loadElement(r, rIdxVars, xType.elementType)
             s"""
                |({
+               |  ${ Code.defineVars(broadcastingLoopVars) }
                |  ${ element.define }
                |  ${ k.define }
                |  for ($k = 0; $k < $l.shape[${ lNDims - 1 }]; ++$k) {
@@ -1107,7 +1141,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""
              | ${ childEmitter.setup }
              | ${ Code.sequence(idxst.map(_.setup)) }
-             | ${ Code.sequence(idxVars.map(_.define)) }
+             | ${ Code.defineVars(idxVars) }
            """.stripMargin,
           idxst.foldLeft("false"){ case (b, idxt) => s"$b || ${ idxt.m }" },
           childEmitter.outputElement(idxVars))
@@ -1364,7 +1398,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
     }
   }
 
-  def emitDeforestedNDArray(resultRegion: EmitRegion, x: ir.IR, env: E): NDArrayLoopEmitter = {
+  def emitDeforestedNDArray(resultRegion: EmitRegion, x: ir.IR, env: E): NDArrayEmitter = {
     val xType = x.pType.asInstanceOf[PNDArray]
     x match {
       case ir.NDArrayReindex(child, indexExpr) =>
@@ -1378,7 +1412,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
         val setup = Code(childEmitter.setup, shape.define)
 
-        new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
               val parentDim = indexExpr.indexOf(childDim)
@@ -1400,7 +1434,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
         val setup = Code(childEmitter.setup, elemRef.define)
 
-        new NDArrayLoopEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             s"""
                |({
@@ -1433,14 +1467,24 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val rEmitter = emitDeforestedNDArray(resultRegion, rChild, env)
 
         val shape = fb.variable("shape", "std::vector<long>", s"unify_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
-        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define)
 
-        new NDArrayLoopEmitter(fb, resultRegion, lEmitter.nDims, shape, setup) {
+        val lBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, xType.nDims, lEmitter.shape.toString)
+        val rBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, xType.nDims, rEmitter.shape.toString)
+
+        val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define,
+          Code.defineVars(lBroadcastFlags), Code.defineVars(rBroadcastFlags))
+
+        new NDArrayEmitter(fb, resultRegion, lEmitter.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
+            val lIdxVars = NDArrayEmitter.zeroBroadcastedDims(fb, lBroadcastFlags, idxVars)
+            val rIdxVars = NDArrayEmitter.zeroBroadcastedDims(fb, rBroadcastFlags, idxVars)
+
             s"""
                |({
-               | $lRef = ${ lEmitter.outputElement(idxVars) };
-               | $rRef = ${ rEmitter.outputElement(idxVars) };
+               | ${ Code.defineVars(lIdxVars) }
+               | ${ Code.defineVars(rIdxVars) }
+               | $lRef = ${ lEmitter.outputElement(lIdxVars) };
+               | $rRef = ${ rEmitter.outputElement(rIdxVars) };
                |
                | ${ bodyt.setup }
                | if (${ bodyt.m }) {
@@ -1448,6 +1492,85 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                | }
                |
                | ${ bodyt.v };
+               |})
+             """.stripMargin
+          }
+        }
+
+      case ir.NDArraySlice(ndIR, slicesIR) =>
+        val slicesPType = slicesIR.pType.asInstanceOf[PTuple]
+        val slicePType = PTuple(IndexedSeq(PInt64(), PInt64(), PInt64()))
+
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+
+        val slicest = emit(resultRegion, slicesIR, env)
+        val slicesTup = fb.variable("slices_tuple", "const char *", slicest.v)
+        val slicesMissing = Seq.tabulate(slicesPType.size) { slicesPType.cxxIsFieldMissing(slicesTup.toString, _) }
+
+        val sliceVars = mutable.ArrayBuffer[(Variable, Variable, Variable)]()
+        val refVars = mutable.Map[Int, Variable]()
+        coerce[TTuple](slicesIR.typ).types.zipWithIndex.foreach { case (sliceOrIndex, dim) =>
+          val slice = slicesPType.cxxLoadField(slicesTup.toString, dim)
+          sliceOrIndex match {
+            case _: TTuple =>
+              val startVar = fb.variable(s"start_$dim", "int", slicePType.cxxLoadField(slice, 0))
+              val stopVar  = fb.variable(s"stop_$dim",  "int", slicePType.cxxLoadField(slice, 1))
+              val stepVar  = fb.variable(s"step_$dim",  "int", slicePType.cxxLoadField(slice, 2))
+
+              sliceVars += ((startVar, stopVar, stepVar))
+            case _: TInt64 =>
+              val idx = fb.variable(s"ref_$dim", "int", slice)
+              refVars += dim -> idx
+          }
+        }
+
+        val defineSliceVars = sliceVars.map { case (start, stop, step) =>
+          Code(start.define, stop.define, step.define)
+        }
+        val newShapeSeq = sliceVars.map { case (start, stop, step) => s"(1 + (($stop - $start) - 1) / $step)" }
+        val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
+        val setup =
+          s"""
+             | ${ childEmitter.setup }
+             | ${ slicest.setup }
+             | if (${ slicest.m }) {
+             |   ${ fb.nativeError("Cannot slice NDArray with missing tuple of slices.") }
+             | }
+             | ${ slicesTup.define }
+             | if (${ slicesMissing.foldRight("false") { (m, b) => s"$m || $b" } }) {
+             |   ${ fb.nativeError("Cannot slice NDArray with missing slices.") }
+             | }
+             | ${ Code.sequence(defineSliceVars) }
+             | ${ Code.defineVars(refVars.values.toFastSeq) }
+             | ${ shape.define }
+           """.stripMargin
+
+        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val newLoopVars = mutable.ArrayBuffer[Variable]()
+            newLoopVars.sizeHint(sliceVars.size)
+
+            val oldIdxVarsIter = idxVars.iterator
+            val sliceIdxVarsIter = sliceVars.iterator
+            val sliceIdxVars = IndexedSeq.tabulate(childEmitter.nDims) { dim =>
+              if (refVars.contains(dim)) {
+                refVars(dim)
+              } else {
+                assert(oldIdxVarsIter.hasNext)
+                assert(sliceIdxVarsIter.hasNext)
+
+                val (start, _, step) = sliceIdxVarsIter.next
+                val oldIdxVar = oldIdxVarsIter.next()
+                val shiftedIdx = fb.variable("slice_idx", "int", s"($start + ($oldIdxVar * $step))")
+                newLoopVars += shiftedIdx
+                shiftedIdx
+              }
+            }
+
+            s"""
+               |({
+               |  ${ Code.defineVars(newLoopVars) }
+               |  ${ childEmitter.outputElement(sliceIdxVars) };
                |})
              """.stripMargin
           }
@@ -1465,9 +1588,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shape.define }
            """.stripMargin
 
-        new NDArrayLoopEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            NDArrayLoopEmitter.loadElement(nd, idxVars, xType.elementType)
+            NDArrayEmitter.loadElement(nd, idxVars, xType.elementType)
           }
         }
     }

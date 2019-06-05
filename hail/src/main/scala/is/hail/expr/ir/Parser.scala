@@ -674,6 +674,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
+      case "NDArraySlice" =>
+        val nd = ir_value_expr(env)(it)
+        val slices = ir_value_expr(env)(it)
+        NDArraySlice(nd, slices)
       case "NDArrayMatMul" =>
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
@@ -770,11 +774,13 @@ object IRParser {
         val elementName = identifier(it)
         val indexName = identifier(it)
         val isScan = boolean_literal(it)
+        val hasKnownLength = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env
           + (elementName -> coerce[TStreamable](a.typ).elementType)
           + (indexName -> TInt32()))(it)
-        AggArrayPerElement(a, elementName, indexName, aggBody, isScan)
+        val knownLength = if (hasKnownLength) Some(ir_value_expr(env)(it)) else None
+        AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -878,6 +884,11 @@ object IRParser {
         val writerStr = string_literal(it)
         val child = table_ir(env)(it)
         TableWrite(child, deserialize[TableWriter](writerStr))
+      case "TableMultiWrite" =>
+        implicit val formats = WrappedMatrixNativeMultiWriter.formats
+        val writerStr = string_literal(it)
+        val children = table_ir_children(env)(it)
+        TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
       case "MatrixAggregate" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)

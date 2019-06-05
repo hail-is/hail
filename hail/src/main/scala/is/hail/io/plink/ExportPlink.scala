@@ -75,7 +75,7 @@ object ExportPlink {
     val d = digitsNeeded(nPartitions)
 
     val nSamples = mv.colValues.value.length
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowPType
 
     val (partFiles, nRecordsWrittenPerPartition) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val fs = bcFS.value

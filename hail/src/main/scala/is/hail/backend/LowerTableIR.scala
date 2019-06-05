@@ -45,7 +45,6 @@ object LowerTableIR {
 
     var ir = ir0
 
-    ir = ir.unwrap
     if (optimize) { ir = time( "first pass", opt(_, ir)) }
 
     ir = time("lowering MatrixIR", _ => LowerMatrixIR(ir))
@@ -81,7 +80,10 @@ object LowerTableIR {
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
-      
+
+    case node if node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
+      throw new LowererUnsupportedOperation(s"BlockMatrixIR nodes are not supported: \n${ Pretty(node) }")
+
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })
   }
@@ -140,11 +142,12 @@ object LowerTableIR {
     case TableFilter(child, cond) =>
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
-      val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
       loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, BindingEnv(env))))
 
     case TableMapRows(child, newRow) =>
+      if (ContainsScan(newRow))
+        throw new LowererUnsupportedOperation(s"scans are not supported: \n${ Pretty(newRow) }")
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
@@ -154,7 +157,9 @@ object LowerTableIR {
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
 
-      val fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      var fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      if (!fieldRef.typ.isInstanceOf[TArray])
+        fieldRef = ToArray(fieldRef)
       val elt = Ref(genUID(), coerce[TContainer](fieldRef.typ).elementType)
 
       val refs = path.scanLeft(row)((struct, name) =>

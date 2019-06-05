@@ -350,16 +350,6 @@ parameters:
   type: pd-standard
   replication-type: none
 ---
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: batch-storage-class-quota
-  namespace: batch-pods
-spec:
-  hard:
-    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
-    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100
----
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:

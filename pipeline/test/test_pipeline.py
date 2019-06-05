@@ -290,8 +290,14 @@ class LocalTests(unittest.TestCase):
 
 
 class BatchTests(unittest.TestCase):
+    def setUp(self):
+        self.backend = BatchBackend(os.environ.get('BATCH_URL'))
+
+    def tearDown(self):
+        self.backend.close()
+
     def pipeline(self):
-        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
+        return Pipeline(backend=self.backend,
                         default_image='google/cloud-sdk:237.0.0-alpine')
 
     def test_single_task_no_io(self):
@@ -311,6 +317,7 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
         input = p.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
         t = p.new_task()
+        t.storage('0.25Gi')
         t.command(f'cat {input.foo}')
         p.run()
 
@@ -394,3 +401,10 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input} > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
         p.run()
+
+    def test_dry_run(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command(f'echo hello > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
+        p.run(dry_run=True)

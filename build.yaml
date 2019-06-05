@@ -82,7 +82,7 @@ steps:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
-   serviceAccount: ci2-agent
+   serviceAccount: ci-agent
    scopes:
     - test
    dependsOn:
@@ -152,15 +152,15 @@ steps:
    publishAs: image-fetcher
  - kind: buildImage
    name: ci_image
-   dockerFile: ci2/Dockerfile
+   dockerFile: ci/Dockerfile
    contextPath: .
-   publishAs: ci2
+   publishAs: ci
    dependsOn:
      - base_image
  - kind: buildImage
    name: ci_utils_image
-   dockerFile: ci2/Dockerfile.ci-utils
-   contextPath: ci2
+   dockerFile: ci/Dockerfile.ci-utils
+   contextPath: ci
    publishAs: ci-utils
    dependsOn:
      - base_image
@@ -168,6 +168,10 @@ steps:
    name: build_hail
    image:
      valueFrom: hail_build_image.image
+   resources:
+     requests:
+       memory: "4G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -184,9 +188,9 @@ steps:
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
-     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
-     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
        to: /testng.xml
@@ -212,14 +216,16 @@ steps:
    name: test_hail_java
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
      mkdir -p src/test
      tar xzvf resources.tar.gz -C src/test
-     export HAIL_TEST_SKIP_R=1
-     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
-     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+     HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
@@ -227,11 +233,36 @@ steps:
       to: /io/hail-test.jar
     - from: /testng.xml
       to: /io/testng.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_cpp_codegen
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     HAIL_ENABLE_CPP_CODEGEN=1 HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
    outputs:
     - from: /io/test-output
-      to: /test-output
+      to: /test-cpp-codegen-output
    dependsOn:
     - hail_run_image
     - build_hail
@@ -249,13 +280,6 @@ steps:
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
-   name: apiserver_image
-   dockerFile: apiserver/Dockerfile.apiserver
-   contextPath: .
-   publishAs: apiserver
-   dependsOn:
-    - hail_base_image
- - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
    contextPath: .
@@ -263,35 +287,6 @@ steps:
    dependsOn:
     - hail_base_image
     - default_ns
- - kind: buildImage
-   name: spark_master_image
-   dockerFile: apiserver/Dockerfile.spark-master
-   contextPath: apiserver
-   publishAs: spark-master
-   dependsOn:
-    - hail_base_image
- - kind: buildImage
-   name: spark_worker_image
-   dockerFile: apiserver/Dockerfile.spark-worker
-   contextPath: apiserver
-   publishAs: spark-worker
-   dependsOn:
-    - hail_base_image
- - kind: buildImage
-   name: test_apiserver_image
-   dockerFile: apiserver/Dockerfile.test-apiserver
-   contextPath: .
-   publishAs: test-apiserver
-   inputs:
-    - from: /test.tar.gz
-      to: /test.tar.gz
-    - from: /resources.tar.gz
-      to: /resources.tar.gz
-    - from: /data.tar.gz
-      to: /data.tar.gz
-   dependsOn:
-    - hail_base_image
-    - build_hail
  - kind: buildImage
    name: notebook2_image
    dockerFile: notebook2/Dockerfile
@@ -303,6 +298,10 @@ steps:
    name: test_hail_python
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -421,12 +420,10 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
-     cd /io
-     unzip -q hail.zip
-     # docs refer to www, maintain standard relationship
-     mkdir python
-     mv hail python
-     tar xzf www-src.tar.gz
+     mkdir -p {{ token }}/python
+     cd {{ token }}
+     unzip -q -d python /io/hail.zip
+     tar xzf /io/www-src.tar.gz
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
@@ -434,7 +431,7 @@ steps:
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      mv python/hail/docs/_build/html www/docs/0.2
-     tar czf www.tar.gz www
+     tar czf /io/www.tar.gz www
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -455,7 +452,7 @@ steps:
     - www
     - scorecard
     - notebook2
-    - ci2
+    - ci
    dependsOn:
     - default_ns
     - router_image
@@ -481,15 +478,16 @@ steps:
    name: deploy_ci
    namespace:
      valueFrom: default_ns.name
-   config: ci2/deployment.yaml
+   config: ci/deployment.yaml
    wait:
     - kind: Service
-      name: ci2
+      name: ci
       for: alive
    dependsOn:
     - default_ns
     - ci_image
     - ci_utils_image
+    - create_accounts
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -544,6 +542,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_accounts
     - batch_image
     - batch_database
     - create_batch_tables
@@ -587,7 +586,6 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    secrets:
-    # hail|test-batch
     - name: test-gsa-key
       mountPath: /test-gsa-key
    dependsOn:
@@ -625,43 +623,6 @@ steps:
     - base_image
     - setup_pipeline    
     - test_pipeline
- - kind: deploy
-   name: deploy_apiserver
-   namespace:
-     valueFrom: default_ns.name
-   config: apiserver/deployment.yaml
-   wait:
-    - kind: Deployment
-      name: spark-master
-      for: available
-    - kind: Deployment
-      name: spark-worker
-      for: available
-    - kind: Service
-      name: apiserver
-      port: 5000
-      for: alive
-   dependsOn:
-    - default_ns
-    - test_batch_image
-    - spark_master_image
-    - spark_worker_image
-    - apiserver_image
- - kind: deploy
-   name: test_apiserver
-   namespace:
-     valueFrom: batch_pods_ns.name
-   config: apiserver/test-apiserver-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-apiserver
-      for: completed
-      timeout: 180
-   dependsOn:
-    - default_ns
-    - batch_pods_ns
-    - test_apiserver_image
-    - deploy_apiserver
  - kind: deploy
    name: deploy_notebook2
    namespace:

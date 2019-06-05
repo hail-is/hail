@@ -1118,6 +1118,24 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
+  @Test def testNDArraySlice() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple(Seq(MakeTuple(Seq(I64(0), I64(2), I64(1))), I64(1))))
+    assertEvalsTo(NDArrayShape(rightCol), Row(2L))
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(1)), 4.0)
+
+    val topRow = NDArraySlice(matrixRowMajor,
+      MakeTuple(Seq(I64(0),
+      MakeTuple(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(1)), 2.0)
+
+    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple(FastSeq()))
+    assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
+  }
+
   @Test def testNDArrayWrite() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
@@ -1382,7 +1400,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
@@ -1398,6 +1416,12 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Literal(types(0), values(0)), values(0))
     assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
+  }
+
+  @Test def testSameLiteralsWithDifferentTypes() {
+    assertEvalsTo(ApplyComparisonOp(EQ(TArray(TInt32())),
+      ArrayMap(Literal(TArray(TFloat64()), FastIndexedSeq(1.0, 2.0)), "elt", Cast(Ref("elt", TFloat64()), TInt32())),
+      Literal(TArray(TInt32()), FastIndexedSeq(1, 2))), true)
   }
 
   @Test def testTableCount() {
@@ -1541,6 +1565,8 @@ class IRSuite extends SparkSuite {
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       NDArrayMatMul(nd, nd),
+      NDArraySlice(nd, MakeTuple(FastSeq(MakeTuple(FastSeq(F64(0), F64(2), F64(1))),
+                                         MakeTuple(FastSeq(F64(0), F64(2), F64(1)))))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1597,6 +1623,7 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
@@ -1699,9 +1726,9 @@ class IRSuite extends SparkSuite {
           GetField(Ref("sa", read.typ.colType), "col_f32"),
           F32(-5.2f))))
       val newRow = MakeStruct(FastIndexedSeq(
-        "row_idx" -> GetField(Ref("va", read.typ.rvRowType), "row_idx"),
+        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
         "new_f32" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rvRowType), "row_f32"),
+          GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f)))
       )
 
@@ -2094,7 +2121,7 @@ class IRSuite extends SparkSuite {
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
     Array(VEP("foo", false, 1)),
-    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "bar", "baz", "qux", FastIndexedSeq("ck"))),
+    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "baz", FastIndexedSeq("ck"))),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),

@@ -32,6 +32,11 @@ def sample_qc():
 def variant_qc():
     hl.variant_qc(get_mt()).rows()._force_count()
 
+@benchmark
+def variant_and_sample_qc():
+    mt = get_mt()
+    hl.sample_qc(hl.variant_qc(mt))._force_count_rows()
+
 
 @benchmark
 def hwe_normalized_pca():
@@ -43,3 +48,11 @@ def hwe_normalized_pca():
 def split_multi_hts():
     mt = hl.read_matrix_table(resource('profile.mt'))
     hl.split_multi_hts(mt)._force_count_rows()
+
+@benchmark
+def concordance():
+    mt = get_mt()
+    mt = mt.filter_rows(mt.alleles.length() == 2)
+    g, r, c = hl.methods.qc.concordance(mt, mt, _localize_global_statistics=False)
+    r._force_count()
+    c._force_count()

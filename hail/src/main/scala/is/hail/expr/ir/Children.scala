@@ -93,6 +93,8 @@ object Children {
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
+    case NDArraySlice(nd, slices) =>
+      Array(nd, slices)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
@@ -111,7 +113,7 @@ object Children {
       Array(array, aggBody)
     case AggGroupBy(key, aggIR, _) =>
       Array(key, aggIR)
-    case AggArrayPerElement(a, _, _, aggBody, _) => Array(a, aggBody)
+    case AggArrayPerElement(a, _, _, aggBody, knownLength, _) => Array(a, aggBody) ++ knownLength.toArray[IR]
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -158,6 +160,7 @@ object Children {
     case TableAggregate(child, query) => Array(child, query)
     case MatrixAggregate(child, query) => Array(child, query)
     case TableWrite(child, _) => Array(child)
+    case TableMultiWrite(children, _) => children
     case TableToValueApply(child, _) => Array(child)
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR

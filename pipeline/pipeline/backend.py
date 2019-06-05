@@ -4,6 +4,7 @@ import subprocess as sp
 import uuid
 from shlex import quote as shq
 import batch.client
+import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
 
@@ -162,12 +163,15 @@ class BatchBackend(Backend):
     """
 
     def __init__(self, url):
-        self._batch_client = batch.client.BatchClient(url)
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self._batch_client = batch.client.BatchClient(session, url)
+
+    def close(self):
+        self._batch_client.close()
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
-        if dry_run:
-            raise NotImplementedError
-
         bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
@@ -181,9 +185,12 @@ class BatchBackend(Backend):
         used_remote_tmpdir = False
 
         task_to_job_mapping = {}
-        job_id_to_command = {}
+        jobs_to_command = {}
+        commands = []
 
-        activate_service_account = 'set -ex; gcloud -q auth activate-service-account ' \
+        bash_flags = 'set -e' + ('x' if verbose else '') + '; '
+
+        activate_service_account = 'gcloud -q auth activate-service-account ' \
                                    '--key-file=/gsa-key/privateKeyData'
 
         def copy_input(r):
@@ -209,16 +216,19 @@ class BatchBackend(Backend):
             def _cp(src, dst):
                 return f'gsutil -m cp -R {src} {dst}'
 
-            write_cmd = activate_service_account + ' && ' + \
+            write_cmd = bash_flags + activate_service_account + ' && ' + \
                         ' && '.join([_cp(*files) for files in write_external_inputs])
 
-            j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
-                                 command=['/bin/bash', '-c', write_cmd],
-                                 attributes={'label': 'write_external_inputs'})
-            job_id_to_command[j.id] = write_cmd
-            n_jobs_submitted += 1
-            if verbose:
-                print(f"Submitted Job {j.id} with command: {write_cmd}")
+            if dry_run:
+                commands.append(write_cmd)
+            else:
+                j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
+                                     command=['/bin/bash', '-c', write_cmd],
+                                     attributes={'name': 'write_external_inputs'})
+                jobs_to_command[j] = write_cmd
+                n_jobs_submitted += 1
+                if verbose:
+                    print(f"Submitted Job {j.id} with command: {write_cmd}")
 
         for task in pipeline._tasks:
             inputs = [x for r in task._inputs for x in copy_input(r)]
@@ -238,12 +248,16 @@ class BatchBackend(Backend):
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
-            cmd = " && ".join(task_command)
-            parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
+            cmd = bash_flags + make_local_tmpdir + defs + " && ".join(task_command)
+            if dry_run:
+                commands.append(cmd)
+                continue
+
+            parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
             if task._label:
-                attributes['label'] = task._label
+                attributes['name'] = task._label
 
             resources = {'requests': {}}
             if task._cpu:
@@ -252,46 +266,51 @@ class BatchBackend(Backend):
                 resources['requests']['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
-                                 command=['/bin/bash', '-c', make_local_tmpdir + defs + cmd],
-                                 parent_ids=parent_ids,
+                                 command=['/bin/bash', '-c', cmd],
+                                 parents=parents,
                                  attributes=attributes,
                                  resources=resources,
                                  input_files=inputs if len(inputs) > 0 else None,
-                                 output_files=outputs if len(outputs) > 0 else None)
+                                 output_files=outputs if len(outputs) > 0 else None,
+                                 pvc_size=task._storage)
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
-            job_id_to_command[j.id] = defs + cmd
+            jobs_to_command[j] = cmd
             if verbose:
-                print(f"Submitted Job {j.id} with command: {defs + cmd}")
+                print(f"Submitted Job {j.id} with command: {cmd}")
+
+        if dry_run:
+            print("\n\n".join(commands))
+            return
 
         if delete_scratch_on_exit and used_remote_tmpdir:
-            parent_ids = list(job_id_to_command.keys())
+            parents = list(jobs_to_command.keys())
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            cmd = f'{activate_service_account} && {rm_cmd}'
+            cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
             j = batch.create_job(
                 image='google/cloud-sdk:237.0.0-alpine',
                 command=['/bin/bash', '-c', cmd],
-                parent_ids=parent_ids,
-                attributes={'label': 'remove_tmpdir'},
+                parents=parents,
+                attributes={'name': 'remove_tmpdir'},
                 always_run=True)
-            job_id_to_command[j.id] = cmd
+            jobs_to_command[j] = cmd
             n_jobs_submitted += 1
 
         batch.close()
         status = batch.wait()
 
-        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
+        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            job = self._batch_client.get_job(jid)
+            job = self._batch_client.get_job(*jid)
             log = job.log()
-            label = job.status()['attributes'].get('label', None)
+            label = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
-                f"  Command:\t{job_id_to_command[jid]}\n"
+                f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
         n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])

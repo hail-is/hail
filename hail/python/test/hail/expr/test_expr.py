@@ -2171,6 +2171,51 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(li.overlaps(li3)))
         self.assertFalse(hl.eval(li.overlaps(li5)))
 
+    def test_locus_interval_constructors(self):
+        li_contig_start = hl.locus_interval('1', 0, 2, False, False,
+                                            invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_start) == hl.utils.Interval(
+            hl.genetics.Locus("1", 1),
+            hl.genetics.Locus("1", 2),
+            includes_start=True,
+            includes_end=False))
+
+        li_contig_middle1 = hl.locus_interval('1', 100, 100, True, False,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle1) == hl.utils.Interval(
+            hl.genetics.Locus("1", 99),
+            hl.genetics.Locus("1", 100),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_middle2 = hl.locus_interval('1', 100, 100, False, True,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle2) == hl.utils.Interval(
+            hl.genetics.Locus("1", 100),
+            hl.genetics.Locus("1", 101),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_end = hl.locus_interval('1', 249250621, 249250622, True,
+                                          False, invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_end) == hl.utils.Interval(
+            hl.genetics.Locus("1", 249250621),
+            hl.genetics.Locus("1", 249250621),
+            includes_start=True,
+            includes_end=True))
+
+        li1 = hl.locus_interval('1', 0, 1, False, False, invalid_missing=True)
+        li2 = hl.locus_interval('1', 0, 1, True, False, invalid_missing=True)
+        li3 = hl.locus_interval('1', 20, 20, False, False, invalid_missing=True)
+        li4 = hl.locus_interval('1', 249250621, 249250622, False, True, invalid_missing=True)
+        li5 = hl.locus_interval('1', 20, 19, True, True, invalid_missing=True)
+
+        for expr in [li1, li2, li3, li4, li5]:
+            self.assertTrue(hl.eval(expr) is None)
+
+        li_parsed = hl.parse_locus_interval('(1:20-20)', invalid_missing=True)
+        self.assertTrue(hl.eval(li_parsed) is None)
+
     def test_reference_genome_fns(self):
         self.assertTrue(hl.eval(hl.is_valid_contig('1', 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_contig('chr1', 'GRCh37')))
@@ -2698,6 +2743,9 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(h_cube[1, 1, 0], 6)
         self.assert_evals_to(h_np_cube[0, 0, 1], 1)
         self.assert_evals_to(h_np_cube[1, 1, 0], 6)
+        self.assert_evals_to(hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1)
+        self.assert_evals_to(hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3)
+        self.assert_evals_to(h_np_cube[0, :, :][:, 0][1], 2)
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
@@ -2706,6 +2754,29 @@ class Tests(unittest.TestCase):
 
     def ndarray_almost_eq(self, expr, expected):
         self.assertTrue(np.allclose(expr.to_numpy(), expected))
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_slice(self):
+        np_arr = np.array([[[0, 1, 2, 3],
+                            [4, 5, 6, 7],
+                            [8, 9, 10, 11]],
+                           [[12, 13, 14, 15],
+                            [16, 17, 18, 19],
+                            [20, 21, 22, 23]]])
+        arr = hl._ndarray(np_arr)
+        np_mat = np.array([[1, 2, 3, 4],
+                           [5, 6, 7, 8]])
+        mat = hl._ndarray(np_mat)
+
+        self.ndarray_eq(arr[:, :, :], np_arr[:, :, :])
+        self.ndarray_eq(arr[:, :, 1], np_arr[:, :, 1])
+        self.ndarray_eq(arr[:, :, 1:4:2], np_arr[:, :, 1:4:2])
+        self.ndarray_eq(arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2])
+        self.ndarray_eq(arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2])
+        self.ndarray_eq(arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2])
+        self.ndarray_eq(arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2])
+        self.ndarray_eq(mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2])
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2942,6 +3013,11 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
         self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
         self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        np_broadcasted_mat = np.array([[[1, 2],
+                                        [3, 4]]])
+        self.ndarray_eq(hl._ndarray(np_broadcasted_mat) @ rect_prism,
+                        np_broadcasted_mat @ np_rect_prism)
 
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))

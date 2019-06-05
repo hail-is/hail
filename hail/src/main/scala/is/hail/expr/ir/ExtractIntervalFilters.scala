@@ -208,7 +208,7 @@ object ExtractIntervalFilters {
               newCond)
           }
       case MatrixFilterRows(child, pred) =>
-        extractPartitionFilters(pred, Ref("va", child.typ.rvRowType), child.typ.rowKey)
+        extractPartitionFilters(pred, Ref("va", child.typ.rowType), child.typ.rowKey)
           .map { case (newCond, intervals) =>
             log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
               s"Intervals: ${ intervals.mkString(", ") }\n  " +

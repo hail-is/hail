@@ -60,7 +60,7 @@ case class BgenSettings(
     case NoEntries =>
       matrixType.rowType
     case _: EntriesWithFields =>
-      matrixType.rvRowType
+      matrixType.canonicalRVDType.rowType.virtualType
   }
 
   def pType: PStruct = typ.physicalType

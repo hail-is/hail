@@ -288,11 +288,10 @@ case class LocalLDPrune(
   callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int
 ) extends MatrixToTableFunction {
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
-    val tableType = TableType(
+  override def typ(childType: MatrixType): TableType = {
+    TableType(
       rowType = childType.rowKeyStruct ++ TStruct("mean" -> TFloat64(), "centered_length_rec" -> TFloat64()),
       key = childType.rowKey, globalType = TStruct.empty())
-    (tableType, tableType.canonicalRVDType)
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -303,20 +302,18 @@ case class LocalLDPrune(
 
     val nSamples = mv.nCols
     
-    val fullRowType = mv.typ.rvRowType
-    val fullRowPType = fullRowType.physicalType
+    val fullRowType = mv.rvRowType
+    val fullRowPType = mv.rvRowPType
 
     val locusIndex = fullRowType.fieldIdx("locus")
     val allelesIndex = fullRowType.fieldIdx("alleles")
 
     val bpvType = BitPackedVectorView.rvRowType(fullRowType.types(locusIndex), fullRowType.types(allelesIndex))
 
-    val typ = mv.rvd.typ
-
-    val (tableType, tableRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
 
     val standardizedRDD = mv.rvd
-      .mapPartitions(typ.copy(rowType = bpvType))({ it =>
+      .mapPartitions(mv.rvd.typ.copy(rowType = bpvType))({ it =>
         val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
         val rvb = new RegionValueBuilder(region)

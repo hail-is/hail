@@ -122,6 +122,10 @@ object InferType {
       case NDArrayRef(nd, idxs) =>
         assert(idxs.forall(_.typ.isOfType(TInt64())))
         coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && idxs.forall(_.typ.required))
+      case NDArraySlice(nd, slices) =>
+        val childTyp = coerce[TNDArray](nd.typ)
+        val remainingDims = coerce[TTuple](slices.typ).types.filter(_.isInstanceOf[TTuple])
+        TNDArray(childTyp.elementType, Nat(remainingDims.length))
       case NDArrayMatMul(l, r) =>
         val lTyp = coerce[TNDArray](l.typ)
         val rTyp = coerce[TNDArray](r.typ)
@@ -133,7 +137,7 @@ object InferType {
         aggBody.typ
       case AggGroupBy(key, aggIR, _) =>
         TDict(key.typ, aggIR.typ)
-      case AggArrayPerElement(a, _, _, aggBody, _) => TArray(aggBody.typ)
+      case AggArrayPerElement(a, _, _, aggBody, _, _) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>
@@ -171,6 +175,7 @@ object InferType {
       case MatrixAggregate(child, query) =>
         query.typ
       case _: TableWrite => TVoid
+      case _: TableMultiWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
       case _: BlockMatrixWrite => TVoid

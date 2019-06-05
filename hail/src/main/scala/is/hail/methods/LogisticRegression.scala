@@ -17,19 +17,19 @@ case class LogisticRegression(
   covFields: Seq[String],
   passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val logRegTest = LogisticRegressionTest.tests(test)
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
-    val tableType = TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct())
-    (tableType, tableType.canonicalRVDType)
+    TableType(childType.rowKeyStruct ++ passThroughType ++ multiPhenoSchema, childType.rowKey, TStruct())
   }
 
   def preservesPartitionCounts: Boolean = true
 
   def execute(mv: MatrixValue): TableValue = {
     val logRegTest = LogisticRegressionTest.tests(test)
-    val (tableType, newRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val newRVDType = tableType.canonicalRVDType
 
     val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
 
@@ -79,17 +79,17 @@ case class LogisticRegression(
     val logRegTestBc = sc.broadcast(logRegTest)
     val resultSchemaBc = sc.broadcast(logRegTest.schema)
 
-    val fullRowType = mv.typ.rvRowType.physicalType
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val fullRowType = mv.rvRowPType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.typ.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()

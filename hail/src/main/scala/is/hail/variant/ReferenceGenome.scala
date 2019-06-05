@@ -40,8 +40,6 @@ abstract class RGBase extends Serializable {
 
   def checkLocus(contig: String, pos: Int): Unit
 
-  def checkLocusInterval(i: Interval): Unit
-
   def contigLength(contig: String): Int
 
   def contigLength(contigIdx: Int): Int
@@ -254,47 +252,68 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def checkLocusInterval(i: Interval): Unit = {
-    val start = i.start.asInstanceOf[Locus]
-    val end = i.end.asInstanceOf[Locus]
-    val includesStart = i.includesStart
-    val includesEnd = i.includesEnd
-
-    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
-      if (!isValidContig(start.contig))
-        fatal(s"Invalid interval '$i' found. Contig '${ start.contig }' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid interval '$i' found. Start '$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome '$name'.")
-    }
-
-    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
-      if (!isValidContig(end.contig))
-        fatal(s"Invalid interval '$i' found. Contig '${ end.contig }' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid interval '$i' found. End '$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome '$name'.")
-    }
-
-    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
-      if (start == end && ((includesStart && !includesEnd) || (!includesStart && includesStart)))
-        fatal(s"Invalid interval '$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
-      else
-        fatal(s"Invalid interval '$i' found. ")
-  }
-
-  def normalizeLocusInterval(i: Interval): Interval = {
+  def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
     var start = i.start.asInstanceOf[Locus]
     var end = i.end.asInstanceOf[Locus]
     var includesStart = i.includesStart
     var includesEnd = i.includesEnd
 
+    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
+      if (invalidMissing)
+        return null
+      else {
+        if (!isValidContig(start.contig))
+          fatal(s"Invalid interval '$i' found. Contig '${ start.contig }' is not in the reference genome '$name'.")
+        else
+          fatal(s"Invalid interval '$i' found. Start '$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome '$name'.")
+      }
+    }
+
+    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
+      if (invalidMissing)
+        return null
+      else {
+        if (!isValidContig(end.contig))
+          fatal(s"Invalid interval '$i' found. Contig '${ end.contig }' is not in the reference genome '$name'.")
+        else
+          fatal(s"Invalid interval '$i' found. End '$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome '$name'.")
+      }
+    }
+
+    val contigEnd = contigLength(end.contig)
+
     if (!includesStart && start.position == 0) {
-      start = start.copyChecked(this, position = 1)
+      start = start.copy(position = 1)
       includesStart = true
     }
-    if (!includesEnd && end.position == contigLength(end.contig) + 1) {
-      end = end.copyChecked(this, position = contigLength(end.contig))
+
+    if (!includesEnd && end.position == contigEnd + 1) {
+      end = end.copy(position = contigEnd)
       includesEnd = true
     }
+
+    if (start.contig == end.contig && start.position == end.position) {
+      (includesStart, includesEnd) match {
+        case (true, true) =>
+        case (true, false) =>
+          if (start.position != 1) {
+            start = start.copy(position = start.position - 1)
+            includesStart = false
+          }
+        case (false, true) =>
+          if (end.position != contigEnd) {
+            end = end.copy(position = end.position + 1)
+            includesEnd = false
+          }
+        case (false, false) =>
+      }
+    }
+
+    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+      if (invalidMissing)
+        return null
+      else
+        fatal(s"Invalid interval `$i' found. ")
 
     Interval(start, end, includesStart, includesEnd)
   }
@@ -451,7 +470,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
-  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.sc.broadcast(this)
+  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.get.sc.broadcast(this)
 
   override def hashCode: Int = {
     import org.apache.commons.lang.builder.HashCodeBuilder
@@ -815,8 +834,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def checkLocus(l: Locus): Unit = ???
 
   def checkLocus(contig: String, pos: Int): Unit = ???
-
-  def checkLocusInterval(i: Interval): Unit = ???
 
   def contigLength(contig: String): Int = ???
 

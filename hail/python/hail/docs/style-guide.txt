@@ -8,7 +8,6 @@
  - matplotlib
  - pandas
  - numpy
- - seaborn
 
 ## Function Documentation Structure
  - Description

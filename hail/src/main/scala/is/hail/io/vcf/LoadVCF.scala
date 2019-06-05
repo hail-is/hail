@@ -1501,7 +1501,7 @@ case class MatrixVCFReader(
     rowKey = Array("locus", "alleles"),
     entryType = genotypeSignature)
 
-  override lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
+  override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
   val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
 
@@ -1713,6 +1713,7 @@ class VCFsReader(
     val localHeaderLines1Bc = headerLines1Bc
     val localInfoFlagFieldNames = header1.infoFlagFields
     val localTyp = typ
+    val tt = localTyp.canonicalTableType
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(sc, file, partitions)
@@ -1720,12 +1721,12 @@ class VCFsReader(
           WithContext(l, Context(l, file, None))))
 
     val parsedLines = parseLines { () =>
-      new ParseLineContext(LowerMatrixIR.loweredType(localTyp),
+      new ParseLineContext(tt,
         localInfoFlagFieldNames,
         sampleIDs.length)
     } { (c, l, rvb) =>
       LoadVCF.parseLine(c, l, rvb)
-    }(lines, typ.rvRowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
+    }(lines, tt.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
     val rvd = RVD(typ.canonicalRVDType,
       partitioner,

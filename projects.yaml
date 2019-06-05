@@ -2,9 +2,8 @@
 - project: hailjwt
 - project: batch
   dependencies: ["docker", "hailjwt"]
-- project: ci
   dependencies: ["batch"]
-- project: ci2
+- project: ci
 - project: cloudtools
 - project: etc
 - project: router

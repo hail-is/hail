@@ -49,7 +49,9 @@ object EmitRegion {
   def default(mb: EmitMethodBuilder): EmitRegion = EmitRegion(mb, mb.getArg[Region](1))
 }
 
-case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region])
+case class EmitRegion(mb: EmitMethodBuilder, region: Code[Region]) {
+  def baseRegion: Code[Region] = mb.getArg[Region](1)
+}
 
 case class EmitTriplet(setup: Code[Unit], m: Code[Boolean], v: Code[_]) {
   def value[T]: Code[T] = coerce[T](v)
@@ -279,7 +281,12 @@ private class Emit(
       case F64(x) =>
         present(const(x))
       case Str(x) =>
-        present(region.appendString(const(x)))
+        present(mb.fb.addLiteral(x, TString(), er.baseRegion))
+      case Literal(t, v) =>
+        if (v == null)
+          emit(NA(t))
+        else
+          present(mb.fb.addLiteral(v, t, er.baseRegion))
       case True() =>
         present(const(true))
       case False() =>
@@ -797,15 +804,30 @@ private class Emit(
               Code._empty)
 
           case AggElementsLengthCheck() =>
-            val newRVAs = Code.checkcast[ArrayElementsAggregator]((rvas.get)(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
+            val newRVAs = Code.checkcast[ArrayElementsAggregator](rvas.get.apply(codeI.value[Int]))
+              .invoke[Array[RegionValueAggregator]]("rvAggs")
+
+            val knownLengthCode = if (args.length == 1)
+              Code._empty
+            else {
+              assert(args.length == 2)
+              val kl = emit(args(1))
+              Code(kl.setup,
+                kl.m.mux(
+                  Code._fatal(s"known length for AggArrayPerElement cannot be missing"),
+                  Code.checkcast[ArrayElementsAggregator](rvas.get.apply(codeI.value[Int]))
+                    .invoke[Int, Unit]("broadcast", coerce[Int](kl.v))))
+            }
             val init = emit(args(0), rvas = Some(newRVAs))
             EmitTriplet(Code(
               codeI.setup,
               codeI.m.mux[Unit](
                 Code._empty,
-                init.setup)),
+                Code(init.setup, knownLengthCode)
+              )),
               const(false),
-              Code._empty)
+              Code._empty
+            )
 
           case _ =>
             val nArgs = args.length
@@ -1284,6 +1306,7 @@ private class Emit(
             baos := Code.newInstance[ByteArrayOutputStream](),
             buf := spec.child.buildCodeOutputBuffer(baos),
             ctxab := Code.newInstance[ByteArrayArrayBuilder, Int](16),
+            contextAE.calcLength,
             contextT.addElements,
             baos.invoke[Unit]("reset"),
             addGlobals,
@@ -1645,9 +1668,9 @@ private class Emit(
 
       case _ =>
         val t: PArray = coerce[PStreamable](ir.pType).asPArray
-        val i = mb.newLocal[Int]("i")
-        val len = mb.newLocal[Int]("len")
-        val aoff = mb.newLocal[Long]("aoff")
+        val i = mb.newField[Int]("i")
+        val len = mb.newField[Int]("len")
+        val aoff = mb.newField[Long]("aoff")
         val codeV = emit(ir, env)
         val calcLength = Code(
           aoff := coerce[Long](codeV.v),

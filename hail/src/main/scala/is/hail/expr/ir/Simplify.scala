@@ -278,6 +278,7 @@ object Simplify {
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
 
     case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
+    case TableCount(CastMatrixToTable(child, _, _)) => TableCount(MatrixRowsTable(child))
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
@@ -494,10 +495,9 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key) // FIXME: https://github.com/hail-is/hail/issues/6234
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
-      val uid = genUID()
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
       val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))

@@ -4,6 +4,8 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
+import is.hail.backend.Backend
+import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
@@ -55,7 +57,11 @@ object HailContext {
     theContext
   }
 
-  def sc: SparkContext = get.sc
+  def backend: Backend = get.backend
+
+  def getFlag(flag: String): String = get.flags.get(flag)
+
+  def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)
 
   def sFS: FS = get.sFS
 
@@ -264,8 +270,8 @@ object HailContext {
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
-
-    val hc = new HailContext(sparkContext, logFile, tmpDir, branchingFactor, optimizerIterations)
+     
+    val hc = new HailContext(SparkBackend(sparkContext), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -379,11 +385,14 @@ object HailContext {
   }
 }
 
-class HailContext private(val sc: SparkContext,
+class HailContext private(
+  val backend: Backend,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
+  lazy val sc: SparkContext = backend.asSpark().sc
+
   val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)

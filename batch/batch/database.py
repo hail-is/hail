@@ -107,8 +107,9 @@ class Table:  # pylint: disable=R0903
             async with conn.cursor() as cursor:
                 where_template, where_values = make_where_statement(where_items)
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {where_template}"
-                count = await cursor.execute(sql, tuple(where_values))
-        return count >= 1
+                await cursor.execute(sql, where_values)
+                result = await cursor.fetchone()
+        return result['COUNT(1)'] >= 1
 
     async def delete_record(self, where_items):
         async with self._db.pool.acquire() as conn:

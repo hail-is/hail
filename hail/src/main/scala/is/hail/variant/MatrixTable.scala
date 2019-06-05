@@ -155,7 +155,7 @@ object MatrixTable {
     rdd: RDD[(Annotation, Iterable[T])]): MatrixTable = {
 
     val localGType = matrixType.entryType
-    val localRVRowType = matrixType.rvRowType
+    val localRVRowType = matrixType.canonicalRVDType.rowType
 
     val localNCols = colValues.length
 
@@ -173,11 +173,11 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            rvb.start(localRVRowType.physicalType)
+            rvb.start(localRVRowType)
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
-              rvb.addAnnotation(localRVRowType.types(i), vaRow.get(i))
+              rvb.addAnnotation(localRVRowType.types(i).virtualType, vaRow.get(i))
               i += 1
             }
             rvb.startArray(localNCols) // gs
@@ -210,7 +210,7 @@ object MatrixTable {
       kt.signature,
       TStruct.empty())
 
-    val rvRowType = matrixType.rvRowType.physicalType
+    val rvRowType = matrixType.canonicalRVDType.rowType
     val oldRowType = kt.signature.physicalType
 
     val rvd = kt.rvd.mapPartitions(matrixType.canonicalRVDType) { it =>
@@ -312,7 +312,7 @@ object VSMSubgen {
         "alleles" -> TArray(TString()))),
     rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
-    globalSigGen = Type.genInsertable,
+    globalSigGen = Type.genInsertable.map(_.setRequired(false).asInstanceOf[TStruct]),
     tSigGen = Gen.const(Genotype.htsGenotypeType),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
@@ -386,9 +386,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   val entryType: TStruct = matrixType.entryType
   val globalType: TStruct = matrixType.globalType
 
-  val rvRowType: TStruct = matrixType.rvRowType
   val rowKey: IndexedSeq[String] = matrixType.rowKey
-  val entriesIndex: Int = matrixType.entriesIdx
 
   val colKey: IndexedSeq[String] = matrixType.colKey
 
@@ -499,11 +497,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     if (!metadataSame)
       println("metadata were not the same")
 
-    val leftRVType = rvRowType
-    val rightRVType = that.rvRowType
+    val leftRVType = value.rvRowPType
+    val rightRVType = that.value.rvRowPType
     val localRowType = rowType
-    val localLeftEntriesIndex = entriesIndex
-    val localRightEntriesIndex = that.entriesIndex
+    val localLeftEntriesIndex = value.entriesIdx
+    val localRightEntriesIndex = that.value.entriesIdx
     val localEntryType = entryType
     val localRKF = rowKeysF
     val localColKeys = colKeys
@@ -512,8 +510,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     metadataSame &&
       jcrdd.mapPartitions { it =>
-        val fullRow1 = new UnsafeRow(leftRVType.physicalType)
-        val fullRow2 = new UnsafeRow(rightRVType.physicalType)
+        val fullRow1 = new UnsafeRow(leftRVType)
+        val fullRow2 = new UnsafeRow(rightRVType)
 
         it.map { case Muple(rv1, rv2) =>
           if (rv2 == null) {

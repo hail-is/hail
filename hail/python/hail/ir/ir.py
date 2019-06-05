@@ -1,16 +1,18 @@
 import copy
+from collections import defaultdict
+
+import decorator
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
-from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import *
+from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
+from .table_writer import TableWriter
 
-from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -566,6 +568,24 @@ class NDArrayRef(IR):
         self._type = self.nd.typ.element_type
 
 
+class NDArraySlice(IR):
+    @typecheck_method(nd=IR, slices=IR)
+    def __init__(self, nd, slices):
+        super().__init__(nd, slices)
+        self.nd = nd
+        self.slices = slices
+
+    def copy(self, nd, slices):
+        return NDArraySlice(nd, slices)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.slices._compute_type(env, agg_env)
+
+        self._type = tndarray(self.nd.typ.element_type,
+                              len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+
+
 class NDArrayReindex(IR):
     @typecheck_method(nd=IR, idx_expr=sequenceof(int))
     def __init__(self, nd, idx_expr):
@@ -1063,7 +1083,7 @@ class AggArrayPerElement(IR):
         return AggArrayPerElement(array, self.element_name, self.index_name, agg_ir, self.is_scan)
 
     def head_str(self):
-        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan}'
+        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan} False'
 
     def _eq(self, other):
         return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
@@ -1412,13 +1432,18 @@ class Die(IR):
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
 _session_functions = set()
+_udf_registry = dict()
 
 def clear_session_functions():
-    global _session_functions
+    global _session_functions, _udf_registry
     for name, param_types, ret_type in _session_functions:
         remove_function(name, param_types, ret_type)
 
+    for f in _udf_registry.values():
+        remove_function(f._name, f._param_types, f._ret_type)
+
     _session_functions = set()
+    _udf_registry = dict()
 
 def remove_function(name, param_types, ret_type):
     f = (param_types, ret_type)
@@ -1458,6 +1483,23 @@ def lookup_function_return_type(name, arg_types):
 
 def lookup_seeded_function_return_type(name, arg_types):
     return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
+
+
+def udf(*param_types):
+
+    uid = Env.get_uid()
+
+    @decorator.decorator
+    def wrapper(__original_func, *args, **kwargs):
+        registry = hail.ir.ir._udf_registry
+        if uid in registry:
+            f = registry[uid]
+        else:
+            f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
+            registry[uid] = f
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 class Apply(IR):

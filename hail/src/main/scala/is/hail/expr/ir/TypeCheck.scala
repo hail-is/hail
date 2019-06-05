@@ -152,6 +152,14 @@ object TypeCheck {
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
         assert(idxs.forall(_.typ.isOfType(TInt64())))
+      case x@NDArraySlice(nd, slices) =>
+        assert(nd.typ.isInstanceOf[TNDArray])
+        val childTyp =nd.typ.asInstanceOf[TNDArray]
+        val slicesTuple = slices.typ.asInstanceOf[TTuple]
+        assert(slicesTuple.size == childTyp.nDims)
+        assert(slicesTuple.types.forall { t =>
+          t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
+        })
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
@@ -243,8 +251,9 @@ object TypeCheck {
         assert(x.typ == aggBody.typ)
       case x@AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x@AggArrayPerElement(a, _, _, aggBody, _) =>
+      case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
+        assert(knownLength.forall(_.typ == TInt32()))
       case x@InitOp(i, args, aggSig) =>
         assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
@@ -309,6 +318,7 @@ object TypeCheck {
         assert(x.typ == query.typ)
       case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
+      case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

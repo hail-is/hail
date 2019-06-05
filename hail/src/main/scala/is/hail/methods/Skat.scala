@@ -169,7 +169,7 @@ case class Skat(
 
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val keyType = childType.rowType.fieldType(keyField)
     val skatSchema = TStruct(
       ("id", keyType),
@@ -177,8 +177,7 @@ case class Skat(
       ("q_stat", TFloat64()),
       ("p_value", TFloat64()),
       ("fault", TInt32()))
-    val tableType = TableType(skatSchema, FastIndexedSeq("id"), TStruct())
-    (tableType, tableType.canonicalRVDType)
+    TableType(skatSchema, FastIndexedSeq("id"), TStruct())
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -313,7 +312,7 @@ case class Skat(
     
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
-    val (tableType, _) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
 
     TableValue(tableType, BroadcastRow.empty(), skatRdd)
   }
@@ -325,7 +324,7 @@ case class Skat(
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
@@ -336,13 +335,13 @@ case class Skat(
 
     val sc = mv.sparkContext
 
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length
