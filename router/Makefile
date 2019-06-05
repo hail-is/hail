@@ -8,12 +8,6 @@ ROUTER_LATEST = gcr.io/$(PROJECT)/router:latest
 ROUTER_IMAGE = gcr.io/$(PROJECT)/router:$(shell docker images -q --no-trunc router | sed -e 's,[^:]*:,,')
 DOMAIN ?= hail.is
 
-deployment.yaml: deployment.yaml.in build
-	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
-	  -e "s,@image@,$(ROUTER_IMAGE)," \
-	  -e "s,@domain@,$(DOMAIN)," \
-	  < $< > $@
-
 build:
 	docker pull ubuntu:18.04
 	-docker pull $(ROUTER_LATEST)
@@ -25,8 +19,9 @@ push: build
 	docker tag router $(ROUTER_IMAGE)
 	docker push $(ROUTER_IMAGE)
 
-deploy: push deployment.yaml
-	kubectl -n default apply -f deployment.yaml
+deploy: push
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"router_image":{"image":"$(ROUTER_IMAGE)"},"default_ns":{"name":"default","domain":"hail.is"}}' deployment.yaml deployment.yaml.out
+	kubectl -n default apply -f deployment.yaml.out
 else
 build:
 	docker build -t router .

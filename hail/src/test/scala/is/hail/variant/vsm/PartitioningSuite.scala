@@ -37,7 +37,8 @@ class PartitioningSuite extends SparkSuite {
       MatrixAnnotateRowsTable(
         ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
         t,
-        "foo"))
+        "foo",
+        product=false))
       .rvd.count()
   }
 

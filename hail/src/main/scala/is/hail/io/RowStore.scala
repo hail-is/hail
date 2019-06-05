@@ -1,13 +1,12 @@
 package is.hail.io
 
 import java.io._
-import java.nio.ByteBuffer
 import java.util
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.{HailContext, cxx}
-import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
+import is.hail.expr.ir
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.io.compress.LZ4Utils
@@ -16,6 +15,7 @@ import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner,
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import is.hail.{HailContext, cxx}
 import org.apache.hadoop.conf.{Configuration => HadoopConf}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -28,6 +28,10 @@ trait BufferSpec extends Serializable {
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
 
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer]
+
+  def buildCodeOutputBuffer(in: Code[OutputStream]): Code[OutputBuffer]
+
   def nativeOutputBufferType: String
 
   def nativeInputBufferType: String
@@ -37,6 +41,12 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new LEB128InputBuffer(child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+    Code.newInstance[LEB128InputBuffer, InputBuffer](child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+    Code.newInstance[LEB128OutputBuffer, OutputBuffer](child.buildCodeOutputBuffer(out))
 
   def nativeOutputBufferType: String = s"LEB128OutputBuffer<${ child.nativeOutputBufferType }>"
 
@@ -48,6 +58,12 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
 
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+    Code.newInstance[BlockingInputBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+    Code.newInstance[BlockingOutputBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
+
   def nativeOutputBufferType: String = s"BlockingOutputBuffer<$blockSize, ${ child.nativeOutputBufferType }>"
 
   def nativeInputBufferType: String = s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType }>"
@@ -58,6 +74,10 @@ trait BlockBufferSpec extends Serializable {
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
 
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer]
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer]
+
   def nativeOutputBufferType: String
 
   def nativeInputBufferType: String
@@ -67,6 +87,12 @@ final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[LZ4InputBlockBuffer, Int, InputBlockBuffer](blockSize, child.buildCodeInputBuffer(in))
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[LZ4OutputBlockBuffer, Int, OutputBlockBuffer](blockSize, child.buildCodeOutputBuffer(out))
 
   def nativeOutputBufferType: String = s"LZ4OutputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeOutputBufferType }>"
 
@@ -82,6 +108,12 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new StreamBlockOutputBuffer(out)
 
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBlockBuffer] =
+    Code.newInstance[StreamBlockInputBuffer, InputStream](in)
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBlockBuffer] =
+    Code.newInstance[StreamBlockOutputBuffer, OutputStream](out)
+
   def nativeOutputBufferType: String = s"StreamOutputBlockBuffer"
 
   def nativeInputBufferType: String = s"StreamInputBlockBuffer"
@@ -93,6 +125,12 @@ final class StreamBufferSpec extends BufferSpec {
   override def buildInputBuffer(in: InputStream): InputBuffer = new StreamInputBuffer(in)
 
   override def buildOutputBuffer(out: OutputStream): OutputBuffer = new StreamOutputBuffer(out)
+
+  def buildCodeInputBuffer(in: Code[InputStream]): Code[InputBuffer] =
+    Code.newInstance[StreamInputBuffer, InputStream](in)
+
+  def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
+    Code.newInstance[StreamOutputBuffer, OutputStream](out)
 
   override def nativeInputBufferType: String = s"StreamInputBuffer"
 
@@ -213,6 +251,12 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
       (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
     }
   }
+
+  def buildEmitDecoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
+    EmitPackDecoder.buildMethod(t, requestedType, fb)
+
+  def buildEmitEncoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
+    EmitPackEncoder.buildMethod(t, requestedType, fb)
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
 
@@ -1077,8 +1121,7 @@ object EmitPackDecoder {
     assert(j == requestedType.size)
 
     Code(initCode,
-      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)),
-      Code._empty)
+      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)))
   }
 
   def emitArray(
@@ -1219,6 +1262,28 @@ object EmitPackDecoder {
       case _: PFloat64 => srvb.addDouble(in.readDouble())
       case t2: PBinary => emitBinary(t2, mb, in, srvb)
     }
+  }
+
+  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
+    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]), ir.typeToTypeInfo(rt))
+    val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)
+    val decode: Code[_] = t match {
+      case _: PBoolean => in.readBoolean()
+      case _: PInt32 => in.readInt()
+      case _: PInt64 => in.readLong()
+      case _: PFloat32 => in.readFloat()
+      case _: PFloat64 => in.readDouble()
+      case _ =>
+        val srvb = new StagedRegionValueBuilder(mb, rt)
+        val emit = t.fundamentalType match {
+          case t2: PBinary => emitBinary(t2, mb, in, srvb)
+          case t2: PBaseStruct => emitBaseStruct(t2, rt.fundamentalType.asInstanceOf[PBaseStruct], mb, in, srvb)
+          case t2: PArray => emitArray(t2, rt.fundamentalType.asInstanceOf[PArray], mb, in, srvb)
+        }
+        Code(emit, srvb.end())
+    }
+    mb.emit(decode)
+    mb
   }
 
   def apply(t: PType, requestedType: PType): () => AsmFunction2[Region, InputBuffer, Long] = {
@@ -1545,6 +1610,23 @@ object EmitPackEncoder { self =>
     }
   }
 
+  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
+    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], ir.typeToTypeInfo(rt), typeInfo[OutputBuffer]), typeInfo[Unit])
+    val region: Code[Region] = mb.getArg[Region](1)
+    val v: Code[_] = mb.getArg(2)(ir.typeToTypeInfo(rt))
+    val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](3)
+    val encode: Code[Unit] = t match {
+      case _: PBoolean => out.writeBoolean(coerce[Boolean](v))
+      case _: PInt32 => out.writeInt(coerce[Int](v))
+      case _: PInt64 => out.writeLong(coerce[Long](v))
+      case _: PFloat32 => out.writeFloat(coerce[Float](v))
+      case _: PFloat64 => out.writeDouble(coerce[Double](v))
+      case _ => emit(t, rt, mb, region, coerce[Long](v), out)
+    }
+    mb.emit(encode)
+    mb
+  }
+
   def apply(t: PType, requestedType: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
     val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]
     val mb = fb.apply_method
@@ -1779,7 +1861,7 @@ object RichContextRDDRegionValue {
       if (stageLocally) {
         val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
         val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
-        context.addTaskCompletionListener { context =>
+        context.addTaskCompletionListener { (context: TaskContext) =>
           hConf.delete(rowsPartPath, recursive = false)
           hConf.delete(entriesPartPath, recursive = false)
         }

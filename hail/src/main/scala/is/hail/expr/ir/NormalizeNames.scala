@@ -116,11 +116,24 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         // assert(env.agg.isEmpty)
         val newName = gen()
         ArrayAgg(normalize(a), newName, normalize(body, env.copy(agg = Some(env.eval.bind(name, newName)))))
+      case ArrayAggScan(a, name, body) =>
+        // FIXME: Uncomment when bindings are threaded through test suites
+        // assert(env.scan.isEmpty)
+        val newName = gen()
+        val newEnv = env.eval.bind(name, newName)
+        ArrayAggScan(normalize(a), newName, normalize(body, env.copy(eval = newEnv, scan = Some(newEnv))))
       case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
         val newL = gen()
         val newR = gen()
         val newEnv = env.bindEval(l -> newL, r -> newR)
         ArrayLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
+      case NDArrayMap(nd, name, body) =>
+        val newName = gen()
+        NDArrayMap(normalize(nd), newName, normalize(body, env.bindEval(name -> newName)))
+      case NDArrayMap2(l, r, lName, rName, body) =>
+        val newLName = gen()
+        val newRName = gen()
+        NDArrayMap2(normalize(l), normalize(r), newLName, newRName, normalize(body, env.bindEval(lName -> newLName, rName -> newRName)))
       case AggExplode(a, name, aggBody, isScan) =>
         val newName = gen()
         val (aEnv, bodyEnv) = if (isScan)
@@ -140,14 +153,14 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         else
           env.promoteAgg
         AggGroupBy(normalize(key, keyEnv), normalize(aggIR), isScan)
-      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
+      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
         val newElementName = gen()
         val newIndexName = gen()
         val (aEnv, bodyEnv) = if (isScan)
           env.promoteScan -> env.bindScan(elementName, newElementName)
         else
           env.promoteAgg -> env.bindAgg(elementName, newElementName)
-        AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), isScan)
+        AggArrayPerElement(normalize(a, aEnv), newElementName, newIndexName, normalize(aggBody, bodyEnv.bindEval(indexName, newIndexName)), knownLength.map(normalize(_, env)), isScan)
       case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
         ApplyAggOp(ctorArgs.map(a => normalize(a)),
           initOpArgs.map(_.map(a => normalize(a))),
@@ -169,6 +182,12 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         MatrixAggregate(normalizeMatrix(child),
           normalizeIR(query, BindingEnv(child.typ.globalEnv, agg = Some(child.typ.entryEnv))
             .mapValuesWithKey({ case (k, _) => k })))
+      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+        val newC = gen()
+        val newG = gen()
+        CollectDistributedArray(normalize(ctxs), normalize(globals), newC, newG, normalize(body, BindingEnv.eval(cname -> newC, gname -> newG)))
+      case RelationalLet(name, value, body) =>
+        RelationalLet(name, normalize(value, BindingEnv.empty), normalize(body))
       case _ =>
         Copy(ir, ir.children.map {
           case child: IR => normalize(child)

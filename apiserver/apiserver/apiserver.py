@@ -21,7 +21,7 @@ app = web.Application()
 routes = web.RouteTableDef()
 
 
-with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret/secret-key') as f:
+with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret-key/secret-key', 'rb') as f:
     jwtclient = hj.JWTClient(f.read())
 
 
@@ -62,7 +62,7 @@ async def healthcheck(request):
 def blocking_execute(code):
     jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
     typ = hl.dtype(jir.typ().toString())
-    result = Env.hail().backend.spark.SparkBackend.executeJSON(jir)
+    result = Env.hc()._jhc.backend().executeJSON(jir)
     return {
         'type': str(typ),
         'result': result

@@ -1,7 +1,8 @@
+import os
 import re
 import uuid
 
-from .backend import LocalBackend
+from .backend import LocalBackend, BatchBackend
 from .task import Task
 from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
 
@@ -44,6 +45,9 @@ class Pipeline:
         CPU setting to use by default if not specified by a task. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
         or the :class:`.BatchBackend`.
+    default_storage: :obj:`str`, optional
+        Storage setting to use by default if not specified by a task. Only
+        applicable for the :class:`.BatchBackend`.
     """
 
     _counter = 0
@@ -57,15 +61,23 @@ class Pipeline:
         return uid
 
     def __init__(self, backend=None, default_image=None, default_memory=None,
-                 default_cpu=None):
+                 default_cpu=None, default_storage=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
-        self._backend = backend if backend else LocalBackend()
+        self._input_resources = set()
         self._uid = Pipeline._get_uid()
         self._default_image = default_image
         self._default_memory = default_memory
         self._default_cpu = default_cpu
+        self._default_storage = default_storage
+
+        if backend:
+            self._backend = backend
+        elif os.environ.get('BATCH_URL') is not None:
+            self._backend = BatchBackend(os.environ.get('BATCH_URL'))
+        else:
+            self._backend = LocalBackend()
 
     def new_task(self):
         """
@@ -90,6 +102,8 @@ class Pipeline:
             t.memory(self._default_memory)
         if self._default_cpu is not None:
             t.cpu(self._default_cpu)
+        if self._default_storage is not None:
+            t.storage(self._default_storage)
         return t
 
     def _tmp_file(self, prefix=None, suffix=None):
@@ -115,6 +129,7 @@ class Pipeline:
         irf = InputResourceFile(value if value else self._tmp_file())
         irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf
+        self._input_resources.add(irf)
         return irf
 
     def _new_resource_group(self, source, mappings):

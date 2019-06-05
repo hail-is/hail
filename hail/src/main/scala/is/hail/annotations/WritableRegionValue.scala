@@ -3,9 +3,8 @@ package is.hail.annotations
 import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import scala.collection.generic.Growable
-import scala.collection.mutable.ArrayBuffer
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBaseStruct, PStruct, PType}
+import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -67,6 +66,39 @@ class WritableRegionValue private (
   private def readObject(s: ObjectInputStream): Unit = {
     throw new NotImplementedException()
   }
+}
+
+class RegionValuePriorityQueue(val t: PType, ctx: RVDContext, ord: Ordering[RegionValue])
+  extends Iterable[RegionValue]
+{
+  private val queue = new PriorityQueue[RegionValue]()(ord)
+  private val rvb = new RegionValueBuilder(null)
+
+  override def nonEmpty: Boolean = queue.nonEmpty
+
+  def empty: Boolean = queue.nonEmpty
+
+  override def head: RegionValue = queue.head
+
+  def enqueue(rv: RegionValue) {
+    val region = ctx.freshRegion
+    rvb.set(region)
+    rvb.start(t)
+    rvb.addRegionValue(t, rv)
+    queue.enqueue(RegionValue(region, rvb.end()))
+  }
+
+  def +=(rv: RegionValue): this.type = {
+    enqueue(rv)
+    this
+  }
+
+  def dequeue() {
+    val popped = queue.dequeue()
+    popped.region.close()
+  }
+
+  def iterator: Iterator[RegionValue] = queue.iterator
 }
 
 class RegionValueArrayBuffer(val t: PType, region: Region)

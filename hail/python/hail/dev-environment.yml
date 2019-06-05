@@ -8,7 +8,6 @@ dependencies:
 - numpy=1.14.0
 - pandas=0.23.4
 - matplotlib=2.2.3
-- seaborn=0.8.1
 - bokeh=0.12.13
 - jupyter=1.0.0
 - pip=10.0.1
@@ -20,3 +19,5 @@ dependencies:
     - pytest-xdist==1.22.2
     - decorator==4.3.0
     - pyspark==2.4.0
+    - gcsfs==0.2.1
+    - hurry.filesize==0.9

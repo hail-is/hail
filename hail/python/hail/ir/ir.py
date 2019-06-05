@@ -1,16 +1,18 @@
 import copy
+from collections import defaultdict
+
+import decorator
 
 import hail
-from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
-from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
+from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import *
+from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .table_writer import TableWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
+from .table_writer import TableWriter
 
-from collections import defaultdict
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -236,6 +238,25 @@ class If(IR):
         self._type = self.cnsq.typ
 
 
+class Coalesce(IR):
+    @typecheck_method(values=IR)
+    def __init__(self, *values):
+        super().__init__(*values)
+        self.values = values
+
+    @typecheck_method(values=IR)
+    def copy(self, *values):
+        return Coalesce(*values)
+
+    def _compute_type(self, env, agg_env):
+        first, *rest = self.values
+        first._compute_type(env, agg_env)
+        for x in rest:
+            x._compute_type(env, agg_env)
+            assert x.typ == first.typ
+        self._type = first.typ
+
+
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
     def __init__(self, name, value, body):
@@ -454,26 +475,53 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(ndim=int, data=IR, shape=IR, row_major=IR)
-    def __init__(self, ndim, data, shape, row_major):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
         super().__init__(data, shape, row_major)
-        self.ndim = ndim
         self.data = data
         self.shape = shape
         self.row_major = row_major
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        return MakeNDArray(self.ndim, data, shape, row_major)
-
-    def head_str(self):
-        return f'{self.ndim}'
+        return MakeNDArray(data, shape, row_major)
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
         self.shape._compute_type(env, agg_env)
         self.row_major._compute_type(env, agg_env)
-        self._type = tndarray(self.data.typ.element_type, self.ndim)
+        self._type = tndarray(self.data.typ.element_type, len(self.shape.typ))
+
+
+class NDArrayShape(IR):
+    @typecheck_method(nd=IR)
+    def __init__(self, nd):
+        super().__init__(nd)
+        self.nd = nd
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayShape(nd)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self._type = ttuple(*[tint64 for _ in range(self.nd.typ.ndim)])
+
+
+class NDArrayReshape(IR):
+    @typecheck_method(nd=IR, shape=IR)
+    def __init__(self, nd, shape):
+        super().__init__(nd, shape)
+        self.nd = nd
+        self.shape = shape
+
+    def copy(self, nd, shape):
+        return NDArrayReshape(nd, shape)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self._type = tndarray(self.nd.typ.element_type, len(self.shape.typ))
 
 
 class NDArrayMap(IR):
@@ -518,6 +566,108 @@ class NDArrayRef(IR):
         self.nd._compute_type(env, agg_env)
         [idx._compute_type(env, agg_env) for idx in self.idxs]
         self._type = self.nd.typ.element_type
+
+
+class NDArraySlice(IR):
+    @typecheck_method(nd=IR, slices=IR)
+    def __init__(self, nd, slices):
+        super().__init__(nd, slices)
+        self.nd = nd
+        self.slices = slices
+
+    def copy(self, nd, slices):
+        return NDArraySlice(nd, slices)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.slices._compute_type(env, agg_env)
+
+        self._type = tndarray(self.nd.typ.element_type,
+                              len([t for t in self.slices.typ.types if isinstance(t, ttuple)]))
+
+
+class NDArrayReindex(IR):
+    @typecheck_method(nd=IR, idx_expr=sequenceof(int))
+    def __init__(self, nd, idx_expr):
+        super().__init__(nd)
+        self.nd = nd
+        self.idx_expr = idx_expr
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayReindex(nd, self.idx_expr)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.idx_expr])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        n_input_dims = self.nd.typ.ndim
+        n_output_dims = len(self.idx_expr)
+        assert n_input_dims <= n_output_dims
+        assert all([i < n_output_dims for i in self.idx_expr])
+        assert all([i in self.idx_expr for i in range(n_output_dims)])
+
+        self._type = tndarray(self.nd.typ.element_type, n_output_dims)
+
+
+class NDArrayAgg(IR):
+    @typecheck_method(nd=IR, axes=sequenceof(int))
+    def __init__(self, nd, axes):
+        super().__init__(nd)
+        self.nd = nd
+        self.axes = axes
+
+    @typecheck_method(nd=IR)
+    def copy(self, nd):
+        return NDArrayAgg(nd, self.axes)
+
+    def head_str(self):
+        return f'({" ".join([str(i) for i in self.axes])})'
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        assert len(set(self.axes)) == len(self.axes)
+        assert all([axis < self.nd.typ.ndim for axis in self.axes])
+
+        self._type = tndarray(self.nd.typ.element_type, self.nd.typ.ndim - len(self.axes))
+
+
+class NDArrayMatMul(IR):
+    @typecheck_method(l=IR, r=IR)
+    def __init__(self, l, r):
+        super().__init__(l, r)
+        self.l = l
+        self.r = r
+
+    @typecheck_method(l=IR, r=IR)
+    def copy(self, l, r):
+        return NDArrayMatMul(l, r)
+
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+
+        ndim = hail.linalg.utils.misc._ndarray_matmul_ndim(self.l.typ.ndim, self.r.typ.ndim)
+        from hail.expr.expressions import unify_types
+        self._type = tndarray(unify_types(self.l.typ.element_type, self.r.typ.element_type), ndim)
+
+
+class NDArrayWrite(IR):
+    @typecheck_method(nd=IR, path=IR)
+    def __init__(self, nd, path):
+        super().__init__(nd, path)
+        self.nd = nd
+        self.path = path
+
+    @typecheck_method(nd=IR, path=IR)
+    def copy(self, nd, path):
+        return NDArrayWrite(nd, path)
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.path._compute_type(env, agg_env)
+        self._type = tvoid
 
 
 class ArraySort(IR):
@@ -933,7 +1083,7 @@ class AggArrayPerElement(IR):
         return AggArrayPerElement(array, self.element_name, self.index_name, agg_ir, self.is_scan)
 
     def head_str(self):
-        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan}'
+        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan} False'
 
     def _eq(self, other):
         return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
@@ -1282,13 +1432,18 @@ class Die(IR):
 _function_registry = defaultdict(list)
 _seeded_function_registry = defaultdict(list)
 _session_functions = set()
+_udf_registry = dict()
 
 def clear_session_functions():
-    global _session_functions
+    global _session_functions, _udf_registry
     for name, param_types, ret_type in _session_functions:
         remove_function(name, param_types, ret_type)
 
+    for f in _udf_registry.values():
+        remove_function(f._name, f._param_types, f._ret_type)
+
     _session_functions = set()
+    _udf_registry = dict()
 
 def remove_function(name, param_types, ret_type):
     f = (param_types, ret_type)
@@ -1328,6 +1483,23 @@ def lookup_function_return_type(name, arg_types):
 
 def lookup_seeded_function_return_type(name, arg_types):
     return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
+
+
+def udf(*param_types):
+
+    uid = Env.get_uid()
+
+    @decorator.decorator
+    def wrapper(__original_func, *args, **kwargs):
+        registry = hail.ir.ir._udf_registry
+        if uid in registry:
+            f = registry[uid]
+        else:
+            f = hail.experimental.define_function(__original_func, *param_types, _name=uid)
+            registry[uid] = f
+        return f(*args, **kwargs)
+
+    return wrapper
 
 
 class Apply(IR):

@@ -17,16 +17,23 @@ object Children {
     case Void() => none
     case Cast(v, typ) =>
       Array(v)
+    case CastRename(v, typ) =>
+      Array(v)
     case NA(typ) => none
     case IsNA(value) =>
       Array(value)
+    case Coalesce(values) => values.toFastIndexedSeq
     case If(cond, cnsq, altr) =>
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>
       Array(value, body)
+    case RelationalLet(name, value, body) =>
+      Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
     case Ref(name, typ) =>
+      none
+    case RelationalRef(_, _) =>
       none
     case ApplyBinaryPrimOp(op, l, r) =>
       Array(l, r)
@@ -46,8 +53,12 @@ object Children {
       Array(start, stop, step)
     case StreamRange(start, stop, step) =>
       Array(start, stop, step)
-    case MakeNDArray(_, data, shape, rowMajor) =>
+    case MakeNDArray(data, shape, rowMajor) =>
       Array(data, shape, rowMajor)
+    case NDArrayShape(nd) =>
+      Array(nd)
+    case NDArrayReshape(nd, shape) =>
+      Array(nd, shape)
     case ArraySort(a, _, _, compare) =>
       Array(a, compare)
     case ToSet(a) =>
@@ -78,14 +89,22 @@ object Children {
       Array(a, body)
     case ArrayAgg(a, name, query) =>
       Array(a, query)
+    case ArrayAggScan(a, name, query) =>
+      Array(a, query)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
+    case NDArraySlice(nd, slices) =>
+      Array(nd, slices)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
       Array(l, r, body)
     case NDArrayReindex(nd, _) =>
       Array(nd)
+    case NDArrayAgg(nd, _) =>
+      Array(nd)
+    case NDArrayMatMul(l, r) =>
+      Array(l, r)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
     case AggFilter(cond, aggIR, _) =>
@@ -94,7 +113,7 @@ object Children {
       Array(array, aggBody)
     case AggGroupBy(key, aggIR, _) =>
       Array(key, aggIR)
-    case AggArrayPerElement(a, _, _, aggBody, _) => Array(a, aggBody)
+    case AggArrayPerElement(a, _, _, aggBody, knownLength, _) => Array(a, aggBody) ++ knownLength.toArray[IR]
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -141,6 +160,7 @@ object Children {
     case TableAggregate(child, query) => Array(child, query)
     case MatrixAggregate(child, query) => Array(child, query)
     case TableWrite(child, _) => Array(child)
+    case TableMultiWrite(children, _) => children
     case TableToValueApply(child, _) => Array(child)
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR

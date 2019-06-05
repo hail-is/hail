@@ -16,13 +16,17 @@ sealed trait IR extends BaseIR {
 
   def pType: PType = {
     if (_ptype == null)
-      _ptype = InferPType(this)
+      _ptype = PType.canonical(typ)
     _ptype
   }
 
   def typ: Type = {
     if (_typ == null)
-      _typ = InferType(this)
+      try {
+        _typ = InferType(this)
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+      }
     _typ
   }
 
@@ -86,9 +90,27 @@ final case class False() extends IR
 final case class Void() extends IR
 
 final case class Cast(v: IR, _typ: Type) extends IR
+final case class CastRename(v: IR, _typ: Type) extends IR
 
 final case class NA(_typ: Type) extends IR { assert(!_typ.required) }
 final case class IsNA(value: IR) extends IR
+
+object Coalesce {
+  def unify(values: Seq[IR], unifyType: Option[Type] = None): Coalesce = {
+    require(values.nonEmpty)
+    val t1 = values.head.typ
+    if (values.forall(_.typ == t1))
+      Coalesce(values)
+    else {
+      val t = unifyType.getOrElse(t1.deepOptional())
+      Coalesce(values.map(PruneDeadFields.upcast(_, t)))
+    }
+  }
+}
+
+final case class Coalesce(values: Seq[IR]) extends IR {
+  require(values.nonEmpty)
+}
 
 object If {
   def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
@@ -108,6 +130,9 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
+
+final case class RelationalLet(name: String, value: IR, body: IR) extends IR
+final case class RelationalRef(name: String, _typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
@@ -196,12 +221,20 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
 final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+final case class ArrayAggScan(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(nDim: Int, data: IR, shape: IR, rowMajor: IR) extends IR
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
+
+final case class NDArrayShape(nd: IR) extends IR
+
+final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
+  require(shape.typ.asInstanceOf[TTuple].size > 0)
+}
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
@@ -214,7 +247,10 @@ final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: I
 }
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends IR
+final case class NDArrayAgg(nd: IR, axes: IndexedSeq[Int]) extends IR
 final case class NDArrayWrite(nd: IR, path: IR) extends IR
+
+final case class NDArrayMatMul(l: IR, r: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
@@ -222,7 +258,7 @@ final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolea
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -325,6 +361,11 @@ final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
 final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
+
+final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
+}
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

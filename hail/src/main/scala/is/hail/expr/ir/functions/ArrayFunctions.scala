@@ -320,22 +320,22 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64()) {
-      case (mb, EmitTriplet(setup1, m1, v1), EmitTriplet(setup2, m2, v2)) =>
+      case (r, EmitTriplet(setup1, m1, v1), EmitTriplet(setup2, m2, v2)) =>
         val t1 = PArray(PFloat64())
         val t2 = PArray(PFloat64())
-        val region = getRegion(mb)
+        val region = r.region
 
-        val xSum = mb.newLocal[Double]
-        val ySum = mb.newLocal[Double]
-        val xSqSum = mb.newLocal[Double]
-        val ySqSum = mb.newLocal[Double]
-        val xySum = mb.newLocal[Double]
-        val n = mb.newLocal[Int]
-        val i = mb.newLocal[Int]
-        val l1 = mb.newLocal[Int]
-        val l2 = mb.newLocal[Int]
-        val x = mb.newLocal[Double]
-        val y = mb.newLocal[Double]
+        val xSum = r.mb.newLocal[Double]
+        val ySum = r.mb.newLocal[Double]
+        val xSqSum = r.mb.newLocal[Double]
+        val ySqSum = r.mb.newLocal[Double]
+        val xySum = r.mb.newLocal[Double]
+        val n = r.mb.newLocal[Int]
+        val i = r.mb.newLocal[Int]
+        val l1 = r.mb.newLocal[Int]
+        val l2 = r.mb.newLocal[Int]
+        val x = r.mb.newLocal[Double]
+        val y = r.mb.newLocal[Double]
 
         val a1 = v1.asInstanceOf[Code[Long]]
         val a2 = v2.asInstanceOf[Code[Long]]

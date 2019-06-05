@@ -72,19 +72,22 @@ if (breezeVersion == null) {
 
 String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
+String parallelism = System.getProperty("test.parallelism", "2")
+
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 sourceSets.test.runtimeClasspath += files("prebuilt/lib")
 
 task nativeLib(type: Exec) {
     workingDir 'src/main/c'
+    args('-j'+parallelism)
     executable 'make'
     outputs.upToDateWhen { false }
 }
 
 task nativeLibTest(type: Exec) {
     workingDir 'src/main/c'
-    args('test')
+    args('-j'+parallelism, 'test')
     executable 'make'
     outputs.upToDateWhen { false }
 }
@@ -99,6 +102,13 @@ task nativeLibClean(type: Exec) {
 task nativeLibPrebuilt(type: Exec) {
     workingDir 'src/main/c'
     args('prebuilt')
+    executable 'make'
+    outputs.upToDateWhen { false }
+}
+
+task nativeLibResetPrebuilt(type: Exec) {
+    workingDir 'src/main/c'
+    args('reset-prebuilt')
     executable 'make'
     outputs.upToDateWhen { false }
 }
@@ -149,28 +159,41 @@ task testCppCodegen(type: Test) {
 testCppCodegen.reports.html.destination = file("$buildDir/reports/codegen-tests")
 
 compileJava {
-    options.compilerArgs << "-Xlint:all" << "-Werror"
+    options.compilerArgs << "-Xlint:all" << "-Werror" << "-XDenableSunApiLintControl"
 }
+tasks.withType(JavaCompile) {
+    options.fork = true // necessary to make -XDenableSunApiLintControl work
+}
+
 
 task generateBuildInfo(type: Exec) {
     commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailPipVersion
     outputs.upToDateWhen { false }
 }
 
-task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
-    commandLine 'bash', 'python/deploy.sh'
-    outputs.upToDateWhen { false }
-}
 
 task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
     commandLine 'bash', 'python/pipinstall.sh'
     outputs.upToDateWhen { false }
 }
 
+shadowJar.mustRunAfter nativeLibPrebuilt
+nativeLibResetPrebuilt.mustRunAfter shadowJar
+task releaseJar(type: Wrapper, dependsOn: ['nativeLibPrebuilt', 'shadowJar', 'nativeLibResetPrebuilt']) {
+}
+
 compileScala {
     dependsOn generateBuildInfo
-    // , "-Xfatal-warnings"
-    scalaCompileOptions.additionalParameters = ["-feature", "-Xno-patmat-analysis"]
+    scalaCompileOptions.additionalParameters = [
+        "-feature",
+        "-Xno-patmat-analysis",
+        "-Xfatal-warnings",
+        "-Xlint:_",
+        "-deprecation",
+        "-unchecked",
+        "-Xlint:-infer-any",
+        "-Xlint:-unsound-match"
+    ]
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
                    "-Xmx4096M",
@@ -240,8 +263,6 @@ task(checkSettings) << {
     System.setProperty("check.count", checkCount)
 }
 
-String parallelism = System.getProperty("test.parallelism", "2")
-
 test {
     useTestNG {}
 
@@ -284,6 +305,8 @@ task testPython(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task doctest(type: Exec, dependsOn: shadowJar) {
@@ -292,6 +315,8 @@ task doctest(type: Exec, dependsOn: shadowJar) {
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
     environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYSPARK_PYTHON: 'python3'
+    environment HAIL_TEST_RESOURCES_DIR: '' + projectDir + '/src/test/resources'
+    environment HAIL_DOCTEST_DATA_DIR: '' + projectDir + '/python/hail/docs/data'
 }
 
 task benchmark(type: Exec, dependsOn: shadowJar) {
@@ -375,20 +400,23 @@ task shadowTestJar(type: ShadowJar) {
     from(project.sourceSets.main.output, project.sourceSets.test.output)
     configurations = [project.configurations.testRuntime]
     dependencies {
+        include(dependency('org.scala-lang:scala-library:' + scalaVersion))
+        include(dependency('org.scala-lang:scala-reflect:' + scalaVersion))
+
         include(dependency('org.slf4j:slf4j-api:1.7.25'))
 
         include(dependency('org.lz4:lz4-java:.*'))
         include(dependency('org.scalanlp:breeze-natives_' + scalaMajorVersion + ':.*'))
 
-	include(dependency('com.github.fommil.netlib:core:1.1.2'))
-	include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
-	include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
-	include(dependency('com.github.fommil:jniloader:1.1'))
-	include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
-	include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:core:1.1.2'))
+        include(dependency('net.sourceforge.f2j:arpack_combined_all:0.1'))
+        include(dependency('com.github.fommil.netlib:native_system-java:1.1'))
+        include(dependency('com.github.fommil:jniloader:1.1'))
+        include(dependency('com.github.fommil.netlib:native_ref-java:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_system-linux-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_ref-linux-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_system-osx-x86_64:1.1'))
+        include(dependency('com.github.fommil.netlib:netlib-native_ref-osx-x86_64:1.1'))
 
         include(dependency('com.github.samtools:htsjdk:.*'))
 

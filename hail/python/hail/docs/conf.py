@@ -19,6 +19,7 @@
 
 import os
 import sys
+import datetime
 
 sys.path.insert(0, os.path.abspath('./_ext'))
 
@@ -97,7 +98,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'Hail'
-copyright = u'2016, Hail Team'
+copyright = u'2015-{}, Hail Team'.format(datetime.datetime.now().year)
 author = u'Hail Team'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -215,15 +216,20 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['../../../../../www/hail-logo-cropped.png',
-                   '../../../../../www/navbar.css',
+www_root = os.path.dirname(os.path.abspath(__file__))
+_i = 0
+while _i < 50 and not os.path.isdir(os.path.join(www_root, 'www')):
+    www_root = os.path.join(www_root, '..')
+    _i += 1
+html_extra_path = [os.path.join(www_root, 'www/hail-logo-cropped.png'),
+                   os.path.join(www_root, 'www/navbar.css'),
                    'misc/']
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.
 # The empty string is equivalent to '%b %d, %Y'.
 #
-# html_last_updated_fmt = None
+html_last_updated_fmt = ''
 
 # If true, SmartyPants will be used to convert quotes and dashes to
 # typographically correct entities.
@@ -259,11 +265,11 @@ html_sidebars = {
 
 # If true, "Created using Sphinx" is shown in the HTML footer. Default is True.
 #
-# html_show_sphinx = True
+html_show_sphinx = False
 
 # If true, "(C) Copyright ..." is shown in the HTML footer. Default is True.
 #
-# html_show_copyright = True
+html_show_copyright = True
 
 # If true, an OpenSearch description file will be output, and all pages will
 # contain a <link> tag referring to it.  The value of this option must be the

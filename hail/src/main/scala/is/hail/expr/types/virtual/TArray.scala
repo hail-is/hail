@@ -43,7 +43,7 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue: Gen[Annotation] =
+  override def genNonmissingValue: Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
 
   val ordering: ExtendedOrdering =

@@ -16,6 +16,8 @@ object IRBuilder {
 
   implicit def irToProxy(ir: IR): IRProxy = (_: E) => ir
 
+  implicit def strToProxy(s: String): IRProxy = Str(s)
+
   implicit def intToProxy(i: Int): IRProxy = I32(i)
 
   implicit def booleanToProxy(b: Boolean): IRProxy = if (b) True() else False()
@@ -41,6 +43,9 @@ object IRBuilder {
 
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
+
+  def irDie(message: IRProxy, typ: Type): IRProxy = (env: E) =>
+    Die(message(env), typ)
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
 
@@ -69,6 +74,9 @@ object IRBuilder {
 
     ApplyAggOp(c, i, s, AggSignature(op, c.map(_.typ), i.map(_.map(_.typ)), s.map(_.typ)))
   }
+
+  def aggFilter(filterCond: IRProxy, query: IRProxy, isScan: Boolean = false): IRProxy = (env: E) =>
+    AggFilter(filterCond(env), query(env), isScan)
 
   class TableIRProxy(val tir: TableIR) extends AnyVal {
     def empty: E = Env.empty
@@ -206,6 +214,8 @@ object IRBuilder {
       }
     }
 
+    def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
@@ -259,7 +269,13 @@ object IRBuilder {
       ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
-    def aggElements(elementsSym: Symbol, indexSym: Symbol)(aggBody: IRProxy): IRProxy = (env: E) => {
+    def arrayAggScan(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayAggScan(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
+    def aggElements(elementsSym: Symbol, indexSym: Symbol, knownLength: Option[IRProxy])(aggBody: IRProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
       AggArrayPerElement(
@@ -267,6 +283,7 @@ object IRBuilder {
         elementsSym.name,
         indexSym.name,
         aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32())),
+        knownLength.map(_ (env)),
         isScan = false)
     }
 

@@ -2,7 +2,6 @@ package is.hail.expr
 
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
@@ -295,7 +294,7 @@ object TableAnnotationImpex {
       case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
-      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg)
+      case TInterval(l: TLocus, _) => Locus.parseInterval(a, l.rg, invalidMissing = false)
       case t: TInterval => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)
       case _: TCall => Call.parse(a)
       case t: TArray => JSONAnnotationImpex.importAnnotation(JsonMethods.parse(a), t)

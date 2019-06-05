@@ -1,14 +1,16 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
+import is.hail.backend.spark.SparkBackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
+import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -48,8 +50,16 @@ trait FunctionWithHadoopConfiguration {
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
 }
 
+trait FunctionWithLiterals {
+  def addLiterals(lit: Array[Byte]): Unit
+}
+
 trait FunctionWithSeededRandomness {
   def setPartitionIndex(idx: Int): Unit
+}
+
+trait FunctionWithSparkBackend {
+  def setSparkBackend(spark: SparkBackendUtils): Unit
 }
 
 class EmitMethodBuilder(
@@ -98,20 +108,32 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
+  private[this] val literalsMap: mutable.Map[(Type, Any), Code[_]] =
+    mutable.Map[(Type, Any), Code[_]]()
+
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElse(rg, {
+    rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
       val field = addField[ReferenceGenome](fromParent)
       field.load()
     })
 
   override def getType(t: Type): Code[Type] =
-    typMap.getOrElse(t, {
+    typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
       val field = addField[Type](fromParent)
       field.load()
     })
 
+  override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    literalsMap.getOrElseUpdate(t -> v, {
+      val fromParent = parentfb.addLiteral(v, t, region)
+      val ti: TypeInfo[_] = typeToTypeInfo(t)
+      val field = addField(fromParent, dummy = true)(ti)
+      field.load()
+    })
+  }
 }
 
 class EmitFunctionBuilder[F >: Null](
@@ -144,8 +166,79 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
+  private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
+    mutable.Map[(Type, Any), ClassFieldRef[_]]()
+  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
+  private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
+  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Region, Unit]
+
+  def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
+    Code(
+      litDecoded.mux(
+        Code._empty,
+        decodeLiterals.invoke(region)),
+      f.load())
+  }
+
+  private[this] def encodeLiterals(): Array[Byte] = {
+    val spec = CodecSpec.defaultUncompressed
+    val literals = literalsMap.toArray
+    val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
+
+    val dec = spec.buildEmitDecoderMethod(litType.physicalType, litType.physicalType, this)
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
+    mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
+    methods.append(mb2)
+
+    val ib = spec.child.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))
+    val off = decodeLiterals.newLocal[Long]
+    val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
+      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+    }
+
+    decodeLiterals.emit(Code(
+      off := dec.invoke(decodeLiterals.getArg[Region](1), ib),
+      Code(storeFields: _*)))
+
+    val baos = new ByteArrayOutputStream()
+    val enc = spec.buildEncoder(litType.physicalType, litType.physicalType)(baos)
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(litType.physicalType)
+      rvb.startTuple()
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
+      rvb.endTuple()
+      enc.writeRegionValue(region, rvb.end())
+    }
+    enc.flush()
+    enc.close()
+    baos.toByteArray
+  }
+
   private[this] var _hconf: SerializableHadoopConfiguration = _
   private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+
+  private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _sparkField: ClassFieldRef[SparkBackendUtils] = _
+
+  def sparkBackend(): Code[SparkBackendUtils] = {
+    if (_sparkField == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSparkBackend].iname)
+      val sparkField = newField[SparkBackendUtils]
+      val mb = new EmitMethodBuilder(this, "setSparkBackend", Array(typeInfo[SparkBackendUtils]), typeInfo[Unit])
+      methods.append(mb)
+      mb.emit(sparkField := mb.getArg[SparkBackendUtils](1))
+      _sparkField = sparkField
+    }
+    _sparkField
+  }
+
+  def addModule(name: String, mod: Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+    _mods += name -> mod
+  }
 
   def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
     assert(hConf != null)
@@ -334,9 +427,15 @@ class EmitFunctionBuilder[F >: Null](
     makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
+    val hasLiterals: Boolean = literalsMap.nonEmpty
+    val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
+
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
     val localHConf = _hconf
+
+    val useSpark = _sparkField != null
+    val spark = if (useSpark) new SparkBackendUtils(_mods.result()) else null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -357,6 +456,10 @@ class EmitFunctionBuilder[F >: Null](
           val f = theClass.newInstance().asInstanceOf[F]
           if (localHConf != null)
             f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
+          if (useSpark)
+            f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literals)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

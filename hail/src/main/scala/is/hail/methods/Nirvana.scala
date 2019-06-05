@@ -5,14 +5,13 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.TableValue
 import is.hail.expr.ir.functions.TableToTableFunction
-import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
 import org.apache.spark.sql.Row
@@ -484,11 +483,10 @@ object Nirvana {
 }
 
 case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTableFunction {
-  def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: TableType): TableType = {
     assert(childType.key == FastIndexedSeq("locus", "alleles"))
     assert(childType.rowType.size == 2)
-    val t = TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
-    (t, t.canonicalRVDType)
+    TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
   }
 
   def preservesPartitionCounts: Boolean = false

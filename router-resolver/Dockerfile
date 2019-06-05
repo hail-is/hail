@@ -1,6 +1,4 @@
-FROM base
-
-RUN pip install --no-cache-dir kubernetes_asyncio
+FROM {{ base_image.image }}
 
 COPY router-resolver /router-resolver
 

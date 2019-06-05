@@ -14,13 +14,13 @@ import is.hail.utils._
 import net.sourceforge.jdistlib.T
 
 case class LinearRegressionRowsSingle(
-  yFields: IndexedSeq[String],
+  yFields: Seq[String],
   xField: String,
-  covFields: IndexedSeq[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val schema = TStruct(
       ("n", TInt32()),
@@ -30,12 +30,10 @@ case class LinearRegressionRowsSingle(
       ("standard_error", TArray(TFloat64())),
       ("t_stat", TArray(TFloat64())),
       ("p_value", TArray(TFloat64())))
-    val tt = TableType(
+    TableType(
       childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
       TStruct())
-
-    tt -> tt.canonicalRVDType
   }
 
   def preservesPartitionCounts: Boolean = true
@@ -77,7 +75,9 @@ case class LinearRegressionRowsSingle(
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (tableType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val rvdType = tableType.canonicalRVDType
+
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
     val nDependentVariables = yFields.length
 
@@ -171,13 +171,13 @@ case class LinearRegressionRowsSingle(
 }
 
 case class LinearRegressionRowsChained(
-  yFields: IndexedSeq[IndexedSeq[String]],
+  yFields: Seq[Seq[String]],
   xField: String,
-  covFields: IndexedSeq[String],
+  covFields: Seq[String],
   rowBlockSize: Int,
-  passThrough: IndexedSeq[String]) extends MatrixToTableFunction {
+  passThrough: Seq[String]) extends MatrixToTableFunction {
 
-  override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val chainedSchema = TStruct(
       ("n", TArray(TInt32())),
@@ -187,12 +187,10 @@ case class LinearRegressionRowsChained(
       ("standard_error", TArray(TArray(TFloat64()))),
       ("t_stat", TArray(TArray(TFloat64()))),
       ("p_value", TArray(TArray(TFloat64()))))
-    val tt = TableType(
+    TableType(
       childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,
       TStruct())
-
-    tt -> tt.canonicalRVDType
   }
 
   def preservesPartitionCounts: Boolean = true
@@ -235,7 +233,8 @@ case class LinearRegressionRowsChained(
     val entryArrayIdx = MatrixType.getEntriesIndex(fullRowType)
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (tableType, rvdType) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
+    val rvdType = tableType.canonicalRVDType
     val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(fullRowType.fieldIdx(_)).toArray
 
     val newRVD = mv.rvd.boundary.mapPartitions(

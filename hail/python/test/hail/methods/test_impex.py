@@ -1223,11 +1223,24 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(list(t.key.dtype) == ['interval'])
         self.assertTrue(list(t.row.dtype) == ['interval','target'])
 
+        expected = [hl.interval(hl.locus('20', 1), hl.locus('20', 11), True, False),   # 20    0 10      gene0
+                    hl.interval(hl.locus('20', 2), hl.locus('20', 14000001), True, False),  # 20    1          14000000  gene1
+                    hl.interval(hl.locus('20', 5), hl.locus('20', 6), False, False),  # 20    5   5   gene4
+                    hl.interval(hl.locus('20', 17000001), hl.locus('20', 18000001), True, False),  # 20    17000000   18000000  gene2
+                    hl.interval(hl.locus('20', 63025511), hl.locus('20', 63025520), True, True)]  # 20    63025510   63025520  gene3
+
+        self.assertEqual(t.interval.collect(), hl.eval(expected))
+
     def test_import_bed_no_reference_specified(self):
         bed_file = resource('example1.bed')
         t = hl.import_bed(bed_file, reference_genome=None)
         self.assertTrue(t.count() == 3)
         self.assertEqual(t.interval.dtype.point_type, hl.tstruct(contig=hl.tstr, position=hl.tint32))
+
+    def test_import_bed_kwargs_to_import_table(self):
+        bed_file = resource('example2.bed')
+        t = hl.import_bed(bed_file, reference_genome='GRCh37', find_replace=('gene', ''))
+        self.assertFalse('gene1' in t.aggregate(hl.agg.collect_as_set(t.target)))
 
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
@@ -1236,6 +1249,14 @@ class LocusIntervalTests(unittest.TestCase):
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertTrue(t.count() == 4)
+
+    def test_pass_through_args(self):
+        interval_file = resource('example3.interval_list')
+        t = hl.import_locus_intervals(interval_file,
+                                      reference_genome='GRCh37',
+                                      skip_invalid_intervals=True,
+                                      filter=r'target_\d\d')
+        assert t.count() == 9
 
 
 class ImportMatrixTableTests(unittest.TestCase):

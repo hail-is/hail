@@ -75,7 +75,7 @@ object ExportPlink {
     val d = digitsNeeded(nPartitions)
 
     val nSamples = mv.colValues.value.length
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowPType
 
     val (partFiles, nRecordsWrittenPerPartition) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
@@ -165,7 +165,7 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
   private var nBitsStaged = 0
 
   def +=(i: Int) {
-    data |= ((i.toUIntFromRep.toLong & bitMask) << nBitsStaged)
+    data |= ((i & 0xffffffffL & bitMask) << nBitsStaged)
     nBitsStaged += nBitsPerItem
     write()
   }

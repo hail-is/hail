@@ -12,7 +12,8 @@ from hail.expr.expressions import expr_float64, matrix_table_source, check_entry
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryPrimOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead
+    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
+    BlockMatrixSlice
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.table import Table
@@ -797,25 +798,23 @@ class BlockMatrix(object):
     @staticmethod
     def _range_to_keep(idx, size):
         if isinstance(idx, int):
-            i = BlockMatrix._pos_index(idx, size, 'index')
-            return [i]
-        elif isinstance(idx, slice):
-            if idx.step and idx.step <= 0:
-                raise ValueError(f'slice step must be positive, found {idx.step}')
+            pos_idx = BlockMatrix._pos_index(idx, size, 'index')
+            return slice(pos_idx, pos_idx + 1, 1)
 
-            start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
-            stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True)
-            step = 1 if idx.step is None else idx.step
+        assert isinstance(idx, slice)
+        if idx.step and idx.step <= 0:
+            raise ValueError(f'slice step must be positive, found {idx.step}')
 
-            if start < stop:
-                if 0 == start and stop == size and step == 1:
-                    return None
-                else:
-                    return range(start, stop, step)
-            else:
-                raise ValueError(f'slice {start}:{stop}:{step} is empty')
+        start = 0 if idx.start is None else BlockMatrix._pos_index(idx.start, size, 'start index')
+        stop = size if idx.stop is None else BlockMatrix._pos_index(idx.stop, size, 'stop index', allow_size=True)
+        step = 1 if idx.step is None else idx.step
 
-    @typecheck_method(indices=tupleof(oneof(int, slice)))
+        if start < stop:
+            return slice(start, stop, step)
+        else:
+            raise ValueError(f'slice {start}:{stop}:{step} is empty')
+
+    @typecheck_method(indices=tupleof(oneof(int, sliceof(nullable(int), nullable(int), nullable(int)))))
     def __getitem__(self, indices):
         if len(indices) != 2:
             raise ValueError(f'tuple of indices or slices must have length two, found {len(indices)}')
@@ -832,14 +831,7 @@ class BlockMatrix(object):
         rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
         cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
 
-        if rows_to_keep is None and cols_to_keep is None:
-            return self
-        elif rows_to_keep is None and cols_to_keep is not None:
-            return self.filter_cols(cols_to_keep)
-        elif rows_to_keep is not None and cols_to_keep is None:
-            return self.filter_rows(rows_to_keep)
-        else:
-            return self.filter(rows_to_keep, cols_to_keep)
+        return BlockMatrix(BlockMatrixSlice(self._bmir, [rows_to_keep, cols_to_keep]))
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
@@ -1173,10 +1165,17 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(BlockMatrixBroadcast(self._bmir,
-                                                [1, 0],
-                                                [self.n_cols, self.n_rows],
-                                                self.block_size))
+        if self.n_rows == 1 and self.n_cols == 1:
+            return self
+
+        if self.n_rows == 1:
+            index_expr = [0]
+        elif self.n_cols == 1:
+            index_expr = [1]
+        else:
+            index_expr = [1, 0]
+
+        return BlockMatrix(BlockMatrixBroadcast(self._bmir, index_expr, [self.n_cols, self.n_rows], self.block_size))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.

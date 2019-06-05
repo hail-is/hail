@@ -1,4 +1,4 @@
-.git
-**/*~
-**/*.pyc
+/repos
+*~
+*.pyc
 **/__pycache__

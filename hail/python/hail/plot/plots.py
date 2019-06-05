@@ -1,15 +1,17 @@
 import warnings
-from math import log, isnan, log10
+import math
 
+import collections
 import numpy as np
 import pandas as pd
 import bokeh
 import bokeh.io
-from bokeh.models import *
+from bokeh.models import HoverTool, ColorBar, LogTicker, LogColorMapper, LinearColorMapper, CategoricalColorMapper, \
+    ColumnDataSource, BasicTicker, Plot, ColorMapper, CDSView, GroupFilter, Legend, LegendItem, Renderer, CustomJS, \
+    Select, Column, Span
 from bokeh.plotting import figure
 from bokeh.transform import transform
-from bokeh.layouts import row, column, gridplot
-from itertools import cycle
+from bokeh.layouts import gridplot
 
 from hail.expr import aggregators
 from hail.expr.expressions import *
@@ -116,7 +118,158 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     return p
 
 
-def pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
+def _cdf_single_error(cdf, failure_prob):
+    s = 0
+    for i in range(len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2*i)
+    s = s / (cdf.ranks[-1] ** 2)
+    return math.sqrt(math.log(2 / failure_prob) * s / 2)
+
+
+def _cdf_error(cdf, failure_prob):
+    s = 0
+    for i in range(len(cdf._compaction_counts)):
+        s += cdf._compaction_counts[i] << (2*i)
+    s = s / (cdf.ranks[-1] ** 2)
+
+    def update_grid_size(p):
+        return 4 * math.sqrt(math.log(2 * p / failure_prob) / (2 * s))
+
+    p = 1 / failure_prob
+    for i in range(5):
+        p = update_grid_size(p)
+
+    return 1 / p + math.sqrt(math.log(2 * p / failure_prob) * s / 2)
+
+
+def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interactive=False):
+    if isinstance(data, Expression):
+        if data._indices is None:
+            return ValueError('Invalid input')
+        agg_f = data._aggregation_method()
+        data = agg_f(aggregators.approx_cdf(data, k))
+
+    y_axis_label = 'Frequency'
+    if log:
+        y_axis_type = 'log'
+    else:
+        y_axis_type = 'linear'
+    p = figure(
+        title=title,
+        x_axis_label=legend,
+        y_axis_label=y_axis_label,
+        y_axis_type=y_axis_type,
+        plot_width=600,
+        plot_height=400,
+        tools='xpan,xwheel_zoom,reset,save',
+        active_scroll='xwheel_zoom',
+        background_fill_color='#EEEEEE')
+
+    y = np.array(data.ranks[1:-1]) / data.ranks[-1]
+    x = np.array(data.values[1:-1])
+    min_x = data.values[0]
+    max_x = data.values[-1]
+    err = _cdf_error(data, 10 ** (-confidence))
+
+    new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
+    slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
+    q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend=legend)
+
+    if interactive:
+        def mk_interact(handle):
+            def update(confidence=confidence):
+                err = _cdf_error(data, 10 ** (-confidence)) / 1.8
+                new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
+                slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
+                new_data = {'left': [data.values[0], *x[keep]], 'right': [*x[keep], data.values[-1]], 'bottom': np.full(len(slopes), 0), 'top': slopes}
+                q.data_source.data = new_data
+                bokeh.io.push_notebook(handle)
+
+            from ipywidgets import interact
+            interact(update, confidence=(1, 10, .01))
+
+        return p, mk_interact
+    else:
+        return p
+
+
+def _max_entropy_cdf(min_x, max_x, x, y, e):
+    def compare(x1, y1, x2, y2):
+        return x1*y2 - x2*y1
+
+    new_y = np.full_like(x, 0)
+    keep = np.full_like(x, False, dtype=np.bool_)
+
+    fx = min_x # fixed x
+    fy = 0 # fixed y
+    li = 0 # index of lower slope
+    ui = 0 # index of upper slope
+    ldx = x[li] - fx
+    udx = x[ui] - fx
+    ldy = y[li+1] - e - fy
+    udy = y[ui] + e - fy
+    j = 1
+    while ui < len(x) and li < len(x):
+        if j == len(x):
+            ub = 1
+            lb = 1
+            xj = max_x
+        else:
+            ub = y[j] + e
+            lb = y[j+1] - e
+            xj = x[j]
+        dx = xj - fx
+        judy = ub - fy
+        jldy = lb - fy
+        if compare(ldx, ldy, dx, judy) < 0:
+            # line must bend down at j
+            fx = x[li]
+            fy = y[li+1] - e
+            new_y[li] = fy
+            keep[li] = True
+            j = li + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        elif compare(udx, udy, dx, jldy) > 0:
+            # line must bend up at j
+            fx = x[ui]
+            fy = y[ui] + e
+            new_y[ui] = fy
+            keep[ui] = True
+            j = ui + 1
+            if j >= len(x):
+                break
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+            j += 1
+            continue
+        if j >= len(x):
+            break
+        if compare(udx, udy, dx, judy) < 0:
+            ui = j
+            udx = x[ui] - fx
+            udy = y[ui] + e - fy
+        if compare(ldx, ldy, dx, jldy) > 0:
+            li = j
+            ldx = x[li] - fx
+            ldy = y[li+1] - e - fy
+        j += 1
+    return new_y, keep
+
+
+def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, interactive=False):
     """Create a density plot.
 
     Parameters
@@ -249,9 +402,9 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
 
 
     if log:
-        data.bin_freq = [log10(x) for x in data.bin_freq]
-        data.n_larger = log10(data.n_larger)
-        data.n_smaller = log10(data.n_smaller)
+        data.bin_freq = [math.log10(x) for x in data.bin_freq]
+        data.n_larger = math.log10(data.n_larger)
+        data.n_smaller = math.log10(data.n_smaller)
         y_axis_label = 'log10 Frequency'
     else:
         y_axis_label = 'Frequency'
@@ -356,14 +509,48 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
+@typecheck(p=bokeh.plotting.Figure, font_size=str)
+def set_font_size(p, font_size: str = '12pt'):
+    """Set most of the font sizes in a bokeh figure
+
+    Parameters
+    ----------
+    p : :class:`bokeh.plotting.figure.Figure`
+        Input figure.
+    font_size : str
+        String of font size in points (e.g. '12pt').
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    p.legend.label_text_font_size = font_size
+    p.xaxis.axis_label_text_font_size = font_size
+    p.yaxis.axis_label_text_font_size = font_size
+    p.xaxis.major_label_text_font_size = font_size
+    p.yaxis.major_label_text_font_size = font_size
+    if hasattr(p.title, 'text_font_size'):
+        p.title.text_font_size = font_size
+    if hasattr(p.xaxis, 'group_text_font_size'):
+        p.xaxis.group_text_font_size = font_size
+    return p
+
+
 @typecheck(x=expr_numeric, y=expr_numeric, bins=oneof(int, sequenceof(int)),
            range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
-           font_size=str, colors=sequenceof(str))
-def histogram2d(x, y, bins=40, range=None,
-                 title=None, width=600, height=600, font_size='7pt',
-                 colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
+           colors=sequenceof(str),
+           log=bool)
+def histogram2d(x: NumericExpression,
+                y: NumericExpression,
+                bins: int = 40,
+                range: Tuple[int, int] = None,
+                title: str = None,
+                width: int = 600,
+                height: int = 600,
+                colors: List[str] = bokeh.palettes.all_palettes['Blues'][7][::-1],
+                log: bool = False):
     """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
@@ -402,12 +589,12 @@ def histogram2d(x, y, bins=40, range=None,
         Plot height (default 600px).
     title : str
         Title of the plot.
-    font_size : str
-        String of font size in points (default '7pt').
     colors : List[str]
         List of colors (hex codes, or strings as described
         `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
         built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
+    log : bool
+        Plot the log10 of the bin counts.
 
     Returns
     -------
@@ -462,7 +649,14 @@ def histogram2d(x, y, bins=40, range=None,
     data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
                              hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
 
-    mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    # Use python prettier float -> str function
+    data['x'] = data['x'].apply(lambda e: str(float(e)))
+    data['y'] = data['y'].apply(lambda e: str(float(e)))
+
+    if log:
+        mapper = LogColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+    else:
+        mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
     x_axis = sorted(set(data.x), key=lambda z: float(z))
     y_axis = sorted(set(data.y), key=lambda z: float(z))
@@ -475,7 +669,6 @@ def histogram2d(x, y, bins=40, range=None,
     p.axis.axis_line_color = None
     p.axis.major_tick_line_color = None
     p.axis.major_label_standoff = 0
-    p.axis.major_label_text_font_size = font_size
     import math
     p.xaxis.major_label_orientation = math.pi / 3
 
@@ -484,38 +677,12 @@ def histogram2d(x, y, bins=40, range=None,
            fill_color={'field': 'c', 'transform': mapper},
            line_color=None)
 
-    color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size=font_size,
-                         ticker=BasicTicker(desired_num_ticks=6),
-                         label_standoff=6, border_line_color=None, location=(0, 0))
+    color_bar = ColorBar(color_mapper=mapper,
+                         ticker=LogTicker(desired_num_ticks=len(colors)) if log else BasicTicker(desired_num_ticks=len(colors)),
+                         label_standoff= 12 if log else 6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
 
-    def set_font_size(p, font_size: str = '12pt'):
-        """Set most of the font sizes in a bokeh figure
-
-        Parameters
-        ----------
-        p : :class:`bokeh.plotting.figure.Figure`
-            Input figure.
-        font_size : str
-            String of font size in points (e.g. '12pt').
-
-        Returns
-        -------
-        :class:`bokeh.plotting.figure.Figure`
-        """
-        p.legend.label_text_font_size = font_size
-        p.xaxis.axis_label_text_font_size = font_size
-        p.yaxis.axis_label_text_font_size = font_size
-        p.xaxis.major_label_text_font_size = font_size
-        p.yaxis.major_label_text_font_size = font_size
-        if hasattr(p.title, 'text_font_size'):
-            p.title.text_font_size = font_size
-        if hasattr(p.xaxis, 'group_text_font_size'):
-            p.xaxis.group_text_font_size = font_size
-        return p
-
     p.select_one(HoverTool).tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
-    p = set_font_size(p, font_size)
     return p
 
 
@@ -630,7 +797,7 @@ def _get_scatter_plot_elements(
 
     else:
         all_renderers = []
-        legend_items = {col: DefaultDict(list) for col in factor_cols}
+        legend_items = {col: collections.defaultdict(list) for col in factor_cols}
         for key in source_pd.groupby(factor_cols).groups.keys():
             key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(source=cds, filters=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
@@ -1051,9 +1218,9 @@ def qq(pvals, collect_all=False, n_divisions=500):
         if source is not None:
             if collect_all:
                 pvals = pvals.collect()
-                spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
-                exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-                obs = [-log(p, 10) for p in spvals]
+                spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
+                exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+                obs = [-math.log(p, 10) for p in spvals]
             else:
                 if isinstance(source, Table):
                     ht = source.select(pval=pvals).key_by().persist().key_by('pval')
@@ -1064,14 +1231,14 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
                 pvals = ht.aggregate(
                     aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
-                exp = [point[0] for point in pvals if not isnan(point[1])]
-                obs = [point[1] for point in pvals if not isnan(point[1])]
+                exp = [point[0] for point in pvals if not math.isnan(point[1])]
+                obs = [point[1] for point in pvals if not math.isnan(point[1])]
         else:
             return ValueError('Invalid input: expression has no source')
     else:
-        spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
-        exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
-        obs = [-log(p, 10) for p in spvals]
+        spvals = sorted(filter(lambda x: x and not(math.isnan(x)), pvals))
+        exp = [-math.log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
+        obs = [-math.log(p, 10) for p in spvals]
 
     p = figure(
         title='Q-Q Plot',
@@ -1150,7 +1317,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     p.select_one(HoverTool).tooltips = [t for t in p.select_one(HoverTool).tooltips if not t[0].startswith('_')]
 
     if significance_line is not None:
-        p.renderers.append(Span(location=-log10(significance_line),
+        p.renderers.append(Span(location=-math.log10(significance_line),
                                 dimension='width',
                                 line_color='red',
                                 line_dash='dashed',

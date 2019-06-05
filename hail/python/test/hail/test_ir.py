@@ -39,6 +39,7 @@ class ValueIRTests(unittest.TestCase):
             ir.NA(hl.tint32),
             ir.IsNA(i),
             ir.If(b, i, j),
+            ir.Coalesce(i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
             ir.ApplyBinaryPrimOp('+', i, j),
@@ -52,11 +53,14 @@ class ValueIRTests(unittest.TestCase):
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
-            ir.MakeNDArray(2,
-                           ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
-                           ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
+            ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
+                           ir.MakeTuple([ir.I64(1), ir.I64(2)]),
                            ir.TrueIR()),
+            ir.NDArrayShape(nd),
+            ir.NDArrayReshape(nd, ir.MakeTuple([ir.I64(5)])),
             ir.NDArrayRef(nd, [ir.I64(1), ir.I64(2)]),
+            ir.NDArrayMap(nd, 'v', v),
+            ir.NDArrayMatMul(nd, nd),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
@@ -181,7 +185,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
             ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
-            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True})
+            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.TableFilterIntervals(table_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return table_irs
@@ -210,6 +215,7 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
             ir.MatrixRowsHead(matrix_read, 5),
+            ir.MatrixColsHead(matrix_read, 5),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',
@@ -236,7 +242,9 @@ class MatrixIRTests(unittest.TestCase):
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
             ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo'),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
-            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
+            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True}),
+            ir.MatrixRename(matrix_read, {'global_f32': 'global_foo'}, {'col_f32': 'col_foo'}, {'row_aset': 'row_aset2'}, {'entry_f32': 'entry_foo'}),
+            ir.MatrixFilterIntervals(matrix_read, [hl.utils.Interval(hl.utils.Struct(row_idx=0), hl.utils.Struct(row_idx=10))], hl.tstruct(row_idx=hl.tint32), keep=False),
         ]
 
         return matrix_irs
@@ -281,6 +289,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+        slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
         return [
             read,
@@ -295,7 +304,8 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_row,
             squared_bm,
             transpose,
-            matmul
+            matmul,
+            slice_bm
         ]
 
     def test_parses(self):

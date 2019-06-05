@@ -4,11 +4,8 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.using
-
-import scala.collection.mutable
 
 class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
 
@@ -22,15 +19,12 @@ class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
 
   def parallelizeComputeCollect(modID: String, bodyf: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
 
-    val sc = HailContext.get.sc
-    val rdd = sc.parallelize[Array[Byte]](contexts, numSlices = contexts.length)
+
+    val backend = HailContext.backend
+    val globalsBC = backend.broadcast(globals)
     val (lit, key, bin) = getModule(modID)
 
-    val globalsBC = sc.broadcast(globals)
-
-    rdd.mapPartitionsWithIndex { case (i, ctxIt) =>
-      val ctx = ctxIt.next()
-      assert(!ctxIt.hasNext)
+    backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
       val gs = globalsBC.value
 
       val st = new NativeStatus()
@@ -47,10 +41,10 @@ class SparkUtils(mods: Array[(String, (Array[Byte], NativeModule))]) {
           assert(st.ok, st.toString())
           objs.close()
           st.close()
-          Iterator.single(baos.toByteArray)
+          baos.toByteArray
         }
       }
-    }.collect()
+    }
   }
 
 }

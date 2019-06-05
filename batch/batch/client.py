@@ -1,314 +1,140 @@
-import os
-import yaml
+import asyncio
 
-import cerberus
+from . import aioclient
 
-from . import api, schemas
-from .poll_until import poll_until
+
+def async_to_blocking(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
-        if parent_ids is None:
-            parent_ids = []
-        if attributes is None:
-            attributes = {}
+    @staticmethod
+    def exit_code(job_status):
+        return aioclient.Job.exit_code(job_status)
 
-        self.client = client
-        self.id = id
-        self.attributes = attributes
-        self.parent_ids = parent_ids
-        self.scratch_folder = scratch_folder
-        self._status = _status
+    @classmethod
+    def from_async_job(cls, job):
+        j = object.__new__(cls)
+        j._async_job = job
+        return j
+
+    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
+        self._async_job = aioclient.Job(batch, job_id, attributes=attributes,
+                                        parent_ids=parent_ids, _status=_status)
+
+    @property
+    def _status(self):
+        return self._async_job._status
+
+    @property
+    def batch_id(self):
+        return self._async_job.batch_id
+
+    @property
+    def job_id(self):
+        return self._async_job.job_id
+
+    @property
+    def id(self):
+        return self._async_job.id
+
+    @property
+    def attributes(self):
+        return self._async_job.attributes
+
+    @property
+    def parent_ids(self):
+        return self._async_job.parent_ids
 
     def is_complete(self):
-        if self._status:
-            state = self._status['state']
-            if state in ('Complete', 'Cancelled'):
-                return True
-        return False
-
-    def cached_status(self):
-        assert self._status is not None
-        return self._status
+        return async_to_blocking(self._async_job.is_complete())
 
     def status(self):
-        self._status = self.client._get_job(self.id)
-        return self._status
+        return async_to_blocking(self._async_job.status())
 
     def wait(self):
-        def update_and_is_complete():
-            self.status()
-            return self.is_complete()
-        poll_until(update_and_is_complete)
-        return self._status
-
-    def cancel(self):
-        self.client._cancel_job(self.id)
-
-    def delete(self):
-        self.client._delete_job(self.id)
-
-        # this object should not be referenced again
-        del self.client
-        del self.id
-        del self.attributes
-        del self.parent_ids
-        del self.scratch_folder
-        del self._status
+        return async_to_blocking(self._async_job.wait())
 
     def log(self):
-        return self.client._get_job_log(self.id)
+        return async_to_blocking(self._async_job.log())
 
 
 class Batch:
+    @classmethod
+    def from_async_batch(cls, batch):
+        b = object.__new__(cls)
+        b._async_batch = batch
+        return b
+
     def __init__(self, client, id, attributes):
-        self.client = client
-        self.id = id
-        self.attributes = attributes
+        self._async_batch = aioclient.Batch(client, id, attributes)
+
+    @property
+    def id(self):
+        return self._async_batch.id
+
+    @property
+    def attributes(self):
+        return self._async_batch.attributes
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   scratch_folder=None, input_files=None, output_files=None, always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return self.client._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
-            input_files, output_files, always_run)
+                   service_account_name=None, attributes=None, callback=None, parents=None,
+                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+        coroutine = self._async_batch.create_job(
+            image, command=command, args=args, env=env, ports=ports,
+            resources=resources, tolerations=tolerations, volumes=volumes,
+            security_context=security_context, service_account_name=service_account_name,
+            attributes=attributes, callback=callback, parents=parents,
+            input_files=input_files, output_files=output_files, always_run=always_run,
+            pvc_size=pvc_size)
+        return Job.from_async_job(async_to_blocking(coroutine))
 
     def close(self):
-        self.client._close_batch(self.id)
-
-    def status(self):
-        return self.client._get_batch(self.id)
-
-    def wait(self):
-        def update_and_is_complete():
-            status = self.status()
-            if not any(j['state'] == 'Created' or j['state'] == 'Ready' for j in status['jobs']):
-                return status
-            return False
-        return poll_until(update_and_is_complete)
+        async_to_blocking(self._async_batch.close())
 
     def cancel(self):
-        self.client._cancel_batch(self.id)
+        async_to_blocking(self._async_batch.cancel())
+
+    def status(self):
+        return async_to_blocking(self._async_batch.status())
+
+    def wait(self):
+        return async_to_blocking(self._async_batch.wait())
 
     def delete(self):
-        self.client._delete_batch(self.id)
+        async_to_blocking(self._async_batch.delete())
 
 
 class BatchClient:
-    def __init__(self, url=None, timeout=None, token_file=None, token=None, headers=None):
-        if token_file is not None and token is not None:
-            raise ValueError('set only one of token_file and token')
-        if not url:
-            url = 'http://batch.default'
-        self.url = url
-        if token is None:
-            token_file = (token_file or
-                          os.environ.get('HAIL_TOKEN_FILE') or
-                          os.path.expanduser('~/.hail/token'))
-            if not os.path.exists(token_file):
-                raise ValueError(
-                    f'cannot create a client without a token. no file was '
-                    f'found at {token_file}')
-            with open(token_file) as f:
-                token = f.read()
-        self.api = api.API(timeout=timeout,
-                           cookies={'user': token},
-                           headers=headers)
+    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
+        self._async_client = aioclient.BatchClient(session, url=url, token_file=token_file,
+                                                   token=token, headers=headers)
 
-    def _create_job(self,  # pylint: disable=R0912
-                    image,
-                    command,
-                    args,
-                    env,
-                    ports,
-                    resources,
-                    tolerations,
-                    volumes,
-                    security_context,
-                    service_account_name,
-                    attributes,
-                    batch_id,
-                    callback,
-                    parent_ids,
-                    scratch_folder,
-                    input_files,
-                    output_files,
-                    always_run):
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
+    @property
+    def bucket(self):
+        return self._async_client.bucket
 
-        container = {
-            'image': image,
-            'name': 'main'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
-
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
-                                parent_ids, scratch_folder, input_files, output_files,
-                                always_run)
-        return Job(self,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []))
-
-    def _get_job(self, id):
-        return self.api.get_job(self.url, id)
-
-    def _get_job_log(self, id):
-        return self.api.get_job_log(self.url, id)
-
-    def _delete_job(self, id):
-        self.api.delete_job(self.url, id)
-
-    def _cancel_job(self, id):
-        self.api.cancel_job(self.url, id)
-
-    def _get_batch(self, batch_id):
-        return self.api.get_batch(self.url, batch_id)
-
-    def _cancel_batch(self, batch_id):
-        self.api.cancel_batch(self.url, batch_id)
-
-    def _delete_batch(self, batch_id):
-        self.api.delete_batch(self.url, batch_id)
-
-    def _close_batch(self, batch_id):
-        return self.api.close_batch(self.url, batch_id)
-
-    def list_jobs(self, complete=None, success=None, attributes=None):
-        jobs = self.api.list_jobs(self.url, complete=complete, success=success, attributes=attributes)
-        return [Job(self,
-                    j['id'],
-                    attributes=j.get('attributes'),
-                    parent_ids=j.get('parent_ids', []),
-                    _status=j)
-                for j in jobs]
+    def _refresh_k8s_state(self):
+        async_to_blocking(self._async_client._refresh_k8s_state())
 
     def list_batches(self, complete=None, success=None, attributes=None):
-        batches = self.api.list_batches(self.url, complete=complete, success=success, attributes=attributes)
-        return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
+        batches = async_to_blocking(
+            self._async_client.list_batches(complete=complete, success=success, attributes=attributes))
+        return [Batch.from_async_batch(b) for b in batches]
 
-    def get_job(self, id):
-        # make sure job exists
-        j = self._get_job(id)
-        return Job(self,
-                   j['id'],
-                   attributes=j.get('attributes'),
-                   parent_ids=j.get('parent_ids', []),
-                   _status=j)
+    def get_job(self, batch_id, job_id):
+        j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
+        return Job.from_async_job(j)
 
     def get_batch(self, id):
-        j = self._get_batch(id)
-        return Batch(self,
-                     j['id'],
-                     j.get('attributes'))
-
-    def create_job(self,
-                   image,
-                   command=None,
-                   args=None,
-                   env=None,
-                   ports=None,
-                   resources=None,
-                   tolerations=None,
-                   volumes=None,
-                   security_context=None,
-                   service_account_name=None,
-                   attributes=None,
-                   callback=None,
-                   parent_ids=None,
-                   scratch_folder=None,
-                   input_files=None,
-                   output_files=None,
-                   always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
-            input_files, output_files, always_run)
+        b = async_to_blocking(self._async_client.get_batch(id))
+        return Batch.from_async_batch(b)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
-        batch = self.api.create_batch(self.url, attributes, callback, ttl)
-        return Batch(self, batch['id'], batch.get('attribute'))
+        b = async_to_blocking(
+            self._async_client.create_batch(attributes=attributes, callback=callback, ttl=ttl))
+        return Batch.from_async_batch(b)
 
-    job_yaml_schema = {
-        'spec': schemas.pod_spec,
-        'type': {'type': 'string', 'allowed': ['execute']},
-        'name': {'type': 'string'},
-        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
-    }
-    job_yaml_validator = cerberus.Validator(job_yaml_schema)
-
-    def create_batch_from_file(self, file):
-        job_id_by_name = {}
-
-        # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
-            job = job_id_by_name.get(id)
-            if job:
-                return job
-            raise ValueError(
-                '"{self_id}" must appear in the file after its dependency "{id}"')
-
-        batch = self.create_batch()
-        for doc in yaml.safe_load(file):
-            if not BatchClient.job_yaml_validator.validate(doc):
-                raise BatchClient.job_yaml_validator.errors
-            spec = doc['spec']
-            type = doc['type']
-            name = doc['name']
-            dependsOn = doc.get('dependsOn', [])
-            if type == 'execute':
-                job = batch.create_job(
-                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
-                    **spec)
-                job_id_by_name[name] = job.id
-        return batch
+    def close(self):
+        async_to_blocking(self._async_client.close())

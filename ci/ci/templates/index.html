@@ -2,51 +2,65 @@
   <head>
     <title>CI</title>
     <link rel="stylesheet" type="text/css" href="/static/style.css">
+    <style>
+      #statuses {
+        border-collapse: collapse;
+      }
+      #statuses td, #statuses th {
+        border: 1px solid #ddd;
+        padding: 8px;
+      }
+      #statuses tr:nth-child(even){background-color: #f2f2f2;}
+      #statuses tr:hover {background-color: #ddd;}
+      #statuses th {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        text-align: left;
+        background-color: #2A388F;
+        color: white;
+      }
+    </style>
   </head>
   <body>
-    <h1>CI.</h1>
-    <h2>Deploys</h2>
-    <table>
-      <thead>
-        <tr>
-          <th align="left">Target</th>
-          <th align="left">Latest Deployed SHA</th>
-          <th align="left">Current Deploy Job</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for target in targets.values() %}
-        <tr>
-          <td>{{ target['ref'].short_str() }}</td>
-          {% if target['deployed_sha'] is not none %}
-          <td><a href="https://github.com/{{target['ref'].repo.qname}}/commit/{{ target['deployed_sha'] }}">
-              {{ target['deployed_sha'][0:12] }}</a></td>
-          {% else %}
-          <td>Unknown</td>
-          {% endif %}
-          <td><a href="job-log/{{ target['job'].id }}">
-              {{ target['job'].id }}</a></td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <h2>PRs</h2>
-    {% for target, prs in prs_by_target %}
-    <h3>{{ target.short_str() }}</h3>
-    <table>
+    <h1>CI</h1>
+    {% for wb in watched_branches %}
+    <h2>{{ wb.branch }}</h2>
+    <p>SHA:
+      {% if wb.sha is not none %}
+      {{ wb.sha }}
+      {% else %}
+      unknown
+      {% endif %}
+    </p>
+    <p>Deploy State:
+      {% if wb.deploy_state is not none %}
+      {{ wb.deploy_state }}
+      {% endif %}
+    </p>
+    <p>Deploy Batch: 
+      {% if wb.deploy_batch_id is not none %}
+      <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
+      {% endif %}
+    </p>
+
+    <h3>PRs</h3>
+    {% if wb.prs is not none %}
+    {% if wb.prs|length > 0 %}
+    <table id="statuses" class="searchable sortable">
       <thead>
         <tr>
           <th align="left">Number</th>
           <th align="left">Title</th>
           <th align="left">Build State</th>
           <th align="left">Review State</th>
+          <th align="left">Author</th>
         </tr>
       </thead>
       <tbody>
-        {% for pr in prs %}
+        {% for pr in wb.prs %}
         <tr>
           <td align="left">
-            <a href="https://github.com/{{ pr.target.ref.repo.qname }}/pull/{{ pr.number }}">
+            <a href="https://github.com/{{ wb.repo }}/pull/{{ pr.number }}">
               {{ pr.number }}
             </a>
           </td>
@@ -54,30 +68,34 @@
             {{ pr.title }}
           </td>
           <td align="left">
-            {% if pr.build.job is defined %}
-            <a href="job-log/{{ pr.build.job.id }}">{{ pr.build }}</a>
+            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
+            {% if pr.build_state is not none %}
+              {{ pr.build_state }}
+            {% elif pr.batch_id is not none %}
+              building
             {% else %}
-            {{ pr.build }}
+              pending
+            {% endif %}
+            </a>
+          </td>
+          <td align="left">
+            {% if pr.review_state %}
+            {{ pr.review_state }}
             {% endif %}
           </td>
           <td align="left">
-            {{ pr.review }}
-          </td>
-          <td align="left">
-            <form action="https://ci.hail.is/force_retest_flat" method="POST">
-              <input name="source_branch_name" type="hidden" value="{{ pr.source.ref.name }}">
-              <input name="source_repo_name" type="hidden" value="{{ pr.source.ref.repo.name }}">
-              <input name="source_repo_owner" type="hidden" value="{{ pr.source.ref.repo.owner }}">
-              <input name="target_branch_name" type="hidden" value="{{ pr.target.ref.name }}">
-              <input name="target_repo_name" type="hidden" value="{{ pr.target.ref.repo.name }}">
-              <input name="target_repo_owner" type="hidden" value="{{ pr.target.ref.repo.owner }}">
-              <input type="submit" value="retest">
-            </form>
+            {{ pr.author }}
           </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    {% else %}
+    No PRs.
+    {% endif %}
+    {% else %}
+    Unknown.
+    {% endif %}
     {% endfor %}
   </body>
 </html>

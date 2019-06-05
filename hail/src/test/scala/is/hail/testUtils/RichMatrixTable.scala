@@ -9,8 +9,8 @@ import scala.reflect.ClassTag
 
 class RichMatrixTable(vsm: MatrixTable) {
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val fullRowType = vsm.rvRowType
-    val localEntriesIndex = vsm.entriesIndex
+    val fullRowType = vsm.value.rvRowType
+    val localEntriesIndex = vsm.value.entriesIdx
     val localRowType = vsm.rowType
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.map { rv =>
@@ -22,7 +22,7 @@ class RichMatrixTable(vsm: MatrixTable) {
 
   def variantRDD: RDD[(Variant, (Annotation, Iterable[Annotation]))] =
     rdd.map { case (v, (va, gs)) =>
-      Variant.fromLocusAlleles(v) -> (va, gs)
+      Variant.fromLocusAlleles(v) -> ((va, gs))
     }
 
   def typedRDD[RK](implicit rkct: ClassTag[RK]): RDD[(RK, (Annotation, Iterable[Annotation]))] =

@@ -229,3 +229,15 @@ def _check_dims(a, name, ndim, min_size=1):
         if a.shape[i] < min_size:
             raise ValueError(f'{name}.shape[{i}] must be at least '
                              f'{min_size}, found {a.shape[i]}')
+
+
+def _ndarray_matmul_ndim(l, r):
+    if l == 1 and r == 1:
+        return 0
+    elif l == 1:
+        return r - 1
+    elif r == 1:
+        return l - 1
+    else:
+        assert l == r
+        return l

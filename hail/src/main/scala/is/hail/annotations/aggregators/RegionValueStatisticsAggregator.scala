@@ -1,8 +1,6 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import org.apache.spark.util.StatCounter
 

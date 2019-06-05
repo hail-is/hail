@@ -2,10 +2,11 @@ import abc
 import os
 import subprocess as sp
 import uuid
+from shlex import quote as shq
 import batch.client
+import aiohttp
 
-from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
-from .utils import escape_string, flatten
+from .resource import InputResourceFile, TaskResourceFile
 
 
 class Backend:
@@ -46,35 +47,57 @@ class LocalBackend(Backend):
         copied_input_resource_files = set()
         os.makedirs(tmpdir + 'inputs/', exist_ok=True)
 
+        def copy_input(task, r):
+            if isinstance(r, InputResourceFile):
+                if r not in copied_input_resource_files:
+                    copied_input_resource_files.add(r)
+
+                    if r._input_path.startswith('gs://'):
+                        return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
+                    else:
+                        absolute_input_path = shq(os.path.realpath(r._input_path))
+                        if task._image is not None:  # pylint: disable-msg=W0640
+                            return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+                        else:
+                            return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
+                else:
+                    return []
+            else:
+                assert isinstance(r, TaskResourceFile)
+                return []
+
+        def copy_external_output(r):
+            def cp(dest):
+                if not dest.startswith('gs://'):
+                    dest = os.path.abspath(dest)
+                    directory = os.path.dirname(dest)
+                    os.makedirs(directory, exist_ok=True)
+                    return 'cp'
+                else:
+                    return 'gsutil cp'
+
+            if isinstance(r, InputResourceFile):
+                return [f'{cp(dest)} {shq(r._input_path)} {shq(dest)}'
+                        for dest in r._output_paths]
+            else:
+                assert isinstance(r, TaskResourceFile)
+                return [f'{cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
+                        for dest in r._output_paths]
+
+        write_inputs = [x for r in pipeline._input_resources for x in copy_external_output(r)]
+        if write_inputs:
+            script += ["# Write input resources to output destinations"]
+            script += write_inputs
+            script += ['\n']
+
         for task in pipeline._tasks:
             os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
 
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
-            def copy_input(r):
-                if isinstance(r, InputResourceFile):
-                    if r not in copied_input_resource_files:
-                        copied_input_resource_files.add(r)
+            script += [x for r in task._inputs for x in copy_input(task, r)]
 
-                        if r._input_path.startswith('gs://'):
-                            return [f'gsutil cp {r._input_path} {r._get_path(tmpdir)}']
-                        else:
-                            absolute_input_path = escape_string(os.path.realpath(r._input_path))
-                            if task._image is not None:  # pylint: disable-msg=W0640
-                                return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
-                            else:
-                                return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
-                    else:
-                        return []
-                elif isinstance(r, ResourceGroup):
-                    return [x for _, rf in r._resources.items() for x in copy_input(rf)]
-                else:
-                    assert isinstance(r, TaskResourceFile)
-                    return []
-
-            script += [x for r in task._inputs for x in copy_input(r)]
-
-            resource_defs = [r._declare(tmpdir) for r in task._inputs.union(task._mentioned)]
+            resource_defs = [r._declare(tmpdir) for r in task._mentioned]
 
             if task._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
@@ -88,36 +111,14 @@ class LocalBackend(Backend):
                            f"{memory} "
                            f"{cpu} "
                            f"{task._image} /bin/bash "
-                           f"-c {escape_string(defs + cmd)}",
+                           f"-c {shq(defs + cmd)}",
                            '\n']
             else:
                 script += resource_defs
-                script += task._command + ['\n']
+                script += task._command
 
-        def write_pipeline_outputs(r, dest):
-            if not dest.startswith('gs://'):
-                dest = os.path.abspath(dest)
-                directory = os.path.dirname(dest)
-                os.makedirs(directory, exist_ok=True)
-                cp = 'cp'
-            else:
-                cp = 'gsutil cp'
-
-            if isinstance(r, InputResourceFile):
-                return [f'{cp} {escape_string(r._input_path)} {escape_string(dest)}']
-            elif isinstance(r, TaskResourceFile):
-                return [f'{cp} {r._get_path(tmpdir)} {escape_string(dest)}']
-            else:
-                assert isinstance(r, ResourceGroup)
-                return [x for ext, rf in r._resources.items()
-                        for x in write_pipeline_outputs(rf, dest + '.' + ext)]
-
-        outputs = [x for _, r in pipeline._resource_map.items()
-                   for dest in r._output_paths
-                   for x in write_pipeline_outputs(r, dest)]
-
-        script += ["# Write resources to output destinations"]
-        script += outputs
+            script += [x for r in task._external_outputs for x in copy_external_output(r)]
+            script += ['\n']
 
         script = "\n".join(script)
         if dry_run:
@@ -162,83 +163,101 @@ class BatchBackend(Backend):
     """
 
     def __init__(self, url):
-        self._batch_client = batch.client.BatchClient(url)
+        session = aiohttp.ClientSession(
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60))
+        self._batch_client = batch.client.BatchClient(session, url)
+
+    def close(self):
+        self._batch_client.close()
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
-        if dry_run:
-            raise NotImplementedError
-
-        hail_scratch_bucket = 'hail-pipeline-scratch'
+        bucket = self._batch_client.bucket
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
-        remote_tmpdir = f'gs://{hail_scratch_bucket}/{subdir_name}'
-        local_tmpdir = f'/tmp/pipeline/{subdir_name}'
+        remote_tmpdir = f'gs://{bucket}/pipeline/{subdir_name}'
+        local_tmpdir = f'/io/pipeline/{subdir_name}'
 
         default_image = 'ubuntu'
 
         batch = self._batch_client.create_batch()
         n_jobs_submitted = 0
+        used_remote_tmpdir = False
 
         task_to_job_mapping = {}
-        job_id_to_command = {}
+        jobs_to_command = {}
+        commands = []
 
-        volumes = [{'volume': {'name': 'pipeline-test-0-1--hail-is-service-account-key',
-                               'secret': {'optional': False,
-                                          'secretName': 'pipeline-test-0-1--hail-is-service-account-key'}},
-                    'volume_mount': {'mountPath': '/secrets',
-                                     'name': 'pipeline-test-0-1--hail-is-service-account-key',
-                                     'readOnly': True}}]
+        bash_flags = 'set -e' + ('x' if verbose else '') + '; '
 
-        activate_service_account = 'gcloud auth activate-service-account ' \
-                                   'pipeline-test-0-1--hail-is@hail-vdc.iam.gserviceaccount.com ' \
-                                   '--key-file /secrets/pipeline-test-0-1--hail-is.key'
+        activate_service_account = 'gcloud -q auth activate-service-account ' \
+                                   '--key-file=/gsa-key/privateKeyData'
+
+        def copy_input(r):
+            if isinstance(r, InputResourceFile):
+                return [(r._input_path, r._get_path(local_tmpdir))]
+            else:
+                assert isinstance(r, TaskResourceFile)
+                return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
+
+        def copy_internal_output(r):
+            assert isinstance(r, TaskResourceFile)
+            return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
+
+        def copy_external_output(r):
+            if isinstance(r, InputResourceFile):
+                return [(r._input_path, dest) for dest in r._output_paths]
+            else:
+                assert isinstance(r, TaskResourceFile)
+                return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
+
+        write_external_inputs = [x for r in pipeline._input_resources for x in copy_external_output(r)]
+        if write_external_inputs:
+            def _cp(src, dst):
+                return f'gsutil -m cp -R {src} {dst}'
+
+            write_cmd = bash_flags + activate_service_account + ' && ' + \
+                        ' && '.join([_cp(*files) for files in write_external_inputs])
+
+            if dry_run:
+                commands.append(write_cmd)
+            else:
+                j = batch.create_job(image='google/cloud-sdk:237.0.0-alpine',
+                                     command=['/bin/bash', '-c', write_cmd],
+                                     attributes={'name': 'write_external_inputs'})
+                jobs_to_command[j] = write_cmd
+                n_jobs_submitted += 1
+                if verbose:
+                    print(f"Submitted Job {j.id} with command: {write_cmd}")
 
         for task in pipeline._tasks:
-            def copy_input(r):
-                if isinstance(r, ResourceFile):
-                    if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {escape_string(r._input_path)} {r._get_path(local_tmpdir)}']
-                    else:
-                        assert isinstance(r, TaskResourceFile)
-                        return [f'gsutil cp {r._get_path(remote_tmpdir)} {r._get_path(local_tmpdir)}']
-                else:
-                    assert isinstance(r, ResourceGroup)
-                    return [x for _, rf in r._resources.items() for x in copy_input(rf)]
+            inputs = [x for r in task._inputs for x in copy_input(r)]
 
-            def copy_output(r):
-                assert r._source == task  # pylint: disable-msg=W0640
-                if isinstance(r, TaskResourceFile):
-                    return [f'gsutil cp {r._get_path(local_tmpdir)} {r._get_path(remote_tmpdir)}']
-                else:
-                    assert isinstance(r, ResourceGroup)
-                    return [x for _, rf in r._resources.items() for x in copy_output(rf)]
+            outputs = [x for r in task._internal_outputs for x in copy_internal_output(r)]
+            if outputs:
+                used_remote_tmpdir = True
+            outputs += [x for r in task._external_outputs for x in copy_external_output(r)]
 
-            copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
-            copy_task_outputs = [x for r in task._outputs for x in copy_output(r)]
-
-            local_dirs_needed = [local_tmpdir,
-                                 local_tmpdir + '/inputs/',
-                                 local_tmpdir + f'/{task._uid}/']
-            local_dirs_needed += [local_tmpdir + f'/{dep._uid}/' for dep in task._dependencies]
-            make_local_tmpdir = [f'mkdir -p {dir}' for dir in local_dirs_needed]
-
-            task_inputs = make_local_tmpdir + [activate_service_account] + copy_task_inputs
-            task_outputs = [activate_service_account] + copy_task_outputs
-            resource_defs = [r._declare(directory=local_tmpdir) for r in task._inputs.union(task._mentioned)]
+            resource_defs = [r._declare(directory=local_tmpdir) for r in task._mentioned]
 
             if task._image is None:
                 if verbose:
                     print(f"Using image '{default_image}' since no image was specified.")
 
+            make_local_tmpdir = f'mkdir -p {local_tmpdir}/{task._uid}/; '
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
 
-            cmd = " && ".join(task_inputs + task_command + task_outputs)
-            parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
+            cmd = bash_flags + make_local_tmpdir + defs + " && ".join(task_command)
+            if dry_run:
+                commands.append(cmd)
+                continue
+
+            parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
             if task._label:
-                attributes['label'] = task._label
+                attributes['name'] = task._label
 
             resources = {'requests': {}}
             if task._cpu:
@@ -247,66 +266,51 @@ class BatchBackend(Backend):
                 resources['requests']['memory'] = task._memory
 
             j = batch.create_job(image=task._image if task._image else default_image,
-                                 command=['/bin/bash', '-c', defs + cmd],
-                                 parent_ids=parent_ids,
+                                 command=['/bin/bash', '-c', cmd],
+                                 parents=parents,
                                  attributes=attributes,
-                                 volumes=volumes,
-                                 resources=resources)
+                                 resources=resources,
+                                 input_files=inputs if len(inputs) > 0 else None,
+                                 output_files=outputs if len(outputs) > 0 else None,
+                                 pvc_size=task._storage)
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j
-            job_id_to_command[j.id] = defs + cmd
+            jobs_to_command[j] = cmd
             if verbose:
-                print(f"Submitted Job {j.id} with command: {defs + cmd}")
+                print(f"Submitted Job {j.id} with command: {cmd}")
 
-        def write_pipeline_outputs(r, dest):
-            if isinstance(r, InputResourceFile):
-                copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {escape_string(r._input_path)} {escape_string(dest)}'
-                return [(task_to_job_mapping[r._source].id, copy_output)]
-            elif isinstance(r, TaskResourceFile):
-                copy_output = activate_service_account + ' && ' + \
-                              f'gsutil cp {r._get_path(remote_tmpdir)} {escape_string(dest)}'
-                return [(task_to_job_mapping[r._source].id, copy_output)]
-            else:
-                assert isinstance(r, ResourceGroup)
-                return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
+        if dry_run:
+            print("\n\n".join(commands))
+            return
 
-        pipeline_outputs = list(flatten([write_pipeline_outputs(r, dest)
-                                         for _, r in pipeline._resource_map.items()
-                                         for dest in r._output_paths]))
-
-        for parent_id, write_cmd in pipeline_outputs:
-            j = batch.create_job(image='google/cloud-sdk:alpine',
-                                 command=['/bin/bash', '-c', write_cmd],
-                                 parent_ids=[parent_id],
-                                 attributes={'label': 'write_output'},
-                                 volumes=volumes)
-            job_id_to_command[j.id] = write_cmd
+        if delete_scratch_on_exit and used_remote_tmpdir:
+            parents = list(jobs_to_command.keys())
+            rm_cmd = f'gsutil rm -r {remote_tmpdir}'
+            cmd = bash_flags + f'{activate_service_account} && {rm_cmd}'
+            j = batch.create_job(
+                image='google/cloud-sdk:237.0.0-alpine',
+                command=['/bin/bash', '-c', cmd],
+                parents=parents,
+                attributes={'name': 'remove_tmpdir'},
+                always_run=True)
+            jobs_to_command[j] = cmd
             n_jobs_submitted += 1
-            if verbose:
-                print(f"Submitted Job {j.id} with command: {write_cmd}")
 
+        batch.close()
         status = batch.wait()
 
-        if delete_scratch_on_exit:
-            rm_cmd = f'gsutil rm -r {remote_tmpdir}'
-            j = self._batch_client.create_job(image='google/cloud-sdk:alpine',
-                                              command=['/bin/bash', '-c', activate_service_account + '&&' + rm_cmd],
-                                              volumes=volumes,
-                                              attributes={'label': 'remove_tmpdir'})
-
-        failed_jobs = [(j['id'], j['exit_code']) for j in status['jobs'] if 'exit_code' in j and j['exit_code'] > 0]
+        failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            jstatus = self._batch_client.get_job(jid).status()
-            log = jstatus['log']
-            label = jstatus['attributes'].get('label', None)
+            job = self._batch_client.get_job(*jid)
+            log = job.log()
+            label = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task label:\t{label}\n"
-                f"  Command:\t{job_id_to_command[jid]}\n"
+                f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
         n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])

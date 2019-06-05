@@ -2,9 +2,7 @@ package is.hail.stats
 
 import breeze.linalg._
 import is.hail.annotations.RegionValue
-import is.hail.expr._
 import is.hail.expr.ir.MatrixValue
-import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._

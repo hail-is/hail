@@ -25,7 +25,17 @@ case class MatrixValue(
   colValues: BroadcastIndexedSeq,
   rvd: RVD) {
 
-  require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${ typ.rowType }\nrvd rowType: ${ rvd.rowType }")
+  lazy val rvRowPType: PStruct = rvd.typ.rowType
+  lazy val rvRowType: TStruct = rvRowPType.virtualType
+  lazy val entriesIdx: Int = rvRowPType.fieldIdx(MatrixType.entriesIdentifier)
+  lazy val entryArrayPType: PArray = rvRowPType.types(entriesIdx).asInstanceOf[PArray]
+  lazy val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
+  lazy val entryPType: PStruct = entryArrayPType.elementType.asInstanceOf[PStruct]
+  lazy val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
+
+  lazy val entriesRVType: TStruct = TStruct(
+    MatrixType.entriesIdentifier -> TArray(entryType))
+
   require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${ typ.rowKey }\nrvd key: ${ rvd.typ.key }")
 
   def sparkContext: SparkContext = rvd.sparkContext
@@ -33,11 +43,6 @@ case class MatrixValue(
   def nPartitions: Int = rvd.getNumPartitions
 
   def nCols: Int = colValues.value.length
-
-  def sampleIds: IndexedSeq[Row] = {
-    val queriers = typ.colKey.map(field => typ.colType.query(field))
-    colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
-  }
 
   def stringSampleIds: IndexedSeq[String] = {
     val colKeyTypes = typ.colKeyStruct.types
@@ -56,8 +61,6 @@ case class MatrixValue(
   def referenceGenome: ReferenceGenome = typ.referenceGenome
 
   def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
-
-  def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
 
   private def writeCols(hadoopConf: hadoop.conf.Configuration, path: String, codecSpec: CodecSpec) {
     val partitionCounts = AbstractRVDSpec.writeSingle(hadoopConf, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
@@ -119,7 +122,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
+      TableType(entriesRVType, FastIndexedSeq(), typ.globalType),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -132,7 +135,7 @@ case class MatrixValue(
 
     val refPath = path + "/references"
     hadoopConf.mkDir(refPath)
-    Array(typ.colType, typ.rowType, typ.entryType, typ.globalType).foreach { t =>
+    Array(typ.colType, typ.rowType, entryType, typ.globalType).foreach { t =>
       ReferenceGenome.exportReferences(hadoopConf, refPath, t)
     }
 
@@ -207,32 +210,6 @@ case class MatrixValue(
     }
   }
 
-  def rowsRVD(): RVD = {
-    val localRowType = typ.rowType
-    val fullRowType = typ.rvRowType
-    val localEntriesIndex = typ.entriesIdx
-    rvd.mapPartitions(
-      RVDType(typ.rowType.physicalType, typ.rowKey)
-    ) { it =>
-      val rv2b = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      it.map { rv =>
-        rv2b.set(rv.region)
-        rv2b.start(localRowType.physicalType)
-        rv2b.startStruct()
-        var i = 0
-        while (i < fullRowType.size) {
-          if (i != localEntriesIndex)
-            rv2b.addField(fullRowType.physicalType, rv, i)
-          i += 1
-        }
-        rv2b.endStruct()
-        rv2.set(rv.region, rv2b.end())
-        rv2
-      }
-    }
-  }
-
   def colsRVD(): RVD = {
     val hc = HailContext.get
     val colPType = typ.colType.physicalType
@@ -244,71 +221,20 @@ case class MatrixValue(
     )
   }
 
-  def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-    newColKey: IndexedSeq[String] = typ.colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = typ.globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
-    insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-      PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
-  }
-
-  def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-    newColKey: IndexedSeq[String] = typ.colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = typ.globalType,
-    newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
-    assert(!typ.rowKey.contains(path))
-
-    val fullRowType = rvd.rowPType
-    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
-
-    val (newRVPType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
-
-
-    val newMatrixType = typ.copy(rvRowType = newRVPType.virtualType, colType = newColType,
-      colKey = newColKey, globalType = newGlobalType)
-
-    MatrixValue(
-      newMatrixType,
-      newGlobals,
-      newColValues,
-      rvd.mapPartitions(newMatrixType.canonicalRVDType) { it =>
-
-        val pc = makePartitionContext()
-
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        it.map { rv =>
-          rvb.set(rv.region)
-          rvb.start(newRVPType)
-
-          ins(rv.region, rv.offset, rvb,
-            () => inserter(pc, rv, rvb)
-          )
-
-          rv2.set(rv.region, rvb.end())
-          rv2
-        }
-      })
-  }
-
   def toRowMatrix(entryField: String): RowMatrix = {
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val rvRowType = typ.rvRowType.physicalType
-    val entryArrayType = typ.entryArrayType.physicalType
-    val entryType = typ.entryType.physicalType
-    val fieldType = entryType.field(entryField).typ
+    val localRvRowPType = rvRowPType
+    val localEntryArrayPType = entryArrayPType
+    val localEntryPType = entryPType
+    val fieldType = entryPType.field(entryField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = typ.entriesIdx
+    val localEntryArrayIdx = entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
     val numColsLocal = nCols
 
@@ -317,13 +243,13 @@ case class MatrixValue(
       it.map { rv =>
         val region = rv.region
         val data = new Array[Double](numColsLocal)
-        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+        val entryArrayOffset = localRvRowPType.loadField(rv, localEntryArrayIdx)
         var j = 0
         while (j < numColsLocal) {
-          if (entryArrayType.isElementDefined(region, entryArrayOffset, j)) {
-            val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, j)
-            if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-              val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+          if (localEntryArrayPType.isElementDefined(region, entryArrayOffset, j)) {
+            val entryOffset = localEntryArrayPType.loadElement(region, entryArrayOffset, j)
+            if (localEntryPType.isFieldDefined(region, entryOffset, fieldIdx)) {
+              val fieldOffset = localEntryPType.loadField(region, entryOffset, fieldIdx)
               data(j) = region.loadDouble(fieldOffset)
             } else
               fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
@@ -343,7 +269,7 @@ case class MatrixValue(
   def typeCheck(): Unit = {
     assert(typ.globalType.typeCheck(globals.value))
     assert(TArray(typ.colType).typeCheck(colValues.value))
-    val localRVRowType = typ.rvRowType
+    val localRVRowType = rvRowType
     assert(rvd.toRows.forall(r => localRVRowType.typeCheck(r)))
   }
 
@@ -351,13 +277,8 @@ case class MatrixValue(
 
   def unpersist(): MatrixValue = copy(rvd = rvd.unpersist())
 
-  def filterCols(p: (Annotation, Int) => Boolean): MatrixValue = {
-    val (_, filterF) = MatrixIR.filterCols(typ)
-    Interpret(MatrixLiteral(filterF(this, p)))
-  }
-
-  def toTableValue(colsFieldName: String, entriesFieldName: String): TableValue = {
-    val tt: TableType = LowerMatrixIR.loweredType(typ, entriesFieldName, colsFieldName)
+  def toTableValue: TableValue = {
+    val tt: TableType = typ.canonicalTableType
     val newGlobals = BroadcastRow(
       Row.merge(globals.safeValue, Row(colValues.safeValue)),
       tt.globalType,

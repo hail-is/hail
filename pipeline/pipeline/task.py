@@ -3,14 +3,17 @@ import re
 from .resource import ResourceFile, ResourceGroup
 
 
-def _add_resource_to_set(resource_set, resource):
-    resource_set.add(resource)
-
-    rg = None
-    if isinstance(resource, ResourceFile) and resource._has_resource_group():
-        rg = resource._get_resource_group()
-    elif isinstance(resource, ResourceGroup):
+def _add_resource_to_set(resource_set, resource, include_rg=True):
+    if isinstance(resource, ResourceGroup):
         rg = resource
+        if include_rg:
+            resource_set.add(resource)
+    else:
+        resource_set.add(resource)
+        if isinstance(resource, ResourceFile) and resource._has_resource_group():
+            rg = resource._get_resource_group()
+        else:
+            rg = None
 
     if rg is not None:
         for _, resource_file in rg._resources.items():
@@ -61,6 +64,7 @@ class Task:
         self._label = label
         self._cpu = None
         self._memory = None
+        self._storage = None
         self._image = None
         self._command = []
 
@@ -69,8 +73,10 @@ class Task:
         self._uid = Task._new_uid()
 
         self._inputs = set()
-        self._outputs = set()
-        self._mentioned = set()
+        self._internal_outputs = set()
+        self._external_outputs = set()
+        self._mentioned = set()  # resources used in the command
+        self._valid = set()  # resources declared in the appropriate place
         self._dependencies = set()
 
     def _get_resource(self, item):
@@ -87,11 +93,11 @@ class Task:
     def __getattr__(self, item):
         return self._get_resource(item)
 
-    def _add_outputs(self, resource):
-        _add_resource_to_set(self._outputs, resource)
+    def _add_internal_outputs(self, resource):
+        _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
 
     def _add_inputs(self, resource):
-        _add_resource_to_set(self._inputs, resource)
+        _add_resource_to_set(self._inputs, resource, include_rg=False)
 
     def declare_resource_group(self, **mappings):
         """
@@ -138,7 +144,7 @@ class Task:
                 raise ValueError(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._pipeline._new_resource_group(self, d)
             self._resources[name] = rg
-            _add_resource_to_set(self._mentioned, rg)
+            _add_resource_to_set(self._valid, rg)
         return self
 
     def depends_on(self, *tasks):
@@ -272,15 +278,16 @@ class Task:
                 if r._source != self:
                     self._add_inputs(r)
                     if r._source is not None:
-                        if r not in r._source._mentioned:
-                            name = r._source._resources_inverse
+                        if r not in r._source._valid:
+                            name = r._source._resources_inverse[r]
                             raise Exception(f"undefined resource '{name}'\n"
                                             f"Hint: resources must be defined within "
                                             "the task methods 'command' or 'declare_resource_group'")
                         self._dependencies.add(r._source)
-                        r._source._add_outputs(r)
+                        r._source._add_internal_outputs(r)
                 else:
-                    self._mentioned.add(r)
+                    _add_resource_to_set(self._valid, r)
+                self._mentioned.add(r)
                 return f"${{{r_uid}}}"
 
         subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
@@ -288,6 +295,31 @@ class Task:
                                handler,
                                command)
         self._command.append(subst_command)
+        return self
+
+    def storage(self, storage):
+        """
+        Set the task's storage size.
+
+        Examples
+        --------
+
+        Set the task's disk requirements to 1 Gi:
+
+        >>> t1 = p.new_task()
+        >>> (t1.storage('1Gi')
+        ...    .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        storage: :obj:`str`
+
+        Returns
+        -------
+        :class:`.Task`
+            Same task object with storage set.
+        """
+        self._storage = storage
         return self
 
     def label(self, label):

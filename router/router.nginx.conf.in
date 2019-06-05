@@ -1,3 +1,5 @@
+server_names_hash_bucket_size 128;
+
 map $http_x_forwarded_proto $updated_scheme {
      default $scheme;
      https https;
@@ -5,6 +7,10 @@ map $http_x_forwarded_proto $updated_scheme {
 
 server {
     server_name @domain@ www.@domain@;
+
+    location = /healthcheck {
+      return 204;
+    }
 
     location / {
         proxy_pass http://site/;
@@ -34,7 +40,7 @@ server {
     }
 
     location / {
-        proxy_pass http://hail-ci/;
+        proxy_pass http://ci/;
     }
 
     listen 80;
@@ -42,10 +48,10 @@ server {
 }
 
 server {
-    server_name ci2.@domain@;
+    server_name batch.@domain@;
 
     location / {
-        proxy_pass http://ci2/;
+        proxy_pass http://batch/;
     }
 
     listen 80;
@@ -198,17 +204,6 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400;
-    }
-
-    listen 80;
-    listen [::]:80;
-}
-
-server {
-    server_name app.@domain@;
-
-    location / {
-        proxy_pass http://web/;
     }
 
     listen 80;

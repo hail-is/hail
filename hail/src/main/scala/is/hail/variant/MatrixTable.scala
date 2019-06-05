@@ -2,29 +2,24 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.check.Gen
+import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.expr.{ir, _}
-import is.hail.linalg._
-import is.hail.methods._
 import is.hail.rvd._
-import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, cxx, utils}
+import is.hail.{HailContext, utils}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.storage.StorageLevel
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.Serialization
 
-import scala.collection.JavaConverters._
-import scala.collection.mutable
 import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
@@ -159,7 +154,7 @@ object MatrixTable {
     rdd: RDD[(Annotation, Iterable[T])]): MatrixTable = {
 
     val localGType = matrixType.entryType
-    val localRVRowType = matrixType.rvRowType
+    val localRVRowType = matrixType.canonicalRVDType.rowType
 
     val localNCols = colValues.length
 
@@ -177,11 +172,11 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            rvb.start(localRVRowType.physicalType)
+            rvb.start(localRVRowType)
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
-              rvb.addAnnotation(localRVRowType.types(i), vaRow.get(i))
+              rvb.addAnnotation(localRVRowType.types(i).virtualType, vaRow.get(i))
               i += 1
             }
             rvb.startArray(localNCols) // gs
@@ -193,7 +188,6 @@ object MatrixTable {
             rv
           }
         }))
-    ds.typecheck()
     ds
   }
 
@@ -215,7 +209,7 @@ object MatrixTable {
       kt.signature,
       TStruct.empty())
 
-    val rvRowType = matrixType.rvRowType.physicalType
+    val rvRowType = matrixType.canonicalRVDType.rowType
     val oldRowType = kt.signature.physicalType
 
     val rvd = kt.rvd.mapPartitions(matrixType.canonicalRVDType) { it =>
@@ -317,7 +311,7 @@ object VSMSubgen {
         "alleles" -> TArray(TString()))),
     rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
-    globalSigGen = Type.genInsertable,
+    globalSigGen = Type.genInsertable.map(_.setRequired(false).asInstanceOf[TStruct]),
     tSigGen = Gen.const(Genotype.htsGenotypeType),
     sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
     saGen = (t: Type) => t.genValue,
@@ -391,9 +385,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   val entryType: TStruct = matrixType.entryType
   val globalType: TStruct = matrixType.globalType
 
-  val rvRowType: TStruct = matrixType.rvRowType
   val rowKey: IndexedSeq[String] = matrixType.rowKey
-  val entriesIndex: Int = matrixType.entriesIdx
 
   val colKey: IndexedSeq[String] = matrixType.colKey
 
@@ -438,8 +430,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  def count(): (Long, Long) = (countRows(), countCols())
-
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
 
   def countCols(): Long = ast.columnCount.map(_.toLong).getOrElse(Interpret[Long](TableCount(MatrixColsTable(ast))))
@@ -447,20 +437,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
 
-  def dropCols(): MatrixTable =
-    copyAST(ast = MatrixFilterCols(ast, ir.False()))
-
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
   def sparkContext: SparkContext = hc.sc
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
-
-  def head(n: Long): MatrixTable = {
-    if (n < 0)
-      fatal(s"n must be non-negative! Found '$n'.")
-    copy2(rvd = rvd.head(n, None))
-  }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true
@@ -517,11 +498,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     if (!metadataSame)
       println("metadata were not the same")
 
-    val leftRVType = rvRowType
-    val rightRVType = that.rvRowType
+    val leftRVType = value.rvRowPType
+    val rightRVType = that.value.rvRowPType
     val localRowType = rowType
-    val localLeftEntriesIndex = entriesIndex
-    val localRightEntriesIndex = that.entriesIndex
+    val localLeftEntriesIndex = value.entriesIdx
+    val localRightEntriesIndex = that.value.entriesIdx
     val localEntryType = entryType
     val localRKF = rowKeysF
     val localColKeys = colKeys
@@ -530,8 +511,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     metadataSame &&
       jcrdd.mapPartitions { it =>
-        val fullRow1 = new UnsafeRow(leftRVType.physicalType)
-        val fullRow2 = new UnsafeRow(rightRVType.physicalType)
+        val fullRow1 = new UnsafeRow(leftRVType)
+        val fullRow2 = new UnsafeRow(rightRVType)
 
         it.map { case Muple(rv1, rv2) =>
           if (rv2 == null) {
@@ -588,73 +569,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def copy2(rvd: RVD = rvd,
-    colValues: BroadcastIndexedSeq = colValues,
-    colKey: IndexedSeq[String] = colKey,
-    globals: BroadcastRow = globals,
-    colType: TStruct = colType,
-    rvRowType: TStruct = rvRowType,
-    rowKey: IndexedSeq[String] = rowKey,
-    globalType: TStruct = globalType,
-    entryType: TStruct = entryType): MatrixTable = {
-    val newMatrixType = matrixType.copy(
-      globalType = globalType,
-      colKey = colKey,
-      colType = colType,
-      rowKey = rowKey,
-      rvRowType = rvRowType)
-    new MatrixTable(hc,
-      newMatrixType,
-      globals, colValues, rvd)
-  }
-
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
-  def storageLevel: String = rvd.storageLevel.toReadableString()
-
   def numCols: Int = colValues.value.length
-
-  def typecheck() {
-    var foundError = false
-    if (!globalType.typeCheck(globals.value)) {
-      foundError = true
-      warn(
-        s"""found violation in global annotation
-           |Schema: $globalType
-           |Annotation: ${ Annotation.printAnnotation(globals.value) }""".stripMargin)
-    }
-
-    colValues.value.zipWithIndex.find { case (sa, i) => !colType.typeCheck(sa) }
-      .foreach { case (sa, i) =>
-        foundError = true
-        warn(
-          s"""found violation in sample annotations for col $i
-             |Schema: $colType
-             |Annotation: ${ Annotation.printAnnotation(sa) }""".stripMargin)
-      }
-
-    val localRVRowType = rvRowType
-
-    val predicate = { (rv: RegionValue) =>
-      val ur = new UnsafeRow(localRVRowType.physicalType, rv)
-      !localRVRowType.typeCheck(ur)
-    }
-
-    Region.scoped { region =>
-      rvd.find(region)(predicate).foreach { rv =>
-        val ur = new UnsafeRow(localRVRowType.physicalType, rv)
-        foundError = true
-        warn(
-          s"""found violation in row
-             |Schema: $localRVRowType
-             |Annotation: ${ Annotation.printAnnotation(ur) }""".stripMargin)
-      }
-    }
-
-    if (foundError)
-      fatal("found one or more type check errors")
-  }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))

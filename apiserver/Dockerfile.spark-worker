@@ -1,5 +1,0 @@
-FROM hail-base
-
-COPY start-worker.sh /
-
-CMD ["/start-worker.sh"]

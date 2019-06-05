@@ -1,30 +1,21 @@
-FROM base
-MAINTAINER Hail Team <hail@broadinstitute.org>
+FROM {{ base_image.image }}
 
-RUN apt-get update && \
-  apt-get -y install \
-    git && \
-  rm -rf /var/lib/apt/lists/*
+COPY hailjwt/setup.py /hailjwt/
+COPY hailjwt/hailjwt /hailjwt/hailjwt
+RUN python3 -m pip install --no-cache-dir /hailjwt && \
+  rm -rf /hailjwt
 
-RUN mkdir /home/hail-ci && \
-    groupadd hail-ci && \
-    useradd -g hail-ci hail-ci && \
-    chown hail-ci:hail-ci /home/hail-ci
+COPY batch/setup.py batch/MANIFEST.in /batch/
+COPY batch/batch /batch/batch
+RUN pip3 install --no-cache-dir /batch && \
+  rm -rf /batch
 
-WORKDIR /batch
-COPY batch/batch batch
-COPY batch/setup.py .
+COPY ci/requirements.txt .
+RUN python3 -m pip install --no-cache-dir -U -r requirements.txt
 
-WORKDIR /hail-ci
+# FIXME install
+COPY ci/ci /ci
 
-COPY ci/index.html ci/pr-build-script ci/pr-deploy-script ci/deploy-index.html ./
-COPY ci/ci ./ci
-COPY ci/run_ci.py ./
-RUN chown -R hail-ci:hail-ci ./
-RUN pip3 install /batch
-
-USER hail-ci
 EXPOSE 5000
-VOLUME /hail-ci/oauth-token
-VOLUME /hail-ci/gcloud-token
-ENTRYPOINT ["python3", "run_ci.py"]
+
+CMD ["python3", "-c", "import ci; ci.run()"]

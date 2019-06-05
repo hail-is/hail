@@ -3,7 +3,7 @@ from collections import Counter
 from pprint import pprint
 from typing import *
 from hail.typecheck import *
-from hail.utils.java import Env
+from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -286,9 +286,12 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
 
 
 @typecheck(left=MatrixTable,
-           right=MatrixTable)
-def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
+           right=MatrixTable,
+           _localize_global_statistics=bool)
+def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
+
+    .. include:: ../_templates/req_tstring.rst
 
     .. include:: ../_templates/req_tvariant.rst
 
@@ -400,20 +403,66 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     require_col_key_str(left, 'concordance, left')
     require_col_key_str(right, 'concordance, right')
-    left = left.select_rows().select_cols().select_globals().select_entries('GT')
-    right = right.select_rows().select_cols().select_globals().select_entries('GT')
-    left = require_biallelic(left, "concordance, left")
-    right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.pyApply(
-        Env.spark_backend('concordance')._to_java_ir(left._mir),
-        Env.spark_backend('concordance')._to_java_ir(right._mir))
-    j_global_conc = r._1()
-    col_conc = Table._from_java(r._2())
-    row_conc = Table._from_java(r._3())
-    global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
+    left_sample_counter = left.aggregate_cols(hl.agg.counter(left.col_key[0]))
+    right_sample_counter = right.aggregate_cols(hl.agg.counter(right.col_key[0]))
 
-    return global_conc, col_conc, row_conc
+    left_bad = [f'{k!r}: {v}' for k, v in left_sample_counter.items() if v > 1]
+    right_bad = [f'{k!r}: {v}' for k, v in right_sample_counter.items() if v > 1]
+    if left_bad or right_bad:
+        raise ValueError(f"Found duplicate sample IDs:\n"
+                         f"  left:  {', '.join(left_bad)}\n"
+                         f"  right: {', '.join(right_bad)}")
+
+    included = set(left_sample_counter.keys()).intersection(set(right_sample_counter.keys()))
+
+    info(f"concordance: including {included} shared samples "
+         f"({len(left_sample_counter)} total on left, {len(right_sample_counter)} total on right)")
+
+    left = require_biallelic(left, 'concordance, left')
+    right = require_biallelic(right, 'concordance, right')
+
+    lit = hl.literal(included, dtype=hl.tset(hl.tstr))
+    left = left.filter_cols(lit.contains(left.col_key[0]))
+    right = right.filter_cols(lit.contains(right.col_key[0]))
+
+    left = left.select_entries('GT').select_rows().select_cols()
+    right = right.select_entries('GT').select_rows().select_cols()
+
+    joined = hl.experimental.full_outer_join_mt(left, right)
+
+    def get_idx(struct):
+        return hl.cond(
+            hl.is_missing(struct),
+            0,
+            hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
+
+    aggr = hl.agg.counter(get_idx(joined.left_entry) + 5 * get_idx(joined.right_entry))
+
+    def concordance_array(counter):
+        return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
+
+    def n_discordant(counter):
+        return hl.sum(
+            hl.array(counter)
+                .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
+                .map(lambda tup: tup[1]))
+
+    glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
+    if _localize_global_statistics:
+        total_conc = [x[1:] for x in glob[1:]]
+        on_diag = sum(total_conc[i][i] for i in range(len(total_conc)))
+        total_obs = sum(sum(x) for x in total_conc)
+        info(f"concordance: total concordance {on_diag/total_obs * 100:.2f}%")
+
+    per_variant = joined.annotate_rows(concordance=aggr)
+    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
+                                            n_discordant=n_discordant(per_variant.concordance))
+    per_sample = joined.annotate_cols(concordance=aggr)
+    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
+                                          n_discordant=n_discordant(per_sample.concordance))
+
+    return glob, per_sample.cols(), per_variant.rows()
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
@@ -474,6 +523,12 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
             },
             "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
         }
+
+    If running on Google Dataproc with ``cloudtools``, then the configuration
+    files referring to the installed VEP distributions are as follows:
+
+     - ``GRCh37``: ``gs://hail-common/vep/vep/vep85-loftee-gcloud.json``
+     - ``GRCh38``: ``gs://hail-common/vep/vep/vep95-GRCh38-loftee-gcloud.json``
 
     **Annotations**
 

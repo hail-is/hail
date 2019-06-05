@@ -1089,7 +1089,7 @@ object LoadVCF {
       fatal("arguments refer to no files")
 
     inputs.foreach { input =>
-      if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || !input.endsWith(".vcf.gz")))
+      if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || input.endsWith(".vcf.gz")))
         warn(s"expected input file '$input' to end in .vcf[.bgz, .gz]")
       if (input.endsWith(".gz"))
         checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
@@ -1187,6 +1187,8 @@ object LoadVCF {
     arrayElementsRequired: Boolean = true
   ): VCFHeaderInfo = {
     val codec = new htsjdk.variant.vcf.VCFCodec()
+    // Disable "repairing" of headers by htsjdk according to the VCF standard.
+    codec.disableOnTheFlyModifications()
     val header = codec.readHeader(new BufferedLineIterator(lines.iterator.buffered))
       .getHeaderValue
       .asInstanceOf[htsjdk.variant.vcf.VCFHeader]
@@ -1412,7 +1414,7 @@ class PartitionedVCFRDD(
 
     // clean up
     val context = TaskContext.get
-    context.addTaskCompletionListener { context =>
+    context.addTaskCompletionListener { (context: TaskContext) =>
       lines.close()
     }
 
@@ -1545,7 +1547,7 @@ case class MatrixVCFReader(
     rowKey = Array("locus", "alleles"),
     entryType = genotypeSignature)
 
-  override lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
+  override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
   val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
 
@@ -1612,7 +1614,9 @@ object ImportVCFs {
     partitionsJSON: String,
     filter: String,
     find: String,
-    replace: String
+    replace: String,
+    externalSampleIds: java.util.List[java.util.List[String]],
+    externalHeader: String
   ): String = {
     val reader = new VCFsReader(
       files.asScala.toArray,
@@ -1625,7 +1629,9 @@ object ImportVCFs {
       gzAsBGZ,
       forceGZ,
       TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
-      partitionsJSON)
+      partitionsJSON,
+      Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
+      Option(externalHeader))
 
     val irArray = reader.read()
     val id = HailContext.get.addIrVector(irArray)
@@ -1649,7 +1655,11 @@ class VCFsReader(
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String) {
+  partitionsJSON: String,
+  externalSampleIds: Option[Array[Array[String]]],
+  externalHeader: Option[String]) {
+
+  require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
   private val hc = HailContext.get
   private val sc = hc.sc
@@ -1663,7 +1673,7 @@ class VCFsReader(
   private val rowKeyType = TStruct("locus" -> locusType)
 
   private val file1 = files.head
-  private val headerLines1 = getHeaderLines(hConf, file1, filterAndReplace)
+  private val headerLines1 = getHeaderLines(hConf, externalHeader.getOrElse(file1), filterAndReplace)
   private val headerLines1Bc = sc.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
@@ -1706,7 +1716,7 @@ class VCFsReader(
     PartitionedVCFPartition(i, start.contig, start.position, end.position): Partition
   }
 
-  private val fileInfo = {
+  private val fileInfo: Array[Array[String]] = externalSampleIds.getOrElse {
     val localHConfBc = hConfBc
     val localFile1 = file1
     val localEntryFloatType = entryFloatType
@@ -1748,6 +1758,7 @@ class VCFsReader(
     val localHeaderLines1Bc = headerLines1Bc
     val localInfoFlagFieldNames = header1.infoFlagFields
     val localTyp = typ
+    val tt = localTyp.canonicalTableType
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(sc, file, partitions)
@@ -1755,12 +1766,12 @@ class VCFsReader(
           WithContext(l, Context(l, file, None))))
 
     val parsedLines = parseLines { () =>
-      new ParseLineContext(LowerMatrixIR.loweredType(localTyp),
+      new ParseLineContext(tt,
         localInfoFlagFieldNames,
         sampleIDs.length)
     } { (c, l, rvb) =>
       LoadVCF.parseLine(c, l, rvb)
-    }(lines, typ.rvRowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
+    }(lines, tt.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
     val rvd = RVD(typ.canonicalRVDType,
       partitioner,

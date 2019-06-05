@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-apiserver
+spec:
+  containers:
+  - name: test-apiserver
+    image: "{{ test_apiserver_image.image }}"
+    command:
+     - /bin/bash
+     - -c
+     - |
+       python3 -m unittest test.hail.table.test_table.Tests.test_range_table
+    env:
+     - name: HAIL_TEST_RESOURCES_DIR
+       value: ./resources
+     - name: HAIL_DOCTEST_DATA_DIR
+       value: ./data
+     - name: HAIL_APISERVER_URL
+       value: http://apiserver.{{ default_ns.name }}:5000
+     - name: HAIL_TOKEN_FILE
+       value: '/test-jwt/jwt'
+    volumeMounts:
+      - mountPath: /test-jwt
+        readOnly: true
+        name: test-jwt
+  volumes:
+    - name: test-jwt
+      secret:
+        secretName: test-jwt
+  restartPolicy: Never

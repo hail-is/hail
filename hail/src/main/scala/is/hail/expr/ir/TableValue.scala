@@ -154,7 +154,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def unpersist(): TableValue = copy(rvd = rvd.unpersist())
 
   def toDF(): DataFrame = {
-    HailContext.get.sqlContext.createDataFrame(
+    HailContext.get.sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType])
   }
@@ -167,14 +167,13 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     }
     val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
 
-    val newRowType = typ.rowType.rename(m)
-
     val mType: MatrixType = MatrixType(
       typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
       colKey,
       colType,
       typ.key,
-      newRowType)
+      typ.rowType.deleteKey(entriesFieldName),
+      typ.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
     val colValues = globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
     val newGlobals = {

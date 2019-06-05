@@ -2,7 +2,7 @@ from typing import *
 
 import hail as hl
 from hail.expr.expressions import Expression, to_expr, ExpressionException, \
-    unify_all, Indices, Aggregation
+    unify_all, Indices, Aggregation, unify_types
 from hail.expr.expressions.expression_typecheck import *
 from hail.expr.types import *
 from hail.ir import *
@@ -11,6 +11,9 @@ from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import get_nice_field_error, get_nice_attr_error
 from hail.genetics.reference_genome import reference_genome_type
+
+import tempfile
+import numpy as np
 
 
 class CollectionExpression(Expression):
@@ -420,11 +423,13 @@ class ArrayExpression(CollectionExpression):
         """
         if isinstance(item, slice):
             return self._slice(self.dtype, item.start, item.stop, item.step)
+        elif isinstance(item, str):
+            return CollectionExpression.__getitem__(self, item)
+        item = to_expr(item)
+        if not item.dtype == tint32:
+            raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
+                            "found expression of type '{}'".format(item._type))
         else:
-            item = to_expr(item)
-            if not item.dtype == tint32:
-                raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
-                                "found expression of type '{}'".format(item._type))
             return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
@@ -624,6 +629,71 @@ class ArrayExpression(CollectionExpression):
 
         indices, aggregations = unify_all(self, zero, body)
         return construct_expr(ir, tarray(body.dtype), indices, aggregations)
+
+
+class ArrayStructExpression(ArrayExpression):
+    """Expression of type :class:`.tarray` that eventually contains structs.
+
+    >>> people = hl.literal([hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)])
+
+    Nested collections that contain structs are also
+    :class:`.ArrayStructExpressions`s
+
+    >>> people = hl.literal([[hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)],
+    ...                      [hl.struct(name='Charlie', age=34)]])
+
+    See Also
+    --------
+    :class:`.ArrayExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return ArrayStructExpression.__getitem__(self, item)
+
+    def __getitem__(self, item):
+        """If a string, get a field from each struct in this array. If an integer, get
+        the item at that index.
+
+        Examples
+        --------
+
+        >>> x = hl.array([hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)])
+        >>> hl.eval(x.a)
+        ['foo', 'bar']
+
+        >>> a = hl.array([hl.struct(b=[hl.struct(inner=1),
+        ...                            hl.struct(inner=2)]),
+        ...               hl.struct(b=[hl.struct(inner=3)])])
+        >>> hl.eval(a.b)
+        [[Struct(inner=1), Struct(inner=2)], [Struct(inner=3)]]
+        >>> hl.eval(a.b.inner)
+        [[1, 2], [3]]
+        >>> hl.eval(hl.flatten(a.b).inner)
+        [1, 2, 3]
+        >>> hl.eval(hl.flatten(a.b.inner))
+        [1, 2, 3]
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.ArrayExpression`
+            An array formed by getting the given field for each struct in
+            this array
+
+        See Also
+        --------
+        :meth:`.ArrayExpression.__getitem__`
+        """
+
+        if isinstance(item, str):
+            return self.map(lambda x: x[item])
+        return super().__getitem__(item)
 
 
 class ArrayNumericExpression(ArrayExpression):
@@ -1044,6 +1114,61 @@ class SetExpression(CollectionExpression):
                             "    set type:    '{}'\n"
                             "    type of 's': '{}'".format(self._type, s._type))
         return self._method("union", self._type, s)
+
+
+class SetStructExpression(SetExpression):
+    """Expression of type :class:`.tset` that eventually contains structs.
+
+    >>> people = hl.literal({hl.struct(name='Alice', age=57),
+    ...                      hl.struct(name='Bob', age=12),
+    ...                      hl.struct(name='Charlie', age=34)})
+
+    Nested collections that contain structs are also
+    :class:`.SetStructExpressions`s
+
+    >>> people = hl.set([hl.set([hl.struct(name='Alice', age=57), hl.struct(name='Bob', age=12)]),
+    ...                  hl.set([hl.struct(name='Charlie', age=34)])])
+
+    See Also
+    --------
+    :class:`.SetExpression`, class:`.CollectionExpression`, :class:`.SetStructExpression`
+    """
+
+    def __getattr__(self, item):
+        return SetStructExpression.__getitem__(self, item)
+
+    @typecheck_method(item=oneof(str))
+    def __getitem__(self, item):
+        """Get a field from each struct in this set.
+
+        Examples
+        --------
+
+        >>> x = hl.set({hl.struct(a='foo', b=3), hl.struct(a='bar', b=4)})
+        >>> hl.eval(x.a) == {'foo', 'bar'}
+        True
+
+        >>> a = hl.set({hl.struct(b={hl.struct(inner=1),
+        ...                          hl.struct(inner=2)}),
+        ...             hl.struct(b={hl.struct(inner=3)})})
+        >>> hl.eval(hl.flatten(a.b).inner) == {1, 2, 3}
+        True
+        >>> hl.eval(hl.flatten(a.b.inner)) == {1, 2, 3}
+        True
+
+        Parameters
+        ----------
+        item : :obj:`str`
+            Field name
+
+        Returns
+        -------
+        :class:`.SetExpression`
+            A set formed by getting the given field for each struct in
+            this set
+        """
+
+        return self.map(lambda x: x[item])
 
 
 class DictExpression(Expression):
@@ -3080,7 +3205,76 @@ class NDArrayExpression(Expression):
         """
         return self._type.ndim
 
-    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
+    @property
+    def T(self):
+        """Reverse the dimensions of this ndarray. For an n-dimensional array `a`,
+        a[i_0, ..., i_n-1, i_n] = a.T[i_n, i_n-1, ..., i_0].
+        Same as `self.transpose()`.
+
+        See also :func:`.transpose`.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        return self.transpose()
+
+    @typecheck_method(axes=nullable(tupleof(int)))
+    def transpose(self, axes=None):
+        """Permute the dimensions of this ndarray according to the ordering of `axes`. Axis `j` in the `i`th index of
+        `axes` maps the `j`th dimension of the ndarray to the `i`th dimension of the output ndarray.
+
+        Parameters
+        ----------
+        axes : :obj:`tuple` of :obj:`int`, optional
+            The new ordering of the ndarray's dimensions.
+
+        Notes
+        -----
+        Does nothing on ndarrays of dimensionality 0 or 1.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        if axes is None:
+            axes = list(reversed(range(self.ndim)))
+        else:
+            if len(axes) != self.ndim:
+                raise ValueError(f'Must specify a complete permutation of the dimensions.'
+                                 f'Expected {self.ndim} axes, got {len(axes)}')
+
+            if len(set(axes)) != len(axes):
+                raise ValueError(f'Axes cannot contain duplicates: {axes}')
+
+            for axis in axes:
+                if not 0 <= axis < self.ndim:
+                    raise ValueError(f'Invalid axis: {axis}')
+
+        if self.ndim < 2:
+            return self
+
+        return construct_expr(ir.NDArrayReindex(self._ir, axes), self._type, self._indices, self._aggregations)
+
+    @property
+    def shape(self):
+        """The shape of this ndarray.
+
+        Examples
+        --------
+        >>> hl.eval(nd.shape)
+        (2, 2)
+
+        Returns
+        -------
+        :class:`.TupleExpression`
+        """
+        shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
+        return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
+
+    opt_long_slice_ = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
+
+    @typecheck_method(item=oneof(expr_int64, opt_long_slice_, tupleof(oneof(expr_int64, opt_long_slice_))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
@@ -3089,7 +3283,54 @@ class NDArrayExpression(Expression):
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
+        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        if n_sliced_dims > 0:
+            slices = []
+            for i, s in enumerate(item):
+                if isinstance(s, slice):
+                    start = s.start if s.start is not None else to_expr(0, tint64)
+                    stop = s.stop if s.stop is not None else self.shape[i]
+                    step = s.step if s.step is not None else to_expr(1, tint64)
+                    slices.append(hl.tuple((start, stop, step)))
+                else:
+                    slices.append(s)
+            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                  tndarray(self._type.element_type, n_sliced_dims),
+                                  self._indices,
+                                  self._aggregations)
+
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
+
+    @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64)))
+    def reshape(self, shape):
+        """Reshape this ndarray to a new shape.
+
+        Parameters
+        ----------
+        shape : :class:`.Expression` of type :py:data:`.tint64` or
+                :obj: `tuple` of :class:`.Expression` of type :py:data:`.tint64`
+
+        Examples
+        --------
+
+        >>> v = hl._ndarray([1, 2, 3, 4]) # doctest: +SKIP
+        >>> m = v.reshape((2, 2)) # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`.
+        """
+        shape = wrap_to_list(shape)
+        if len(shape) == 0:
+            if self.ndim == 0:
+                return self
+            else:
+                raise FatalError(f'Cannot reshape an NDArray of {self.ndim} dimensions to 0 dimensions.')
+
+        return construct_expr(NDArrayReshape(self._ir, hl.tuple(shape)._ir),
+                              tndarray(self._type.element_type, len(shape)),
+                              self._indices,
+                              self._aggregations)
 
     @typecheck_method(f=func_spec(1, expr_any))
     def map(self, f):
@@ -3112,6 +3353,31 @@ class NDArrayExpression(Expression):
         assert isinstance(self._type, tndarray)
         return ndarray_map
 
+    def _broadcast_to_same_ndim(self, other):
+        if isinstance(other, NDArrayExpression):
+            if self.ndim < other.ndim:
+                return self._broadcast(other.ndim), other
+            elif self.ndim > other.ndim:
+                return self, other._broadcast(self.ndim)
+
+        return self, other
+
+    def _broadcast(self, n_output_dims):
+        assert self.ndim < n_output_dims
+
+        # Right-align existing dimensions and start prepending new ones
+        # to the left: e.g. [0, 1] -> [3, 2, 0, 1]
+        # Based off numpy broadcasting with the assumption that everything
+        # can be thought to have an infinite number of 1-length dimensions
+        # prepended
+        old_dims = range(self.ndim)
+        new_dims = range(self.ndim, n_output_dims)
+        idx_mapping = list(reversed(new_dims)) + list(old_dims)
+
+        return construct_expr(NDArrayReindex(self._ir, idx_mapping),
+                              tndarray(self._type.element_type, n_output_dims),
+                              self._indices, self._aggregations)
+
 
 class NDArrayNumericExpression(NDArrayExpression):
     """Expression of type :class:`.tndarray` with a numeric element type.
@@ -3126,14 +3392,18 @@ class NDArrayNumericExpression(NDArrayExpression):
     """
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric(name, other, ret_type_f)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
-        if isinstance(other, list):
+        if isinstance(other, list) or isinstance(other, np.ndarray):
             other = hl._ndarray(other)
-        return super(NDArrayNumericExpression, self)._bin_op_numeric_reverse(name, other, ret_type_f)
+
+        self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
+        return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric_reverse(name, other_broadcast, ret_type_f)
 
     def __neg__(self):
         """Negate elements of the ndarray.
@@ -3233,6 +3503,122 @@ class NDArrayNumericExpression(NDArrayExpression):
     def __rfloordiv__(self, other):
         return self._bin_op_numeric_reverse('//', other)
 
+    def __matmul__(self, other):
+        """Matrix multiplication: `a @ b`, semantically equivalent to `NumPy` matmul. If `a` and `b` are vectors,
+        the vector dot product is performed, returning a `NumericExpression`. If `a` and `b` are both 2-dimensional
+        matrices, this performs normal matrix multiplication. If `a` and `b` have more than 2 dimensions, they are
+        treated as multi-dimensional stacks of 2-dimensional matrices. Matrix multiplication is applied element-wise
+        across the higher dimensions. E.g. if `a` has shape `(3, 4, 5)` and `b` has shape `(3, 5, 6)`, `a` is treated
+        as a stack of three matrices of shape `(4, 5)` and `b` as a stack of three matrices of shape `(5, 6)`. `a @ b`
+        would then have shape `(3, 4, 6)`.
+
+        Notes
+        -----
+        The last dimension of `a` and the second to last dimension of `b` (or only dimension if `b` is a vector)
+        must have the same length. The dimensions to the left of the last two dimensions of `a` and `b` (for NDArrays
+        of dimensionality > 2) must be equal or be compatible for broadcasting.
+        Number of dimensions of both NDArrays must be at least 1.
+
+        Parameters
+        ----------
+        other : :class:`numpy.ndarray` :class:`.NDArrayNumericExpression`
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
+        """
+        if not isinstance(other, NDArrayNumericExpression):
+            other = hl._ndarray(other)
+
+        if self.ndim == 0 or other.ndim == 0:
+            raise ValueError('MatMul must be between objects of 1 dimension or more. Try * instead')
+
+        if self.ndim > 1 and other.ndim > 1:
+            left, right = self._broadcast_to_same_ndim(other)
+        else:
+            left, right = self, other
+
+        from hail.linalg.utils.misc import _ndarray_matmul_ndim
+        result_ndim = _ndarray_matmul_ndim(left.ndim, right.ndim)
+        elem_type = unify_types(self._type.element_type, other._type.element_type)
+        ret_type = tndarray(elem_type, result_ndim)
+        left = left._promote_numeric(ret_type)
+        right = right._promote_numeric(ret_type)
+
+        res = construct_expr(NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
+
+        return res if result_ndim > 0 else res[()]
+
+    @typecheck_method(axis=nullable(oneof(int, sequenceof(int))))
+    def sum(self, axis=None):
+        """Sum along one or more dimensions of the ndarray. If no axes are given, the entire NDArray will
+        be summed to a single `NumericExpression`.
+
+        Parameters
+        ----------
+        axis : :obj: `int` or :obj: `list` of :obj: `int:, optional
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        if axis is None:
+            axes = list(range(self.ndim))
+        else:
+            axes = wrap_to_list(axis)
+
+        for axis in axes:
+            if not 0 <= axis <= self.ndim:
+                raise ValueError(f'Invalid axis {axis}. Axis must be between 0 and {self.ndim}.')
+
+        if len(set(axes)) != len(axes):
+            raise ValueError(f'Axes should not be repeated: {axes}')
+
+        return construct_expr(NDArrayAgg(self._ir, axes),
+                              tndarray(self._type.element_type, self.ndim - len(axes)),
+                              self._indices,
+                              self._aggregations)
+
+    @typecheck_method(uri=str)
+    def save(self, uri):
+        """Write out the NDArray to the given path as in .npy format. If the URI does not
+        end with ".npy" the file extension will be appended. This method reflects the numpy
+        `save` method. NDArrays saved with this method can be loaded into numpy using numpy
+        `load`.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> nd.save('file://local/file') # doctest: +SKIP
+        >>> np.load('/local/file.npy') # doctest: +SKIP
+        array([[1, 2],
+               [3, 4]], dtype=int32)
+
+        Parameters
+        ----------
+        uri : :obj: `str`
+        """
+        if not uri.endswith('.npy'):
+            uri += '.npy'
+
+        Env.backend().execute(NDArrayWrite(self._ir, hl.str(uri)._ir))
+
+    def to_numpy(self):
+        """Execute and convert this NDArray to a `NumPy` ndarray.
+
+        Examples
+        --------
+        >>> a = nd.to_numpy() # doctest: +SKIP
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        # FIXME Use filesystem abstraction instead when that is ready
+        temp_file = tempfile.NamedTemporaryFile(suffix='.npy').name
+        self.save(temp_file)
+        return np.load(temp_file)
+
 
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,
@@ -3266,9 +3652,27 @@ def construct_expr(ir: IR,
                    aggregations: LinkedList = LinkedList(Aggregation)):
     if type is None:
         return Expression(ir, None, indices, aggregations)
-    if isinstance(type, tarray) and is_numeric(type.element_type):
+    elif isinstance(type, tarray) and is_numeric(type.element_type):
         return ArrayNumericExpression(ir, type, indices, aggregations)
-    if isinstance(type, tndarray) and is_numeric(type.element_type):
+    elif isinstance(type, tarray):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return ArrayStructExpression(ir, type, indices, aggregations)
+        else:
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+    elif isinstance(type, tset):
+        etype = type.element_type
+        if isinstance(etype, (hl.tarray, hl.tset)):
+            while isinstance(etype, (hl.tarray, hl.tset)):
+                etype = etype.element_type
+        if isinstance(etype, hl.tstruct):
+            return SetStructExpression(ir, type, indices, aggregations)
+        else:
+            return typ_to_expr[type.__class__](ir, type, indices, aggregations)
+    elif isinstance(type, tndarray) and is_numeric(type.element_type):
         return NDArrayNumericExpression(ir, type, indices, aggregations)
     elif type in scalars:
         return scalars[type](ir, type, indices, aggregations)

@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{ByteArrayOutputStream, IOException, OutputStream}
+import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.charset.StandardCharsets
 
 import org.apache.log4j.{Level, Logger}

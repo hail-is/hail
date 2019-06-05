@@ -1,11 +1,9 @@
 - project: docker
-- project: auth-gateway
 - project: hailjwt
 - project: batch
   dependencies: ["docker", "hailjwt"]
-- project: ci
   dependencies: ["batch"]
-- project: ci2
+- project: ci
 - project: cloudtools
 - project: etc
 - project: router
@@ -23,5 +21,4 @@
 - project: scorecard
   dependencies: ["docker"]
 - project: site
-- project: upload
 - project: vdc

@@ -4,19 +4,18 @@ import java.util
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types.{virtual, _}
-import is.hail.expr.types.physical.{PInt64, PStruct}
+import is.hail.expr.types._
+import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
-import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.{Partitioner, SparkContext}
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -95,6 +94,20 @@ class RVD(
         (keys, bytes)
       }
     }.clearingRun
+  }
+
+  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
+  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): RVD = {
+    require(newKey.forall(rowType.hasField))
+    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
+    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+
+    if (nPreservedFields == newKey.length)
+      this
+    else if (isSorted)
+      truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey)
+    else
+      changeKey(newKey)
   }
 
   // Key and partitioner manipulation
@@ -516,7 +529,7 @@ class RVD(
       .filter(i => intervals.overlaps(partitioner.rangeBounds(i)))
       .toArray
 
-    info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
+    info(s"reading ${ newPartitionIndices.length } of $nPartitions data partitions")
 
     if (newPartitionIndices.isEmpty)
       RVD.empty(sparkContext, typ)
@@ -776,6 +789,20 @@ class RVD(
     joinedType: RVDType
   ): RVD =
     keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
+
+  def orderedLeftIntervalJoin(
+    right: RVD,
+    joiner: (RVDContext, Iterator[Muple[RegionValue, Iterable[RegionValue]]]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoin(right.keyBy(1), joiner, joinedType)
+
+  def orderedLeftIntervalJoinDistinct(
+    right: RVD,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(1).orderedLeftIntervalJoinDistinct(right.keyBy(1), joiner, joinedType)
 
   def orderedZipJoin(right: RVD): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
     orderedZipJoin(right, typ.key.length)
@@ -1328,7 +1355,7 @@ object RVD {
     val first = rvds.head
     require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
 
-    val sc = HailContext.sc
+    val sc = HailContext.get.sc
     val hConf = HailContext.hadoopConf
     val hConfBc = HailContext.hadoopConfBc
 

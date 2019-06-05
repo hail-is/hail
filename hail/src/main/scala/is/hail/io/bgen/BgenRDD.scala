@@ -60,7 +60,7 @@ case class BgenSettings(
     case NoEntries =>
       matrixType.rowType
     case _: EntriesWithFields =>
-      matrixType.rvRowType
+      matrixType.canonicalRVDType.rowType.virtualType
   }
 
   def pType: PStruct = typ.physicalType
@@ -103,7 +103,7 @@ private class BgenRDD(
           new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
-          context.addTaskCompletionListener { context =>
+          context.addTaskCompletionListener { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
@@ -137,7 +137,7 @@ private class IndexBgenRecordIterator(
     }
   }
 
-  def hasNext(): Boolean =
+  def hasNext: Boolean =
     bfis.getPosition < p.endByteOffset
 }
 
@@ -166,7 +166,7 @@ private class BgenRecordIteratorWithoutFilter(
     }
   }
 
-  def hasNext(): Boolean =
+  def hasNext: Boolean =
     it.hasNext
 }
 
@@ -202,7 +202,7 @@ private class BgenRecordIteratorWithFilter(
     result
   }
 
-  def hasNext(): Boolean = {
+  def hasNext: Boolean = {
     if (isEnd)
       return false
 

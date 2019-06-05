@@ -4,14 +4,12 @@ import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 

@@ -2,25 +2,43 @@ import os
 import math
 import time
 import random
-import yaml
-import cerberus
+
+import hailjwt as hj
 
 from .requests_helper import filter_params
-from . import schemas
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
+    @staticmethod
+    def exit_code(job_status):
+        if 'exit_code' not in job_status or job_status['exit_code'] is None:
+            return None
+
+        exit_codes = job_status['exit_code']
+        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
+
+        i = 0
+        while i < len(exit_codes):
+            ec = exit_codes[i]
+            if ec is None:
+                return None
+            if ec > 0:
+                return ec
+            i += 1
+        return 0
+
+    def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
             attributes = {}
 
-        self.client = client
-        self.id = id
+        self.batch = batch
+        self.batch_id = self.batch.id
+        self.job_id = job_id
+        self.id = (self.batch_id, self.job_id)
         self.attributes = attributes
         self.parent_ids = parent_ids
-        self.scratch_folder = scratch_folder
         self._status = _status
 
     async def is_complete(self):
@@ -33,7 +51,7 @@ class Job:
         return state in ('Complete', 'Cancelled')
 
     async def status(self):
-        self._status = await self.client._get('/jobs/{}'.format(self.id))
+        self._status = await self.batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}')
         return self._status
 
     async def wait(self):
@@ -47,124 +65,27 @@ class Job:
             if i < 64:
                 i = i + 1
 
-    async def cancel(self):
-        await self.client._patch('/jobs/{}/cancel'.format(self.id))
-
-    async def delete(self):
-        await self.client._delete('/jobs/{}/delete'.format(self.id))
-
-        # this object should not be referenced again
-        del self.client
-        del self.id
-        del self.attributes
-        del self.parent_ids
-        del self.scratch_folder
-        del self._status
-
     async def log(self):
-        return await self.client._get('/jobs/{}/log'.format(self.id))
+        return await self.batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}/log')
 
 
 class Batch:
     def __init__(self, client, id, attributes):
-        self.client = client
+        self._client = client
         self.id = id
         self.attributes = attributes
+        self._job_idx = 0
 
     async def create_job(self, image, command=None, args=None, env=None, ports=None,
                          resources=None, tolerations=None, volumes=None, security_context=None,
-                         service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                         scratch_folder=None, input_files=None, output_files=None,
-                         copy_service_account_name=None, always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return await self.client._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
-            input_files, output_files, copy_service_account_name, always_run)
+                         service_account_name=None, attributes=None, callback=None, parents=None,
+                         input_files=None, output_files=None, always_run=False, pvc_size=None):
+        self._job_idx += 1
 
-    async def close(self):
-        await self.client._patch('/batches/{}/close'.format(self.id))
+        if parents is None:
+            parents = []
+        parent_ids = [parent.job_id for parent in parents]
 
-    async def cancel(self):
-        await self.client._patch('/batches/{}/cancel'.format(self.id))
-
-    async def status(self):
-        return await self.client._get('/batches/{}'.format(self.id))
-
-    async def wait(self):
-        i = 0
-        while True:
-            status = await self.status()
-            if not any(j['state'] == 'Created' or j['state'] == 'Ready' for j in status['jobs']):
-                return status
-            j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
-                i = i + 1
-
-    async def delete(self):
-        await self.client._delete('/batches/{}/delete'.format(self.id))
-
-
-class BatchClient:
-    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
-        if not url:
-            url = 'http://batch.default'
-        self.url = url
-        self._session = session
-        if token is None:
-            token_file = (token_file or
-                          os.environ.get('HAIL_TOKEN_FILE') or
-                          os.path.expanduser('~/.hail/token'))
-            if not os.path.exists(token_file):
-                raise ValueError(
-                    f'Cannot create a client without a token. No file was '
-                    f'found at {token_file}')
-            with open(token_file) as f:
-                token = f.read()
-        self.cookies = {'user': token}
-        self.headers = headers
-
-    async def _get(self, path, params=None):
-        response = await self._session.get(
-            self.url + path, params=params, cookies=self.cookies, headers=self.headers)
-        return await response.json()
-
-    async def _post(self, path, json=None):
-        response = await self._session.post(
-            self.url + path, json=json, cookies=self.cookies, headers=self.headers)
-        return await response.json()
-
-    async def _patch(self, path):
-        await self._session.patch(
-            self.url + path, cookies=self.cookies, headers=self.headers)
-
-    async def _delete(self, path):
-        await self._session.delete(
-            self.url + path, cookies=self.cookies, headers=self.headers)
-
-    async def _create_job(self,  # pylint: disable=R0912
-                          image,
-                          command,
-                          args,
-                          env,
-                          ports,
-                          resources,
-                          tolerations,
-                          volumes,
-                          security_context,
-                          service_account_name,
-                          attributes,
-                          batch_id,
-                          callback,
-                          parent_ids,
-                          scratch_folder,
-                          input_files,
-                          output_files,
-                          copy_service_account_name,
-                          always_run):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -216,90 +137,118 @@ class BatchClient:
         doc = {
             'spec': spec,
             'parent_ids': parent_ids,
-            'always_run': always_run
+            'always_run': always_run,
+            'batch_id': self.id,
+            'job_id': self._job_idx
         }
         if attributes:
             doc['attributes'] = attributes
-        if batch_id:
-            doc['batch_id'] = batch_id
         if callback:
             doc['callback'] = callback
-        if scratch_folder:
-            doc['scratch_folder'] = scratch_folder
         if input_files:
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
-        if copy_service_account_name:
-            doc['copy_service_account_name'] = copy_service_account_name
+        if pvc_size:
+            doc['pvc_size'] = pvc_size
 
-        j = await self._post('/jobs/create', json=doc)
+        j = await self._client._post('/jobs/create', json=doc)
 
         return Job(self,
-                   j['id'],
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []))
 
+    async def close(self):
+        await self._client._patch(f'/batches/{self.id}/close')
+
+    async def cancel(self):
+        await self._client._patch(f'/batches/{self.id}/cancel')
+
+    async def status(self):
+        return await self._client._get(f'/batches/{self.id}')
+
+    async def wait(self):
+        i = 0
+        while True:
+            status = await self.status()
+            if status['complete']:
+                return status
+            j = random.randrange(math.floor(1.1 ** i))
+            time.sleep(0.100 * j)
+            # max 4.45s
+            if i < 64:
+                i = i + 1
+
+    async def delete(self):
+        await self._client._delete(f'/batches/{self.id}')
+
+
+class BatchClient:
+    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
+        if not url:
+            url = 'http://batch.default'
+        self.url = url
+        self._session = session
+        if token is None:
+            token_file = (token_file or
+                          os.environ.get('HAIL_TOKEN_FILE') or
+                          os.path.expanduser('~/.hail/token'))
+            if not os.path.exists(token_file):
+                raise ValueError(
+                    f'Cannot create a client without a token. No file was '
+                    f'found at {token_file}')
+            with open(token_file) as f:
+                token = f.read()
+        userdata = hj.JWTClient.unsafe_decode(token)
+        assert "bucket_name" in userdata
+        self.bucket = userdata["bucket_name"]
+        self._cookies = {'user': token}
+        self._headers = headers
+
+    async def _get(self, path, params=None):
+        response = await self._session.get(
+            self.url + path, params=params, cookies=self._cookies, headers=self._headers)
+        return await response.json()
+
+    async def _post(self, path, json=None):
+        response = await self._session.post(
+            self.url + path, json=json, cookies=self._cookies, headers=self._headers)
+        return await response.json()
+
+    async def _patch(self, path):
+        await self._session.patch(
+            self.url + path, cookies=self._cookies, headers=self._headers)
+
+    async def _delete(self, path):
+        await self._session.delete(
+            self.url + path, cookies=self._cookies, headers=self._headers)
+
     async def _refresh_k8s_state(self):
         await self._post('/refresh_k8s_state')
-
-    async def list_jobs(self, complete=None, success=None, attributes=None):
-        params = filter_params(complete, success, attributes)
-        jobs = await self._get('/jobs', params=params)
-        return [Job(self,
-                    j['id'],
-                    attributes=j.get('attributes'),
-                    parent_ids=j.get('parent_ids', []),
-                    _status=j)
-                for j in jobs]
 
     async def list_batches(self, complete=None, success=None, attributes=None):
         params = filter_params(complete, success, attributes)
         batches = await self._get('/batches', params=params)
         return [Batch(self,
-                      j['id'],
-                      attributes=j.get('attributes'))
-                for j in batches]
+                      b['id'],
+                      attributes=b.get('attributes'))
+                for b in batches]
 
-    async def get_job(self, id):
-        j = await self._get('/jobs/{}'.format(id))
-        return Job(self,
-                   j['id'],
+    async def get_job(self, batch_id, job_id):
+        b = await self.get_batch(batch_id)
+        j = await self._get(f'/batches/{batch_id}/jobs/{job_id}')
+        return Job(b,
+                   j['job_id'],
                    attributes=j.get('attributes'),
                    parent_ids=j.get('parent_ids', []),
                    _status=j)
 
     async def get_batch(self, id):
-        j = await self._get(f'/batches/{id}')
+        b = await self._get(f'/batches/{id}')
         return Batch(self,
-                     j['id'],
-                     attributes=j.get('attributes'))
-
-    async def create_job(self,
-                         image,
-                         command=None,
-                         args=None,
-                         env=None,
-                         ports=None,
-                         resources=None,
-                         tolerations=None,
-                         volumes=None,
-                         security_context=None,
-                         service_account_name=None,
-                         attributes=None,
-                         callback=None,
-                         parent_ids=None,
-                         scratch_folder=None,
-                         input_files=None,
-                         output_files=None,
-                         copy_service_account_name=None,
-                         always_run=False):
-        if parent_ids is None:
-            parent_ids = []
-        return await self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
-            input_files, output_files, copy_service_account_name, always_run)
+                     b['id'],
+                     attributes=b.get('attributes'))
 
     async def create_batch(self, attributes=None, callback=None, ttl=None):
         doc = {}
@@ -309,42 +258,8 @@ class BatchClient:
             doc['callback'] = callback
         if ttl:
             doc['ttl'] = ttl
-        j = await self._post('/batches/create', json=doc)
-        return Batch(self, j['id'], j.get('attributes'))
-
-    job_yaml_schema = {
-        'spec': schemas.pod_spec,
-        'type': {'type': 'string', 'allowed': ['execute']},
-        'name': {'type': 'string'},
-        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
-    }
-    job_yaml_validator = cerberus.Validator(job_yaml_schema)
-
-    async def create_batch_from_file(self, file):
-        job_id_by_name = {}
-
-        # pylint confused by f-strings
-        def job_id_by_name_or_error(id, self_id):  # pylint: disable=unused-argument
-            job = job_id_by_name.get(id)
-            if job:
-                return job
-            raise ValueError(
-                '"{self_id}" must appear in the file after its dependency "{id}"')
-
-        batch = await self.create_batch()
-        for doc in yaml.load(file):
-            if not BatchClient.job_yaml_validator.validate(doc):
-                raise BatchClient.job_yaml_validator.errors
-            spec = doc['spec']
-            type = doc['type']
-            name = doc['name']
-            dependsOn = doc.get('dependsOn', [])
-            if type == 'execute':
-                job = await batch.create_job(
-                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
-                    **spec)
-                job_id_by_name[name] = job.id
-        return batch
+        b = await self._post('/batches/create', json=doc)
+        return Batch(self, b['id'], b.get('attributes'))
 
     async def close(self):
         await self._session.close()

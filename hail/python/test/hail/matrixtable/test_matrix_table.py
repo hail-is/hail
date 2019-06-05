@@ -138,6 +138,11 @@ class Tests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
                                               y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
 
+    def test_col_agg_no_rows(self):
+        mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
+        mt = mt.annotate_cols(x = hl.agg.count())
+        assert mt.x.collect() == [0, 0, 0]
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)
@@ -388,6 +393,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
+    def test_table_product_join(self):
+        left = hl.utils.range_matrix_table(5, 1)
+        right = hl.utils.range_table(5)
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        left = left.annotate_rows(matches=right.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(rows.matches.map(lambda x: x.idx) == hl.range(0, rows.row_idx)))
+
     def test_naive_coalesce(self):
         vds = self.get_vds(min_partitions=8)
         self.assertEqual(vds.n_partitions(), 8)
@@ -400,8 +413,26 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.len(hl.literal([1,2,3])) < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
+
+    def test_globals_lowering(self):
+        mt = hl.utils.range_matrix_table(1, 1).annotate_globals(x=1)
+        lit = hl.literal(hl.utils.Struct(x = 0))
+
+        mt.annotate_rows(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.annotate_cols(foo=hl.agg.collect(mt.globals == lit))._force_count_rows()
+        mt.filter_rows(mt.globals == lit)._force_count_rows()
+        mt.filter_cols(mt.globals == lit)._force_count_rows()
+        mt.filter_entries(mt.globals == lit)._force_count_rows()
+        (mt.group_rows_by(mt.row_idx)
+         .aggregate_rows(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
+        (mt.group_cols_by(mt.col_idx)
+         .aggregate_cols(foo=hl.agg.collect(mt.globals == lit))
+         .aggregate(bar=hl.agg.collect(mt.globals == lit))
+         ._force_count_rows())
 
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
@@ -431,6 +462,11 @@ class Tests(unittest.TestCase):
         right = hl.import_vcf(resource('joinright.vcf'))
 
         self.assertTrue(left.union_cols(right)._same(joined))
+
+    def test_union_cols_distinct(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(x = mt.row_idx // 2)
+        assert mt.union_cols(mt).count_rows() == 5
 
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
@@ -528,6 +564,28 @@ class Tests(unittest.TestCase):
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
 
+    def test_interval_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=10)
+        intervals = hl.utils.range_table(4)
+        intervals = intervals.key_by(interval=hl.interval(intervals.idx * 10, intervals.idx * 10 + 5))
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.case()
+                                 .when(rows.row_idx % 10 < 5, rows.interval_matches.idx == rows.row_idx // 10)
+                                 .default(hl.is_missing(rows.interval_matches))))
+
+    def test_interval_product_join(self):
+        left = hl.utils.range_matrix_table(50, 1, n_partitions=8)
+        intervals = hl.utils.range_table(25)
+        intervals = intervals.key_by(interval=hl.interval(
+            1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+            (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)))
+        intervals = intervals.annotate(i=intervals.idx % 5)
+        left = left.annotate_rows(interval_matches=intervals.index(left.row_key, all_matches=True))
+        rows = left.rows()
+        self.assertTrue(rows.all(hl.sorted(rows.interval_matches.map(lambda x: x.i))
+                                 == hl.range(0, hl.min(rows.row_idx % 10, 10 - rows.row_idx % 10))))
+
     def test_entry_join_self(self):
         mt1 = hl.utils.range_matrix_table(10, 10, n_partitions=4).choose_cols([9, 8, 7, 6, 5, 4, 3, 2, 1, 0])
         mt1 = mt1.annotate_entries(x=10 * mt1.row_idx + mt1.col_idx)
@@ -597,6 +655,10 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(10, 10)
         s = hl.literal({1, 3, 5, 7})
         self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
+
+    def test_filter_cols_agg(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        assert mt.filter_cols(hl.agg.count() > 5).count_cols() == 10
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))

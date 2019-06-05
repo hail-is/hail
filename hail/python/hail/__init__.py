@@ -40,7 +40,6 @@ from . import plot
 from . import experimental
 from . import ir
 from . import backend
-from . import fs
 from hail.expr import aggregators as agg
 from hail.utils import Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls, \
     hadoop_stat, hadoop_exists, hadoop_is_file, hadoop_is_dir, copy_log
@@ -86,7 +85,6 @@ __all__ = [
     'experimental',
     'ir',
     'backend',
-    'fs',
     'current_backend',
     'debug_info',
     'cite_hail',

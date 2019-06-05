@@ -97,7 +97,7 @@ object LoadGen {
 
       val annotations = Annotation(locus, alleles, rsid, varid)
 
-      Some(annotations, gsb.result().toIterable)
+      Some(annotations -> gsb.result().toIterable)
     }
   }
 }
@@ -128,7 +128,7 @@ case class MatrixGENReader(
   private val nSamples = samples.length
 
   // FIXME: can't specify multiple chromosomes
-  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.sc, referenceGenome.map(_.broadcast), nPartitions,
+  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, referenceGenome.map(_.broadcast), nPartitions,
     tolerance, chromosome, contigRecoding, skipInvalidLoci))
 
   private val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))

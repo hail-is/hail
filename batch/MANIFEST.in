@@ -1,1 +1,2 @@
 recursive-include batch/templates *
+recursive-include batch/static *

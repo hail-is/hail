@@ -163,7 +163,7 @@ class MathFunctionsSuite extends TestNGSuite {
     Array(10, 10, 10, 10, 1.0, 1.0),
     Array(51, 43, 22, 92, 1.462626e-7, (51.0 * 92) / (22 * 43))
   )
-  
+
   @Test(dataProvider = "chi_squared_test")
   def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
       val r = eval(invoke("chi_squared_test", a, b, c, d)).asInstanceOf[Row]
