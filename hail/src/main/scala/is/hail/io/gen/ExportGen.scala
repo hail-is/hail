@@ -36,7 +36,7 @@ object ExportGen {
       }.toArray)
 
     val localNSamples = mv.nCols
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowPType
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder

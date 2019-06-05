@@ -302,8 +302,8 @@ case class LocalLDPrune(
 
     val nSamples = mv.nCols
     
-    val fullRowType = mv.typ.rvRowType
-    val fullRowPType = fullRowType.physicalType
+    val fullRowType = mv.rvRowType
+    val fullRowPType = mv.rvRowPType
 
     val locusIndex = fullRowType.fieldIdx("locus")
     val allelesIndex = fullRowType.fieldIdx("alleles")

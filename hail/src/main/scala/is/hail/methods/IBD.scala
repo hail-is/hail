@@ -217,8 +217,8 @@ object IBD {
 
     val nSamples = input.nCols
 
-    val rowType = input.typ.rvRowType
-    val rowPType = rowType.physicalType
+    val rowType = input.rvRowType
+    val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { it =>
       val view = HardCallView(rowPType)
       it.map { rv =>
@@ -352,12 +352,12 @@ object IBD {
   }
 
   private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
-    val rvRowType = input.typ.rvRowType
-    val rvRowPType = rvRowType.physicalType
+    val rvRowType = input.rvRowType
+    val rvRowPType = input.rvRowPType
     val field = rvRowType.field(fieldName)
     assert(field.typ.isOfType(TFloat64()))
     val rowKeysF = input.typ.extractRowKey
-    val entriesIdx = input.typ.entriesIdx
+    val entriesIdx = input.entriesIdx
 
     val idx = rvRowType.fieldIdx(fieldName)
 

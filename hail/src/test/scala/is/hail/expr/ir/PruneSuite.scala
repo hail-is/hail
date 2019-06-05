@@ -152,7 +152,7 @@ class PruneSuite extends SparkSuite {
     fields.foreach { f =>
       val split = f.split("\\.")
       var ir: IR = split(0) match {
-        case "va" => Ref("va", mt.rvRowType)
+        case "va" => Ref("va", mt.rowType)
         case "sa" => Ref("sa", mt.colType)
         case "g" => Ref("g", mt.entryType)
         case "global" => Ref("global", mt.globalType)
@@ -204,7 +204,7 @@ class PruneSuite extends SparkSuite {
       val split = f.split("\\.")
       split(0) match {
         case "va" =>
-          rowFields += PruneDeadFields.subsetType(mt.rvRowType, split, 1).asInstanceOf[TStruct]
+          rowFields += PruneDeadFields.subsetType(mt.rowType, split, 1).asInstanceOf[TStruct]
         case "sa" =>
           colFields += PruneDeadFields.subsetType(mt.colType, split, 1).asInstanceOf[TStruct]
         case "g" =>
@@ -224,9 +224,8 @@ class PruneSuite extends SparkSuite {
       colKey = ck,
       globalType = PruneDeadFields.unify(mt.globalType, globalFields.result(): _*),
       colType = PruneDeadFields.unify(mt.colType, Array(PruneDeadFields.selectKey(mt.colType, ck)) ++ colFields.result(): _*),
-      rvRowType = PruneDeadFields.unify(mt.rvRowType, Array(PruneDeadFields.selectKey(mt.rvRowType, rk)) ++ rowFields.result() ++
-        Array(TStruct(MatrixType.entriesIdentifier -> TArray(PruneDeadFields.unify(mt.entryType, entryFields.result(): _*)))): _*)
-    )
+      rowType = PruneDeadFields.unify(mt.rowType, Array(PruneDeadFields.selectKey(mt.rowType, rk)) ++ rowFields.result(): _*),
+      entryType = PruneDeadFields.unify(mt.entryType, entryFields.result(): _*))
   }
 
   def mangle(t: TableIR): TableIR = {

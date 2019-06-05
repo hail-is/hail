@@ -23,7 +23,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
 
@@ -34,7 +34,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
@@ -45,7 +45,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
@@ -90,7 +90,7 @@ class MatrixIRSuite extends SparkSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = MatrixTable.range(hc, i, 5, Some(math.max(1, math.min(4, i)))).ast
-    val row = Ref("va", baseRange.typ.rvRowType)
+    val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
         MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
@@ -140,7 +140,7 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 5, 2, None).ast
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastIndexedSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded = getRows(MatrixExplodeRows(annotated, path.toFastIndexedSeq)).map(q(_).asInstanceOf[Integer])
