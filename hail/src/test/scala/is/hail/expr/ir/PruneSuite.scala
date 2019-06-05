@@ -108,8 +108,8 @@ class PruneSuite extends SparkSuite {
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64()))
   val mat = MatrixLiteral(MatrixValue(
     mType,
-    BroadcastRow(Row(1, 1.0), mType.globalType, sc),
-    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
+    BroadcastRow(Row(1, 1.0), mType.globalType, hc.backend),
+    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), hc.backend),
     RVD.empty(sc, mType.canonicalRVDType)))
 
   val mr = MatrixRead(mat.typ, false, false, new MatrixReader {

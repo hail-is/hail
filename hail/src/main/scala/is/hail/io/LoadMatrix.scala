@@ -298,7 +298,7 @@ object LoadMatrix {
 
     val rowFieldType: TStruct = verifyRowFields(rowFieldNames, rowFields)
 
-    val header1Bc = sc.broadcast(header1)
+    val header1Bc = hc.backend.broadcast(header1)
 
     if (!noHeader)
       LoadMatrix.warnDuplicates(colIDs.asInstanceOf[Array[String]])
@@ -395,8 +395,8 @@ object LoadMatrix {
       RVD.coerce(rvdType, rdd)
 
     MatrixLiteral(MatrixValue(matrixType,
-      BroadcastRow(Row(), matrixType.globalType, hc.sc),
-      BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.sc),
+      BroadcastRow(Row(), matrixType.globalType, hc.backend),
+      BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.backend),
       rvd))
   }
 }

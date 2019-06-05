@@ -181,7 +181,7 @@ object PCRelate {
     val nSamples = vds.numCols
     val localRowPType = vds.value.rvRowPType
     val partStarts = vds.partitionStarts()
-    val partStartsBc = vds.sparkContext.broadcast(partStarts)
+    val partStartsBc = vds.hc.backend.broadcast(partStarts)
     val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
       val view = HardCallView(localRowPType)
       val missingIndices = new ArrayBuilder[Int]()

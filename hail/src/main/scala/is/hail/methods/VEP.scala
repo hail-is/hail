@@ -247,7 +247,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
-      BroadcastRow(globalValue, globalType, HailContext.get.sc),
+      BroadcastRow(globalValue, globalType, HailContext.backend),
       vepRVD)
   }
 }

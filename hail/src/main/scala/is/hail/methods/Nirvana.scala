@@ -476,7 +476,7 @@ object Nirvana {
 
       TableValue(
         TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
-        BroadcastRow(Row(), TStruct(), tv.globals.sc),
+        BroadcastRow(Row(), TStruct(), tv.globals.backend),
         nirvanaRVD
       )
   }

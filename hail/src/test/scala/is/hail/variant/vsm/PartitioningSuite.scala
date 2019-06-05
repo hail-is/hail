@@ -31,7 +31,7 @@ class PartitioningSuite extends SparkSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), FastIndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
-      typ, BroadcastRow(Row.empty, TStruct.empty(), sc), RVD.empty(sc, typ.canonicalRVDType)))
+      typ, BroadcastRow(Row.empty, TStruct.empty(), hc.backend), RVD.empty(sc, typ.canonicalRVDType)))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     Interpret(
       MatrixAnnotateRowsTable(

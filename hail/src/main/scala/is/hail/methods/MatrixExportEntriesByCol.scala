@@ -46,7 +46,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 
-      val colValuesJSON = mv.sparkContext.broadcast(
+      val colValuesJSON = HailContext.backend.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray)
