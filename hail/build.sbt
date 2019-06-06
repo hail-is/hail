@@ -29,8 +29,7 @@ lazy val root = (project in file(".")).
     ),
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
-      "-Xlint:all",
-      "-XDenableSunApiLintControl",
+      "-Xlint:_",
       "-deprecation",
       "-unchecked",
       "-Xlint:-infer-any",
