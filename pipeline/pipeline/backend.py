@@ -115,7 +115,7 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
 
-            script.append(f"# {task._uid} {task._label if task._label else ''}")
+            script.append(f"# {task._uid} {task._name if task._name else ''}")
 
             script += [x for r in task._inputs for x in copy_input(task, r)]
 
@@ -203,7 +203,7 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu'
 
-        batch = self._batch_client.create_batch()
+        batch = self._batch_client.create_batch(attributes={'name': pipeline._name})
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
@@ -279,8 +279,8 @@ class BatchBackend(Backend):
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
-            if task._label:
-                attributes['name'] = task._label
+            if task._name:
+                attributes['name'] = task._name
 
             resources = {'requests': {}}
             if task._cpu:
@@ -329,10 +329,10 @@ class BatchBackend(Backend):
         for jid, ec in failed_jobs:
             job = self._batch_client.get_job(*jid)
             log = job.log()
-            label = job.status()['attributes'].get('name', None)
+            name = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task label:\t{label}\n"
+                f"  Task name:\t{name}\n"
                 f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 

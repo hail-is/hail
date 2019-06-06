@@ -33,6 +33,8 @@ class Pipeline:
 
     Parameters
     ----------
+    name: :obj:`str`, optional
+        Name of the pipeline.
     backend: :func:`.Backend`, optional
         Backend used to execute the jobs. Default is :class:`.LocalBackend`
     default_image: :obj:`str`, optional
@@ -60,13 +62,15 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, backend=None, default_image=None, default_memory=None,
+    def __init__(self, name=None, backend=None, default_image=None, default_memory=None,
                  default_cpu=None, default_storage=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
         self._input_resources = set()
         self._uid = Pipeline._get_uid()
+
+        self._name = name
         self._default_image = default_image
         self._default_memory = default_memory
         self._default_cpu = default_cpu
@@ -290,7 +294,7 @@ class Pipeline:
 
     def select_tasks(self, pattern):
         """
-        Select all tasks in the pipeline whose label matches `pattern`.
+        Select all tasks in the pipeline whose name matches `pattern`.
 
         Examples
         --------
@@ -298,21 +302,21 @@ class Pipeline:
         Select tasks in pipeline matching `qc`:
 
         >>> p = Pipeline()
-        >>> t = p.new_task().label('qc')
+        >>> t = p.new_task().name('qc')
         >>> qc_tasks = p.select_tasks('qc')
         >>> assert qc_tasks == [t]
 
         Parameters
         ----------
         pattern: :obj:`str`
-            Regex pattern matching task labels.
+            Regex pattern matching task names.
 
         Returns
         -------
         :obj:`list` of :class:`.Task`
         """
 
-        return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]
+        return [task for task in self._tasks if task._name is not None and re.match(pattern, task._name) is not None]
 
     def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True):
         """
