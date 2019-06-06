@@ -196,18 +196,13 @@ class Batch:
 
 class BatchBuilder:
     def __init__(self, client, attributes, callback):
-        doc = {}
-        if attributes:
-            doc['attributes'] = attributes
-        if callback:
-            doc['callback'] = callback
-
         self._client = client
-        self._doc = doc
         self._job_idx = 0
         self._job_docs = []
         self._jobs = []
         self._submitted = False
+        self.attributes = attributes
+        self.callback = callback
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
@@ -306,10 +301,16 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        if len(self._job_docs) != 0:
-            self._doc['jobs'] = self._job_docs
+        doc = {}
+        if self.attributes:
+            doc['attributes'] = self.attributes
+        if self.callback:
+            doc['callback'] = self.callback
 
-        b = await self._client._post('/batches/create', json=self._doc)
+        if len(self._job_docs) != 0:
+            doc['jobs'] = self._job_docs
+
+        b = await self._client._post('/batches/create', json=doc)
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         for j in self._jobs:
