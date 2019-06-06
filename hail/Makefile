@@ -79,7 +79,7 @@ HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
 jar_cloud_path := $(cloud_base)/hail.jar
-wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl)
+wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 .PHONY: python/hailctl/deploy.yaml
 python/hailctl/deploy.yaml:
