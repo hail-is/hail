@@ -27,6 +27,8 @@ lazy val root = (project in file(".")).
       "-Werror",
       "-XDenableSunApiLintControl"
     ),
+    Compile / fork := true,
+    Compile / javaOptions += "-XDenableSunApiLintControl",
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
       "-Xlint:_",
