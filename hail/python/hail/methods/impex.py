@@ -1709,7 +1709,7 @@ def import_plink(bed, bim, fam,
     return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
+@typecheck(path=str,
            _drop_cols=bool,
            _drop_rows=bool)
 def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
