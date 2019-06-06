@@ -17,6 +17,7 @@ Contents
     :maxdepth: 2
 
     Installation <getting_started>
+    Hail on the Cloud <hail_on_the_cloud>
     Tutorials <tutorials-landing>
     Reference (Python API) <api>
     Overview <overview/index>
