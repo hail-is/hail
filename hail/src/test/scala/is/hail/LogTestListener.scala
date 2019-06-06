@@ -1,5 +1,7 @@
 package is.hail
 
+import java.io.{PrintWriter, StringWriter}
+
 import is.hail.utils._
 import org.testng.{ITestContext, ITestListener, ITestResult}
 
@@ -17,7 +19,14 @@ class LogTestListener extends ITestListener {
   }
 
   def onTestFailure(result: ITestResult) {
-    info(s"test ${ testString(result) } FAILURE")
+    val cause = result.getThrowable
+    if (cause != null) {
+      val sw = new StringWriter()
+      val pw = new PrintWriter(sw)
+      cause.printStackTrace(pw)
+      info(s"Exception:\n$sw")
+    }
+    info(s"test ${ testString(result) } FAILURE\n")
   }
 
   def onTestSkipped(result: ITestResult) {

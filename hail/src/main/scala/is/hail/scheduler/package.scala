@@ -40,8 +40,11 @@ package object scheduler {
       try {
         return f()
       } catch {
+        case b: BreakRetryException =>
+          throw b.getCause
         case e: Exception =>
           log.warn(s"retry: restarting due to exception: $e")
+          e.printStackTrace()
       }
       val endTime = System.nanoTime()
       val duration = (endTime - startTime) / 1e-9

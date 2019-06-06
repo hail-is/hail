@@ -33,8 +33,13 @@ log = make_logger()
 
 
 async def read_int(reader):
-    b = await reader.readexactly(4)
-    return struct.unpack('>I', b)[0]
+    try:
+        b = await reader.readexactly(4)
+        return struct.unpack('>I', b)[0]
+    except asyncio.IncompleteReadError as e:
+        if not e.partial:
+            return
+        raise e
 
 
 def write_int(writer, i):
@@ -62,13 +67,12 @@ def create_id():
 
 
 executors = set()
+available_executors = set()
+
 clients = set()
 
 jobs = []
-
 pending_jobs = set()
-
-available_executors = set()
 
 task_index = {}
 
@@ -103,7 +107,7 @@ class ExecutorConnection:
     def __init__(self, reader, writer, n_cores):
         self.id = create_id()
 
-        log.info(f'client {self.id} connected: {n_cores} cores')
+        log.info(f'executor {self.id} connected: {n_cores} cores')
 
         self.reader = reader
         self.writer = writer
@@ -121,7 +125,7 @@ class ExecutorConnection:
             t = task_index[task_id]
 
             duration = datetime.datetime.now() - t.start_time
-            log.info(f'client {self.id}: '
+            log.info(f'executor {self.id}: '
                      f'task {t.job.id}/{t.id} complete: {duration}')
 
             t.set_result(res)
@@ -134,10 +138,10 @@ class ExecutorConnection:
         await self.schedule()
 
     async def handle_ping(self):
-        log.info(f'client {self.id}: received ping')
+        log.info(f'executor {self.id}: received ping')
 
     async def execute(self, t):
-        log.info(f'schedule task {t.job.id}/{t.id} on client {self.id}')
+        log.info(f'schedule task {t.job.id}/{t.id} on executor {self.id}')
 
         # FIXME time this attempt
         t.start_time = datetime.datetime.now()
@@ -153,6 +157,8 @@ class ExecutorConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
+                if cmd is None:
+                    return
                 if cmd == PING:
                     await self.handle_ping()
                 elif cmd == TASKRESULT:
@@ -161,12 +167,14 @@ class ExecutorConnection:
                     raise ValueError(f'unknown command {cmd}')
                 self.last_message_time = datetime.datetime.now()
         except Exception:  # pylint: disable=broad-except
-            log.exception(f'client {self.id}: '
+            log.exception(f'executor {self.id}: '
                           f'error in handler loop, closing due to exception')
+        finally:
             self.close()
 
     def close(self):
         executors.remove(self)
+        available_executors.remove(self)
         for t in self.running:
             t.job.pending_tasks.append(t)
         self.running = set()
@@ -319,6 +327,8 @@ class ClientSubmitConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
+                if cmd is None:
+                    return
                 if cmd == SUBMIT:
                     await self.handle_submit()
                 else:
@@ -357,6 +367,8 @@ class ClientResultConnection:
         try:
             while True:
                 cmd = await read_int(self.reader)
+                if cmd is None:
+                    return
                 if cmd == ACKTASKRESULT:
                     await self.handle_ack_task()
                 else:

@@ -85,6 +85,7 @@ class Executor(host: String, nCores: Int) extends Runnable {
         s.out.writeInt(taskId)
         writeObject(result, s.out)
         s.out.flush()
+        log.info(s"sent task $taskId result")
       } catch {
         case e: Exception =>
           log.error(s"Client.sendTaskResult: queuing result, send failed due to exception: $e")
@@ -100,6 +101,7 @@ class Executor(host: String, nCores: Int) extends Runnable {
     val s = socket
     val taskId = s.in.readInt()
     val f = readObject[() => _](s.in)
+    log.info(s"received task $taskId")
     pool.execute(new TaskThread(this, taskId, f))
   }
 
