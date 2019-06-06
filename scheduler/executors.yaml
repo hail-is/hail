@@ -21,7 +21,7 @@ spec:
 {% endif %}
       containers:
        - name: executor
-         image: "{{ hail_base_image.image }}"
+         image: "{{ hail_test_base_image.image }}"
          command:
           - /bin/bash
           - -c

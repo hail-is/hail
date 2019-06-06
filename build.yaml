@@ -282,6 +282,19 @@ steps:
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
+   name: hail_test_base_image
+   dockerFile: apiserver/Dockerfile.hail-test-base
+   contextPath: .
+   publishAs: hail-test-base
+   dependsOn:
+    - hail_run_image
+    - build_hail
+   inputs:
+    - from: /hail-test.jar
+      to: /hail-test.jar
+    - from: /hail.zip
+      to: /hail.zip
+ - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile
    contextPath: scheduler
@@ -652,7 +665,7 @@ steps:
    config: scheduler/executors.yaml
    dependsOn:
     - default_ns
-    - hail_base_image
+    - hail_test_base_image
  - kind: deploy
    name: deploy_notebook2
    namespace:
