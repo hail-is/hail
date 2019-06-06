@@ -32,7 +32,6 @@ setup(
     install_requires=[
         'numpy<2',
         'pandas>0.22,<0.24',
-        'matplotlib<3',
         'bokeh>1.1,<1.3',
         'pyspark>=2.4,<2.4.2',
         'parsimonious<0.9',

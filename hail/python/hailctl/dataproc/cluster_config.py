@@ -1,11 +1,7 @@
-import json
-
-
 class ClusterConfig:
-    def __init__(self, json_str):
-        params = json.loads(json_str)
-        self.vars = params['vars']
-        self.flags = params['flags']
+    def __init__(self):
+        self.vars = dict()
+        self.flags = dict()
 
     def extend_flag(self, flag, values):
         if flag not in self.flags:
@@ -29,22 +25,6 @@ class ClusterConfig:
             return self.format(','.join(obj))
         else:
             return str(obj).format(**self.vars)
-
-    def jar(self):
-        return self.flags['metadata']['JAR'].format(**self.vars)
-
-    def zip(self):
-        return self.flags['metadata']['ZIP'].format(**self.vars)
-
-    def configure(self, sha, spark):
-        self.vars['spark'] = spark
-        image = self.vars['supported_spark'].get(spark)
-        if image is None:
-            raise ValueError(
-                'Incompatible spark version {spark}, compatible versions are: {compat}'.format(
-                    spark=spark, compat=list(self.vars['supported_spark'])))
-        self.vars['image'] = image
-        self.vars['hash'] = sha
 
     def get_command(self, name):
         flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]

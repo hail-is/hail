@@ -1,6 +1,7 @@
-from . import dataproc
 import pkg_resources
 import yaml
+
+from . import dataproc
 
 
 def version() -> str:

@@ -1,10 +1,10 @@
-import argparse
 import sys
+
+import argparse
 
 from . import connect
 from . import describe
 from . import diagnose
-from . import latest
 from . import list_clusters
 from . import modify
 from . import start
@@ -54,11 +54,6 @@ def parser():
         help='Gather information about a hail file (including the schema)',
         description='Gather information about a hail file (including the schema)')
 
-    latest_parser = subparsers.add_parser(
-        'latest',
-        help='Find the newest deployed SHA and the locations of the newest JARs and ZIPs',
-        description='Find the newest deployed SHA and the locations of the newest JARs and ZIPs')
-
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
 
@@ -82,8 +77,6 @@ def parser():
     describe_parser.set_defaults(module='describe')
     describe.init_parser(describe_parser)
 
-    latest_parser.set_defaults(module='latest')
-    latest.init_parser(latest_parser)
     return main_parser
 
 
@@ -100,7 +93,6 @@ def main(args):
         'list': list_clusters,
         'modify': modify,
         'describe': describe,
-        'latest': latest
     }
 
     args, pass_through_args = parser().parse_known_args(args=args)

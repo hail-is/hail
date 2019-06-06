@@ -60,7 +60,7 @@ def main(args, pass_through_args):
     ]
 
     # append arguments to pass to the Hail script
-    if pass_through_args is not None:
+    if pass_through_args:
         cmd.append('--')
         cmd.extend(pass_through_args)
 

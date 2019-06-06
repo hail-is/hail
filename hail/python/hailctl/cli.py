@@ -1,5 +1,6 @@
-import argparse
 import sys
+
+import argparse
 
 import hailctl
 
@@ -32,4 +33,3 @@ def main():
             print_help()
             sys.exit(0)
         mod.main(args)
-

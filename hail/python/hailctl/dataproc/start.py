@@ -1,11 +1,21 @@
-from __future__ import print_function
+import sys
 
 import re
-import sys
 from subprocess import check_call
-import hailctl
 
-from .utils import latest_sha, load_config, load_config_file
+import hailctl
+from .cluster_config import ClusterConfig
+
+DEFAULT_PROPERTIES = {
+    "spark:spark.driver.maxResultSize": "0",
+    "spark:spark.task.maxFailures": "20",
+    "spark:spark.kryoserializer.buffer.max": "1g",
+    "spark:spark.driver.extraJavaOptions": "-Xss4M",
+    "spark:spark.executor.extraJavaOptions": "-Xss4M",
+    "hdfs:dfs.replication": "1",
+    'dataproc:dataproc.logging.stackdriver.enable': 'false',
+    'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
+}
 
 # master machine type to memory map, used for setting spark.driver.memory property
 MACHINE_MEM = {
@@ -31,14 +41,13 @@ MACHINE_MEM = {
 }
 
 SPARK_VERSION = '2.4.0'
+IMAGE_VERSION = '1.4-debian9'
 
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
 
     # arguments with default parameters
-    parser.add_argument('--hash', default='latest', type=str,
-                        help='Hail build to use for notebook initialization (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
                         help='Master machine type (default: %(default)s).')
     parser.add_argument('--master-memory-fraction', default=0.8, type=float,
@@ -78,48 +87,27 @@ def init_parser(parser):
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
 
     # specify custom Hail jar and zip
-    parser.add_argument('--jar', help='Hail jar to use for Jupyter notebook.')
-    parser.add_argument('--zip', help='Hail zip to use for Jupyter notebook.')
+    parser.add_argument('--jar', help='Non-default Hail JAR to install. Warning: experimental.')
+    parser.add_argument('--wheel', help='Non-default Hail Python wheel install. Warning: experimental.')
 
     # initialization action flags
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
     parser.add_argument('--init_timeout', default='20m',
                         help='Flag to specify a timeout period for the initialization action')
-    parser.add_argument('--vep', action='store_true', help='Configure the cluster to run VEP.')
-    parser.add_argument('--vep-reference', default='GRCh37', help='Set the reference genome version for VEP.',
+    parser.add_argument('--vep',
+                        help='Install VEP for the specified reference genome.',
+                        required=False,
                         choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
-    # custom config file
-    parser.add_argument('--config-file', help='Pass in a custom json file to load configurations.')
-
 
 def main(args, pass_through_args):
-    if args.hash == 'latest':
-        git_sha = latest_sha(SPARK_VERSION)
-    else:
-        sha_length = len(args.hash)
-        if sha_length < 12:
-            raise ValueError(
-                '--hash expects a git commit hash with 12 or more characters, received {}'.format(args.hash))
-        elif sha_length > 12:
-            git_sha = args.hash[0:12]
-        else:
-            git_sha = args.hash
+    conf = ClusterConfig()
+    conf.extend_flag('image-version', IMAGE_VERSION)
 
-    if not args.config_file:
-        conf = load_config(git_sha)
-    else:
-        conf = load_config_file(args.config_file)
+    deploy_metadata = hailctl._deploy_metadata['dataproc']
 
-    conf.configure(git_sha, SPARK_VERSION)
-
-    # parse Spark and HDFS configuration parameters, combine into properties argument
-    conf.extend_flag('properties',
-                     {
-                         'dataproc:dataproc.logging.stackdriver.enable': 'false',
-                         'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
-                     })
+    conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
         conf.parse_and_extend('properties', args.properties)
 
@@ -129,26 +117,29 @@ def main(args, pass_through_args):
 
     # default initialization script to start up cluster with
     conf.extend_flag('initialization-actions',
-                     [hailctl._deploy_metadata['dataproc']['init_notebook.py']])
+                     [deploy_metadata['init_notebook.py']])
 
     # add VEP init script
     if args.vep:
-        vep_init = 'gs://hail-common/vep/vep/vep{vep_version}-loftee-1.0-{vep_ref}-init-docker.sh'.format(
-            vep_version=85 if args.vep_reference == 'GRCh37' else 95,
-            vep_ref=args.vep_reference)
-        conf.extend_flag('initialization-actions', [vep_init])
+        conf.extend_flag('initialization-actions', [deploy_metadata[f'vep-{args.vep}.sh']])
     # add custom init scripts
     if args.init:
         conf.extend_flag('initialization-actions', args.init.split(','))
 
-    if args.jar and args.zip:
-        conf.extend_flag('metadata', {'JAR': args.jar, 'ZIP': args.zip})
-    elif args.jar or args.zip:
-        sys.stderr.write('ERROR: pass both --jar and --zip or neither')
-        sys.exit(1)
-
     if args.metadata:
         conf.parse_and_extend('metadata', args.metadata)
+
+    if args.jar and args.wheel:
+        jar = args.jar
+        wheel = args.wheel
+    elif args.jar or args.wheel:
+        sys.stderr.write('ERROR: pass both --jar and --wheel or neither')
+        sys.exit(1)
+    else:
+        jar = deploy_metadata['jar']
+        wheel = deploy_metadata['wheel']
+    conf.extend_flag('metadata', {'JAR': jar, 'ZIP': wheel})
+
     # if Python packages requested, add metadata variable
     if args.packages:
         metadata_pkgs = conf.flags['metadata'].get('PKGS')
@@ -160,7 +151,9 @@ def main(args, pass_through_args):
         packages.extend(re.split(split_regex, args.packages))
         conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
 
-    conf.vars['driver_memory'] = str(int(MACHINE_MEM[args.master_machine_type] * args.master_memory_fraction))
+    conf.extend_flag('properties',
+                     {"spark:spark.driver.memory": "{driver_memory}g".format(
+                         driver_memory=str(int(MACHINE_MEM[args.master_machine_type] * args.master_memory_fraction)))})
     conf.flags['master-machine-type'] = args.master_machine_type
     conf.flags['master-boot-disk-size'] = '{}GB'.format(args.master_boot_disk_size)
     conf.flags['num-master-local-ssds'] = args.num_master_local_ssds

@@ -208,8 +208,6 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
-     - from: /io/repo/hail/create_config_file.py
-       to: /create_config_file.py
    dependsOn:
     - hail_build_image
  - kind: runImage
@@ -341,77 +339,6 @@ steps:
        --ignore=docs/doctest_write_data.py
    dependsOn:
     - hail_base_image
- - kind: runImage
-   name: test_dataproc
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     # FIXME use local cloudtools
-     python3 -m pip install -U cloudtools==4.0.0
-     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
-     gcloud config set project broad-ctsa
-     SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
-     time gsutil cp \
-       /io/hail.jar \
-       $SCRATCH/hail.jar
-     time gsutil cp \
-       /io/hail.zip \
-       $SCRATCH/hail.zip
-     tar xzf /io/cluster-tests.tar.gz
-     python3 /io/create_config_file.py 0.2 config.json
-     CLUSTER=ci-test-{{ token }}
-     time cluster start $CLUSTER \
-       --master-machine-type n1-standard-1 \
-       --master-boot-disk-size 40 \
-       --worker-machine-type n1-standard-1 \
-       --worker-boot-disk-size 40 \
-       --version 0.2 \
-       --spark 2.4.0 \
-       --max-idle 10m \
-       --bucket hail-ci-0-1-dataproc-staging-bucket \
-       --config-file config.json \
-       --hash {{ code.sha }} \
-       --jar $SCRATCH/hail.jar \
-       --zip $SCRATCH/hail.zip
-     for SCRIPT in python/cluster-tests/*.py; do
-       time cluster submit $CLUSTER $SCRIPT
-     done
-     time gsutil rm -rf $SCRATCH
-     time cluster stop $CLUSTER --async
-   secrets:
-    - name: hail-ci-0-1-service-account-key
-      mountPath: /secrets/ci-secrets
-   inputs:
-    - from: /hail.zip
-      to: /io/hail.zip
-    - from: /hail.jar
-      to: /io/hail.jar
-    - from: /cluster-tests.tar.gz
-      to: /io/cluster-tests.tar.gz
-    - from: /create_config_file.py
-      to: /io/create_config_file.py
-   dependsOn:
-    - base_image
-    - build_hail
- - kind: runImage
-   name: cleanup_dataproc
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -x
-     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
-     gcloud config set project broad-ctsa
-     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ test_dataproc.token }}
-     time gcloud -q dataproc clusters delete --async ci-test-{{ test_dataproc.token }}
-     true
-   secrets:
-    - name: hail-ci-0-1-service-account-key
-      mountPath: /secret/ci-secrets
-   alwaysRun: true
-   dependsOn:
-    - base_image
-    - test_dataproc
  - kind: runImage
    name: make_docs
    image:
@@ -677,7 +604,6 @@ steps:
      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
      SPARK_VERSION=2.4.0
      BRANCH=0.2
-     CLOUDTOOLS_VERSION=4
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
      gsutil cp /io/hail.jar ${GS_JAR}
@@ -685,15 +611,12 @@ steps:
      GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
      gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
      gsutil acl set public-read ${GS_HAIL_ZIP}
-     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
-     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
-     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
-     gsutil acl set public-read $CONFIG
      DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
      gsutil cp /io/www.tar.gz ${DOCS}
      gsutil acl set public-read ${DOCS}
      echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
-     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     # CLOUDTOOLS_VERSION=4
+     # HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
      # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
      # gsutil acl set public-read ${HASH_TARGET}
    image:
@@ -708,8 +631,6 @@ steps:
       to: /io/hail.zip
     - from: /www.tar.gz
       to: /io/www.tar.gz
-    - from: /create_config_file.py
-      to: /io/create_config_file.py
    scopes:
     - deploy
    dependsOn:
