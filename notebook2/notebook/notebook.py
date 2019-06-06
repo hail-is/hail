@@ -173,7 +173,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{pod_id}/',
                     f'--GoogleStorageContentManager.default_path="{bucket}"',
-                    "--ip", "0.0.0.0", "--no-browser"
+                    "--ip", "0.0.0.0", "--no-browser", "--allow-root"
                 ],
                 name='default',
                 image=image,
