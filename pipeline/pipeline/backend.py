@@ -203,11 +203,12 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu'
 
-        attributes = {}
+        attributes = pipeline.attributes
         if pipeline._name is not None:
             attributes['name'] = pipeline._name
 
         batch = self._batch_client.create_batch(attributes=attributes)
+
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
@@ -285,6 +286,7 @@ class BatchBackend(Backend):
             attributes = {'task_uid': task._uid}
             if task._name:
                 attributes['name'] = task._name
+            attributes.update(task.tags)
 
             resources = {'requests': {}}
             if task._cpu:

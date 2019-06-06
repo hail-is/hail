@@ -37,6 +37,9 @@ class Pipeline:
         Name of the pipeline.
     backend: :func:`.Backend`, optional
         Backend used to execute the jobs. Default is :class:`.LocalBackend`
+    tags: :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Key-value pairs of additional tags. 'name' is not a valid keyword.
+        Use the name argument instead.
     default_image: :obj:`str`, optional
         Docker image to use by default if not specified by a task.
     default_memory: :obj:`str`, optional
@@ -62,15 +65,23 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, name=None, backend=None, default_image=None, default_memory=None,
-                 default_cpu=None, default_storage=None):
+    def __init__(self, name=None, backend=None, tags=None,
+                 default_image=None, default_memory=None, default_cpu=None,
+                 default_storage=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
         self._input_resources = set()
         self._uid = Pipeline._get_uid()
 
-        self._name = name
+        self.name = name
+
+        if tags is None:
+            tags = {}
+        if 'name' in tags:
+            raise ValueError("'name' is not a valid tag. Use the name argument instead.")
+        self.tags = tags
+
         self._default_image = default_image
         self._default_memory = default_memory
         self._default_cpu = default_cpu

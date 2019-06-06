@@ -59,9 +59,16 @@ class Task:
         cls._counter += 1
         return uid
 
-    def __init__(self, pipeline, name=None):
+    def __init__(self, pipeline, name=None, tags=None):
         self._pipeline = pipeline
         self._name = name
+
+        if tags is None:
+            tags = {}
+        if 'name' in tags:
+            raise ValueError("'name' is not a valid tag. Use the name argument instead.")
+        self.tags = tags
+
         self._cpu = None
         self._memory = None
         self._storage = None

@@ -298,7 +298,8 @@ class BatchTests(unittest.TestCase):
 
     def pipeline(self):
         return Pipeline(backend=self.backend,
-                        default_image='google/cloud-sdk:237.0.0-alpine')
+                        default_image='google/cloud-sdk:237.0.0-alpine',
+                        tags={'foo': 'a', 'bar': 'b'})
 
     def test_single_task_no_io(self):
         p = self.pipeline()
@@ -323,7 +324,7 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_output(self):
         p = self.pipeline()
-        t = p.new_task()
+        t = p.new_task(tags={'a': 'bar', 'b': 'foo'})
         t.command(f'echo hello > {t.ofile}')
         p.run()
 
