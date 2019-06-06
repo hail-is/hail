@@ -100,6 +100,14 @@ class BatchBuilder:
     def __init__(self, client, attributes, callback):
         self._async_builder = aioclient.BatchBuilder(client, attributes, callback)
 
+    @property
+    def attributes(self):
+        return self._async_builder.attributes
+
+    @property
+    def callback(self):
+        return self._async_builder.callback
+
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parents=None,
