@@ -19,8 +19,8 @@ class Job:
         return j
 
     def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
-        self._async_job = aioclient.Job(batch, job_id, attributes=attributes,
-                                        parent_ids=parent_ids, _status=_status)
+        j = aioclient.SubmittedJob(batch, job_id, attributes, parent_ids, _status)
+        self._async_job = aioclient.Job(j)
 
     @property
     def _status(self):
@@ -77,22 +77,6 @@ class Batch:
     def attributes(self):
         return self._async_batch.attributes
 
-    def create_job(self, image, command=None, args=None, env=None, ports=None,
-                   resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parents=None,
-                   input_files=None, output_files=None, always_run=False, pvc_size=None):
-        coroutine = self._async_batch.create_job(
-            image, command=command, args=args, env=env, ports=ports,
-            resources=resources, tolerations=tolerations, volumes=volumes,
-            security_context=security_context, service_account_name=service_account_name,
-            attributes=attributes, callback=callback, parents=parents,
-            input_files=input_files, output_files=output_files, always_run=always_run,
-            pvc_size=pvc_size)
-        return Job.from_async_job(async_to_blocking(coroutine))
-
-    def close(self):
-        async_to_blocking(self._async_batch.close())
-
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
@@ -104,6 +88,38 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
+
+
+class BatchBuilder:
+    @classmethod
+    def from_async_builder(cls, builder):
+        b = object.__new__(cls)
+        b._async_builder = builder
+        return b
+
+    def __init__(self, client, attributes, callback):
+        self._async_builder = aioclient.BatchBuilder(client, attributes, callback)
+
+    def create_job(self, image, command=None, args=None, env=None, ports=None,
+                   resources=None, tolerations=None, volumes=None, security_context=None,
+                   service_account_name=None, attributes=None, callback=None, parents=None,
+                   input_files=None, output_files=None, always_run=False, pvc_size=None):
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_builder.create_job(
+            image, command=command, args=args, env=env, ports=ports,
+            resources=resources, tolerations=tolerations, volumes=volumes,
+            security_context=security_context, service_account_name=service_account_name,
+            attributes=attributes, callback=callback, parents=parents,
+            input_files=input_files, output_files=output_files, always_run=always_run,
+            pvc_size=pvc_size)
+
+        return Job.from_async_job(async_job)
+
+    def submit(self):
+        async_batch = async_to_blocking(self._async_builder.submit())
+        return Batch.from_async_batch(async_batch)
 
 
 class BatchClient:
@@ -131,10 +147,9 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None, ttl=None):
-        b = async_to_blocking(
-            self._async_client.create_batch(attributes=attributes, callback=callback, ttl=ttl))
-        return Batch.from_async_batch(b)
+    def create_batch(self, attributes=None, callback=None):
+        builder = self._async_client.create_batch(attributes=attributes, callback=callback)
+        return BatchBuilder.from_async_builder(builder)
 
     def close(self):
         async_to_blocking(self._async_client.close())

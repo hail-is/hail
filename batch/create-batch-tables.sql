@@ -4,8 +4,6 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT(65535),
   `callback` TEXT(65535),
-  `ttl` INT,
-  `is_open` BOOLEAN NOT NULL,
   `deleted` BOOLEAN NOT NULL default false,
   `n_jobs` INT NOT NULL default 0,
   `n_completed` INT NOT NULL default 0,
