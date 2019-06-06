@@ -194,7 +194,7 @@ case class MatrixValue(
         BroadcastIndexedSeq(
           IndexedSeq.range(0, colValues.safeValue.length),
           TArray(TInt32()),
-          colValues.sc))
+          colValues.backend))
     else {
       val sortedValsWithIdx = colValues.safeValue
         .zipWithIndex
@@ -206,7 +206,7 @@ case class MatrixValue(
         BroadcastIndexedSeq(
           sortedValsWithIdx.map(_._2),
           TArray(TInt32()),
-          colValues.sc))
+          colValues.backend))
     }
   }
 
@@ -225,7 +225,7 @@ case class MatrixValue(
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = sparkContext.broadcast(partStarts)
+    val partStartsBc = HailContext.backend.broadcast(partStarts)
 
     val localRvRowPType = rvRowPType
     val localEntryArrayPType = entryArrayPType
@@ -282,7 +282,7 @@ case class MatrixValue(
     val newGlobals = BroadcastRow(
       Row.merge(globals.safeValue, Row(colValues.safeValue)),
       tt.globalType,
-      HailContext.get.sc)
+      HailContext.backend)
 
     TableValue(tt, newGlobals, rvd.cast(tt.rowType.physicalType))
   }

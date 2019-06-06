@@ -69,7 +69,7 @@ object ExportPlink {
     hConf.mkDir(tmpBedDir)
     hConf.mkDir(tmpBimDir)
 
-    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val sHConfBc = HailContext.hadoopConfBc
 
     val nPartitions = mv.rvd.getNumPartitions
     val d = digitsNeeded(nPartitions)

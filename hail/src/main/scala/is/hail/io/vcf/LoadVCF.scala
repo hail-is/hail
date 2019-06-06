@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
@@ -1202,7 +1203,7 @@ object LoadVCF {
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
   )(lines: ContextRDD[RVDContext, WithContext[String]],
     t: Type,
-    rgBc: Option[Broadcast[ReferenceGenome]],
+    rgBc: Option[BroadcastValue[ReferenceGenome]],
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
@@ -1431,7 +1432,7 @@ case class MatrixVCFReader(
 
   if (headerFile.isEmpty) {
     val confBc = HailContext.hadoopConfBc
-    val header1Bc = sc.broadcast(header1)
+    val header1Bc = hc.backend.broadcast(header1)
 
     val localCallFields = callFields
     val localFloatType = entryFloatType
@@ -1527,7 +1528,7 @@ case class MatrixVCFReader(
   def apply(tr: TableRead): TableValue = {
     val localCallFields = callFields
     val localFloatType = entryFloatType
-    val headerLinesBc = sc.broadcast(headerLines1)
+    val headerLinesBc = hc.backend.broadcast(headerLines1)
 
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
@@ -1616,7 +1617,7 @@ class VCFsReader(
   require(!(externalSampleIds.isEmpty ^ externalHeader.isEmpty))
 
   private val hc = HailContext.get
-  private val sc = hc.sc
+  private val backend = HailContext.backend
   private val hConf = hc.hadoopConf
   private val hConfBc = hc.hadoopConfBc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
@@ -1628,7 +1629,7 @@ class VCFsReader(
 
   private val file1 = files.head
   private val headerLines1 = getHeaderLines(hConf, externalHeader.getOrElse(file1), filterAndReplace)
-  private val headerLines1Bc = sc.broadcast(headerLines1)
+  private val headerLines1Bc = backend.broadcast(headerLines1)
   private val entryFloatType = LoadVCF.getEntryFloatType(entryFloatTypeName)
   private val header1 = parseHeader(callFields, entryFloatType, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
@@ -1680,7 +1681,7 @@ class VCFsReader(
     val localGenotypeSignature = header1.genotypeSignature
     val localVASignature = header1.vaSignature
 
-    sc.parallelize(files, files.length).map { file =>
+    hc.sc.parallelize(files, files.length).map { file =>
       val hConf = localHConfBc.value.value
       val headerLines = getHeaderLines(hConf, file, localFilterAndReplace)
       val header = parseHeader(
@@ -1715,7 +1716,7 @@ class VCFsReader(
     val tt = localTyp.canonicalTableType
 
     val lines = ContextRDD.weaken[RVDContext](
-      new PartitionedVCFRDD(sc, file, partitions)
+      new PartitionedVCFRDD(hc.sc, file, partitions)
         .map(l =>
           WithContext(l, Context(l, file, None))))
 
@@ -1733,8 +1734,8 @@ class VCFsReader(
 
     MatrixLiteral(
       MatrixValue(typ,
-        BroadcastRow(Row.empty, typ.globalType, sc),
-        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
+        BroadcastRow(Row.empty, typ.globalType, hc.backend),
+        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), hc.backend),
         rvd))
   }
 

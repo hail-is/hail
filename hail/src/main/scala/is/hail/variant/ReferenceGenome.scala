@@ -5,6 +5,7 @@ import java.io.InputStream
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
+import is.hail.backend.BroadcastValue
 import is.hail.check.Gen
 import is.hail.expr.types._
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
@@ -76,7 +77,7 @@ abstract class RGBase extends Serializable {
 class BroadcastRGBase(rgParam: RGBase) extends Serializable {
   @transient private[this] val rg: RGBase = rgParam
 
-  private[this] val rgBc: Broadcast[ReferenceGenome] = {
+  private[this] val rgBc: BroadcastValue[ReferenceGenome] = {
     if (TaskContext.get != null)
       null
     else
@@ -470,7 +471,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
-  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.get.sc.broadcast(this)
+  @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
     import org.apache.commons.lang.builder.HashCodeBuilder

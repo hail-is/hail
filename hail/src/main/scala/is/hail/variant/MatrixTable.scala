@@ -159,8 +159,8 @@ object MatrixTable {
     val localNCols = colValues.length
 
     val ds = new MatrixTable(hc, matrixType,
-      BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
-      BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
+      BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.backend),
+      BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.backend),
       RVD.coerce(matrixType.canonicalRVDType,
         ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
           val region = ctx.region
@@ -230,7 +230,7 @@ object MatrixTable {
     }
 
     val colValues =
-      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc)
+      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.backend)
 
     new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
   }

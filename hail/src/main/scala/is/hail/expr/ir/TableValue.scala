@@ -185,8 +185,8 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     MatrixValue(
       mType,
-      BroadcastRow(newGlobals, mType.globalType, HailContext.get.sc),
-      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.get.sc),
+      BroadcastRow(newGlobals, mType.globalType, HailContext.backend),
+      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.backend),
       newRVD
     )
   }

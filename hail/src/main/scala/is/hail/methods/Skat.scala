@@ -11,6 +11,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
+import is.hail.HailContext
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
@@ -212,7 +213,7 @@ case class Skat(
     val (keyGsWeightRdd, keyType) =
       computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
 
-    val sc = keyGsWeightRdd.sparkContext
+    val backend = HailContext.backend
 
     def linearSkat(): RDD[Row] = { 
       // fit null model
@@ -228,8 +229,8 @@ case class Skat(
         }
       val sigmaSq = (res dot res) / d
       
-      val resBc = sc.broadcast(res)
-      val QtBc = sc.broadcast(qt)
+      val resBc = backend.broadcast(res)
+      val QtBc = backend.broadcast(qt)
       
       def linearTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -284,9 +285,9 @@ case class Skat(
         } else
           (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
       
-      val sqrtVBc = sc.broadcast(sqrtV)
-      val resBc = sc.broadcast(res)
-      val CinvXtVBc = sc.broadcast(cinvXtV)
+      val sqrtVBc = backend.broadcast(sqrtV)
+      val resBc = backend.broadcast(res)
+      val CinvXtVBc = backend.broadcast(cinvXtV)
   
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -333,8 +334,6 @@ case class Skat(
     val weightIndex = weightStructField.index
     assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
 
-    val sc = mv.sparkContext
-
     val entryArrayType = mv.entryArrayPType
     val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
@@ -345,7 +344,7 @@ case class Skat(
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length
-    val completeColIdxBc = sc.broadcast(completeColIdx)
+    val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
 
     (mv.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
