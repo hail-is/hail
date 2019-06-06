@@ -512,10 +512,10 @@ object LowerMatrixIR {
           .mapRows('row.selectFields(child.typ.rowType.fieldNames ++ Array(entriesFieldName): _*))
           .rename(Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
-      case MatrixEntriesTable(child) =>
+      case x@MatrixEntriesTable(child) =>
         val lc = lower(child, ab)
 
-        if (child.typ.colKey.nonEmpty) {
+        if (child.typ.rowKey.nonEmpty && child.typ.colKey.nonEmpty) {
           val oldColIdx = Symbol(genUID())
           val lambdaIdx1 = Symbol(genUID())
           val lambdaIdx2 = Symbol(genUID())
@@ -542,13 +542,14 @@ object LowerMatrixIR {
                   }))))
 
             .explode(toExplode)
-            .mapRows('row.dropFields(toExplode).insertStruct('row (toExplode)))
+            .mapRows('row.dropFields(toExplode).insertStruct('row (toExplode),
+              ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq)))
             .mapGlobals('global.dropFields(colsField, oldColIdx))
-            .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = !(child.typ.rowKey.isEmpty && child.typ.colKey.nonEmpty))
+            .keyBy(child.typ.rowKey ++ child.typ.colKey, isSorted = true)
         } else {
           val colIdx = Symbol(genUID())
           val lambdaIdx = Symbol(genUID())
-          lc
+          val result = lc
             .mapRows('row.insertFields(colIdx -> irRange(0, 'global (colsField).len)
               .filter(lambdaIdx ~> !'row (entriesField)(lambdaIdx).isNA)))
             .explode(colIdx)
@@ -557,9 +558,16 @@ object LowerMatrixIR {
               val newFields = child.typ.colType.fieldNames.map(Symbol(_)).map(f => f -> '__col_struct (f)) ++
                 child.typ.entryType.fieldNames.map(Symbol(_)).map(f => f -> '__entry_struct (f))
 
-              'row.dropFields(entriesField, colIdx).insertFields(newFields: _*)
+              'row.dropFields(entriesField, colIdx).insertFieldsList(newFields,
+                ordering = Some(x.typ.rowType.fieldNames.toFastIndexedSeq))
             })
             .mapGlobals('global.dropFields(colsField))
+          if (child.typ.colKey.isEmpty)
+            result
+          else {
+            assert(child.typ.rowKey.isEmpty)
+            result.keyBy(child.typ.colKey)
+          }
         }
 
       case MatrixToTableApply(child, function) =>
