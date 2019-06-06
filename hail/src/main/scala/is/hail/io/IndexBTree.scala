@@ -91,7 +91,7 @@ object IndexBTree {
 class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) extends Closeable {
   val maxDepth = calcDepth()
   private val fileSystem = try {
-    fs.fileSystem(indexFileName).open(indexFileName)
+    fs.fileSystem(indexFileName).open
   } catch {
     case e: Exception => fatal(s"Could not find a BGEN .idx file at $indexFileName. Try running HailContext.index_bgen().", e)
   }
@@ -223,7 +223,7 @@ class OnDiskBTreeIndexToValue(
   private[this] val junk = leadingElements(layers - 1)
   private[this] var fileSystem = try {
     log.info("reading index file: " + path)
-    fs.fileSystem(path).open(path)
+    fs.fileSystem(path).open
   } catch {
     case e: Exception =>
       fatal(s"Could not find a BGEN .idx file at $path. Try running HailContext.index_bgen().", e)

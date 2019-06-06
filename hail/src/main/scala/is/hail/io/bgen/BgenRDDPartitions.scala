@@ -27,7 +27,7 @@ trait BgenPartition extends Partition {
 
   def makeInputStream: HadoopFSDataBinaryReader = {
     val fileSystem = bcFS.value.fileSystem(path)
-    val bfis = new HadoopFSDataBinaryReader(fileSystem.open(path))
+    val bfis = new HadoopFSDataBinaryReader(fileSystem.open)
     bfis
   }
 

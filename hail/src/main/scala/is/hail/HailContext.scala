@@ -18,6 +18,8 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
+import is.hail.io.fs.{FS, HadoopFS}
+
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -33,8 +35,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-
-import is.hail.io.fs.{FS, HadoopFS}
 
 case class FilePartition(index: Int, file: String) extends Partition
 
