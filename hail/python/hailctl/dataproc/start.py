@@ -173,8 +173,8 @@ def main(args, pass_through_args):
     if args.bucket:
         conf.flags['bucket'] = args.bucket
 
-    label = safe_call('gcloud', 'config', 'get-value', 'account')
-    conf.flags['labels'] = 'creator=' + label.replace('.', '-dot-').replace('@', '-at-')  # no special chars
+    label = safe_call('gcloud', 'config', 'get-value', 'account').lower()
+    conf.flags['labels'] = 'creator=' + re.sub(label, r'[^0-9a-z\._\-]', '_', label)[:63]
 
     # command to start cluster
     cmd = conf.get_command(args.name)
