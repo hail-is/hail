@@ -189,6 +189,7 @@ class BatchTable(Table):
             sql += " having " + " and ".join(havings)
         if groups:
             sql += " group by " + ", ".join(groups)
+        sql += ";"
         try:
             async with self._db.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
