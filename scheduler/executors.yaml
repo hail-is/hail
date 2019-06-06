@@ -26,7 +26,7 @@ spec:
           - /bin/bash
           - -c
           - |
-            CLASSPATH="$SPARK_HOME/jars/*" java is.hail.scheduler.Executor 1
+            CLASSPATH="$SPARK_HOME/jars/*" java is.hail.scheduler.Executor scheduler.{{ default_ns.name }}.svc.cluster.local 1
          resources:
            requests:
              memory: "1G"
