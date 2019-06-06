@@ -668,7 +668,7 @@ steps:
    image:
      valueFrom: base_image.image
    script: |
-     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns }}.svc.cluster.local$request CLASSPATH="$SPARK_HOME/jars/*:/io/hail-test.jar" java org.testng.TestNG -listener is.hail.LogTestListener /io/testng-scheduler.xml
+     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns }}.svc.cluster.local CLASSPATH="$SPARK_HOME/jars/*:/io/hail-test.jar" java org.testng.TestNG -listener is.hail.LogTestListener /io/testng-scheduler.xml
    inputs:
     - from: /hail-test.jar
       to: /io/hail-test.jar
