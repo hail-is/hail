@@ -230,6 +230,18 @@ object IRBuilder {
 
     def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
 
+    def insertStruct(other: IRProxy): IRProxy = (env: E) => {
+      val right = other(env)
+      val sym = genUID()
+      Let(
+        sym,
+        right,
+        InsertFields(
+          ir(env),
+          right.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> GetField(Ref(sym, right.typ), f)),
+          None))
+    }
+
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
     def isNA: IRProxy = (env: E) => IsNA(ir(env))
