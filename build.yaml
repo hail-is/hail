@@ -196,6 +196,8 @@ steps:
        to: /testng.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
        to: /testng-cpp-codegen.xml
+     - from: /io/repo/scheduler/testng.xml
+       to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
