@@ -148,7 +148,7 @@ class BatchTable(Table):
         return await super().get_records(condition)
 
     async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
-        sql = "select batch.* from `{self.name}` as batch"
+        sql = f"select batch.* from `{self.name}` as batch"
         values = []
         joins = []
         wheres = []
