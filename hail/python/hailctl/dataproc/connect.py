@@ -1,6 +1,8 @@
 import subprocess as sp
 import os
 
+from shutil import which
+
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('service', type=str,
@@ -52,10 +54,17 @@ def main(args, pass_through_args):
         stderr=sp.STDOUT
     )
 
+    for c in ['chromium', 'chromium-browser']:
+        chrome = which(c)
+        if chrome is not None:
+            break
+    if chrome is None:
+        chrome = r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+
     # open Chrome with SOCKS proxy configuration
     with open(os.devnull, 'w') as f:
         sp.Popen([
-            r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            chrome,
             'http://localhost:{}'.format(connect_port),
             '--proxy-server=socks5://localhost:{}'.format(args.port),
             '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
