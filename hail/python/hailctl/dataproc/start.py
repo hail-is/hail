@@ -5,6 +5,7 @@ from subprocess import check_call
 
 import hailctl
 from .cluster_config import ClusterConfig
+from .utils import safe_call
 
 DEFAULT_PROPERTIES = {
     "spark:spark.driver.maxResultSize": "0",
@@ -171,6 +172,9 @@ def main(args, pass_through_args):
         conf.flags['project'] = args.project
     if args.bucket:
         conf.flags['bucket'] = args.bucket
+
+    label = safe_call('gcloud', 'config', 'get-value', 'account')
+    conf.flags['labels'] = 'creator=' + label.replace('.', '-dot-').replace('@', '-at-')  # no special chars
 
     # command to start cluster
     cmd = conf.get_command(args.name)
