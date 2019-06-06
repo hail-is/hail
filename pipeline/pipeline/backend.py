@@ -29,10 +29,32 @@ class LocalBackend(Backend):
     ----------
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
+    gsa_key_file :obj:`str`, optional
+        Mount a file with a gsa key to `/gsa-key/privateData`. Only used if a
+        task specifies a docker image. This option will override the value set by
+        the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
+    extra_docker_run_flags :obj:`str`, optional
+        Additional flags to pass to `docker run`. Only used if a task specifies
+        a docker image. This option will override the value set by the environment
+        variable `HAIL_PIPELINE_EXTRA_DOCKER_RUN_FLAGS`.
     """
 
-    def __init__(self, tmp_dir='/tmp/'):
+    def __init__(self, tmp_dir='/tmp/', gsa_key_file=None, extra_docker_run_flags=None):
         self._tmp_dir = tmp_dir
+
+        flags = ''
+
+        if extra_docker_run_flags is not None:
+            flags += extra_docker_run_flags
+        elif os.environ.get('HAIL_PIPELINE_EXTRA_DOCKER_RUN_FLAGS') is not None:
+            flags += os.environ['HAIL_PIPELINE_EXTRA_DOCKER_RUN_FLAGS']
+
+        if gsa_key_file is None:
+            gsa_key_file = os.environ.get('HAIL_PIPELINE_GSA_KEY_FILE')
+        if gsa_key_file is not None:
+            flags += f' -v {gsa_key_file}:/gsa-key/privateData'
+
+        self._extra_docker_run_flags = flags
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
         tmpdir = self._get_scratch_dir()
@@ -106,6 +128,7 @@ class LocalBackend(Backend):
                 cpu = f'--cpus={task._cpu}' if task._cpu else ''
 
                 script += [f"docker run "
+                           f"{self._extra_docker_run_flags} "
                            f"-v {tmpdir}:{tmpdir} "
                            f"-w {tmpdir} "
                            f"{memory} "
