@@ -633,7 +633,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}')
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @authenticated_users_only
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -657,7 +657,7 @@ async def _get_job_log(batch_id, job_id, user):
     abort(404)
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
     batch_id = int(request.match_info['batch_id'])
@@ -819,7 +819,7 @@ async def _get_batches_list(params, user):
     return [await batch.to_dict(include_jobs=False) for batch in batches]
 
 
-@routes.get('/batches')
+@routes.get('/api/v1alpha/batches')
 @authenticated_users_only
 async def get_batches_list(request, userdata):
     params = request.query
@@ -827,7 +827,7 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
-@routes.post('/batches/create')
+@routes.post('/api/v1alpha/batches/create')
 @authenticated_users_only
 async def create_batch(request, userdata):
     parameters = await request.json()
@@ -853,7 +853,7 @@ async def _get_batch(batch_id, user):
     return await batch.to_dict(include_jobs=True)
 
 
-@routes.get('/batches/{batch_id}')
+@routes.get('/api/v1alpha/batches/{batch_id}')
 @authenticated_users_only
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -861,7 +861,7 @@ async def get_batch(request, userdata):
     return jsonify(await _get_batch(batch_id, user))
 
 
-@routes.patch('/batches/{batch_id}/cancel')
+@routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @authenticated_users_only
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -874,7 +874,7 @@ async def cancel_batch(request, userdata):
     return jsonify({})
 
 
-@routes.delete('/batches/{batch_id}')
+@routes.delete('/api/v1alpha/batches/{batch_id}')
 @authenticated_users_only
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -887,7 +887,7 @@ async def delete_batch(request, userdata):
     return jsonify({})
 
 
-@routes.get('/ui/batches/{batch_id}')
+@routes.get('/batches/{batch_id}')
 @aiohttp_jinja2.template('batch.html')
 @authenticated_users_only
 async def ui_batch(request, userdata):
@@ -897,7 +897,7 @@ async def ui_batch(request, userdata):
     return {'batch': batch}
 
 
-@routes.get('/ui/batches', name='ui_batches')
+@routes.get('/batches', name='ui_batches')
 @aiohttp_jinja2.template('batches.html')
 @authenticated_users_only
 async def ui_batches(request, userdata):
@@ -907,7 +907,7 @@ async def ui_batches(request, userdata):
     return {'batch_list': batches}
 
 
-@routes.get('/ui/batches/{batch_id}/jobs/{job_id}/log')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @aiohttp_jinja2.template('job_log.html')
 @authenticated_users_only
 async def ui_get_job_log(request, userdata):
@@ -916,13 +916,6 @@ async def ui_get_job_log(request, userdata):
     user = userdata['username']
     job_log = await _get_job_log(batch_id, job_id, user)
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
-
-
-@routes.get('/')
-@authenticated_users_only
-async def batch_id(request, userdata):
-    location = request.app.router['ui_batches'].url_for()
-    raise web.HTTPFound(location=location)
 
 
 async def update_job_with_pod(job, pod):
