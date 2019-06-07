@@ -428,10 +428,11 @@ class Task:
 
     def _pretty(self):
         s = f"Task '{self._uid}'" \
-            f"\tLabel:\t'{self._name}'" \
+            f"\tName:\t'{self._name}'" \
             f"\tImage:\t'{self._image}'" \
             f"\tCPU:\t'{self._cpu}'" \
             f"\tMemory:\t'{self._memory}'" \
+            f"\tStorage:\t'{self._storage}'" \
             f"\tCommand:\t'{self._command}'"
         return s
 
