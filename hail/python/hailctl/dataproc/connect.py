@@ -58,18 +58,19 @@ def main(args, pass_through_args):
     import platform
     system = platform.system()
 
+    chrome = os.environ.get('HAILCTL_CHROME')
     if system == 'Darwin':
-        chrome = r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        chrome = chrome or r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
     elif system == 'Linux':
-        chrome = None
         for c in ['chromium', 'chromium-browser']:
             chrome = chrome or shutil.which(c)
         if chrome is None:
             raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
     elif system == 'Windows':
-        chrome = r'/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
-    else:
-        raise ValueError(f"unsupported system: {system}")
+        chrome = chrome or r'/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+
+    if not chrome:
+        raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
     # open Chrome with SOCKS proxy configuration
     with open(os.devnull, 'w') as f:
