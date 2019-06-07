@@ -14,7 +14,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
-import java.io.ObjectOutputStream
+import java.io.{ ObjectInputStream, ObjectOutputStream }
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
@@ -852,7 +852,71 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         scanInitOps(0)(region, scanAggs, globals, false)
       }
 
-      val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[RegionValueAggregator], it: Iterator[RegionValue]) =>
+      val scannedPartitionsFile = HailContext.get.getTemporaryFile()
+
+      val (partFiles, _) = tv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+        val globals =
+          if (scanSeqNeedsGlobals) {
+            val rvb = new RegionValueBuilder(ctx.freshRegion)
+            rvb.start(gType.physicalType)
+            rvb.addAnnotation(gType, globalsBc.value)
+            rvb.end()
+          } else
+              0
+
+        val scanSeqOpF = scanSeqOps(i)
+        it.foreach { rv =>
+          scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
+          ctx.region.clear()
+        }
+        Iterator.single(scanAggs)
+      }.writePartitions(scannedPartitionsFile, true, { (ctx, it, os) =>
+        new ObjectOutputStream(os).writeObject(it.next)
+        1
+      })
+
+      val hConf = hc.hadoopConf
+      val scannedPartitions = partFiles.iterator.flatMap { p =>
+        hConf.readFile(scannedPartitionsFile + "/parts/" + p) { in =>
+          using(RVDContext.default) { ctx => using(new ObjectInputStream(in)) { ois =>
+            new Iterator[Array[RegionValueAggregator]]() {
+              private[this] var o = ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
+              def hasNext: Boolean = o != null
+              def next: Array[RegionValueAggregator] = {
+                val temp = o
+                o = ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
+                temp
+              }
+            }
+          } }
+        }
+      }
+
+      val scanAggsPerPartition = scannedPartitions.scanLeft(scanAggs) { (a1, a2) =>
+        (a1, a2).zipped.map { (agg1, agg2) =>
+          val newAgg = agg1.copy()
+          newAgg.combOp(agg2)
+          newAgg
+        }
+      }
+
+      val f3 = HailContext.get.getTemporaryFile()
+      hConf.writeFile(f3) { os => using(new ObjectOutputStream(os)) { oos =>
+        scanAggsPerPartition.foreach(oos.writeObject _)
+      } }
+
+      val hConfBc = HailContext.get.hadoopConfBc
+
+      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+        val partitionAggs: Array[RegionValueAggregator] =
+          hConfBc.value.value.readFile(f3) { is => using(new ObjectInputStream(is)) { ois =>
+            var j = 0
+            while (j < i) {
+              ois.readObject()
+            }
+            ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
+          } }
+
         val rvb = new RegionValueBuilder()
         val globals =
           if (rowIterationNeedsGlobals || scanSeqNeedsGlobals) {
@@ -884,49 +948,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      val f = HailContext.get.getTemporaryFile()
-
-      tv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-        val globals =
-          if (scanSeqNeedsGlobals) {
-            val rvb = new RegionValueBuilder(ctx.freshRegion)
-            rvb.start(gType.physicalType)
-            rvb.addAnnotation(gType, globalsBc.value)
-            rvb.end()
-          } else
-              0
-
-        val scanSeqOpF = scanSeqOps(i)
-        it.foreach { rv =>
-          scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-          ctx.region.clear()
-        }
-        Iterator.single(scanAggs)
-      }.writePartitions(f, true, { (ctx, it, os) =>
-        new ObjectOutputStream(os).writeObject(it.next)
-        1
-      })
-
-      val nPartitions = tv.rvd.partitioner.numPartitions
-      var i = 0
-      val d = digitsNeeded(nPartitions)
-      while (i < nPartitions) {
-        val f = partFile(d, i, TaskContext.get)
-        i += 1
-      }
-
-      val scanAggsPerPartition =
-        ???.scanLeft(scanAggs) { (a1, a2) =>
-          (a1, a2).zipped.map { (agg1, agg2) =>
-            val newAgg = agg1.copy()
-            newAgg.combOp(agg2)
-            newAgg
-          }
-        }
-
       tv.copy(
         typ = typ,
-        rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), scanAggsPerPartition, itF))
+        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
     } else {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
         val globals =
