@@ -14,6 +14,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
+import java.io.ObjectOutputStream
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
@@ -883,24 +884,39 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      val scanAggsPerPartition =
-        tv.rvd.collectPerPartition { (i, ctx, it) =>
-          val globals =
-            if (scanSeqNeedsGlobals) {
-              val rvb = new RegionValueBuilder(ctx.freshRegion)
-              rvb.start(gType.physicalType)
-              rvb.addAnnotation(gType, globalsBc.value)
-              rvb.end()
-            } else
+      val f = HailContext.get.getTemporaryFile()
+
+      tv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+        val globals =
+          if (scanSeqNeedsGlobals) {
+            val rvb = new RegionValueBuilder(ctx.freshRegion)
+            rvb.start(gType.physicalType)
+            rvb.addAnnotation(gType, globalsBc.value)
+            rvb.end()
+          } else
               0
 
-          val scanSeqOpF = scanSeqOps(i)
-          it.foreach { rv =>
-            scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-            ctx.region.clear()
-          }
-          scanAggs
-        }.scanLeft(scanAggs) { (a1, a2) =>
+        val scanSeqOpF = scanSeqOps(i)
+        it.foreach { rv =>
+          scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
+          ctx.region.clear()
+        }
+        Iterator.single(scanAggs)
+      }.writePartitions(f, true, { (ctx, it, os) =>
+        new ObjectOutputStream(os).writeObject(it.next)
+        1
+      })
+
+      val nPartitions = tv.rvd.partitioner.numPartitions
+      var i = 0
+      val d = digitsNeeded(nPartitions)
+      while (i < nPartitions) {
+        val f = partFile(d, i, TaskContext.get)
+        i += 1
+      }
+
+      val scanAggsPerPartition =
+        ???.scanLeft(scanAggs) { (a1, a2) =>
           (a1, a2).zipped.map { (agg1, agg2) =>
             val newAgg = agg1.copy()
             newAgg.combOp(agg2)
