@@ -852,7 +852,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         scanInitOps(0)(region, scanAggs, globals, false)
       }
 
-      val scannedPartitionsFile = HailContext.get.getTemporaryFile()
+      val locallyScannedFile = HailContext.get.getTemporaryFile()
 
       val (partFiles, _) = tv.rvd.crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
         val globals =
@@ -870,7 +870,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           ctx.region.clear()
         }
         Iterator.single(scanAggs)
-      }.writePartitions(scannedPartitionsFile, true, { (ctx, it, os) =>
+      }.writePartitions(locallyScannedFile, true, { (ctx, it, os) =>
         val aggs = it.next
         using(new ObjectOutputStream(os))(_.writeObject(aggs))
         1
@@ -878,14 +878,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       val hConf = hc.hadoopConf
       val inputStreams = new Array[ObjectInputStream](partFiles.length)
-      val f3 = HailContext.get.getTemporaryFile()
+      val globallyScannedFile = HailContext.get.getTemporaryFile()
       try {
-        hConf.writeFile(f3) { os =>
+        hConf.writeFile(globallyScannedFile) { os =>
           using(new ObjectOutputStream(os)) { oos =>
             var j = 0
             partFiles.iterator.map { p =>
               val ois = new ObjectInputStream(
-                hConf.unsafeReader(scannedPartitionsFile + "/parts/" + p))
+                hConf.unsafeReader(locallyScannedFile + "/parts/" + p))
               inputStreams(j) = ois
               j += 1
               ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
@@ -906,14 +906,16 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
         val partitionAggs: Array[RegionValueAggregator] =
-          hConfBc.value.value.readFile(f3) { is => using(new ObjectInputStream(is)) { ois =>
-            var j = 0
-            while (j != i) {
-              ois.readObject()
-              j += 1
+          hConfBc.value.value.readFile(globallyScannedFile) { is =>
+            using(new ObjectInputStream(is)) { ois =>
+              var j = 0
+              while (j != i) {
+                ois.readObject()
+                j += 1
+              }
+              ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
             }
-            ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
-          } }
+          }
 
         val rvb = new RegionValueBuilder()
         val globals =
