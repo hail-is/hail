@@ -872,7 +872,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         Iterator.single(scanAggs)
       }.writePartitions(locallyScannedFile, true, { (ctx, it, os) =>
         val aggs = it.next
-        using(new ObjectOutputStream(os))(_.writeObject(aggs))
+        new ObjectOutputStream(os).writeObject(aggs)
         1
       })
 
