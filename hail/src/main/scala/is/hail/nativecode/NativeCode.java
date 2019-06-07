@@ -83,9 +83,9 @@ public class NativeCode {
                 result = tmpDirName + "/include";
                 File f = new File(jarName);
                 ZipFile zf = new ZipFile(f);
-                Enumeration<? extends ZipEntry> scan = zf.entries();
+                Enumeration scan = zf.entries();
                 while (scan.hasMoreElements()) {
-                    ZipEntry ze = scan.nextElement();
+                    ZipEntry ze = (ZipEntry) scan.nextElement();
                     String fileName = ze.getName();
                     int len = fileName.length();
                     if ((len > 8) &&
