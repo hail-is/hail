@@ -895,11 +895,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       val f3 = HailContext.get.getTemporaryFile()
       hConf.writeFile(f3) { os => using(new ObjectOutputStream(os)) { oos =>
-        var count = 0
-        scanAggsPerPartition.foreach { x =>
-          count += 1
-          oos.writeObject(x)
-        }
+        scanAggsPerPartition.foreach(oos.writeObject _)
       } }
 
       inputStreams.foreach(_.close())
