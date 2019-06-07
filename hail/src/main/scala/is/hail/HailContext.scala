@@ -1,7 +1,6 @@
 package is.hail
 
 import java.io.{File, InputStream}
-import java.nio.charset.Charset
 import java.util.Properties
 
 import is.hail.annotations._
@@ -614,7 +613,7 @@ class HailContext private(
 
   def uploadLog() {
     warn(s"uploading $logFile")
-    Uploader.upload("log", FileUtils.readFileToString(new File(logFile), Charset.defaultCharset()))
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
   }
 }
 
