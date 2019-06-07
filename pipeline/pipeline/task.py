@@ -59,16 +59,10 @@ class Task:
         cls._counter += 1
         return uid
 
-    def __init__(self, pipeline, name=None, tags=None):
+    def __init__(self, pipeline, name=None, attributes=None):
         self._pipeline = pipeline
-        self._name = name
-
-        if tags is None:
-            tags = {}
-        if 'name' in tags:
-            raise ValueError("'name' is not a valid tag. Use the name argument instead.")
-        self.tags = tags
-
+        self.name = name
+        self.attributes = attributes
         self._cpu = None
         self._memory = None
         self._storage = None
@@ -329,31 +323,6 @@ class Task:
         self._storage = storage
         return self
 
-    def name(self, name):
-        """
-        Set the task's name.
-
-        Examples
-        --------
-
-        Set the task's name to `qc`:
-
-        >>> t1 = p.new_task()
-        >>> (t1.name('qc')
-        ...    .command(f'echo "hello"'))
-
-        Parameters
-        ----------
-        name: :obj:`str`
-
-        Returns
-        -------
-        :class:`.Task`
-            Same task object with name set.
-        """
-        self._name = name
-        return self
-
     def memory(self, memory):
         """
         Set the task's memory requirements.
@@ -435,7 +404,8 @@ class Task:
 
     def _pretty(self):
         s = f"Task '{self._uid}'" \
-            f"\tName:\t'{self._name}'" \
+            f"\tName:\t'{self.name}'" \
+            f"\tAttributes:\t'{self.attributes}'" \
             f"\tImage:\t'{self._image}'" \
             f"\tCPU:\t'{self._cpu}'" \
             f"\tMemory:\t'{self._memory}'" \

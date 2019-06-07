@@ -238,7 +238,7 @@ class LocalTests(unittest.TestCase):
 
             merger = p.new_task()
             merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                                  key=lambda x: x._name,
+                                                                                                  key=lambda x: x.name,
                                                                                                   reverse=True)]),
                                                           ofile=merger.ofile))
 
@@ -299,7 +299,7 @@ class BatchTests(unittest.TestCase):
     def pipeline(self):
         return Pipeline(backend=self.backend,
                         default_image='google/cloud-sdk:237.0.0-alpine',
-                        tags={'foo': 'a', 'bar': 'b'})
+                        attributes={'foo': 'a', 'bar': 'b'})
 
     def test_single_task_no_io(self):
         p = self.pipeline()
@@ -324,7 +324,7 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_output(self):
         p = self.pipeline()
-        t = p.new_task(tags={'a': 'bar', 'b': 'foo'})
+        t = p.new_task().attributes({'a': 'bar', 'b': 'foo'})
         t.command(f'echo hello > {t.ofile}')
         p.run()
 
@@ -389,7 +389,7 @@ class BatchTests(unittest.TestCase):
 
         merger = p.new_task()
         merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                              key=lambda x: x._name,
+                                                                                              key=lambda x: x.name,
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 

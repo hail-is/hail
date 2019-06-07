@@ -115,7 +115,7 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
 
-            script.append(f"# {task._uid} {task._name if task._name else ''}")
+            script.append(f"# {task._uid} {task.name if task.name else ''}")
 
             script += [x for r in task._inputs for x in copy_input(task, r)]
 
@@ -284,9 +284,9 @@ class BatchBackend(Backend):
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
-            if task._name:
-                attributes['name'] = task._name
-            attributes.update(task.tags)
+            if task.name:
+                attributes['name'] = task.name
+            attributes.update(task.attributes)
 
             resources = {'requests': {}}
             if task._cpu:

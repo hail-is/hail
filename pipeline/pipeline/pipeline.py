@@ -37,8 +37,8 @@ class Pipeline:
         Name of the pipeline.
     backend: :func:`.Backend`, optional
         Backend used to execute the jobs. Default is :class:`.LocalBackend`
-    tags: :obj:`dict` of :obj:`str` to :obj:`str`, optional
-        Key-value pairs of additional tags. 'name' is not a valid keyword.
+    attributes: :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Key-value pairs of additional attributes. 'name' is not a valid keyword.
         Use the name argument instead.
     default_image: :obj:`str`, optional
         Docker image to use by default if not specified by a task.
@@ -65,7 +65,7 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, name=None, backend=None, tags=None,
+    def __init__(self, name=None, backend=None, attributes=None,
                  default_image=None, default_memory=None, default_cpu=None,
                  default_storage=None):
         self._tasks = []
@@ -76,11 +76,11 @@ class Pipeline:
 
         self.name = name
 
-        if tags is None:
-            tags = {}
-        if 'name' in tags:
-            raise ValueError("'name' is not a valid tag. Use the name argument instead.")
-        self.tags = tags
+        if attributes is None:
+            attributes = {}
+        if 'name' in attributes:
+            raise ValueError("'name' is not a valid attribute. Use the name argument instead.")
+        self.attributes = attributes
 
         self._default_image = default_image
         self._default_memory = default_memory
@@ -94,7 +94,7 @@ class Pipeline:
         else:
             self._backend = LocalBackend()
 
-    def new_task(self):
+    def new_task(self, name=None, attributes=None):
         """
         Initialize a new task object with default memory, docker image,
         and CPU settings if specified upon pipeline creation.
@@ -104,13 +104,24 @@ class Pipeline:
 
         >>> t = p.new_task()
 
+        Parameters
+        ----------
+        name: :obj:`str`, optional
+            Name of the task.
+        attributes: :obj:`dict` of :obj:`str` to :obj:`str`, optional
+            Key-value pairs of additional attributes. 'name' is not a valid keyword.
+            Use the name argument instead.
+
         Returns
         -------
         :class:`.Task`
         """
 
-        t = Task(pipeline=self)
-        self._tasks.append(t)
+        if attributes is None:
+            attributes = {}
+
+        t = Task(pipeline=self, name=name, attributes=attributes)
+
         if self._default_image is not None:
             t.image(self._default_image)
         if self._default_memory is not None:
@@ -119,6 +130,8 @@ class Pipeline:
             t.cpu(self._default_cpu)
         if self._default_storage is not None:
             t.storage(self._default_storage)
+
+        self._tasks.append(t)
         return t
 
     def _tmp_file(self, prefix=None, suffix=None):
@@ -327,7 +340,7 @@ class Pipeline:
         :obj:`list` of :class:`.Task`
         """
 
-        return [task for task in self._tasks if task._name is not None and re.match(pattern, task._name) is not None]
+        return [task for task in self._tasks if task.name is not None and re.match(pattern, task.name) is not None]
 
     def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True):
         """
