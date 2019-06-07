@@ -57,7 +57,7 @@ class JobsTable(Table):
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
                           WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
 
-                await cursor.execute(sql, (('Created', 'Ready'), batch_id, job_id))
+                await cursor.execute(sql, (('Pending', 'Ready', 'Running'), batch_id, job_id))
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
 
