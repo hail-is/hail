@@ -6,6 +6,7 @@ python/hail/hail_pip_version
 python/hail/hail_version
 python/hail/docs/_build/*
 python/hail/hail-all-spark.jar
+python/hailctl/deploy.yaml
 src/main/c/.cxx.vsn
 src/main/c/headers
 src/main/c/lib
