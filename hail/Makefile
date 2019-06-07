@@ -147,12 +147,23 @@ TAG_EXISTS=$(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) |
 check-tag:
 	if [ -n "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
+.PHONY: tag
 tag: check-tag
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 
+docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
+local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
+cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
+.PHONY: set-docs-sha
+set-docs-sha:
+	gsutil ls $(docs_location)  # make sure file exists
+	echo "$(REVISION)" > $(local_sha_location)
+	gsutil cp $(local_sha_location) $(cloud_sha_location)
+	gsutil acl set public-read $(cloud_sha_location)
+
 .PHONY: deploy
-deploy: pypi-deploy tag
+deploy: pypi-deploy set-docs-sha tag
 
 clean:
 	./gradlew clean
