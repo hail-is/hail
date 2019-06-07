@@ -1424,7 +1424,7 @@ class Table(ExprContainer):
         Parameters
         ----------
         n or n_rows : :obj:`int`
-            Maximum number of rows to show.
+            Maximum number of rows to show, or negative to show all rows.
         width : :obj:`int`
             Horizontal width at which to break fields.
         truncate : :obj:`int`, optional
