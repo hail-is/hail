@@ -1,7 +1,7 @@
 import sys
 
 import re
-from subprocess import check_call
+import subprocess as sp
 
 import hailctl
 from .cluster_config import ClusterConfig
@@ -173,8 +173,11 @@ def main(args, pass_through_args):
     if args.bucket:
         conf.flags['bucket'] = args.bucket
 
-    label = safe_call('gcloud', 'config', 'get-value', 'account').lower()
-    conf.flags['labels'] = 'creator=' + re.sub(label, r'[^0-9a-z\._\-]', '_', label)[:63]
+    try:
+        label = sp.check_output('gcloud config get-value account', shell=True)
+        conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', label.decode().strip().lower())[:63]
+    except sp.CalledProcessError as e:
+        sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
 
     # command to start cluster
     cmd = conf.get_command(args.name)
@@ -192,4 +195,4 @@ def main(args, pass_through_args):
     # spin up cluster
     if not args.dry_run:
         print("Starting cluster '{}'...".format(args.name))
-        check_call(cmd)
+        sp.check_call(cmd)
