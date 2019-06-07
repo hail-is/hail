@@ -54,12 +54,25 @@ def main(args, pass_through_args):
         stderr=sp.STDOUT
     )
 
-    for c in ['chromium', 'chromium-browser']:
-        chrome = which(c)
-        if chrome is not None:
-            break
-    if chrome is None:
+    import platform
+    system = platform.system()
+
+    if system == 'Darwin':
         chrome = r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        user_data_dir = '/tmp/'
+    elif system == 'Linux':
+        import shutil
+        chrome = None
+        for c in ['chromium', 'chromium-browser']:
+            chrome = chrome or shutil.which(c)
+        if chrome is None:
+            raise EnvironmentError("cannot find 'chromium' or 'chromium-browser' on path")
+        user_data_dir = '/tmp'
+    elif system == 'Windows':
+        chrome = r'/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe'
+        user_data_dir = r'C:/Windows/Temp/'
+    else:
+        raise ValueError(f"unsupported system: {system}")
 
     # open Chrome with SOCKS proxy configuration
     with open(os.devnull, 'w') as f:
@@ -69,5 +82,5 @@ def main(args, pass_through_args):
             '--proxy-server=socks5://localhost:{}'.format(args.port),
             '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
             '--proxy-bypass-list=<-loopback>', # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
-            '--user-data-dir=/tmp/'
+            '--user-data-dir={}'.format(user_data_dir)
         ], stdout=f, stderr=f)
