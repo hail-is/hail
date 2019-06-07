@@ -3,15 +3,15 @@
   python/hail/hail_version python/hail/hail_pip_version
 
 
-REVISION=$(shell git rev-parse HEAD)
-SHORT_REVISION=$(shell git rev-parse --short=12 HEAD)
-DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
-URL=$(shell git config --get remote.origin.url)
-SPARK_VERSION=2.4.0
-HAIL_PIP_VERSION=0.2.14
+REVISION = $(shell git rev-parse HEAD)
+SHORT_REVISION = $(shell git rev-parse --short=12 HEAD)
+DATE = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
+URL = $(shell git config --get remote.origin.url)
+SPARK_VERSION = 2.4.0
+HAIL_PIP_VERSION = 0.2.14
 
-HAIL_PYTHON3?=python3
+HAIL_PYTHON3 ?= python3
 
 shadowJar:
 	./gradlew shadowJar
@@ -119,7 +119,7 @@ test-dataproc: install-hailctl-wheel
 .PHONY: init-scripts
 init-scripts: python/hailctl/deploy.yaml
 
-DEPLOYED_VERSION=$(shell \
+DEPLOYED_VERSION = $(shell \
   pip --no-cache-dir search hail \
    | grep '^hail ' \
    | sed 's/hail (//' \
@@ -132,17 +132,17 @@ check-pypi:
 	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 $HAIL_TWINE_CREDS_FOLDER ?= /secrets/
-TWINE_USERNAME=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
-TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
+TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 
 pypi-deploy: \
-  TWINE_USERNAME=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-  TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+  TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
+  TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 .PHONY: pypi-deploy
 pypi-deploy: check-pypi wheel
 	twine upload build/deploy/dist/*
 
-TAG_EXISTS=$(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
+TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
 .PHONY: check-tag
 check-tag:
 	if [ -n "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
