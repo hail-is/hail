@@ -871,28 +871,21 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
         Iterator.single(scanAggs)
       }.writePartitions(scannedPartitionsFile, true, { (ctx, it, os) =>
-        new ObjectOutputStream(os).writeObject(it.next)
+        val aggs = it.next
+        using(new ObjectOutputStream(os))(_.writeObject(aggs))
         1
       })
 
       val hConf = hc.hadoopConf
-      val scannedPartitions = partFiles.iterator.flatMap { p =>
-        hConf.readFile(scannedPartitionsFile + "/parts/" + p) { in =>
-          using(RVDContext.default) { ctx => using(new ObjectInputStream(in)) { ois =>
-            new Iterator[Array[RegionValueAggregator]]() {
-              private[this] var o = ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
-              def hasNext: Boolean = o != null
-              def next: Array[RegionValueAggregator] = {
-                val temp = o
-                o = ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
-                temp
-              }
-            }
-          } }
-        }
-      }
-
-      val scanAggsPerPartition = scannedPartitions.scanLeft(scanAggs) { (a1, a2) =>
+      val inputStreams = new Array[ObjectInputStream](partFiles.length)
+      var j = 0
+      val scanAggsPerPartition = partFiles.iterator.map { p =>
+        val ois = new ObjectInputStream(
+          hConf.unsafeReader(scannedPartitionsFile + "/parts/" + p))
+        inputStreams(j) = ois
+        j += 1
+        ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
+      }.scanLeft(scanAggs) { (a1, a2) =>
         (a1, a2).zipped.map { (agg1, agg2) =>
           val newAgg = agg1.copy()
           newAgg.combOp(agg2)
@@ -902,8 +895,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       val f3 = HailContext.get.getTemporaryFile()
       hConf.writeFile(f3) { os => using(new ObjectOutputStream(os)) { oos =>
-        scanAggsPerPartition.foreach(oos.writeObject _)
+        var count = 0
+        scanAggsPerPartition.foreach { x =>
+          count += 1
+          oos.writeObject(x)
+        }
       } }
+
+      inputStreams.foreach(_.close())
 
       val hConfBc = HailContext.get.hadoopConfBc
 
@@ -911,8 +910,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val partitionAggs: Array[RegionValueAggregator] =
           hConfBc.value.value.readFile(f3) { is => using(new ObjectInputStream(is)) { ois =>
             var j = 0
-            while (j < i) {
+            while (j != i) {
               ois.readObject()
+              j += 1
             }
             ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
           } }
