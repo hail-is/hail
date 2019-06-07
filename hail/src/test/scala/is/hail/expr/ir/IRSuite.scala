@@ -2052,8 +2052,8 @@ class IRSuite extends SparkSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
-    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, sc), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, hc.backend), RVD.empty(sc, t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, hc.backend), RVD.empty(sc, t2.canonicalRVDType)))
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))

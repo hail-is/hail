@@ -1,9 +1,6 @@
-.PHONY: build clean
+.PHONY: push deploy build clean
 
 build: build-stmp
-
-ifeq ($(IN_HAIL_CI),1)
-.PHONY: push deploy
 
 PROJECT := $(shell gcloud config get-value project)
 BASE_LATEST = gcr.io/$(PROJECT)/base:latest
@@ -22,11 +19,6 @@ push: build
 	docker push $(BASE_IMAGE)
 
 deploy: push
-else
-build-stmp: Dockerfile.base core-site.xml requirements.txt
-	docker build -t base -f Dockerfile.base .
-	touch build-stmp
-endif
 
 clean:
 	rm -f build-stmp

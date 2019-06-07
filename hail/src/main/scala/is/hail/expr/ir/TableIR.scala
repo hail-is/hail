@@ -127,7 +127,7 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
         rvd.changeKey(tr.typ.key)
       }
     }
-    TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.sc), rvd)
+    TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.backend), rvd)
   }
 }
 
@@ -212,7 +212,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rowTyp = typ.rowType.physicalType
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(globals, typ.globalType, hc.sc), RVD.unkeyed(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(globals, typ.globalType, hc.backend), RVD.unkeyed(rowTyp, rvd))
   }
 }
 
@@ -274,7 +274,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     val partStarts = partCounts.scanLeft(0)(_ + _)
 
     TableValue(typ,
-      BroadcastRow(Row(), typ.globalType, hc.sc),
+      BroadcastRow(Row(), typ.globalType, hc.backend),
       new RVD(
         RVDType(typ.rowType.physicalType, Array("idx")),
         new RVDPartitioner(Array("idx"), typ.rowType,
@@ -502,7 +502,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     val newGlobals = BroadcastRow(
       Row.merge(leftTV.globals.value, rightTV.globals.value),
       newGlobalType,
-      leftTV.rvd.sparkContext)
+      hc.backend)
 
     val joinedRVD = if (joinType == "zip") {
       val leftRVD = leftTV.rvd
@@ -755,7 +755,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val newGlobals = BroadcastRow(
       Row(childValues.map(_.globals.value)),
       newGlobalType,
-      childValues.head.rvd.sparkContext)
+      hc.backend)
 
     TableValue(typ, newGlobals, rvd)
   }
@@ -957,7 +957,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
       Env("global" -> (tv.globals.value -> tv.globals.t)),
       FastIndexedSeq(),
       optimize = false)
-    tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
+    tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.backend))
   }
 }
 

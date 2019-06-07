@@ -55,12 +55,6 @@ log = make_logger()
 uvloop.install()
 
 
-def schedule(ttl, fun, args=(), kwargs=None):
-    if kwargs is None:
-        kwargs = {}
-    asyncio.get_event_loop().call_later(ttl, functools.partial(fun, *args, **kwargs))
-
-
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
@@ -167,7 +161,7 @@ class Job:
         if err is not None:
             log.info(f'persistent volume claim cannot be created for job {self.id} with the following error: {err}')
             if err.status == 403:
-                await self.mark_complete(None, failed=True)
+                await self.mark_complete(None, failed=True, failure_reason=str(err))
             return None
         pvc_name = pvc.metadata.name
         await db.jobs.update_record(*self.id, pvc_name=pvc_name)
@@ -275,9 +269,9 @@ class Job:
 
         if self._state == 'Ready':
             if self._pod_name:
-                log, err = await app['k8s'].read_pod_log(self._pod_name)
+                pod_log, err = await app['k8s'].read_pod_log(self._pod_name)
                 if err is None:
-                    logs[self._current_task.name] = log
+                    logs[self._current_task.name] = pod_log
                 else:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'ignoring: could not read log for {self.id} '
@@ -500,7 +494,7 @@ class Job:
             self._pod_name = None
         await self._create_pod()
 
-    async def mark_complete(self, pod, failed=False):
+    async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
 
@@ -508,7 +502,7 @@ class Job:
 
         if failed:
             exit_code = 999  # FIXME hack
-            pod_log = None
+            pod_log = failure_reason
         else:
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
@@ -571,51 +565,15 @@ class Job:
         return result
 
 
-@routes.post('/jobs/create')
-@authenticated_users_only
-async def create_job(request, userdata):  # pylint: disable=R0912
-    parameters = await request.json()
+async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
     user = userdata['username']
-
-    schema = {
-        # will be validated when creating pod
-        'spec': schemas.pod_spec,
-        'batch_id': {'required': True, 'type': 'integer'},
-        'job_id': {'required': True, 'type': 'integer'},
-        'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
-        'input_files': {
-            'type': 'list',
-            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
-        'output_files': {
-            'type': 'list',
-            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
-        'always_run': {'type': 'boolean'},
-        'pvc_size': {'type': 'string'},
-        'attributes': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
-        },
-        'callback': {'type': 'string'}
-    }
-    validator = cerberus.Validator(schema)
-    if not validator.validate(parameters):
-        abort(400, 'invalid request: {}'.format(validator.errors))
 
     pod_spec = v1.api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
 
-    batch_id = parameters.get('batch_id')
-    batch = await Batch.from_db(batch_id, user)
-    if batch is None:
-        abort(404, f'invalid request: batch_id {batch_id} not found')
-    if not batch.is_open:
-        abort(400, f'invalid request: batch_id {batch_id} is closed')
-
     job_id = parameters.get('job_id')
     has_record = await db.jobs.has_record(batch_id, job_id)
     if has_record:
-        log.info(f"database has record for ({batch_id}, {job_id})")
         abort(400, f'invalid request: batch {batch_id} already has a job_id={job_id}')
 
     parent_ids = parameters.get('parent_ids', [])
@@ -649,7 +607,7 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
-    job = await Job.create_job(
+    await Job.create_job(
         batch_id=batch_id,
         job_id=job_id,
         pod_spec=pod_spec,
@@ -661,7 +619,6 @@ async def create_job(request, userdata):  # pylint: disable=R0912
         userdata=userdata,
         always_run=always_run,
         pvc_size=pvc_size)
-    return jsonify(job.to_dict())
 
 
 @routes.get('/healthcheck')
@@ -704,8 +661,6 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
 
 
 class Batch:
-    MAX_TTL = 30 * 60
-
     @staticmethod
     def from_record(record, deleted=False):
         if record is not None:
@@ -718,18 +673,16 @@ class Batch:
                 state = 'failure'
             elif record['n_cancelled'] > 0:
                 state = 'cancelled'
-            elif not record['is_open'] and (record['n_succeeded'] == record['n_jobs']):
+            elif record['n_succeeded'] == record['n_jobs']:
                 state = 'success'
             else:
                 state = 'running'
 
-            complete = not record['is_open'] and (record['n_completed'] == record['n_jobs'])
+            complete = record['n_completed'] == record['n_jobs']
 
             return Batch(id=record['id'],
                          attributes=attributes,
                          callback=record['callback'],
-                         ttl=record['ttl'],
-                         is_open=record['is_open'],
                          userdata=userdata,
                          user=record['user'],
                          state=state,
@@ -751,34 +704,25 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(attributes, callback, ttl, userdata):
-        is_open = True
+    async def create_batch(attributes, callback, userdata):
         user = userdata['username']
-
-        if ttl is None or ttl > Batch.MAX_TTL:
-            ttl = Batch.MAX_TTL
 
         id = await db.batch.new_record(attributes=json.dumps(attributes),
                                        callback=callback,
-                                       ttl=ttl,
-                                       is_open=is_open,
                                        userdata=json.dumps(userdata),
                                        user=user,
                                        deleted=False)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
-                      ttl=ttl, is_open=is_open, userdata=userdata, user=user,
-                      state='running', complete=False, deleted=False)
-        batch.close_ttl()
+                      userdata=userdata, user=user, state='running',
+                      complete=False, deleted=False)
         return batch
 
-    def __init__(self, id, attributes, callback, ttl, is_open, userdata, user,
+    def __init__(self, id, attributes, callback, userdata, user,
                  state, complete, deleted):
         self.id = id
         self.attributes = attributes
         self.callback = callback
-        self.ttl = ttl
-        self.is_open = is_open
         self.userdata = userdata
         self.user = user
         self.state = state
@@ -789,7 +733,6 @@ class Batch:
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
-        await self.close()
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()
@@ -824,20 +767,6 @@ class Batch:
                 args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
-    def close_ttl(self):
-        async def _close():
-            await asyncio.sleep(self.ttl)
-            await self.close()
-        return asyncio.ensure_future(_close())
-
-    async def close(self):
-        if self.is_open:
-            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
-            await db.batch.update_record(self.id, is_open=False)
-            self.is_open = False
-        else:
-            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
-
     def is_complete(self):
         return self.complete
 
@@ -847,7 +776,6 @@ class Batch:
     async def to_dict(self, include_jobs=False):
         result = {
             'id': self.id,
-            'is_open': self.is_open,
             'state': self.state,
             'complete': self.complete
         }
@@ -897,23 +825,17 @@ async def get_batches_list(request, userdata):
 async def create_batch(request, userdata):
     parameters = await request.json()
 
-    schema = {
-        'attributes': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
-        },
-        'callback': {'type': 'string'},
-        'ttl': {'type': 'number'}
-    }
-    validator = cerberus.Validator(schema)
+    validator = cerberus.Validator(schemas.batch_schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = await Batch.create_batch(attributes=parameters.get('attributes'),
                                      callback=parameters.get('callback'),
-                                     ttl=parameters.get('ttl'),
                                      userdata=userdata)
+
+    job_parameters = parameters.get('jobs', [])
+    for job_params in job_parameters:
+        await create_job(batch.id, userdata, job_params)
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
@@ -955,19 +877,6 @@ async def delete_batch(request, userdata):
     if not batch:
         abort(404)
     await batch.mark_deleted()
-    return jsonify({})
-
-
-@routes.patch('/batches/{batch_id}/close')
-@authenticated_users_only
-async def close_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    await batch.close()
     return jsonify({})
 
 
@@ -1028,7 +937,7 @@ async def update_job_with_pod(job, pod):
             elif (container_status.state.waiting
                   and container_status.state.waiting.reason == 'ImagePullBackOff'):
                 log.info(f'job {job.id} mark failed: ImagePullBackOff')
-                await job.mark_complete(pod, failed=True)
+                await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
 
 
 class DeblockedIterator:

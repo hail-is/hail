@@ -411,6 +411,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
       }
     }
 
-    TableValue(tr.typ, BroadcastRow(Row.empty, tr.typ.globalType, hc.sc), RVD.unkeyed(rowTyp.physicalType, crdd))
+    TableValue(tr.typ, BroadcastRow(Row.empty, tr.typ.globalType, hc.backend), RVD.unkeyed(rowTyp.physicalType, crdd))
   }
 }

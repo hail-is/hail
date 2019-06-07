@@ -36,7 +36,7 @@ Create a `conda enviroment
 
 .. code-block:: sh
 
-    conda create --name hail python>=3.6
+    conda create -n hail python==3.6
     conda activate hail
     pip install hail
 
@@ -49,7 +49,7 @@ To try Hail out, open iPython or a Jupyter notebook and run:
     >>> mt.count()
 
 You're now all set to run the
-`tutorials <https://hail.is/docs/devel/tutorials-landing.html>`__ locally!
+`tutorials <https://hail.is/docs/0.2/tutorials-landing.html>`__ locally!
 
 Building your own JAR
 ~~~~~~~~~~~~~~~~~~~~~

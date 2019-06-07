@@ -35,4 +35,4 @@ RUN sed -e "s,@project@,{{ global.project }},g" \
   < /home/jovian/jupyter_notebook_config.py.in \
   > jupyter_notebook_config.py
 
-CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser"]
+CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser", "--allow-root"]

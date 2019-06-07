@@ -199,7 +199,7 @@ case class MatrixPLINKReader(
     val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else {
-      val variantsBc = sc.broadcast(variants)
+      val variantsBc = hc.backend.broadcast(variants)
       sc.hadoopConfiguration.setInt("nSamples", nSamples)
       sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
 

@@ -113,7 +113,7 @@ object BlockMatrix {
       val iOffset = i * blockSize
       val jOffset = j * blockSize
 
-      sc.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
+      HailContext.backend.broadcast(lm(iOffset until iOffset + blockNRows, jOffset until jOffset + blockNCols).copy)
     }
     
     BlockMatrix(sc, gp, (gp, pi) => (gp.blockCoordinates(pi), localBlocksBc(pi).value))
@@ -479,11 +479,11 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def zeroRowIntervals(starts: Array[Long], stops: Array[Long]): BlockMatrix = {    
-    val sc = blocks.sparkContext
-    val startBlockIndexBc = sc.broadcast(starts.map(gp.indexBlockIndex))
-    val stopBlockIndexBc = sc.broadcast(stops.map(stop => (stop / blockSize).toInt))
-    val startBlockOffsetBc = sc.broadcast(starts.map(gp.indexBlockOffset))
-    val stopBlockOffsetsBc = sc.broadcast(stops.map(gp.indexBlockOffset))
+    val backend = HailContext.backend
+    val startBlockIndexBc = backend.broadcast(starts.map(gp.indexBlockIndex))
+    val stopBlockIndexBc = backend.broadcast(stops.map(stop => (stop / blockSize).toInt))
+    val startBlockOffsetBc = backend.broadcast(starts.map(gp.indexBlockOffset))
+    val stopBlockOffsetsBc = backend.broadcast(stops.map(gp.indexBlockOffset))
 
     val zeroedBlocks = blocks.mapPartitions( { it =>
       assert(it.hasNext)
@@ -1139,7 +1139,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     reqDense: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nRows, s"vector length must equal nRows: ${ v.length }, $nRows")
-      val vBc = blocks.sparkContext.broadcast(v)
+      val vBc = HailContext.backend.broadcast(v)
       blockMapWithIndex( { case ((i, _), lm) =>
         val lv = gp.vectorOnBlockRow(vBc.value, i)
         op(lm, lv)
@@ -1151,7 +1151,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     reqDense: Boolean = true): Array[Double] => M = {
     a => val v = BDV(a)
       require(v.length == nCols, s"vector length must equal nCols: ${ v.length }, $nCols")
-      val vBc = blocks.sparkContext.broadcast(v)
+      val vBc = HailContext.backend.broadcast(v)
       blockMapWithIndex( { case ((_, j), lm) =>
         val lv = gp.vectorOnBlockCol(vBc.value, j)
         op(lm, lv)

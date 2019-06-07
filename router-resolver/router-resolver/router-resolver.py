@@ -7,7 +7,10 @@ from aiohttp import web
 from kubernetes_asyncio import client, config
 import logging
 
+from hailjwt import authenticated_developers_only
+
 uvloop.install()
+
 
 def make_logger():
     fmt = logging.Formatter(
@@ -26,21 +29,19 @@ def make_logger():
 
     return log
 
+
 log = make_logger()
 
 app = web.Application()
 routes = web.RouteTableDef()
 
-@routes.get('/')
+
+@routes.get('/auth/{namespace}')
+@authenticated_developers_only
 async def auth(request):
     app = request.app
     k8s_client = app['k8s_client']
-    host = request.headers['Host']
-    if not host.endswith('.internal.hail.is'):
-        # would prefer 404, but that's not handled by nginx request_auth
-        return web.Response(status=403)
-    labels = host.split('.')
-    namespace = labels[-4]
+    namespace = request.match_info['namespace']
     try:
         router = await k8s_client.read_namespaced_service('router', namespace)
     except client.rest.ApiException as err:
@@ -49,7 +50,9 @@ async def auth(request):
         raise
     return web.Response(status=200, headers={'X-Router-IP': router.spec.cluster_ip})
 
+
 app.add_routes(routes)
+
 
 async def on_startup(app):
     if 'BATCH_USE_KUBE_CONFIG' in os.environ:
@@ -57,6 +60,7 @@ async def on_startup(app):
     else:
         config.load_incluster_config()
     app['k8s_client'] = client.CoreV1Api()
+
 
 app.on_startup.append(on_startup)
 

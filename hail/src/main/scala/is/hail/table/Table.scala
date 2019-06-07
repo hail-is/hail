@@ -143,7 +143,7 @@ object Table {
     new Table(hc, TableLiteral(
       TableValue(
         TableType(signature, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
+        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
         RVD.unkeyed(signature.physicalType, crdd2)))
     ).keyBy(key, isSorted)
   }
@@ -181,7 +181,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         TableLiteral(
           TableValue(
             TableType(signature, key, globalSignature),
-            BroadcastRow(globals, globalSignature, hc.sc),
+            BroadcastRow(globals, globalSignature, hc.backend),
             RVD.coerce(RVDType(signature.physicalType, key), crdd)))
   )
 

@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg._
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{MatrixValue, TableValue}
@@ -70,14 +71,13 @@ case class LogisticRegression(
       nullFit
     })
 
-    val sc = mv.sparkContext
-    val completeColIdxBc = sc.broadcast(completeColIdx)
+    val backend = HailContext.backend
+    val completeColIdxBc = backend.broadcast(completeColIdx)
 
-    val yVecsBc = sc.broadcast(yVecs)
-    val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
-    val nullFitBc = sc.broadcast(nullFits)
-    val logRegTestBc = sc.broadcast(logRegTest)
-    val resultSchemaBc = sc.broadcast(logRegTest.schema)
+    val yVecsBc = backend.broadcast(yVecs)
+    val XBc = backend.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
+    val nullFitBc = backend.broadcast(nullFits)
+    val logRegTestBc = backend.broadcast(logRegTest)
 
     val fullRowType = mv.rvRowPType
     val entryArrayType = mv.entryArrayPType
@@ -98,7 +98,6 @@ case class LogisticRegression(
       val missingCompleteCols = new ArrayBuilder[Int]()
       val _nullFits = nullFitBc.value
       val _yVecs = yVecsBc.value
-      val _resultSchema = resultSchemaBc.value
       val X = XBc.value.copy
       it.map { rv =>
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,

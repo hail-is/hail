@@ -427,7 +427,7 @@ class RVD(
     val (newRowPType, ins) = rowPType.unsafeStructInsert(PInt64(), List(name))
     val newRowType = newRowPType
 
-    val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
+    val a = HailContext.backend.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
 
     val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
       val rv2 = RegionValue()

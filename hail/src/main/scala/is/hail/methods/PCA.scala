@@ -55,7 +55,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }
 
     val rowType = TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
-    val rowKeysBc = sc.broadcast(collectRowKeys())
+    val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[RVDContext, RegionValue] = if (computeLoadings) {
@@ -117,6 +117,6 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val newGlobal = f2(g1, globalScores)
     
     TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
-      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], sc), rvd)
+      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], hc.backend), rvd)
   }
 }

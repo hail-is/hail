@@ -2,6 +2,7 @@ package is.hail.methods
 
 import breeze.linalg._
 import breeze.numerics.sqrt
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{MatrixValue, TableValue}
@@ -60,12 +61,12 @@ case class LinearRegressionRowsSingle(
 
     val Qty = Qt * y
 
-    val sc = mv.sparkContext
-    val completeColIdxBc = sc.broadcast(completeColIdx)
-    val yBc = sc.broadcast(y)
-    val QtBc = sc.broadcast(Qt)
-    val QtyBc = sc.broadcast(Qty)
-    val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
+    val backend = HailContext.backend
+    val completeColIdxBc = backend.broadcast(completeColIdx)
+    val yBc = backend.broadcast(y)
+    val QtBc = backend.broadcast(Qt)
+    val QtyBc = backend.broadcast(Qty)
+    val yypBc = backend.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val fullRowType = mv.rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(fullRowType)
@@ -220,8 +221,7 @@ case class LinearRegressionRowsChained(
       ChainedLinregInput(n, y, completeColIdx, Qt, Qty, yyp, d)
     }
 
-    val sc = mv.sparkContext
-    val bc = sc.broadcast(bcData)
+    val bc = HailContext.backend.broadcast(bcData)
     val nGroups = bcData.length
 
     val fullRowType = mv.rvd.rowPType

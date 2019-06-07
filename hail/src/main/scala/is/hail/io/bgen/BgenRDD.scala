@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
+import is.hail.backend.BroadcastValue
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TStruct, Type}
@@ -37,7 +38,7 @@ case class BgenSettings(
   entries: EntriesSetting,
   dropCols: Boolean,
   rowFields: RowFields,
-  rgBc: Option[Broadcast[ReferenceGenome]],
+  rgBc: Option[BroadcastValue[ReferenceGenome]],
   indexAnnotationType: Type
 ) {
   val (includeGT, includeGP, includeDosage) = entries match {

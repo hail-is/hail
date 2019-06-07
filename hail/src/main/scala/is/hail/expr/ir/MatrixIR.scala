@@ -139,10 +139,10 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
           .map(_.index)
           .toArray
         val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
-        BroadcastRow(Row(arr), requestedType.globalType, HailContext.get.sc)
+        BroadcastRow(Row(arr), requestedType.globalType, HailContext.backend)
       case None =>
         assert(requestedType.globalType == TStruct())
-        BroadcastRow(Row.empty, requestedType.globalType, HailContext.get.sc)
+        BroadcastRow(Row.empty, requestedType.globalType, HailContext.backend)
     }
   }
 }
