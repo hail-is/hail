@@ -59,9 +59,9 @@ class Task:
         cls._counter += 1
         return uid
 
-    def __init__(self, pipeline, label=None):
+    def __init__(self, pipeline, name=None):
         self._pipeline = pipeline
-        self._label = label
+        self._name = name
         self._cpu = None
         self._memory = None
         self._storage = None
@@ -322,29 +322,29 @@ class Task:
         self._storage = storage
         return self
 
-    def label(self, label):
+    def name(self, name):
         """
-        Set the task's label.
+        Set the task's name.
 
         Examples
         --------
 
-        Set the task's label to `qc`:
+        Set the task's name to `qc`:
 
         >>> t1 = p.new_task()
-        >>> (t1.label('qc')
+        >>> (t1.name('qc')
         ...    .command(f'echo "hello"'))
 
         Parameters
         ----------
-        label: :obj:`str`
+        name: :obj:`str`
 
         Returns
         -------
         :class:`.Task`
-            Same task object with label set.
+            Same task object with name set.
         """
-        self._label = label
+        self._name = name
         return self
 
     def memory(self, memory):
@@ -428,10 +428,11 @@ class Task:
 
     def _pretty(self):
         s = f"Task '{self._uid}'" \
-            f"\tLabel:\t'{self._label}'" \
+            f"\tName:\t'{self._name}'" \
             f"\tImage:\t'{self._image}'" \
             f"\tCPU:\t'{self._cpu}'" \
             f"\tMemory:\t'{self._memory}'" \
+            f"\tStorage:\t'{self._storage}'" \
             f"\tCommand:\t'{self._command}'"
         return s
 
