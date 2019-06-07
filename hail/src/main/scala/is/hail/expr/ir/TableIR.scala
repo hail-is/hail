@@ -878,27 +878,29 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
       val hConf = hc.hadoopConf
       val inputStreams = new Array[ObjectInputStream](partFiles.length)
-      var j = 0
-      val scanAggsPerPartition = partFiles.iterator.map { p =>
-        val ois = new ObjectInputStream(
-          hConf.unsafeReader(scannedPartitionsFile + "/parts/" + p))
-        inputStreams(j) = ois
-        j += 1
-        ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
-      }.scanLeft(scanAggs) { (a1, a2) =>
-        (a1, a2).zipped.map { (agg1, agg2) =>
-          val newAgg = agg1.copy()
-          newAgg.combOp(agg2)
-          newAgg
-        }
-      }
-
       val f3 = HailContext.get.getTemporaryFile()
-      hConf.writeFile(f3) { os => using(new ObjectOutputStream(os)) { oos =>
-        scanAggsPerPartition.foreach(oos.writeObject _)
-      } }
-
-      inputStreams.foreach(_.close())
+      try {
+        hConf.writeFile(f3) { os =>
+          using(new ObjectOutputStream(os)) { oos =>
+            var j = 0
+            partFiles.iterator.map { p =>
+              val ois = new ObjectInputStream(
+                hConf.unsafeReader(scannedPartitionsFile + "/parts/" + p))
+              inputStreams(j) = ois
+              j += 1
+              ois.readObject().asInstanceOf[Array[RegionValueAggregator]]
+            }.scanLeft(scanAggs) { (a1, a2) =>
+              (a1, a2).zipped.map { (agg1, agg2) =>
+                val newAgg = agg1.copy()
+                newAgg.combOp(agg2)
+                newAgg
+              }
+            }.foreach(oos.writeObject _)
+          }
+        }
+      } finally {
+        inputStreams.foreach(x => if (x != null) x.close())
+      }
 
       val hConfBc = HailContext.get.hadoopConfBc
 
