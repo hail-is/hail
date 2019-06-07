@@ -519,7 +519,7 @@ object Simplify {
     case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
     case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
     case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
-    case TableDistinct(TableRepartition(child, n, strategy)) => TableRepartition(TableDistinct(child), n, strategy)
+    case TableDistinct(TableRepartition(child, n, strategy)) if canRepartition => TableRepartition(TableDistinct(child), n, strategy)
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
