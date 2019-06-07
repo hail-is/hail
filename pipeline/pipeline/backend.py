@@ -203,7 +203,11 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu'
 
-        batch = self._batch_client.create_batch(attributes={'name': pipeline._name})
+        attributes = {}
+        if pipeline._name is not None:
+            attributes['name'] = pipeline._name
+
+        batch = self._batch_client.create_batch(attributes=attributes)
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
