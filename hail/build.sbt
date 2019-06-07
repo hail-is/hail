@@ -24,14 +24,13 @@ lazy val root = (project in file(".")).
     resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/",
     Compile / javacOptions ++= Seq(
       "-Xlint:all",
-      // "-Werror",
+      "-Xfatal-warnings",
       "-XDenableSunApiLintControl"
     ),
-    Compile / fork := true,
-    Compile / javaOptions += "-XDenableSunApiLintControl",
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
-      "-Xlint:_",
+      "-Xlint:all",
+      "-XDenableSunApiLintControl",
       "-deprecation",
       "-unchecked",
       "-Xlint:-infer-any",
