@@ -284,15 +284,15 @@ class Test(unittest.TestCase):
 
     def test_authorized_users_only(self):
         endpoints = [
-            (requests.get, '/batches/0/jobs/0'),
-            (requests.get, '/batches/0/jobs/0/log'),
-            (requests.get, '/batches'),
-            (requests.post, '/batches/create'),
-            (requests.get, '/batches/0'),
-            (requests.delete, '/batches/0'),
-            (requests.get, '/ui/batches'),
-            (requests.get, '/ui/batches/0'),
-            (requests.get, '/ui/batches/0/jobs/0/log')]
+            (requests.get, '/api/v1alpha/batches/0/jobs/0'),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
+            (requests.get, '/api/v1alpha/batches'),
+            (requests.post, '/api/v1alpha/batches/create'),
+            (requests.get, '/api/v1alpha/batches/0'),
+            (requests.delete, '/api/v1alpha/batches/0'),
+            (requests.get, '/api/v1alpha/ui/batches'),
+            (requests.get, '/api/v1alpha/ui/batches/0'),
+            (requests.get, '/api/v1alpha/ui/batches/0/jobs/0/log')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
@@ -325,7 +325,7 @@ class Test(unittest.TestCase):
         with open(os.environ['HAIL_TOKEN_FILE']) as f:
             token = f.read()
         # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches',
+        r = requests.get('/batches',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
 
@@ -339,11 +339,11 @@ class Test(unittest.TestCase):
             token = f.read()
 
         # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches/{b.id}',
+        r = requests.get(f'/batches/{b.id}',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
 
         # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/ui/batches/{j.batch_id}/jobs/{j.job_id}/log',
+        r = requests.get(f'/batches/{j.batch_id}/jobs/{j.job_id}/log',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
