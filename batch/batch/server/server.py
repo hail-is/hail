@@ -142,6 +142,8 @@ class JobTask:  # pylint: disable=R0903
 
 
 class Job:
+    complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
+
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
@@ -450,7 +452,7 @@ class Job:
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
         assert await db.jobs_parents.has_record(*self.id, parent_job_id)
-        if new_state in ('Cancelled', 'Error', 'Failed', 'Success'):
+        if new_state in Job.complete_states:
             await self.create_if_ready()
 
     async def create_if_ready(self):
@@ -480,7 +482,7 @@ class Job:
                 await self._delete_k8s_resources()
 
     def is_complete(self):
-        return self._state in ('Cancelled', 'Error', 'Failed', 'Success')
+        return self._state in Job.complete_states
 
     def is_successful(self):
         return self._state == 'Success'

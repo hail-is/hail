@@ -139,13 +139,14 @@ class SubmittedJob:
         self._status = _status
 
     async def is_complete(self):
+        complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
         if self._status:
             state = self._status['state']
-            if state in ('Error', 'Failed', 'Success', 'Cancelled'):
+            if state in complete_states:
                 return True
         await self.status()
         state = self._status['state']
-        return state in ('Error', 'Failed', 'Success', 'Cancelled')
+        return state in complete_states
 
     async def status(self):
         self._status = await self._batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}')
