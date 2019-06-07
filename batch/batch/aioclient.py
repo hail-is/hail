@@ -6,6 +6,7 @@ import random
 import hailjwt as hj
 
 from .requests_helper import filter_params
+from .globals import complete_states
 
 
 class Job:
@@ -139,7 +140,6 @@ class SubmittedJob:
         self._status = _status
 
     async def is_complete(self):
-        complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
         if self._status:
             state = self._status['state']
             if state in complete_states:

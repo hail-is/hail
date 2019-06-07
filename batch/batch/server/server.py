@@ -23,6 +23,7 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase
 from .k8s import K8s
+from ..globals import complete_states
 
 from .. import schemas
 
@@ -142,8 +143,6 @@ class JobTask:  # pylint: disable=R0903
 
 
 class Job:
-    complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
-
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
@@ -452,7 +451,7 @@ class Job:
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
         assert await db.jobs_parents.has_record(*self.id, parent_job_id)
-        if new_state in Job.complete_states:
+        if new_state in complete_states:
             await self.create_if_ready()
 
     async def create_if_ready(self):
@@ -469,7 +468,6 @@ class Job:
                 await self.set_state('Cancelled')
 
     async def cancel(self):
-        # Cancelled, Error, Failed, Success
         if self.is_complete():
             return
         if self._state in ('Pending', 'Ready'):
@@ -482,7 +480,7 @@ class Job:
                 await self._delete_k8s_resources()
 
     def is_complete(self):
-        return self._state in Job.complete_states
+        return self._state in complete_states
 
     def is_successful(self):
         return self._state == 'Success'
