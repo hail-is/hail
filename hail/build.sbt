@@ -23,12 +23,8 @@ lazy val root = (project in file(".")).
     sparkComponents ++= Seq("sql", "mllib"),
     resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/",
     Compile / javacOptions ++= Seq(
-      "-Xlint:all",
-      // "-Werror",
-      "-XDenableSunApiLintControl"
+      "-Xlint:all"
     ),
-    Compile / fork := true,
-    Compile / javaOptions += "-XDenableSunApiLintControl",
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
       "-Xlint:_",
