@@ -174,7 +174,7 @@ def main(args, pass_through_args):
         conf.flags['bucket'] = args.bucket
 
     try:
-        label = sp.check_output('gcloud config get-value account', shell=True)
+        label = sp.check_output(['gcloud', 'config', 'get-value', 'account'])
         conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', label.decode().strip().lower())[:63]
     except sp.CalledProcessError as e:
         sys.stderr.write("Warning: could not run 'gcloud config get-value account': " + e.output.decode() + "\n")
