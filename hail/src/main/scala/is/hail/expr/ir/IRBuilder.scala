@@ -216,8 +216,10 @@ object IRBuilder {
 
     def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
 
-    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
-      InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
+    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = insertFieldsList(fields)
+
+    def insertFieldsList(fields: Seq[(Symbol, IRProxy)], ordering: Option[IndexedSeq[String]] = None): IRProxy = (env: E) =>
+      InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env))}, ordering)
 
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
@@ -229,6 +231,18 @@ object IRBuilder {
     }
 
     def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
+
+    def insertStruct(other: IRProxy, ordering: Option[IndexedSeq[String]] = None): IRProxy = (env: E) => {
+      val right = other(env)
+      val sym = genUID()
+      Let(
+        sym,
+        right,
+        InsertFields(
+          ir(env),
+          right.typ.asInstanceOf[TStruct].fieldNames.map(f => f -> GetField(Ref(sym, right.typ), f)),
+          ordering))
+    }
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 

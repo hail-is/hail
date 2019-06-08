@@ -23,3 +23,6 @@ class Tests(unittest.TestCase):
         (mt.af * mt.GT.n_alt_alleles()).show()
         t.af.show()
         (t.af * 3).show()
+
+    def test_show_negative(self):
+        hl.utils.range_table(5).show(-1)

@@ -103,7 +103,7 @@ upload-deferred-artifacts: wheel
 
 .PHONY: install-wheel
 install-wheel: wheel
-	$(HAIL_PIP3) uninstall -y hail
+	-$(HAIL_PIP3) uninstall -y hail
 	$(HAIL_PIP3) install $(wheel_path)
 
 .PHONY: install-hailctl-wheel

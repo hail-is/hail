@@ -115,7 +115,7 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
 
-            script.append(f"# {task._uid} {task._label if task._label else ''}")
+            script.append(f"# {task._uid} {task._name if task._name else ''}")
 
             script += [x for r in task._inputs for x in copy_input(task, r)]
 
@@ -203,7 +203,11 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu'
 
-        batch = self._batch_client.create_batch()
+        attributes = {}
+        if pipeline._name is not None:
+            attributes['name'] = pipeline._name
+
+        batch = self._batch_client.create_batch(attributes=attributes)
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
@@ -279,8 +283,8 @@ class BatchBackend(Backend):
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
-            if task._label:
-                attributes['name'] = task._label
+            if task._name:
+                attributes['name'] = task._name
 
             resources = {'requests': {}}
             if task._cpu:
@@ -323,21 +327,22 @@ class BatchBackend(Backend):
         batch = batch.submit()
         status = batch.wait()
 
+        if status['state'] == 'success':
+            print('Pipeline completed successfully!')
+            return
+
         failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
+            ec = batch.client.Job.exit_code(ec)
             job = self._batch_client.get_job(*jid)
             log = job.log()
-            label = job.status()['attributes'].get('name', None)
+            name = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task label:\t{label}\n"
+                f"  Task name:\t{name}\n"
                 f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
-        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
-        if failed_jobs or n_complete != n_jobs_submitted:
-            raise Exception(fail_msg)
-
-        print("Pipeline completed successfully!")
+        raise Exception(fail_msg)

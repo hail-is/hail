@@ -33,7 +33,7 @@ class Test(unittest.TestCase):
         builder.submit()
         status = j.wait()
         self.assertTrue('attributes' not in status)
-        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['state'], 'Success')
         self.assertEqual(status['exit_code']['main'], 0)
 
         self.assertEqual(j.log(), {'main': 'test\n'})
@@ -152,7 +152,7 @@ class Test(unittest.TestCase):
         b = b.submit()
 
         status = j.status()
-        self.assertTrue(status['state'], 'Ready')
+        self.assertTrue(status['state'] in ('Ready', 'Running'))
 
         b.cancel()
 
@@ -202,11 +202,11 @@ class Test(unittest.TestCase):
         assert(len(bstatus['jobs']) == 3)
         state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
         n_cancelled = state_count['Cancelled']
-        n_complete = state_count['Complete']
+        n_complete = state_count['Error'] + state_count['Failed'] + state_count['Success']
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
-        n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] == 'Complete'])
+        n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
         self.assertTrue(n_failed == 1)
 
     def test_batch_status(self):
@@ -263,7 +263,7 @@ class Test(unittest.TestCase):
 
             batch.poll_until(lambda: 'status' in d)
             status = d['status']
-            self.assertEqual(status['state'], 'Complete')
+            self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
         finally:
             server.shutdown()
@@ -275,7 +275,7 @@ class Test(unittest.TestCase):
         b.submit()
         status = j.wait()
         self.assertTrue('attributes' not in status)
-        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['state'], 'Failed')
         self.assertEqual(status['exit_code']['main'], 127)
 
         self.assertEqual(j.log(), {'main': 'test\n'})

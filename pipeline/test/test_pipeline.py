@@ -225,7 +225,7 @@ class LocalTests(unittest.TestCase):
     def test_select_tasks(self):
         p = self.pipeline()
         for i in range(3):
-            t = p.new_task().label(f'foo{i}')
+            t = p.new_task().name(f'foo{i}')
         self.assertTrue(len(p.select_tasks('foo')) == 3)
 
     def test_scatter_gather(self):
@@ -233,12 +233,12 @@ class LocalTests(unittest.TestCase):
             p = self.pipeline()
 
             for i in range(3):
-                t = p.new_task().label(f'foo{i}')
+                t = p.new_task().name(f'foo{i}')
                 t.command(f'echo "{i}" > {t.ofile}')
 
             merger = p.new_task()
             merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                                  key=lambda x: x._label,
+                                                                                                  key=lambda x: x._name,
                                                                                                   reverse=True)]),
                                                           ofile=merger.ofile))
 
@@ -383,12 +383,12 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
 
         for i in range(3):
-            t = p.new_task().label(f'foo{i}')
+            t = p.new_task().name(f'foo{i}')
             t.command(f'echo "{i}" > {t.ofile}')
 
         merger = p.new_task()
         merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                              key=lambda x: x._label,
+                                                                                              key=lambda x: x._name,
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
