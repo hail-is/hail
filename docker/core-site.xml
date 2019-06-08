@@ -10,7 +10,7 @@
   
   <property>
     <name>google.cloud.auth.service.account.json.keyfile</name>
-    <value>/hail-vdc-sa-key/hail-vdc-sa-key.json</value>
+    <value>/gsa-key/privateKeyData</value>
   </property>
   
 </configuration>
