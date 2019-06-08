@@ -4,8 +4,7 @@ from subprocess import check_call
 
 def init_parser(parser):
     parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('--jar', type=str, help='New Hail JAR.')
-    parser.add_argument('--zip', type=str, help='New Hail ZIP.')
+    parser.add_argument('--wheel', type=str, help='New Hail installation.')
     parser.add_argument('--num-workers', '--n-workers', '-w', type=int,
                         help='New number of worker machines (min. 2).')
     parser.add_argument('--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
@@ -54,48 +53,43 @@ def main(args, pass_through_args):
             print("Updating cluster '{}'...".format(args.name))
             check_call(cmd)
 
-    if (args.jar is not None):
-        print('gcloud jar update command(s):')
-        _scp_and_sudo_move(args.jar, args.name, '/home/hail/hail.jar', args.zone)
-    if (args.zip is not None):
-        print('gcloud zip update command(s):')
-        _scp_and_sudo_move(args.zip, args.name, '/home/hail/hail.zip', args.zone)
-
-
-# user doesn't have access to /home/hail/ so we copy then use sudo
-def _scp_and_sudo_move(source, destination_host, destination, zone):
-    cmds = []
-    if source.startswith("gs://"):
-        cmds.append([
-            'gcloud',
-            'compute',
-            'ssh',
-            '{}-m'.format(destination_host),
-            '--zone={}'.format(zone),
-            '--',
-            'sudo gsutil cp {} {}'.format(source, destination)
-        ])
-    else:
-        cmds.extend([
-            [
-                'gcloud',
-                'compute',
-                'scp',
-                '--zone={}'.format(zone),
-                source,
-                '{}-m:/tmp/foo'.format(destination_host)
-            ],
-            [
+    if (args.wheel is not None):
+        wheel = args.wheel
+        cmds = []
+        if wheel.startswith("gs://"):
+            cmds.append([
                 'gcloud',
                 'compute',
                 'ssh',
-                '{}-m'.format(destination_host),
-                '--zone={}'.format(zone),
+                '{}-m'.format(args.name),
+                '--zone={}'.format(args.zone),
                 '--',
-                'sudo mv /tmp/foo {}'.format(destination)
-            ]
-        ])
+                'sudo gsutil cp {source} /home/hail/ && '
+                'sudo /opt/conda/default/bin/pip uninstall -y hail && '
+                'sudo /opt/conda/default/bin/pip install --no-deps /home/hail/*.whl'.format(source=wheel)
+            ])
+        else:
+            cmds.extend([
+                [
+                    'gcloud',
+                    'compute',
+                    'scp',
+                    '--zone={}'.format(args.zone),
+                    wheel,
+                    '{}-m:/tmp/'.format(args.name)
+                ],
+                [
+                    'gcloud',
+                    'compute',
+                    'ssh',
+                    '{}-m'.format(args.name),
+                    '--zone={}'.format(args.zone),
+                    '--',
+                    'sudo /opt/conda/default/bin/pip uninstall -y hail && '
+                    'sudo /opt/conda/default/bin/pip install --no-deps /tmp/*.whl'.format(source=wheel)
+                ]
+            ])
 
-    for cmd in cmds:
-        print(cmd)
-        check_call(cmd)
+        for cmd in cmds:
+            print(cmd)
+            check_call(cmd)

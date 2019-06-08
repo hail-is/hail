@@ -5,7 +5,6 @@ import subprocess as sp
 
 import hailctl
 from .cluster_config import ClusterConfig
-from .utils import safe_call
 
 DEFAULT_PROPERTIES = {
     "spark:spark.driver.maxResultSize": "0",
@@ -87,9 +86,7 @@ def init_parser(parser):
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
 
-    # specify custom Hail jar and zip
-    parser.add_argument('--jar', help='Non-default Hail JAR to install. Warning: experimental.')
-    parser.add_argument('--wheel', help='Non-default Hail Python wheel install. Warning: experimental.')
+    parser.add_argument('--wheel', help='Non-default Hail installation. Warning: experimental.')
 
     # initialization action flags
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
@@ -130,27 +127,21 @@ def main(args, pass_through_args):
     if args.metadata:
         conf.parse_and_extend('metadata', args.metadata)
 
-    if args.jar and args.wheel:
-        jar = args.jar
-        wheel = args.wheel
-    elif args.jar or args.wheel:
-        sys.stderr.write('ERROR: pass both --jar and --wheel or neither')
-        sys.exit(1)
-    else:
-        jar = deploy_metadata['jar']
-        wheel = deploy_metadata['wheel']
-    conf.extend_flag('metadata', {'JAR': jar, 'ZIP': wheel})
+    wheel = args.wheel or deploy_metadata['wheel']
+    conf.extend_flag('metadata', {'WHEEL': wheel})
 
     # if Python packages requested, add metadata variable
+    packages = deploy_metadata['pip_dependencies'].strip('|').split('|||')
+    metadata_pkgs = conf.flags['metadata'].get('PKGS')
+    split_regex = r'[|,]'
+    if metadata_pkgs:
+        packages.extend(re.split(split_regex, metadata_pkgs))
     if args.packages:
-        metadata_pkgs = conf.flags['metadata'].get('PKGS')
-        packages = []
-        split_regex = r'[|,]'
-        if metadata_pkgs:
-            packages.extend(re.split(split_regex, metadata_pkgs))
-
         packages.extend(re.split(split_regex, args.packages))
-        conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
+    conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
+
+    # rewrite metadata to escape it
+    conf.flags['metadata'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['metadata'].items())
 
     conf.extend_flag('properties',
                      {"spark:spark.driver.memory": "{driver_memory}g".format(

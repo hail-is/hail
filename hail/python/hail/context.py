@@ -47,8 +47,9 @@ class HailContext(object):
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
             conf = SparkConf()
+            conf.set('spark.jars', hail_jar_path)
             conf.set('spark.driver.extraClassPath', hail_jar_path)
-            conf.set('spark.executor.extraClassPath', hail_jar_path)
+            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             SparkContext._ensure_initialized(conf=conf)
         else:
             SparkContext._ensure_initialized()
