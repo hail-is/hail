@@ -83,7 +83,6 @@ if role == 'Master':
     conf_to_set = [
         'spark.jars=/home/hail/hail.jar',
         'spark.executorEnv.PYTHONHASHSEED=0',
-        'spark.submit.pyFiles=/home/hail/hail.whl',
         'spark.driver.extraClassPath=/home/hail/hail.jar',
         'spark.executor.extraClassPath=./hail.jar'
     ]
