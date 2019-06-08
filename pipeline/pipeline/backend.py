@@ -30,7 +30,7 @@ class LocalBackend(Backend):
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
     gsa_key_file :obj:`str`, optional
-        Mount a file with a gsa key to `/gsa-key/privateData`. Only used if a
+        Mount a file with a gsa key to `/gsa-key/privateKeyData`. Only used if a
         task specifies a docker image. This option will override the value set by
         the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
     extra_docker_run_flags :obj:`str`, optional
@@ -52,7 +52,7 @@ class LocalBackend(Backend):
         if gsa_key_file is None:
             gsa_key_file = os.environ.get('HAIL_PIPELINE_GSA_KEY_FILE')
         if gsa_key_file is not None:
-            flags += f' -v {gsa_key_file}:/gsa-key/privateData'
+            flags += f' -v {gsa_key_file}:/gsa-key/privateKeyData'
 
         self._extra_docker_run_flags = flags
 
