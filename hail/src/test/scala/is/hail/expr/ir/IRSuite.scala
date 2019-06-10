@@ -976,10 +976,10 @@ class IRSuite extends HailSuite {
     val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
 
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(2)), 3.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(1, 0)), 3.0)
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(0)), 1.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(0, 0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(2)), 3.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(1, 0)), 3.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(0, 0)), 1.0)
   }
 
   @Test def testNDArrayMap() {

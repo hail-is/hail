@@ -2821,20 +2821,22 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_reshape(self):
-        a = hl._ndarray([1, 2, 3, 4, 5, 6])
-        fat = a.reshape((2, 3))
-        skinny = a.reshape((3, 2))
+        np_a = np.array([1, 2, 3, 4, 5, 6])
+        a = hl._ndarray(np_a)
 
-        a_three = a[2]
-        fat_three = fat[0, 2]
-        skinny_three = skinny[1, 0]
-        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three) == 3)
+        self.ndarray_eq(a.reshape((2, 3)), np_a.reshape((2, 3)))
+        self.ndarray_eq(a.reshape((3, 2)), np_a.reshape((3, 2)))
 
-        nums = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7])
-        cube = nums.reshape((2, 2, 2))
-        rect = cube.reshape((2, 4))
-        cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
-        self.assertTrue(hl.eval(cube[0, 1, 1]) == hl.eval(rect[0, 3]) == hl.eval(cube_t_to_rect[1, 1]) == 3)
+        np_nums = np.array([0, 1, 2, 3, 4, 5, 6, 7])
+        nums = hl._ndarray(np_nums, row_major=False)
+
+        cube_to_rect = nums.reshape((2, 2, 2)).reshape((2, 4))
+        np_cube_to_rect = np_nums.reshape((2, 2, 2)).reshape((2, 4))
+        self.ndarray_eq(cube_to_rect, np_cube_to_rect)
+
+        cube_t_to_rect = nums.reshape((2, 2, 2)).transpose((1, 0, 2)).reshape((2, 4))
+        np_cube_t_to_rect = np_nums.reshape((2, 2, 2)).transpose((1, 0, 2)).reshape((2, 4))
+        self.ndarray_eq(cube_t_to_rect, np_cube_t_to_rect)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

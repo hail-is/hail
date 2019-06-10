@@ -921,46 +921,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
+<<<<<<< HEAD
       case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayAgg =>
+=======
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayReshape =>
+>>>>>>> deforest reshape
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
-
-      case ir.NDArrayReshape(child, shapeIR) =>
-        // Force copy of new array that is row major
-        val childRowMajor = emitDeforestedNDArray(resultRegion, child, env)
-        val nd = fb.variable("nd", "NDArray", childRowMajor.emit(child.pType.asInstanceOf[PNDArray].elementType))
-        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
-
-        val shapet = emit(shapeIR)
-        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
-        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
-        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
-        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
-
-        val strides = fb.variable("strides", "std::vector<long>", s"make_strides(true, $shape)")
-        present(
-          s"""
-             |({
-             | ${ shapet.setup }
-             | if (${ shapet.m }) {
-             |  ${ fb.nativeError("NDArray does not support missing shape") }
-             | }
-             | ${ shapeTup.define }
-             | if (${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
-             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
-             | }
-             |
-             | ${ nd.define }
-             | ${ shape.define }
-             | ${ strides.define }
-             |
-             | if (n_elements($shape) != n_elements($nd.shape)) {
-             |  ${ fb.nativeError("Initial shape and new shape have differing number of elements") }
-             | }
-             |
-             | make_ndarray(0, 0, $nd.elem_size, $shape, $strides, $nd.data);
-             |})
-           """.stripMargin)
 
       case ir.NDArrayReindex(child, indexExpr) =>
         val ndt = emit(child)
@@ -1354,6 +1321,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
     def deforest(nd: ir.IR): NDArrayEmitter = emitDeforestedNDArray(resultRegion, nd, env)
 
     val xType = x.pType.asInstanceOf[PNDArray]
+    val nDims = xType.nDims
     x match {
       case ir.NDArrayReindex(child, indexExpr) =>
         val childEmitter = deforest(child)
@@ -1366,7 +1334,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shape = fb.variable("shape", "std::vector<long>", newShapeSeq.mkString("{", ", ", "}"))
         val setup = Code(childEmitter.setup, shape.define)
 
-        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             val concreteIdxsForChild = Seq.tabulate(childEmitter.nDims) { childDim =>
               val parentDim = indexExpr.indexOf(childDim)
@@ -1422,8 +1390,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val shape = fb.variable("shape", "std::vector<long>", s"unify_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
 
-        val lBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, xType.nDims, lEmitter.shape.toString)
-        val rBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, xType.nDims, rEmitter.shape.toString)
+        val lBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, nDims, lEmitter.shape.toString)
+        val rBroadcastFlags = NDArrayEmitter.broadcastFlags(fb, nDims, rEmitter.shape.toString)
 
         val setup = Code(lEmitter.setup, rEmitter.setup, lRef.define, rRef.define, shape.define,
           Code.defineVars(lBroadcastFlags), Code.defineVars(rBroadcastFlags))
@@ -1582,6 +1550,83 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
+      case ir.NDArrayReshape(ndIR, shapeIR) =>
+        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
+        val shapet = emit(resultRegion, shapeIR, env)
+        val shapeTup = fb.variable("shape_tuple", "const char *", shapet.v)
+        val shapeMissing = Seq.tabulate(shapePType.size) { shapePType.cxxIsFieldMissing(shapeTup.toString, _) }
+        val shapeSeq = Seq.tabulate(shapePType.size) { shapePType.cxxLoadField(shapeTup.toString, _) }
+        val shape = fb.variable("shape", "std::vector<long>", shapeSeq.mkString("{", ", ", "}"))
+
+        def nInnerElementsPerDimension(shape: Variable, nDims: Int): Array[Variable] = {
+          val nInnerElements = new Array[Variable](nDims)
+          var dim = nDims - 1
+          while (dim >= 0) {
+            val nInnerElementsForDim = if (dim == nDims - 1) "1" else s"$shape[${ dim + 1 }] * ${ nInnerElements(dim + 1) }"
+            nInnerElements(dim) = fb.variable(s"n_inner_elements_$dim", "long", nInnerElementsForDim)
+            dim -= 1
+          }
+
+          nInnerElements
+        }
+
+        val reshapedNInnerElems = nInnerElementsPerDimension(shape, nDims)
+        val childNInnerElems = nInnerElementsPerDimension(childEmitter.shape, childEmitter.nDims)
+
+        val setup =
+          s"""
+             | ${ childEmitter.setup }
+             |
+             | ${ shapet.setup }
+             | if (${ shapet.m }) {
+             |  ${ fb.nativeError("NDArray does not support missing shape") }
+             | }
+             |
+             | ${ shapeTup.define }
+             | if (${ shapeMissing.foldRight("false")((b, m) => s"$b || $m") }) {
+             |  ${ fb.nativeError("Cannot reshape with missing dimension length") }
+             | }
+             |
+             | ${ shape.define }
+             |
+             | if (n_elements($shape) != n_elements(${ childEmitter.shape })) {
+             |  ${ fb.nativeError("Initial shape and new shape have differing number of elements") }
+             | }
+             |
+             | ${ Code.defineVars(reshapedNInnerElems.reverse.toFastIndexedSeq)}
+             | ${ Code.defineVars(childNInnerElems.reverse.toFastIndexedSeq)}
+           """.stripMargin
+
+
+        new NDArrayEmitter(fb, resultRegion, nDims, shape, setup) {
+          override def outputElement(idxVars: Seq[Variable]): Code = {
+            val globalIndex = fb.variable("global_index", "int", idxVars.zip(reshapedNInnerElems).foldRight("0") {
+              case ((idx, nInnerElements), prod) => s"$prod + $idx * $nInnerElements"
+            })
+
+            val mappedIdxs = childNInnerElems.map { nInnerElementsForDim =>
+              val newIdx = fb.variable("new_idx", "int", s"$globalIndex / $nInnerElementsForDim")
+              val definition =
+                s"""
+                   | ${ newIdx.define }
+                   | $globalIndex = $globalIndex % $nInnerElementsForDim;
+                 """.stripMargin
+
+              (newIdx, definition)
+            }
+
+            s"""
+               |({
+               | ${ globalIndex.define }
+               | ${ Code.sequence(mappedIdxs.map(_._2)) }
+               | ${ childEmitter.outputElement(mappedIdxs.map(_._1)) };
+               |})
+             """.stripMargin
+          }
+        }
+
       case _ =>
         val ndt = emit(resultRegion, x, env)
         val nd = fb.variable("nd", "NDArray", ndt.v)
@@ -1594,7 +1639,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | ${ shape.define }
            """.stripMargin
 
-        new NDArrayEmitter(fb, resultRegion, xType.nDims, shape, setup) {
+        new NDArrayEmitter(fb, resultRegion, nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
             NDArrayEmitter.loadElement(nd, idxVars, xType.elementType)
           }
