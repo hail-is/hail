@@ -2827,15 +2827,15 @@ class Tests(unittest.TestCase):
         self.ndarray_eq(a.reshape((2, 3)), np_a.reshape((2, 3)))
         self.ndarray_eq(a.reshape((3, 2)), np_a.reshape((3, 2)))
 
-        np_nums = np.array([0, 1, 2, 3, 4, 5, 6, 7])
-        nums = hl._ndarray(np_nums, row_major=False)
+        np_nums = np.array([0, 1, 2, 3, 4, 5, 6, 7]).reshape((2, 2, 2))
+        nums = hl._ndarray(np_nums)
 
-        cube_to_rect = nums.reshape((2, 2, 2)).reshape((2, 4))
-        np_cube_to_rect = np_nums.reshape((2, 2, 2)).reshape((2, 4))
+        cube_to_rect = nums.reshape((2, 4))
+        np_cube_to_rect = np_nums.reshape((2, 4))
         self.ndarray_eq(cube_to_rect, np_cube_to_rect)
 
-        cube_t_to_rect = nums.reshape((2, 2, 2)).transpose((1, 0, 2)).reshape((2, 4))
-        np_cube_t_to_rect = np_nums.reshape((2, 2, 2)).transpose((1, 0, 2)).reshape((2, 4))
+        cube_t_to_rect = nums.transpose((1, 0, 2)).reshape((2, 4))
+        np_cube_t_to_rect = np_nums.transpose((1, 0, 2)).reshape((2, 4))
         self.ndarray_eq(cube_t_to_rect, np_cube_t_to_rect)
 
     @skip_unless_spark_backend()
