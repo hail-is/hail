@@ -1,10 +1,10 @@
-package is.hail.backend.spark
+package is.hail.backend
 
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
 
-class SparkBackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])]) {
+class BackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])]) {
 
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
 

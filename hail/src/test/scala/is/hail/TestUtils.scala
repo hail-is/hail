@@ -147,7 +147,7 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        val (res, _) = HailContext.backend.asSpark().cxxExecute(x, optimize = false)
+        val (res, _) = HailContext.backend.asSpark().cxxLowerAndExecute(x, optimize = false)
         res
       } catch {
         case e: CXXUnsupportedOperation =>

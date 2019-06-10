@@ -1244,7 +1244,7 @@ private class Emit(
           fID
         }
 
-        val spark = parentFB.sparkBackend()
+        val spark = parentFB.backend()
         val contextAE = emitArrayIterator(contexts)
         val globalsT = emit(globals)
 

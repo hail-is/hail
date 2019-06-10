@@ -5,7 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintW
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
-import is.hail.backend.spark.SparkBackendUtils
+import is.hail.backend.BackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
@@ -60,8 +60,8 @@ trait FunctionWithSeededRandomness {
   def setPartitionIndex(idx: Int): Unit
 }
 
-trait FunctionWithSparkBackend {
-  def setSparkBackend(spark: SparkBackendUtils): Unit
+trait FunctionWithBackend {
+  def setBackend(spark: BackendUtils): Unit
 }
 
 class EmitMethodBuilder(
@@ -224,18 +224,18 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
 
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
-  private[this] var _sparkField: ClassFieldRef[SparkBackendUtils] = _
+  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  def sparkBackend(): Code[SparkBackendUtils] = {
-    if (_sparkField == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSparkBackend].iname)
-      val sparkField = newField[SparkBackendUtils]
-      val mb = new EmitMethodBuilder(this, "setSparkBackend", Array(typeInfo[SparkBackendUtils]), typeInfo[Unit])
+  def backend(): Code[BackendUtils] = {
+    if (_backendField == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
+      val backendField = newField[BackendUtils]
+      val mb = new EmitMethodBuilder(this, "setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(sparkField := mb.getArg[SparkBackendUtils](1))
-      _sparkField = sparkField
+      mb.emit(backendField := mb.getArg[BackendUtils](1))
+      _backendField = backendField
     }
-    _sparkField
+    _backendField
   }
 
   def addModule(name: String, mod: Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
@@ -436,8 +436,8 @@ class EmitFunctionBuilder[F >: Null](
     val n = name.replace("/",".")
     val localHConf = _hconf
 
-    val useSpark = _sparkField != null
-    val spark = if (useSpark) new SparkBackendUtils(_mods.result()) else null
+    val useBackend = _backendField != null
+    val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -458,8 +458,8 @@ class EmitFunctionBuilder[F >: Null](
           val f = theClass.newInstance().asInstanceOf[F]
           if (localHConf != null)
             f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
-          if (useSpark)
-            f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
+          if (useBackend)
+            f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (hasLiterals)
             f.asInstanceOf[FunctionWithLiterals].addLiterals(literals)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
