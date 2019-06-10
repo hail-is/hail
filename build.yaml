@@ -671,6 +671,7 @@ steps:
     - from: /io/test-output
       to: /test-distributed-backend-output
    dependsOn:
+    - default_ns
     - hail_run_image
     - build_hail
     - deploy_scheduler
