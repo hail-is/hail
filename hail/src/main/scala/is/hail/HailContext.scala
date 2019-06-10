@@ -6,6 +6,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
+import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
@@ -26,6 +27,7 @@ import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
@@ -271,8 +273,7 @@ object HailContext {
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
-     
-    val hc = new HailContext(SparkBackend(sparkContext), logFile, tmpDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(SparkBackend(sparkContext), sparkContext.hadoopConfiguration, logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -295,6 +296,77 @@ object HailContext {
 
     hc
   }
+
+  def createDistributed(hostname: String,
+    appName: String = "Hail",
+    master: Option[String] = None,
+    local: String = "local[*]",
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    minBlockSize: Long = 1L,
+    branchingFactor: Int = 50,
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
+    require(theContext == null)
+    val sConf = createSparkConf(appName, master, local, minBlockSize)
+    val hConf = SparkHadoopUtil.get.newConfiguration(sConf)
+
+    val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
+    val versionString = System.getProperty("java.version")
+    versionString match {
+      // old-style version: 1.MAJOR.MINOR
+      // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
+      // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
+      case javaVersion("1", major, minor) =>
+        if (major.toInt < 8)
+          fatal(s"Hail requires Java 1.8, found $versionString")
+      case javaVersion(major, minor, security) =>
+        if (major.toInt > 8)
+          fatal(s"Hail requires Java 8, found $versionString")
+      case _ =>
+        fatal(s"Unknown JVM version string: $versionString")
+    }
+
+    {
+      import breeze.linalg._
+      import breeze.linalg.operators.{BinaryRegistry, OpMulMatrix}
+
+      implicitly[BinaryRegistry[DenseMatrix[Double], Vector[Double], OpMulMatrix.type, DenseVector[Double]]].register(
+        DenseMatrix.implOpMulMatrix_DMD_DVD_eq_DVD)
+    }
+
+    configureLogging(logFile, quiet, append)
+
+    hConf.set("io.compression.codecs",
+      "org.apache.hadoop.io.compress.DefaultCodec," +
+        "is.hail.io.compress.BGzipCodec," +
+        "is.hail.io.compress.BGzipCodecTbi," +
+        "org.apache.hadoop.io.compress.GzipCodec"
+    )
+
+    val hc = new HailContext(new DistributedBackend(hostname, hConf), hConf, logFile, tmpDir, branchingFactor, optimizerIterations)
+
+    var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
+    if (uploadEmail == null)
+      uploadEmail = sConf.get("hail.uploadEmail", null)
+    if (uploadEmail != null)
+      hc.setUploadEmail(uploadEmail)
+
+    var enableUploadStr = System.getenv("HAIL_ENABLE_PIPELINE_UPLOAD")
+    if (enableUploadStr == null)
+      enableUploadStr = sConf.get("hail.enablePipelineUpload", null)
+    if (enableUploadStr != null && enableUploadStr == "true")
+      hc.enablePipelineUpload()
+
+    info(s"Running Hail version ${ hc.version }")
+    theContext = hc
+
+    // needs to be after `theContext` is set, since this creates broadcasts
+//    ReferenceGenome.addDefaultReferences()
+    hc
+  }
+
 
   def clear() {
     ReferenceGenome.reset()
@@ -384,18 +456,29 @@ object HailContext {
   def pyRemoveIrVector(id: Int) {
     get.irVectors.remove(id)
   }
+
+  def configureDistributedBackend(
+    hostname: String,
+    hConf: hadoop.conf.Configuration,
+    logFile: String,
+    tmpDir: String,
+    branchingFactor: Int,
+    optIterations: Int): HailContext = {
+    new HailContext(new DistributedBackend(hostname, hConf), hConf, logFile, tmpDir, branchingFactor, optIterations)
+  }
 }
 
 class HailContext private(
   val backend: Backend,
+  val hadoopConf: hadoop.conf.Configuration,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
   lazy val sc: SparkContext = backend.asSpark().sc
 
-  val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
-  val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+  val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)
   
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
