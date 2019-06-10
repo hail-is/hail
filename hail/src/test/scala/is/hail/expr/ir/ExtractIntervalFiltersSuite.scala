@@ -14,6 +14,21 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
   lazy val k1 = GetField(ref1, "x")
   val ref1Key = FastIndexedSeq("x")
 
+
+  val structRef = Ref("foo", TStruct("x" -> TInt32(), "y" -> TInt32(), "z" -> TInt32()))
+  val structRefKey = FastIndexedSeq("y", "z")
+
+  val structT1 = TStruct("y" -> TInt32(), "z" -> TInt32())
+  val structT2 = TStruct("y" -> TInt32())
+
+  val fullKeyRefs = Array(
+    SelectFields(structRef, structRefKey),
+    MakeStruct(FastSeq("y" -> GetField(structRef, "y"), "z" -> GetField(structRef, "z"))))
+
+  val prefixKeyRefs = Array(
+    SelectFields(structRef, FastSeq("y")),
+    MakeStruct(FastSeq("y" -> GetField(structRef, "y"))))
+
   def wrappedIntervalEndpoint(x: Any, sign: Int) = IntervalEndpoint(Row(x), sign)
 
   @Test def testKeyComparison() {
@@ -68,12 +83,66 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     }
   }
 
+  @Test def testLiteralContainsStruct() {
+    hc // force initialization
+
+    for (lit <- Array(
+      Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4))),
+      Literal(TArray(structT1), FastIndexedSeq(Row(1, 2), Row(3, 4))),
+      Literal(TDict(structT1, TString()), Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar")))) {
+      for (k <- fullKeyRefs) {
+
+        val ir = invoke("contains", lit, k)
+
+        val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
+        assert(rw == True())
+        assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(Row(1, 2), -1), IntervalEndpoint(Row(1, 2), 1)),
+          Interval(IntervalEndpoint(Row(3, 4), -1), IntervalEndpoint(Row(3, 4), 1))))
+      }
+    }
+
+    for (lit <- Array(
+      Literal(TSet(structT2), Set(Row(1), Row(3))),
+      Literal(TArray(structT2), FastIndexedSeq(Row(1), Row(3))),
+      Literal(TDict(structT2, TString()), Map(Row(1) -> "foo", Row(3) -> "bar")))) {
+      for (k <- prefixKeyRefs) {
+
+        val ir = invoke("contains", lit, k)
+
+        val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
+        assert(rw == True())
+        assert(i.toSeq == FastSeq(Interval(IntervalEndpoint(Row(1), -1), IntervalEndpoint(Row(1), 1)),
+          Interval(IntervalEndpoint(Row(3), -1), IntervalEndpoint(Row(3), 1))))
+      }
+    }
+  }
+
+
   @Test def testIntervalContains() {
     val interval = Interval(IntervalEndpoint(1, 1), IntervalEndpoint(5, 1))
     val ir = invoke("contains", Literal(TInterval(TInt32()), interval), k1)
     val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
-    assert(i.toSeq == FastSeq(interval))
+    assert(i.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(1, 1), wrappedIntervalEndpoint(5, 1))))
+  }
+
+  @Test def testIntervalContainsStruct() {
+    val fullInterval = Interval(IntervalEndpoint(Row(1, 1), 1), IntervalEndpoint(Row(2, 2), 1))
+    val prefixInterval = Interval(IntervalEndpoint(Row(1), 1), IntervalEndpoint(Row(2), 1))
+
+    for (k <- fullKeyRefs) {
+      val ir = invoke("contains", Literal(TInterval(structT1), fullInterval), k)
+      val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
+      assert(rw == True())
+      assert(i.toSeq == FastSeq(fullInterval))
+    }
+
+    for (k <- prefixKeyRefs) {
+      val ir = invoke("contains", Literal(TInterval(structT2), prefixInterval), k)
+      val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, structRef, structRefKey).get
+      assert(rw == True())
+      assert(i.toSeq == FastSeq(prefixInterval))
+    }
   }
 
   @Test def testLocusContigComparison() {

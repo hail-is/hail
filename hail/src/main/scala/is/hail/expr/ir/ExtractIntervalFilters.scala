@@ -21,7 +21,7 @@ object ExtractIntervalFilters {
         .iterator
         .map(_._2)
         .zipWithIndex
-        .forall { case (fd, idx) => idx < rowType.size && fd == GetField(rowRef, rowType.fieldNames(idx)) }
+        .forall { case (fd, idx) => idx < rowKeyType.size && fd == GetField(rowRef, rowKeyType.fieldNames(idx)) }
       case SelectFields(`rowRef`, fields) => keyFields.startsWith(fields)
       case _ => false
     }
@@ -146,19 +146,6 @@ object ExtractIntervalFilters {
         }
       case Coalesce(Seq(x, False())) => extractAndRewrite(x, es)
         .map { case (ir, intervals) => (Coalesce(FastSeq(ir, False())), intervals) }
-      case ApplyIR("contains", Seq(lit: Literal, k)) if es.isFirstKey(k) =>
-        val intervals = (lit.value: @unchecked) match {
-          case x: IndexedSeq[_] => x.map(elt => Interval(endpoint(elt, -1), endpoint(elt, 1))).toArray
-          case x: Set[_] => x.map(elt => Interval(endpoint(elt, -1), endpoint(elt, 1))).toArray
-          case x: Map[_, _] => x.keys.map(elt => Interval(endpoint(elt, -1), endpoint(elt, 1))).toArray
-        }
-        Some((True(), intervals))
-      case ApplySpecial("contains", Seq(lit: Literal, k)) if es.isFirstKey(k) =>
-        val intervals = (lit.value: @unchecked) match {
-          case null => Array[Interval]()
-          case i: Interval => wrapInRow(Array(i))
-        }
-        Some((True(), intervals))
       case ApplyIR("contains", Seq(lit: Literal, Apply("contig", Seq(k)))) if es.isFirstKey(k) =>
         val rg = k.typ.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
 
@@ -168,6 +155,38 @@ object ExtractIntervalFilters {
           case x: Map[_, _] => x.keys.map(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
         }
         Some((True(), intervals))
+      case ApplyIR("contains", Seq(lit: Literal, k)) =>
+        val wrap = if (es.isFirstKey(k)) Some(true) else if (es.isKeyStructPrefix(k)) Some(false) else None
+        wrap.map { wrapStruct =>
+          val intervals = (lit.value: @unchecked) match {
+            case x: IndexedSeq[_] => x.map(elt => Interval(
+              endpoint(elt, -1, wrapped = wrapStruct),
+              endpoint(elt, 1, wrapped = wrapStruct))).toArray
+            case x: Set[_] => x.map(elt => Interval(
+              endpoint(elt, -1, wrapped = wrapStruct),
+              endpoint(elt, 1, wrapped = wrapStruct))).toArray
+            case x: Map[_, _] => x.keys.map(elt => Interval(
+              endpoint(elt, -1, wrapped = wrapStruct),
+              endpoint(elt, 1, wrapped = wrapStruct))).toArray
+          }
+          (True(), intervals)
+        }
+      case ApplySpecial("contains", Seq(lit: Literal, k)) =>
+        k match {
+          case x if es.isFirstKey(x) =>
+            val intervals = (lit.value: @unchecked) match {
+              case null => Array[Interval]()
+              case i: Interval => Array(i)
+            }
+            Some((True(), wrapInRow(intervals)))
+          case x if es.isKeyStructPrefix(x) =>
+            val intervals = (lit.value: @unchecked) match {
+              case null => Array[Interval]()
+              case i: Interval => Array(i)
+            }
+            Some((True(), intervals))
+          case _ => None
+        }
       case ApplyComparisonOp(op, l, r) if opIsSupported(op) =>
         val comparisonData = if (IsConstant(l))
           Some((l, r, false))
@@ -180,6 +199,10 @@ object ExtractIntervalFilters {
             case x if es.isFirstKey(x) =>
               // simple key comparison
               Some((True(), Array(openInterval(constValue(const), const.typ, op, flipped))))
+            case x if es.isKeyStructPrefix(x) =>
+              assert(op.isInstanceOf[EQ])
+              val c = constValue(const)
+              Some((True(), Array(Interval(endpoint(c, -1), endpoint(c, 1)))))
             case Apply("contig", Seq(x)) if es.isFirstKey(x) =>
               // locus contig comparison
               val intervals = (constValue(const): @unchecked) match {
