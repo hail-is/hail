@@ -24,7 +24,6 @@ import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
-import org.apache.spark.broadcast.Broadcast
 
 abstract class RGBase extends Serializable {
   def locusType: TLocus

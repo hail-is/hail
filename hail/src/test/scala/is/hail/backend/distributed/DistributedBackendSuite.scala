@@ -1,8 +1,10 @@
 package is.hail.backend.distributed
 
+import is.hail.DistributedSuite
 import is.hail.expr.ir._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class DistributedBackendSuite extends DistributedSuite {
   @Test def testPipeline() {
@@ -16,8 +18,5 @@ class DistributedBackendSuite extends DistributedSuite {
 
     val (v, t) = hc.backend.execute(TableCollect(testIR), optimize = false)
     assert(v == Row(Array.tabulate(5000)(i => Row(i, "foo", 3)).filter(_.getAs[Int](0) > 3).toFastIndexedSeq, Row()))
-    t.value.foreach { case (stage, timing) =>
-      println(s"Time taken for $stage: ${ timing("readable") }")
-    }
   }
 }
