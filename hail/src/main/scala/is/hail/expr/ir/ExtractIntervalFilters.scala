@@ -11,7 +11,7 @@ object ExtractIntervalFilters {
   case class ExtractionState(rowRef: Ref, keyFields: IndexedSeq[String]) {
     val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
     val rowKeyType: TStruct = rowType.select(keyFields)._1
-    val firstKeyType: Type = rowType.types.head
+    val firstKeyType: Type = rowKeyType.types.head
     val iOrd: IntervalEndpointOrdering = rowKeyType.ordering.intervalEndpointOrdering
 
     def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowType.fieldNames.head)
