@@ -2,9 +2,11 @@ package is.hail.utils
 
 import is.hail.HailContext
 import java.io.{ ObjectInputStream, ObjectOutputStream }
+import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+import scala.reflect.classTag
 
 object SpillingCollectIterator {
   def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int = 1000): SpillingCollectIterator[T] = {
@@ -12,20 +14,23 @@ object SpillingCollectIterator {
     x.runJob()
     x
   }
+
+  private def iteratorToArray[T](ctc: ClassTag[T])(tctx: TaskContext, it: Iterator[T]): Array[T] =
+    it.toArray(ctc)
 }
 
 class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int) extends Iterator[T] {
   private[this] val hc = HailContext.get
   private[this] val hConf = hc.hadoopConf
   private[this] val sc = hc.sc
-  private[this] val files: ArrayBuilder[String] = new ArrayBuilder[String]()
+  private[this] val files: ArrayBuffer[String] = new ArrayBuffer[String]()
   private[this] val buf: ArrayBuffer[T] = new ArrayBuffer()
   private[this] var i: Int = -1
   private[this] var it: Iterator[T] = null
   private[this] var readyToIterate: Boolean = false
 
   private def runJob(): Unit = {
-    sc.runJob(rdd, (tctx, it: Iterator[T]) => it.toArray, 0 until rdd.partitions.length,
+    sc.runJob(rdd, SpillingCollectIterator.iteratorToArray(classTag[T]), 0 until rdd.partitions.length,
       (partition, a: Array[T]) => append(a))
     readyToIterate = true
   }
@@ -52,9 +57,13 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     assert(readyToIterate)
     if (it == null || !it.hasNext) {
       if (i == -1) {
-        it = buf.iterator
         i += 1
-      } else if (i < files.length) {
+        if (buf.nonEmpty) {
+          it = buf.iterator
+          return it.hasNext
+        }
+      }
+      if (i < files.length) {
         buf.clear()
         hConf.readFile(files(i)) { is =>
 	        using(new ObjectInputStream(is)) { ois =>
@@ -65,17 +74,20 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
 	          }
 	        }
 	      }
-        it = buf.iterator
         i += 1
-	    } else {
-        it = null
-      }
+        it = buf.iterator
+        return it.hasNext
+	    }
+      i += 1
+      it = null
+      return false
     }
-    it != null && it.hasNext
+    return it != null && it.hasNext
   }
 
   def next: T = {
     assert(readyToIterate)
+    hasNext
     it.next
   }
 }
