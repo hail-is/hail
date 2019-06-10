@@ -40,7 +40,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     if (buf.length == sizeLimit) {
       val file = hc.getTemporaryFile()
       hConf.writeFile(file) { os =>
-	      using(new ObjectOutputStream(os)) { oos =>
+        using(new ObjectOutputStream(os)) { oos =>
           var j = 0
           while (j < buf.length) {
             oos.writeObject(buf(j))
@@ -48,7 +48,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
           }
         }
       }
-	    files += file
+      files += file
       buf.clear()
     }
   }
@@ -66,18 +66,18 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
       if (i < files.length) {
         buf.clear()
         hConf.readFile(files(i)) { is =>
-	        using(new ObjectInputStream(is)) { ois =>
-	          var j = 0
-	          while (j < sizeLimit) {
-	            buf += ois.readObject().asInstanceOf[T]
-	            j += 1
-	          }
-	        }
-	      }
+          using(new ObjectInputStream(is)) { ois =>
+            var j = 0
+            while (j < sizeLimit) {
+              buf += ois.readObject().asInstanceOf[T]
+              j += 1
+            }
+          }
+        }
         i += 1
         it = buf.iterator
         return it.hasNext
-	    }
+      }
       i += 1
       it = null
       return false
