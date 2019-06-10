@@ -14,7 +14,7 @@ object ExtractIntervalFilters {
     val firstKeyType: Type = rowKeyType.types.head
     val iOrd: IntervalEndpointOrdering = rowKeyType.ordering.intervalEndpointOrdering
 
-    def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowType.fieldNames.head)
+    def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowKeyType.fieldNames.head)
   }
 
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {

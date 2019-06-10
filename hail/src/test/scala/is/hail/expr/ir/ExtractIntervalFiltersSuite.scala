@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 
 class ExtractIntervalFiltersSuite extends SparkSuite {
 
-  lazy val ref1 = Ref("foo", TStruct("x" -> TInt32()))
+  lazy val ref1 = Ref("foo", TStruct("w" -> TInt32(), "x" -> TInt32()))
   lazy val k1 = GetField(ref1, "x")
   val ref1Key = FastIndexedSeq("x")
 
