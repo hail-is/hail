@@ -878,7 +878,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       }
 
       val scanAggsPerPartition =
-        tv.rvd.collectPerPartition { (i, ctx, it) =>
+        SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
           val globals =
             if (scanSeqNeedsGlobals) {
               val rvb = new RegionValueBuilder(ctx.freshRegion)
@@ -893,8 +893,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
             ctx.region.clear()
           }
-          scanAggs
-        }.scanLeft(scanAggs) { (a1, a2) =>
+          Iterator.single(scanAggs)
+        }).scanLeft(scanAggs) { (a1, a2) =>
           (a1, a2).zipped.map { (agg1, agg2) =>
             val newAgg = agg1.copy()
             newAgg.combOp(agg2)
