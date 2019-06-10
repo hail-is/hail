@@ -5,6 +5,7 @@ import os
 import sys
 from flask import Flask, render_template, request, abort, url_for
 from github import Github
+from github.GithubException import RateLimitExceededException
 import random
 import threading
 import humanize
@@ -224,17 +225,20 @@ def update_data():
             'issues': []
         }
 
-    for repo_name, fq_repo in repos.items():
-        repo = github.get_repo(fq_repo)
+    try:
+        for repo_name, fq_repo in repos.items():
+            repo = github.get_repo(fq_repo)
 
-        for pr in repo.get_pulls(state='open'):
-            pr_data = get_pr_data(repo, repo_name, pr)
-            new_data[repo_name]['prs'].append(pr_data)
+            for pr in repo.get_pulls(state='open'):
+                pr_data = get_pr_data(repo, repo_name, pr)
+                new_data[repo_name]['prs'].append(pr_data)
 
-        for issue in repo.get_issues(state='open'):
-            if issue.pull_request is None:
-                issue_data = get_issue_data(repo_name, issue)
-                new_data[repo_name]['issues'].append(issue_data)
+            for issue in repo.get_issues(state='open'):
+                if issue.pull_request is None:
+                    issue_data = get_issue_data(repo_name, issue)
+                    new_data[repo_name]['issues'].append(issue_data)
+    except RateLimitExceededException as e:
+        log.error('Exceeded rate limit: ' + str(e))
 
 
     log.info('updating_data done')
