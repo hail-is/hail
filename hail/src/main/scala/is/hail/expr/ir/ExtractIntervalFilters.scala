@@ -15,16 +15,6 @@ object ExtractIntervalFilters {
     val iOrd: IntervalEndpointOrdering = rowKeyType.ordering.intervalEndpointOrdering
 
     def isFirstKey(ir: IR): Boolean = ir == GetField(rowRef, rowType.fieldNames.head)
-
-    def isKeyStructPrefix(ir: IR): Boolean = ir match {
-      case MakeStruct(fields) => fields
-        .iterator
-        .map(_._2)
-        .zipWithIndex
-        .forall { case (fd, idx) => idx < rowType.size && fd == GetField(rowRef, rowType.fieldNames(idx)) }
-      case SelectFields(`rowRef`, fields) => keyFields.startsWith(fields)
-      case _ => false
-    }
   }
 
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
