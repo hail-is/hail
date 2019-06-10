@@ -64,9 +64,9 @@ def main(args, pass_through_args):
                 '{}-m'.format(args.name),
                 '--zone={}'.format(args.zone),
                 '--',
-                'sudo gsutil cp {source} /home/hail/ && '
+                f'sudo gsutil cp {wheel} /home/hail/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                'sudo /opt/conda/default/bin/pip install --no-deps /home/hail/*.whl'.format(source=wheel)
+                'sudo /opt/conda/default/bin/pip install --no-deps /home/hail/*.whl'
             ])
         else:
             cmds.extend([
@@ -82,11 +82,11 @@ def main(args, pass_through_args):
                     'gcloud',
                     'compute',
                     'ssh',
-                    '{}-m'.format(args.name),
-                    '--zone={}'.format(args.zone),
+                    f'{args.name}-m',
+                    f'--zone={args.zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                    'sudo /opt/conda/default/bin/pip install --no-deps /tmp/*.whl'.format(source=wheel)
+                    'sudo /opt/conda/default/bin/pip install --no-deps /tmp/*.whl'
                 ]
             ])
 
