@@ -70,27 +70,24 @@ endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
+cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+resources := python/hailctl/dataproc/resources
 .PHONY: python/hailctl/deploy.yaml
 python/hailctl/deploy.yaml:
 	rm -f python/hailctl/deploy.yaml
 	echo "dataproc:" >> python/hailctl/deploy.yaml
-	for FILE in `ls python/hailctl/dataproc/resources`; do \
-	  CLOUD_LOC=$(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/$$FILE && \
-	  echo "  $$FILE: $$CLOUD_LOC" >> python/hailctl/deploy.yaml || break; done || exit
+	for FILE in `ls $(resources)`; do \
+	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailctl/deploy.yaml || break; done || exit
 	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
 	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailctl/deploy.yaml
 
 .PHONY: upload-artifacts
 upload-artifacts: wheel
-	for FILE in `ls python/hailctl/dataproc/resources`; do \
-	  CLOUD_LOC=$(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/$$FILE && \
-	  gsutil -m cp python/hailctl/dataproc/resources/$$FILE $$CLOUD_LOC && \
-	  gsutil acl set public-read $$CLOUD_LOC || break; done || exit
+	gsutil -m cp -r $(resources)/* $(cloud_base)
 	gsutil -m cp $(wheel_path) $(wheel_cloud_path)
-	gsutil acl set public-read $(wheel_cloud_path)
+	gsutil -m acl set -r public-read $(cloud_base)
 
 .PHONY: install-wheel
 install-wheel: wheel
