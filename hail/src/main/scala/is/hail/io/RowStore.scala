@@ -174,11 +174,23 @@ object CodecSpec {
 }
 
 trait CodecSpec extends Serializable {
+  type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
+  type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
+
+
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+
+  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
+
+  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
+
+  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T]
+
+  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
@@ -252,11 +264,19 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     }
   }
 
-  def buildEmitDecoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
-    EmitPackDecoder.buildMethod(t, requestedType, fb)
+  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = child.buildCodeInputBuffer(is)
 
-  def buildEmitEncoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
-    EmitPackEncoder.buildMethod(t, requestedType, fb)
+  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = child.buildCodeOutputBuffer(os)
+
+  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T] = {
+    val mb = EmitPackDecoder.buildMethod(t, requestedType, fb)
+    (region: Code[Region], buf: Code[InputBuffer]) => mb.invoke[T](region, buf)
+  }
+
+  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
+    val mb = EmitPackEncoder.buildMethod(t, requestedType, fb)
+    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
+  }
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
 
@@ -1266,13 +1286,13 @@ object EmitPackDecoder {
 
   def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
     val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]), ir.typeToTypeInfo(rt))
-    val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)
+    val in = mb.getArg[InputBuffer](2)
     val decode: Code[_] = t match {
-      case _: PBoolean => in.readBoolean()
-      case _: PInt32 => in.readInt()
-      case _: PInt64 => in.readLong()
-      case _: PFloat32 => in.readFloat()
-      case _: PFloat64 => in.readDouble()
+      case _: PBoolean => in.load().readBoolean()
+      case _: PInt32 => in.load().readInt()
+      case _: PInt64 => in.load().readLong()
+      case _: PFloat32 => in.load().readFloat()
+      case _: PFloat64 => in.load().readDouble()
       case _ =>
         val srvb = new StagedRegionValueBuilder(mb, rt)
         val emit = t.fundamentalType match {
@@ -1516,8 +1536,6 @@ object EmitPackEncoder { self =>
         def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
           val mb = mbLike.mb
           val region = mb.getArg[Region](1).load()
-          val offset = mb.getArg[Long](2).load()
-          val out = mb.getArg[OutputBuffer](3).load()
 
           t.isFieldDefined(region, foff, i).mux(
             self.emit(f.typ, rf.typ, mb, region, t.fieldOffset(foff, i), out),
@@ -1545,8 +1563,6 @@ object EmitPackEncoder { self =>
         def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
           val mb = mbLike.mb
           val region = mb.getArg[Region](1).load()
-          val offset = mb.getArg[Long](2).load()
-          val out = mb.getArg[OutputBuffer](3).load()
 
           t.isFieldDefined(region, foff, i).mux(
             self.emit(ft, requestedType.types(i), mb, region, t.fieldOffset(foff, i), out),

@@ -542,7 +542,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
         fb.getHadoopConfiguration,
@@ -553,7 +552,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, ReferenceGenome](
         "addLiftoverFromHConf",
         fb.getHadoopConfiguration,

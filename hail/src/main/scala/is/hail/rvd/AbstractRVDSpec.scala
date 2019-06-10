@@ -41,7 +41,7 @@ object AbstractRVDSpec {
 
     val hConf = hc.hadoopConf
     partFiles.flatMap { p =>
-      val f = path + "/parts/" + p
+      val f = partPath(path, p)
       hConf.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
@@ -54,6 +54,8 @@ object AbstractRVDSpec {
       }
     }
   }
+
+  def partPath(path: String, partFile: String): String = path + "/parts/" + partFile
 
   def writeSingle(
     hConf: org.apache.hadoop.conf.Configuration,
