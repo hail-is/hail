@@ -906,7 +906,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             newAgg.combOp(agg2)
             newAgg
           }
-        }
+        }.toArray
+
+      assert(scanAggsPerPartition.length - 1 == tv.rvd.getNumPartitions, s"${scanAggsPerPartition.length} ${tv.rvd.getNumPartitions}")
 
       tv.copy(
         typ = typ,
