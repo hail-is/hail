@@ -1602,15 +1602,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         new NDArrayEmitter(fb, resultRegion, nDims, shape, setup) {
           override def outputElement(idxVars: Seq[Variable]): Code = {
-            val globalIndex = fb.variable("global_index", "int", idxVars.zip(reshapedNInnerElems).foldRight("0") {
-              case ((idx, nInnerElements), prod) => s"$prod + $idx * $nInnerElements"
+            val globalIndex = fb.variable("global_index", "long", idxVars.zip(reshapedNInnerElems).foldRight("0") {
+              case ((idx, nInnerElements), res) => s"$res + $idx * $nInnerElements"
             })
 
             val mappedIdxs = childNInnerElems.map { nInnerElementsForDim =>
-              val newIdx = fb.variable("new_idx", "int", s"$globalIndex / $nInnerElementsForDim")
+              val newIdx = fb.variable("new_idx", "long")
               val definition =
                 s"""
-                   | ${ newIdx.define }
+                   | ${ newIdx.defineWith(s"$globalIndex / $nInnerElementsForDim") }
                    | $globalIndex = $globalIndex % $nInnerElementsForDim;
                  """.stripMargin
 
