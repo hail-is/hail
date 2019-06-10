@@ -66,7 +66,7 @@ def main(args, pass_through_args):
                 '--',
                 f'sudo gsutil cp {wheel} /home/hail/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                'sudo /opt/conda/default/bin/pip install --no-deps /home/hail/*.whl'
+                'sudo /opt/conda/default/bin/pip install --no-dependencies /home/hail/*.whl'
             ])
         else:
             cmds.extend([
@@ -86,7 +86,7 @@ def main(args, pass_through_args):
                     f'--zone={args.zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                    'sudo /opt/conda/default/bin/pip install --no-deps /tmp/*.whl'
+                    'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/*.whl'
                 ]
             ])
 
