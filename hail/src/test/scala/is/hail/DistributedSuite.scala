@@ -7,20 +7,14 @@ import org.apache.hadoop
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.BeforeClass
 
-class Executors(hostname: String, cores: Int) {
-  private val t = new Thread (new Runnable {
-    def run() { Executor.main(Array(hostname, cores.toString)) }
-  })
-  t.start()
-}
-
 object DistributedSuite {
-
-  lazy val executors: Array[Executors] = Array.fill(8)(new Executors("localhost", 1))
+  def getSchedulerHost: String = {
+    val schedulerHost = System.getenv("HAIL_TEST_SCHEDULER_HOST")
+    if (schedulerHost == null) "localhost" else schedulerHost
+  }
 
   lazy val hc: HailContext = {
-    executors
-    val hc = HailContext.createDistributed("localhost", logFile = "/tmp/hail.log")
+    val hc = HailContext.createDistributed(getSchedulerHost, logFile = "/tmp/hail.log")
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null)
       hc.flags.set("cpp", "1")
     hc.checkRVDKeys = true
@@ -34,9 +28,7 @@ class DistributedSuite extends TestNGSuite {
 
   def backend: DistributedBackend = hc.backend.asInstanceOf[DistributedBackend]
 
-  @BeforeClass def ensureHailContextInitialized() {
-    hc
-  }
+  @BeforeClass def ensureHailContextInitialized() { hc }
 
   def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 

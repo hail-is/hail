@@ -1,0 +1,7 @@
+<suite name="DistributedBackendSuite" verbose="1">
+    <test name="TestDistributedBackend">
+        <packages>
+            <package name="is.hail.backend.distributed" />
+        </packages>
+    </test>
+</suite>

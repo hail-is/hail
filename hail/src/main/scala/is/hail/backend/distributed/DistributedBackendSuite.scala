@@ -1,10 +1,8 @@
-package is.hail.backend
+package is.hail.backend.distributed
 
-import is.hail.{DistributedSuite, SparkSuite}
 import is.hail.expr.ir._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
 
 class DistributedBackendSuite extends DistributedSuite {
   @Test def testPipeline() {
