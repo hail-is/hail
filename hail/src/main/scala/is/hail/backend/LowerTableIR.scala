@@ -136,6 +136,8 @@ object LowerTableIR {
               throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
             }
           }
+        case r =>
+          throw new LowererUnsupportedOperation(s"can't lower a TableRead with reader $r.")
       }
 
     case TableRange(n, nPartitions) =>
