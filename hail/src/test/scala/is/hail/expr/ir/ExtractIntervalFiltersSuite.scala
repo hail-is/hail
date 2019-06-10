@@ -73,7 +73,7 @@ class ExtractIntervalFiltersSuite extends SparkSuite {
     val ir = invoke("contains", Literal(TInterval(TInt32()), interval), k1)
     val (rw, i) = ExtractIntervalFilters.extractPartitionFilters(ir, ref1, ref1Key).get
     assert(rw == True())
-    assert(i.toSeq == FastSeq(interval))
+    assert(i.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(1, 1), wrappedIntervalEndpoint(5, 1))))
   }
 
   @Test def testLocusContigComparison() {
