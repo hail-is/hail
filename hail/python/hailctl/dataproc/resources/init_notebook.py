@@ -49,7 +49,7 @@ if role == 'Master':
         'google-cloud==0.32.0',
         'ipython<7',
         'jgscm<0.2',
-        'jupyter-spark<0.5',
+        'jupyter-spark',
     ]
 
     # add user-requested packages
@@ -67,35 +67,49 @@ if role == 'Master':
 
     print('getting metadata')
 
-    jar_path = get_metadata('JAR')
-    wheel_path = get_metadata('ZIP')
-
+    wheel_path = get_metadata('WHEEL')
     wheel_name = wheel_path.split('/')[-1]
 
-    print('copying jar and zip')
-    safe_call('gsutil', 'cp', jar_path, '/home/hail/hail.jar')
+    print('copying wheel')
     safe_call('gsutil', 'cp', wheel_path, f'/home/hail/{wheel_name}')
 
-    safe_call('pip', 'install', f'/home/hail/{wheel_name}')
+    safe_call('pip', 'install', '--no-dependencies', f'/home/hail/{wheel_name}')
 
     print('setting environment')
 
+    spark_lib_base = '/usr/lib/spark/python/lib/'
+    files_to_add = [os.path.join(spark_lib_base, x) for x in os.listdir(spark_lib_base) if x.endswith('.zip')]
+
+    env_to_set = {
+        'PYTHONHASHSEED': '0',
+        'PYTHONPATH': ':'.join(files_to_add),
+        'SPARK_HOME': '/usr/lib/spark/',
+        'PYSPARK_PYTHON': '/opt/conda/default/bin/python',
+        'PYSPARK_DRIVER_PYTHON': '/opt/conda/default/bin/python'
+    }
+
+    print('setting environment')
+
+    for e, value in env_to_set.items():
+        safe_call('/bin/sh', '-c',
+                  'echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
+
+    hail_jar = '/opt/conda/default/lib/python3.6/site-packages/hail/hail-all-spark.jar'
     conf_to_set = [
-        'spark.jars=/home/hail/hail.jar',
         'spark.executorEnv.PYTHONHASHSEED=0',
-        'spark.driver.extraClassPath=/home/hail/hail.jar',
-        'spark.executor.extraClassPath=./hail.jar'
+        # the below are necessary to make 'submit' work
+        'spark.jars={}'.format(hail_jar),
+        'spark.driver.extraClassPath={}'.format(hail_jar),
+        'spark.executor.extraClassPath=./hail-all-spark.jar',
     ]
 
     print('setting spark-defaults.conf')
 
-    with open('/etc/spark/conf/spark-defaults.conf', 'w') as out:
+    with open('/etc/spark/conf/spark-defaults.conf', 'a') as out:
         out.write('\n')
         for c in conf_to_set:
             out.write(c)
             out.write('\n')
-
-    # modify custom Spark conf file to reference Hail jar and zip
 
     # create Jupyter kernel spec file
     kernel = {
@@ -108,6 +122,7 @@ if role == 'Master':
         ],
         'display_name': 'Hail',
         'language': 'python',
+        'env': env_to_set
     }
 
     # write kernel spec file to default Jupyter kernel directory

@@ -49,22 +49,15 @@ wheel: build-info shadowJar init-scripts
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	cp deploy_scripts/setup.py build/deploy/
-	cp deploy_scripts/setup.cfg build/deploy/
 	rsync -rv \
 	    --exclude '__pycache__/' \
 	    --exclude 'docs/' \
+	    --exclude 'test/' \
 	    --exclude '*.log' \
-	    python/hail build/deploy/src/
-
-	rsync -rv \
-	    --exclude '__pycache__/' \
-	    --exclude '*.log' \
-	    python/hailctl build/deploy/src/
-
-	cp build/libs/hail-all-spark.jar build/deploy/src/hail/
-	cp build/deploy/src/hail/hail_pip_version build/deploy/src/hailctl/hail_pip_version
-	cp build/deploy/src/hail/hail_version build/deploy/src/hailctl/hail_version
+	    python/ build/deploy/
+	cp build/libs/hail-all-spark.jar build/deploy/hail/
+	cp build/deploy/hail/hail_pip_version build/deploy/hailctl/hail_pip_version
+	cp build/deploy/hail/hail_version build/deploy/hailctl/hail_version
 	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
 
 # if the DEPLOY_PROD flag is not set, then deploy init scripts into a dev-username location
@@ -77,28 +70,24 @@ endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
-jar_cloud_path := $(cloud_base)/hail.jar
+cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+resources := python/hailctl/dataproc/resources
 .PHONY: python/hailctl/deploy.yaml
 python/hailctl/deploy.yaml:
 	rm -f python/hailctl/deploy.yaml
 	echo "dataproc:" >> python/hailctl/deploy.yaml
-	for FILE in `ls python/hailctl/dataproc/resources`; do \
-	  CLOUD_LOC=$(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/$$FILE && \
-	  gsutil -m cp python/hailctl/dataproc/resources/$$FILE $$CLOUD_LOC && \
-	  gsutil acl set public-read $$CLOUD_LOC && \
-	  echo "  $$FILE: $$CLOUD_LOC" >> python/hailctl/deploy.yaml || break; done || exit
-	echo "  jar: $(jar_cloud_path)" >> python/hailctl/deploy.yaml
+	for FILE in `ls $(resources)`; do \
+	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailctl/deploy.yaml || break; done || exit
 	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailctl/deploy.yaml
 
-.PHONY: upload-deferred-artifacts
-upload-deferred-artifacts: wheel
-	gsutil -m cp build/libs/hail-all-spark.jar $(jar_cloud_path)
-	gsutil acl set public-read $(jar_cloud_path)
+.PHONY: upload-artifacts
+upload-artifacts: wheel
+	gsutil -m cp -r $(resources)/* $(cloud_base)
 	gsutil -m cp $(wheel_path) $(wheel_cloud_path)
-	gsutil acl set public-read $(wheel_cloud_path)
+	gsutil -m acl set -r public-read $(cloud_base)
 
 .PHONY: install-wheel
 install-wheel: wheel
@@ -106,7 +95,7 @@ install-wheel: wheel
 	pip install $(wheel_path)
 
 .PHONY: install-hailctl-wheel
-install-hailctl-wheel: install-wheel upload-deferred-artifacts
+install-hailctl-wheel: install-wheel upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
