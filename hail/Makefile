@@ -121,14 +121,11 @@ check-pypi:
 	if [ "$(DEPLOYED_VERSION)" == "$(HAIL_PIP_VERSION)" ]; then \
 	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
-$HAIL_TWINE_CREDS_FOLDER ?= /secrets/
-TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
-TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
-pypi-deploy: \
-  TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-  TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 .PHONY: pypi-deploy
+pypi-deploy: export TWINE_USERNAME := $(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
+pypi-deploy: export TWINE_PASSWORD := $(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 pypi-deploy: check-pypi wheel
 	twine upload build/deploy/dist/*
 
