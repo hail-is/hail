@@ -1,12 +1,12 @@
 package is.hail.io
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.io.tabix._
 import org.testng.annotations.{BeforeTest, Test}
 import org.testng.asserts.SoftAssert
 
-class TabixSuite extends SparkSuite {
+class TabixSuite extends HailSuite {
   // use .gz for several tests and .bgz for another to test handling of both
   // extensions.
   val vcfFile = "src/test/resources/trioDup.vcf"

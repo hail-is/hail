@@ -7,13 +7,13 @@ import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 import scala.io.Source
 import scala.language.postfixOps
 
-class ExportVCFSuite extends SparkSuite {
+class ExportVCFSuite extends HailSuite {
 
   @Test def testSameAsOrigBGzip() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"

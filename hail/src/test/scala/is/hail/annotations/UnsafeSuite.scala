@@ -2,7 +2,7 @@ package is.hail.annotations
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
@@ -12,7 +12,7 @@ import org.testng.annotations.Test
 
 import scala.util.Random
 
-class UnsafeSuite extends SparkSuite {
+class UnsafeSuite extends HailSuite {
   def subsetType(t: Type): Type = {
     t match {
       case t: TStruct =>

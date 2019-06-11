@@ -1,7 +1,7 @@
 package is.hail.stats
 
 import breeze.linalg._
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.utils._
 import org.testng.SkipException
 import org.testng.annotations.Test
@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 import scala.language.postfixOps
 import scala.sys.process._
 
-class LogisticRegressionModelSuite extends SparkSuite {
+class LogisticRegressionModelSuite extends HailSuite {
 
   @Test def covariatesVsInterceptOnlyTest() {
 

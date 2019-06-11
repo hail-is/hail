@@ -310,26 +310,14 @@ object HailContext {
     tmpDir: String = "/tmp",
     optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
-    val sConf = createSparkConf("Hail", None, "local[*]", minBlockSize)
-    val hConf = SparkHadoopUtil.get.newConfiguration(sConf)
+    checkJavaVersion()
+    val hConf = new hadoop.conf.Configuration()
 
     configureLogging(logFile, quiet, append)
 
     hConf.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
 
     val hc = new HailContext(new DistributedBackend(hostname, hConf), hConf, logFile, tmpDir, branchingFactor, optimizerIterations)
-
-    var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
-    if (uploadEmail == null)
-      uploadEmail = sConf.get("hail.uploadEmail", null)
-    if (uploadEmail != null)
-      hc.setUploadEmail(uploadEmail)
-
-    var enableUploadStr = System.getenv("HAIL_ENABLE_PIPELINE_UPLOAD")
-    if (enableUploadStr == null)
-      enableUploadStr = sConf.get("hail.enablePipelineUpload", null)
-    if (enableUploadStr != null && enableUploadStr == "true")
-      hc.enablePipelineUpload()
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc

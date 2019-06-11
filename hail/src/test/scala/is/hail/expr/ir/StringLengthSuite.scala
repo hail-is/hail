@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import org.testng.annotations.Test
 
-class StringLengthSuite extends SparkSuite {
+class StringLengthSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def sameAsJavaStringLength() {

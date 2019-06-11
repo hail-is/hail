@@ -1,13 +1,13 @@
 package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
-class BlockMatrixIRSuite extends SparkSuite {
+class BlockMatrixIRSuite extends HailSuite {
 
   val N_ROWS = 3
   val N_COLS = 3

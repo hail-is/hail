@@ -1,10 +1,10 @@
 package is.hail.variant
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class LocusIntervalSuite extends SparkSuite {
+class LocusIntervalSuite extends HailSuite {
   def rg = ReferenceGenome.GRCh37
 
   @Test def testParser() {

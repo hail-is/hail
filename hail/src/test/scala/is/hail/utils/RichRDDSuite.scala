@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
-class RichRDDSuite extends SparkSuite {
+class RichRDDSuite extends HailSuite {
   @Test def parallelWrite() {
     def read(file: String): Array[String] = hc.sFS.readLines(file)(_.map(_.value).toArray)
 

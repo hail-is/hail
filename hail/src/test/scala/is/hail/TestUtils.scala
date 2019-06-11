@@ -414,7 +414,14 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.intersect(execStrats).foreach { strat =>
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.get.backend.isInstanceOf[SparkBackend]) ExecStrategy.values.intersect(execStrats)
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(Set(ExecStrategy.CxxCompile, ExecStrategy.LoweredJVMCompile))
+      }
+
+    filteredExecStrats.foreach { strat =>
       try {
         val res = strat match {
           case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)

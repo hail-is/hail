@@ -1,6 +1,6 @@
 package is.hail.variant.vsm
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
 import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
@@ -14,7 +14,7 @@ import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class PartitioningSuite extends SparkSuite {
+class PartitioningSuite extends HailSuite {
 
   def compare(vds1: MatrixTable, vds2: MatrixTable): Boolean = {
     val s1 = vds1.variantsAndAnnotations

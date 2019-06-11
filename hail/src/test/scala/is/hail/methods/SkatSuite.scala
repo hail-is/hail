@@ -1,13 +1,13 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.utils._
 import breeze.linalg._
 import org.testng.annotations.Test
 
 case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])
 
-class SkatSuite extends SparkSuite {
+class SkatSuite extends HailSuite {
 
   @Test def smallNLargeNEqualityTest() {
     val rand = scala.util.Random

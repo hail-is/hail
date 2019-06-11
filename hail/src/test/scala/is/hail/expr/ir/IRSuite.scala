@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -75,7 +75,7 @@ object IRSuite {
 
 }
 
-class IRSuite extends SparkSuite {
+class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
   @Test def testI32() {
@@ -95,8 +95,6 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testStr() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
     assertEvalsTo(Str("Hail"), "Hail")
   }
 

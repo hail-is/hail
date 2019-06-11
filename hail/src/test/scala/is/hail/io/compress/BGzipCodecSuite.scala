@@ -1,6 +1,6 @@
 package is.hail.io.compress
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
@@ -43,7 +43,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   }
 }
 
-class BGzipCodecSuite extends SparkSuite {
+class BGzipCodecSuite extends HailSuite {
   @Test def test() {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 

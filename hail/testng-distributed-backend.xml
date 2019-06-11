@@ -1,7 +1,24 @@
 <suite name="DistributedBackendSuite" verbose="1">
     <test name="TestDistributedBackend">
-        <packages>
-            <package name="is.hail.backend.distributed" />
-        </packages>
+        <classes>
+            <class name="is.hail.expr.ir.IRSuite">
+                <methods>
+                    <exclude name="testBlockMatrixIRParser" />
+                    <exclude name="testRelationalFunctionsRun" />
+                    <exclude name="testRelationalFunctionsSerialize" />
+                </methods>
+            </class>
+            <class name="is.hail.expr.ir.TableIRSuite">
+                <methods>
+                    <exclude name="testTableKeyBy" />
+                    <exclude name="testTableParallelize" />
+                    <exclude name="testShuffleAndJoinDoesntMemoryLeak" />
+                    <exclude name="testTableRename" />
+                    <exclude name="testTableWrite" />
+                    <exclude name="testTableMultiWayZipJoin" />
+                    <exclude name="testTableMultiWayZipJoinGlobals" />
+                </methods>
+            </class>
+        </classes>
     </test>
 </suite>

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class MatrixIRSuite extends SparkSuite {
+class MatrixIRSuite extends HailSuite {
 
   def rangeMatrix: MatrixIR = MatrixTable.range(hc, 20, 20, Some(4)).ast
 
