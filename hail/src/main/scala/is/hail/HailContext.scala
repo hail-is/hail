@@ -616,37 +616,6 @@ class HailContext private(
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }
-
-  def setUploadURL(url: String) {
-    Uploader.url = url
-  }
-
-  def setUploadEmail(email: String) {
-    Uploader.email = email
-    if (email != null)
-      warn(s"set upload email: $email")
-    else
-      warn("reset upload email, subsequent uploads will be anonymous")
-  }
-
-  def getUploadEmail: String = {
-    Uploader.email
-  }
-
-  def enablePipelineUpload() {
-    Uploader.uploadEnabled = true
-    warn("pipeline upload enabled")
-  }
-
-  def disablePipelineUpload() {
-    Uploader.uploadEnabled = false
-    warn("pipeline upload disabled")
-  }
-
-  def uploadLog() {
-    warn(s"uploading $logFile")
-    Uploader.upload("log", FileUtils.readFileToString(new File(logFile), Charset.defaultCharset()))
-  }
 }
 
 class HailFeatureFlags {
