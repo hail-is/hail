@@ -3,16 +3,17 @@
   python/hail/hail_version python/hail/hail_pip_version
 
 
-REVISION = $(shell git rev-parse HEAD)
-SHORT_REVISION = $(shell git rev-parse --short=12 HEAD)
-DATE = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
-URL = $(shell git config --get remote.origin.url)
-SPARK_VERSION = 2.4.0
-HAIL_PIP_VERSION = 0.2.14
+REVISION := $(shell git rev-parse HEAD)
+SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
+DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
+URL := $(shell git config --get remote.origin.url)
+SPARK_VERSION := 2.4.0
+HAIL_PIP_VERSION := 0.2.14
 
 HAIL_PYTHON3 ?= python3
-pip =: $(HAIL_PYTHON3) -m pip
+PIP ?= $(HAIL_PYTHON3) -m pip
+
 
 shadowJar:
 	./gradlew shadowJar
@@ -20,7 +21,8 @@ shadowJar:
 releaseJar:
 	./gradlew releaseJar
 
-build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version
+build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
+	python/hailctl/hail_version python/hailctl/hail_pip_version
 
 define properties
 endef
@@ -38,8 +40,14 @@ src/main/resources/build-info.properties:
 python/hail/hail_version:
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > python/hail/hail_version
 
+python/hailctl/hail_version: python/hail/hail_version
+	cp -f $< $@
+
 python/hail/hail_pip_version:
 	echo $(HAIL_PIP_VERSION) > python/hail/hail_pip_version
+
+python/hailctl/hail_pip_version: python/hail/hail_pip_version
+	cp -f $< $@
 
 jars: build-info
 	./gradlew shadowTestJar shadowJar
@@ -57,8 +65,6 @@ wheel: build-info shadowJar init-scripts
 	    --exclude '*.log' \
 	    python/ build/deploy/
 	cp build/libs/hail-all-spark.jar build/deploy/hail/
-	cp build/deploy/hail/hail_pip_version build/deploy/hailctl/hail_pip_version
-	cp build/deploy/hail/hail_version build/deploy/hailctl/hail_version
 	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
 
 # if the DEPLOY_PROD flag is not set, then deploy init scripts into a dev-username location
@@ -92,8 +98,8 @@ upload-artifacts: wheel
 
 .PHONY: install-wheel
 install-wheel: wheel
-	-$(pip) uninstall -y hail
-	$(pip) install $(wheel_path)
+	-$(PIP) uninstall -y hail
+	$(PIP) install $(wheel_path)
 
 .PHONY: install-hailctl-wheel
 install-hailctl-wheel: install-wheel upload-artifacts
