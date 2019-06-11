@@ -27,7 +27,8 @@ object HailSuite {
     val schedulerHost = System.getenv("HAIL_TEST_SCHEDULER_HOST")
     val hc = if (schedulerHost == null)
       withSparkBackend()
-    else withDistributedBackend(schedulerHost)
+    else
+      withDistributedBackend(schedulerHost)
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null)
       hc.flags.set("cpp", "1")
     hc.flags.set("lower", "1")

@@ -322,7 +322,7 @@ object HailContext {
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
-//     needs to be after `theContext` is set, since this creates broadcasts
+    // needs to be after `theContext` is set, since this creates broadcasts
     ReferenceGenome.addDefaultReferences()
     hc
   }

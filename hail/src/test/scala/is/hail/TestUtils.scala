@@ -23,6 +23,7 @@ object ExecStrategy extends Enumeration {
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
   val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
+  val backendOnly: Set[ExecStrategy] = Set(JvmCompile, CxxCompile)
 }
 
 object TestUtils {
@@ -415,10 +416,10 @@ object TestUtils {
     assert(t.typeCheck(expected), t)
 
     val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.get.backend.isInstanceOf[SparkBackend]) ExecStrategy.values.intersect(execStrats)
+      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
       else {
         info("skipping interpret and non-lowering compile steps on non-spark backend")
-        execStrats.intersect(Set(ExecStrategy.CxxCompile, ExecStrategy.LoweredJVMCompile))
+        execStrats.intersect(ExecStrategy.backendOnly)
       }
 
     filteredExecStrats.foreach { strat =>
