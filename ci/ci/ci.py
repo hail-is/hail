@@ -6,6 +6,7 @@ import concurrent.futures
 import datetime
 import aiohttp
 from aiohttp import web
+import aiomysql
 import uvloop
 import jinja2
 import humanize
@@ -38,6 +39,8 @@ routes = web.RouteTableDef()
 @authenticated_developers_only
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
+    app = request.app
+    dbpool = app['dbpool']
     wb_configs = []
     for i, wb in enumerate(watched_branches):
         if wb.prs:
@@ -48,7 +51,7 @@ async def index(request):  # pylint: disable=unused-argument
                     'title': pr.title,
                     # FIXME generate links to the merge log
                     'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': pr.build_state,
+                    'build_state': pr.build_state if pr.authorized(dbpool) else 'unauthorized',
                     'review_state': pr.review_state,
                     'author': pr.author
                 }
@@ -162,6 +165,20 @@ async def get_job_log(request):
     }
 
 
+@routes.post('/authorize_source_sha')
+@authenticated_developers_only
+async def post_authorized_source_sha(request):
+    app = request.app
+    dbpool = app['dbpool']
+    post = await request.post()
+    sha = post['sha'].strip()
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
+    log.info(f'authorized sha: {sha}')
+    raise web.HTTPFound('/')
+
+
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response(status=200)
@@ -256,6 +273,17 @@ async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
+    with open('/ci-user-secret/sql-config.json', 'r') as f:
+        config = json.loads(f.read().strip())
+        app['dbpool'] = await aiomysql.create_pool(host=config['host'],
+                                                   port=config['port'],
+                                                   db=config['db'],
+                                                   user=config['user'],
+                                                   password=config['password'],
+                                                   charset='utf8',
+                                                   cursorclass=aiomysql.cursors.DictCursor,
+                                                   autocommit=True)
+
     asyncio.ensure_future(update_loop(app))
 
 app.on_startup.append(on_startup)
@@ -264,6 +292,10 @@ app.on_startup.append(on_startup)
 async def on_cleanup(app):
     session = app['client_session']
     await session.close()
+
+    dbpool = app['dbpool']
+    dbpool.close()
+    await dbpool.wait_closed()
 
 app.on_cleanup.append(on_cleanup)
 

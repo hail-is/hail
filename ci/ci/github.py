@@ -14,10 +14,6 @@ from .build import BuildConfiguration, Code
 repos_lock = asyncio.Lock()
 
 
-def build_state_is_complete(build_state):
-    return build_state in ('success', 'failure')
-
-
 class Repo:
     def __init__(self, owner, name):
         assert isinstance(owner, str)
@@ -143,6 +139,16 @@ class PR(Code):
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
 
+    async def authorized(self, dbpool):
+        if self.author in AUTHORIZED_USERS:
+            return True
+
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute('SELECT * from authorized_shas WHERE sha = %s;', self.source_sha)
+                row = await cursor.fetchone()
+                return row is not None
+
     def merge_priority(self):
         # passed > unknown > failed
         if self.source_sha_failed is None:
@@ -211,9 +217,6 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def build_is_complete(self):
-        return build_state_is_complete(self.build_state)
-
     def github_status(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
@@ -264,7 +267,9 @@ class PR(Code):
             self.review_state = review_state
             self.target_branch.state_changed = True
 
-    async def _start_build(self, batch_client):
+    async def _start_build(self, dbpool, batch_client):
+        assert self.authorized(dbpool)
+
         # clear current batch
         self.batch = None
         self.build_state = None
@@ -362,9 +367,12 @@ mkdir -p {shq(repo_dir)}
                     self.source_sha_failed = True
                 self.target_branch.state_changed = True
 
-    async def _heal(self, batch_client, on_deck):
+    async def _heal(self, batch_client, dbpool, on_deck):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
+            return
+
+        if not await self.authorized(dbpool):
             return
 
         if (not self.batch or
@@ -474,6 +482,7 @@ class WatchedBranch(Code):
             self.updating = True
             gh = app['github_client']
             batch_client = app['batch_client']
+            dbpool = app['dbpool']
 
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
@@ -488,7 +497,7 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client)
+                    await self._heal(batch_client, dbpool)
             await self.update_statuses(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -528,8 +537,6 @@ class WatchedBranch(Code):
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
-            if gh_json_pr['user']['login'] not in AUTHORIZED_USERS:
-                continue
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]
@@ -602,7 +609,7 @@ class WatchedBranch(Code):
         for pr in self.prs.values():
             await pr._update_batch(batch_client)
 
-    async def _heal(self, batch_client):
+    async def _heal(self, batch_client, dbpool):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
@@ -625,7 +632,7 @@ class WatchedBranch(Code):
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, pr == merge_candidate)
+            await pr._heal(batch_client, dbpool, pr == merge_candidate)
 
         # cancel orphan builds
         running_batches = await batch_client.list_batches(
