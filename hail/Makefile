@@ -12,6 +12,7 @@ SPARK_VERSION = 2.4.0
 HAIL_PIP_VERSION = 0.2.14
 
 HAIL_PYTHON3 ?= python3
+pip =: $(HAIL_PYTHON3) -m pip
 
 shadowJar:
 	./gradlew shadowJar
@@ -91,8 +92,8 @@ upload-artifacts: wheel
 
 .PHONY: install-wheel
 install-wheel: wheel
-	-pip uninstall -y hail
-	pip install $(wheel_path)
+	-$(pip) uninstall -y hail
+	$(pip) install $(wheel_path)
 
 .PHONY: install-hailctl-wheel
 install-hailctl-wheel: install-wheel upload-artifacts
@@ -109,7 +110,7 @@ test-dataproc: install-hailctl-wheel
 init-scripts: python/hailctl/deploy.yaml
 
 DEPLOYED_VERSION = $(shell \
-  pip --no-cache-dir search hail \
+  $(pip) --no-cache-dir search hail \
    | grep '^hail ' \
    | sed 's/hail (//' \
    | sed 's/).*//')
