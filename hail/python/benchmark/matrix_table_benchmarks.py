@@ -20,6 +20,12 @@ def matrix_table_entries_table():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.entries()._force_count()
 
+
+@benchmark
+def matrix_table_entries_table_no_key():
+    mt = hl.read_matrix_table(resource('profile.mt')).key_rows_by().key_cols_by()
+    mt.entries()._force_count()
+
 @benchmark
 def matrix_table_rows_force_count():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()

@@ -42,7 +42,7 @@ def test_simple(client):
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
     batch = batch.submit()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 2
+    assert batch_status_job_counter(status, 'Success') == 2
     assert batch_status_exit_codes(status) == [{'main': 0}, {'main': 0}]
 
 
@@ -68,10 +68,10 @@ def test_dag(client):
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 4
+    assert batch_status_job_counter(status, 'Success') == 4, status
     for node in [head, left, right, tail]:
         status = node.status()
-        assert status['state'] == 'Complete'
+        assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
 
 
@@ -89,10 +89,10 @@ def test_cancel_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 3
+    assert batch_status_job_counter(status, 'Success') == 3
     for node in [head, left, right]:
         status = node.status()
-        assert status['state'] == 'Complete'
+        assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
     assert tail.status()['state'] == 'Cancelled'
 
@@ -111,10 +111,10 @@ def test_cancel_left_after_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 2
+    assert batch_status_job_counter(status, 'Success') == 2
     for node in [head, right]:
         status = node.status()
-        assert status['state'] == 'Complete'
+        assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
     for node in [left, tail]:
         assert node.status()['state'] == 'Cancelled'
@@ -140,14 +140,16 @@ def test_callback(client):
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
         batch.wait()
+
         i = 0
         while len(output) != 4:
             time.sleep(0.100 * (3/2) ** i)
             i += 1
             if i > 14:
                 break
-        assert len(output) == 4
-        assert all([job_result['state'] == 'Complete' and job_result['exit_code']['main'] == 0
+
+        assert len(output) == 4, output
+        assert all([job_result['state'] == 'Success' and job_result['exit_code']['main'] == 0
                     for job_result in output])
         assert output[0]['job_id'] == head.job_id
         middle_ids = (output[1]['job_id'], output[2]['job_id'])
@@ -219,10 +221,12 @@ def test_always_run_cancel(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 3
+    assert batch_status_job_counter(status, 'Success') == 3
+    assert batch_status_job_counter(status, 'Cancelled') == 1
+
     for node in [head, right, tail]:
         status = node.status()
-        assert status['state'] == 'Complete'
+        assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
 
 
@@ -235,9 +239,10 @@ def test_always_run_error(client):
                             always_run=True)
     batch = batch.submit()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Complete') == 2
+    assert batch_status_job_counter(status, 'Failed') == 1
+    assert batch_status_job_counter(status, 'Success') == 1
 
-    for job, ec in [(head, 1), (tail, 0)]:
+    for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
-        assert status['state'] == 'Complete'
+        assert status['state'] == state
         assert status['exit_code']['main'] == ec

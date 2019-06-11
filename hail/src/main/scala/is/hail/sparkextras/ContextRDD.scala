@@ -601,7 +601,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     rdd.preferredLocations(partition)
 
   private[this] def clean[U <: AnyRef](value: U): U =
-    ExposedUtils.clean(sparkContext, value)
+    ExposedUtils.clean(value)
 
   def partitions: Array[Partition] = rdd.partitions
 

@@ -34,67 +34,30 @@ case class SparkBackend(sc: SparkContext) extends Backend {
     }.collect()
   }
 
-  def jvmLowerAndExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
-    val timer = new ExecutionTimer("JVMCompile")
-
-    val ir = LowerTableIR(ir0, Some(timer), optimize)
+  override def cxxLowerAndExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
+    val timer = new ExecutionTimer("Backend.execute")
+    val ir = lower(ir0, Some(timer), optimize)
 
     if (!Compilable(ir))
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
 
-    val v = Region.scoped { region =>
-      ir.typ match {
-        case TVoid =>
-          val (_, f) = timer.time(Compile[Unit](ir), "SparkBackend.execute - JVM compile")
-          timer.time(f(0)(region), "SparkBackend.execute - Runtime")
-        case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "SparkBackend.execute - JVM compile")
-          timer.time(SafeRow(pt, region, f(0)(region)).get(0), "SparkBackend.execute - Runtime")
-      }
-    }
-
-    (v, timer.timings)
-  }
-
-  def cxxExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
-    val timer = new ExecutionTimer("CXX Compile")
-
-    val ir = try {
-      LowerTableIR(ir0, Some(timer), optimize)
-    } catch {
-      case e: LowererUnsupportedOperation =>
-        throw new CXXUnsupportedOperation(s"Failed lowering step:\n${e.getMessage}")
-    }
-
-    val value = ir.typ match {
+    val res = ir.typ match {
       case TVoid =>
-        val f = timer.time(cxx.Compile(ir, optimize), "SparkBackend.execute - CXX compile")
-        timer.time(Region.scoped { region => f(region.get()) }, "SparkBackend.execute - Runtime")
+        val f = timer.time(cxx.Compile(ir, optimize), "CXX compile")
+        timer.time(Region.scoped { region => f(region.get()) }, "Runtime")
         Unit
       case _ =>
         val pipeline = MakeTuple(FastIndexedSeq(ir))
-        val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "SparkBackend.execute - CXX compile")
+        val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "CXX compile")
         timer.time(
           Region.scoped { region =>
             val off = f(region.get())
             SafeRow(pipeline.pType.asInstanceOf[PTuple], region, off).get(0)
           },
-          "SparkBackend.execute - Runtime")
+          "Runtime")
     }
 
-    (value, timer.timings)
-  }
-
-  def execute(ir: IR, optimize: Boolean = true): (Any, Timings) = {
-    try {
-      if (HailContext.get.flags.get("cpp") == null)
-        jvmLowerAndExecute(ir, optimize)
-      else
-        cxxExecute(ir, optimize)
-    } catch {
-      case (_: CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
-        CompileAndEvaluate(ir, optimize = optimize)
-    }
+    (res, timer.timings)
   }
 
   override def asSpark(): SparkBackend = this

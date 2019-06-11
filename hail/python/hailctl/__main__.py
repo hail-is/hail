@@ -53,7 +53,7 @@ def check_for_update():
             def fmt_version(version):
                 return '.'.join(version)
 
-            if int_version(latest) >= int_version(installed):
+            if int_version(latest) > int_version(installed):
                 sys.stderr.write(f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n'
                                  f'You have Hail {fmt_version(installed)} installed, '
                                  f'but a newer version {fmt_version(latest)} exists.\n'

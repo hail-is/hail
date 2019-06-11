@@ -98,9 +98,6 @@ trait MatrixReader {
 
   def fullMatrixType: MatrixType
 
-  // TODO: remove fullRVDType when lowering is finished
-  def fullRVDType: RVDType
-
   def lower(mr: MatrixRead): TableIR
 }
 
@@ -153,8 +150,6 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
       case mts: AbstractMatrixTableSpec => mts
       case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     })
-
-  override lazy val fullRVDType: RVDType = spec.rvdType(path)
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
@@ -235,10 +230,6 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32()),
     entryType = TStruct.empty())
-
-  override lazy val fullRVDType: RVDType = RVDType(
-    PStruct("row_idx" -> PInt32(), MatrixType.entriesIdentifier -> PArray(PStruct())),
-    FastIndexedSeq("row_idx"))
 
   val columnCount: Option[Int] = Some(nCols)
 

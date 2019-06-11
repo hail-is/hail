@@ -1244,6 +1244,17 @@ class Table(ExprContainer):
         def _repr_html_(self):
             return self.table._html_str(self.n, self.types)
 
+    def _take_n(self, n):
+        if n < 0:
+            rows = self.collect()
+            has_more = False
+        else:
+            rows = self.take(n + 1)
+            has_more = len(rows) > n
+            rows = rows[:n]
+        return rows, has_more
+
+
     @staticmethod
     def _hl_repr(v):
         if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
@@ -1297,10 +1308,7 @@ class Table(ExprContainer):
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
-        rows = t.take(n + 1)
-
-        has_more = len(rows) > n
-        rows = rows[:n]
+        rows, has_more = t._take_n(n)
 
         rows = [[row[f] for f in fields] for row in rows]
 
@@ -1372,10 +1380,7 @@ class Table(ExprContainer):
         fields = list(t.row)
 
         formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
-        rows = formatted_t.take(n + 1)
-
-        has_more = len(rows) > n
-        rows = rows[:n]
+        rows, has_more = formatted_t._take_n(n)
 
         def format_line(values):
             return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
@@ -1419,7 +1424,7 @@ class Table(ExprContainer):
         Parameters
         ----------
         n or n_rows : :obj:`int`
-            Maximum number of rows to show.
+            Maximum number of rows to show, or negative to show all rows.
         width : :obj:`int`
             Horizontal width at which to break fields.
         truncate : :obj:`int`, optional

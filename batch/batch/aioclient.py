@@ -6,6 +6,7 @@ import random
 import hailjwt as hj
 
 from .requests_helper import filter_params
+from .globals import complete_states
 
 
 class Job:
@@ -141,11 +142,11 @@ class SubmittedJob:
     async def is_complete(self):
         if self._status:
             state = self._status['state']
-            if state in ('Complete', 'Cancelled'):
+            if state in complete_states:
                 return True
         await self.status()
         state = self._status['state']
-        return state in ('Complete', 'Cancelled')
+        return state in complete_states
 
     async def status(self):
         self._status = await self._batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}')

@@ -23,7 +23,7 @@ class Test(unittest.TestCase):
             await b.submit()
             status = await j.wait()
             self.assertTrue('attributes' not in status)
-            self.assertEqual(status['state'], 'Complete')
+            self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['exit_code']['main'], 0)
 
             self.assertEqual(await j.log(), {'main': 'test\n'})

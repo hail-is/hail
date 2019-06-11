@@ -2,7 +2,7 @@
 set -ex
 
 LATEST_SHA=$(gsutil cat \
-  gs://hail-common/builds/0.2/latest-hash/cloudtools-4-spark-2.4.0.txt 2>/dev/null || true)
+  gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt 2>/dev/null || true)
 if [[ $LATEST_SHA = "" ]]; then
     exit 0
 fi

@@ -542,7 +542,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      fb.addFS(HailContext.sFS)
       rg = rg.invoke[FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
         fb.getFS,
@@ -553,7 +552,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.addFS(HailContext.sFS)
       rg = rg.invoke[FS, String, String, ReferenceGenome](
         "addLiftoverFromFS",
         fb.getFS,

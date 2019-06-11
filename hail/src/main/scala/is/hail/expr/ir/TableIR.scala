@@ -93,8 +93,6 @@ abstract class TableReader {
   def partitionCounts: Option[IndexedSeq[Long]]
 
   def fullType: TableType
-
-  def fullRVDType: RVDType
 }
 
 case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) extends TableReader {
@@ -109,8 +107,6 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
   def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
   def fullType: TableType = spec.table_type
-
-  def fullRVDType: RVDType = fullType.canonicalRVDType
 
   def apply(tr: TableRead): TableValue = {
     val hc = HailContext.get
@@ -150,8 +146,6 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[In
     val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
     TableType(rowType, Array("row_idx"), TStruct())
   }
-
-  override def fullRVDType: RVDType = fullType.canonicalRVDType
 
   def apply(tr: TableRead): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(path, partitionRanges, metadata, HailContext.get)

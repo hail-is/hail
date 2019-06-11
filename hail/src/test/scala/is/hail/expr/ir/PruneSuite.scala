@@ -95,8 +95,6 @@ class PruneSuite extends SparkSuite {
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
     def fullType: TableType = tab.typ
-
-    def fullRVDType: RVDType = ???
   })
 
   val mType = MatrixType.fromParts(
@@ -118,8 +116,6 @@ class PruneSuite extends SparkSuite {
     def partitionCounts: Option[IndexedSeq[Long]] = None
 
     def fullMatrixType: MatrixType = mat.typ
-
-    def fullRVDType: RVDType = ???
 
     def lower(mr: MatrixRead): TableIR = ???
   })

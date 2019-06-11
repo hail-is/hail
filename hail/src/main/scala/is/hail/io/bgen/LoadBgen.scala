@@ -381,8 +381,6 @@ case class MatrixBGENReader(
 
   val fullMatrixType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
 
-  val fullRVDType: RVDType = fullMatrixType.canonicalRVDType
-
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
   val (maybePartitions, partitionRangeBounds) = BgenRDDPartitions(sc, fileMetadata,

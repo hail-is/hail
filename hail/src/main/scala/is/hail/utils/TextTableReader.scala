@@ -348,8 +348,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
 
   lazy val fullType: TableType = metadata.fullType
 
-  lazy val fullRVDType: RVDType = fullType.canonicalRVDType
-
   def apply(tr: TableRead): TableValue = {
     HailContext.maybeGZipAsBGZip(options.forceBGZ) {
       apply1(tr)

@@ -1,0 +1,7 @@
+<suite name="SchedulerSuite" verbose="1" >
+  <test name="TestScheduler">
+    <packages>
+      <package name="is.hail.scheduler" />
+    </packages>
+  </test>
+</suite>

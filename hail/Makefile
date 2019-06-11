@@ -3,15 +3,15 @@
   python/hail/hail_version python/hail/hail_pip_version
 
 
-REVISION=$(shell git rev-parse HEAD)
-SHORT_REVISION=$(shell git rev-parse --short=12 HEAD)
-DATE=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
-BRANCH=$(shell git rev-parse --abbrev-ref HEAD)
-URL=$(shell git config --get remote.origin.url)
-SPARK_VERSION=2.4.0
-HAIL_PIP_VERSION=0.2.14
+REVISION = $(shell git rev-parse HEAD)
+SHORT_REVISION = $(shell git rev-parse --short=12 HEAD)
+DATE = $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
+URL = $(shell git config --get remote.origin.url)
+SPARK_VERSION = 2.4.0
+HAIL_PIP_VERSION = 0.2.14
 
-HAIL_PYTHON3?=python3
+HAIL_PYTHON3 ?= python3
 
 shadowJar:
 	./gradlew shadowJar
@@ -49,22 +49,15 @@ wheel: build-info shadowJar init-scripts
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	cp deploy_scripts/setup.py build/deploy/
-	cp deploy_scripts/setup.cfg build/deploy/
 	rsync -rv \
 	    --exclude '__pycache__/' \
 	    --exclude 'docs/' \
+	    --exclude 'test/' \
 	    --exclude '*.log' \
-	    python/hail build/deploy/src/
-
-	rsync -rv \
-	    --exclude '__pycache__/' \
-	    --exclude '*.log' \
-	    python/hailctl build/deploy/src/
-
-	cp build/libs/hail-all-spark.jar build/deploy/src/hail/
-	cp build/deploy/src/hail/hail_pip_version build/deploy/src/hailctl/hail_pip_version
-	cp build/deploy/src/hail/hail_version build/deploy/src/hailctl/hail_version
+	    python/ build/deploy/
+	cp build/libs/hail-all-spark.jar build/deploy/hail/
+	cp build/deploy/hail/hail_pip_version build/deploy/hailctl/hail_pip_version
+	cp build/deploy/hail/hail_version build/deploy/hailctl/hail_version
 	cd build/deploy; $(HAIL_PYTHON3) setup.py sdist bdist_wheel
 
 # if the DEPLOY_PROD flag is not set, then deploy init scripts into a dev-username location
@@ -77,36 +70,32 @@ endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
-jar_cloud_path := $(cloud_base)/hail.jar
+cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+resources := python/hailctl/dataproc/resources
 .PHONY: python/hailctl/deploy.yaml
 python/hailctl/deploy.yaml:
 	rm -f python/hailctl/deploy.yaml
 	echo "dataproc:" >> python/hailctl/deploy.yaml
-	for FILE in `ls python/hailctl/dataproc/resources`; do \
-	  CLOUD_LOC=$(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)/$$FILE && \
-	  gsutil -m cp python/hailctl/dataproc/resources/$$FILE $$CLOUD_LOC && \
-	  gsutil acl set public-read $$CLOUD_LOC && \
-	  echo "  $$FILE: $$CLOUD_LOC" >> python/hailctl/deploy.yaml || break; done || exit
-	echo "  jar: $(jar_cloud_path)" >> python/hailctl/deploy.yaml
+	for FILE in `ls $(resources)`; do \
+	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailctl/deploy.yaml || break; done || exit
 	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailctl/deploy.yaml
 
-.PHONY: upload-deferred-artifacts
-upload-deferred-artifacts: wheel
-	gsutil -m cp build/libs/hail-all-spark.jar $(jar_cloud_path)
-	gsutil acl set public-read $(jar_cloud_path)
+.PHONY: upload-artifacts
+upload-artifacts: wheel
+	gsutil -m cp -r $(resources)/* $(cloud_base)
 	gsutil -m cp $(wheel_path) $(wheel_cloud_path)
-	gsutil acl set public-read $(wheel_cloud_path)
+	gsutil -m acl set -r public-read $(cloud_base)
 
 .PHONY: install-wheel
 install-wheel: wheel
-	pip uninstall -y hail
+	-pip uninstall -y hail
 	pip install $(wheel_path)
 
 .PHONY: install-hailctl-wheel
-install-hailctl-wheel: install-wheel upload-deferred-artifacts
+install-hailctl-wheel: install-wheel upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
@@ -119,7 +108,7 @@ test-dataproc: install-hailctl-wheel
 .PHONY: init-scripts
 init-scripts: python/hailctl/deploy.yaml
 
-DEPLOYED_VERSION=$(shell \
+DEPLOYED_VERSION = $(shell \
   pip --no-cache-dir search hail \
    | grep '^hail ' \
    | sed 's/hail (//' \
@@ -132,27 +121,38 @@ check-pypi:
 	  echo "version $(HAIL_PIP_VERSION) already deployed"; exit 1; fi
 
 $HAIL_TWINE_CREDS_FOLDER ?= /secrets/
-TWINE_USERNAME=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
-TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username)
+TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 
 pypi-deploy: \
-  TWINE_USERNAME=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-  TWINE_PASSWORD=$(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
+  TWINE_USERNAME = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
+  TWINE_PASSWORD = $(cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password)
 .PHONY: pypi-deploy
 pypi-deploy: check-pypi wheel
 	twine upload build/deploy/dist/*
 
-TAG_EXISTS=$(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
+TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
 .PHONY: check-tag
 check-tag:
 	if [ -n "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
+.PHONY: tag
 tag: check-tag
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 
+docs_location := gs://hail-common/builds/0.2/docs/hail-0.2-docs-$(REVISION).tar.gz
+local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
+cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
+.PHONY: set-docs-sha
+set-docs-sha:
+	gsutil ls $(docs_location)  # make sure file exists
+	echo "$(REVISION)" > $(local_sha_location)
+	gsutil cp $(local_sha_location) $(cloud_sha_location)
+	gsutil acl set public-read $(cloud_sha_location)
+
 .PHONY: deploy
-deploy: pypi-deploy tag
+deploy: pypi-deploy set-docs-sha tag
 
 clean:
 	./gradlew clean

@@ -42,7 +42,7 @@ object AbstractRVDSpec {
 
     val fs = hc.sFS
     partFiles.flatMap { p =>
-      val f = path + "/parts/" + p
+      val f = partPath(path, p)
       fs.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
@@ -55,6 +55,8 @@ object AbstractRVDSpec {
       }
     }
   }
+
+  def partPath(path: String, partFile: String): String = path + "/parts/" + partFile
 
   def writeSingle(
     fs: is.hail.io.fs.FS,

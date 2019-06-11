@@ -105,7 +105,7 @@ class RVD(
     if (nPreservedFields == newKey.length)
       this
     else if (isSorted)
-      truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey)
+      truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey).checkKeyOrdering()
     else
       changeKey(newKey)
   }
@@ -128,6 +128,61 @@ class RVD(
       repartition(adjustedPartitioner)
         .copy(typ = rvdType, partitioner = adjustedPartitioner.copy(kType = rvdType.kType.virtualType))
     }
+  }
+
+  def checkKeyOrdering(): RVD = {
+    val partitionerBc = partitioner.broadcast(crdd.sparkContext)
+    val localType = typ
+    val localKPType = typ.kType
+
+    new RVD(
+      typ,
+      partitioner,
+      crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
+        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
+        val kUR = new UnsafeRow(localKPType)
+
+        new Iterator[RegionValue] {
+          var first = true
+
+          def hasNext: Boolean = it.hasNext
+
+          def next(): RegionValue = {
+            val rv = it.next()
+
+            if (first)
+              first = false
+            else {
+              if (localType.kRowOrd.gt(prevK.value, rv)) {
+                kUR.set(prevK.value)
+                val prevKeyString = kUR.toString()
+
+                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+                kUR.set(prevK.value)
+                val currKeyString = kUR.toString()
+                fatal(
+                  s"""RVD error! Keys found out of order:
+                     |  Current key:  $currKeyString
+                     |  Previous key: $prevKeyString
+                     |This error can occur after a split_multi if the dataset
+                     |contains both multiallelic variants and duplicated loci.
+                   """.stripMargin)
+              }
+            }
+
+            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+            kUR.set(prevK.value)
+
+            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.virtualType.ordering, kUR))
+              fatal(
+                s"""RVD error! Unexpected key in partition $i
+                   |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Range of partition IDs for key: [${ partitionerBc.value.lowerBound(kUR) }, ${ partitionerBc.value.upperBound(kUR) })
+                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
+            rv
+          }
+        }
+      })
   }
 
   def truncateKey(n: Int): RVD = {
@@ -1275,62 +1330,8 @@ object RVD {
   ): RVD = {
     if (!HailContext.get.checkRVDKeys)
       return new RVD(typ, partitioner, crdd)
-
-    val sc = crdd.sparkContext
-
-    val partitionerBc = partitioner.broadcast(sc)
-    val localType = typ
-    val localKPType = typ.kType
-
-    new RVD(
-      typ,
-      partitioner,
-      crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
-        val kUR = new UnsafeRow(localKPType)
-
-        new Iterator[RegionValue] {
-          var first = true
-
-          def hasNext: Boolean = it.hasNext
-
-          def next(): RegionValue = {
-            val rv = it.next()
-
-            if (first)
-              first = false
-            else {
-              if (localType.kRowOrd.gt(prevK.value, rv)) {
-                kUR.set(prevK.value)
-                val prevKeyString = kUR.toString()
-
-                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
-                kUR.set(prevK.value)
-                val currKeyString = kUR.toString()
-                fatal(
-                  s"""RVD error! Keys found out of order:
-                     |  Current key:  $currKeyString
-                     |  Previous key: $prevKeyString
-                     |This error can occur after a split_multi if the dataset
-                     |contains both multiallelic variants and duplicated loci.
-                   """.stripMargin)
-              }
-            }
-
-            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
-            kUR.set(prevK.value)
-
-            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.virtualType.ordering, kUR))
-              fatal(
-                s"""RVD error! Unexpected key in partition $i
-                   |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
-                   |  Range of partition IDs for key: [${ partitionerBc.value.lowerBound(kUR) }, ${ partitionerBc.value.upperBound(kUR) })
-                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
-
-            rv
-          }
-        }
-      })
+    else
+      return new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
 
   def union(rvds: Seq[RVD], joinKey: Int): RVD = rvds match {

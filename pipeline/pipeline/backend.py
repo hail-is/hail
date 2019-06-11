@@ -30,7 +30,7 @@ class LocalBackend(Backend):
     tmp_dir: :obj:`str`, optional
         Temporary directory to use.
     gsa_key_file :obj:`str`, optional
-        Mount a file with a gsa key to `/gsa-key/privateData`. Only used if a
+        Mount a file with a gsa key to `/gsa-key/privateKeyData`. Only used if a
         task specifies a docker image. This option will override the value set by
         the environment variable `HAIL_PIPELINE_GSA_KEY_FILE`.
     extra_docker_run_flags :obj:`str`, optional
@@ -52,7 +52,7 @@ class LocalBackend(Backend):
         if gsa_key_file is None:
             gsa_key_file = os.environ.get('HAIL_PIPELINE_GSA_KEY_FILE')
         if gsa_key_file is not None:
-            flags += f' -v {gsa_key_file}:/gsa-key/privateData'
+            flags += f' -v {gsa_key_file}:/gsa-key/privateKeyData'
 
         self._extra_docker_run_flags = flags
 
@@ -115,7 +115,7 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
 
-            script.append(f"# {task._uid} {task._label if task._label else ''}")
+            script.append(f"# {task._uid} {task._name if task._name else ''}")
 
             script += [x for r in task._inputs for x in copy_input(task, r)]
 
@@ -203,7 +203,11 @@ class BatchBackend(Backend):
 
         default_image = 'ubuntu'
 
-        batch = self._batch_client.create_batch()
+        attributes = {}
+        if pipeline._name is not None:
+            attributes['name'] = pipeline._name
+
+        batch = self._batch_client.create_batch(attributes=attributes)
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
@@ -279,8 +283,8 @@ class BatchBackend(Backend):
             parents = [task_to_job_mapping[t] for t in task._dependencies]
 
             attributes = {'task_uid': task._uid}
-            if task._label:
-                attributes['name'] = task._label
+            if task._name:
+                attributes['name'] = task._name
 
             resources = {'requests': {}}
             if task._cpu:
@@ -323,21 +327,22 @@ class BatchBackend(Backend):
         batch = batch.submit()
         status = batch.wait()
 
+        if status['state'] == 'success':
+            print('Pipeline completed successfully!')
+            return
+
         failed_jobs = [((j['batch_id'], j['job_id']), j['exit_code']) for j in status['jobs'] if 'exit_code' in j and any([ec != 0 for _, ec in j['exit_code'].items()])]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
+            ec = batch.client.Job.exit_code(ec)
             job = self._batch_client.get_job(*jid)
             log = job.log()
-            label = job.status()['attributes'].get('name', None)
+            name = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
-                f"  Task label:\t{label}\n"
+                f"  Task name:\t{name}\n"
                 f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
-        n_complete = sum([j['state'] == 'Complete' for j in status['jobs']])
-        if failed_jobs or n_complete != n_jobs_submitted:
-            raise Exception(fail_msg)
-
-        print("Pipeline completed successfully!")
+        raise Exception(fail_msg)
