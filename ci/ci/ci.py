@@ -40,7 +40,7 @@ routes = web.RouteTableDef()
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
     app = request.app
-    pool = app['pool']
+    dbpool = app['dbpool']
     wb_configs = []
     for i, wb in enumerate(watched_branches):
         if wb.prs:
@@ -51,7 +51,7 @@ async def index(request):  # pylint: disable=unused-argument
                     'title': pr.title,
                     # FIXME generate links to the merge log
                     'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': pr.build_state if pr.authorized(pool) else 'unauthorized',
+                    'build_state': pr.build_state if pr.authorized(dbpool) else 'unauthorized',
                     'review_state': pr.review_state,
                     'author': pr.author
                 }
@@ -169,10 +169,10 @@ async def get_job_log(request):
 @authenticated_developers_only
 async def post_authorized_source_sha(request):
     app = request.app
-    pool = app['pool']
+    dbpool = app['dbpool']
     post = await request.post()
     sha = post['sha'].strip()
-    async with pool.acquire() as conn:
+    async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
@@ -275,14 +275,14 @@ async def on_startup(app):
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())
-        app['pool'] = await aiomysql.create_pool(host=config['host'],
-                                                 port=config['port'],
-                                                 db=config['db'],
-                                                 user=config['user'],
-                                                 password=config['password'],
-                                                 charset='utf8',
-                                                 cursorclass=aiomysql.cursors.DictCursor,
-                                                 autocommit=True)
+        app['dbpool'] = await aiomysql.create_pool(host=config['host'],
+                                                   port=config['port'],
+                                                   db=config['db'],
+                                                   user=config['user'],
+                                                   password=config['password'],
+                                                   charset='utf8',
+                                                   cursorclass=aiomysql.cursors.DictCursor,
+                                                   autocommit=True)
 
     asyncio.ensure_future(update_loop(app))
 
@@ -293,9 +293,9 @@ async def on_cleanup(app):
     session = app['client_session']
     await session.close()
 
-    pool = app['pool']
-    pool.close()
-    await pool.wait_closed()
+    dbpool = app['dbpool']
+    dbpool.close()
+    await dbpool.wait_closed()
 
 app.on_cleanup.append(on_cleanup)
 

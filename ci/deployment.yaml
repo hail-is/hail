@@ -55,17 +55,17 @@ spec:
           ports:
             - containerPort: 5000
           volumeMounts:
-           - name: ci-user-secret
-             mountPath: /ci-user-secret
+           - mountPath: /ci-user-secret
+             name: ci-user-secret
              readOnly: true
            - mountPath: /secrets/oauth-token
-             readOnly: true
              name: hail-ci-0-1-github-oauth-token
-           - mountPath: /ci-jwt
              readOnly: true
+           - mountPath: /ci-jwt
              name: ci-jwt
-           - name: jwt-secret-key
-             mountPath: /jwt-secret-key
+             readOnly: true
+           - mountPath: /jwt-secret-key
+             name: jwt-secret-key
              readOnly: true
           livenessProbe:
             httpGet:

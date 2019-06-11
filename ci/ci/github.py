@@ -139,11 +139,11 @@ class PR(Code):
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
 
-    async def authorized(self, pool):
+    async def authorized(self, dbpool):
         if self.author in AUTHORIZED_USERS:
             return True
 
-        async with pool.acquire() as conn:
+        async with dbpool.acquire() as conn:
             async with conn.cursor() as cursor:
                 await cursor.execute('SELECT * from authorized_shas WHERE sha = %s;', self.source_sha)
                 row = await cursor.fetchone()
@@ -267,7 +267,9 @@ class PR(Code):
             self.review_state = review_state
             self.target_branch.state_changed = True
 
-    async def _start_build(self, batch_client):
+    async def _start_build(self, dbpool, batch_client):
+        assert self.authorized(dbpool)
+
         # clear current batch
         self.batch = None
         self.build_state = None
@@ -365,12 +367,12 @@ mkdir -p {shq(repo_dir)}
                     self.source_sha_failed = True
                 self.target_branch.state_changed = True
 
-    async def _heal(self, batch_client, pool, on_deck):
+    async def _heal(self, batch_client, dbpool, on_deck):
         # can't merge target if we don't know what it is
         if self.target_branch.sha is None:
             return
 
-        if not await self.authorized(pool):
+        if not await self.authorized(dbpool):
             return
 
         if (not self.batch or
@@ -480,7 +482,7 @@ class WatchedBranch(Code):
             self.updating = True
             gh = app['github_client']
             batch_client = app['batch_client']
-            pool = app['pool']
+            dbpool = app['dbpool']
 
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
@@ -495,7 +497,7 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(batch_client, pool)
+                    await self._heal(batch_client, dbpool)
             await self.update_statuses(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -607,7 +609,7 @@ class WatchedBranch(Code):
         for pr in self.prs.values():
             await pr._update_batch(batch_client)
 
-    async def _heal(self, batch_client, pool):
+    async def _heal(self, batch_client, dbpool):
         log.info(f'heal {self.short_str()}')
 
         if self.deployable:
@@ -630,7 +632,7 @@ class WatchedBranch(Code):
         self.n_running_batches = sum(1 for pr in self.prs.values() if pr.batch and not pr.build_state)
 
         for pr in self.prs.values():
-            await pr._heal(batch_client, pool, pr == merge_candidate)
+            await pr._heal(batch_client, dbpool, pr == merge_candidate)
 
         # cancel orphan builds
         running_batches = await batch_client.list_batches(
