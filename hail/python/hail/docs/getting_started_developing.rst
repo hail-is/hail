@@ -126,7 +126,7 @@ conda environment:
 
 .. code-block:: bash
 
-    pip install -U -r hail/python/requirements.txt -r hail/python/dev-requirements.txt
+    make -C hail install-deps
 
 
 Building the Docs
