@@ -8,6 +8,8 @@ import org.apache.spark.sql.Row
 
 object ExtractIntervalFilters {
 
+  val MAX_LITERAL_SIZE = 4096
+
   case class ExtractionState(rowRef: Ref, keyFields: IndexedSeq[String]) {
     val rowType: TStruct = rowRef.typ.asInstanceOf[TStruct]
     val rowKeyType: TStruct = rowType.select(keyFields)._1
@@ -26,6 +28,8 @@ object ExtractIntervalFilters {
       case _ => false
     }
   }
+
+  def literalSizeOkay(lit: Literal): Boolean = lit.value.asInstanceOf[Iterable[_]].size <= MAX_LITERAL_SIZE
 
   def wrapInRow(intervals: Array[Interval]): Array[Interval] = {
     intervals.map { interval =>
@@ -132,12 +136,12 @@ object ExtractIntervalFilters {
           case (None, None) =>
             None
         }
-      case ArrayFold(Literal(t, lit), False(), acc, value, body) =>
+      case ArrayFold(lit: Literal, False(), acc, value, body) =>
         body match {
           case ApplySpecial("||", Seq(Ref(`acc`, _), ApplySpecial("contains", Seq(Ref(`value`, _), k)))) if es.isFirstKey(k) =>
-            assert(t.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
+            assert(lit.typ.asInstanceOf[TContainer].elementType.isInstanceOf[TInterval])
             Some((True(),
-              Interval.union(lit.asInstanceOf[Iterable[_]]
+              Interval.union(constValue(lit).asInstanceOf[Iterable[_]]
                 .filter(_ != null)
                 .map(_.asInstanceOf[Interval])
                 .toArray,
@@ -155,7 +159,7 @@ object ExtractIntervalFilters {
           case x: Map[_, _] => x.keys.map(elt => getIntervalFromContig(elt.asInstanceOf[String], rg)).toArray
         }
         Some((True(), intervals))
-      case ApplyIR("contains", Seq(lit: Literal, k)) =>
+      case ApplyIR("contains", Seq(lit: Literal, k)) if literalSizeOkay(lit) =>
         val wrap = if (es.isFirstKey(k)) Some(true) else if (es.isKeyStructPrefix(k)) Some(false) else None
         wrap.map { wrapStruct =>
           val intervals = (lit.value: @unchecked) match {
