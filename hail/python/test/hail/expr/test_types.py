@@ -56,7 +56,7 @@ class Tests(unittest.TestCase):
 
         for i in range(len(ts)):
             for j in range(len(ts2)):
-                if (i == j):
+                if i == j:
                     self.assertEqual(ts[i], ts2[j])
                 else:
                     self.assertNotEqual(ts[i], ts2[j])
@@ -86,4 +86,4 @@ class Tests(unittest.TestCase):
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(nested=hl.dict({"tup": hl.tuple([ht.idx])}))
-        ht.to_spark() # should not throw exception
+        ht.to_spark()  # should not throw exception

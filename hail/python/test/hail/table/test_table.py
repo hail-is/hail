@@ -541,11 +541,11 @@ class Tests(unittest.TestCase):
         df.select(**exprs)
         df = df.transmute(**exprs)
 
-        df.explode('\%!^!@#&#&$%#$%')
-        df.explode(df['\%!^!@#&#&$%#$%'])
+        df.explode(r'\%!^!@#&#&$%#$%')
+        df.explode(df[r'\%!^!@#&#&$%#$%'])
 
-        df.drop('\%!^!@#&#&$%#$%')
-        df.drop(df['\%!^!@#&#&$%#$%'])
+        df.drop(r'\%!^!@#&#&$%#$%')
+        df.drop(df[r'\%!^!@#&#&$%#$%'])
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):

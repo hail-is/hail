@@ -730,10 +730,10 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(32)
         table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
         r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
-        self.assertEquals(r.bin_edges, [0, 2, 4, 6, 8, 10])
-        self.assertEquals(r.bin_freq, [6, 5, 6, 6, 7])
-        self.assertEquals(r.n_smaller, 1)
-        self.assertEquals(r.n_larger, 1)
+        self.assertEqual(r.bin_edges, [0, 2, 4, 6, 8, 10])
+        self.assertEqual(r.bin_freq, [6, 5, 6, 6, 7])
+        self.assertEqual(r.n_smaller, 1)
+        self.assertEqual(r.n_larger, 1)
 
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
