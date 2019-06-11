@@ -6,6 +6,7 @@ import concurrent.futures
 import datetime
 import aiohttp
 from aiohttp import web
+import aiomysql
 import uvloop
 import jinja2
 import humanize
@@ -17,7 +18,7 @@ from hailjwt import authenticated_developers_only
 
 from .log import log
 from .constants import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, authorized_source_shas
+from .github import Repo, FQBranch, WatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -165,10 +166,14 @@ async def get_job_log(request):
 @routes.post('/authorize_source_sha')
 @authenticated_developers_only
 async def post_authorized_source_sha(request):
+    app = request.app
+    pool = app['pool']
     post = await request.post()
     sha = post['sha'].strip()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
     log.info(f'authorized sha: {sha}')
-    authorized_source_shas.add(sha)
     raise web.HTTPFound('/')
 
 
@@ -266,6 +271,17 @@ async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
+    with open('/ci-user-secret/sql-config.json', 'r') as f:
+        config = json.loads(f.read().strip())
+        app['pool'] = await aiomysql.create_pool(host=config['host'],
+                                                 port=config['port'],
+                                                 db=config['db'],
+                                                 user=config['user'],
+                                                 password=config['password'],
+                                                 charset='utf8',
+                                                 cursorclass=aiomysql.cursors.DictCursor,
+                                                 autocommit=True)
+
     asyncio.ensure_future(update_loop(app))
 
 app.on_startup.append(on_startup)
@@ -274,6 +290,10 @@ app.on_startup.append(on_startup)
 async def on_cleanup(app):
     session = app['client_session']
     await session.close()
+
+    pool = app['pool']
+    pool.close()
+    await pool.wait_closed()
 
 app.on_cleanup.append(on_cleanup)
 

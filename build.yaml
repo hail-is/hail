@@ -423,6 +423,27 @@ steps:
     - default_ns
     - scorecard_image
     - deploy_router
+ - kind: createDatabase
+   name: ci_database
+   databaseName: ci
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: create_ci_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/create-ci-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-ci-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - base_image
+     - ci_database
  - kind: deploy
    name: deploy_ci
    namespace:
@@ -437,6 +458,8 @@ steps:
     - ci_image
     - ci_utils_image
     - create_accounts
+    - ci_database
+    - create_ci_tables
  - kind: createDatabase
    name: batch_database
    databaseName: batch
