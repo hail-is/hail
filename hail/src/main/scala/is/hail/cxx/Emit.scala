@@ -917,7 +917,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice =>
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayAgg =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
@@ -989,60 +989,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-      case ir.NDArrayAgg(child, axes) =>
-        val childTyp = child.pType.asInstanceOf[PNDArray]
-        val resTyp = x.pType.asInstanceOf[PNDArray]
-
-        val ndt = emit(child)
-        val nd = fb.variable("nd", "NDArray", ndt.v)
-        val shape = fb.variable("shape", "std::vector<long>")
-
-        var shapeBuilder = new ListBuffer[String]() :+ shape.define
-        var dim = 0
-        while (dim < childTyp.nDims) {
-          if (!axes.contains(dim)) {
-            shapeBuilder += s"$shape.push_back($nd.shape[$dim]);"
-          }
-          dim += 1
-        }
-
-        val setup = Code(ndt.setup, nd.define, Code.sequence(shapeBuilder))
-        val emitter = new NDArrayEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
-          override def outputElement(resultIdxVars: Seq[Variable]): Code = {
-            val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
-            val resultIdxVarsIter = resultIdxVars.iterator
-            val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
-              if (aggIdxVars.contains(dim)) {
-                aggIdxVars(dim)
-              } else {
-                assert(resultIdxVarsIter.hasNext)
-                resultIdxVarsIter.next()
-              }
-            }
-            assert(!resultIdxVarsIter.hasNext)
-
-            val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
-            val body = s"$acc += ${ NDArrayEmitter.loadElement(nd, joinedIdxVars, childTyp.elementType) };"
-            val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
-              s"""
-                 |${ dimVar.define }
-                 |for ($dimVar = 0; $dimVar < $nd.shape[$axis]; ++$dimVar) {
-                 |  $innerLoops
-                 |}
-                 |""".stripMargin
-            }
-
-            s"""
-               |({
-               |  ${ acc.define }
-               |  ${ aggLoops }
-               |  $acc;
-               |})
-             """.stripMargin
-          }
-        }
-
-        present(emitter.emit(resTyp.elementType))
 
       case x@ir.NDArrayMatMul(lIR, rIR) =>
         val lt = emit(lIR)
@@ -1399,10 +1345,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   }
 
   def emitDeforestedNDArray(resultRegion: EmitRegion, x: ir.IR, env: E): NDArrayEmitter = {
+
+    def deforest(nd: ir.IR): NDArrayEmitter = emitDeforestedNDArray(resultRegion, nd, env)
+
     val xType = x.pType.asInstanceOf[PNDArray]
     x match {
       case ir.NDArrayReindex(child, indexExpr) =>
-        val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
+        val childEmitter = deforest(child)
         val newShapeSeq = indexExpr.map { dim =>
           if (dim < childEmitter.nDims)
             s"${ childEmitter.shape }[$dim]"
@@ -1431,7 +1380,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
-        val childEmitter = emitDeforestedNDArray(resultRegion, child, env)
+        val childEmitter = deforest(child)
         val setup = Code(childEmitter.setup, elemRef.define)
 
         new NDArrayEmitter(fb, resultRegion, childEmitter.nDims, childEmitter.shape, setup) {
@@ -1463,8 +1412,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             (rName, EmitTriplet(rElemType, "", "false", rRef.toString, resultRegion))))
         val bodyPretty = StringEscapeUtils.escapeString(ir.Pretty.short(body))
 
-        val lEmitter = emitDeforestedNDArray(resultRegion, lChild, env)
-        val rEmitter = emitDeforestedNDArray(resultRegion, rChild, env)
+        val lEmitter = deforest(lChild)
+        val rEmitter = deforest(rChild)
 
         val shape = fb.variable("shape", "std::vector<long>", s"unify_shapes(${ lEmitter.shape }, ${ rEmitter.shape })")
 
@@ -1497,11 +1446,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.NDArraySlice(ndIR, slicesIR) =>
+      case ir.NDArraySlice(child, slicesIR) =>
         val slicesPType = slicesIR.pType.asInstanceOf[PTuple]
         val slicePType = PTuple(IndexedSeq(PInt64(), PInt64(), PInt64()))
 
-        val childEmitter = emitDeforestedNDArray(resultRegion, ndIR, env)
+        val childEmitter = deforest(child)
 
         val slicest = emit(resultRegion, slicesIR, env)
         val slicesTup = fb.variable("slices_tuple", "const char *", slicest.v)
@@ -1571,6 +1520,58 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |({
                |  ${ Code.defineVars(newLoopVars) }
                |  ${ childEmitter.outputElement(sliceIdxVars) };
+               |})
+             """.stripMargin
+          }
+        }
+
+      case ir.NDArrayAgg(child, axes) =>
+        val childTyp = child.pType.asInstanceOf[PNDArray]
+        val resTyp = x.pType.asInstanceOf[PNDArray]
+
+        val childEmitter = deforest(child)
+        val shape = fb.variable("shape", "std::vector<long>")
+
+        var shapeBuilder = new ListBuffer[String]() :+ shape.define
+        var dim = 0
+        while (dim < childTyp.nDims) {
+          if (!axes.contains(dim)) {
+            shapeBuilder += s"$shape.push_back(${ childEmitter.shape }[$dim]);"
+          }
+          dim += 1
+        }
+
+        val setup = Code(childEmitter.setup, Code.sequence(shapeBuilder))
+        new NDArrayEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
+          override def outputElement(resultIdxVars: Seq[Variable]): Code = {
+            val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
+            val resultIdxVarsIter = resultIdxVars.iterator
+            val joinedIdxVars = IndexedSeq.tabulate(childTyp.nDims) { dim =>
+              if (aggIdxVars.contains(dim)) {
+                aggIdxVars(dim)
+              } else {
+                assert(resultIdxVarsIter.hasNext)
+                resultIdxVarsIter.next()
+              }
+            }
+            assert(!resultIdxVarsIter.hasNext)
+
+            val acc = fb.variable("acc", typeToCXXType(resTyp.elementType), "0")
+            val body = s"$acc += ${ childEmitter.outputElement(joinedIdxVars) };"
+            val aggLoops = aggIdxVars.foldRight(body) { case ((axis, dimVar), innerLoops) =>
+              s"""
+                 |${ dimVar.define }
+                 |for ($dimVar = 0; $dimVar < ${ childEmitter.shape }[$axis]; ++$dimVar) {
+                 |  $innerLoops
+                 |}
+                 |""".stripMargin
+            }
+
+            s"""
+               |({
+               |  ${ acc.define }
+               |  ${ aggLoops }
+               |  $acc;
                |})
              """.stripMargin
           }
