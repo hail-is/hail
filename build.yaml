@@ -4,7 +4,6 @@ steps:
    namespaceName: default
    public: true
    secrets:
-    - scorecard-github-access-token
     - hail-vdc-sa-key
     - notebook-secrets
     - gcr-pull-key
@@ -399,7 +398,6 @@ steps:
    config: router/deployment.yaml
    link:
     - www
-    - scorecard
     - notebook2
     - ci
    dependsOn:
@@ -419,6 +417,8 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: scorecard/deployment.yaml
+   scopes:
+    - deploy
    dependsOn:
     - default_ns
     - scorecard_image
