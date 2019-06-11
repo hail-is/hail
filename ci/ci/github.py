@@ -115,15 +115,19 @@ class MergeFailureBatch:
         self.attributes = attributes
 
 
+HIGH_PRIORITY = 'prio:high'
+STACKED_PR = 'stacked PR'
+
+
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch, author, high_prio):
+    def __init__(self, number, title, source_repo, source_sha, target_branch, author, labels):
         self.number = number
         self.title = title
         self.source_repo = source_repo
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
-        self.high_prio = high_prio
+        self.labels = labels
 
         # pending, changes_requested, approve
         self.review_state = None
@@ -156,7 +160,8 @@ class PR(Code):
         else:
             source_sha_failed_prio = 0 if self.source_sha_failed else 2
 
-        return (self.high_prio,
+        return (HIGH_PRIORITY in self.labels,
+                STACKED_PR not in self.labels,
                 source_sha_failed_prio,
                 # oldest first
                 - self.number)
@@ -169,9 +174,9 @@ class PR(Code):
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
 
-        new_high_prio = any(l['name'] == 'prio:high' for l in gh_json['labels'])
-        if new_high_prio != self.high_prio:
-            self.high_prio = new_high_prio
+        new_labels = {l['name'] for l in gh_json['labels']}
+        if new_labels != self.labels:
+            self.labels = new_labels
             self.target_branch.state_changed = True
 
         head = gh_json['head']
@@ -386,7 +391,8 @@ mkdir -p {shq(repo_dir)}
     def is_mergeable(self):
         return (self.review_state == 'approved' and
                 self.build_state == 'success' and
-                self.target_branch.sha == self.batch.attributes['target_sha'])
+                self.target_branch.sha == self.batch.attributes['target_sha'] and
+                STACKED_PR not in self.labels)
 
     async def merge(self, gh):
         try:
