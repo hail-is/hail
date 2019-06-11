@@ -658,7 +658,6 @@ steps:
      set -ex
      cd /io
      mkdir -p src/test
-     tar xzvf resources.tar.gz -C src/test
      HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-distributed-backend.xml
    inputs:
     - from: /hail-test.jar

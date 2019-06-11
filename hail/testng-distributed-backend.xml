@@ -1,15 +1,10 @@
 <suite name="DistributedBackendSuite" verbose="1">
     <test name="TestDistributedBackend">
         <classes>
-            <class name="is.hail.expr.ir.IRSuite">
-                <methods>
-                    <exclude name="testBlockMatrixIRParser" />
-                    <exclude name="testRelationalFunctionsRun" />
-                    <exclude name="testRelationalFunctionsSerialize" />
-                </methods>
-            </class>
             <class name="is.hail.expr.ir.TableIRSuite">
                 <methods>
+                    <exclude name="testRangeRead" />
+                    <exclude name="testTableJoin" />
                     <exclude name="testTableKeyBy" />
                     <exclude name="testTableParallelize" />
                     <exclude name="testShuffleAndJoinDoesntMemoryLeak" />

@@ -34,31 +34,5 @@ case class SparkBackend(sc: SparkContext) extends Backend {
     }.collect()
   }
 
-  override def cxxLowerAndExecute(ir0: IR, optimize: Boolean = true): (Any, Timings) = {
-    val timer = new ExecutionTimer("Backend.execute")
-    val ir = lower(ir0, Some(timer), optimize)
-
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
-
-    val res = ir.typ match {
-      case TVoid =>
-        val f = timer.time(cxx.Compile(ir, optimize), "CXX compile")
-        timer.time(Region.scoped { region => f(region.get()) }, "Runtime")
-        Unit
-      case _ =>
-        val pipeline = MakeTuple(FastIndexedSeq(ir))
-        val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "CXX compile")
-        timer.time(
-          Region.scoped { region =>
-            val off = f(region.get())
-            SafeRow(pipeline.pType.asInstanceOf[PTuple], region, off).get(0)
-          },
-          "Runtime")
-    }
-
-    (res, timer.timings)
-  }
-
   override def asSpark(): SparkBackend = this
 }
