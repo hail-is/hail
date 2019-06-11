@@ -166,8 +166,6 @@ case class MatrixGENReader(
     entryType = TStruct("GT" -> TCall(),
       "GP" -> TArray(TFloat64())))
 
-  def fullRVDType: RVDType = fullMatrixType.canonicalRVDType
-
   def apply(tr: TableRead): TableValue = {
     val rdd =
       if (tr.dropRows)

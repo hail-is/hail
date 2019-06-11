@@ -190,8 +190,6 @@ case class MatrixPLINKReader(
     rowKey = Array("locus", "alleles"),
     entryType = TStruct("GT" -> TCall()))
 
-  val fullRVDType: RVDType = fullMatrixType.canonicalRVDType
-
   def apply(tr: TableRead): TableValue = {
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
