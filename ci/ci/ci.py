@@ -17,7 +17,7 @@ from hailjwt import authenticated_developers_only
 
 from .log import log
 from .constants import BUCKET
-from .github import Repo, FQBranch, WatchedBranch
+from .github import Repo, FQBranch, WatchedBranch, authorized_source_shas
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -48,7 +48,7 @@ async def index(request):  # pylint: disable=unused-argument
                     'title': pr.title,
                     # FIXME generate links to the merge log
                     'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': pr.build_state,
+                    'build_state': pr.build_state if pr.authorized() else 'unauthorized',
                     'review_state': pr.review_state,
                     'author': pr.author
                 }
@@ -160,6 +160,16 @@ async def get_job_log(request):
         'job_id': job_id,
         'job_log': await job.log()
     }
+
+
+@routes.post('/authorize_source_sha')
+@authenticated_developers_only
+async def post_authorized_source_sha(request):
+    post = await request.post()
+    sha = post['sha'].strip()
+    log.info(f'authorized sha: {sha}')
+    authorized_source_shas.add(sha)
+    raise web.HTTPFound('/')
 
 
 @routes.get('/healthcheck')

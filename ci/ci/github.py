@@ -11,11 +11,9 @@ from .environment import SELF_HOSTNAME
 from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 
+authorized_source_shas = set()
+
 repos_lock = asyncio.Lock()
-
-
-def build_state_is_complete(build_state):
-    return build_state in ('success', 'failure')
 
 
 class Repo:
@@ -143,6 +141,9 @@ class PR(Code):
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
 
+    def authorized(self):
+        return (self.author in AUTHORIZED_USERS) or (self.source_sha in authorized_source_shas)
+
     def merge_priority(self):
         # passed > unknown > failed
         if self.source_sha_failed is None:
@@ -211,9 +212,6 @@ class PR(Code):
             'sha': self.sha
         }
 
-    def build_is_complete(self):
-        return build_state_is_complete(self.build_state)
-
     def github_status(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
@@ -265,6 +263,8 @@ class PR(Code):
             self.target_branch.state_changed = True
 
     async def _start_build(self, batch_client):
+        assert self.authorized()
+
         # clear current batch
         self.batch = None
         self.build_state = None
@@ -367,6 +367,9 @@ mkdir -p {shq(repo_dir)}
         if self.target_branch.sha is None:
             return
 
+        if not self.authorized():
+            return
+
         if (not self.batch or
                 (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
 
@@ -376,7 +379,8 @@ mkdir -p {shq(repo_dir)}
                     await self._start_build(batch_client)
 
     def is_mergeable(self):
-        return (self.review_state == 'approved' and
+        return (self.authorized() and
+                self.review_state == 'approved' and
                 self.build_state == 'success' and
                 self.target_branch.sha == self.batch.attributes['target_sha'])
 
@@ -528,8 +532,6 @@ class WatchedBranch(Code):
 
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
-            if gh_json_pr['user']['login'] not in AUTHORIZED_USERS:
-                continue
             number = gh_json_pr['number']
             if self.prs is not None and number in self.prs:
                 pr = self.prs[number]
