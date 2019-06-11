@@ -49,6 +49,8 @@ abstract class Backend {
 
   def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
     try {
+      if (HailContext.get.flags.get("lower") == null)
+        throw new LowererUnsupportedOperation("lowering not enabled")
       if (HailContext.get.flags.get("cpp") == null)
         jvmLowerAndExecute(ir, optimize)
       else
