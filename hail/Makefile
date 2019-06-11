@@ -12,7 +12,7 @@ SPARK_VERSION = 2.4.0
 HAIL_PIP_VERSION = 0.2.14
 
 HAIL_PYTHON3 ?= python3
-pip = python3 -m pip
+pip =: $(HAIL_PYTHON3) -m pip
 
 shadowJar:
 	./gradlew shadowJar
