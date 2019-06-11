@@ -39,6 +39,8 @@ routes = web.RouteTableDef()
 @authenticated_developers_only
 @aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
+    app = request.app
+    pool = app['pool']
     wb_configs = []
     for i, wb in enumerate(watched_branches):
         if wb.prs:
@@ -49,7 +51,7 @@ async def index(request):  # pylint: disable=unused-argument
                     'title': pr.title,
                     # FIXME generate links to the merge log
                     'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': pr.build_state if pr.authorized() else 'unauthorized',
+                    'build_state': pr.build_state if pr.authorized(pool) else 'unauthorized',
                     'review_state': pr.review_state,
                     'author': pr.author
                 }
