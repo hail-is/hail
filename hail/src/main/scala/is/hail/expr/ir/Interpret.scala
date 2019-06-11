@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, Uploader, stats}
+import is.hail.{HailContext, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
@@ -86,8 +86,6 @@ object Interpret {
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
-
-    Uploader.uploadPipeline(ir0, ir)
 
     result
   }

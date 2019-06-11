@@ -280,18 +280,6 @@ object HailContext {
     val hc = new HailContext(SparkBackend(sparkContext), new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
-    var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
-    if (uploadEmail == null)
-      uploadEmail = sparkContext.getConf.get("hail.uploadEmail", null)
-    if (uploadEmail != null)
-      hc.setUploadEmail(uploadEmail)
-
-    var enableUploadStr = System.getenv("HAIL_ENABLE_PIPELINE_UPLOAD")
-    if (enableUploadStr == null)
-      enableUploadStr = sparkContext.getConf.get("hail.enablePipelineUpload", null)
-    if (enableUploadStr != null && enableUploadStr == "true")
-      hc.enablePipelineUpload()
-
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
