@@ -60,7 +60,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
 
     def test_hadoop_copy_log(self):
-        r = resource('copy_log_test.txt')
+        r = new_local_temp_file('log')
         hl.copy_log(r)
         stats = hl.hadoop_stat(r)
         self.assertTrue(stats['size_bytes'] > 0)
