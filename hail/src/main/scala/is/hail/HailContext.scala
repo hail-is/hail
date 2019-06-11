@@ -621,7 +621,8 @@ class HailContext private(
 class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
-      "cpp" -> null
+      "cpp" -> null,
+      "lower" -> null
     )
 
   val available: java.util.ArrayList[String] =
