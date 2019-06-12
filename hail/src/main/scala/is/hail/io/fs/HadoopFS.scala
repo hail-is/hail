@@ -1,28 +1,94 @@
-package is.hail.utils.richUtils
+package is.hail.io.fs
 
+import is.hail.utils.{fatal, formatTime, getPartNumber, info, time, using, warn, SerializableHadoopConfiguration}
 import java.io._
+import java.util.Map
+import scala.collection.JavaConverters._
 
 import com.esotericsoftware.kryo.io.{Input, Output}
 import is.hail.io.compress.BGzipCodec
-import is.hail.utils._
+import is.hail.utils.{Context, TextInputFilterAndReplace, WithContext, readableBytes}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
-import org.apache.hadoop.fs.FileStatus
-import org.apache.hadoop.io.IOUtils._
+import org.apache.hadoop.fs.FSDataInputStream
+import org.apache.hadoop.io.IOUtils.copyBytes
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import scala.io.Source
 
-class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyVal {
+class HadoopFilePath(path: hadoop.fs.Path) extends FilePath {
+  type Configuration = hadoop.conf.Configuration
 
-  def fileSystem(filename: String): hadoop.fs.FileSystem =
-    new hadoop.fs.Path(filename).getFileSystem(hConf)
+  override def toString: String = {
+    path.toString()
+  }
 
+   def getName: String = {
+    path.getName()
+  }
+
+  def getFileSystem(conf: Configuration): HadoopFileSystem = {
+    new HadoopFileSystem(path.toString, conf)
+  }
+}
+
+class HadoopFileSystem(val filename: String, conf: hadoop.conf.Configuration) extends FileSystem  {
+  private val dPath = new hadoop.fs.Path(filename)
+  private val hfs = dPath.getFileSystem(conf)
+
+  def open: FSDataInputStream = {
+    val test = hfs.open(dPath)
+    hfs.open(dPath)
+  }
+
+  def open(fPath: FilePath): FSDataInputStream = {
+    hfs.open(new hadoop.fs.Path(fPath.toString()))
+  }
+
+  def open(fPath: String): FSDataInputStream = {
+    hfs.open(new hadoop.fs.Path(fPath))
+  }
+
+  def deleteOnExit(fPath: FilePath): Boolean = {
+    hfs.deleteOnExit(new hadoop.fs.Path(fPath.toString()))
+  }
+
+  def makeQualified(fPath: FilePath): FilePath = {
+    new HadoopFilePath(hfs.makeQualified(new hadoop.fs.Path(fPath.toString())))
+  }
+
+  def makeQualified(fPath: String): FilePath = {
+    new HadoopFilePath(hfs.makeQualified(new hadoop.fs.Path(fPath.toString())))
+  }
+
+  def getPath(path: String): FilePath = {
+    new HadoopFilePath(new hadoop.fs.Path(path))
+  }
+}
+
+class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
+  def getPath: HadoopFilePath = {
+    new HadoopFilePath(fs.getPath())
+  }
+
+  def getModificationTime: Long = fs.getModificationTime
+
+  def getLen: Long = fs.getLen
+
+  def isDirectory: Boolean = fs.isDirectory
+
+  def isFile: Boolean = fs.isFile
+
+  def getOwner: String = fs.getOwner
+}
+
+class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   private def create(filename: String): OutputStream = {
-    val fs = fileSystem(filename)
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
+
     val os = fs.create(hPath)
-    val codecFactory = new CompressionCodecFactory(hConf)
+    val codecFactory = new CompressionCodecFactory(conf.value)
     val codec = codecFactory.getCodec(hPath)
 
     if (codec != null)
@@ -31,9 +97,10 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       os
   }
 
-  private def open(filename: String, checkCodec: Boolean = true): InputStream = {
-    val fs = fileSystem(filename)
+  def open(filename: String, checkCodec: Boolean = true): InputStream = {
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
+
     val is = try {
       fs.open(hPath)
     } catch {
@@ -44,7 +111,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
           throw e
     }
     if (checkCodec) {
-      val codecFactory = new CompressionCodecFactory(hConf)
+      val codecFactory = new CompressionCodecFactory(conf.value)
       val codec = codecFactory.getCodec(hPath)
       if (codec != null)
         codec.createInputStream(is)
@@ -54,46 +121,66 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       is
   }
 
+  def getProperty(name: String): String = {
+    conf.value.get(name)
+  }
+
+  def setProperty(name: String, value: String): Unit = {
+    conf.value.set(name, value)
+  }
+
+  def getProperties: Iterator[Map.Entry[String, String]] = {
+    conf.value.iterator().asScala
+  }
+
+  private def _fileSystem(filename: String): hadoop.fs.FileSystem = {
+    new hadoop.fs.Path(filename).getFileSystem(conf.value)
+  }
+
+  def fileSystem(filename: String): HadoopFileSystem = {
+    new HadoopFileSystem(filename, conf.value)
+  }
+
   def getFileSize(filename: String): Long =
     fileStatus(filename).getLen
 
   def listStatus(filename: String): Array[FileStatus] = {
-    val fs = fileSystem(filename)
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.listStatus(hPath)
+    fs.listStatus(hPath).map( status => new HadoopFileStatus(status) )
   }
 
   def isDir(filename: String): Boolean = {
-    val fs = fileSystem(filename)
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     fs.isDirectory(hPath)
   }
 
   def isFile(filename: String): Boolean = {
-    val fs = fileSystem(filename)
+    val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     fs.isFile(hPath)
   }
 
   def exists(files: String*): Boolean = {
-    files.forall(filename => fileSystem(filename).exists(new hadoop.fs.Path(filename)))
+    files.forall(filename => _fileSystem(filename).exists(new hadoop.fs.Path(filename)))
   }
 
   /**
     * @return true if a new directory was created, false otherwise
     **/
   def mkDir(dirname: String): Boolean = {
-    fileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
+    _fileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
   def delete(filename: String, recursive: Boolean) {
-    fileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
+    _fileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }
 
   def getTemporaryFile(tmpdir: String, nChar: Int = 10,
     prefix: Option[String] = None, suffix: Option[String] = None): String = {
 
-    val destFS = fileSystem(tmpdir)
+    val destFS = _fileSystem(tmpdir)
     val prefixString = if (prefix.isDefined) prefix.get + "-" else ""
     val suffixString = if (suffix.isDefined) "." + suffix.get else ""
 
@@ -131,21 +218,21 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   }
 
   def glob(filename: String): Array[FileStatus] = {
-    val fs = fileSystem(filename)
+    val fs = _fileSystem(filename)
     val path = new hadoop.fs.Path(filename)
 
     val files = fs.globStatus(path)
     if (files == null)
       return Array.empty[FileStatus]
 
-    files
+    files.map(fileStatus => new HadoopFileStatus(fileStatus))
   }
 
   def copy(src: String, dst: String, deleteSource: Boolean = false) {
     hadoop.fs.FileUtil.copy(
-      fileSystem(src), new hadoop.fs.Path(src),
-      fileSystem(dst), new hadoop.fs.Path(dst),
-      deleteSource, hConf)
+      _fileSystem(src), new hadoop.fs.Path(src),
+      _fileSystem(dst), new hadoop.fs.Path(dst),
+      deleteSource, conf.value)
   }
 
   def copyMerge(
@@ -172,8 +259,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       case None => glob(sourceFolder + "/part-*")
       case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
-    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName)
-)
+    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName))
     if (sortedPartFileStatuses.length != numPartFilesExpected)
       fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
 
@@ -189,17 +275,17 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     info(s"while writing:\n    $destinationFile\n  merge time: ${ formatTime(dt) }")
 
     if (deleteSource) {
-      hConf.delete(sourceFolder, recursive = true)
+      delete(sourceFolder, recursive = true)
       if (header)
-        hConf.delete(sourceFolder + ".header", recursive = false)
+        delete(sourceFolder + ".header", recursive = false)
     }
   }
 
   def copyMergeList(srcFileStatuses: Array[FileStatus], destFilename: String, deleteSource: Boolean = true) {
     val destPath = new hadoop.fs.Path(destFilename)
-    val destFS = fileSystem(destFilename)
+    val destFS = _fileSystem(destFilename)
 
-    val codecFactory = new CompressionCodecFactory(hConf)
+    val codecFactory = new CompressionCodecFactory(conf.value)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(destFilename)))
     val isBGzip = codec.exists(_.isInstanceOf[BGzipCodec])
 
@@ -242,7 +328,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def stripCodec(s: String): String = {
     val path = new org.apache.hadoop.fs.Path(s)
 
-    Option(new CompressionCodecFactory(hConf)
+    Option(new CompressionCodecFactory(conf.value)
       .getCodec(path))
       .map { codec =>
         val ext = codec.getDefaultExtension
@@ -254,7 +340,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def getCodec(s: String): String = {
     val path = new org.apache.hadoop.fs.Path(s)
 
-    Option(new CompressionCodecFactory(hConf)
+    Option(new CompressionCodecFactory(conf.value)
       .getCodec(path))
       .map { codec =>
         val ext = codec.getDefaultExtension
@@ -265,7 +351,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
   def fileStatus(filename: String): FileStatus = {
     val p = new hadoop.fs.Path(filename)
-    p.getFileSystem(hConf).getFileStatus(p)
+    new HadoopFileStatus(p.getFileSystem(conf.value).getFileStatus(p))
   }
 
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =

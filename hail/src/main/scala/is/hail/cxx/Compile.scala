@@ -10,8 +10,7 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
-import is.hail.utils.richUtils.RichHadoopConfiguration
-import is.hail.utils.{SerializableHadoopConfiguration, fatal}
+import is.hail.utils.fatal
 
 import scala.reflect.classTag
 
@@ -27,7 +26,7 @@ object Compile {
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
     tub.include("hail/Upcalls.h")
-    tub.include("hail/Hadoop.h")
+    tub.include("hail/FS.h")
     tub.include("hail/SparkUtils.h")
     tub.include("hail/ObjectArray.h")
 
@@ -94,7 +93,7 @@ object Compile {
     tub += new Definition {
       def name: String = "entrypoint"
 
-      val funcCall = s"$fname(SparkFunctionContext(region, sparkUtils, hadoopConfig, lit_ptr) $castArgs)"
+      val funcCall = s"$fname(SparkFunctionContext(region, sparkUtils, fs, lit_ptr) $castArgs)"
       def define: String =
         s"""
            |long entrypoint(NativeStatus *st, long obj, long jregion $rawArgs) {
@@ -102,7 +101,7 @@ object Compile {
            |    UpcallEnv up;
            |    RegionPtr region = ((ScalaRegion *)jregion)->region_;
            |    jobject sparkUtils = ((ObjectArray *) obj)->at(0);
-           |    jobject hadoopConfig = ((ObjectArray *) obj)->at(1);
+           |    jobject fs = ((ObjectArray *) obj)->at(1);
            |    jobject jlit_in = ((ObjectArray *) obj)->at(2);
            |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());
@@ -141,13 +140,11 @@ object Compile {
     mod.close()
     st.close()
 
-    val hadoopConf = new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration)
+    val fs = HailContext.get.sFS
 
     { (region: Long) =>
       val st2 = new NativeStatus()
-      val jObjectArgs = new ObjectArray(sparkUtils,
-        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
-        new ByteArrayInputStream(literals)).get()
+      val jObjectArgs = new ObjectArray(sparkUtils, fs, new ByteArrayInputStream(literals)).get()
 
       val res = nativef(st2, jObjectArgs, region)
       if (st2.fail)
@@ -172,13 +169,11 @@ object Compile {
     mod.close()
     st.close()
 
-    val hadoopConf = new SerializableHadoopConfiguration(HailContext.get.sc.hadoopConfiguration)
+    val fs = HailContext.get.sFS
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()
-      val jObjectArgs = new ObjectArray(sparkUtils,
-        new RichHadoopConfiguration(hadoopConf.value).asInstanceOf[AnyRef],
-        new ByteArrayInputStream(literals)).get()
+      val jObjectArgs = new ObjectArray(sparkUtils, fs, new ByteArrayInputStream(literals)).get()
       val res = nativef(st2, jObjectArgs, region, v2)
       if (st2.fail)
         fatal(st2.toString())

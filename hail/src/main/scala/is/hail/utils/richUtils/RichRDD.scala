@@ -5,6 +5,7 @@ import java.io.OutputStream
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 import org.apache.spark.{NarrowDependency, Partition, Partitioner, TaskContext}
@@ -27,17 +28,16 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     Iterator(it.exists(p))
   }.fold(false)(_ || _)
 
-  def writeTable(filename: String, tmpDir: String, header: Option[String] = None, exportType: Int = ExportType.CONCATENATED) {
+  def writeTable(fs: FS, filename: String, tmpDir: String, header: Option[String] = None, exportType: Int = ExportType.CONCATENATED) {
     val hConf = r.sparkContext.hadoopConfiguration
-
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = Option(codecFactory.getCodec(new hadoop.fs.Path(filename)))
 
-    hConf.delete(filename, recursive = true) // overwriting by default
+    fs.delete(filename, recursive = true) // overwriting by default
 
     val parallelOutputPath =
       if (exportType == ExportType.CONCATENATED)
-        hConf.getTemporaryFile(tmpDir)
+        fs.getTemporaryFile(tmpDir)
       else
         filename
 
@@ -68,8 +68,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     }
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
-      val headerExt = hConf.getCodec(filename)
-      hConf.writeTextFile(parallelOutputPath + "/header" + headerExt) { out =>
+      val headerExt = fs.getCodec(filename)
+      fs.writeTextFile(parallelOutputPath + "/header" + headerExt) { out =>
         header.foreach { h =>
           out.write(h)
           out.write('\n')
@@ -77,11 +77,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       }
     }
 
-    if (!hConf.exists(parallelOutputPath + "/_SUCCESS"))
+    if (!fs.exists(parallelOutputPath + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
     if (exportType == ExportType.CONCATENATED) {
-      hConf.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, header = false)
+      fs.copyMerge(parallelOutputPath, filename, rWithHeader.getNumPartitions, header = false)
     }
   }
 

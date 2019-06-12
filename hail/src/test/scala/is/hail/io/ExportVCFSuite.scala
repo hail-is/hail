@@ -39,7 +39,7 @@ class ExportVCFSuite extends SparkSuite {
 
     implicit val locusAllelesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
 
-    assert(hadoopConf.readFile(outFile) { s =>
+    assert(sFS.readFile(outFile) { s =>
       Source.fromInputStream(s)
         .getLines()
         .filter(line => !line.isEmpty && line(0) != '#')
@@ -52,8 +52,8 @@ class ExportVCFSuite extends SparkSuite {
     val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
     val p = forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
       Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      hadoopConf.delete(out, recursive = true)
-      hadoopConf.delete(out2, recursive = true)
+      sFS.delete(out, recursive = true)
+      sFS.delete(out2, recursive = true)
       ExportVCF(vds, out)
       val vds2 = TestUtils.importVCF(hc, out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
       ExportVCF(vds, out2)
@@ -71,8 +71,8 @@ class ExportVCFSuite extends SparkSuite {
     ExportVCF(vds, out)
     ExportVCF(vds, out2)
 
-    assert(hadoopConf.getFileSize(out) > 0)
-    assert(hadoopConf.getFileSize(out2) > 0)
+    assert(sFS.getFileSize(out) > 0)
+    assert(sFS.getFileSize(out2) > 0)
     assert(TestUtils.importVCF(hc, out).same(vds))
     assert(TestUtils.importVCF(hc, out2).same(vds))
   }
@@ -85,7 +85,7 @@ class ExportVCFSuite extends SparkSuite {
 
     ExportVCF(TestUtils.importVCF(hc, vcfFile), out, metadata = Some(metadata))
 
-    val outFormatHeader = hadoopConf.readFile(out) { in =>
+    val outFormatHeader = sFS.readFile(out) { in =>
       Source.fromInputStream(in)
         .getLines()
         .filter(_.startsWith("##FORMAT"))
@@ -107,7 +107,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)
-    hadoopConf.readLines(out) { lines =>
+    sFS.readLines(out) { lines =>
       lines.foreach { l =>
         if (l.value.startsWith("20\t13029920")) {
           assert(l.value.contains("GT:AD:DP:GQ:PL\t1/1:0,6:6:18:234,18,0\t1/1:0,4:4:12:159,12,0\t" +
@@ -138,7 +138,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)
-    assert(hadoopConf.readLines(out) { lines =>
+    assert(sFS.readLines(out) { lines =>
       lines.filter(_.value.startsWith("##contig=<ID=10")).forall { l =>
         l.value == "##contig=<ID=10,length=135534747,assembly=GRCh37>"
       }
@@ -156,7 +156,7 @@ class ExportVCFSuite extends SparkSuite {
       "fakeField" -> Map.empty[String, Map[String, String]]))
 
     ExportVCF(vdsOrig, outFile, metadata = md)
-    assert(hadoopConf.readLines(outFile) { lines =>
+    assert(sFS.readLines(outFile) { lines =>
       lines.filter(l => l.value.startsWith("##FORMAT=<ID=GT") || l.value.startsWith("##FILTER=<ID=LowQual")).forall { l =>
         l.value == "##FORMAT=<ID=GT,Number=foo,Type=String,Description=\"Genotype call.\">" ||
           l.value == "##FILTER=<ID=LowQual,Description=\"Low quality\">"

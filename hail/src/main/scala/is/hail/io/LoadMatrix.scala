@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
 
 import scala.io.Source
@@ -198,12 +198,12 @@ object LoadMatrix {
     }
   }
 
-  def parseHeader(hConf: Configuration, file: String, sep: Char, nRowFields: Int, noHeader: Boolean): (Array[String], Int) = {
+  def parseHeader(fs: FS, file: String, sep: Char, nRowFields: Int, noHeader: Boolean): (Array[String], Int) = {
     if (noHeader) {
-      val nCols = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().next() }.count(_ == sep) + 1
+      val nCols = fs.readFile(file) { s => Source.fromInputStream(s).getLines().next() }.count(_ == sep) + 1
       (Array(), nCols - nRowFields)
     } else {
-      val lines = hConf.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
+      val lines = fs.readFile(file) { s => Source.fromInputStream(s).getLines().take(2).toArray }
       lines match {
         case Array(header, first) =>
           val nCols = first.split(charRegex(sep), -1).length - nRowFields
@@ -288,12 +288,12 @@ object LoadMatrix {
         t.isOfType(TFloat64())
     })
     val sc = hc.sc
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
 
     if (files.isEmpty)
       fatal("no files specified for import_matrix_table.")
 
-    val (header1, nCols) = parseHeader(hConf, files.head, sep, nAnnotations, noHeader)
+    val (header1, nCols) = parseHeader(fs, files.head, sep, nAnnotations, noHeader)
     val (rowFieldNames, colIDs) = splitHeader(header1, nAnnotations, nCols)
 
     val rowFieldType: TStruct = verifyRowFields(rowFieldNames, rowFields)

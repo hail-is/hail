@@ -738,7 +738,7 @@ class RVD(
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
-    rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
+    rvdSpec(codecSpec, partFiles).write(HailContext.sFS, path)
     partitionCounts
   }
 
@@ -1357,8 +1357,8 @@ object RVD {
     require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
 
     val sc = HailContext.get.sc
-    val hConf = HailContext.hadoopConf
-    val hConfBc = HailContext.hadoopConfBc
+    val fs = HailContext.sFS
+    val bcFS = HailContext.bcFS
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1378,17 +1378,17 @@ object RVD {
     val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
       val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-      hConf.mkDir(path + s + ".mt" + "/rows/rows/parts")
-      hConf.mkDir(path + s + ".mt" + "/entries/rows/parts")
+      fs.mkDir(path + s + ".mt" + "/rows/rows/parts")
+      fs.mkDir(path + s + ".mt" + "/entries/rows/parts")
     }
 
     val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[RegionValue]]) =>
       Iterator.single { ctx: RVDContext =>
-        val hConf = hConfBc.value.value
+        val fs = bcFS.value
         val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
         val fullPath = path + s + ".mt"
         val (f, rowCount) = RichContextRDDRegionValue.writeSplitRegion(
-          hConf,
+          fs,
           fullPath,
           localTyp,
           singletonElement(it)(ctx),
@@ -1420,10 +1420,10 @@ object RVD {
 
     sc.parallelize(partFiles.zipWithIndex, partFiles.length)
       .foreach { case (partFiles, i) =>
-        val hConf = hConfBc.value.value
+        val fs = bcFS.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
         val basePath = path + s + ".mt"
-        RichContextRDDRegionValue.writeSplitSpecs(hConf, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
       }
 
     partCounts

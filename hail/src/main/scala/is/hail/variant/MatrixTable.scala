@@ -12,6 +12,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
+import is.hail.io.fs.FS
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -35,10 +36,10 @@ object RelationalSpec {
     new MatrixTypeSerializer
 
   def read(hc: HailContext, path: String): RelationalSpec = {
-    if (!hc.hadoopConf.isDir(path))
+    if (!hc.sFS.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.hadoopConf.readFile(metadataFile) { in => parse(in) }
+    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -56,7 +57,7 @@ object RelationalSpec {
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -75,8 +76,8 @@ abstract class RelationalSpec {
 
   def partitionCounts: Array[Long] = getComponent[PartitionCountsComponentSpec]("partition_counts").counts.toArray
 
-  def write(hadoopConf: org.apache.hadoop.conf.Configuration, path: String) {
-    hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
+  def write(fs: is.hail.io.fs.FS, path: String) {
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
@@ -87,18 +88,18 @@ abstract class RelationalSpec {
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def absolutePath(path: String): String = path + "/" + rel_path
 
-  def rvdSpec(hadoopConf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(hadoopConf, absolutePath(path))
+  def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
+    AbstractRVDSpec.read(fs, absolutePath(path))
 
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
+    rvdSpec(hc.sFS, path)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
@@ -442,8 +443,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
   def sparkContext: SparkContext = hc.sc
-
-  def hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true

@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import java.io.{InputStream, OutputStream}
 
 import breeze.linalg.{DenseMatrix => BDM}
-import org.apache.hadoop
+import is.hail.io.fs.FS
 import is.hail.HailContext
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.io._
@@ -39,7 +39,7 @@ object RichDenseMatrixDouble {
   }
 
   def read(hc: HailContext, path: String, bufferSpec: BufferSpec): BDM[Double] = {
-    hc.hadoopConf.readDataFile(path)(is => read(is, bufferSpec))
+    hc.sFS.readDataFile(path)(is => read(is, bufferSpec))
   }
 
   def importFromDoubles(hc: HailContext, path: String, nRows: Int, nCols: Int, rowMajor: Boolean): BDM[Double] = {
@@ -49,11 +49,11 @@ object RichDenseMatrixDouble {
     RichDenseMatrixDouble(nRows, nCols, data, rowMajor)
   }
 
-  def exportToDoubles(hadoopConf: hadoop.conf.Configuration, path: String, m: BDM[Double], forceRowMajor: Boolean): Boolean = {
+  def exportToDoubles(fs: FS, path: String, m: BDM[Double], forceRowMajor: Boolean): Boolean = {
     val (data, rowMajor) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
     
-    RichArray.exportToDoubles(hadoopConf, path, data)
+    RichArray.exportToDoubles(fs, path, data)
 
     rowMajor
   }
@@ -107,18 +107,18 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   }
 
   def write(hc: HailContext, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec) {
-    hc.hadoopConf.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
+    hc.sFS.writeFile(path)(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
   }
 
   def writeBlockMatrix(hc: HailContext, path: String, blockSize: Int, forceRowMajor: Boolean = false, overwrite: Boolean = false) {
-    val hadoop = hc.hadoopConf
+    val fs = hc.sFS
     
     if (overwrite)
-      hadoop.delete(path, recursive = true)
-    else if (hadoop.exists(path))
+      fs.delete(path, recursive = true)
+    else if (fs.exists(path))
       fatal(s"file already exists: $path")    
 
-    hadoop.mkDir(path)
+    fs.mkDir(path)
 
     val gp = GridPartitioner(blockSize, m.rows, m.cols)
     val nParts = gp.numPartitions
@@ -140,7 +140,7 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     }
       .toArray
 
-    hadoop.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
+    fs.writeDataFile(path + BlockMatrix.metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.write(
         BlockMatrixMetadata(blockSize, m.rows, m.cols, gp.maybeBlocks, partFiles),
@@ -149,6 +149,6 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
 
     info(s"wrote $nParts ${ plural(nParts, "item") } in $nParts ${ plural(nParts, "partition") }")
 
-    hadoop.writeTextFile(path + "/_SUCCESS")(out => ())
+    fs.writeTextFile(path + "/_SUCCESS")(out => ())
   }
 }

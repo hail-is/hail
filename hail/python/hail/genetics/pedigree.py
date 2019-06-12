@@ -201,7 +201,7 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.hadoopConf(), delimiter)
+        jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.sFS(), delimiter)
         return Pedigree._from_java(jrep)
 
     @property
@@ -266,4 +266,4 @@ class Pedigree(object):
         :type path: str
         """
 
-        self._jrep.write(path, Env.hc()._jhc.hadoopConf())
+        self._jrep.write(path, Env.hc()._jhc.sFS())

@@ -2,9 +2,9 @@ package is.hail.io.tabix
 
 import is.hail.io.compress.BGzipInputStream
 import is.hail.utils._
+import is.hail.io.fs.FS
 
 import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
-import org.apache.{hadoop => hd}
 import org.apache.spark.broadcast.Broadcast
 
 import java.io.InputStream
@@ -90,7 +90,7 @@ object TabixReader {
 
 }
 
-class TabixReader(val filePath: String, hConf: hd.conf.Configuration, idxFilePath: Option[String] = None) {
+class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = None) {
   import TabixReader._
 
   val indexPath: String = idxFilePath match {
@@ -102,7 +102,7 @@ class TabixReader(val filePath: String, hConf: hd.conf.Configuration, idxFilePat
         fatal(s"unknown file extension for tabix index: $s")
   }
 
-  val index: Tabix = hConf.readFile(indexPath) { is =>
+  val index: Tabix = fs.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4) // read magic bytes "TBI\1"
     if (!(Magic sameElements buf))
@@ -312,7 +312,7 @@ class TabixReader(val filePath: String, hConf: hd.conf.Configuration, idxFilePat
 }
 
 class TabixLineIterator(
-  private val shConfBc: Broadcast[SerializableHadoopConfiguration],
+  private val bcFS: Broadcast[FS],
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
@@ -321,7 +321,7 @@ class TabixLineIterator(
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
-  private var is = new BGzipInputStream(shConfBc.value.value.unsafeReader(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(bcFS.value.unsafeReader(filePath, checkCodec = false))
 
   def next(): String = {
     var s: String = null

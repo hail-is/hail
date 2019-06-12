@@ -6,6 +6,7 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import is.hail.expr.ir.{BaseIR, Pretty}
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
@@ -55,7 +56,7 @@ class Uploader { self =>
   private val config = {
     val hc = HailContext.get
     val sc = hc.sc
-    val hConf = hc.hadoopConf
+    val fs = hc.sFS
     val runtime = Runtime.getRuntime
 
     JObject(
@@ -77,7 +78,7 @@ class Uploader { self =>
         }
           .toList),
       "hadoop_conf" -> JObject(
-        hConf.iterator().asScala.map { entry =>
+        fs.getProperties.map { entry =>
           entry.getKey -> JString(entry.getValue)
         }
           .toList),

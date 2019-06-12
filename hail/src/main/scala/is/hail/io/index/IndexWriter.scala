@@ -8,7 +8,7 @@ import is.hail.expr.types.virtual.Type
 import is.hail.io.{CodecSpec, Encoder}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 import org.json4s.Formats
 import org.json4s.jackson.Serialization
 
@@ -37,7 +37,7 @@ object IndexWriter {
 }
 
 class IndexWriter(
-  hConf: Configuration,
+  fs: FS,
   path: String,
   keyType: Type,
   annotationType: Type,
@@ -55,7 +55,7 @@ class IndexWriter(
   private val internalNodeBuilders = new ArrayBuilder[InternalNodeBuilder]()
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
-  private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+  private val trackedOS = new ByteTrackingOutputStream(fs.unsafeWriter(path + "/index"))
 
   private val leafEncoder = makeLeafEncoder(trackedOS)
   private val internalEncoder = makeInternalEncoder(trackedOS)
@@ -146,7 +146,7 @@ class IndexWriter(
   }
 
   private def writeMetadata(rootOffset: Long) = {
-    hConf.writeTextFile(path + "/metadata.json.gz") { out =>
+    fs.writeTextFile(path + "/metadata.json.gz") { out =>
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
