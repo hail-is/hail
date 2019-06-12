@@ -2943,10 +2943,13 @@ class Tests(unittest.TestCase):
             np.array([True, False, True, True])
         ]
 
-        for arr in arrs:
+        for expected in arrs:
             with tempfile.NamedTemporaryFile(suffix='.npy') as f:
-                hl._ndarray(arr).save(f.name)
-                self.assertTrue(np.array_equal(arr, np.load(f.name)))
+                hl._ndarray(expected).save(f.name)
+                actual = np.load(f.name)
+
+                self.assertTrue(expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}')
+                self.assertTrue(np.array_equal(expected, actual))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()

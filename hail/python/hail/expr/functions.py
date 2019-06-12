@@ -3726,6 +3726,9 @@ def _ndarray(collection, row_major=True):
             return []
 
     def deep_flatten(l):
+        if not isinstance(l, list):
+            return [l]
+
         result = []
         for e in l:
             if isinstance(e, list):
@@ -3735,19 +3738,28 @@ def _ndarray(collection, row_major=True):
 
         return result
 
+    def np_to_hl_type(t):
+        if t == np.int64:
+            return tint64
+        elif t == np.int32:
+            return tint32
+        elif t == np.float64:
+            return tfloat64
+        elif t == np.float32:
+            return tfloat32
+        elif t == np.bool:
+            return tbool
+        else:
+            raise TypeError(f'Unsupported numpy type: {t}')
+
     if isinstance(collection, np.ndarray):
-        nd = collection.astype(np.float64)
-        data = list(nd.flat)
-        shape = nd.shape
-    elif isinstance(collection, list):
-        shape = list_shape(collection)
-        data = deep_flatten(collection)
+        shape = list(collection.shape)
+        data_expr = to_expr(deep_flatten(collection.tolist()), tarray(np_to_hl_type(collection.dtype)))
     else:
-        shape = []
-        data = hl.array([collection])
+        shape = list_shape(collection)
+        data_expr = hl.array(deep_flatten(collection))
 
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-    data_expr = hl.array(data)
 
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
