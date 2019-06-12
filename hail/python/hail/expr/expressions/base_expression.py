@@ -221,7 +221,7 @@ def _to_expr(e, dtype):
     elif isinstance(dtype, tndarray):
         row_major = not e.flags.f_contiguous
         data = hl.array([to_expr(i.item(), dtype.element_type) for i in e.flatten('A')])
-        shape = hl.tuple(list(e.shape))
+        shape = to_expr(tuple([hl.int64(i) for i in e.shape]), ttuple(*[tint64 for _ in e.shape]))
         return expressions.construct_expr(MakeNDArray(data._ir, shape._ir, hl.bool(row_major)._ir), dtype)
     else:
         raise NotImplementedError(dtype)

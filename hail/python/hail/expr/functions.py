@@ -11,7 +11,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural
+from hail.utils.misc import plural, np_type_to_hl_type
 
 import numpy as np
 
@@ -3711,7 +3711,23 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     return construct_expr(ir, array_t)
 
 
-def _ndarray(collection, row_major=True):
+def _ndarray(collection, row_major=None):
+    """Construct a hail ndarray from either a `NumPy` ndarray or python value/nested lists.
+    If `row_major` is ``None`` and the input is a `NumPy` ndarray, the ndarray's existing ordering will
+    be used (column major if that's how it is stored and row major otherwise). Note the exact memory layout
+    is not preserved if it is not in one of the two orderings. If the input is not a `NumPy` ndarray,
+    `row_major` defaults to ``True``.
+
+    Parameters
+    ----------
+    collection : :class:`numpy.ndarray` or :obj:`numeric` or :obj: `list` of `numeric`
+        Type of the array elements.
+    row_major : :obj: `bool` or None
+
+    Returns
+    -------
+    :class:`.NDArrayExpression`
+    """
     def list_shape(x):
         if isinstance(x, list):
             dim_len = builtins.len(x)
@@ -3739,14 +3755,23 @@ def _ndarray(collection, row_major=True):
         return result
 
     if isinstance(collection, np.ndarray):
-        return to_expr(collection)
+        if row_major is None:
+            return to_expr(collection)
+        else:
+            elem_type = np_type_to_hl_type(collection.dtype)
+            data = [to_expr(i.item(), elem_type) for i in collection.flatten('C' if row_major else 'F')]
+            shape = collection.shape
+    else:
+        if row_major is None:
+            row_major = True
 
-    shape = list_shape(collection)
+        shape = list_shape(collection)
+        data = deep_flatten(collection)
+
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
-
-    data_expr = hl.array(deep_flatten(collection))
-
+    data_expr = hl.array(data)
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
 
 
