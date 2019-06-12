@@ -254,8 +254,6 @@ class BatchBackend(Backend):
                                      attributes={'name': 'write_external_inputs'})
                 jobs_to_command[j] = write_cmd
                 n_jobs_submitted += 1
-                if verbose:
-                    print(f"Submitted Job {j.id} with command: {write_cmd}")
 
         for task in pipeline._tasks:
             inputs = [x for r in task._inputs for x in copy_input(r)]
@@ -304,8 +302,6 @@ class BatchBackend(Backend):
 
             task_to_job_mapping[task] = j
             jobs_to_command[j] = cmd
-            if verbose:
-                print(f"Submitted Job {j.id} with command: {cmd}")
 
         if dry_run:
             print("\n\n".join(commands))
@@ -325,6 +321,12 @@ class BatchBackend(Backend):
             n_jobs_submitted += 1
 
         batch = batch.submit()
+
+        if verbose:
+            print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs:')
+            for job, cmd in jobs_to_command.items():
+                print(f'{job.id}: {cmd}')
+
         status = batch.wait()
 
         if status['state'] == 'success':
