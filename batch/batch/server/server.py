@@ -16,6 +16,9 @@ import cerberus
 import kubernetes as kube
 import requests
 import uvloop
+from prometheus_client import Summary
+from prometheus_async.aio import time
+
 
 from hailjwt import authenticated_users_only
 
@@ -626,7 +629,9 @@ async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
         always_run=always_run,
         pvc_size=pvc_size)
 
+req_time_summary = Summary('request_latency_seconds', 'Request latency in seconds')
 
+@time(req_time_summary)
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
