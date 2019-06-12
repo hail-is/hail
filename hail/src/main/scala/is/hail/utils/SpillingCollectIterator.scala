@@ -24,8 +24,8 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   private[this] val hc = HailContext.get
   private[this] val hConf = hc.hadoopConf
   private[this] val sc = hc.sc
-  private[this] val files: TreeMap[Int, (Int, String, Long)] = new TreeMap()
-  private[this] val buf: TreeMap[Int, (Int, Array[T])] = new TreeMap()
+  private[this] val files: mutable.Map[Int, (Int, String, Long)] = mutable.Map()
+  private[this] val buf: mutable.Map[Int, (Int, Array[T])] = mutable.Map()
   private[this] var size: Long = 0L
   private[this] var i: Int = -1
   private[this] var it: Iterator[T] = null
@@ -43,32 +43,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
 
   private[this] def append(partition: Int, a: Array[T]): Unit = synchronized {
     assert(buf.get(partition) == null)
-    var l = partition
-    var r = partition + 1
-    val ab = new ArrayBuilder[T]()
-    val prev = buf.floorEntry(partition)
-    if (prev != null) {
-      val prevL = prev.getKey()
-      val (prevR, prevVals) = prev.getValue()
-      if (prevR == partition) {
-        ab ++= prevVals
-        l = prevL
-        buf.remove(prevL)
-      }
-    }
-    ab ++= a
-    val next = buf.ceilingEntry(partition)
-    if (next != null) {
-      val nextL = next.getKey()
-      val (nextR, nextVals) = next.getValue()
-      if (nextL == partition + 1) {
-        ab ++= nextVals
-        r = nextR
-        buf.remove(nextL)
-      }
-    }
-    val newVals = ab.result()
-    buf.put(l, (r, newVals))
+    buf.put(partition, a)
     size += a.length
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
