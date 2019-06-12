@@ -2,12 +2,7 @@ package is.hail.utils
 
 import is.hail.HailContext
 import java.io.{ ObjectInputStream, ObjectOutputStream }
-import java.util.TreeMap
-import java.util.function.BiConsumer
-import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
-import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.reflect.classTag
 
