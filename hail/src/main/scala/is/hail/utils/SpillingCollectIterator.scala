@@ -45,23 +45,27 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     assert(buf.get(partition) == null)
     var l = partition
     var r = partition + 1
-    val prev = buf.floorEntry(partition)
-    val prevL = prev.getKey()
-    val (prevR, prevVals) = prev.getValue()
     val ab = new ArrayBuilder[T]()
-    if (prevR == partition) {
-      ab ++= prevVals
-      l = prevL
-      buf.remove(prevL)
+    val prev = buf.floorEntry(partition)
+    if (prev != null) {
+      val prevL = prev.getKey()
+      val (prevR, prevVals) = prev.getValue()
+      if (prevR == partition) {
+        ab ++= prevVals
+        l = prevL
+        buf.remove(prevL)
+      }
     }
     ab ++= a
     val next = buf.ceilingEntry(partition)
-    val nextL = next.getKey()
-    val (nextR, nextVals) = next.getValue()
-    if (nextL == partition + 1) {
-      ab ++= nextVals
-      r = nextR
-      buf.remove(nextL)
+    if (next != null) {
+      val nextL = next.getKey()
+      val (nextR, nextVals) = next.getValue()
+      if (nextL == partition + 1) {
+        ab ++= nextVals
+        r = nextR
+        buf.remove(nextL)
+      }
     }
     val newVals = ab.result()
     buf.put(l, (r, newVals))
@@ -69,26 +73,26 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
       hConf.writeFileNoCompression(file) { os =>
-        using(new ObjectOutputStream(os)) { oos =>
-          buf.forEach(new BiConsumer[Int, (Int, Array[T])]() {
-            def apply(l: Int, p: (Int, Array[T])): Unit = {
-              val (r, vals) = p
-              val pos = os.getPos
-              oos.writeInt(l)
-              oos.writeInt(r)
-              oos.writeInt(vals.length)
-              var j = 0
-              while (j < vals.length) {
-                oos.writeObject(vals(j))
-                j += 1
-              }
-              oos.flush()
-              files.put(l, (r, file, pos))
+        buf.forEach(new BiConsumer[Int, (Int, Array[T])]() {
+          def accept(l: Int, p: (Int, Array[T])): Unit = {
+            val pos = os.getPos
+            val oos = new ObjectOutputStream(os)
+            val (r, vals) = p
+            oos.writeInt(l)
+            oos.writeInt(r)
+            oos.writeInt(vals.length)
+            var j = 0
+            while (j < vals.length) {
+              oos.writeObject(vals(j))
+              j += 1
             }
-          })
-        }
+            files.put(l, (r, file, pos))
+            oos.flush()
+          }
+        })
       }
       buf.clear()
+      size = 0
     }
   }
 
@@ -104,7 +108,10 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
       }
       buf.clear()
       if (i < files.size()) {
-        val (_, filename, pos) = files.get(i)
+        val glb = files.floorEntry(i)
+        val l = glb.getKey()
+        val (r, filename, pos) = glb.getValue()
+        assert(l <= i && i < r, s"$l $i $r")
         hConf.readFileNoCompression(filename) { is =>
           is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
