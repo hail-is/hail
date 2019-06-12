@@ -408,3 +408,11 @@ class BatchTests(unittest.TestCase):
         t.command(f'echo hello > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
         p.run(dry_run=True)
+
+    def test_verbose(self):
+        p = self.pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input}')
+        p.write_output(input, f'{gcs_output_dir}/hello.txt')
+        p.run(verbose=True)
