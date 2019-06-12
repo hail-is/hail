@@ -257,7 +257,7 @@ class EmitFunctionBuilder[F >: Null](
   }
 
    def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
-     Code.invokeStatic[FS, FS, String, Boolean, InputStream]("unsafeReader$extension", getFS, path, checkCodec)
+     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
