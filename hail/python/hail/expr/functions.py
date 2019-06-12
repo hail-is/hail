@@ -11,7 +11,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural
+from hail.utils.misc import plural, np_type_to_hl_type
 
 import numpy as np
 
@@ -3738,23 +3738,9 @@ def _ndarray(collection, row_major=True):
 
         return result
 
-    def np_to_hl_type(t):
-        if t == np.int64:
-            return tint64
-        elif t == np.int32:
-            return tint32
-        elif t == np.float64:
-            return tfloat64
-        elif t == np.float32:
-            return tfloat32
-        elif t == np.bool:
-            return tbool
-        else:
-            raise TypeError(f'Unsupported numpy type: {t}')
-
     if isinstance(collection, np.ndarray):
         shape = list(collection.shape)
-        data_expr = to_expr(deep_flatten(collection.tolist()), tarray(np_to_hl_type(collection.dtype)))
+        data_expr = to_expr(deep_flatten(collection.tolist()), tarray(np_type_to_hl_type(collection.dtype)))
     else:
         shape = list_shape(collection)
         data_expr = hl.array(deep_flatten(collection))
