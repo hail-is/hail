@@ -554,7 +554,8 @@ class Job:
 
         if self.batch_id:
             batch = await Batch.from_db(self.batch_id, self.user)
-            await batch.mark_job_complete(self)
+            if batch is not None:
+                await batch.mark_job_complete(self)
 
     def to_dict(self):
         result = {

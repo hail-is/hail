@@ -242,7 +242,7 @@ async def batch_callback_handler(request):
                     await wb.notify_batch_changed()
 
 
-@routes.post('/batch_callack')
+@routes.post('/batch_callback')
 async def batch_callback(request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
