@@ -469,6 +469,7 @@ class Job:
 
     async def cancel(self):
         if self.is_complete():
+            log.info(f'cannot cancel job {self.id} - already complete with state {self._state}')
             return
         if self._state in ('Pending', 'Ready'):
             if not self.always_run:

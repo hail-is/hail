@@ -85,16 +85,20 @@ def test_cancel_tail(client):
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parents=[left, right])
     batch = batch.submit()
+    print(batch.id)
     left.wait()
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 3
+
+    assert status['state'] == 'cancelled', status
+    assert batch_status_job_counter(status, 'Success') == 3, status
+
     for node in [head, left, right]:
         status = node.status()
-        assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
-    assert tail.status()['state'] == 'Cancelled'
+        assert status['state'] == 'Success', status
+        assert status['exit_code']['main'] == 0, status
+    assert tail.status()['state'] == 'Cancelled', tail._status
 
 
 def test_cancel_left_after_tail(client):
