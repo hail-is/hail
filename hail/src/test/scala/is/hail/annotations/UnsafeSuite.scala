@@ -393,6 +393,41 @@ class UnsafeSuite extends HailSuite {
     assert(getCurrentCounts == counts.refreshRegion(2))
   }
 
+  @Test def testRegionReferences() {
+    def offset(region: Region) = region.allocate(0)
+    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+    def assertUsesRegions[T](n: Int)(f: => T): T = {
+      val usedRegionCount = numUsed()
+      val res = f
+      assert(usedRegionCount == numUsed() - n)
+      res
+    }
+
+    val region = Region()
+    region.setNumParents(5)
+
+    val r = assertUsesRegions(1) { region.getParentReference(4) }
+
+    val off4 = offset(r)
+    r.refreshRegion() // necessary to release direct reference to this region
+
+    val off2 = offset(r)
+    region.setParentReference(r, 2)
+    r.refreshRegion() // necessary to release direct reference to this region
+
+    val r2 = region.getParentReference(2)
+    assert(offset(r2) == off2)
+
+    val r4 = region.getParentReference(4)
+    assert(offset(r4) == off4)
+
+    r2.refreshRegion()
+    assertUsesRegions(-1) { region.clearParentReference(2) }
+
+    r4.refreshRegion()
+    assertUsesRegions(-1) { region.clearParentReference(4) }
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.
