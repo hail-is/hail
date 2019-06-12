@@ -325,7 +325,7 @@ class Test(unittest.TestCase):
         with open(os.environ['HAIL_TOKEN_FILE']) as f:
             token = f.read()
         # just check successful response
-        r = requests.get('/batches',
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
 
@@ -339,11 +339,11 @@ class Test(unittest.TestCase):
             token = f.read()
 
         # just check successful response
-        r = requests.get(f'/batches/{b.id}',
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{b.id}',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
 
         # just check successful response
-        r = requests.get(f'/batches/{j.batch_id}/jobs/{j.job_id}/log',
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)

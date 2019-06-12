@@ -306,7 +306,7 @@ mkdir -p {shq(repo_dir)}
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/batch_callback')
+                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
             config.build(batch, self, deploy=False)
             batch = await batch.submit()
             self.batch = batch
@@ -679,7 +679,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha
                 },
-                callback=f'http://{SELF_HOSTNAME}/batch_callback')
+                callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
             config.build(deploy_batch, self, deploy=True)
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
