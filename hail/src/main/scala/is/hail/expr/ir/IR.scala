@@ -330,12 +330,12 @@ final case class Die(message: IR, _typ: Type) extends IR
 final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
   var conversion: Seq[IR] => IR = _
 
-  lazy val explicitNode: IR = {
-    val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-    var body = conversion(refs).deepCopy()
+  private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+  lazy val body: IR = conversion(refs).deepCopy()
 
+  lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
-    refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
+    Optimize(refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) })
   }
 }
 
