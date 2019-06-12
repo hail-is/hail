@@ -277,7 +277,7 @@ object HailContext {
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
-    val hc = new HailContext(SparkBackend(sparkContext), sparkContext.hadoopConfiguration, logFile, tmpDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(SparkBackend(sparkContext), new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -316,8 +316,8 @@ object HailContext {
     configureLogging(logFile, quiet, append)
 
     hConf.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
-
-    val hc = new HailContext(new DistributedBackend(hostname, hConf), hConf, logFile, tmpDir, branchingFactor, optimizerIterations)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(hConf))
+    val hc = new HailContext(new DistributedBackend(hostname, hConf), fs, logFile, tmpDir, branchingFactor, optimizerIterations)
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
@@ -420,7 +420,8 @@ object HailContext {
 
 class HailContext private(
   val backend: Backend,
-  val hadoopConf: hadoop.conf.Configuration,
+  val sFS: FS,
+//  val hadoopConf: hadoop.conf.Configuration,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
