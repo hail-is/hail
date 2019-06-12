@@ -14,7 +14,6 @@ import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import is.hail.io.fs.FS
-import org.apache.hadoop.conf.Configuration
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
