@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
+import java.io._
 
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.{HailContext, asm4s}
@@ -49,6 +49,14 @@ object EmitFunctionBuilder {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
 }
 
 trait FunctionWithLiterals {
@@ -225,6 +233,42 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
+  private[this] var _aggSigs: Array[AggSignature] = _
+  private[this] var _aggRegion: ClassFieldRef[Region] = _
+  private[this] var _aggOff: ClassFieldRef[Long] = _
+  private[this] var _aggState: agg.StateContainer = _
+
+  def addAggStates(aggSigs: Array[AggSignature]): (agg.StateContainer, Code[Long]) = {
+    if (_aggSigs != null) {
+      assert(aggSigs sameElements _aggSigs)
+      return _aggState -> _aggOff
+    }
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
+    _aggSigs = aggSigs
+    _aggRegion = newField[Region]
+    _aggOff = newField[Long]
+    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(apply_method)).toArray, _aggRegion)
+
+    val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
+    val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = new EmitMethodBuilder(this, "getAggOffset", Array(), typeInfo[Long])
+
+    methods += newF
+    methods += setF
+    methods += getF
+
+    newF.emit(
+      Code(_aggRegion := newF.getArg[Region](1),
+      _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize)))
+
+    setF.emit(
+      Code(_aggRegion := setF.getArg[Region](1),
+        _aggOff := setF.getArg[Long](2)))
+
+    getF.emit(_aggOff)
+    _aggState -> _aggOff
+  }
+
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
@@ -256,8 +300,11 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
-   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
      getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
