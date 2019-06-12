@@ -14,6 +14,7 @@ import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import is.hail.io.fs.FS
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -225,7 +226,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  def backend: Code[BackendUtils] = {
+  def backend(): Code[BackendUtils] = {
     if (_backendField == null) {
       cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
       val backendField = newField[BackendUtils]
@@ -256,10 +257,8 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
-  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
-    Code.invokeStatic[FS, String, Boolean, InputStream](
-      "unsafeReader$extension",
-      getFS.invoke[FS], path, checkCodec)
+   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+     Code.invokeStatic[FS, FS, String, Boolean, InputStream]("unsafeReader$extension", getFS, path, checkCodec)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
