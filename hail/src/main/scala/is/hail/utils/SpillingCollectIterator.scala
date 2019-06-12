@@ -2,8 +2,12 @@ package is.hail.utils
 
 import is.hail.HailContext
 import java.io.{ ObjectInputStream, ObjectOutputStream }
+import java.util.TreeMap
+import java.util.function.BiConsumer
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
+import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.reflect.classTag
@@ -14,41 +18,76 @@ object SpillingCollectIterator {
     x.runJob()
     x
   }
-
-  private def iteratorToArray[T](ctc: ClassTag[T])(tctx: TaskContext, it: Iterator[T]): Array[T] =
-    it.toArray(ctc)
 }
 
 class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int) extends Iterator[T] {
   private[this] val hc = HailContext.get
   private[this] val hConf = hc.hadoopConf
   private[this] val sc = hc.sc
-  private[this] val files: ArrayBuffer[String] = new ArrayBuffer[String]()
-  private[this] val buf: ArrayBuffer[T] = new ArrayBuffer()
+  private[this] val files: TreeMap[Int, (Int, String, Long)] = new TreeMap()
+  private[this] val buf: TreeMap[Int, (Int, Array[T])] = new TreeMap()
+  private[this] var size: Long = 0L
   private[this] var i: Int = -1
   private[this] var it: Iterator[T] = null
   private[this] var readyToIterate: Boolean = false
 
   private def runJob(): Unit = {
-    sc.runJob(rdd, SpillingCollectIterator.iteratorToArray(classTag[T]), 0 until rdd.partitions.length,
-      (partition, a: Array[T]) => append(a))
+    val ctc = classTag[T]
+    sc.runJob(
+      rdd,
+      (_, it: Iterator[T]) => it.toArray(ctc),
+      0 until rdd.partitions.length,
+      append _)
     readyToIterate = true
   }
 
-  private[this] def append(a: Array[T]): Unit = synchronized {
-    buf ++= a
-    if (buf.length == sizeLimit) {
+  private[this] def append(partition: Int, a: Array[T]): Unit = synchronized {
+    assert(buf.get(partition) == null)
+    var l = partition
+    var r = partition + 1
+    val prev = buf.floorEntry(partition)
+    val prevL = prev.getKey()
+    val (prevR, prevVals) = prev.getValue()
+    val ab = new ArrayBuilder[T]()
+    if (prevR == partition) {
+      ab ++= prevVals
+      l = prevL
+      buf.remove(prevL)
+    }
+    ab ++= a
+    val next = buf.ceilingEntry(partition)
+    val nextL = next.getKey()
+    val (nextR, nextVals) = next.getValue()
+    if (nextL == partition + 1) {
+      ab ++= nextVals
+      r = nextR
+      buf.remove(nextL)
+    }
+    val newVals = ab.result()
+    buf.put(l, (r, newVals))
+    size += a.length
+    if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
-      hConf.writeFile(file) { os =>
+      hConf.writeFileNoCompression(file) { os =>
         using(new ObjectOutputStream(os)) { oos =>
-          var j = 0
-          while (j < buf.length) {
-            oos.writeObject(buf(j))
-            j += 1
-          }
+          buf.forEach(new BiConsumer[Int, (Int, Array[T])]() {
+            def apply(l: Int, p: (Int, Array[T])): Unit = {
+              val (r, vals) = p
+              val pos = os.getPos
+              oos.writeInt(l)
+              oos.writeInt(r)
+              oos.writeInt(vals.length)
+              var j = 0
+              while (j < vals.length) {
+                oos.writeObject(vals(j))
+                j += 1
+              }
+              oos.flush()
+              files.put(l, (r, file, pos))
+            }
+          })
         }
       }
-      files += file
       buf.clear()
     }
   }
@@ -58,24 +97,30 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     if (it == null || !it.hasNext) {
       if (i == -1) {
         i += 1
-        if (buf.nonEmpty) {
-          it = buf.iterator
+        if (!buf.isEmpty()) {
+          it = buf.values().iterator.map(_._2).flatten
           return it.hasNext
         }
       }
-      if (i < files.length) {
-        buf.clear()
-        hConf.readFile(files(i)) { is =>
+      buf.clear()
+      if (i < files.size()) {
+        val (_, filename, pos) = files.get(i)
+        hConf.readFileNoCompression(filename) { is =>
+          is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
+            ois.readInt()
+            ois.readInt()
+            val length = ois.readInt()
+            val arr = new Array[T](length)
             var j = 0
-            while (j < sizeLimit) {
-              buf += ois.readObject().asInstanceOf[T]
+            while (j < length) {
+              arr(j) = ois.readObject().asInstanceOf[T]
               j += 1
             }
+            it = arr.iterator
           }
         }
         i += 1
-        it = buf.iterator
         return it.hasNext
       }
       i += 1
