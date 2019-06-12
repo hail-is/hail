@@ -776,7 +776,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val tub = new TranslationUnitBuilder
         tub.include("<string>")
-        val (bodyF, mods, (lType, lits)) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        val (bodyF, mods, (lType, lits)) = Compile.makeNonmissingFunction(tub, body, cname -> ctxType, gname -> g.pType)
         assert(mods.isEmpty)
 
         val ctxDec = spec.buildNativeDecoderClass(ctxType, ctxType, tub).name
@@ -831,7 +831,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         modules += ((modString, (lits(spec), mod)))
 
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
-        val ctxs = fb.variable("ctxs", "char *")
+        val ctxs = fb.variable("ctxs", "const char *")
         val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
         val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PStreamable](c.pType).asPArray.cxxImpl }>"
         val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
