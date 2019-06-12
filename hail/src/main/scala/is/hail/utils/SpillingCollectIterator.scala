@@ -6,7 +6,6 @@ import java.util.TreeMap
 import java.util.function.BiConsumer
 import org.apache.spark.TaskContext
 import org.apache.spark.rdd.RDD
-import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
@@ -24,10 +23,10 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   private[this] val hc = HailContext.get
   private[this] val hConf = hc.hadoopConf
   private[this] val sc = hc.sc
-  private[this] val files: mutable.Map[Int, (Int, String, Long)] = mutable.Map()
-  private[this] val buf: mutable.Map[Int, (Int, Array[T])] = mutable.Map()
+  private[this] val files: Array[(String, Long)] = new Array(rdd.partitions.length)
+  private[this] var buf: Array[Array[T]] = new Array(rdd.partitions.length)
   private[this] var size: Long = 0L
-  private[this] var i: Int = -1
+  private[this] var i: Int = 0
   private[this] var it: Iterator[T] = null
   private[this] var readyToIterate: Boolean = false
 
@@ -42,31 +41,31 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   }
 
   private[this] def append(partition: Int, a: Array[T]): Unit = synchronized {
-    assert(buf.get(partition) == null)
-    buf.put(partition, a)
+    assert(buf(partition) == null)
+    buf(partition) = a
     size += a.length
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
       hConf.writeFileNoCompression(file) { os =>
-        buf.forEach(new BiConsumer[Int, (Int, Array[T])]() {
-          def accept(l: Int, p: (Int, Array[T])): Unit = {
+        var k = 0
+        while (k < buf.length) {
+          val vals = buf(k)
+          if (vals != null) {
+            buf(k) = null
             val pos = os.getPos
             val oos = new ObjectOutputStream(os)
-            val (r, vals) = p
-            oos.writeInt(l)
-            oos.writeInt(r)
             oos.writeInt(vals.length)
             var j = 0
             while (j < vals.length) {
               oos.writeObject(vals(j))
               j += 1
             }
-            files.put(l, (r, file, pos))
+            files(k) = (file, pos)
             oos.flush()
           }
-        })
+          k += 1
+        }
       }
-      buf.clear()
       size = 0
     }
   }
@@ -74,24 +73,18 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   def hasNext: Boolean = {
     assert(readyToIterate)
     if (it == null || !it.hasNext) {
-      if (i == -1) {
-        i += 1
-        if (!buf.isEmpty()) {
-          it = buf.values().iterator.map(_._2).flatten
-          return it.hasNext
-        }
-      }
-      buf.clear()
-      if (i < files.size()) {
-        val glb = files.floorEntry(i)
-        val l = glb.getKey()
-        val (r, filename, pos) = glb.getValue()
-        assert(l <= i && i < r, s"$l $i $r")
+      if (i >= files.length) {
+        it = null
+        return false
+      } else if (files(i) == null) {
+        assert(buf(i) != null)
+        it = buf(i).iterator
+        buf(i) = null
+      } else {
+        val (filename, pos) = files(i)
         hConf.readFileNoCompression(filename) { is =>
           is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
-            ois.readInt()
-            ois.readInt()
             val length = ois.readInt()
             val arr = new Array[T](length)
             var j = 0
@@ -102,14 +95,10 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
             it = arr.iterator
           }
         }
-        i += 1
-        return it.hasNext
       }
       i += 1
-      it = null
-      return false
     }
-    return it != null && it.hasNext
+    it.hasNext
   }
 
   def next: T = {
