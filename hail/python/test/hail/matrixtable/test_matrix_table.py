@@ -331,15 +331,15 @@ class Tests(unittest.TestCase):
         ds.annotate_entries(**exprs)
         ds.select_entries(**exprs)
 
-        ds1.explode_cols('\%!^!@#&#&$%#$%')
-        ds1.explode_cols(ds1['\%!^!@#&#&$%#$%'])
+        ds1.explode_cols(r'\%!^!@#&#&$%#$%')
+        ds1.explode_cols(ds1[r'\%!^!@#&#&$%#$%'])
         ds1.group_cols_by(ds1.a).aggregate(**{'*``81': agg.count()})
 
-        ds1.drop('\%!^!@#&#&$%#$%')
-        ds1.drop(ds1['\%!^!@#&#&$%#$%'])
+        ds1.drop(r'\%!^!@#&#&$%#$%')
+        ds1.drop(ds1[r'\%!^!@#&#&$%#$%'])
 
-        ds2.explode_rows('\%!^!@#&#&$%#$%')
-        ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
+        ds2.explode_rows(r'\%!^!@#&#&$%#$%')
+        ds2.explode_rows(ds2[r'\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
     def test_semi_anti_join_rows(self):

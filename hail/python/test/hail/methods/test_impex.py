@@ -50,11 +50,11 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('malformed.vcf'), filter='rs685723')
         mt._force_count_rows()
 
-        mt = hl.import_vcf(resource('sample.vcf'), filter='\trs\d+\t')
+        mt = hl.import_vcf(resource('sample.vcf'), filter=r'\trs\d+\t')
         assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
 
     def test_find_replace(self):
-        mt = hl.import_vcf(resource('sample.vcf'), find_replace=('\trs\d+\t', '\t.\t'))
+        mt = hl.import_vcf(resource('sample.vcf'), find_replace=(r'\trs\d+\t', '\t.\t'))
         mt.rows().show()
         assert mt.aggregate_rows(hl.agg.all(hl.is_missing(mt.rsid)))
 
