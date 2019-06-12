@@ -764,13 +764,15 @@ class CreateDatabaseStep(Step):
         }
 
     def build(self, batch, code, deploy):  # pylint: disable=unused-argument
-        if deploy:
-            return
-
         script = f'''
 set -e
 echo date
 date
+
+DBS=$(echo "SHOW DATABASES LIKE '{self._name}'" | mysql --host=10.80.0.3 -u root -s)
+if [ "$DBS" == "{self._name}" ]; then
+    exit 0
+fi
 
 ADMIN_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
 USER_PASSWORD=$(python3 -c 'import secrets; print(secrets.token_urlsafe(16))')
