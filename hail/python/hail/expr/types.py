@@ -1450,7 +1450,9 @@ def is_container(t) -> bool:
 def is_compound(t) -> bool:
     return (is_container(t)
             or isinstance(t, tstruct)
-            or isinstance(t, ttuple))
+            or isinstance(t, ttuple)
+            or isinstance(t, tndarray))
+
 
 def types_match(left, right) -> bool:
     return (len(left) == len(right)

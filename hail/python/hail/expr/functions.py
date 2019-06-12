@@ -11,7 +11,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural, np_type_to_hl_type
+from hail.utils.misc import plural
 
 import numpy as np
 
@@ -3739,13 +3739,12 @@ def _ndarray(collection, row_major=True):
         return result
 
     if isinstance(collection, np.ndarray):
-        shape = list(collection.shape)
-        data_expr = to_expr(deep_flatten(collection.tolist()), tarray(np_type_to_hl_type(collection.dtype)))
-    else:
-        shape = list_shape(collection)
-        data_expr = hl.array(deep_flatten(collection))
+        return to_expr(collection)
 
+    shape = list_shape(collection)
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
+
+    data_expr = hl.array(deep_flatten(collection))
 
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
