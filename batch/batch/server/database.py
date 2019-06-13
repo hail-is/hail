@@ -117,7 +117,13 @@ class JobsTable(Table):
         return await self.get_records_where({'batch_id': batch_id})
 
     async def get_records_where(self, condition):
-        return await super().get_records(condition)
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                where_template, where_values = make_where_statement(condition)
+                fields = ', '.join(self._select_fields())
+                sql = f"SELECT {fields} FROM `{self.name}` WHERE {where_template}"
+                await cursor.execute(sql, tuple(where_values))
+                return await cursor.fetchall()
 
     async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code, **items):
         await self.update_record(batch_id, job_id,
