@@ -17,7 +17,7 @@ push: build
 
 # FIXME use stateful set or prometheus, grafana
 deploy: push
-	kubectl -n monitoring delete deployments prometheus grafana
+	kubectl -n monitoring delete deployments prometheus
 	sleep 5
 	kubectl apply -f monitoring.yaml
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"monitoring_router_image":{"image":"$(MONITORING_ROUTER_IMAGE)"}}' router.yaml router.yaml.out

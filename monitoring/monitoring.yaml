@@ -359,20 +359,8 @@ spec:
   selector:
     app: prometheus
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: grafana-storage
-  namespace: monitoring
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
----
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: grafana
   namespace: monitoring
@@ -382,6 +370,7 @@ spec:
   selector:
     matchLabels:
       app: grafana
+  serviceName: "grafana"
   replicas: 1
   template:
     metadata:
@@ -409,10 +398,16 @@ spec:
              cpu: "1"
          ports:
           - containerPort: 3000
-      volumes:
-       - name: grafana-storage
-         persistentVolumeClaim:
-           claimName: grafana-storage
+  volumeClaimTemplates:
+  - metadata:
+      name: grafana-storage
+      namespace: monitoring
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
 ---
 apiVersion: v1
 kind: Service
