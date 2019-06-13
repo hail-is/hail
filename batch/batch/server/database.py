@@ -119,9 +119,12 @@ class JobsTable(Table):
     async def get_records_where(self, condition):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
+                batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement(condition)
                 fields = ', '.join(self._select_fields())
-                sql = f"SELECT {fields} FROM `{self.name}` WHERE {where_template}"
+                sql = f"""SELECT {fields} FROM `{self.name}`
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
+                          WHERE {where_template}"""
                 await cursor.execute(sql, tuple(where_values))
                 return await cursor.fetchall()
 
