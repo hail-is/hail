@@ -331,7 +331,8 @@ class Job:
                        callback=record['callback'], userdata=userdata, user=record['user'],
                        always_run=record['always_run'], pvc_name=record['pvc_name'], pod_name=record['pod_name'],
                        exit_codes=exit_codes, duration=record['duration'], tasks=tasks,
-                       task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'])
+                       task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'],
+                       cancelled=record['cancelled'])
         return None
 
     @staticmethod
@@ -355,6 +356,7 @@ class Job:
         duration = 0
         task_idx = 0
         state = 'Pending'
+        cancelled = False
         user = userdata['username']
 
         tasks = [JobTask.copy_task('input', input_files),
@@ -378,12 +380,13 @@ class Job:
             always_run=always_run,
             duration=duration,
             userdata=json.dumps(userdata),
-            user=user)
+            user=user,
+            cancelled=cancelled)
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
                   pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state, pvc_size=pvc_size)
+                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled)
 
         for parent in parent_ids:
             await db.jobs_parents.new_record(
@@ -403,7 +406,7 @@ class Job:
 
     def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
                  pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state,
-                 pvc_size):
+                 pvc_size, cancelled):
         self.batch_id = batch_id
         self.job_id = job_id
         self.id = (batch_id, job_id)
@@ -423,6 +426,7 @@ class Job:
         self._task_idx = task_idx
         self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
         self._state = state
+        self._cancelled = cancelled
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
@@ -458,7 +462,8 @@ class Job:
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
         if self._state == 'Pending' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
-            if self.always_run or all(p.is_successful() for p in parents):
+            if (self.always_run or
+                (all(p.is_successful() for p in parents) and not self._cancelled)):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 await self.set_state('Ready')
@@ -470,11 +475,11 @@ class Job:
     async def cancel(self):
         if self.is_complete():
             return
-        if self._state in ('Pending', 'Ready'):
-            if not self.always_run:
-                await self.set_state('Cancelled')
+        if self._state == 'Pending':
+            self._cancelled = True
         else:
-            assert self._state in 'Running', self._state
+            assert self._state in ('Ready', 'Running'), self._state
+            self._cancelled = True
             if not self.always_run:
                 await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
                 await self._delete_k8s_resources()
@@ -693,7 +698,8 @@ class Batch:
                          user=record['user'],
                          state=state,
                          complete=complete,
-                         deleted=record['deleted'])
+                         deleted=record['deleted'],
+                         cancelled=record['cancelled'])
         return None
 
     @staticmethod
@@ -717,15 +723,16 @@ class Batch:
                                        callback=callback,
                                        userdata=json.dumps(userdata),
                                        user=user,
-                                       deleted=False)
+                                       deleted=False,
+                                       cancelled=False)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
-                      complete=False, deleted=False)
+                      complete=False, deleted=False, cancelled=False)
         return batch
 
     def __init__(self, id, attributes, callback, userdata, user,
-                 state, complete, deleted):
+                 state, complete, deleted, cancelled):
         self.id = id
         self.attributes = attributes
         self.callback = callback
@@ -734,11 +741,13 @@ class Batch:
         self.state = state
         self.complete = complete
         self.deleted = deleted
+        self.cancelled = cancelled
 
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
+        await db.batch.update_record(self.id, cancelled=True)
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()

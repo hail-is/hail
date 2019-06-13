@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `attributes` TEXT(65535),
   `callback` TEXT(65535),
   `deleted` BOOLEAN NOT NULL default false,
+  `cancelled` BOOLEAN NOT NULL default false,
   `n_jobs` INT NOT NULL default 0,
   `n_completed` INT NOT NULL default 0,
   `n_succeeded` INT NOT NULL default 0,

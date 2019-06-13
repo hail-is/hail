@@ -23,20 +23,43 @@ class JobsTable(Table):
         super().__init__(db, 'jobs')
 
     async def update_record(self, batch_id, job_id, **items):
+        assert 'cancelled' not in items
         await super().update_record({'batch_id': batch_id, 'job_id': job_id}, items)
 
     async def get_all_records(self):
-        return await super().get_all_records()
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_name = self._db.batch.name
+                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}` 
+                          INNER JOIN {batch_name} ON `{self.name}`.batch_id = `{batch_name}`.id"""
+                await cursor.execute(sql)
+                return await cursor.fetchall()
 
     async def get_records(self, batch_id, ids, fields=None):
-        return await super().get_records({'batch_id': batch_id, 'job_id': ids}, fields)
+        assert fields is None or len(fields) != 0
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                batch_name = self._db.batch.name
+                where_items = {'batch_id': batch_id, 'job_id': ids}
+                where_template, where_values = make_where_statement(where_items)
+                if fields is not None:
+                    fields = [f if f != 'cancelled' else f'`{batch_name}`.cancelled' for f in fields]
+                fields = ",".join(fields) if fields is not None else f'`{self.name}`.*, `{batch_name}`.cancelled'
+                sql = f"""SELECT {fields} FROM `{self.name}` 
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
+                          WHERE {where_template}"""
+                await cursor.execute(sql, tuple(where_values))
+                result = await cursor.fetchall()
+        return result
 
     async def get_undeleted_records(self, batch_id, ids, user):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement({'batch_id': batch_id, 'job_id': ids, 'user': user})
-                sql = f"""SELECT * FROM `{self.name}` WHERE {where_template} AND EXISTS
+                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}` 
+                INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
+                WHERE {where_template} AND EXISTS
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
                 await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
@@ -100,7 +123,9 @@ class JobsTable(Table):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 jobs_parents_name = self._db.jobs_parents.name
-                sql = f"""SELECT * FROM `{self.name}`
+                batch_name = self._db.batch.name
+                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}`
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
                           WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
@@ -111,7 +136,9 @@ class JobsTable(Table):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 jobs_parents_name = self._db.jobs_parents.name
-                sql = f"""SELECT * FROM `{self.name}`
+                batch_name = self._db.batch.name
+                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}`
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.job_id
                           WHERE `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.parent_id = %s"""
