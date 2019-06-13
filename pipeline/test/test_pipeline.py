@@ -324,7 +324,7 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_output(self):
         p = self.pipeline()
-        t = p.new_task().attributes({'a': 'bar', 'b': 'foo'})
+        t = p.new_task(attributes={'a': 'bar', 'b': 'foo'})
         t.command(f'echo hello > {t.ofile}')
         p.run()
 
