@@ -10,7 +10,7 @@ import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{Context, TextInputFilterAndReplace, WithContext, readableBytes}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
-import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream, FileStatus }
+import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
 import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 
