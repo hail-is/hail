@@ -23,6 +23,7 @@ _doctest_dir = os.environ.get('HAIL_DOCTEST_DATA_DIR', 'hail/docs/data')
 
 
 def resource(filename):
+    print(os.path.join(_test_dir, filename))
     return os.path.join(_test_dir, filename)
 
 
