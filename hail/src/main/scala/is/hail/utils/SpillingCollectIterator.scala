@@ -9,7 +9,12 @@ import scala.reflect.classTag
 object SpillingCollectIterator {
   def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int = 1000): SpillingCollectIterator[T] = {
     val x = new SpillingCollectIterator(rdd, sizeLimit)
-    x.runJob()
+    val ctc = classTag[T]
+    HailContext.get.sc.runJob(
+      rdd,
+      (_, it: Iterator[T]) => it.toArray(ctc),
+      0 until rdd.partitions.length,
+      x.append _)
     x
   }
 }
@@ -23,19 +28,8 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   private[this] var size: Long = 0L
   private[this] var i: Int = 0
   private[this] var it: Iterator[T] = null
-  private[this] var readyToIterate: Boolean = false
 
-  private def runJob(): Unit = {
-    val ctc = classTag[T]
-    sc.runJob(
-      rdd,
-      (_, it: Iterator[T]) => it.toArray(ctc),
-      0 until rdd.partitions.length,
-      append _)
-    readyToIterate = true
-  }
-
-  private[this] def append(partition: Int, a: Array[T]): Unit = synchronized {
+  private def append(partition: Int, a: Array[T]): Unit = synchronized {
     assert(buf(partition) == null)
     buf(partition) = a
     size += a.length
@@ -66,7 +60,6 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   }
 
   def hasNext: Boolean = {
-    assert(readyToIterate)
     if (it == null || !it.hasNext) {
       if (i >= files.length) {
         it = null
@@ -97,7 +90,6 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
   }
 
   def next: T = {
-    assert(readyToIterate)
     hasNext
     it.next
   }
