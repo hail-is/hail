@@ -386,7 +386,7 @@ mkdir -p {shq(repo_dir)}
             if on_deck or self.target_branch.n_running_batches < 4:
                 self.target_branch.n_running_batches += 1
                 async with repos_lock:
-                    await self._start_build(batch_client)
+                    await self._start_build(dbpool, batch_client)
 
     def is_mergeable(self):
         return (self.review_state == 'approved' and
