@@ -18,6 +18,7 @@ kubernetes
 libsass
 pip
 prometheus_client
+prometheus_async
 pylint
 pymysql
 pytest
