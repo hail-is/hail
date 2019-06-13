@@ -225,7 +225,6 @@ class Job:
         self._pod_name = pod.metadata.name
         await db.jobs.update_record(*self.id,
                                     pod_name=self._pod_name)
-        await self.set_state('Running')
         log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
                                                                    self.id,
                                                                    self._current_task.name))
@@ -269,7 +268,7 @@ class Job:
                                        if idx < self._task_idx])
         logs = {k: v for k, v in await future_logs}
 
-        if self._state in ('Running', 'Ready'):
+        if self._state == 'Ready':
             if self._pod_name:
                 pod_log, err = await app['k8s'].read_pod_log(self._pod_name)
                 if err is None:
@@ -474,7 +473,7 @@ class Job:
         if self.is_complete() or self._state == 'Pending':
             return
         else:
-            assert self._state in ('Ready', 'Running'), self._state
+            assert self._state == 'Ready', self._state
             if not self.always_run:
                 await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
                 await self._delete_k8s_resources()
@@ -558,10 +557,14 @@ class Job:
                 await batch.mark_job_complete(self)
 
     def to_dict(self):
+        state = self._state
+        if state == 'Ready' and self._pod_name is not None:
+            state = 'Running'
+
         result = {
             'batch_id': self.batch_id,
             'job_id': self.job_id,
-            'state': self._state
+            'state': state
         }
         if self.is_complete():
             result['exit_code'] = {t.name: ec for ec, t in zip(self.exit_codes, self._tasks)}
