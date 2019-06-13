@@ -3,7 +3,7 @@ from typing import List, Optional
 from hail import MatrixTable
 from hail.linalg import BlockMatrix
 from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter, BlockMatrixMultiWrite, BlockMatrixBinaryMultiWriter, BlockMatrixTextMultiWriter
-from hail.typecheck import nullable, sequenceof, typecheck
+from hail.typecheck import nullable, sequenceof, typecheck, enumeration
 from hail.utils.java import Env
 
 @typecheck(mts=sequenceof(MatrixTable),
@@ -27,8 +27,10 @@ def block_matrices_tofiles(bms: List[BlockMatrix], prefix: str, overwrite: bool 
            overwrite=bool,
            delimiter=str,
            header=nullable(str),
-           add_index=bool)
+           add_index=bool,
+           compression=nullable(enumeration('gz', 'bgz')))
 def export_block_matrices(bms: List[BlockMatrix], prefix: str, overwrite: bool = False,
-                          delimiter: str = '\t', header: Optional[str] = None,  add_index: bool = False):
-    writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index)
+                          delimiter: str = '\t', header: Optional[str] = None,  add_index: bool = False,
+                          compression: Optional[str] = None):
+    writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))
