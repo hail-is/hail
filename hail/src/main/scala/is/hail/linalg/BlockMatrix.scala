@@ -132,7 +132,7 @@ object BlockMatrix {
     })
   
   // uniform or Gaussian
-  def random(hc: HailContext, nRows: Int, nCols: Int, blockSize: Int = defaultBlockSize,
+  def random(hc: HailContext, nRows: Long, nCols: Long, blockSize: Int = defaultBlockSize,
     seed: Int = 0, gaussian: Boolean): M =
     BlockMatrix(hc.sc, GridPartitioner(blockSize, nRows, nCols), (gp, pi) => {
       val (i, j) = gp.blockCoordinates(pi)
@@ -1599,6 +1599,7 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
   extends RDD[(Int, BDM[Double])](bm.blocks.sparkContext, Nil) {
 
   assert(rectangles.forall(rect => rect.length == 4))
+  assert(rectangles.forall(rect => rect(1) - rect(0) <= Int.MaxValue && rect(3) - rect(2) <= Int.MaxValue))
 
   val gp: GridPartitioner = bm.gp
 

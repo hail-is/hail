@@ -15,6 +15,12 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 import scala.collection.immutable.NumericRange
 
 object BlockMatrixIR {
+  def checkFitsIntoArray(nRows: Long, nCols: Long) {
+    require(nRows <= Int.MaxValue, s"Number of rows exceeds Int.MaxValue: $nRows")
+    require(nCols <= Int.MaxValue, s"Number of columns exceeds Int.MaxValue: $nCols")
+    require(nRows * nCols <= Int.MaxValue, s"Number of values exceeds Int.MaxValue: ${ nRows * nCols }")
+  }
+
   def toBlockMatrix(
     hc: HailContext,
     nRows: Int,
@@ -96,16 +102,18 @@ case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
   override def apply(hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
 }
 
-case class BlockMatrixBinaryReader(path: String, shape: Seq[Long], blockSize: Int) extends BlockMatrixReader {
+case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockSize: Int) extends BlockMatrixReader {
+  val IndexedSeq(nRows, nCols) = shape
+  BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+
   override def fullType: BlockMatrixType = {
-    assert(shape.length == 2)
-    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape.head, shape(1))
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
     BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
   }
 
   override def apply(hc: HailContext): BlockMatrix = {
-    val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(hc, path, shape.head.toInt, shape(1).toInt, rowMajor = true)
+    val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(hc, path, nRows.toInt, nCols.toInt, rowMajor = true)
     BlockMatrix.fromBreezeMatrix(hc.sc, breezeMatrix, blockSize)
   }
 }
@@ -353,16 +361,22 @@ case class BlockMatrixBroadcast(
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     val childBm = child.execute(hc)
-    val nRows = shape(0).toInt
-    val nCols = shape(1).toInt
+    val nRows = shape(0)
+    val nCols = shape(1)
 
     inIndexExpr match {
       case IndexedSeq() =>
         val scalar = childBm.getElement(row = 0, col = 0)
         BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
-      case IndexedSeq(0) => broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
-      case IndexedSeq(1) => broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
-      case IndexedSeq(0, 0) => BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, childBm.diagonal(), blockSize)
+      case IndexedSeq(0) =>
+        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+        broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+      case IndexedSeq(1) =>
+        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+        broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows.toInt, nCols.toInt)
+      case IndexedSeq(0, 0) =>
+        BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, childBm.diagonal(), blockSize)
       case IndexedSeq(1, 0) => childBm.transpose()
       case IndexedSeq(0, 1) => childBm
     }
@@ -520,12 +534,15 @@ case class ValueToBlockMatrix(
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val IndexedSeq(nRows, nCols) = shape
+    BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
+
     Interpret[Any](child) match {
       case scalar: Double =>
-        assert(shape == FastIndexedSeq(1, 1))
-        BlockMatrix.fill(hc, nRows = 1, nCols = 1, scalar, blockSize)
+        assert(nRows == 1 && nCols == 1)
+        BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
-        BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+        BlockMatrixIR.toBlockMatrix(hc, nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }
@@ -551,7 +568,7 @@ case class BlockMatrixRandom(
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian)
+    BlockMatrix.random(hc, shape(0), shape(1), blockSize, seed, gaussian)
   }
 }
 
