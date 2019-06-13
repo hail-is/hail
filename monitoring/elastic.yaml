@@ -15,3 +15,19 @@ spec:
       name: rest
     - port: 9300
       name: inter-node
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: es-cluster
+  namespace: monitoring
+spec:
+  serviceName: elasticSearch
+  replicas: 3
+  selector:
+    matchLabels:
+      app: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: elasticsearch
