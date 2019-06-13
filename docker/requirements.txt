@@ -17,6 +17,7 @@ jinja2
 kubernetes
 libsass
 pip
+prometheus_client
 pylint
 pymysql
 pytest
