@@ -379,8 +379,6 @@ class Job:
             task_idx=task_idx,
             always_run=always_run,
             duration=duration,
-            userdata=json.dumps(userdata),
-            user=user,
             cancelled=cancelled)
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
