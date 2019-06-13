@@ -76,7 +76,7 @@
             {% else %}
               pending
             {% endif %}
-            {% if pt.is_up_to_date() %}
+            {% if not pt.is_up_to_date() %}
               *
             {% endif %}
             </a>
