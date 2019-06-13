@@ -14,6 +14,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
+import java.io.{ ObjectInputStream, ObjectOutputStream }
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
@@ -845,7 +846,52 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         scanInitOps(0)(region, scanAggs, globals, false)
       }
 
-      val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[RegionValueAggregator], it: Iterator[RegionValue]) =>
+      val scanAggsPerPartition = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+        val globals =
+          if (scanSeqNeedsGlobals) {
+            val rvb = new RegionValueBuilder(ctx.freshRegion)
+            rvb.start(gType.physicalType)
+            rvb.addAnnotation(gType, globalsBc.value)
+            rvb.end()
+          } else
+              0
+
+        val scanSeqOpF = scanSeqOps(i)
+        it.foreach { rv =>
+          scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
+          ctx.region.clear()
+        }
+        Iterator.single(scanAggs)
+      }, HailContext.get.flags.get("max_leader_scans").toInt).scanLeft(scanAggs) { (a1, a2) =>
+        (a1, a2).zipped.map { (agg1, agg2) =>
+          val newAgg = agg1.copy()
+          newAgg.combOp(agg2)
+          newAgg
+        }
+      }
+
+      val partitionIndices = new Array[Long](tv.rvd.getNumPartitions)
+      var i = 0
+      val scanAggsPerPartitionFile = hc.getTemporaryFile()
+      HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
+        scanAggsPerPartition.foreach { x =>
+          partitionIndices(i) = os.getPos
+          i += 1
+          val oos = new ObjectOutputStream(os)
+          oos.writeObject(x)
+          oos.flush()
+        }
+      }
+
+      assert(i == tv.rvd.getNumPartitions, s"${scanAggsPerPartition.length} ${tv.rvd.getNumPartitions}")
+
+      val bcFS = HailContext.get.bcFS
+      val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
+        val partitionAggs = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
+          is.seek(filePosition)
+          using(new ObjectInputStream(is))(
+            _.readObject().asInstanceOf[Array[RegionValueAggregator]])
+        }
         val rvb = new RegionValueBuilder()
         val globals =
           if (rowIterationNeedsGlobals || scanSeqNeedsGlobals) {
@@ -877,36 +923,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      val scanAggsPerPartition =
-        SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-          val globals =
-            if (scanSeqNeedsGlobals) {
-              val rvb = new RegionValueBuilder(ctx.freshRegion)
-              rvb.start(gType.physicalType)
-              rvb.addAnnotation(gType, globalsBc.value)
-              rvb.end()
-            } else
-              0
-
-          val scanSeqOpF = scanSeqOps(i)
-          it.foreach { rv =>
-            scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-            ctx.region.clear()
-          }
-          Iterator.single(scanAggs)
-        }, HailContext.get.flags.get("max_leader_scans").toInt).scanLeft(scanAggs) { (a1, a2) =>
-          (a1, a2).zipped.map { (agg1, agg2) =>
-            val newAgg = agg1.copy()
-            newAgg.combOp(agg2)
-            newAgg
-          }
-        }.toArray
-
-      assert(scanAggsPerPartition.length - 1 == tv.rvd.getNumPartitions, s"${scanAggsPerPartition.length} ${tv.rvd.getNumPartitions}")
-
       tv.copy(
         typ = typ,
-        rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), scanAggsPerPartition, itF))
+        rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
     } else {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
         val globals =
