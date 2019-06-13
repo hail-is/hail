@@ -202,7 +202,7 @@ class PR(Code):
                   head['sha'],
                   target_branch,
                   gh_json['user']['login'],
-                  any(l['name'] == 'prio:high' for l in gh_json['labels']))
+                  {l['name'] for l in gh_json['labels']})
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -273,7 +273,7 @@ class PR(Code):
             self.target_branch.state_changed = True
 
     async def _start_build(self, dbpool, batch_client):
-        assert self.authorized(dbpool)
+        assert await self.authorized(dbpool)
 
         # clear current batch
         self.batch = None
