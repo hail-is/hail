@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 import scala.reflect.classTag
 
 object SpillingCollectIterator {
-  def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int = 1000): SpillingCollectIterator[T] = {
+  def apply[T: ClassTag](rdd: RDD[T], sizeLimit: Int): SpillingCollectIterator[T] = {
     val x = new SpillingCollectIterator(rdd, sizeLimit)
     val ctc = classTag[T]
     HailContext.get.sc.runJob(

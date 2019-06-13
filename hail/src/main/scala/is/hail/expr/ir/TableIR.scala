@@ -894,7 +894,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             ctx.region.clear()
           }
           Iterator.single(scanAggs)
-        }).scanLeft(scanAggs) { (a1, a2) =>
+        }, HailContext.get.flags.get("max_leader_scans").toInt).scanLeft(scanAggs) { (a1, a2) =>
           (a1, a2).zipped.map { (agg1, agg2) =>
             val newAgg = agg1.copy()
             newAgg.combOp(agg2)
