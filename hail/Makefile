@@ -157,6 +157,10 @@ set-docs-sha:
 .PHONY: deploy
 deploy: pypi-deploy set-docs-sha tag
 
+.PHONY: install-deps
+install-deps:
+	$(PIP) install -U -r python/requirements.txt -r python/dev-requirements.txt
+
 clean:
 	./gradlew clean
 	rm -rf build/deploy

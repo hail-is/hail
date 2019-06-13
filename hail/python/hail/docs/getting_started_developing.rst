@@ -78,14 +78,14 @@ Activate the environment:
 
     conda activate hail
 
-Install dependencies using pip:
+Now the shell prompt should include the name of the environment, in this case
+"hail".
+
+Use make to install dependencies:
 
 .. code-block:: bash
 
-    pip install -U -r hail/python/requirements.txt -r hail/python/dev-requirements.txt
-
-Now the shell prompt should include the name of the environment, in this case
-"hail".
+    make -C hail install-deps
 
 Now you can import hail from a python interpreter::
 
@@ -126,7 +126,7 @@ conda environment:
 
 .. code-block:: bash
 
-    pip install -U -r hail/python/requirements.txt -r hail/python/dev-requirements.txt
+    make -C hail install-deps
 
 
 Building the Docs
