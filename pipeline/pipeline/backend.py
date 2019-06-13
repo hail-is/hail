@@ -204,8 +204,8 @@ class BatchBackend(Backend):
         default_image = 'ubuntu'
 
         attributes = pipeline.attributes
-        if pipeline._name is not None:
-            attributes['name'] = pipeline._name
+        if pipeline.name is not None:
+            attributes['name'] = pipeline.name
 
         batch = self._batch_client.create_batch(attributes=attributes)
 
