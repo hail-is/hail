@@ -870,7 +870,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      val partitionIndices = new Array[Long](tv.rvd.getNumPartitions)
+      val partitionIndices = new Array[Long](tv.rvd.getNumPartitions + 1)
       var i = 0
       val scanAggsPerPartitionFile = hc.getTemporaryFile()
       HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
@@ -883,7 +883,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      assert(i == tv.rvd.getNumPartitions, s"${scanAggsPerPartition.length} ${tv.rvd.getNumPartitions}")
+      assert(i == tv.rvd.getNumPartitions + 1, s"${i} ${tv.rvd.getNumPartitions + 1}")
 
       val bcFS = HailContext.get.bcFS
       val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
