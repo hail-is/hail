@@ -463,7 +463,7 @@ class Job:
         if self._state == 'Pending' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
-                (all(p.is_successful() for p in parents) and not self._cancelled)):
+                (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 await self.set_state('Ready')
@@ -473,13 +473,11 @@ class Job:
                 await self.set_state('Cancelled')
 
     async def cancel(self):
-        if self.is_complete():
+        self._cancelled = True
+        if self.is_complete() or self._state == 'Pending':
             return
-        if self._state == 'Pending':
-            self._cancelled = True
         else:
             assert self._state in ('Ready', 'Running'), self._state
-            self._cancelled = True
             if not self.always_run:
                 await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
                 await self._delete_k8s_resources()
