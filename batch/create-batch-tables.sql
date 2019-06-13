@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` TEXT(65535) NOT NULL,
-  `user` VARCHAR(100) NOT NULL,
+  `user` VARCHAR(100) NOT NULL,  
   `attributes` TEXT(65535),
   `callback` TEXT(65535),
   `deleted` BOOLEAN NOT NULL default false,
@@ -31,8 +31,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `always_run` BOOLEAN NOT NULL,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `duration` BIGINT,
-  `userdata` TEXT(65535) NOT NULL,
-  `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT(65535),
   `tasks` TEXT(65535) NOT NULL,
   `input_log_uri` VARCHAR(1024),
@@ -41,7 +39,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX jobs_user ON jobs (user);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `batch_id` BIGINT NOT NULL,

@@ -19,6 +19,25 @@ class JobsTable(Table):
                          'main': 'main_exit_code',
                          'output': 'output_exit_code'}
 
+    batch_view_fields = {'cancelled', 'user', 'userdata'}
+
+    def _select_fields(self, fields=None):
+        assert fields is None or len(fields) != 0
+        select_fields = []
+        if fields is not None:
+            for f in fields:
+                if f in JobsTable.batch_view_fields:
+                    f = f'`{self._db.batch.name}`.{f}'
+                else:
+                    f = f'`{self.name}`.{f}'
+                select_fields.append(f)
+        else:
+            select_fields.append(f'`{self.name}`.*')
+            for f in JobsTable.batch_view_fields:
+                select_fields.append(f'{self._db.batch.name}.{f}')
+        return select_fields
+
+
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
@@ -30,21 +49,19 @@ class JobsTable(Table):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
-                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}` 
+                fields = ', '.join(self._select_fields())
+                sql = f"""SELECT {fields} FROM `{self.name}` 
                           INNER JOIN {batch_name} ON `{self.name}`.batch_id = `{batch_name}`.id"""
                 await cursor.execute(sql)
                 return await cursor.fetchall()
 
     async def get_records(self, batch_id, ids, fields=None):
-        assert fields is None or len(fields) != 0
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 where_items = {'batch_id': batch_id, 'job_id': ids}
                 where_template, where_values = make_where_statement(where_items)
-                if fields is not None:
-                    fields = [f if f != 'cancelled' else f'`{batch_name}`.cancelled' for f in fields]
-                fields = ",".join(fields) if fields is not None else f'`{self.name}`.*, `{batch_name}`.cancelled'
+                fields = ', '.join(self._select_fields(fields))
                 sql = f"""SELECT {fields} FROM `{self.name}` 
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
                           WHERE {where_template}"""
@@ -56,8 +73,9 @@ class JobsTable(Table):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
-                where_template, where_values = make_where_statement({'batch_id': batch_id, 'job_id': ids, 'user': user})
-                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}` 
+                where_template, where_values = make_where_statement({'batch_id': batch_id, 'job_id': ids, f'user': user})
+                fields = ', '.join(self._select_fields())
+                sql = f"""SELECT {fields} FROM `{self.name}` 
                 INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                 WHERE {where_template} AND EXISTS
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
@@ -124,7 +142,8 @@ class JobsTable(Table):
             async with conn.cursor() as cursor:
                 jobs_parents_name = self._db.jobs_parents.name
                 batch_name = self._db.batch.name
-                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}`
+                fields = ', '.join(self._select_fields())
+                sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
@@ -137,7 +156,8 @@ class JobsTable(Table):
             async with conn.cursor() as cursor:
                 jobs_parents_name = self._db.jobs_parents.name
                 batch_name = self._db.batch.name
-                sql = f"""SELECT `{self.name}`.*, `{batch_name}`.cancelled FROM `{self.name}`
+                fields = ', '.join(self._select_fields())
+                sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           INNER JOIN `{jobs_parents_name}`
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.job_id
