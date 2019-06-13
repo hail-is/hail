@@ -2,7 +2,7 @@
 
 ## 0.2.15
 
-Released 2019-06-12
+Released 2019-06-13
 
 After some infrastructural changes to our development process, we should be
 getting back to frequent releases.
