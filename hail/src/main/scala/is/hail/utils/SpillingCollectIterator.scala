@@ -16,7 +16,7 @@ object SpillingCollectIterator {
 
 class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int) extends Iterator[T] {
   private[this] val hc = HailContext.get
-  private[this] val hConf = hc.hadoopConf
+  private[this] val fs = hc.sFS
   private[this] val sc = hc.sc
   private[this] val files: Array[(String, Long)] = new Array(rdd.partitions.length)
   private[this] var buf: Array[Array[T]] = new Array(rdd.partitions.length)
@@ -41,7 +41,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
     size += a.length
     if (size > sizeLimit) {
       val file = hc.getTemporaryFile()
-      hConf.writeFileNoCompression(file) { os =>
+      fs.writeFileNoCompression(file) { os =>
         var k = 0
         while (k < buf.length) {
           val vals = buf(k)
@@ -77,7 +77,7 @@ class SpillingCollectIterator[T: ClassTag] private (rdd: RDD[T], sizeLimit: Int)
         buf(i) = null
       } else {
         val (filename, pos) = files(i)
-        hConf.readFileNoCompression(filename) { is =>
+        fs.readFileNoCompression(filename) { is =>
           is.seek(pos)
           using(new ObjectInputStream(is)) { ois =>
             val length = ois.readInt()

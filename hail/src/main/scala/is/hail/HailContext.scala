@@ -417,7 +417,7 @@ class HailContext private(
 
   lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   lazy val bcFS: Broadcast[FS] = sc.broadcast(sFS)
-  
+
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
   info(s"Hail temporary directory: $tmpDir")
 
