@@ -421,7 +421,6 @@ object HailContext {
 class HailContext private(
   val backend: Backend,
   val sFS: FS,
-//  val hadoopConf: hadoop.conf.Configuration,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
@@ -429,7 +428,6 @@ class HailContext private(
   lazy val sc: SparkContext = backend.asSpark().sc
 
   lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
-  val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)
   
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
