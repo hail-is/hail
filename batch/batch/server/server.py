@@ -378,8 +378,7 @@ class Job:
             tasks=json.dumps([jt.to_dict() for jt in tasks]),
             task_idx=task_idx,
             always_run=always_run,
-            duration=duration,
-            cancelled=cancelled)
+            duration=duration)
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
