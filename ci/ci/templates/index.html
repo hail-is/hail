@@ -76,6 +76,9 @@
             {% else %}
               pending
             {% endif %}
+            {% if pt.is_up_to_date() %}
+              *
+            {% endif %}
             </a>
           </td>
           <td align="left">
@@ -101,7 +104,7 @@
     <h2>Authorize SHA</h2>
     <form action="/authorize_source_sha" method="post">
       <label for="sha">SHA:</label>
-      <input type="text" name="sha">
+      <input type="text" name="sha" id="sha">
       <button type="submit">Authorize</button>
     </form>
   </body>

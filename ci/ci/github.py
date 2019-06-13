@@ -388,10 +388,13 @@ mkdir -p {shq(repo_dir)}
                 async with repos_lock:
                     await self._start_build(dbpool, batch_client)
 
+    def is_up_to_date(self):
+        return self.target_branch.sha == self.batch.attributes['target_sha']
+
     def is_mergeable(self):
         return (self.review_state == 'approved' and
                 self.build_state == 'success' and
-                self.target_branch.sha == self.batch.attributes['target_sha'] and
+                self.is_up_to_date() and
                 STACKED_PR not in self.labels)
 
     async def merge(self, gh):
