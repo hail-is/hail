@@ -5,6 +5,7 @@ import uuid
 from .backend import LocalBackend, BatchBackend
 from .task import Task
 from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
+from .utils import PipelineException
 
 
 class Pipeline:
@@ -79,7 +80,7 @@ class Pipeline:
         if attributes is None:
             attributes = {}
         if 'name' in attributes:
-            raise ValueError("'name' is not a valid attribute. Use the name argument instead.")
+            raise PipelineException("'name' is not a valid attribute. Use the name argument instead.")
         self.attributes = attributes
 
         self._default_image = default_image
@@ -167,7 +168,7 @@ class Pipeline:
         new_resource_map = {}
         for name, code in mappings.items():
             if not isinstance(code, str):
-                raise ValueError(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
+                raise PipelineException(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
             r = self._new_task_resource_file(source=source, value=eval(f'f"""{code}"""'))  # pylint: disable=W0123
             d[name] = r
             new_resource_map[r._uid] = r
@@ -308,10 +309,10 @@ class Pipeline:
         """
 
         if not isinstance(resource, Resource):
-            raise Exception(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
+            raise PipelineException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
         if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
             name = resource._source._resources_inverse
-            raise Exception(f"undefined resource '{name}'\n"
+            raise PipelineException(f"undefined resource '{name}'\n"
                             f"Hint: resources must be defined within the "
                             "task methods 'command' or 'declare_resource_group'")
         resource._add_output_path(dest)
@@ -382,7 +383,7 @@ class Pipeline:
             niter += 1
 
             if niter == 100:
-                raise ValueError("cycle detected in dependency graph")
+                raise PipelineException("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
         self._backend._run(self, dry_run, verbose, delete_scratch_on_exit)

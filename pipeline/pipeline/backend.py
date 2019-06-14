@@ -7,7 +7,7 @@ import batch.client as client
 import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
-
+from .utils import PipelineException
 
 class Backend:
     @abc.abstractmethod
@@ -151,7 +151,7 @@ class LocalBackend(Backend):
                 sp.check_output(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e.output)
-                raise e
+                raise
             finally:
                 if delete_scratch_on_exit:
                     sp.run(f'rm -rf {tmpdir}', shell=True)
@@ -349,4 +349,4 @@ class BatchBackend(Backend):
                 f"  Command:\t{jobs_to_command[job]}\n"
                 f"  Log:\t{log}\n")
 
-        raise Exception(fail_msg)
+        raise PipelineException(fail_msg)

@@ -2,6 +2,8 @@ import abc
 
 from shlex import quote as shq
 
+from .utils import PipelineException
+
 
 class Resource:
     _uid: str
@@ -99,7 +101,7 @@ class ResourceFile(Resource, str):
             Same resource file with the extension specified
         """
         if self._has_extension:
-            raise Exception("Resource already has a file extension added.")
+            raise PipelineException("Resource already has a file extension added.")
         self._value += extension
         self._has_extension = True
         return self
@@ -218,8 +220,8 @@ class ResourceGroup(Resource):
 
     def _get_resource(self, item):
         if item not in self._resources:
-            raise KeyError(f"'{item}' not found in the resource group.\n"
-                           f"Hint: you must declare each attribute when constructing the resource group.")
+            raise PipelineException(f"'{item}' not found in the resource group.\n"
+                                    f"Hint: you must declare each attribute when constructing the resource group.")
         return self._resources[item]
 
     def __getitem__(self, item):

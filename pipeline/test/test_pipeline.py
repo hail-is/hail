@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from pipeline import Pipeline, BatchBackend, LocalBackend
+from pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -419,7 +419,7 @@ class BatchTests(unittest.TestCase):
         p.run(verbose=True)
 
     def test_failed_job_error_msg(self):
-        with self.assertRaises(Exception):
+        with self.assertRaises(PipelineException):
             p = self.pipeline()
             t = p.new_task()
             t.command('false')
