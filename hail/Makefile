@@ -69,7 +69,7 @@ wheel: build-info shadowJar init-scripts
 
 # if the DEPLOY_PROD flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_PROD
-DEV_CLARIFIER := $(shell whoami)-dev
+DEV_CLARIFIER := $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 else
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
@@ -77,7 +77,7 @@ endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
-cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)/$(CLOUD_SUB_FOLDER)
+cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 resources := $(wildcard python/hailctl/dataproc/resources/*)
@@ -115,7 +115,7 @@ test-dataproc: install-hailctl-wheel
 init-scripts: python/hailctl/deploy.yaml
 
 DEPLOYED_VERSION = $(shell \
-  $(pip) --no-cache-dir search hail \
+  $(PIP) --no-cache-dir search hail \
    | grep '^hail ' \
    | sed 's/hail (//' \
    | sed 's/).*//')
@@ -129,7 +129,7 @@ check-pypi:
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
 .PHONY: pypi-deploy
-pypi-deploy: check-pypi wheel
+pypi-deploy: check-pypi wheel test-dataproc tag set-docs-sha
 	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
 	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
 	twine upload build/deploy/dist/*
@@ -137,10 +137,10 @@ pypi-deploy: check-pypi wheel
 TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
 .PHONY: check-tag
 check-tag:
-	if [ -n "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
+	if [ -z "$(TAG_EXISTS)" ]; then echo "tag $(HAIL_PIP_VERSION) already exists"; exit 1; fi
 
 .PHONY: tag
-tag: check-tag
+tag: check-tag pypi-deploy
 	git tag $(HAIL_PIP_VERSION) -m "Hail version $(HAIL_PIP_VERSION)"
 	git push https://github.com/hail-is/hail.git $(HAIL_PIP_VERSION)
 
@@ -155,7 +155,7 @@ set-docs-sha:
 	gsutil acl set public-read $(cloud_sha_location)
 
 .PHONY: deploy
-deploy: pypi-deploy set-docs-sha tag
+deploy: tag
 
 .PHONY: install-deps
 install-deps:
