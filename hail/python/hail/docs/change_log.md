@@ -1,5 +1,63 @@
 # Change Log
 
+## 0.2.15
+
+Released 2019-06-14
+
+After some infrastructural changes to our development process, we should be
+getting back to frequent releases.
+
+### `hailctl`
+
+Starting in 0.2.15, `pip` installations of Hail come bundled with a command-
+line tool, `hailctl`. This tool subsumes the functionality of `cloudtools`,
+which is now deprecated. See the 
+[release thread on the forum](https://discuss.hail.is/t/new-command-line-utility-hailctl/981)
+for more information.
+
+### New features
+
+- (hail#5932)(hail#6115) `hl.import_bed` abd `hl.import_locus_intervals` now
+  accept keyword arguments to pass through to `hl.import_table`, which is used
+  internally. This permits parameters like `min_partitions` to be set.
+- (hail#5980) Added `log` option to `hl.plot.histogram2d`.
+- (hail#5937) Added `all_matches` parameter to `Table.index` and
+  `MatrixTable.index_{rows, cols, entries}`, which produces an array of all
+  rows in the indexed object matching the index key. This makes it possible to,
+  for example, annotate all intervals overlapping a locus.
+- (hail#5913) Added functionality that makes arrays of structs easier to work
+  with.
+- (hail#6089) Added HTML output to `Expression.show` when running in a notebook.
+- (hail#6172) `hl.split_multi_hts` now uses the original `GQ` value if the `PL`
+  is missing.
+- (hail#6123) Added `hl.binary_search` to search sorted numeric arrays.
+- (hail#6224) Moved implementation of `hl.concordance` from backend to Python.
+  Performance directly from `read()` is slightly worse, but inside larger
+  pipelines this function will be optimized much better than before, and it
+  will benefit improvements to general infrastructure.
+- (hail#6214) Updated Hail Python dependencies.
+- (hail#5979) Added optimizer pass to rewrite filter expressions on keys as
+  interval filters where possible, leading to massive speedups for point queries.
+  See the [blog post](https://discuss.hail.is/t/new-optimizer-pass-that-extracts-point-queries-and-interval-filters/979)
+  for examples.
+
+### Bug fixes
+
+- (hail#5895) Fixed crash caused by `-0.0` floating-point values in `hl.agg.hist`.
+- (hail#6013) Turned off feature in HTSJDK that caused crashes in `hl.import_vcf`
+  due to header fields being overwritten with different types, if the field had
+  a different type than the type in the VCF 4.2 spec.
+- (hail#6117) Fixed problem causing `Table.flatten()` to be quadratic in the size
+  of the schema.
+- (hail#6228)(hail#5993) Fixed `MatrixTable.union_rows()` to join distinct keys
+  on the right, preventing an unintentional cartesian product.
+- (hail#6235) Fixed an issue related to aggregation inside `MatrixTable.filter_cols`.
+- (hail#6226) Restored lost behavior where `Table.show(x < 0)` shows the entire table.
+- (hail#6267) Fixed cryptic crashes related to `hl.split_multi` and `MatrixTable.entries()`
+  with duplicate row keys.
+
+-----
+
 ## 0.2.14
 
 Released 2019-04-24
