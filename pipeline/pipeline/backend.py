@@ -324,10 +324,12 @@ class BatchBackend(Backend):
 
         batch = batch.submit()
 
+        jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
+
         if verbose:
             print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs:')
-            for job, cmd in jobs_to_command.items():
-                print(f'{job.id}: {cmd}')
+            for jid, cmd in jobs_to_command.items():
+                print(f'{jid}: {cmd}')
 
         status = batch.wait()
 
@@ -346,7 +348,7 @@ class BatchBackend(Backend):
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task name:\t{name}\n"
-                f"  Command:\t{jobs_to_command[job]}\n"
+                f"  Command:\t{jobs_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
         raise PipelineException(fail_msg)
