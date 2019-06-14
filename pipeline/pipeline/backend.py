@@ -3,11 +3,11 @@ import os
 import subprocess as sp
 import uuid
 from shlex import quote as shq
-import batch.client
+import batch.client as client
 import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
-
+from .utils import PipelineException
 
 class Backend:
     @abc.abstractmethod
@@ -151,7 +151,7 @@ class LocalBackend(Backend):
                 sp.check_output(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e.output)
-                raise e
+                raise
             finally:
                 if delete_scratch_on_exit:
                     sp.run(f'rm -rf {tmpdir}', shell=True)
@@ -189,7 +189,7 @@ class BatchBackend(Backend):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = batch.client.BatchClient(session, url)
+        self._batch_client = client.BatchClient(session, url)
 
     def close(self):
         self._batch_client.close()
@@ -324,10 +324,12 @@ class BatchBackend(Backend):
 
         batch = batch.submit()
 
+        jobs_to_command = {j.id: cmd for j, cmd in jobs_to_command.items()}
+
         if verbose:
             print(f'Submitted batch {batch.id} with {n_jobs_submitted} jobs:')
-            for job, cmd in jobs_to_command.items():
-                print(f'{job.id}: {cmd}')
+            for jid, cmd in jobs_to_command.items():
+                print(f'{jid}: {cmd}')
 
         status = batch.wait()
 
@@ -339,14 +341,14 @@ class BatchBackend(Backend):
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            ec = batch.client.Job.exit_code(ec)
+            ec = client.Job.exit_code(ec)
             job = self._batch_client.get_job(*jid)
             log = job.log()
             name = job.status()['attributes'].get('name', None)
             fail_msg += (
                 f"Job {jid} failed with exit code {ec}:\n"
                 f"  Task name:\t{name}\n"
-                f"  Command:\t{jobs_to_command[job]}\n"
+                f"  Command:\t{jobs_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        raise Exception(fail_msg)
+        raise PipelineException(fail_msg)

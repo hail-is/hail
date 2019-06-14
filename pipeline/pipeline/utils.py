@@ -1,5 +1,5 @@
-import shlex
 
-
-def escape_string(s):
-    return shlex.quote(s)
+class PipelineException(Exception):
+    def __init__(self, msg=''):
+        self.msg = msg
+        super(PipelineException, self).__init__(msg)

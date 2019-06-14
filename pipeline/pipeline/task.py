@@ -1,6 +1,7 @@
 import re
 
 from .resource import ResourceFile, ResourceGroup
+from .utils import PipelineException
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -142,7 +143,7 @@ class Task:
         for name, d in mappings.items():
             assert name not in self._resources
             if not isinstance(d, dict):
-                raise ValueError(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+                raise PipelineException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._pipeline._new_resource_group(self, d)
             self._resources[name] = rg
             _add_resource_to_set(self._valid, rg)
@@ -266,22 +267,22 @@ class Task:
         def handler(match_obj):
             groups = match_obj.groupdict()
             if groups['TASK']:
-                raise ValueError(f"found a reference to a Task object in command '{command}'.")
+                raise PipelineException(f"found a reference to a Task object in command '{command}'.")
             elif groups['PIPELINE']:
-                raise ValueError(f"found a reference to a Pipeline object in command '{command}'.")
+                raise PipelineException(f"found a reference to a Pipeline object in command '{command}'.")
             else:
                 assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
                 r_uid = match_obj.group()
                 r = self._pipeline._resource_map.get(r_uid)
                 if r is None:
-                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'.\n"
-                                   f"Hint: resources must be from the same pipeline as the current task.")
+                    raise PipelineException(f"undefined resource '{r_uid}' in command '{command}'.\n"
+                                            f"Hint: resources must be from the same pipeline as the current task.")
                 if r._source != self:
                     self._add_inputs(r)
                     if r._source is not None:
                         if r not in r._source._valid:
                             name = r._source._resources_inverse[r]
-                            raise Exception(f"undefined resource '{name}'\n"
+                            raise PipelineException(f"undefined resource '{name}'\n"
                                             f"Hint: resources must be defined within "
                                             "the task methods 'command' or 'declare_resource_group'")
                         self._dependencies.add(r._source)
