@@ -335,7 +335,7 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 
   lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
-    Optimize(refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) })
+    refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
   }
 }
 
