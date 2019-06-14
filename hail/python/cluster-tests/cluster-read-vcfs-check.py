@@ -1,8 +1,8 @@
 import json
 import hail as hl
 
-gvcfs = ['gs://hail-ci/gvcfs/HG00096.g.vcf.gz',
-         'gs://hail-ci/gvcfs/HG00268.g.vcf.gz']
+gvcfs = ['gs://hail-common/test-resources/HG00096.g.vcf.gz',
+         'gs://hail-common/test-resources/HG00268.g.vcf.gz']
 hl.init(default_reference='GRCh38')
 parts = [
     {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
