@@ -3753,11 +3753,14 @@ def _ndarray(collection, row_major=None):
 
     if isinstance(collection, np.ndarray):
         if row_major is None:
-            return to_expr(collection)
+            row_major = not collection.flags.f_contiguous
+            flattened = collection.flatten('A')
         else:
-            elem_type = np_type_to_hl_type(collection.dtype)
-            data = [to_expr(i.item(), elem_type) for i in collection.flatten('C' if row_major else 'F')]
-            shape = collection.shape
+            flattened = collection.flatten('C' if row_major else 'F')
+
+        elem_type = np_type_to_hl_type(collection.dtype)
+        data = [to_expr(i.item(), elem_type) for i in flattened]
+        shape = collection.shape
     elif isinstance(collection, list):
         shape = list_shape(collection)
         data = deep_flatten(collection)

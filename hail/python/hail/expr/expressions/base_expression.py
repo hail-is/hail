@@ -6,10 +6,8 @@ from hail.ir import *
 from hail.typecheck import linked_list
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import np_type_to_hl_type
 from .indices import *
 
-import numpy as np
 
 class ExpressionException(Exception):
     def __init__(self, msg=''):
@@ -84,8 +82,6 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous dicts: "
                                       "found dict with values of types {} ".format(list(vts)))
         return tdict(unified_key_type, unified_value_type)
-    elif isinstance(x, np.ndarray):
-        return tndarray(np_type_to_hl_type(x.dtype), len(x.shape))
     elif x is None:
         raise ExpressionException("Hail cannot impute the type of 'None'")
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
@@ -218,11 +214,6 @@ def _to_expr(e, dtype):
             key_array = to_expr(keys, tarray(dtype.key_type))
             value_array = to_expr(values, tarray(dtype.value_type))
             return hl.dict(hl.zip(key_array, value_array))
-    elif isinstance(dtype, tndarray):
-        row_major = not e.flags.f_contiguous
-        data = hl.array([to_expr(i.item(), dtype.element_type) for i in e.flatten('A')])
-        shape = to_expr(tuple([hl.int64(i) for i in e.shape]), ttuple(*[tint64 for _ in e.shape]))
-        return expressions.construct_expr(MakeNDArray(data._ir, shape._ir, hl.bool(row_major)._ir), dtype)
     else:
         raise NotImplementedError(dtype)
 
