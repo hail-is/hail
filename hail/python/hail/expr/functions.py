@@ -3712,11 +3712,11 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
 
 
 def _ndarray(collection, row_major=None):
-    """Construct a hail ndarray from either a `NumPy` ndarray or python value/nested lists.
+    """Construct a Hail ndarray from either a `NumPy` ndarray or python value/nested lists.
     If `row_major` is ``None`` and the input is a `NumPy` ndarray, the ndarray's existing ordering will
-    be used (column major if that's how it is stored and row major otherwise). Note the exact memory layout
-    is not preserved if it is not in one of the two orderings. If the input is not a `NumPy` ndarray,
-    `row_major` defaults to ``True``.
+    be used (column major if that's how it is stored and row major otherwise). Otherwise, the array will be stored
+    as specified by `row_major`. Note the exact memory layout is not preserved if it is not in one of the two orderings.
+    If the input is not a `NumPy` ndarray, `row_major` defaults to ``True``.
 
     Parameters
     ----------
@@ -3742,9 +3742,6 @@ def _ndarray(collection, row_major=None):
             return []
 
     def deep_flatten(l):
-        if not isinstance(l, list):
-            return [l]
-
         result = []
         for e in l:
             if isinstance(e, list):
@@ -3761,12 +3758,15 @@ def _ndarray(collection, row_major=None):
             elem_type = np_type_to_hl_type(collection.dtype)
             data = [to_expr(i.item(), elem_type) for i in collection.flatten('C' if row_major else 'F')]
             shape = collection.shape
-    else:
-        if row_major is None:
-            row_major = True
-
+    elif isinstance(collection, list):
         shape = list_shape(collection)
         data = deep_flatten(collection)
+    else:
+        shape = []
+        data = [collection]
+
+    if row_major is None:
+        row_major = True
 
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
     data_expr = hl.array(data)
