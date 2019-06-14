@@ -527,6 +527,7 @@ class Job:
         if exit_code == 0:
             if self._has_next_task():
                 await self._mark_job_task_complete(task_name, pod_log, exit_code, 'Ready')
+                await self.set_state('Ready')
                 await self._create_pod()
                 return
             new_state = 'Success'
