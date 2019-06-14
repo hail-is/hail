@@ -56,18 +56,14 @@ BUCKET_ROOT="gs://hail-datasets-raw-data/GTEx"
 
 wget -c -O /tmp/GTEx_Analysis_v7_eQTL_covariates.tar.gz ${URL_ROOT}/GTEx_Analysis_v7_eQTL_covariates.tar.gz
 tar -xzvf /tmp/GTEx_Analysis_v7_eQTL_covariates.tar.gz -C /tmp/
-rm /tmp/GTEx_Analysis_v7_eQTL_covariates.tar.gz
 
 wget -c -O /tmp/GTEx_Analysis_v7_eQTL_expression_matrices.tar.gz ${URL_ROOT}/GTEx_Analysis_v7_eQTL_expression_matrices.tar.gz
 tar -xzvf /tmp/GTEx_Analysis_v7_eQTL_expression_matrices.tar.gz -C /tmp/
-rm /tmp/GTEx_Analysis_v7_eQTL_expression_matrices.tar.gz
 
 wget -c -O /tmp/GTEx_Analysis_v7_eQTL.tar.gz ${URL_ROOT}/GTEx_Analysis_v7_eQTL.tar.gz
 tar -xzvf /tmp/GTEx_Analysis_v7_eQTL.tar.gz -C /tmp/
-rm /tmp/GTEx_Analysis_v7_eQTL.tar.gz
 
 for TISSUE in ${TISSUES[@]}; do
-
   awk -v t=${TISSUE} '
     {
       if (NR==1) {
@@ -135,6 +131,4 @@ for TISSUE in ${TISSUES[@]}; do
   gsutil cp - ${BUCKET_ROOT}/GTEx_v7_eQTL_associations_${TISSUE}.tsv.bgz
 
 done
-
-rm -r /tmp/GTEx_Analysis_v7_eQTL*
 
