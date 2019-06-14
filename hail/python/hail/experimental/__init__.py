@@ -41,4 +41,6 @@ __all__ = ['ld_score',
            'full_outer_join_mt',
            'gather',
            'separate',
-           'spread']
+           'spread',
+           'encode',
+           'decode']

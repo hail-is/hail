@@ -152,6 +152,12 @@ object CodecSpec {
 
   val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
+  def fromString(s: String): CodecSpec = s match {
+    case "default" => CodecSpec.default
+    case "defaultUncompressed" => CodecSpec.defaultUncompressed
+    case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
+  }
+
   val baseBufferSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
