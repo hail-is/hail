@@ -2758,11 +2758,9 @@ class Tests(unittest.TestCase):
         exprs, expecteds = zip(*exprs_and_expecteds)
 
         from hail.ir import NDArrayWrite, Begin
-        from hail.utils.java import Env
-
         tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
         write_irs = [NDArrayWrite(expr._ir, hl.str(f_name)._ir) for (expr, f_name) in zip(exprs, tmp_files)]
-        Env.backend().execute(Begin(write_irs))
+        hl.utils.java.Env.backend().execute(Begin(write_irs))
 
         for (tmp_file, expected) in zip(tmp_files, expecteds):
             self.assertTrue(asserter(np.load(tmp_file), expected))
