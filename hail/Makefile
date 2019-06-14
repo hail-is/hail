@@ -100,12 +100,6 @@ install-wheel: wheel
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(wheel_path)
 
-.PHONY: install-wheel-editable
-install-editable: build-info shadowJar init-scripts
-	cp ../README.md python/
-	cp build/libs/hail-all-spark.jar python/hail
-	$(PIP) install -e python
-
 .PHONY: install-hailctl-wheel
 install-hailctl-wheel: install-wheel upload-artifacts
 
