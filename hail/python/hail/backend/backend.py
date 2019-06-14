@@ -85,6 +85,14 @@ class Backend(abc.ABC):
     def fs(self):
         pass
 
+    @abc.abstractmethod
+    def encode(self, value):
+        pass
+
+    @abc.abstractmethod
+    def decode(self, value):
+        pass
+
 
 class SparkBackend(Backend):
     def __init__(self):
@@ -146,7 +154,7 @@ class SparkBackend(Backend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
+        return pyspark.sql.self(DataFrame._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
@@ -185,6 +193,14 @@ class SparkBackend(Backend):
 
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
+
+    def encode(self, ir):
+        return Env.hc()._jhc.backend().encode(self._to_java_ir(ir))
+
+    def decode(self, typ, ptype_string, bytes):
+        return typ._from_json(
+            json.loads(
+                Env.hc()._jhc.backend().decodeToJSON(ptype_string, bytes)))
 
 
 class LocalBackend(Backend):

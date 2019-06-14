@@ -177,12 +177,22 @@ trait CodecSpec extends Serializable {
   type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
 
-
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+
+  def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    buildEncoder(t)(baos).writeRegionValue(region, offset)
+    baos.toByteArray()
+  }
+
+  def decode(t: PType, bytes: Array[Byte], region: Region): Long = {
+    val bais = new ByteArrayInputStream(bytes)
+    buildDecoder(t, t)(bais).readRegionValue(region)
+  }
 
   def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
 
