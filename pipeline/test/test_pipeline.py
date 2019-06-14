@@ -417,3 +417,10 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input}')
         p.write_output(input, f'{gcs_output_dir}/hello.txt')
         p.run(verbose=True)
+
+    def test_failed_job_error_msg(self):
+        with self.assertRaises(Exception):
+            p = self.pipeline()
+            t = p.new_task()
+            t.command('false')
+            p.run()
