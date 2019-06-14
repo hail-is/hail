@@ -185,7 +185,7 @@ trait CodecSpec extends Serializable {
 
   def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
-    buildEncoder(t)(baos).writeRegionValue(region, offset)
+    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
     baos.toByteArray()
   }
 

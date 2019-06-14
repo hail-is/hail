@@ -222,16 +222,6 @@ def eval_typed(expression):
     return eval(expression), expression.dtype
 
 
-def encode(val):
-    from hail.utils.java import Env
-
-    return Env.backend().execute(expression._ir, True)
-
-
-def decode(val):
-    pass
-
-
 def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
     from hail.ir import GetField, TopLevelReference
 

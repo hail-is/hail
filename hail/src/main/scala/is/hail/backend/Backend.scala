@@ -48,31 +48,8 @@ abstract class Backend {
     (res, timer.timings)
   }
 
-  def cxxLowerAndExecute(ir0: IR, optimize: Boolean): (Any, Timings) = {
-    val timer = new ExecutionTimer("Backend.execute")
-    val ir = lower(ir0, Some(timer), optimize)
-
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
-
-    val res = ir.typ match {
-      case TVoid =>
-        val f = timer.time(cxx.Compile(ir, optimize), "CXX compile")
-        timer.time(Region.scoped { region => f(region.get()) }, "Runtime")
-        Unit
-      case _ =>
-        val pipeline = MakeTuple(FastIndexedSeq(ir))
-        val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "CXX compile")
-        timer.time(
-          Region.scoped { region =>
-            val off = f(region.get())
-            SafeRow(pipeline.pType.asInstanceOf[PTuple], region, off).get(0)
-          },
-          "Runtime")
-    }
-
-    (res, timer.timings)
-  }
+  def cxxLowerAndExecute(ir0: IR, optimize: Boolean): (Any, Timings) =
+    throw new cxx.CXXUnsupportedOperation("can't execute C++ on non-Spark backend!")
 
   def execute(ir: IR, optimize: Boolean): (Any, Timings) = {
     try {
@@ -113,14 +90,14 @@ abstract class Backend {
   }
 
   def decodeToJSON(ptypeString: String, bytes: Array[Byte]): String = Region.scoped { region =>
-    val pt = IRParser.parsePType(ptypeString)
+    val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
     JsonMethods.compact(
       JSONAnnotationImpex.exportAnnotation(
-        SafeRow.read(
+        SafeRow(
           pt,
           region,
-          CodecSpec.default.decode(pt, bytes, region)),
-        pt.virtualType))
+          CodecSpec.default.decode(pt, bytes, region)).get(0),
+        pt.fields(0).typ.virtualType))
   }
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
