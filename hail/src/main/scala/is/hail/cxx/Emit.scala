@@ -483,6 +483,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         }
         sb.triplet()
 
+      case ir.Begin(irs) =>
+        val irst = irs.map(emit(_))
+        triplet(Code.sequence(irst.map(irt => Code(irt.setup))), "false", "")
+
       case ir.SelectFields(old, fields) =>
         val pStruct = pType.asInstanceOf[PStruct]
         val oldPStruct = old.pType.asInstanceOf[PStruct]
@@ -1100,6 +1104,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val stdStringPath = fb.variable("path", "std::string", s"load_string(${ patht.v })")
 
         val nativeEncoderClass = CodecSpec.unblockedUncompressed.buildNativeEncoderClass(nd.pType, tub)
+        val enc = fb.variable("enc", s"$nativeEncoderClass")
         triplet(
           s"""
              | ${ ndt.setup }
@@ -1109,10 +1114,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              | }
              | ${ stdStringPath.define }
              |
-             | $nativeEncoderClass enc { ${ ctx.fs }.unsafe_writer($stdStringPath) };
+             | ${ enc.typ } $enc { ${ ctx.fs }.unsafe_writer($stdStringPath) };
              |
-             | enc.encode_row(${ ndt.v });
-             | enc.close();
+             | $enc.encode_row(${ ndt.v });
+             | $enc.close();
            """.stripMargin, "false", "")
 
       case _: ir.ArrayRange | _: ir.MakeArray =>
