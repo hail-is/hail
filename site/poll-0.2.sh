@@ -15,7 +15,7 @@ fi
 mkdir -p /var/www/html-new
 
 gsutil cat gs://hail-common/builds/0.2/docs/hail-0.2-docs-$LATEST_SHA.tar.gz |
-    tar xvf - -C /var/www/html-new --strip-components=1
+    tar zxvf - -C /var/www/html-new --strip-components=1
 
 ln -s /var/www/0.1 /var/www/html-new/docs/0.1
 
