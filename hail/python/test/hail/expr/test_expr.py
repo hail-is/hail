@@ -2754,22 +2754,22 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
-    def verify_ndarray_eq(self, asserter, exprs_and_expecteds):
+    def assert_ndarrays(self, asserter, exprs_and_expecteds):
         exprs, expecteds = zip(*exprs_and_expecteds)
 
         from hail.ir import NDArrayWrite, Begin
         tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
-        write_irs = [NDArrayWrite(expr._ir, hl.str(f_name)._ir) for (expr, f_name) in zip(exprs, tmp_files)]
+        write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
         hl.utils.java.Env.backend().execute(Begin(write_irs))
 
         for (tmp_file, expected) in zip(tmp_files, expecteds):
             self.assertTrue(asserter(np.load(tmp_file), expected))
 
     def ndarrays_eq(self, *expr_and_expected):
-        self.verify_ndarray_eq(np.array_equal, expr_and_expected)
+        self.assert_ndarrays(np.array_equal, expr_and_expected)
 
     def ndarrays_almost_eq(self, *expr_and_expected):
-        self.verify_ndarray_eq(np.allclose, expr_and_expected)
+        self.assert_ndarrays(np.allclose, expr_and_expected)
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
