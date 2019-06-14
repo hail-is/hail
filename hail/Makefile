@@ -130,7 +130,7 @@ HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
 .PHONY: pypi-deploy
 pypi-deploy: check-pypi wheel
-	TWINE_USERNAME := $(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
+	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
 	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
 	twine upload build/deploy/dist/*
 
