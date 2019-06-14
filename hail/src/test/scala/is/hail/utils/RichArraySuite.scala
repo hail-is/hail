@@ -1,10 +1,10 @@
 package is.hail.utils
 
 import is.hail.utils.richUtils.RichArray
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
-class RichArraySuite extends SparkSuite {
+class RichArraySuite extends HailSuite {
   @Test def testArrayImpex() {
     val file = tmpDir.createTempFile("test")
     val a = Array.fill[Double](100)(util.Random.nextDouble())

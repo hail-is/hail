@@ -2,7 +2,7 @@ package is.hail.nativecode
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.types.virtual.{TInt32, TInterval, TSet, TStruct, _}
@@ -12,7 +12,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class NativeEncoderSuite extends SparkSuite {
+class NativeEncoderSuite extends HailSuite {
 
   @Test def testCXXOutputStream(): Unit = {
     val tub = new TranslationUnitBuilder()

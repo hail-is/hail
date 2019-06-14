@@ -2,7 +2,7 @@ package is.hail.nativecode
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.types.virtual._
@@ -13,7 +13,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class RegionValueIteratorSuite extends SparkSuite {
+class RegionValueIteratorSuite extends HailSuite {
 
   def getData(): (BufferSpec, TTuple, IndexedSeq[Row]) = {
     val spec = new LEB128BufferSpec(

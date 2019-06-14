@@ -8,7 +8,7 @@ import breeze.linalg.{DenseMatrix, DenseVector}
 import is.hail.utils.ArrayBuilder
 import org.testng.annotations.{DataProvider, Test}
 
-class TestUtilsSuite extends SparkSuite {
+class TestUtilsSuite extends HailSuite {
 
   @Test def matrixEqualityTest() {
     val M = DenseMatrix((1d, 0d), (0d, 1d))

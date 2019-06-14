@@ -3,10 +3,10 @@ package is.hail.io
 import is.hail.check.Prop._
 import is.hail.io.vcf.ExportVCF
 import is.hail.variant._
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
-class ImportVCFSuite extends SparkSuite {
+class ImportVCFSuite extends HailSuite {
   @Test def randomExportImportIsIdentity() {
     forAll(MatrixTable.gen(hc, VSMSubgen.random)) { vds =>
 

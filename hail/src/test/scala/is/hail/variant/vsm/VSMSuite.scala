@@ -11,14 +11,14 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics
 import org.apache.commons.math3.stat.regression.SimpleRegression
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
 
-class VSMSuite extends SparkSuite {
+class VSMSuite extends HailSuite {
   @Test(enabled = false) def testVSMGenIsLinearSpaceInSizeParameter() {
     val minimumRSquareValue = 0.7
 

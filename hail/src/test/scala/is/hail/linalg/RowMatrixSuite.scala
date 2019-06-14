@@ -1,12 +1,12 @@
 package is.hail.linalg
   
 import breeze.linalg.DenseMatrix
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.Gen
 import is.hail.utils._
 import org.testng.annotations.Test
 
-class RowMatrixSuite extends SparkSuite {
+class RowMatrixSuite extends HailSuite {
   private def rowArrayToRowMatrix(a: Array[Array[Double]], nPartitions: Int = sc.defaultParallelism): RowMatrix = {
     require(a.length > 0)
     val nRows = a.length

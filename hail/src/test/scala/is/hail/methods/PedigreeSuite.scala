@@ -1,11 +1,11 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.check.Prop._
 import org.testng.annotations.Test
 
 
-class PedigreeSuite extends SparkSuite {
+class PedigreeSuite extends HailSuite {
   @Test def test() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sFS).filterTo(vds.stringSampleIdSet)

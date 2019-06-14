@@ -8,14 +8,14 @@ import is.hail.table.Table
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.{HailContext, SparkSuite, TestUtils}
+import is.hail.{HailContext, HailSuite, TestUtils}
 import org.testng.SkipException
 import org.testng.annotations.Test
 
 import scala.language._
 import scala.sys.process._
 
-class IBDSuite extends SparkSuite {
+class IBDSuite extends HailSuite {
 
   def toI(a: Any): Int =
     a.asInstanceOf[Int]

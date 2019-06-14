@@ -1,6 +1,6 @@
 package is.hail.vds
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.table.Table
@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 
 import scala.language.implicitConversions
 
-class JoinSuite extends SparkSuite {
+class JoinSuite extends HailSuite {
   @Test def testIterator() {
     val leftVariants = Array(
       Locus("1", 1),

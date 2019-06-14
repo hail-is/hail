@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -13,7 +13,7 @@ import org.testng.annotations.{DataProvider, Test}
 
 import scala.collection.mutable
 
-class PruneSuite extends SparkSuite {
+class PruneSuite extends HailSuite {
   @Test def testUnionType() {
     val base = TStruct(
       "a" -> TStruct(

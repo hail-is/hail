@@ -3,6 +3,7 @@
         <packages>  
           <package name="is.hail.*">
             <exclude name="is.hail.scheduler"></exclude>
+            <exclude name="is.hail.backend.distributed"></exclude>
 	  </package>
         </packages>
     </test>

@@ -6,6 +6,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.backend.Backend
+import is.hail.backend.distributed.DistributedBackend
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, IRParser, MatrixIR, TextTableReader}
@@ -26,6 +27,7 @@ import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
@@ -172,6 +174,30 @@ object HailContext {
       consoleLog.addAppender(new ConsoleAppender(new PatternLayout(HailContext.logFormat), "System.err"))
   }
 
+  def checkJavaVersion(): Unit = {
+    val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
+    val versionString = System.getProperty("java.version")
+    versionString match {
+      // old-style version: 1.MAJOR.MINOR
+      // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
+      // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
+      case javaVersion("1", major, minor) =>
+        if (major.toInt < 8)
+          fatal(s"Hail requires Java 1.8, found $versionString")
+      case javaVersion(major, minor, security) =>
+        if (major.toInt > 8)
+          fatal(s"Hail requires Java 8, found $versionString")
+      case _ =>
+        fatal(s"Unknown JVM version string: $versionString")
+    }
+  }
+
+  def hailCompressionCodecs: Array[String] = Array(
+    "org.apache.hadoop.io.compress.DefaultCodec",
+    "is.hail.io.compress.BGzipCodec",
+    "is.hail.io.compress.BGzipCodecTbi",
+    "org.apache.hadoop.io.compress.GzipCodec")
+
   /**
     * If a HailContext has already been initialized, this function returns it regardless of the
     * parameters with which it was initialized.
@@ -228,22 +254,7 @@ object HailContext {
     tmpDir: String = "/tmp",
     optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
     require(theContext == null)
-
-    val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
-    val versionString = System.getProperty("java.version")
-    versionString match {
-      // old-style version: 1.MAJOR.MINOR
-      // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
-      // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
-      case javaVersion("1", major, minor) =>
-        if (major.toInt < 8)
-          fatal(s"Hail requires Java 1.8, found $versionString")
-      case javaVersion(major, minor, security) =>
-        if (major.toInt > 8)
-          fatal(s"Hail requires Java 8, found $versionString")
-      case _ =>
-        fatal(s"Unknown JVM version string: $versionString")
-    }
+    checkJavaVersion()
 
     {
       import breeze.linalg._
@@ -262,17 +273,11 @@ object HailContext {
       sc
     }
 
-    sparkContext.hadoopConfiguration.set("io.compression.codecs",
-      "org.apache.hadoop.io.compress.DefaultCodec," +
-        "is.hail.io.compress.BGzipCodec," +
-        "is.hail.io.compress.BGzipCodecTbi," +
-        "org.apache.hadoop.io.compress.GzipCodec"
-    )
+    sparkContext.hadoopConfiguration.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
 
     if (!quiet)
       ProgressBarBuilder.build(sparkContext)
-     
-    val hc = new HailContext(SparkBackend(sparkContext), logFile, tmpDir, branchingFactor, optimizerIterations)
+    val hc = new HailContext(SparkBackend(sparkContext), new HadoopFS(new SerializableHadoopConfiguration(sparkContext.hadoopConfiguration)), logFile, tmpDir, branchingFactor, optimizerIterations)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
@@ -295,6 +300,33 @@ object HailContext {
 
     hc
   }
+
+  def createDistributed(hostname: String,
+    logFile: String = "hail.log",
+    quiet: Boolean = false,
+    append: Boolean = false,
+    minBlockSize: Long = 1L,
+    branchingFactor: Int = 50,
+    tmpDir: String = "/tmp",
+    optimizerIterations: Int = 3): HailContext = contextLock.synchronized {
+    require(theContext == null)
+    checkJavaVersion()
+    val hConf = new hadoop.conf.Configuration()
+
+    configureLogging(logFile, quiet, append)
+
+    hConf.set("io.compression.codecs", hailCompressionCodecs.mkString(","))
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(hConf))
+    val hc = new HailContext(new DistributedBackend(hostname, hConf), fs, logFile, tmpDir, branchingFactor, optimizerIterations)
+
+    info(s"Running Hail version ${ hc.version }")
+    theContext = hc
+
+    // needs to be after `theContext` is set, since this creates broadcasts
+    ReferenceGenome.addDefaultReferences()
+    hc
+  }
+
 
   def clear() {
     ReferenceGenome.reset()
@@ -388,15 +420,15 @@ object HailContext {
 
 class HailContext private(
   val backend: Backend,
+  val sFS: FS,
   val logFile: String,
   val tmpDirPath: String,
   val branchingFactor: Int,
   val optimizerIterations: Int) {
   lazy val sc: SparkContext = backend.asSpark().sc
 
-  val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
-  val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
-  val bcFS: Broadcast[FS] = sc.broadcast(sFS)
+  lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
+  lazy val bcFS: Broadcast[FS] = sc.broadcast(sFS)
   
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
   info(s"Hail temporary directory: $tmpDir")

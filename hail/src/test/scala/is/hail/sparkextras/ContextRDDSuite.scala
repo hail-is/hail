@@ -3,7 +3,7 @@ package is.hail.sparkextras
 import is.hail._
 import org.testng.annotations.Test
 
-class ContextRDDSuite extends SparkSuite {
+class ContextRDDSuite extends HailSuite {
   val intplus = (x: Int, y: Int) => x + y
   val cintplus = (_: TrivialContext, x: Int, y: Int) => x + y
   def intplusarraylength[T] = (x: Int, y: Array[T]) => x + y.length

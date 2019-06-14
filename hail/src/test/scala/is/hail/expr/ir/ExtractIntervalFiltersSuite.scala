@@ -4,11 +4,11 @@ import is.hail.TestUtils._
 import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq, Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class ExtractIntervalFiltersSuite extends SparkSuite {
+class ExtractIntervalFiltersSuite extends HailSuite {
 
   lazy val ref1 = Ref("foo", TStruct("w" -> TInt32(), "x" -> TInt32()))
   lazy val k1 = GetField(ref1, "x")

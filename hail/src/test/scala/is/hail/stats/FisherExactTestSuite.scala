@@ -1,11 +1,11 @@
 package is.hail.stats
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
 import scala.language.postfixOps
 
-class FisherExactTestSuite extends SparkSuite {
+class FisherExactTestSuite extends HailSuite {
 
   @Test def testPvalue() {
     val N = 200

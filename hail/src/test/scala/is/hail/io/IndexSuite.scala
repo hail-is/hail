@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.types.virtual._
 import is.hail.io.index._
@@ -8,7 +8,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class IndexSuite extends SparkSuite {
+class IndexSuite extends HailSuite {
   val strings = Array(
     "bear", "cat", "deer", "dog",
     "lion", "mouse", "parrot", "quail",

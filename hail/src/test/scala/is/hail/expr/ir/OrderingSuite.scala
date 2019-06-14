@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
@@ -12,7 +12,7 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class OrderingSuite extends SparkSuite {
+class OrderingSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.values
 

@@ -195,6 +195,8 @@ steps:
        to: /testng.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
        to: /testng-cpp-codegen.xml
+     - from: /io/repo/hail/testng-distributed-backend.xml
+       to: /testng-distributed-backend.xml
      - from: /io/repo/scheduler/testng.xml
        to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
@@ -641,6 +643,33 @@ steps:
    dependsOn:
     - default_ns
     - base_image
+    - build_hail
+    - deploy_scheduler
+    - deploy_executors
+ - kind: runImage
+   name: test_hail_java_distributed_backend
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-distributed-backend.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-distributed-backend.xml
+      to: /io/testng-distributed-backend.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-distributed-backend-output
+   dependsOn:
+    - default_ns
+    - hail_run_image
     - build_hail
     - deploy_scheduler
     - deploy_executors

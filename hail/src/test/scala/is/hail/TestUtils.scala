@@ -23,6 +23,7 @@ object ExecStrategy extends Enumeration {
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
   val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
+  val backendOnly: Set[ExecStrategy] = Set(JvmCompile, CxxCompile)
 }
 
 object TestUtils {
@@ -147,7 +148,7 @@ object TestUtils {
 
     if (env.m.isEmpty && args.isEmpty) {
       try {
-        val (res, _) = HailContext.backend.asSpark().cxxLowerAndExecute(x, optimize = false)
+        val (res, _) = HailContext.backend.cxxLowerAndExecute(x, optimize = false)
         res
       } catch {
         case e: CXXUnsupportedOperation =>
@@ -210,7 +211,7 @@ object TestUtils {
   def loweredExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
-    HailContext.backend.asSpark().jvmLowerAndExecute(x, optimize = false)._1
+    HailContext.backend.jvmLowerAndExecute(x, optimize = false)._1
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
@@ -414,7 +415,14 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    ExecStrategy.values.intersect(execStrats).foreach { strat =>
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(ExecStrategy.backendOnly)
+      }
+
+    filteredExecStrats.foreach { strat =>
       try {
         val res = strat match {
           case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)

@@ -2,7 +2,7 @@ package is.hail.linalg
 
 
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Gen._
@@ -18,7 +18,7 @@ import org.testng.annotations.Test
 
 import scala.language.implicitConversions
 
-class BlockMatrixSuite extends SparkSuite {
+class BlockMatrixSuite extends HailSuite {
 
   // row major
   def toLM(nRows: Int, nCols: Int, data: Array[Double]): BDM[Double] =

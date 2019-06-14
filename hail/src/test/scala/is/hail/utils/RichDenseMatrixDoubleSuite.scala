@@ -1,12 +1,12 @@
 package is.hail.utils
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.linalg.BlockMatrix
 import org.testng.annotations.Test
 
-class RichDenseMatrixDoubleSuite extends SparkSuite {
+class RichDenseMatrixDoubleSuite extends HailSuite {
   @Test
   def readWriteBDM() {
     val m = BDM.rand[Double](256, 129) // 33024 doubles

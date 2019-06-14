@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.expr.types.virtual._
 import is.hail.testUtils._
 import is.hail.utils._
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import org.testng.annotations.Test
 
 import scala.language.implicitConversions
@@ -11,7 +11,7 @@ import scala.language.implicitConversions
 /**
   * This testing suite evaluates the functionality of the [[is.hail.annotations]] package
   */
-class AnnotationsSuite extends SparkSuite {
+class AnnotationsSuite extends HailSuite {
   @Test def test() {
     /*
       The below tests are designed to check for a subset of variants and info fields, that:

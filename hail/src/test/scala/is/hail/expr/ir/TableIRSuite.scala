@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.TestUtils._
 
-class TableIRSuite extends SparkSuite {
+class TableIRSuite extends HailSuite {
   def getKT: Table = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))

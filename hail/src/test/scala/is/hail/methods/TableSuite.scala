@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.expr._
 import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class TableSuite extends SparkSuite {
+class TableSuite extends HailSuite {
   def sampleKT1: Table = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))

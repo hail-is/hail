@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import org.apache.spark.mllib.linalg.Vectors
@@ -12,7 +12,7 @@ import org.testng.annotations.Test
 /**
   * Testing RichIndexedRowMatrix.
   */
-class RichIndexedRowMatrixSuite extends SparkSuite {
+class RichIndexedRowMatrixSuite extends HailSuite {
 
   private def convertDistributedMatrixToBreeze(sparkMatrix: DistributedMatrix): Matrix[Double] = {
     val breezeConverter = sparkMatrix.getClass.getMethod("toBreeze")

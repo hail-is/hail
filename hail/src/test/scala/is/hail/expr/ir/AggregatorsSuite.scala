@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -16,7 +16,7 @@ import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
 
-class AggregatorsSuite extends SparkSuite {
+class AggregatorsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 

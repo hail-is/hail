@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
@@ -10,7 +10,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
-class LocusFunctionsSuite extends SparkSuite {
+class LocusFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
