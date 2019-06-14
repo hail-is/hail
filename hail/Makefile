@@ -131,7 +131,7 @@ HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 .PHONY: pypi-deploy
 pypi-deploy: check-pypi wheel
 	TWINE_USERNAME := $(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
-	TWINE_PASSWORD := $(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
+	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
 	twine upload build/deploy/dist/*
 
 TAG_EXISTS = $(shell git ls-remote --exit-code --tags origin $(HAIL_PIP_VERSION) || echo "does not exist")
