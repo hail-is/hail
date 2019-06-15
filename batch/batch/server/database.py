@@ -42,7 +42,7 @@ class JobsTable(Table):
         super().__init__(db, 'jobs')
 
     async def update_record(self, batch_id, job_id, **items):
-        assert 'cancelled' not in items
+        assert not set(items).intersection(JobsTable.batch_view_fields)
         await super().update_record({'batch_id': batch_id, 'job_id': job_id}, items)
 
     async def get_all_records(self):
