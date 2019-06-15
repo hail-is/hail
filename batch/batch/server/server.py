@@ -897,7 +897,7 @@ async def ui_batch(request, userdata):
     return {'batch': batch}
 
 
-@routes.get('/batches', name='ui_batches')
+@routes.get('/batches', name='batches')
 @aiohttp_jinja2.template('batches.html')
 @authenticated_users_only
 async def ui_batches(request, userdata):
@@ -921,7 +921,7 @@ async def ui_get_job_log(request, userdata):
 @routes.get('/')
 @authenticated_users_only
 async def batch_id(request, userdata):
-    location = request.app.router['ui_batches'].url_for()
+    location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
 

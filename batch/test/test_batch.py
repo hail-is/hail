@@ -290,9 +290,9 @@ class Test(unittest.TestCase):
             (requests.post, '/api/v1alpha/batches/create'),
             (requests.get, '/api/v1alpha/batches/0'),
             (requests.delete, '/api/v1alpha/batches/0'),
-            (requests.get, '/api/v1alpha/ui/batches'),
-            (requests.get, '/api/v1alpha/ui/batches/0'),
-            (requests.get, '/api/v1alpha/ui/batches/0/jobs/0/log')]
+            (requests.get, '/batches'),
+            (requests.get, '/batches/0'),
+            (requests.get, '/batches/0/jobs/0/log')]
         for f, url in endpoints:
             r = f(os.environ.get('BATCH_URL')+url)
             assert r.status_code == 401, r
