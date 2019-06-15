@@ -376,7 +376,11 @@ class BatchClient:
         userdata = hj.JWTClient.unsafe_decode(token)
         assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]
-        self._cookies = {'user': token}
+        self._cookies = None
+
+        if headers is None:
+            headers = {}
+        headers['Authorization'] = f'Bearer {token}'
         self._headers = headers
 
     async def _get(self, path, params=None):

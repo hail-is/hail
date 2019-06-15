@@ -4,6 +4,7 @@ from functools import wraps
 from aiohttp import web
 import jwt
 
+
 log = logging.getLogger('hailjwt')
 
 
@@ -49,32 +50,63 @@ def get_domain(host):
 jwtclient = None
 
 
-def authenticated_users_only(fun):
-    global jwtclient
+def authenticated_users_only(token_getter):
+    def wrap(fun):
+        global jwtclient
 
-    if not jwtclient:
-        with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
-                                 '/jwt-secret-key/secret-key'), 'rb') as f:
-            jwtclient = JWTClient(f.read())
+        if not jwtclient:
+            with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
+                                     '/jwt-secret-key/secret-key'), 'rb') as f:
+                jwtclient = JWTClient(f.read())
 
-    @wraps(fun)
-    def wrapped(request, *args, **kwargs):
-        encoded_token = request.cookies.get('user')
-        if encoded_token is not None:
-            try:
-                userdata = jwtclient.decode(encoded_token)
-                return fun(request, userdata, *args, **kwargs)
-            except jwt.exceptions.InvalidTokenError as exc:
-                log.info(f'could not decode token: {exc}')
-        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-    return wrapped
+        @wraps(fun)
+        def wrapped(request, *args, **kwargs):
+            encoded_token = token_getter(request)
+            if encoded_token is not None:
+                try:
+                    userdata = jwtclient.decode(encoded_token)
+                    return fun(request, userdata, *args, **kwargs)
+                except jwt.exceptions.InvalidTokenError as exc:
+                    log.info(f'could not decode token: {exc}')
+            raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+        return wrapped
+    return wrap
 
 
-def authenticated_developers_only(fun):
-    @authenticated_users_only
-    @wraps(fun)
-    def wrapped(request, userdata, *args, **kwargs):
-        if ('developer' in userdata) and userdata['developer'] is 1:
-            return fun(request, *args, **kwargs)
-        raise web.HTTPNotFound()
-    return wrapped
+def authenticated_developers_only(token_getter):
+    def wrap(fun):
+        @authenticated_users_only(token_getter)
+        @wraps(fun)
+        def wrapped(request, userdata, *args, **kwargs):
+            if ('developer' in userdata) and userdata['developer'] is 1:
+                return fun(request, *args, **kwargs)
+            raise web.HTTPNotFound()
+        return wrapped
+    return wrap
+
+
+def parse_header(request):
+    auth_header = request.headers.get('Authorization')
+    if auth_header is not None and auth_header.startswith('Bearer '):
+        return auth_header[7:]
+    return auth_header
+
+
+def rest_authenticated_users_only(fun):
+    token_getter = lambda request: parse_header(request)
+    return authenticated_users_only(token_getter)(fun)
+
+
+def rest_authenticated_developers_only(fun):
+    token_getter = lambda request: parse_header(request)
+    return authenticated_developers_only(token_getter)(fun)
+
+
+def web_authenticated_users_only(fun):
+    token_getter = lambda request: request.cookies.get('user')
+    return authenticated_users_only(token_getter)(fun)
+
+
+def web_authenticated_developers_only(fun):
+    token_getter = lambda request: request.cookies.get('user')
+    return authenticated_developers_only(token_getter)(fun)
