@@ -918,6 +918,13 @@ async def ui_get_job_log(request, userdata):
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
+@routes.get('/')
+@authenticated_users_only
+async def batch_id(request, userdata):
+    location = request.app.router['ui_batches'].url_for()
+    raise web.HTTPFound(location=location)
+
+
 async def update_job_with_pod(job, pod):
     log.info(f'update job {job.id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
