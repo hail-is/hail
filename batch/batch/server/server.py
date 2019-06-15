@@ -143,9 +143,6 @@ class JobTask:  # pylint: disable=R0903
 
 
 class Job:
-    def _has_next_task(self):
-        return self._task_idx < len(self._tasks)
-
     async def _create_pvc(self):
         pvc, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
@@ -524,19 +521,25 @@ class Job:
                 await self.mark_unscheduled()
                 return
 
+        has_next_task = self._task_idx + 1 < len(self._tasks)
+
         if exit_code == 0:
-            if self._has_next_task():
-                await self._mark_job_task_complete(task_name, pod_log, exit_code, 'Ready')
-                await self.set_state('Ready')
-                await self._create_pod()
-                return
-            new_state = 'Success'
+            if has_next_task:
+                new_state = 'Ready'
+            else:
+                new_state = 'Success'
         elif exit_code == 999:
             new_state = 'Error'
         else:
             new_state = 'Failed'
 
         await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
+        
+        if exit_code == 0:
+            if has_next_task:
+                await self._create_pod()
+                return
+
         await self._delete_pvc()
         await self.set_state(new_state)
 
