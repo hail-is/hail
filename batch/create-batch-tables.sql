@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
   `userdata` TEXT(65535) NOT NULL,
-  `user` VARCHAR(100) NOT NULL,  
+  `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT(65535),
   `callback` TEXT(65535),
   `deleted` BOOLEAN NOT NULL default false,
