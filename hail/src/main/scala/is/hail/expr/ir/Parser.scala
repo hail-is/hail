@@ -487,7 +487,7 @@ object IRParser {
     val entryType = coerce[TStruct](type_expr(it))
     punctuation(it, "}")
 
-    MatrixType.fromParts(coerce[TStruct](-globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
+    MatrixType(coerce[TStruct](-globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
   def agg_op(it: TokenIterator): AggOp =

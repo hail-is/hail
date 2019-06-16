@@ -25,17 +25,6 @@ object MatrixType {
   def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
-  def fromParts(
-    globalType: TStruct,
-    colKey: IndexedSeq[String],
-    colType: TStruct,
-    rowKey: IndexedSeq[String],
-    rowType: TStruct,
-    entryType: TStruct
-  ): MatrixType = {
-    MatrixType(globalType, colKey, colType, rowKey, rowType, entryType)
-  }
-
   def fromTableType(
     typ: TableType,
     colsFieldName: String,
@@ -179,17 +168,6 @@ case class MatrixType(
     indent -= 4
     newline()
     sb += '}'
-  }
-
-  def copyParts(
-    globalType: TStruct = globalType,
-    colKey: IndexedSeq[String] = colKey,
-    colType: TStruct = colType,
-    rowKey: IndexedSeq[String] = rowKey,
-    rowType: TStruct = rowType,
-    entryType: TStruct = entryType
-  ): MatrixType = {
-    MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
   }
 
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]

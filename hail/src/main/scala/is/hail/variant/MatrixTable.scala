@@ -204,7 +204,7 @@ object MatrixTable {
     gen.gen(hc)
 
   def fromRowsTable(kt: Table): MatrixTable = {
-    val matrixType = MatrixType.fromParts(
+    val matrixType = MatrixType(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
@@ -294,7 +294,7 @@ case class VSMSubgen(
         }
 
       MatrixTable.fromLegacy(hc,
-        MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowKey, finalVASig, tSig),
+        MatrixType(globalSig, Array("s"), finalSASig, rowKey, finalVASig, tSig),
         global,
         sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
         hc.sc.parallelize(rows.map { case (v, (va, gs)) =>

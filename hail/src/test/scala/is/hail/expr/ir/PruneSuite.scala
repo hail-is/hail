@@ -97,7 +97,7 @@ class PruneSuite extends HailSuite {
     def fullType: TableType = tab.typ
   })
 
-  val mType = MatrixType.fromParts(
+  val mType = MatrixType(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),

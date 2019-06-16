@@ -19,7 +19,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
   def preservesPartitionCounts: Boolean = false
 
   def typ(childType: MatrixType): MatrixType = {
-    childType.copyParts(
+    childType.copy(
       rowType = childType.rowType ++ TStruct("prev_rows" -> TArray(childType.rowType)),
       entryType = childType.entryType ++ TStruct("prev_entries" -> TArray(childType.entryType))
     )

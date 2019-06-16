@@ -223,7 +223,7 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
-  val fullMatrixType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
@@ -344,7 +344,7 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
     val newColType = child.typ.colKeyStruct ++ newColValueType
     val newEntryType = TStruct(child.typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ))))
 
-    child.typ.copyParts(colType = newColType, entryType = newEntryType)
+    child.typ.copy(colType = newColType, entryType = newEntryType)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -360,7 +360,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     MatrixAggregateRowsByKey(newChild, newEntryExpr, newRowExpr)
   }
 
-  val typ: MatrixType = child.typ.copyParts(
+  val typ: MatrixType = child.typ.copy(
     rowType = child.typ.rowKeyStruct ++ coerce[TStruct](rowExpr.typ),
     entryType = coerce[TStruct](entryExpr.typ)
   )
@@ -731,7 +731,7 @@ case class MatrixRename(child: MatrixIR,
   require(rowMap.keys.forall(child.typ.rowType.hasField))
   require(entryMap.keys.forall(child.typ.entryType.hasField))
 
-  lazy val typ: MatrixType = MatrixType.fromParts(
+  lazy val typ: MatrixType = MatrixType(
     globalType = child.typ.globalType.rename(globalMap),
     colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),
     colType = child.typ.colType.rename(colMap),
