@@ -72,8 +72,7 @@ class Table:  # pylint: disable=R0903
                 values_template = ", ".join(["%s" for _ in items.values()])
                 sql = f"INSERT INTO `{self.name}` ({names}) VALUES ({values_template})"
                 await cursor.execute(sql, tuple(items.values()))
-                id = cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
-        return id
+                return cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
 
     async def update_record(self, where_items, set_items):
         async with self._db.pool.acquire() as conn:
@@ -93,8 +92,7 @@ class Table:  # pylint: disable=R0903
                 select_fields = ",".join(select_fields) if select_fields is not None else "*"
                 sql = f"SELECT {select_fields} FROM `{self.name}` WHERE {where_template}"
                 await cursor.execute(sql, tuple(where_values))
-                result = await cursor.fetchall()
-        return result
+                return await cursor.fetchall()
 
     async def get_all_records(self):
         async with self._db.pool.acquire() as conn:
@@ -109,7 +107,7 @@ class Table:  # pylint: disable=R0903
                 sql = f"SELECT COUNT(1) FROM `{self.name}` WHERE {where_template}"
                 await cursor.execute(sql, where_values)
                 result = await cursor.fetchone()
-        return result['COUNT(1)'] >= 1
+                return result['COUNT(1)'] >= 1
 
     async def delete_record(self, where_items):
         async with self._db.pool.acquire() as conn:
