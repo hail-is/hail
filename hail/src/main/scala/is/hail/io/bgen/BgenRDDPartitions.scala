@@ -1,6 +1,5 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
@@ -83,15 +82,14 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
+    bcFS: Broadcast[FS],
     sc: SparkContext,
     files: Seq[BgenFileMetadata],
     blockSizeInMB: Option[Int],
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
-    val hc = HailContext.get
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = bcFS.value
 
     val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering

@@ -37,6 +37,8 @@ trait FilePath extends Serializable{
 }
 
 trait FS extends Serializable{
+  var tmpDir: String
+
   def getProperty(name: String): String
 
   def setProperty(name: String, value: String): Unit

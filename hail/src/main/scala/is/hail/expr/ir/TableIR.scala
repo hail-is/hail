@@ -17,13 +17,13 @@ import is.hail.variant._
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
-
+import is.hail.io.fs.FS
 import scala.reflect.ClassTag
 
 object TableIR {
-  def read(hc: HailContext, path: String, dropRows: Boolean, requestedType: Option[TableType]): TableIR = {
+  def read(fs: FS, path: String, dropRows: Boolean, requestedType: Option[TableType]): TableIR = {
     val successFile = path + "/_SUCCESS"
-    if (!hc.sFS.exists(path + "/_SUCCESS"))
+    if (!fs.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
     val tr = TableNativeReader(path)

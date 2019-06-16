@@ -2,11 +2,12 @@ package is.hail.utils.richUtils
 
 import java.io._
 
-import is.hail.HailContext
+import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
 import org.apache.spark.TaskContext
 import is.hail.utils._
 import is.hail.sparkextras._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
@@ -19,12 +20,12 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       v
     }.run
 
-  def writePartitions(path: String,
+  def writePartitions(
+    bcFS: Broadcast[FS],
+    path: String,
     stageLocally: Boolean,
     write: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) = {
-    val hc = HailContext.get
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = bcFS.value
 
     fs.mkDir(path + "/parts")
 
@@ -56,7 +57,6 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
       .collect()
       .unzip
 
-    val itemCount = partitionCounts.sum
     assert(nPartitions == partitionCounts.length)
 
     (partFiles, partitionCounts)

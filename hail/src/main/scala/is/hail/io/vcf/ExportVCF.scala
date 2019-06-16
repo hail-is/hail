@@ -1,13 +1,13 @@
 package is.hail.io.vcf
 
 import is.hail
-import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
+import is.hail.io.fs.FS
 import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
 
 import scala.io.Source
@@ -219,12 +219,12 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
     getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
-  def apply(mt: MatrixTable, path: String, append: Option[String] = None,
+  def apply(fs: FS, mt: MatrixTable, path: String, append: Option[String] = None,
     exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExportVCF(mt.value, path, append, exportType, metadata)
+    ExportVCF(fs, mt.value, path, append, exportType, metadata)
   }
 
-  def apply(mv: MatrixValue, path: String, append: Option[String],
+  def apply(fs: FS, mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {
 
     mv.typ.requireColKeyString()
@@ -271,7 +271,6 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
-      val fs = HailContext.sFS
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -374,9 +373,7 @@ object ExportVCF {
     val localEntriesIndex = mv.entriesIdx
     val localEntriesType = mv.entryArrayPType
 
-    val hc = HailContext.get
-    val fs = hc.sFS
-    val tmpDir = hc.tmpDir
+    val tmpDir = fs.tmpDir
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder

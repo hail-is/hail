@@ -99,8 +99,8 @@ object VEP {
   }
 }
 
-case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
-  private lazy val conf = VEP.readConfiguration(HailContext.sFS, config)
+case class VEP(fs: FS, config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
+  private lazy val conf = VEP.readConfiguration(fs, config)
   private lazy val vepSignature = conf.vep_json_schema
 
   override def preservesPartitionCounts: Boolean = false
@@ -110,11 +110,11 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
     TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
   }
 
-  override def execute(tv: TableValue): TableValue = {
+  override def execute(fs: FS, tv: TableValue): TableValue = {
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
-    val conf = readConfiguration(HailContext.sFS, config)
+    val conf = readConfiguration(fs, config)
     val vepSignature = conf.vep_json_schema
 
     val cmd = conf.command.map(s =>

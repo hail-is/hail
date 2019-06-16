@@ -10,7 +10,7 @@ import is.hail.io.fs.FS
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
-import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 
 private case class IndexBgenPartition(
   path: String,
@@ -20,7 +20,6 @@ private case class IndexBgenPartition(
   startByteOffset: Long,
   endByteOffset: Long,
   partitionIndex: Int,
-  bcFS: Broadcast[FS]
 ) extends BgenPartition {
 
   def index = partitionIndex
@@ -28,14 +27,14 @@ private case class IndexBgenPartition(
 
 object IndexBgen {
   def apply(
-    hc: HailContext,
+    bcFS: Broadcast[FS],
+    sc: SparkContext,
     files: Array[String],
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false) {
-    val fs = hc.sFS
-    val bcFS = hc.bcFS
+    val fs = bcFS.value
 
     val statuses = LoadBgen.getAllFileStatuses(fs, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)
@@ -93,7 +92,7 @@ object IndexBgen {
 
     val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
-    val crvd = BgenRDD(hc.sc, partitions, settings, null)
+    val crvd = BgenRDD(sc, partitions, settings, null)
 
     val codecSpec = CodecSpec.default
     val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)

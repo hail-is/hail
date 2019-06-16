@@ -57,14 +57,14 @@ object FASTAReader {
     uriLocalFastaFile
   }
 
-  def apply(hc: HailContext, rg: ReferenceGenome, fastaFile: String, indexFile: String,
+  def apply(fs: FS, rg: ReferenceGenome, fastaFile: String, indexFile: String,
     blockSize: Int = 4096, capacity: Int = 100): FASTAReader = {
     if (blockSize <= 0)
       fatal(s"'blockSize' must be greater than 0. Found $blockSize.")
     if (capacity <= 0)
       fatal(s"'capacity' must be greater than 0. Found $capacity.")
 
-    new FASTAReader(hc.sFS, rg, fastaFile, indexFile, blockSize, capacity)
+    new FASTAReader(fs, rg, fastaFile, indexFile, blockSize, capacity)
   }
 }
 

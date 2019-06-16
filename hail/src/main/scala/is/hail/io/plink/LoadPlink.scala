@@ -119,6 +119,7 @@ object LoadPlink {
 }
 
 case class MatrixPLINKReader(
+  fs: FS,
   bed: String,
   bim: String,
   fam: String,
@@ -138,7 +139,7 @@ case class MatrixPLINKReader(
 
   val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
-  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.sFS)
+  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, fs)
 
   val nameMap = Map("id" -> "s")
   val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
@@ -147,7 +148,7 @@ case class MatrixPLINKReader(
   if (nSamples <= 0)
     fatal("FAM file does not contain any samples")
 
-  val variants = LoadPlink.parseBim(bim, hc.sFS, a2Reference, contigRecoding)
+  val variants = LoadPlink.parseBim(bim, fs, a2Reference, contigRecoding)
   val nVariants = variants.length
   if (nVariants <= 0)
     fatal("BIM file does not contain any variants")
@@ -155,7 +156,7 @@ case class MatrixPLINKReader(
   info(s"Found $nSamples samples in fam file.")
   info(s"Found $nVariants variants in bim file.")
 
-  hc.sFS.readFile(bed) { dis =>
+  fs.readFile(bed) { dis =>
     val b1 = dis.read()
     val b2 = dis.read()
     val b3 = dis.read()
@@ -167,12 +168,12 @@ case class MatrixPLINKReader(
       fatal("BED file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
   }
 
-  val bedSize = hc.sFS.getFileSize(bed)
+  val bedSize = fs.getFileSize(bed)
   if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
     fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
 
-  if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-    fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
+  if (bedSize < nPartitions.getOrElse(sc.defaultMinPartitions))
+    fatal(s"The number of partitions requested (${ nPartitions.getOrElse(sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
   val columnCount: Option[Int] = Some(nSamples)
 

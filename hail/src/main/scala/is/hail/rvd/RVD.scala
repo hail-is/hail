@@ -11,11 +11,13 @@ import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.{Partitioner, SparkContext}
+import org.apache.spark.broadcast.Broadcast
 
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -736,9 +738,9 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
+  def write(fs: FS, path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
-    rvdSpec(codecSpec, partFiles).write(HailContext.sFS, path)
+    rvdSpec(codecSpec, partFiles).write(fs, path)
     partitionCounts
   }
 
@@ -1348,6 +1350,8 @@ object RVD {
     union(rvds, rvds.head.typ.key.length)
 
   def writeRowsSplitFiles(
+    bcFS: Broadcast[FS],
+    sc: SparkContext,
     rvds: IndexedSeq[RVD],
     path: String,
     codecSpec: CodecSpec,
@@ -1356,9 +1360,7 @@ object RVD {
     val first = rvds.head
     require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
 
-    val sc = HailContext.get.sc
-    val fs = HailContext.sFS
-    val bcFS = HailContext.bcFS
+    val fs = bcFS.value
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner

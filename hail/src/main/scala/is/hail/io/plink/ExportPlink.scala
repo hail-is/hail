@@ -6,9 +6,11 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
+import org.apache.spark.broadcast.Broadcast
 import is.hail.expr.types.physical.{PString, PStruct}
 import is.hail.variant._
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 
 object ExportPlink {
@@ -58,18 +60,15 @@ object ExportPlink {
     bp.flush()
   }
 
-  def apply(mv: MatrixValue, path: String): Unit = {
-    val hc = HailContext.get
-    val sc = hc.sc
-    val fs = hc.sFS
+  def apply(bcFS: Broadcast[FS], mv: MatrixValue, path: String): Unit = {
+    val fs = bcFS.value
+    val sc = HailContext.get.sc
 
-    val tmpBedDir = fs.getTemporaryFile(hc.tmpDir)
-    val tmpBimDir = fs.getTemporaryFile(hc.tmpDir)
+    val tmpBedDir = fs.getTemporaryFile(fs.tmpDir)
+    val tmpBimDir = fs.getTemporaryFile(fs.tmpDir)
 
     fs.mkDir(tmpBedDir)
     fs.mkDir(tmpBimDir)
-
-    val bcFS = hc.bcFS
 
     val nPartitions = mv.rvd.getNumPartitions
     val d = digitsNeeded(nPartitions)

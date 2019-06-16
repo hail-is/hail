@@ -51,12 +51,11 @@ object Uploader {
   }
 }
 
-class Uploader { self =>
+class Uploader(fs: FS) { self =>
 
   private val config = {
     val hc = HailContext.get
     val sc = hc.sc
-    val fs = hc.sFS
     val runtime = Runtime.getRuntime
 
     JObject(

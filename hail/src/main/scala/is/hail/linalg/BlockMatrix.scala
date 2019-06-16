@@ -152,22 +152,22 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
-  def checkWriteSuccess(hc: HailContext, uri: String) {
-    if (!hc.sFS.exists(uri + "/_SUCCESS"))
+  def checkWriteSuccess(fs: FS, uri: String) {
+    if (!fs.exists(uri + "/_SUCCESS"))
       fatal(s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri")    
   }
   
-  def readMetadata(hc: HailContext, uri: String): BlockMatrixMetadata = {
-    hc.sFS.readTextFile(uri + metadataRelativePath) { isr =>
+  def readMetadata(fs: FS,  uri: String): BlockMatrixMetadata = {
+    fs.readTextFile(uri + metadataRelativePath) { isr =>
       implicit val formats = defaultJSONFormats
       jackson.Serialization.read[BlockMatrixMetadata](isr)
     }
   }
 
-  def read(hc: HailContext, uri: String): M = {
-    checkWriteSuccess(hc, uri)
+  def read(fs: FS, uri: String): M = {
+    checkWriteSuccess(fs, uri)
 
-    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = readMetadata(hc, uri)
+    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = readMetadata(fs, uri)
 
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
 

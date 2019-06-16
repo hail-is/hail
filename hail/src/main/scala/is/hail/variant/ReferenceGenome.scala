@@ -353,11 +353,10 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def hasSequence: Boolean = fastaReader != null
 
-  def addSequence(hc: HailContext, fastaFile: String, indexFile: String) {
+  def addSequence(fs: FS, fastaFile: String, indexFile: String) {
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
-    val fs = hc.sFS
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))
@@ -385,7 +384,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     val fastaPath = fs.fileStatus(fastaFile).getPath.toString
     val indexPath = fs.fileStatus(indexFile).getPath.toString
-    fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
+    fastaReader = FASTAReader(fs, this, fastaPath, indexPath)
   }
 
   def addSequenceFromReader(fs: FS, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
@@ -420,17 +419,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def hasLiftover(destRGName: String): Boolean = liftoverMaps.contains(destRGName)
 
-  def addLiftover(hc: HailContext, chainFile: String, destRGName: String): Unit = {
+  def addLiftover(fs: FS, chainFile: String, destRGName: String): Unit = {
     if (name == destRGName)
       fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
     if (hasLiftover(destRGName))
       fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
-    val fs = hc.sFS
+
     if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
 
     val chainFilePath = fs.fileStatus(chainFile).getPath.toString
-    val lo = LiftOver(hc, chainFilePath)
+    val lo = LiftOver(fs, chainFilePath)
 
     val destRG = ReferenceGenome.getReference(destRGName)
     lo.checkChainFile(this, destRG)
@@ -638,8 +637,8 @@ object ReferenceGenome {
     rg
   }
 
-  def fromFile(hc: HailContext, file: String): ReferenceGenome = {
-    val rg = hc.sFS.readFile(file)(read)
+  def fromFile(fs: FS, file: String): ReferenceGenome = {
+    val rg = fs.readFile(file)(read)
     addReference(rg)
     rg
   }
@@ -650,16 +649,16 @@ object ReferenceGenome {
     rg
   }
 
-  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+  def fromFASTAFile(fs: FS, name: String, fastaFile: String, indexFile: String,
     xContigs: java.util.List[String], yContigs: java.util.List[String],
     mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
-    fromFASTAFile(hc, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
+    fromFASTAFile(fs, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 
-  def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
+  def fromFASTAFile(fs: FS, name: String, fastaFile: String, indexFile: String,
     xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
     mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
-    val fs = hc.sFS
+
     if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
     if (!fs.exists(indexFile))
@@ -679,7 +678,7 @@ object ReferenceGenome {
     }
 
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
-    rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
+    rg.fastaReader = FASTAReader(fs, rg, fastaFile, indexFile)
     rg
   }
 

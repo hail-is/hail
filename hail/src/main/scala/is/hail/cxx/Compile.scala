@@ -11,6 +11,7 @@ import is.hail.expr.types.virtual.TVoid
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.fatal
+import is.hail.io.fs.FS
 
 import scala.reflect.classTag
 
@@ -132,15 +133,13 @@ object Compile {
     (mod, new SparkUtils(mods), encLiterals)
   }
 
-  def apply(body: ir.IR, optimize: Boolean): Long => Long = {
+  def apply(fs: FS, body: ir.IR, optimize: Boolean): Long => Long = {
     val (mod, sparkUtils, literals) = compile(body, optimize, Array())
 
     val st = new NativeStatus()
     val nativef = mod.findLongFuncL2(st, "entrypoint")
     mod.close()
     st.close()
-
-    val fs = HailContext.get.sFS
 
     { (region: Long) =>
       val st2 = new NativeStatus()
@@ -154,6 +153,7 @@ object Compile {
   }
 
   def apply(
+    fs: FS,
     arg0: String, arg0Type: PType,
     body: ir.IR, optimize: Boolean): (Long, Long) => Long = {
     assert(ir.TypeToIRIntermediateClassTag(arg0Type.virtualType) == classTag[Long])
@@ -168,8 +168,6 @@ object Compile {
     val nativef = mod.findLongFuncL3(st, "entrypoint")
     mod.close()
     st.close()
-
-    val fs = HailContext.get.sFS
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()

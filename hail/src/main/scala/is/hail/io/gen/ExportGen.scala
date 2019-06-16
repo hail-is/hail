@@ -1,21 +1,18 @@
 package is.hail.io.gen
 
-import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical.{PString, PStruct}
 import is.hail.io.plink.BimAnnotationView
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
 
 object ExportGen {
   val spaceRegex = """\s+""".r
 
-  def apply(mv: MatrixValue, path: String, precision: Int = 4) {
-    val hc = HailContext.get
-    val fs = hc.sFS
-
+  def apply(fs: FS, mv: MatrixValue, path: String, precision: Int = 4) {
     fs.writeTable(path + ".sample",
       "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.value.map { a =>
         val r = a.asInstanceOf[Row]
@@ -100,7 +97,7 @@ object ExportGen {
         }
         sb.result()
       }
-    }.writeTable(hc.sFS, path + ".gen", hc.tmpDir, None)
+    }.writeTable(fs, path + ".gen", fs.tmpDir, None)
   }
 }
 

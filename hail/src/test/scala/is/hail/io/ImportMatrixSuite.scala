@@ -10,17 +10,17 @@ import org.testng.annotations.Test
 class ImportMatrixSuite extends SparkSuite {
 
   @Test def testHeadersNotIdentical() {
-    val files = hc.sFS.globAll(List("src/test/resources/sampleheader*.txt"))
+    val files = sFS.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
+      val vsm = LoadMatrix(sFS, hc, files, Map("f0" -> TString()), Array("f0"))
     }
     assert(e.getMessage.contains("invalid header"))
   }
 
   @Test def testMissingVals() {
-    val files = hc.sFS.globAll(List("src/test/resources/samplesmissing.txt"))
+    val files = sFS.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = new MatrixTable(HailContext.get, LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0")))
+      val vsm = new MatrixTable(HailContext.get, LoadMatrix(sFS, hc, files, Map("f0" -> TString()), Array("f0")))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("Incorrect number"))

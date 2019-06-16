@@ -5,7 +5,7 @@ import java.io.{InputStream, OutputStream}
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.virtual.Type
-import is.hail.io.fs.FileStatus
+import is.hail.io.fs.{FS, FileStatus}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 
@@ -139,10 +139,10 @@ trait Py4jUtils {
 
   def dirExists(hc: HailContext, path: String): Boolean = hc.sFS.exists(path) && hc.sFS.isDir(path)
 
-  def mkdir(hc: HailContext, path: String): Boolean = hc.sFS.mkDir(path)
+  def mkdir(fs: FS, hc: HailContext, path: String): Boolean = fs.mkDir(path)
 
-  def copyToTmp(hc: HailContext, path: String, extension: String): String = {
-    val codecExt = hc.sFS.getCodec(path)
+  def copyToTmp(fs: FS, hc: HailContext, path: String, extension: String): String = {
+    val codecExt = fs.getCodec(path)
     val tmpFile = hc.getTemporaryFile(suffix = Some(extension + codecExt))
     hc.sFS.copy(path, tmpFile)
     tmpFile

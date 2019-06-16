@@ -12,7 +12,7 @@ class RowMatrixSuite extends SparkSuite {
     val nRows = a.length
     val nCols = a(0).length
     
-    RowMatrix(hc, sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }, nPartitions), nCols, nRows)
+    RowMatrix(hc.sFS, sc.parallelize(a.zipWithIndex.map { case (row, i) => (i.toLong, row) }, nPartitions), nCols, nRows)
   }
   
   private def rowArrayToLocalMatrix(a: Array[Array[Double]]): DenseMatrix[Double] = {
@@ -49,7 +49,7 @@ class RowMatrixSuite extends SparkSuite {
     
     BlockMatrix.fromBreezeMatrix(hc.sc, localMatrix).write(sFS, fname, forceRowMajor = true)
     
-    val rowMatrixFromBlock = RowMatrix.readBlockMatrix(hc, fname, Some(1))
+    val rowMatrixFromBlock = RowMatrix.readBlockMatrix(hc.bcFS, hc, fname, Some(1))
     
     assert(rowMatrixFromBlock.toBreezeMatrix() == localMatrix)
   }
@@ -64,7 +64,7 @@ class RowMatrixSuite extends SparkSuite {
       partSize <- Seq(1, 2, 4, 9, 11)
     } {
       BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).write(sFS, fname, overwrite = true, forceRowMajor = true)
-      val rowMatrix = RowMatrix.readBlockMatrix(hc, fname, Some(partSize))
+      val rowMatrix = RowMatrix.readBlockMatrix(hc.bcFS, hc, fname, Some(partSize))
       
       assert(rowMatrix.toBreezeMatrix() === lm)
     }

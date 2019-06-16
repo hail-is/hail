@@ -6,19 +6,21 @@ import is.hail.expr.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
+import org.apache.spark.broadcast.Broadcast
 
 object RowMatrix {
-  def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =
-    new RowMatrix(hc, rows, nCols, None, None)
+  def apply(fs: FS, rows: RDD[(Long, Array[Double])], nCols: Int): RowMatrix =
+    new RowMatrix(fs, rows, nCols, None, None)
   
-  def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long): RowMatrix =
-    new RowMatrix(hc, rows, nCols, Some(nRows), None)
+  def apply(fs: FS, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long): RowMatrix =
+    new RowMatrix(fs, rows, nCols, Some(nRows), None)
   
-  def apply(hc: HailContext, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long]): RowMatrix =
-    new RowMatrix(hc, rows, nCols, Some(nRows), Some(partitionCounts))
+  def apply(fs: FS, rows: RDD[(Long, Array[Double])], nCols: Int, nRows: Long, partitionCounts: Array[Long]): RowMatrix =
+    new RowMatrix(fs, rows, nCols, Some(nRows), Some(partitionCounts))
   
   def computePartitionCounts(partSize: Long, nRows: Long): Array[Long] = {
     val nParts = ((nRows - 1) / partSize).toInt + 1
@@ -28,7 +30,7 @@ object RowMatrix {
     partitionCounts
   }
 
-  def readBlockMatrix(hc: HailContext, uri: String, maybePartSize: Option[Int]): RowMatrix = {
+  def readBlockMatrix(bcFS: Broadcast[FS], hc: HailContext, uri: String, maybePartSize: Option[Int]): RowMatrix = {
     val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(hc, uri)
     if (nCols >= Int.MaxValue) {
       fatal(s"Number of columns must be less than 2^31, found $nCols")
@@ -36,15 +38,16 @@ object RowMatrix {
     val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
     val partSize = maybePartSize.getOrElse(blockSize)
     val partitionCounts = computePartitionCounts(partSize, gp.nRows)
-    RowMatrix(hc, 
-      new ReadBlocksAsRowsRDD(uri, hc.sc, partFiles, partitionCounts, gp),
+    RowMatrix(bcFS.value,
+      new ReadBlocksAsRowsRDD(bcFS, uri, hc.sc, partFiles, partitionCounts, gp),
       gp.nCols.toInt,
       gp.nRows,
       partitionCounts)
   }
 }
 
-class RowMatrix(val hc: HailContext,
+class RowMatrix(
+  val fs: FS,
   val rows: RDD[(Long, Array[Double])],
   val nCols: Int,
   private var _nRows: Option[Long],
@@ -152,7 +155,7 @@ class RowMatrix(val hc: HailContext,
 
   // uses writeRow to convert each row to a string and writes that string to a file if non-empty
   def genericExport(
-    path: String, 
+    path: String,
     header: Option[String], 
     exportType: Int, 
     writeRow: (StringBuilder, Long, Array[Double]) => Unit) {
@@ -164,14 +167,16 @@ class RowMatrix(val hc: HailContext,
         writeRow(sb, index, v)
         sb.result()
       }.filter(_.nonEmpty)
-    }.writeTable(hc.sFS, path, hc.tmpDir, header, exportType)
+    }.writeTable(fs, path, fs.tmpDir, header, exportType)
   }
 }
 
 // [`start`, `end`) is the row range of partition
 case class ReadBlocksAsRowsRDDPartition(index: Int, start: Long, end: Long) extends Partition
 
-class ReadBlocksAsRowsRDD(path: String,
+class ReadBlocksAsRowsRDD(
+  bcFS: Broadcast[FS],
+  path: String,
   sc: SparkContext,
   partFiles: Array[String],
   partitionCounts: Array[Long],
@@ -184,12 +189,10 @@ class ReadBlocksAsRowsRDD(path: String,
 
   if (gp.nCols > Int.MaxValue)
       fatal(s"Cannot read BlockMatrix with ${gp.nCols} > Int.MaxValue columns as a RowMatrix")
-  
+
   private val nCols = gp.nCols.toInt
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
-
-  private val bcFS = HailContext.bcFS
 
   protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi => 
     ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1)))

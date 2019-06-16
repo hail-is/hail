@@ -266,7 +266,9 @@ object LoadMatrix {
     TStruct(fields: _*)
   }
 
-  def apply(hc: HailContext,
+  def apply(
+    fs: FS,
+    hc: HailContext,
     files: Array[String],
     rowFields: Map[String, Type],
     keyFields: Array[String],
@@ -288,7 +290,6 @@ object LoadMatrix {
         t.isOfType(TFloat64())
     })
     val sc = hc.sc
-    val fs = hc.sFS
 
     if (files.isEmpty)
       fatal("no files specified for import_matrix_table.")

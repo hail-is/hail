@@ -35,11 +35,11 @@ object RelationalSpec {
     new TableTypeSerializer +
     new MatrixTypeSerializer
 
-  def read(hc: HailContext, path: String): RelationalSpec = {
-    if (!hc.sFS.isDir(path))
+  def read(fs: FS, path: String): RelationalSpec = {
+    if (!fs.isDir(path))
       fatal(s"MatrixTable and Table files are directories; path '$path' is not a directory")
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.sFS.readFile(metadataFile) { in => parse(in) }
+    val jv = fs.readFile(metadataFile) { in => parse(in) }
 
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
@@ -57,7 +57,7 @@ object RelationalSpec {
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-    ReferenceGenome.importReferences(hc.sFS, path + "/" + referencesRelPath)
+    ReferenceGenome.importReferences(fs, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
   }
@@ -91,15 +91,15 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
     AbstractRVDSpec.read(fs, absolutePath(path))
 
-  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
+  def read(fs: FS, hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
+    rvdSpec(fs, path)
       .read(hc, rvdPath, requestedType)
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
+  def readLocal(fs: FS, hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
+    rvdSpec(fs, path)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
@@ -118,8 +118,8 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
 
   def rvdType(path: String): RVDType = {
-    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
-    val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
+    val rows = AbstractRVDSpec.read(HailContext.sFS, path + "/" + rowsComponent.rel_path)
+    val entries = AbstractRVDSpec.read(HailContext.sFS, path + "/" + entriesComponent.rel_path)
     RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
   }
 

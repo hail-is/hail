@@ -10,6 +10,7 @@ import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
+import is.hail.io.fs.FS
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
@@ -24,7 +25,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(fs: FS, mv: MatrixValue): TableValue = {
     val hc = HailContext.get
     val sc = hc.sc
 
@@ -32,7 +33,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)
 
-    val rowMatrix = mv.toRowMatrix(entryField)
+    val rowMatrix = mv.toRowMatrix(fs, entryField)
     val indexedRows = rowMatrix.rows.map { case (i, a) => IndexedRow(i, Vectors.dense(a)) }
       .cache()
     val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)

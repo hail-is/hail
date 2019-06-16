@@ -9,6 +9,7 @@ import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
+import is.hail.io.fs.FS
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
@@ -16,10 +17,7 @@ import org.apache.spark.sql.Row
 case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
-  def execute(mv: MatrixValue): Any = {
-
-    val fs = HailContext.sFS
-
+  def execute(fs: FS, mv: MatrixValue): Any = {
     fs.delete(path, recursive = true) // overwrite by default
 
     val allColValuesJSON = mv.colValues.value.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray

@@ -38,7 +38,7 @@ object LiftOver {
     uriPath(localChainFile)
   }
 
-  def apply(hc: HailContext, chainFile: String): LiftOver =
+  def apply(fs: FS, chainFile: String): LiftOver =
     new LiftOver(hc.sFS, chainFile)
 }
 

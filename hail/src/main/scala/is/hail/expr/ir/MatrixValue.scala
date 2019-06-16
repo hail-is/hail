@@ -164,10 +164,7 @@ case class MatrixValue(
       s"to $path")
   }
 
-  def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
-    val hc = HailContext.get
-    val fs = hc.sFS
-
+  def write(fs: FS, path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
     val codecSpec =
       if (codecSpecJSONStr != null) {
         implicit val formats = AbstractRVDSpec.formats
@@ -222,7 +219,7 @@ case class MatrixValue(
     )
   }
 
-  def toRowMatrix(entryField: String): RowMatrix = {
+  def toRowMatrix(fs: FS, entryField: String): RowMatrix = {
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -264,7 +261,7 @@ case class MatrixValue(
       }
     }
 
-    new RowMatrix(HailContext.get, rows, nCols, Some(partStarts.last), Some(partCounts))
+    new RowMatrix(fs, rows, nCols, Some(partStarts.last), Some(partCounts))
   }
 
   def typeCheck(): Unit = {
@@ -291,6 +288,7 @@ case class MatrixValue(
 
 object MatrixValue {
   def writeMultiple(
+    fs: FS,
     mvs: IndexedSeq[MatrixValue],
     prefix: String,
     overwrite: Boolean,
@@ -298,8 +296,7 @@ object MatrixValue {
   ): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
-    val hc = HailContext.get
-    val fs = hc.sFS
+
     val codecSpec = CodecSpec.default
 
     val d = digitsNeeded(mvs.length)

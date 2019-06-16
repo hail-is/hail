@@ -6,6 +6,8 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
 import is.hail.utils._
+import is.hail.io.fs.FS
+
 import org.json4s.jackson
 
 case class MatrixWriteBlockMatrix(path: String,
@@ -14,15 +16,13 @@ case class MatrixWriteBlockMatrix(path: String,
   blockSize: Int) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
-  def execute(mv: MatrixValue): Any = {
+  def execute(fs: FS, mv: MatrixValue): Any = {
     val rvd = mv.rvd
 
     // FIXME
     val partitionCounts = rvd.countPerPartition()
 
-    val hc = HailContext.get
-    val sc = hc.sc
-    val fs = hc.sFS
+    val sc = HailContext.sc
 
     val partStarts = partitionCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)

@@ -82,7 +82,7 @@ class HadoopFileStatus(fs: hadoop.fs.FileStatus) extends FileStatus {
   def getOwner: String = fs.getOwner
 }
 
-class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
+class HadoopFS(val conf: SerializableHadoopConfiguration, var tmpDir: String = "") extends FS {
   private def create(filename: String): OutputStream = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)

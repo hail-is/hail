@@ -35,12 +35,11 @@ object AbstractRVDSpec {
       .extract[AbstractRVDSpec]
   }
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.sFS, path)
+  def read(fs: FS, path: String): AbstractRVDSpec = read(fs, path)
 
-  def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
+  def readLocal(fs: FS, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
     assert(partFiles.length == 1)
 
-    val fs = hc.sFS
     partFiles.flatMap { p =>
       val f = partPath(path, p)
       fs.readFile(f) { in =>
@@ -149,11 +148,11 @@ abstract class AbstractRVDSpec {
     val requestedKey = key.takeWhile(requestedType.hasField)
     val rvdType = RVDType(requestedType, requestedKey)
 
-    RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
+    RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(hc.bcFS, path, encodedType, codecSpec, partFiles, requestedType))
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
-    AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)
+  def readLocal(fs: FS, path: String, requestedType: PStruct): IndexedSeq[Row] =
+    AbstractRVDSpec.readLocal(fs, path, encodedType, codecSpec, partFiles, requestedType)
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>

@@ -70,10 +70,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     filterWithPartitionOp(_ => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
-  def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
-    val hc = HailContext.get
-    val fs = hc.sFS
-
+  def write(fs: FS, path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val codecSpec =
       if (codecSpecJSONStr != null) {
         implicit val formats = AbstractRVDSpec.formats
@@ -93,7 +90,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     fs.mkDir(globalsPath)
     AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
-    val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
+    val partitionCounts = rvd.write(fs, path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
     fs.mkDir(referencesPath)
@@ -121,14 +118,13 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   }
 
-  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
-    val hc = HailContext.get
-    hc.sFS.delete(path, recursive = true)
+  def export(fs: FS, path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
+    fs.delete(path, recursive = true)
 
     val fields = typ.rowType.fields
 
     Option(typesFile).foreach { file =>
-      exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
+      exportTypes(file, fs, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     val localSignature = typ.rowType.physicalType
@@ -147,7 +143,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
         sb.result()
       }
-    }.writeTable(hc.sFS, path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+    }.writeTable(fs, path, fs.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
   }
 
   def persist(storageLevel: StorageLevel): TableValue = copy(rvd = rvd.persist(storageLevel))

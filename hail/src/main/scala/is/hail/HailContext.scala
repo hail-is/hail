@@ -22,7 +22,6 @@ import is.hail.variant.{MatrixTable, ReferenceGenome}
 import is.hail.io.fs.{FS, HadoopFS}
 
 import org.apache.commons.io.FileUtils
-import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
@@ -178,7 +177,8 @@ object HailContext {
     *
     * Otherwise, it initializes and returns a new HailContext.
     */
-  def getOrCreate(sc: SparkContext = null,
+  def getOrCreate(
+    sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
     local: String = "local[*]",
@@ -197,7 +197,7 @@ object HailContext {
           "has already been initialized. Different configuration settings will be ignored.")
       }
       val paramsDiff = (Map(
-        "tmpDir" -> Seq(tmpDir, hc.tmpDir),
+        "tmpDir" -> Seq(tmpDir, hc.sFS.getProperty("tmpDir")),
         "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
         "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
@@ -216,7 +216,8 @@ object HailContext {
     }
   }
 
-  def apply(sc: SparkContext = null,
+  def apply(
+    sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
     local: String = "local[*]",
@@ -366,8 +367,7 @@ object HailContext {
   private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
   private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
 
-  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    val fs = HailContext.get.sFS
+  def maybeGZipAsBGZip[T](fs: FS, force: Boolean)(body: => T): T = {
     if (!force)
       body
     else {
@@ -396,10 +396,12 @@ class HailContext private(
 
   val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   val sFS: FS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+
+  sFS.tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
+
+  info(s"Hail temporary directory: ${sFS.tmpDir}")
+
   val bcFS: Broadcast[FS] = sc.broadcast(sFS)
-  
-  val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
-  info(s"Hail temporary directory: $tmpDir")
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
@@ -421,9 +423,9 @@ class HailContext private(
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
-  def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
+  def grep(fs: FS, regex: String, files: Seq[String], maxLines: Int = 100) {
     val regexp = regex.r
-    sc.textFilesLines(sFS.globAll(files))
+    sc.textFilesLines(fs.globAll(files))
       .filter(line => regexp.findFirstIn(line.value).isDefined)
       .take(maxLines)
       .groupBy(_.source.asInstanceOf[Context].file)
@@ -437,8 +439,8 @@ class HailContext private(
       }
   }
 
-  def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
-    sFS.getTemporaryFile(tmpDir, nChar, prefix, suffix)
+  def getTemporaryFile(fs: FS, nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
+    fs.getTemporaryFile(fs.tmpDir, nChar, prefix, suffix)
 
   def indexBgen(files: java.util.List[String],
     indexFileMap: java.util.Map[String, String],
@@ -453,11 +455,13 @@ class HailContext private(
     rg: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String],
     skipInvalidLoci: Boolean = false) {
-    IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
+    IndexBgen(bcFS, sc, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
-  def importTable(input: String,
+  def importTable(
+    fs: FS,
+    input: String,
     keyNames: Option[IndexedSeq[String]] = None,
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
@@ -469,10 +473,12 @@ class HailContext private(
     quote: java.lang.Character = null,
     skipBlankLines: Boolean = false,
     forceBGZ: Boolean = false
-  ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
+  ): Table = importTables(fs, List(input), keyNames, nPartitions, types, comment,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
-  def importTables(inputs: Seq[String],
+  def importTables(
+    fs: FS,
+    inputs: Seq[String],
     keyNames: Option[IndexedSeq[String]] = None,
     nPartitions: Option[Int] = None,
     types: Map[String, Type] = Map.empty[String, Type],
@@ -486,11 +492,11 @@ class HailContext private(
     forceBGZ: Boolean = false): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
-    val files = sFS.globAll(inputs)
+    val files = fs.globAll(inputs)
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
+    HailContext.maybeGZipAsBGZip(fs, forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
         skipBlankLines).keyBy(keyNames)
@@ -505,6 +511,7 @@ class HailContext private(
     read(file, dropSamples, dropVariants)
 
   def readPartitions[T: ClassTag](
+    bcFS: Broadcast[FS],
     path: String,
     partFiles: Array[String],
     read: (Int, InputStream, InputMetrics) => Iterator[T],
@@ -529,6 +536,7 @@ class HailContext private(
   }
 
   def readRows(
+    bcFS: Broadcast[FS],
     path: String,
     t: PStruct,
     codecSpec: CodecSpec,
@@ -536,7 +544,7 @@ class HailContext private(
     requestedType: PStruct
   ): ContextRDD[RVDContext, RegionValue] = {
     val makeDec = codecSpec.buildDecoder(t, requestedType)
-    ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
+    ContextRDD.weaken[RVDContext](readPartitions(bcFS, path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)
         val (is, m) = it.next
@@ -555,7 +563,9 @@ class HailContext private(
     JsonMethods.compact(Extraction.decompose(metadata))
   }
 
-  def importMatrix(files: java.util.List[String],
+  def importMatrix(
+    fs: FS,
+    files: java.util.List[String],
     rowFields: java.util.Map[String, String],
     keyNames: java.util.List[String],
     cellType: String,
@@ -564,10 +574,12 @@ class HailContext private(
     noHeader: Boolean,
     forceBGZ: Boolean,
     sep: String = "\t"): MatrixIR =
-    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
+    importMatrices(fs, files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
       IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
-  def importMatrices(files: Seq[String],
+  def importMatrices(
+    fs: FS,
+    files: Seq[String],
     rowFields: Map[String, Type],
     keyNames: Array[String],
     cellType: Type,
@@ -578,10 +590,10 @@ class HailContext private(
     sep: String = "\t"): MatrixIR = {
     assert(sep.length == 1)
 
-    val inputs = sFS.globAll(files)
+    val inputs = fs.globAll(files)
 
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
+    HailContext.maybeGZipAsBGZip(fs, forceBGZ) {
+      LoadMatrix(fs, this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }
 
