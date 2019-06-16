@@ -56,8 +56,8 @@ os.makedirs(css_path, exist_ok=True)
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 
-def read_string(f):
-    with open(f, 'r') as f:
+def read_string(f, encoding = 'r'):
+    with open(f, encoding) as f:
         return f.read().strip()
 
 
@@ -69,13 +69,15 @@ AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
 
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
+SESSION_SECRET_KEY = read_string('/notebook-secrets/session-secret-key', 'rb')
+
 INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = secrets.token_bytes(16),
+    SECRET_KEY = SESSION_SECRET_KEY,
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
