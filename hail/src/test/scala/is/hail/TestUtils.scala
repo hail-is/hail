@@ -531,7 +531,7 @@ object TestUtils {
       },
       nPartitions)
 
-    MatrixTable.fromLegacy(hc, MatrixType.fromParts(
+    MatrixTable.fromLegacy(hc, MatrixType(
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),

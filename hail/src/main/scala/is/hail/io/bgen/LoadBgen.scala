@@ -321,7 +321,7 @@ object MatrixBGENReader {
       (includeDosage, "dosage" -> +TFloat64()))
       .withFilter(_._1).map(_._2)
 
-    MatrixType.fromParts(
+    MatrixType(
       globalType = TStruct.empty(),
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),

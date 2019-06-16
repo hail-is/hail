@@ -1494,7 +1494,7 @@ case class MatrixVCFReader(
   private val locusType = TLocus.schemaFromRG(referenceGenome)
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
-  val fullMatrixType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
@@ -1635,7 +1635,7 @@ class VCFsReader(
 
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
-  val typ = MatrixType.fromParts(
+  val typ = MatrixType(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),

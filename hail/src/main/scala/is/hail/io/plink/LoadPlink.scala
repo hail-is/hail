@@ -178,7 +178,7 @@ case class MatrixPLINKReader(
 
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  val fullMatrixType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty(),
     colKey = Array("s"),
     colType = saSignature,

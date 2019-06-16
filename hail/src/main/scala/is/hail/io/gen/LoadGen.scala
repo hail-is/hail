@@ -155,7 +155,7 @@ case class MatrixGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def fullMatrixType: MatrixType = MatrixType.fromParts(
+  def fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty(),
     colKey = Array("s"),
     colType = TStruct("s" -> TString()),
