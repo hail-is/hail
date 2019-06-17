@@ -890,6 +890,13 @@ async def _get_batch(batch_id, user):
     return await batch.to_dict(include_jobs=True)
 
 
+async def _cancel_batch(batch_id, user):
+    batch = await Batch.from_db(batch_id, user)
+    if not batch:
+        abort(404)
+    await batch.cancel()
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @authenticated_users_only
 async def get_batch(request, userdata):
@@ -903,11 +910,7 @@ async def get_batch(request, userdata):
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    await batch.cancel()
+    await _cancel_batch(batch_id, user)
     return jsonify({})
 
 
@@ -934,6 +937,23 @@ async def ui_batch(request, userdata):
     return {'batch': batch}
 
 
+@routes.post('/batches/{batch_id}/cancel')
+@aiohttp_jinja2.template('batches.html')
+@authenticated_users_only
+async def ui_cancel_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+
+    token = request.query.get('_csrf')
+    if not await db.tokens.has_token(token):
+        abort(404)
+
+    await _cancel_batch(batch_id, user)
+
+    location = request.app.router['batches'].url_for()
+    raise web.HTTPFound(location=location)
+
+
 @routes.get('/batches', name='batches')
 @aiohttp_jinja2.template('batches.html')
 @authenticated_users_only
@@ -941,7 +961,8 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    return {'batch_list': batches}
+    token = await db.tokens.new_token()
+    return {'batch_list': batches, 'token': token}
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
