@@ -1,0 +1,8 @@
+/builder.log
+/Dockerfile.out
+*.pyc
+**/__pycache__
+flycheck_*.py
+*_flymake.py
+/flake8-stmp
+/pylint-stmp

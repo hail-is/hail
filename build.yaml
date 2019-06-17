@@ -157,7 +157,7 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
-   name: ci_utils_image
+   name: builder_utils_image
    dockerFile: ci/Dockerfile.ci-utils
    contextPath: ci
    publishAs: ci-utils
@@ -458,7 +458,7 @@ steps:
    dependsOn:
     - default_ns
     - ci_image
-    - ci_utils_image
+    - builder_utils_image
     - create_accounts
     - ci_database
     - create_ci_tables
