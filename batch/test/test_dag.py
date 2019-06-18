@@ -220,13 +220,13 @@ def test_always_run_cancel(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 3
-    assert batch_status_job_counter(status, 'Cancelled') == 1
+    assert batch_status_job_counter(status, 'Success') == 3, status
+    assert batch_status_job_counter(status, 'Cancelled') == 1, status
 
     for node in [head, right, tail]:
         status = node.status()
-        assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert status['state'] == 'Success', status
+        assert status['exit_code']['main'] == 0, status
 
 
 def test_always_run_error(client):
@@ -243,5 +243,5 @@ def test_always_run_error(client):
 
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
-        assert status['state'] == state
-        assert status['exit_code']['main'] == ec
+        assert status['state'] == state, status
+        assert status['exit_code']['main'] == ec, status

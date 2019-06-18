@@ -231,7 +231,7 @@ class BatchBuilder:
                     parent_ids.append(job._job_id)
             else:
                 foreign_batches.append(job)
-        
+
         error_msg = []
         if len(foreign_batches) != 0:
             error_msg.append('Found {} parents from another batch:\n{}'.format(str(len(foreign_batches)),

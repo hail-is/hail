@@ -4,8 +4,7 @@ from ..database import Database, Table, make_where_statement
 class BatchBuilder:
     jobs_fields = {'batch_id', 'job_id', 'state', 'pod_name',
                    'pvc_name', 'pvc_size', 'callback', 'attributes',
-                   'tasks', 'task_idx', 'always_run', 'duration',
-                   'userdata', 'user'}
+                   'tasks', 'task_idx', 'always_run', 'duration'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
@@ -23,8 +22,9 @@ class BatchBuilder:
 
         self.n_jobs = n_jobs
 
-    def close(self):
+    async def close(self):
         if self._conn is not None:
+            await self._conn.autocommit(True)
             self._db.pool.release(self._conn)
             self._conn = None
         self._is_open = False
@@ -36,7 +36,6 @@ class BatchBuilder:
 
         self._conn = await self._db.pool.acquire()
         await self._conn.autocommit(False)
-
         await self._conn.begin()
 
         sql = self._db.batch.new_record_template(*items)
@@ -47,12 +46,12 @@ class BatchBuilder:
 
     def create_job(self, **items):
         assert self._is_open
-        assert set(items) == BatchBuilder.jobs_fields
+        assert set(items) == BatchBuilder.jobs_fields, set(items)
         self._jobs.append(dict(items))
 
     def create_job_parent(self, **items):
         assert self._is_open
-        assert set(items) == BatchBuilder.jobs_parents_fields
+        assert set(items) == BatchBuilder.jobs_parents_fields, set(items)
         self._jobs_parents.append(dict(items))
 
     async def commit(self):
@@ -74,8 +73,12 @@ class BatchBuilder:
                     self._log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                     return False
 
-        await self._conn.commit()
-        return True
+        try:
+            await self._conn.commit()
+            return True
+        except:
+            self._log.info(f'committing to database failed')
+            return False
 
 
 class BatchDatabase(Database):
@@ -202,7 +205,7 @@ class JobsTable(Table):
                 sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
                           WHERE {where_template}"""
-                await cursor.execute(sql, tuple(where_values))
+                await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
 
     async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code, **items):

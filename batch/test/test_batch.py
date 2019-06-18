@@ -152,13 +152,13 @@ class Test(unittest.TestCase):
         b = b.submit()
 
         status = j.status()
-        self.assertTrue(status['state'] in ('Ready', 'Running'))
+        assert status['state'] in ('Ready', 'Running'), status
 
         b.cancel()
 
-        status = j.status()
-        self.assertTrue(status['state'], 'Cancelled')
-        self.assertTrue('log' not in status)
+        status = j.wait()
+        assert status['state'] == 'Cancelled', status
+        assert 'log' not in status, status
 
         # cancelled job has no log
         try:

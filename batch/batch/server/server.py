@@ -417,7 +417,6 @@ class Job:
         self._cancelled = cancelled
 
     async def run(self):
-        log.info('created job {}'.format(self.id))
         parents = await db.jobs.get_parents(*self.id)
         if not parents:
             await self.set_state('Ready')
@@ -863,7 +862,7 @@ async def create_batch(request, userdata):
         if not success:
             abort(400, f'batch creation failed')
     finally:
-        batch_builder.close()
+        await batch_builder.close()
 
     end_time = time.time()
     elapsed_time = round(end_time - start_time, 4)
