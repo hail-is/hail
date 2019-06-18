@@ -70,8 +70,8 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
             if (localHeaderJsonInFile) {
               f.write('#')
               f.write(colValuesJSON.value(jj))
+              f.write('\n')
             }
-            f.write('\n')
             f.write(header)
             f.write('\n')
           }
