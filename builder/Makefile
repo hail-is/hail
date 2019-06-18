@@ -35,7 +35,8 @@ push: build
 else
 build:
 	make -C ../docker build
-	docker build -t builder -f Dockerfile .
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	docker build -t builder -f Dockerfile.out .
 endif
 
 clean:
