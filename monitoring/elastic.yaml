@@ -151,10 +151,11 @@ metadata:
   labels:
     app: kibana
 data:
-  #The contents of this kibana.yml file are clearly currently incorrect.
+  #The contents of this kibana.yml file are likely currently incorrect / insufficient
   kibana.yml: |-
-    server.name: "internal.hail.is"
-    server.host: "internal.hail.is"
+    server:
+      basePath: "/kibana"
+      host: 0.0.0.0
 ---
 apiVersion: v1
 kind: ServiceAccount
