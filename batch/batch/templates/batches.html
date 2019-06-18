@@ -17,7 +17,7 @@
       <tbody>
         {% for batch in batch_list %}
         <tr>
-          <td><a href="/ui/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+          <td><a href="/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
           <td>
             {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
             {{ batch['attributes']['name'] }}

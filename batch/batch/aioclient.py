@@ -149,7 +149,7 @@ class SubmittedJob:
         return state in complete_states
 
     async def status(self):
-        self._status = await self._batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}')
+        self._status = await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}')
         return self._status
 
     async def wait(self):
@@ -164,7 +164,7 @@ class SubmittedJob:
                 i = i + 1
 
     async def log(self):
-        return await self._batch._client._get(f'/batches/{self.batch_id}/jobs/{self.job_id}/log')
+        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
 
 
 class Batch:
@@ -174,10 +174,10 @@ class Batch:
         self.attributes = attributes
 
     async def cancel(self):
-        await self._client._patch(f'/batches/{self.id}/cancel')
+        await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
     async def status(self):
-        return await self._client._get(f'/batches/{self.id}')
+        return await self._client._get(f'/api/v1alpha/batches/{self.id}')
 
     async def wait(self):
         i = 0
@@ -192,7 +192,7 @@ class Batch:
                 i = i + 1
 
     async def delete(self):
-        await self._client._delete(f'/batches/{self.id}')
+        await self._client._delete(f'/api/v1alpha/batches/{self.id}')
 
 
 class BatchBuilder:
@@ -311,7 +311,7 @@ class BatchBuilder:
         if len(self._job_docs) != 0:
             doc['jobs'] = self._job_docs
 
-        b = await self._client._post('/batches/create', json=doc)
+        b = await self._client._post('/api/v1alpha/batches/create', json=doc)
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         for j in self._jobs:
@@ -369,7 +369,7 @@ class BatchClient:
 
     async def list_batches(self, complete=None, success=None, attributes=None):
         params = filter_params(complete, success, attributes)
-        batches = await self._get('/batches', params=params)
+        batches = await self._get('/api/v1alpha/batches', params=params)
         return [Batch(self,
                       b['id'],
                       attributes=b.get('attributes'))
@@ -377,7 +377,7 @@ class BatchClient:
 
     async def get_job(self, batch_id, job_id):
         b = await self.get_batch(batch_id)
-        j = await self._get(f'/batches/{batch_id}/jobs/{job_id}')
+        j = await self._get(f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
         return Job.submitted_job(
             b,
             j['job_id'],
@@ -386,7 +386,7 @@ class BatchClient:
             _status=j)
 
     async def get_batch(self, id):
-        b = await self._get(f'/batches/{id}')
+        b = await self._get(f'/api/v1alpha/batches/{id}')
         return Batch(self,
                      b['id'],
                      attributes=b.get('attributes'))
