@@ -544,12 +544,16 @@ class WatchedBranch(Code):
         new_prs = {}
         async for gh_json_pr in gh.getiter(f'/repos/{repo_ss}/pulls?state=open&base={self.branch.name}'):
             number = gh_json_pr['number']
-            if self.prs is not None and number in self.prs:
-                pr = self.prs[number]
-                pr.update_from_gh_json(gh_json_pr)
-            else:
-                pr = PR.from_gh_json(gh_json_pr, self)
-            new_prs[number] = pr
+            try:
+                if self.prs is not None and number in self.prs:
+                    pr = self.prs[number]
+                    pr.update_from_gh_json(gh_json_pr)
+                else:
+                    pr = PR.from_gh_json(gh_json_pr, self)
+                new_prs[number] = pr
+            except Exception as err:  # pylint: disable=broad-except
+                log.info(f'could not update pr {number}: {err}')
+                continue
         self.prs = new_prs
 
         for pr in new_prs.values():
