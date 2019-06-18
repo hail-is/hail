@@ -104,7 +104,8 @@ metadata:
     app: kibana
 spec:
   ports:
-    - port: 5601
+    - port: 80
+      targetPort: 5601
   selector:
     app: kibana
 ---
@@ -154,7 +155,7 @@ data:
   #The contents of this kibana.yml file are likely currently incorrect / insufficient
   kibana.yml: |-
     server:
-      basePath: "/kibana"
+      basePath: /monitoring/kibana
       host: 0.0.0.0
 ---
 apiVersion: v1

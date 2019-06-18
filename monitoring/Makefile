@@ -17,5 +17,6 @@ push: build
 
 deploy: push
 	kubectl apply -f monitoring.yaml
+	kubectl apply -f elastic.yaml
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"monitoring_router_image":{"image":"$(MONITORING_ROUTER_IMAGE)"}}' router.yaml router.yaml.out
 	kubectl apply -f router.yaml.out
