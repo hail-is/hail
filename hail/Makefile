@@ -149,6 +149,7 @@ local_sha_location := build/deploy/latest-hash-spark-$(SPARK_VERSION).txt
 cloud_sha_location := gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
 .PHONY: set-docs-sha
 set-docs-sha:
+	mkdir -p $(dir $(local_sha_location))
 	gsutil ls $(docs_location)  # make sure file exists
 	echo "$(REVISION)" > $(local_sha_location)
 	gsutil cp $(local_sha_location) $(cloud_sha_location)
