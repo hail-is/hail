@@ -24,7 +24,7 @@ class SubmitterThread(host: String, token: Array[Byte], q: LinkedBlockingQueue[O
     var s = socket
     if (s == null) {
       s = new DataSocket(new Socket(host, 5052))
-      println(s"SubmitterThread.getConnection: connected to $host:5052")
+      info(s"SubmitterThread.getConnection: connected to $host:5052")
       writeByteArray(token, s.out)
       s.out.flush()
       socket = s
@@ -107,7 +107,7 @@ class SchedulerAppClient(host: String) {
     var s = socket
     if (s == null) {
       s = new DataSocket(new Socket(host, 5053))
-      println(s"SchedulerAppClient.getConnection: connected to $host:5053")
+      info(s"SchedulerAppClient.getConnection: connected to $host:5053")
       writeByteArray(token, s.out)
       s.out.flush()
       socket = s
@@ -153,6 +153,7 @@ class SchedulerAppClient(host: String) {
 
         val index = s.in.readInt()
         val res = readObject[Any](s.in)
+        log.info(s"SchedulerAppClient.receive: received task result for index $index / $nTasks.")
 
         res match {
           case re: RemoteException =>
@@ -163,13 +164,15 @@ class SchedulerAppClient(host: String) {
             if (!receivedTasks.contains(index)) {
               try {
                 callback(index, res)
-                receivedTasks += index
-                nComplete += 1
               } catch {
                 case e: Exception =>
+                  log.info(s"SchedulerAppClient.receive: got callback exception for task $index / $nTasks:\n$e")
                   callbackExc = e
               }
+              receivedTasks += index
+              nComplete += 1
             }
+            log.info(s"SchedulerAppClient.receive: tasks completed: $nComplete / $nTasks.")
             sendAckTask(s, index)
         }
       }
