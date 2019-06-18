@@ -13,7 +13,7 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 
-case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, header_json_in_file: Boolean) extends MatrixToValueFunction {
+case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, headerJsonInFile: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(mv: MatrixValue): Any = {
@@ -45,6 +45,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       val bcFS = HailContext.bcFS
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
+      val localHeaderJsonInFile = headerJsonInFile
 
       val colValuesJSON = HailContext.backend.broadcast(
         (startIdx until endIdx)
@@ -66,7 +67,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
             ).mkString("\t")
 
           fileHandles.zipWithIndex.foreach { case (f, jj) =>
-            if (header_json_in_file) {
+            if (localHeaderJsonInFile) {
               f.write('#')
               f.write(colValuesJSON.value(jj))
             }

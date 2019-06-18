@@ -74,5 +74,5 @@ def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, 
                                   'parallelism': batch_size,
                                   'path': path,
                                   'bgzip': bgzip,
-                                  'header_json_in_file': header_json_in_file})
+                                  'headerJsonInFile': header_json_in_file})
     )
