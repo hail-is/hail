@@ -138,11 +138,15 @@ spec:
               cpu: 1000m
             requests:
               cpu: 100m
+          volumeMounts:
+            - name: kibana-config-volume
+              mountPath: /usr/share/kibana/config
           env:
             - name: ELASTICSEARCH_URL
               value: http://elasticsearch:9200
           ports:
-            - containerPort: 5601
+            - name: http
+              containerPort: 5601
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -152,11 +156,12 @@ metadata:
   labels:
     app: kibana
 data:
-  #The contents of this kibana.yml file are likely currently incorrect / insufficient
   kibana.yml: |-
     server:
       basePath: /monitoring/kibana
       host: 0.0.0.0
+    elasticsearch:
+      hosts: "http://elasticsearch:9200"
 ---
 apiVersion: v1
 kind: ServiceAccount
