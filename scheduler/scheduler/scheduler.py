@@ -71,7 +71,7 @@ available_executors = set()
 
 clients = set()
 
-jobs = []
+jobs = {}
 pending_jobs = set()
 
 task_index = {}
@@ -126,7 +126,7 @@ class ExecutorConnection:
 
             duration = datetime.datetime.now() - t.start_time
             log.info(f'executor {self.id}: '
-                     f'task {t.job.id}/{t.id} complete: {duration}')
+                     f'task {t.id} for job {t.job.id} complete: {duration}')
 
             t.set_result(res)
 
@@ -141,7 +141,7 @@ class ExecutorConnection:
         log.info(f'executor {self.id}: received ping')
 
     async def execute(self, t):
-        log.info(f'schedule task {t.job.id}/{t.id} on executor {self.id}')
+        log.info(f'schedule task {t.id} for job {t.job.id} on executor {self.id}')
 
         # FIXME time this attempt
         t.start_time = datetime.datetime.now()
@@ -209,9 +209,12 @@ async def executor_connected_cb(reader, writer):
 
 
 class Job:
-    def __init__(self, client, n_tasks):
+    def __init__(self, client, token, n_tasks):
         self.id = create_id()
+        self.token = token
         self.client = client
+        self.start_time = datetime.datetime.utcnow()
+        self.end_time = None
 
         self.n_tasks = n_tasks
         self.n_submitted = 0
@@ -219,7 +222,7 @@ class Job:
         self.pending_tasks = []
         self.complete_tasks = set()
 
-        jobs.append(self)
+        jobs[token] = self
 
     async def add_task(self, f, index):
         assert index == self.n_submitted
@@ -242,7 +245,8 @@ class Job:
         t.ack()
 
         if self.is_complete():
-            self.client.end_job()
+            self.client.end_job(self.token)
+            self.end_time = datetime.datetime.utcnow()
 
     def is_complete(self):
         return (self.n_submitted == self.n_tasks) and (not self.index_task)
@@ -251,12 +255,18 @@ class Job:
         n_acknowleged = self.n_submitted - len(self.index_task)
         n_complete = n_acknowleged + len(self.complete_tasks)
         n_running = (self.n_submitted - n_complete) - len(self.pending_tasks)
+        timef = '%Y-%m-%dT%H:%M:%S.%fZ'
+        start_string = self.start_time.strftime(timef)
+        end_string = '--' if self.end_time is None else self.end_time.strftime(timef)
         return {
+            'client': self.client.id,
             'id': self.id,
             'n_tasks': self.n_tasks,
             'n_submitted': self.n_submitted,
             'n_complete': n_complete,
-            'n_running': n_running
+            'n_running': n_running,
+            'start_time': start_string,
+            'end_time': end_string
         }
 
 
@@ -280,7 +290,7 @@ class Task:
         result_conn = self.job.client.result_conn
         if result_conn:
             asyncio.ensure_future(
-                result_conn.task_result(self.index, self.result))
+                result_conn.task_result(self.job.token, self.index, self.result))
 
     def ack(self):
         self.result = None
@@ -303,9 +313,11 @@ class ClientSubmitConnection:
         self.writer = writer
 
     async def handle_submit(self):
+        job_token = await read_bytes(self.reader)
+        log.info(f'received job')
         n = await read_int(self.reader)
 
-        j = self.client.start_job(n)
+        j = self.client.start_job(job_token, n)
         write_int(self.writer, j.n_submitted)
         await self.writer.drain()
 
@@ -317,6 +329,7 @@ class ClientSubmitConnection:
 
         # ack
         write_int(self.writer, 0)
+        write_bytes(self.writer, job_token)
         await self.writer.drain()
 
         log.info(f'job {j.id}, {n} tasks submitted')
@@ -352,13 +365,16 @@ class ClientResultConnection:
         self.writer = writer
 
     async def handle_ack_task(self):
+        job_token = await read_bytes(self.reader)
         index = await read_int(self.reader)
-        j = self.client.job
-        if j:
+        
+        j = jobs.get(job_token)
+        if j is not None:
             j.ack_task(index)
 
-    async def task_result(self, index, result):
+    async def task_result(self, job_token, index, result):
         write_int(self.writer, APPTASKRESULT)
+        write_bytes(self.writer, job_token)
         write_int(self.writer, index)
         write_bytes(self.writer, result)
         await self.writer.drain()
@@ -400,13 +416,15 @@ class Client:
         clients.add(self)
         log.info(f'client {self.id} created')
 
-    def start_job(self, n):
+    def start_job(self, job_token, n):
+        self.job = jobs.get(job_token)
         if self.job is None:
-            self.job = Job(self, n)
+            self.job = Job(self, job_token, n)
         return self.job
 
-    def end_job(self):
-        self.job = None
+    def end_job(self, job_token):
+        if self.job is not None and self.job.token == job_token:
+            self.job = None
 
     def set_submit_conn(self, reader, writer):
         if self.submit_conn:
@@ -470,7 +488,7 @@ async def index(request):  # pylint: disable=unused-argument
     return {
         'executors': [e.to_dict() for e in executors],
         'clients': [client.to_dict() for client in clients],
-        'jobs': [j.to_dict() for j in reversed(jobs)]
+        'jobs': [j.to_dict() for j in reversed(list(jobs.values()))]
     }
 
 
