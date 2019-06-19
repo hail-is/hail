@@ -2,6 +2,8 @@ package is.hail.backend
 
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.backend.spark.SparkBackend
+import is.hail.expr.ir.IRParser
+import is.hail.io.CodecSpec
 import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, IR, MakeTuple, Pretty}
@@ -92,6 +94,37 @@ abstract class Backend {
     timings.logInfo()
 
     Serialization.write(Map("value" -> jsonValue, "timings" -> timings.value))(new DefaultFormats {})
+  }
+
+  def encode(ir0: IR, codecString: String): (String, Array[Byte]) = {
+    val codec = CodecSpec.fromString(codecString)
+    val ir = lower(ir0, None, false)
+
+    if (!Compilable(ir))
+      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ir)}")
+    if (ir.typ == TVoid)
+      throw new LowererUnsupportedOperation(s"lowered to unit-valued IR: ${Pretty(ir)}")
+
+    Region.scoped { region =>
+      val (pt: PTuple, f) = Compile[Long](MakeTuple(FastSeq(ir)))
+      (pt.parsableString(), codec.encode(pt, region, f(0)(region)))
+    }
+  }
+
+  def decodeToJSON(
+    ptypeString: String,
+    bytes: Array[Byte],
+    codecString: String
+  ): String = Region.scoped { region =>
+    val codec = CodecSpec.fromString(codecString)
+    val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
+    JsonMethods.compact(
+      JSONAnnotationImpex.exportAnnotation(
+        SafeRow(
+          pt,
+          region,
+          codec.decode(pt, bytes, region)).get(0),
+        pt.fields(0).typ.virtualType))
   }
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")

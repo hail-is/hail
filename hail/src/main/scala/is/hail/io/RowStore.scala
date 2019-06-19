@@ -152,6 +152,12 @@ object CodecSpec {
 
   val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
+  def fromString(s: String): CodecSpec = s match {
+    case "default" => CodecSpec.default
+    case "defaultUncompressed" => CodecSpec.defaultUncompressed
+    case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
+  }
+
   val baseBufferSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
@@ -177,12 +183,22 @@ trait CodecSpec extends Serializable {
   type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
   type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
 
-
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+
+  def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
+    baos.toByteArray()
+  }
+
+  def decode(t: PType, bytes: Array[Byte], region: Region): Long = {
+    val bais = new ByteArrayInputStream(bytes)
+    buildDecoder(t, t)(bais).readRegionValue(region)
+  }
 
   def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
 
