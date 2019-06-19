@@ -53,6 +53,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
 
   val abs = new MissingArrayBuilder[String]
   val abi = new MissingArrayBuilder[Int]
+  val abf = new MissingArrayBuilder[Float]
   val abd = new MissingArrayBuilder[Double]
 
   def parseError(msg: String): Unit = throw new VCFParseError(msg, pos)
@@ -532,6 +533,11 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
     line.substring(start, end)
   }
 
+  def parseFloatInFormatArray(): Float = {
+    val s = parseStringInFormatArray()
+    s.toFloat
+  }
+
   def parseDoubleInFormatArray(): Double = {
     val s = parseStringInFormatArray()
     s.toDouble
@@ -556,6 +562,17 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       pos += 1
     } else {
       abi += parseIntInFormatArray()
+    }
+  }
+
+  def parseFloatArrayElement() {
+    if (formatArrayElementMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
+      abf.addMissing()
+      pos += 1
+    } else {
+      abf += parseFloatInFormatArray()
     }
   }
 
@@ -632,6 +649,31 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       rvb.endArray()
 
       abs.clear()
+    }
+  }
+
+  def parseAddFormatArrayFloat(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else {
+      assert(abf.length == 0)
+
+      parseFloatArrayElement()
+      while (!endFormatField()) {
+        pos += 1 // comma
+        parseFloatArrayElement()
+      }
+
+      rvb.startArray(abf.length)
+      var i = 0
+      while (i < abf.length) {
+        rvb.addFloat(abf(i))
+        i += 1
+      }
+      rvb.endArray()
+
+      abf.clear()
     }
   }
 
@@ -955,6 +997,8 @@ class FormatParser(
           l.parseAddFormatString(rvb)
         case TArray(TInt32(_), _) =>
           l.parseAddFormatArrayInt(rvb)
+        case TArray(TFloat32(_), _) =>
+          l.parseAddFormatArrayFloat(rvb)
         case TArray(TFloat64(_), _) =>
           l.parseAddFormatArrayDouble(rvb)
         case TArray(TString(_), _) =>
@@ -1085,7 +1129,7 @@ object LoadVCF {
     line: VCFCompoundHeaderLine,
     i: Int,
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
@@ -1093,7 +1137,7 @@ object LoadVCF {
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt32()
-      case (VCFHeaderLineType.Float, false) => entryFloatType
+      case (VCFHeaderLineType.Float, false) => floatType
       case (VCFHeaderLineType.String, true) => TCall()
       case (VCFHeaderLineType.String, false) => TString()
       case (VCFHeaderLineType.Character, false) => TString()
@@ -1120,12 +1164,12 @@ object LoadVCF {
   def headerSignature[T <: VCFCompoundHeaderLine](
     lines: java.util.Collection[T],
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     arrayElementsRequired: Boolean = false
   ): (TStruct, VCFAttributes, Set[String]) = {
     val (fields, attrs, flags) = lines
       .zipWithIndex
-      .map { case (line, i) => headerField(line, i, callFields, entryFloatType, arrayElementsRequired) }
+      .map { case (line, i) => headerField(line, i, callFields, floatType, arrayElementsRequired) }
       .unzip3
 
     val flagFieldNames = fields.zip(flags)
@@ -1137,7 +1181,7 @@ object LoadVCF {
 
   def parseHeader(
     callFields: Set[String],
-    entryFloatType: TNumeric,
+    floatType: TNumeric,
     lines: Array[String],
     arrayElementsRequired: Boolean = true
   ): VCFHeaderInfo = {
@@ -1157,10 +1201,10 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, entryFloatType)
+    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, callFields, TFloat64())
 
     val formatHeader = header.getFormatHeaderLines
-    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, entryFloatType, arrayElementsRequired = arrayElementsRequired)
+    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, callFields, floatType, arrayElementsRequired = arrayElementsRequired)
 
     val vaSignature = TStruct(Array(
       Field("rsid", TString(), 0),

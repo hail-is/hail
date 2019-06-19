@@ -11,10 +11,36 @@ from hail.utils import new_temp_file, FatalError, run_command, uri_path
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
+_FLOAT_INFO_FIELDS = [
+    'BaseQRankSum',
+    'ClippingRankSum',
+    'FS',
+    'GQ_MEAN',
+    'GQ_STDDEV',
+    'HWP',
+    'HaplotypeScore',
+    'InbreedingCoeff',
+    'MQ',
+    'MQRankSum',
+    'QD',
+    'ReadPosRankSum',
+    'VQSLOD',
+]
+
+_FLOAT_ARRAY_INFO_FIELDS = ['AF', 'MLEAF']
+
 
 class VCFTests(unittest.TestCase):
     def test_info_char(self):
         self.assertEqual(hl.import_vcf(resource('infochar.vcf')).count_rows(), 1)
+
+    def test_info_float64(self):
+        """Test that floating-point info fields are 64-bit regardless of the entry float type"""
+        mt = hl.import_vcf(resource('infochar.vcf'), entry_float_type=hl.tfloat32)
+        for f in _FLOAT_INFO_FIELDS:
+            self.assertEqual(mt['info'][f].dtype, hl.tfloat64)
+        for f in _FLOAT_ARRAY_INFO_FIELDS:
+            self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
@@ -125,6 +151,12 @@ class VCFTests(unittest.TestCase):
     def test_import_vcf_can_import_float_array_format(self):
         mt = hl.import_vcf(resource('floating_point_array.vcf'))
         self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.numeric_array == [1.5, 2.5])))
+        self.assertEqual(hl.tarray(hl.tfloat64), mt['numeric_array'].dtype)
+
+    def test_import_vcf_can_import_float32_array_format(self):
+        mt = hl.import_vcf(resource('floating_point_array.vcf'), entry_float_type=hl.tfloat32)
+        self.assertTrue(mt.aggregate_entries(hl.agg.all(mt.numeric_array == [1.5, 2.5])))
+        self.assertEqual(hl.tarray(hl.tfloat32), mt['numeric_array'].dtype)
 
     def test_import_vcf_can_import_negative_numbers(self):
         mt = hl.import_vcf(resource('negative_format_fields.vcf'))
