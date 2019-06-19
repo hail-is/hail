@@ -2,10 +2,14 @@ import os
 import math
 import time
 import random
+import aiohttp
 
 import hailjwt as hj
 
 from .globals import complete_states
+
+
+job_array_size = 50
 
 
 def filter_params(complete, success, attributes):
@@ -335,16 +339,29 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        doc = {}
-        if self.attributes:
-            doc['attributes'] = self.attributes
-        if self.callback:
-            doc['callback'] = self.callback
+        with aiohttp.MultipartWriter('batch') as mpwriter:
+            batch_doc = {'n_jobs': len(self._job_docs)}
+            if self.attributes:
+                batch_doc['attributes'] = self.attributes
+            if self.callback:
+                batch_doc['callback'] = self.callback
+            mpwriter.append_json(batch_doc)
 
-        if len(self._job_docs) != 0:
-            doc['jobs'] = self._job_docs
+            docs = []
+            n = 0
+            for jdoc in self._job_docs:
+                n += 1
+                docs.append(jdoc)
+                if n == job_array_size:
+                    mpwriter.append_json({'jobs': docs})
+                    n = 0
+                    docs = []
 
-        b = await self._client._post('/api/v1alpha/batches/create', json=doc)
+            if docs:
+                mpwriter.append_json({'jobs': docs})
+
+            b = await self._client._post_data('/api/v1alpha/batches/create', data=mpwriter)
+
         batch = Batch(self._client, b['id'], b.get('attributes'))
 
         for j in self._jobs:
@@ -386,6 +403,11 @@ class BatchClient:
     async def _get(self, path, params=None):
         response = await self._session.get(
             self.url + path, params=params, cookies=self._cookies, headers=self._headers)
+        return await response.json()
+
+    async def _post_data(self, path, data=None):
+        response = await self._session.post(
+            self.url + path, data=data, cookies=self._cookies, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):
