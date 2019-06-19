@@ -425,7 +425,6 @@ class UnionCoercer(ExprCoercer):
     def _coerce(self, x: Expression):
         assert isinstance(x, hl.expr.StructExpression)
         assert list(x.keys()) == list(self.cases.keys())
-        # return hl.union(**{name: c.coerce(x[name]) for name, c in self.cases.items()})
         raise NotImplementedError()
 
 

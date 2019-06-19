@@ -54,7 +54,7 @@ object TUnion {
 
 final case class TUnion(cases: IndexedSeq[Case], override val required: Boolean = false) extends Type {
   lazy val physicalType: PType = ???
-
+  
   lazy val types: Array[Type] = cases.map(_.typ).toArray
 
   lazy val caseIdx: collection.Map[String, Int] = toMapFast(cases)(_.name, _.index)

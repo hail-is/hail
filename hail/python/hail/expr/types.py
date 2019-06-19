@@ -1024,11 +1024,22 @@ class tstruct(HailType, Mapping):
 class tunion(HailType, Mapping):
     @typecheck_method(case_types=hail_type)
     def __init__(self, **case_types):
+        """Tagged union type.  Values of type union represent one of several
+        heterogenous, named cases.
+
+        Parameters
+        ----------
+        cases : keyword args of :class:`.HailType`
+            The union cases.
+
+        """
+
         self._case_types = case_types
         self._cases = tuple(case_types)
 
     @property
     def cases(self):
+
         """Return union case names.
 
         Returns
