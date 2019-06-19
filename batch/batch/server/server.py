@@ -76,7 +76,7 @@ else:
     kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
-app = web.Application(client_max_size=1024**4)
+app = web.Application(client_max_size=None)
 routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
