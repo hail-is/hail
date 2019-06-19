@@ -70,7 +70,7 @@ async def index(request):  # pylint: disable=unused-argument
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
             'prs': pr_configs,
-            'status_Age': wb.pretty_status_age(),
+            'status_age': wb.pretty_status_age(),
         }
         wb_configs.append(wb_config)
 
