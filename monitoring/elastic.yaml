@@ -141,9 +141,6 @@ spec:
           volumeMounts:
             - name: kibana-config-volume
               mountPath: /usr/share/kibana/config
-          env:
-            - name: ELASTICSEARCH_URL
-              value: http://elasticsearch:9200
           ports:
             - name: http
               containerPort: 5601
