@@ -96,7 +96,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
       os
   }
 
-  private def createNoCompresion(filename: String): FSDataOutputStream = {
+  private def createNoCompression(filename: String): FSDataOutputStream = {
     val fs = _fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     return fs.create(hPath)
@@ -407,7 +407,7 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     using(openNoCompression(filename))(f)
 
   def writeFileNoCompression[T](filename: String)(f: (FSDataOutputStream) => T): T =
-    using(createNoCompresion(filename))(f)
+    using(createNoCompression(filename))(f)
 
   def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
     readFile[T](filename) {

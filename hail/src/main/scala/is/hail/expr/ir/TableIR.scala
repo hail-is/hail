@@ -846,7 +846,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         scanInitOps(0)(region, scanAggs, globals, false)
       }
 
-      val scanAggsPerPartition = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+      val scannedAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
         val globals =
           if (scanSeqNeedsGlobals) {
             val rvb = new RegionValueBuilder(ctx.freshRegion)
@@ -870,20 +870,20 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }
 
-      val partitionIndices = new Array[Long](tv.rvd.getNumPartitions + 1)
-      var i = 0
+      val scanAggCount = tv.rvd.getNumPartitions
+      val partitionIndices = new Array[Long](scanAggCount)
       val scanAggsPerPartitionFile = hc.getTemporaryFile()
       HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
-        scanAggsPerPartition.foreach { x =>
-          partitionIndices(i) = os.getPos
-          i += 1
-          val oos = new ObjectOutputStream(os)
-          oos.writeObject(x)
-          oos.flush()
+        scannedAggs.zipWithIndex.foreach { case (x, i) =>
+          if (i < scanAggCount) {
+            partitionIndices(i) = os.getPos
+            // https://github.com/hail-is/hail/pull/6345#issuecomment-503757307
+            val oos = new ObjectOutputStream(os)
+            oos.writeObject(x)
+            oos.flush()
+          }
         }
       }
-
-      assert(i == tv.rvd.getNumPartitions + 1, s"${i} ${tv.rvd.getNumPartitions + 1}")
 
       val bcFS = HailContext.get.bcFS
       val itF = { (i: Int, ctx: RVDContext, filePosition: Long, it: Iterator[RegionValue]) =>
