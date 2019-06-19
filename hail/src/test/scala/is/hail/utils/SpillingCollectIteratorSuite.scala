@@ -11,6 +11,6 @@ class SpillingCollectIteratorSuite extends SparkSuite {
     assert(sci.next() == 0)
     assert(sci.hasNext)
     assert(sci.next() == 1)
-    assert(sci.toArray == (2 to 100000))
+    assert(sci.toArray sameElements (2 to 100000))
   }
 }
