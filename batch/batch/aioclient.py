@@ -218,13 +218,29 @@ class BatchBuilder:
             parents = []
 
         parent_ids = []
+        foreign_batches = []
+        invalid_job_ids = []
         for parent in parents:
             job = parent._job
-            if isinstance(job, UnsubmittedJob) and job._batch_builder == self:
-                parent_ids.append(job._job_id)
+            if isinstance(job, UnsubmittedJob):
+                if job._batch_builder != self:
+                    foreign_batches.append(job)
+                elif not 0 < job._job_id < self._job_idx:
+                    invalid_job_ids.append(job)
+                else:
+                    parent_ids.append(job._job_id)
+            else:
+                foreign_batches.append(job)
 
-        if len(parent_ids) != len(parents):
-            raise ValueError("found parents from another batch")
+        error_msg = []
+        if len(foreign_batches) != 0:
+            error_msg.append('Found {} parents from another batch:\n{}'.format(str(len(foreign_batches)),
+                                                                           "\n".join([str(j) for j in foreign_batches])))
+        if len(invalid_job_ids) != 0:
+            error_msg.append('Found {} parents with invalid job ids:\n{}'.format(str(len(invalid_job_ids)),
+                                                                                 "\n".join([str(j) for j in invalid_job_ids])))
+        if error_msg:
+            raise ValueError("\n".join(error_msg))
 
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]

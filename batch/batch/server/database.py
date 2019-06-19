@@ -1,6 +1,86 @@
 from ..database import Database, Table, make_where_statement
 
 
+class BatchBuilder:
+    jobs_fields = {'batch_id', 'job_id', 'state', 'pod_name',
+                   'pvc_name', 'pvc_size', 'callback', 'attributes',
+                   'tasks', 'task_idx', 'always_run', 'duration'}
+
+    jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
+
+    def __init__(self, batch_db, n_jobs, log):
+        self._log = log
+        self._db = batch_db
+        self._conn = None
+        self._batch_id = None
+        self._is_open = True
+        self._jobs = []
+        self._jobs_parents = []
+
+        self._jobs_sql = self._db.jobs.new_record_template(*BatchBuilder.jobs_fields)
+        self._jobs_parents_sql = self._db.jobs_parents.new_record_template(*BatchBuilder.jobs_parents_fields)
+
+        self.n_jobs = n_jobs
+
+    async def close(self):
+        if self._conn is not None:
+            await self._conn.autocommit(True)
+            self._db.pool.release(self._conn)
+            self._conn = None
+        self._is_open = False
+
+    async def create_batch(self, **items):
+        assert self._is_open
+        if self._batch_id is not None:
+            raise ValueError("cannot create batch more than once")
+
+        self._conn = await self._db.pool.acquire()
+        await self._conn.autocommit(False)
+        await self._conn.begin()
+
+        sql = self._db.batch.new_record_template(*items)
+        async with self._conn.cursor() as cursor:
+            await cursor.execute(sql, dict(items))
+            self._batch_id = cursor.lastrowid
+        return self._batch_id
+
+    def create_job(self, **items):
+        assert self._is_open
+        assert set(items) == BatchBuilder.jobs_fields, set(items)
+        self._jobs.append(dict(items))
+
+    def create_job_parent(self, **items):
+        assert self._is_open
+        assert set(items) == BatchBuilder.jobs_parents_fields, set(items)
+        self._jobs_parents.append(dict(items))
+
+    async def commit(self):
+        assert self._is_open
+        assert len(self._jobs) == self.n_jobs
+
+        async with self._conn.cursor() as cursor:
+            if self.n_jobs > 0:
+                await cursor.executemany(self._jobs_sql, self._jobs)
+                n_jobs_inserted = cursor.rowcount
+                if n_jobs_inserted != self.n_jobs:
+                    self._log.info(f'inserted {n_jobs_inserted} jobs, but expected {self.n_jobs} jobs')
+                    return False
+
+            if len(self._jobs_parents) > 0:
+                await cursor.executemany(self._jobs_parents_sql, self._jobs_parents)
+                n_jobs_parents_inserted = cursor.rowcount
+                if n_jobs_parents_inserted != len(self._jobs_parents):
+                    self._log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
+                    return False
+
+        try:
+            await self._conn.commit()
+            return True
+        except:
+            self._log.info(f'committing to database failed')
+            return False
+
+
 class BatchDatabase(Database):
     async def __init__(self, config_file):
         await super().__init__(config_file)
@@ -125,7 +205,7 @@ class JobsTable(Table):
                 sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
                           WHERE {where_template}"""
-                await cursor.execute(sql, tuple(where_values))
+                await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
 
     async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code, **items):

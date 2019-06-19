@@ -1,6 +1,6 @@
 import asyncio
 import concurrent
-import functools
+import time
 import logging
 import os
 import threading
@@ -21,7 +21,7 @@ from hailjwt import authenticated_users_only
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase
+from .database import BatchDatabase, BatchBuilder
 from .k8s import K8s
 from ..globals import complete_states
 
@@ -349,8 +349,8 @@ class Job:
         return jobs
 
     @staticmethod
-    async def create_job(pod_spec, batch_id, job_id, attributes, callback, parent_ids,
-                         input_files, output_files, userdata, always_run, pvc_size):
+    def create_job(batch_builder, pod_spec, batch_id, job_id, attributes, callback,
+                   parent_ids, input_files, output_files, userdata, always_run, pvc_size):
         pvc_name = None
         pod_name = None
         duration = 0
@@ -366,7 +366,7 @@ class Job:
         tasks = [t for t in tasks if t is not None]
         exit_codes = [None for _ in tasks]
 
-        await db.jobs.new_record(
+        batch_builder.create_job(
             batch_id=batch_id,
             job_id=job_id,
             state=state,
@@ -380,24 +380,16 @@ class Job:
             always_run=always_run,
             duration=duration)
 
-        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
-                  userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
-                  pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled)
-
         for parent in parent_ids:
-            await db.jobs_parents.new_record(
+            batch_builder.create_job_parent(
                 batch_id=batch_id,
                 job_id=job_id,
                 parent_id=parent)
 
-        log.info('created job {}'.format(job.id))
-
-        if not parent_ids:
-            await job.set_state('Ready')
-            await job._create_pod()
-        else:
-            await job.refresh_parents_and_maybe_create()
+        job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
+                  userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
+                  pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
+                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled)
 
         return job
 
@@ -424,6 +416,14 @@ class Job:
         self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
         self._state = state
         self._cancelled = cancelled
+
+    async def run(self):
+        parents = await db.jobs.get_parents(*self.id)
+        if not parents:
+            await self.set_state('Ready')
+            await self._create_pod()
+        else:
+            await self.refresh_parents_and_maybe_create()
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
@@ -582,7 +582,7 @@ class Job:
         return result
 
 
-async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
+async def create_job(batch_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
     user = userdata['username']
 
     pod_spec = v1.api_client._ApiClient__deserialize(
@@ -594,12 +594,6 @@ async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
         abort(400, f'invalid request: batch {batch_id} already has a job_id={job_id}')
 
     parent_ids = parameters.get('parent_ids', [])
-    parents = {job.id: job for job in await Job.from_db_multiple(batch_id, parent_ids, user)}
-    for parent_id in parent_ids:
-        parent_job = parents.get((batch_id, parent_id))
-        if parent_job is None:
-            abort(400, f'invalid parent_id: no job with id {parent_id}')
-
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
     pvc_size = parameters.get('pvc_size', POD_VOLUME_SIZE)
@@ -624,7 +618,8 @@ async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
-    await Job.create_job(
+    job = Job.create_job(
+        batch_builder,
         batch_id=batch_id,
         job_id=job_id,
         pod_spec=pod_spec,
@@ -636,6 +631,7 @@ async def create_job(batch_id, userdata, parameters):  # pylint: disable=R0912
         userdata=userdata,
         always_run=always_run,
         pvc_size=pvc_size)
+    return job
 
 
 @routes.get('/healthcheck')
@@ -722,15 +718,16 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(attributes, callback, userdata):
+    async def create_batch(batch_builder, attributes, callback, userdata):
         user = userdata['username']
 
-        id = await db.batch.new_record(attributes=json.dumps(attributes),
-                                       callback=callback,
-                                       userdata=json.dumps(userdata),
-                                       user=user,
-                                       deleted=False,
-                                       cancelled=False)
+        id = await batch_builder.create_batch(
+            attributes=json.dumps(attributes),
+            callback=callback,
+            userdata=json.dumps(userdata),
+            user=user,
+            deleted=False,
+            cancelled=False)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
@@ -850,13 +847,39 @@ async def create_batch(request, userdata):
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = await Batch.create_batch(attributes=parameters.get('attributes'),
-                                     callback=parameters.get('callback'),
-                                     userdata=userdata)
+    jobs_parameters = parameters.get('jobs', [])
+    n_jobs = len(jobs_parameters)
+    jobs = []
 
-    job_parameters = parameters.get('jobs', [])
-    for job_params in job_parameters:
-        await create_job(batch.id, userdata, job_params)
+    start_time = time.time()
+    batch_builder = BatchBuilder(db, n_jobs, log)
+
+    try:
+        batch = await Batch.create_batch(
+            batch_builder,
+            attributes=parameters.get('attributes'),
+            callback=parameters.get('callback'),
+            userdata=userdata)
+
+        for job_params in jobs_parameters:
+            job = await create_job(batch_builder, batch.id, userdata, job_params)
+            jobs.append(job)
+
+        success = await batch_builder.commit()
+        if not success:
+            abort(400, f'batch creation failed')
+    finally:
+        await batch_builder.close()
+
+    end_time = time.time()
+    elapsed_time = round(end_time - start_time, 4)
+    log.info(f'created batch {batch.id} with {n_jobs} jobs in {elapsed_time} seconds')
+
+    for j in jobs:
+        await j.run()
+
+    log.info(f'started all jobs in batch {batch.id}')
+
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
