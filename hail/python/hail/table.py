@@ -1397,7 +1397,9 @@ class Table(ExprContainer):
 
         if has_more:
             n_rows = len(rows)
-            s += f"<p>showing top { n_rows } { plural('row', n_rows) }</p>\n"
+            s += '<p style="background: #fdd; padding: 0.4em;">'
+            s += f"showing top { n_rows } { plural('row', n_rows) }"
+            s += '</p>\n'
 
         return s
 
