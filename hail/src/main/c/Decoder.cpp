@@ -49,11 +49,32 @@ InputStream::~InputStream() {
   up_.env()->DeleteGlobalRef(jinput_stream_);
 }
 
+ByteArrayInputStream::ByteArrayInputStream(char *bytes, long size) :
+  bytes{bytes}, cursor{0}, size{size} {}
+
+int ByteArrayInputStream::read(char *dest, int n) {
+  int count = std::min(static_cast<long>(n), size - cursor);
+  std::memcpy(dest, bytes, count);
+  return count;
+}
+
+long ByteArrayInputStream::skip(long n) {
+  int diff = std::min(size - cursor, n);
+  cursor += diff;
+  return diff;
+}
+
+void ByteArrayInputStream::close() {
+  return;
+}
+
 // StreamInputBlockBuffer
-StreamInputBlockBuffer::StreamInputBlockBuffer(std::shared_ptr<InputStream> is) :
+template <typename IS>
+StreamInputBlockBuffer<IS>::StreamInputBlockBuffer(std::shared_ptr<IS> is) :
   input_stream_(is) { }
 
-int StreamInputBlockBuffer::read_block(char * buf) {
+template <typename IS>
+int StreamInputBlockBuffer<IS>::read_block(char * buf) {
   auto r = input_stream_->read(len_buf_, 4);
   if (r == -1) {
     return -1;

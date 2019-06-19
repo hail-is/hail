@@ -86,7 +86,7 @@ object Compile {
       Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i").mkString(", ", ", ", "")
 
     val (lType, encoded) = literals
-    val litEnc = defaultSpec.buildNativeDecoderClass(lType, lType, tub).name
+    val litEnc = defaultSpec.buildNativeDecoderClass(lType, lType, "InputStream", tub).name
 
     tub.include("hail/Upcalls.h")
 
@@ -115,6 +115,38 @@ object Compile {
          """.stripMargin
     }
     encoded(defaultSpec)
+  }
+
+  def compileComparison(op: String, codecName: String, l: PType, r: PType): Array[Byte] = {
+    assert(l.isInstanceOf[PArray] || l.isInstanceOf[PBaseStruct], l)
+    assert(r.isInstanceOf[PArray] || r.isInstanceOf[PBaseStruct], r)
+    val tub = new TranslationUnitBuilder()
+    tub.include("hail/hail.h")
+    tub.include("hail/Utils.h")
+    tub.include("hail/Region.h")
+    tub.include("hail/Upcalls.h")
+    tub.include("hail/FS.h")
+    tub.include("hail/SparkUtils.h")
+    tub.include("hail/ObjectArray.h")
+    tub.include("hail/RegionPool.h")
+    tub.include("hail/Region.h")
+    tub.include("<cstring>")
+    val o = new Orderings().ordering(tub, l, r)
+    val typ = if (op == "compare") "int" else "bool"
+    val codec = CodecSpec.fromShortString(codecName)
+    val decodel = defaultSpec.buildNativeDecoderClass(l, l, "ByteArrayInputStream", tub)
+    val decoder = defaultSpec.buildNativeDecoderClass(r, r, "ByteArrayInputStream", tub)
+    tub += new Definition {
+      def name = op
+      def define =
+        s"""$typ $op(char *l, long lsize, char *r, long rsize) {
+           |  RegionPool region_pool{};
+           |  RegionPtr region = region_pool.get_region();
+           |  return $o::$op($decodel(std::make_shared<ByteArrayInputStream>(l, lsize)).decode_row(region.get()),
+           |                 $decoder(std::make_shared<ByteArrayInputStream>(r, rsize)).decode_row(region.get()));
+           |} """.stripMargin
+    }
+    tub.end().build("-ggdb -O1").getBinary
   }
 
   def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils, Literals) = {

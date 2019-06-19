@@ -127,5 +127,9 @@ abstract class Backend {
         pt.fields(0).typ.virtualType))
   }
 
+  def compileComparisonBinary(op: String, codecName: String, l: String, r: String): Array[Byte] =
+    cxx.Compile.compileComparison(
+      op, codecName, IRParser.parsePType(l), IRParser.parsePType(r))
+
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
 }
