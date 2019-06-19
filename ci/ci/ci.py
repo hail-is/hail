@@ -69,7 +69,8 @@ async def index(request):  # pylint: disable=unused-argument
             'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
-            'prs': pr_configs
+            'prs': pr_configs,
+            'status_Age': wb.pretty_status_age(),
         }
         wb_configs.append(wb_config)
 

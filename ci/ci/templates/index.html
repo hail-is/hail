@@ -34,7 +34,10 @@
     </p>
     <p>Deploy State:
       {% if wb.deploy_state is not none %}
-      {{ wb.deploy_state }} {{ wb.pretty_status_age() }}
+      {{ wb.deploy_state }}
+      {% endif %}
+      {% if wb.status_age is not none %}
+      {{ wb.status_age }}
       {% endif %}
     </p>
     <p>Deploy Batch: 
