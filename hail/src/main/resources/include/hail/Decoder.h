@@ -108,6 +108,21 @@ class StreamInputBuffer {
     bool read_boolean() { return read_byte() != 0; };
 };
 
+// StreamInputBlockBuffer
+template <typename IS>
+StreamInputBlockBuffer<IS>::StreamInputBlockBuffer(std::shared_ptr<IS> is) :
+  input_stream_(is) { }
+
+template <typename IS>
+int StreamInputBlockBuffer<IS>::read_block(char * buf) {
+  auto r = input_stream_->read(len_buf_, 4);
+  if (r == -1) {
+    return -1;
+  }
+  int len = load_int(len_buf_);
+  return input_stream_->read(buf, len);
+}
+
 template <int BUFSIZE, typename InputBlockBuffer, typename IS>
 class LZ4InputBlockBuffer {
   private:

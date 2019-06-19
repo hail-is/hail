@@ -139,7 +139,7 @@ object Compile {
     tub += new Definition {
       def name = op
       def define =
-        s"""$typ $op(char *l, long lsize, char *r, long rsize) {
+        s"""extern "C" $typ $op(char *l, long lsize, char *r, long rsize) {
            |  RegionPool region_pool{};
            |  RegionPtr region = region_pool.get_region();
            |  return $o::$op($decodel(std::make_shared<ByteArrayInputStream>(l, lsize)).decode_row(region.get()),
