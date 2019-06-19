@@ -158,9 +158,9 @@ steps:
      - base_image
  - kind: buildImage
    name: builder_utils_image
-   dockerFile: ci/Dockerfile.ci-utils
-   contextPath: ci
-   publishAs: ci-utils
+   dockerFile: builder/Dockerfile
+   contextPath: .
+   publishAs: builder-utils
    dependsOn:
      - base_image
  - kind: runImage
