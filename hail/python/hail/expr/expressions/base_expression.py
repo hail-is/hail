@@ -723,10 +723,7 @@ class Expression(object):
             'n': n, 'width': width, 'truncate': truncate, 'types': types,
             'handler': handler, 'n_rows': n_rows, 'n_cols': n_cols}
         if kwargs.get('n_rows') is None:
-            if kwargs.get('n') is None:
-                kwargs['n_rows'] = 10
-            else:
-                kwargs['n_rows'] = kwargs['n']
+            kwargs['n_rows'] = kwargs['n']
         del kwargs['n']
         self._to_relational_preserving_rows_and_cols().show(
             **{k: v for k, v in kwargs.items() if v is not None})
