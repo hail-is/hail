@@ -70,14 +70,11 @@
           <td align="left">
             <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
             {% if pr.build_state is not none %}
-              {{ pr.build_state }}
+              {{ pr.build_state }}{% if not pr.is_up_to_date() %}*{% endif %}
             {% elif pr.batch_id is not none %}
-              building
+              building{% if not pr.is_up_to_date() %}*{% endif %}
             {% else %}
-              pending
-            {% endif %}
-            {% if not pr.is_up_to_date() %}
-              *
+              pending{% if not pr.is_up_to_date() %}*{% endif %}
             {% endif %}
             </a>
           </td>
