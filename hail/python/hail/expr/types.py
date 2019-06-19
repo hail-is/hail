@@ -33,6 +33,7 @@ __all__ = [
     'tset',
     'tdict',
     'tstruct',
+    'tunion',
     'ttuple',
     'tinterval',
     'tlocus',
@@ -72,7 +73,7 @@ def dtype(type_str):
 
     .. code-block:: text
 
-        type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
+        type = _ (array / set / dict / struct / union / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
         int64 = "int64" / "tint64"
         int32 = "int32" / "tint32" / "int" / "tint"
         float32 = "float32" / "tfloat32"
@@ -86,6 +87,7 @@ def dtype(type_str):
         set = ("tset" / "set") _ "<" type ">"
         dict = ("tdict" / "dict") _ "<" type "," type ">"
         struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
+        union = ("tunion" / "union") _ "{" (fields / _) "}"
         tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
         fields = field ("," field)*
         field = identifier ":" type
@@ -881,12 +883,12 @@ class tstruct(HailType, Mapping):
 
     @property
     def fields(self):
-        """Struct fields.
+        """Struct field names.
 
         Returns
         -------
-        :obj:`tuple` of :class:`.Field`
-            Struct fields.
+        :obj:`tuple` of :obj:`str`
+            Tuple of struct field names.
         """
         return self._fields
 
@@ -1018,6 +1020,83 @@ class tstruct(HailType, Mapping):
     def clear(self):
         for f, t in self.items():
             t.clear()
+
+class tunion(HailType, Mapping):
+    @typecheck_method(case_types=hail_type)
+    def __init__(self, **case_types):
+        self._case_types = case_types
+        self._cases = tuple(case_types)
+
+    @property
+    def cases(self):
+        """Return union case names.
+
+        Returns
+        -------
+        :obj:`tuple` of :obj:`str`
+            Tuple of union case names
+        """
+        return self._cases
+
+    @typecheck_method(item=oneof(int, str))
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            item = self._cases[item]
+        return self._case_types[item]
+
+    def __iter__(self):
+        return iter(self._case_types)
+
+    def __len__(self):
+        return len(self._cases)
+
+    def __str__(self):
+        return "union{{{}}}".format(
+            ', '.join('{}: {}'.format(escape_parsable(f), str(t)) for f, t in self.items()))
+
+    def _eq(self, other):
+        return (isinstance(other, tunion)
+                and self._cases == other._cases
+                and all(self[c] == other[c] for c in self._cases))
+
+    def _pretty(self, l, indent, increment):
+        if not self._cases:
+            l.append('union {}')
+            return
+
+        pre_indent = indent
+        indent += increment
+        l.append('union {')
+        for i, (f, t) in enumerate(self.items()):
+            if i > 0:
+                l.append(', ')
+            l.append('\n')
+            l.append(' ' * indent)
+            l.append('{}: '.format(escape_parsable(f)))
+            t._pretty(l, indent, increment)
+        l.append('\n')
+        l.append(' ' * pre_indent)
+        l.append('}')
+
+    def _parsable_string(self):
+        return "Union{{{}}}".format(
+            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
+
+    def unify(self, t):
+        if not (isinstance(t, union) and len(self) == len(t)):
+            return False
+        for (f1, t1), (f2, t2) in zip(self.items(), t.items()):
+            if not (f1 == f2 and t1.unify(t2)):
+                return False
+        return True
+
+    def subst(self):
+        return tunion(**{f: t.subst() for f, t in self.items()})
+
+    def clear(self):
+        for f, t in self.items():
+            t.clear()
+
 
 class ttuple(HailType):
     """Hail type for tuples.
@@ -1450,6 +1529,7 @@ def is_container(t) -> bool:
 def is_compound(t) -> bool:
     return (is_container(t)
             or isinstance(t, tstruct)
+            or isinstance(t, tunion)
             or isinstance(t, ttuple)
             or isinstance(t, tndarray))
 
@@ -1468,6 +1548,7 @@ class tvariable(HailType):
         'float64': lambda x: x == tfloat64,
         'locus': lambda x: isinstance(x, tlocus),
         'struct': lambda x: isinstance(x, tstruct),
+        'union': lambda x: isinstance(x, tunion),
         'tuple': lambda x: isinstance(x, ttuple)
     }
 
