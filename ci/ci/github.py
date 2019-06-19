@@ -389,7 +389,7 @@ mkdir -p {shq(repo_dir)}
                     await self._start_build(dbpool, batch_client)
 
     def is_up_to_date(self):
-        return self.target_branch.sha == self.batch.attributes['target_sha']
+        return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self):
         return (self.review_state == 'approved' and
