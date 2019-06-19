@@ -54,7 +54,8 @@ async def index(request):  # pylint: disable=unused-argument
                     'build_state': pr.build_state if await pr.authorized(dbpool) else 'unauthorized',
                     'review_state': pr.review_state,
                     'author': pr.author,
-                    'is_up_to_date': pr.is_up_to_date() or pr.build_state == 'pending'
+                    'is_up_to_date': pr.build_state not in ['failure', 'success', 'building'] or pr.is_up_to_date(),
+                    'status_age': pr.pretty_status_age(),
                 }
                 pr_configs.append(pr_config)
         else:
@@ -68,7 +69,8 @@ async def index(request):  # pylint: disable=unused-argument
             'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
             'deploy_state': wb.deploy_state,
             'repo': wb.branch.repo.short_str(),
-            'prs': pr_configs
+            'prs': pr_configs,
+            'status_age': wb.pretty_status_age(),
         }
         wb_configs.append(wb_config)
 

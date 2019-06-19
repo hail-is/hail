@@ -36,6 +36,9 @@
       {% if wb.deploy_state is not none %}
       {{ wb.deploy_state }}
       {% endif %}
+      {% if wb.status_age is not none %}
+      {{ wb.status_age }}
+      {% endif %}
     </p>
     <p>Deploy Batch: 
       {% if wb.deploy_batch_id is not none %}
@@ -68,9 +71,11 @@
             {{ pr.title }}
           </td>
           <td align="left">
-            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
             {% if pr.build_state is not none %}
-              {{ pr.build_state }}
+              <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
+              {% if pr.status_age is not none %}
+                {{ pr.status_age }}
+              {% endif %}
             {% elif pr.batch_id is not none %}
               building
             {% else %}
@@ -79,7 +84,6 @@
             {% if not pr.is_up_to_date %}
               *
             {% endif %}
-            </a>
           </td>
           <td align="left">
             {% if pr.review_state %}
