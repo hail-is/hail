@@ -97,7 +97,7 @@ abstract class Backend {
   }
 
   def encode(ir0: IR, codecString: String): (String, Array[Byte]) = {
-    val codec = CodecSpec.fromString(codecString)
+    val codec = CodecSpec.fromShortString(codecString)
     val ir = lower(ir0, None, false)
 
     if (!Compilable(ir))
@@ -116,7 +116,7 @@ abstract class Backend {
     bytes: Array[Byte],
     codecString: String
   ): String = Region.scoped { region =>
-    val codec = CodecSpec.fromString(codecString)
+    val codec = CodecSpec.fromShortString(codecString)
     val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
     JsonMethods.compact(
       JSONAnnotationImpex.exportAnnotation(
@@ -129,7 +129,7 @@ abstract class Backend {
 
   def compileComparisonBinary(op: String, codecName: String, l: String, r: String): Array[Byte] =
     cxx.Compile.compileComparison(
-      op, codecName, IRParser.parsePType(l), IRParser.parsePType(r))
+      op, CodecSpec.fromShortString(codecName), IRParser.parsePType(l), IRParser.parsePType(r))
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
 }

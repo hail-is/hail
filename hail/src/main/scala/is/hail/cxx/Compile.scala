@@ -117,7 +117,7 @@ object Compile {
     encoded(defaultSpec)
   }
 
-  def compileComparison(op: String, codecName: String, l: PType, r: PType): Array[Byte] = {
+  def compileComparison(op: String, codec: CodecSpec, l: PType, r: PType): Array[Byte] = {
     assert(l.isInstanceOf[PArray] || l.isInstanceOf[PBaseStruct], l)
     assert(r.isInstanceOf[PArray] || r.isInstanceOf[PBaseStruct], r)
     val tub = new TranslationUnitBuilder()
@@ -133,9 +133,8 @@ object Compile {
     tub.include("<cstring>")
     val o = new Orderings().ordering(tub, l, r)
     val typ = if (op == "compare") "int" else "bool"
-    val codec = CodecSpec.fromShortString(codecName)
-    val decodel = defaultSpec.buildNativeDecoderClass(l, l, "ByteArrayInputStream", tub)
-    val decoder = defaultSpec.buildNativeDecoderClass(r, r, "ByteArrayInputStream", tub)
+    val decodel = codec.buildNativeDecoderClass(l, l, "ByteArrayInputStream", tub)
+    val decoder = codec.buildNativeDecoderClass(r, r, "ByteArrayInputStream", tub)
     tub += new Definition {
       def name = op
       def define =
