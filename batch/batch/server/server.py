@@ -281,7 +281,6 @@ class Job:
         return None
 
     async def _mark_job_task_complete(self, task_name, log, exit_code, new_state):
-        assert self._pod_name is not None
         self.exit_codes[self._task_idx] = exit_code
 
         self._task_idx += 1
@@ -299,6 +298,10 @@ class Job:
                                          pod_name=None,
                                          duration=self.duration,
                                          state=new_state)
+
+        if self._pod_name is None:
+            return
+
         err = await app['k8s'].delete_pod(self._pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
