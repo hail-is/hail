@@ -363,7 +363,15 @@ mkdir -p {shq(repo_dir)}
             self.source_sha_failed = failed
 
         if self.batch:
-            status = await self.batch.status()
+            try:
+                status = await self.batch.status()
+            except aiohttp.client_exceptions.ClientResponseError as exc:
+                if exc.status == 404:
+                    log.info(f'batch {self.batch.id} was deleted by someone')
+                    self.batch = None
+                    self.build_state = None
+                    return
+                raise exc
             if status['complete']:
                 if status['state'] == 'success':
                     self.build_state = 'success'
