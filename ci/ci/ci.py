@@ -224,8 +224,8 @@ async def github_callback_handler(request):
     await gh_router.dispatch(event)
 
 
-@routes.post('/api/v1alpha/callback')
-async def callback(request):
+@routes.post('/github_callback')
+async def github_callback(request):
     await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
 
