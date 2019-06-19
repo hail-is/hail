@@ -662,8 +662,21 @@ class Expression(object):
                                                     f'  Should be: {to_return[name].dtype}'
         return to_return
 
-    @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=nullable(anyfunc))
-    def show(self, n=10, width=90, truncate=None, types=True, handler=None):
+    @typecheck_method(n=nullable(int),
+                      width=nullable(int),
+                      truncate=nullable(int),
+                      types=bool,
+                      handler=nullable(anyfunc),
+                      n_rows=nullable(int),
+                      n_cols=nullable(int))
+    def show(self,
+             n=None,
+             width=None,
+             truncate=None,
+             types=True,
+             handler=None,
+             n_rows=None,
+             n_cols=None):
         """Print the first few rows of the table to the console.
 
         Examples
@@ -706,8 +719,17 @@ class Expression(object):
         types : :obj:`bool`
             Print an extra header line with the type of each field.
         """
+        kwargs = {
+            'n': n, 'width': width, 'truncate': truncate, 'types': types,
+            'handler': handler, 'n_rows': n_rows, 'n_cols': n_cols}
+        if kwargs.get('n_rows') is None:
+            if kwargs.get('n') is None:
+                kwargs['n_rows'] = 10
+            else:
+                kwargs['n_rows'] = kwargs['n']
+        del kwargs['n']
         self._to_relational_preserving_rows_and_cols().show(
-            n_rows=n, width=width, truncate=truncate, types=types, handler=handler)
+            **{k: v for k, v in kwargs.items() if v is not None})
 
     def _to_relational_preserving_rows_and_cols(self):
         name = '<expr>'
