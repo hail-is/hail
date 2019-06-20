@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
+import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -17,7 +17,7 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
-  def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
+  def rvRowType(locusType: PType, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
 }
 
@@ -353,7 +353,7 @@ case class LocalLDPrune(
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.rowType.physicalType)
+        rvb.start(tableType.canonicalPType)
         rvb.startStruct()
         rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
