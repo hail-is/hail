@@ -5,6 +5,8 @@ import shutil
 import tempfile
 from collections import defaultdict, Counter, OrderedDict
 from random import Random
+import json
+import re
 
 import hail
 from hail.typecheck import enumeration, typecheck, nullable
@@ -479,7 +481,7 @@ def upper_hex(n, num_digits=None):
     else:
         return "{0:0{1}X}".format(n, num_digits)
 
-def escape_str(s):
+def escape_str(s, backticked=False):
     sb = StringIO()
 
     rewrite_dict = {
@@ -504,15 +506,34 @@ def escape_str(s):
                     sb.write("\\u000" + upper_hex(chNum))
         else:
             if ch == '"':
-                sb.write('\\\"')
+                if backticked:
+                    sb.write('"')
+                else:
+                    sb.write('\\\"')
+            elif ch == '`':
+                if backticked:
+                    sb.write("\\`")
+                else:
+                    sb.write("`")
             elif ch == '\\':
                 sb.write('\\\\')
             else:
                 sb.write(ch)
-    
+
     escaped = sb.getvalue()
     sb.close()
 
     return escaped
-            
+   
+def escape_id(s):
+    if re.fullmatch(r'[_a-zA-Z]\w*', s):
+        return s
+    else:
+        return "`{}`".format(escape_str(s, backticked=True))
 
+def dump_json(obj):
+    return f'"{escape_str(json.dumps(obj))}"'
+
+def parsable_strings(strs):
+    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
+    return f"({strs})"
