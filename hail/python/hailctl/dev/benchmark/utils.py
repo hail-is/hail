@@ -48,7 +48,7 @@ def download_data():
     files = map(lambda f: os.path.join(_data_dir, f), ['profile.vcf.bgz', 'profile.mt'])
     if not all(os.path.exists(file) for file in files):
         vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
-        print('files not found - downloading...', end='',flush=True)
+        print('files not found - downloading...', end='', flush=True)
         urlretrieve('https://storage.googleapis.com/hail-common/benchmark/profile.vcf.bgz',
                     os.path.join(_data_dir, vcf))
         print('done', flush=True)
@@ -61,10 +61,12 @@ def download_data():
     _initialized = True
     _mt = hl.read_matrix_table(resource('profile.mt'))
 
+
 def _ensure_initialized():
     if not _initialized:
         raise AssertionError("Hail benchmark environment not initialized. "
                              "Are you running benchmark from the main module?")
+
 
 def initialize(cores, log, n_iter):
     assert not _initialized
@@ -85,7 +87,7 @@ def _run(benchmark, n_iter):
     for i in range(n_iter):
         time = timeit.Timer(lambda: benchmark.run()).timeit(1)
         times.append(time)
-        print(f'    run {i+1} took {time:.2f}s')
+        print(f'    run {i + 1} took {time:.2f}s')
     print(f'    Mean, Median: {np.mean(times):.2f}s, {np.median(times):.2f}s')
 
 

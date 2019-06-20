@@ -16,6 +16,9 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
+    subs.add_parser('dev',
+                    help='Manage Hail development utilities.',
+                    description='Manage Hail development utilities.')
     subs.add_parser('version',
                     help='Print version information and exit.',
                     description='Print version information and exit.')
@@ -64,30 +67,31 @@ def check_for_update():
         pass
 
 
-def print_version(args):
+def print_version():
     print(hailctl.version())
 
 
 def main():
-    modules = {
-        'dataproc': hailctl.dataproc.cli.main,
-        'version': print_version
-    }
-
     check_for_update()
 
     if len(sys.argv) == 1:
         print_help()
         sys.exit(0)
     else:
-        main_module = sys.argv[1]
+        module = sys.argv[1]
         args = sys.argv[2:]
-        module = modules.get(main_module)
-        if not module:
-            # no module by this name
+        if module == 'version':
+            print_version()
+        elif module == 'dataproc':
+            from hailctl.dataproc import cli
+            cli.main(args)
+        elif module == 'dev':
+            from hailctl.dev import cli
+            cli.main(args)
+        else:
+            sys.stderr.write(f"ERROR: no such module: {module!r}")
             print_help()
             sys.exit(1)
-        module(args)
 
 
 if __name__ == '__main__':

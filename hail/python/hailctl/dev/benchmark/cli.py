@@ -1,7 +1,9 @@
 import argparse
 
-if __name__ == '__main__':
+from . import initialize, run_all, run_single
 
+
+def main(args_):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--tests', '-t',
@@ -11,21 +13,20 @@ if __name__ == '__main__':
     parser.add_argument('--cores', '-c',
                         type=int,
                         default=1,
-                        help='Number of cores to allocate to Spark.')
+                        help='Number of cores to use.')
     parser.add_argument("--n-iter", "-n",
                         type=int,
                         default=3,
                         help='Number of iterations for each test.')
     parser.add_argument("--log", "-l",
-                         type=str,
-                         help='Log file path')
+                        type=str,
+                        help='Log file path')
 
-    args = parser.parse_args()
+    args, pass_through_args = parser.parse_args(args_)
 
-    import benchmark
-    benchmark.initialize(args.cores, args.log, args.n_iter)
+    initialize(args.cores, args.log, args.n_iter)
     if args.tests:
         for test in args.tests.split(','):
-            benchmark.run_single(test)
+            run_single(test)
     else:
-        benchmark.run_all()
+        run_all()

@@ -1,5 +1,5 @@
 import hail as hl
-from benchmark.utils import benchmark, resource
+from .utils import benchmark
 
 
 @benchmark

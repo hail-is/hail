@@ -1,4 +1,4 @@
-from benchmark.utils import resource, benchmark
+from .utils import benchmark, resource
 
 import hail as hl
 
@@ -8,11 +8,12 @@ def matrix_table_decode_and_count():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt._force_count_rows()
 
+
 @benchmark
 def matrix_table_array_arithmetic():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.filter_rows(mt.alleles.length() == 2)
-    mt.select_entries(dosage = hl.pl_dosage(mt.PL)).select_rows()._force_count_rows()
+    mt.select_entries(dosage=hl.pl_dosage(mt.PL)).select_rows()._force_count_rows()
 
 
 @benchmark
@@ -26,15 +27,18 @@ def matrix_table_entries_table_no_key():
     mt = hl.read_matrix_table(resource('profile.mt')).key_rows_by().key_cols_by()
     mt.entries()._force_count()
 
+
 @benchmark
 def matrix_table_rows_force_count():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
     ht._force_count()
 
+
 @benchmark
 def matrix_table_rows_is_transition():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
-    ht.select(is_snp = hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
+    ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
+
 
 def many_aggs(mt):
     aggs = [
@@ -74,17 +78,20 @@ def many_aggs(mt):
     ]
     return {f'x{i}': expr for i, expr in enumerate(aggs)}
 
+
 @benchmark
 def matrix_table_many_aggs_row_wise():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.annotate_rows(**many_aggs(mt))
     mt.rows()._force_count()
 
+
 @benchmark
 def matrix_table_many_aggs_col_wise():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.annotate_cols(**many_aggs(mt))
     mt.cols()._force_count()
+
 
 @benchmark
 def matrix_table_aggregate_entries():

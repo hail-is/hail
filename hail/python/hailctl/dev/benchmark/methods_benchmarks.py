@@ -1,4 +1,4 @@
-from benchmark.utils import resource, benchmark, get_mt
+from .utils import benchmark, resource, get_mt
 
 import hail as hl
 

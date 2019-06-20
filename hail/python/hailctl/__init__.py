@@ -1,8 +1,6 @@
 import pkg_resources
 import yaml
 
-from . import dataproc
-
 
 def version() -> str:
     import pkg_resources
@@ -15,7 +13,6 @@ _deploy_metadata = yaml.safe_load(
     pkg_resources.resource_stream(__name__, "deploy.yaml"))
 
 __all__ = [
-    'dataproc',
     'version',
     '_deploy_metadata'
 ]
