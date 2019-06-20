@@ -85,7 +85,8 @@ async def index(request):  # pylint: disable=unused-argument
 
     context = {
         'watched_branches': wb_configs,
-        'age': pretty_timestamp_age(datetime.datetime.now() - start_time)
+        'age': pretty_timestamp_age(datetime.datetime.now() - start_time),
+        'token': token
     }
 
     response = aiohttp_jinja2.render_template('index.html',
