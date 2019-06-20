@@ -505,6 +505,8 @@ class RegionValueBuilder(var region: Region) {
     addRegionValue(t, uis.region, uis.aoff)
   }
 
+  def addAnnotation(t: PType, a: Annotation): Unit = addAnnotation(t.virtualType, a)
+
   def addAnnotation(t: Type, a: Annotation) {
     if (a == null)
       setMissing()

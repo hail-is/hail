@@ -1,6 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.expr.ir._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.rvd.RVDType
 import is.hail.utils._
@@ -12,7 +13,9 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  lazy val canonicalRVDType = RVDType(rowType.physicalType, key)
+  lazy val canonicalPType = PType.canonical(rowType).asInstanceOf[PStruct]
+  lazy val canonicalRVDType = RVDType(canonicalPType, key)
+
   key.foreach {k =>
     if (!rowType.hasField(k))
       throw new RuntimeException(s"key field $k not in row type: $rowType")
