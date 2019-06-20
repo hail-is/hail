@@ -57,10 +57,16 @@ class Trio(object):
             str(self.mat_id), str(self.is_female))
 
     def __eq__(self, other):
-        return isinstance(other, Trio) and self._jrep == other._jrep
+        return isinstance(other, Trio) and 
+        self._s == other._s and
+        self._mat_id == other._mat_id and
+        self._pat_id == other._pat_id and 
+        self._fam_id == other._fam_id and
+        self._is_female == other._is_female
+
 
     def __hash__(self):
-        return self._jrep.hashCode()
+        return hash((self._s, self._pat_id, self._mat_id, self._fam_id, self._is_female))
 
     @property
     def s(self):
@@ -162,7 +168,7 @@ class Pedigree(object):
 
     def __init__(self, trios):
         self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
-        self._trios = trios
+        self._trios = tuple(trios)
 
     @classmethod
     def _from_java(cls, jrep):
@@ -173,10 +179,10 @@ class Pedigree(object):
         return ped
 
     def __eq__(self, other):
-        return isinstance(other, Pedigree) and self._jrep == other._jrep
+        return isinstance(other, Pedigree) and self._trios == other.__trios
 
     def __hash__(self):
-        return self._jrep.hashCode()
+        return hash(self._trios)
 
     @classmethod
     @typecheck_method(fam_path=str,
@@ -203,6 +209,16 @@ class Pedigree(object):
 
         jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.sFS(), delimiter)
         return Pedigree._from_java(jrep)
+
+        with open(fam_path) as file:
+            for line in file:
+                split_line = line.split(delimiter)
+                num_fields = len(split_line)
+                if num_fields != 6:
+                    raise FatalError("Require 6 fields per line in .fam, but this line has {}: {}".format(num_fields, line))
+                (fam, kid, dad, mom, sex, _) = tuple(split_line)
+                sexOption = sex if sex == 1 or sex == 2 else None
+
 
     @property
     def trios(self):
