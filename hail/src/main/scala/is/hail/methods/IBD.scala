@@ -325,9 +325,9 @@ object IBD {
 
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
 
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
+  def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdPType.virtualType, FastIndexedSeq("i", "j"))
+    Table(hc, ktRdd, ibdPType, FastIndexedSeq("i", "j"))
   }
 
   def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
