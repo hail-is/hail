@@ -85,7 +85,7 @@ async def index(request):  # pylint: disable=unused-argument
 
     context = {
         'watched_branches': wb_configs,
-        'age': pretty_timestamp_age(datetime.datetime.now() - start_time),
+        'age': humanize.naturaldelta(datetime.datetime.now() - start_time),
         'token': token
     }
 
