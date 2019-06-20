@@ -6,7 +6,8 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
+import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct, PType}
+import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -47,22 +48,22 @@ object LocalLDPruneSuite {
   val fractionMemoryToUse = 0.25
   val genotypesPerPack = LocalLDPrune.genotypesPerPack
 
-  val rvRowType = TStruct(
-    "locus" -> ReferenceGenome.GRCh37.locusType,
-    "alleles" -> TArray(TString()),
-    MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
+  val rvRowPType = PStruct(
+    "locus" -> PLocus(ReferenceGenome.GRCh37),
+    "alleles" -> PArray(PStruct()),
+    MatrixType.entriesIdentifier -> PArray(PType.canonical(Genotype.htsGenotypeType))
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.field("locus").typ,
-    rvRowType.field("alleles").typ)
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowPType(rvRowPType.field("locus").typ,
+    rvRowPType.field("alleles").typ)
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toFastIndexedSeq
     val rvb = new RegionValueBuilder(Region())
-    rvb.start(rvRowType.physicalType)
+    rvb.start(rvRowPType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowPType.types(0).virtualType, Locus("1", 1))
+    rvb.addAnnotation(rvRowPType.types(1).virtualType, FastIndexedSeq("A", "T"))
     rvb.addAnnotation(TArray(Genotype.htsGenotypeType), gArr)
     rvb.endStruct()
     rvb.end()
@@ -89,13 +90,13 @@ object LocalLDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rvRowType.physicalType)
+    val hcView = HardCallView(rvRowPType)
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
-    rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
-    rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
+    rvb.addAnnotation(rvRowPType.types(0).virtualType, Locus("1", 1))
+    rvb.addAnnotation(rvRowPType.types(1).virtualType, FastIndexedSeq("A", "T"))
     val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
     if (keep) {
@@ -292,7 +293,7 @@ class LocalLDPruneSuite extends HailSuite {
         val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LocalLDPruneSuite.rvRowType.physicalType)
+        val view = HardCallView(LocalLDPruneSuite.rvRowPType)
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
@@ -325,9 +326,9 @@ class LocalLDPruneSuite extends HailSuite {
   @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
     Region.scoped { r =>
       val rvb = new RegionValueBuilder(r)
-      val t = BitPackedVectorView.rvRowType(
-        +TLocus(ReferenceGenome.GRCh37),
-        +TArray(+TString()))
+      val t = BitPackedVectorView.rvRowPType(
+        PLocus(ReferenceGenome.GRCh37),
+        PArray(PString()))
       val bpv = new BitPackedVectorView(t)
       r.appendInt(0xbeef)
       rvb.start(t)

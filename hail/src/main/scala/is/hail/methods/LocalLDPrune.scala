@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt32Required, PInt64Required, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -17,12 +17,12 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
-  def rvRowType(locusType: PType, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
+  def rvRowPType(locusType: PType, allelesType: PType): PStruct = PStruct("locus" -> locusType, "alleles" -> allelesType,
+    "bpv" -> PArray(PInt64Required), "nSamples" -> PInt32Required, "mean" -> PFloat64(), "centered_length_rec" -> PFloat64())
 }
 
-class BitPackedVectorView(rvRowType: PStruct) {
-  val vView = new RegionValueVariant(rvRowType)
+class BitPackedVectorView(rvRowPType: PStruct) {
+  val vView = new RegionValueVariant(rvRowPType)
 
   // All types are required!
   private var m: Region = _
@@ -36,12 +36,12 @@ class BitPackedVectorView(rvRowType: PStruct) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    bpvOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("bpv"))
+    bpvOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("bpv"))
     bpvLength = bpvPType.loadLength(m, bpvOffset)
     bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
-    meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
-    centeredLengthRecOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_rec"))
+    nSamplesOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("nSamples"))
+    meanOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("mean"))
+    centeredLengthRecOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("centered_length_rec"))
 
     vView.setRegion(m, offset)
   }
@@ -302,13 +302,12 @@ case class LocalLDPrune(
 
     val nSamples = mv.nCols
     
-    val fullRowType = mv.rvRowType
     val fullRowPType = mv.rvRowPType
 
-    val locusIndex = fullRowType.fieldIdx("locus")
-    val allelesIndex = fullRowType.fieldIdx("alleles")
+    val locusIndex = fullRowPType.fieldIdx("locus")
+    val allelesIndex = fullRowPType.fieldIdx("alleles")
 
-    val bpvType = BitPackedVectorView.rvRowType(fullRowType.types(locusIndex), fullRowType.types(allelesIndex))
+    val bpvType = BitPackedVectorView.rvRowPType(fullRowPType.types(locusIndex), fullRowPType.types(allelesIndex))
 
     val tableType = typ(mv.typ)
 
