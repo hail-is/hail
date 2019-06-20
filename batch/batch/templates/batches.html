@@ -12,6 +12,7 @@
           <th>ID</th>
           <th>Name</th>
           <th>State</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -24,6 +25,14 @@
             {% endif %}
           </td>
           <td>{{ batch['state'] }}</td>
+          <td>
+            {% if not batch['complete'] %}
+            <form action="/batches/{{ batch['id'] }}/cancel" method="post">
+              <input type="hidden" name="_csrf" value="{{ token }}"/>
+              <input type="submit" value="Cancel">
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
