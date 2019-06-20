@@ -543,7 +543,7 @@ object Simplify {
     // push down filter intervals nodes
     case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
       TableFilter(TableFilterIntervals(child, intervals, keep), pred)
-    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) =>
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) if !ContainsScan(newRow) =>
       TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
