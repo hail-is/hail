@@ -24,8 +24,8 @@ ifeq ($(IN_HAIL_CI),1)
 
 PROJECT := $(shell gcloud config get-value project)
 
-BUILDER_UTILS_LATEST = gcr.io/$(PROJECT)/builder:latest
-BUILDER_UTILS_IMAGE = gcr.io/$(PROJECT)/builder:$(shell docker images -q --no-trunc builder | sed -e 's,[^:]*:,,')
+BUILDER_UTILS_LATEST = gcr.io/$(PROJECT)/builder-utils:latest
+BUILDER_UTILS_IMAGE = gcr.io/$(PROJECT)/builder-utils:$(shell docker images -q --no-trunc builder-utils | sed -e 's,[^:]*:,,')
 
 CI_LATEST = gcr.io/$(PROJECT)/ci:latest
 CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')

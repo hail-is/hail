@@ -133,7 +133,7 @@ HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
 
 
-class PR(builder.Code):
+class PR(Code):
     def __init__(self, number, title, source_repo, source_sha, target_branch, author, labels):
         self.number = number
         self.title = title
@@ -321,7 +321,7 @@ mkdir -p {shq(repo_dir)}
             self.sha = sha_out.decode('utf-8').strip()
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = builder.BuildConfiguration(self, f.read(), deploy=False)
+                config = BuildConfiguration(self, f.read(), deploy=False)
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -464,7 +464,7 @@ git merge {shq(self.source_sha)} -m 'merge PR'
 '''
 
 
-class WatchedBranch(builder.Code):
+class WatchedBranch(Code):
     def __init__(self, index, branch, deployable):
         self.index = index
         self.branch = branch
@@ -719,7 +719,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = builder.BuildConfiguration(self, f.read(), deploy=True)
+                config = BuildConfiguration(self, f.read(), deploy=True)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(

@@ -18,8 +18,8 @@ check: flake8-stmp pylint-stmp
 ifeq ($(IN_HAIL_CI),1)
 .PHONY: push
 
-BUILDER_UTILS_LATEST ?= gcr.io/$(PROJECT)/builder:latest
-BUILDER_UTILS_IMAGE ?= gcr.io/$(PROJECT)/builder:$(shell docker images -q --no-trunc builder | sed -e 's,[^:]*:,,')
+BUILDER_UTILS_LATEST ?= gcr.io/$(PROJECT)/builder-utils:latest
+BUILDER_UTILS_IMAGE ?= gcr.io/$(PROJECT)/builder-utils:$(shell docker images -q --no-trunc builder-utils | sed -e 's,[^:]*:,,')
 
 build:
 	make -C ../docker build
