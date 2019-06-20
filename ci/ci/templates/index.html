@@ -23,6 +23,7 @@
   </head>
   <body>
     <h1>CI</h1>
+    <h3>Alive since {{ age }}.</h3>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
     <p>SHA:
@@ -73,15 +74,13 @@
           <td align="left">
             {% if pr.build_state is not none %}
               <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
-              {% if pr.status_age is not none %}
-                {{ pr.status_age }}
-              {% endif %}
-            {% elif pr.batch_id is not none %}
-              building
             {% else %}
               pending
             {% endif %}
-            {% if not pr.is_up_to_date %}
+            {% if pr.status_age is not none %}
+              {{ pr.status_age }}
+            {% endif %}
+            {% if pr.out_of_date %}
               *
             {% endif %}
           </td>
