@@ -109,7 +109,7 @@ cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
 test-dataproc: install-hailctl-wheel
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
 	for FILE in `ls python/cluster-tests`; do \
-	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || break; done || exit
+	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || exit 1; done || exit
 
 .PHONY: init-scripts
 init-scripts: python/hailtop/hailctl/deploy.yaml
@@ -129,7 +129,7 @@ check-pypi:
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
 .PHONY: pypi-deploy
-pypi-deploy: check-pypi wheel test-dataproc tag set-docs-sha
+pypi-deploy: check-pypi test-dataproc set-docs-sha
 	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
 	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
 	twine upload build/deploy/dist/*
