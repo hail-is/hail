@@ -18,7 +18,7 @@ from hailjwt import authenticated_developers_only
 
 from .log import log
 from .constants import BUCKET
-from .github import Repo, FQBranch, WatchedBranch
+from .github import Repo, FQBranch, WatchedBranch, pretty_timestamp_age
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -34,6 +34,8 @@ app = web.Application()
 
 routes = web.RouteTableDef()
 
+start_time = datetime.datetime.now()
+
 
 @routes.get('/')
 @authenticated_developers_only
@@ -46,15 +48,20 @@ async def index(request):  # pylint: disable=unused-argument
         if wb.prs:
             pr_configs = []
             for pr in wb.prs.values():
+                batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
+                build_state = pr.build_state if await pr.authorized(dbpool) else 'unauthorized'
+                if build_state is None and batch_id is not None:
+                    build_state = 'building'
+
                 pr_config = {
                     'number': pr.number,
                     'title': pr.title,
                     # FIXME generate links to the merge log
                     'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': pr.build_state if await pr.authorized(dbpool) else 'unauthorized',
+                    'build_state': build_state,
                     'review_state': pr.review_state,
                     'author': pr.author,
-                    'is_up_to_date': pr.build_state not in ['failure', 'success', 'building'] or pr.is_up_to_date(),
+                    'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
                     'status_age': pr.pretty_status_age(),
                 }
                 pr_configs.append(pr_config)
@@ -75,7 +82,8 @@ async def index(request):  # pylint: disable=unused-argument
         wb_configs.append(wb_config)
 
     return {
-        'watched_branches': wb_configs
+        'watched_branches': wb_configs,
+        'age': pretty_timestamp_age(datetime.datetime.now() - start_time)
     }
 
 
