@@ -319,7 +319,7 @@ object IBD {
     val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
     val sampleIds = input.stringSampleIds
 
-    TableLiteral(TableValue(ibdPType.virtualType, FastIndexedSeq("i", "j"),
+    TableLiteral(TableValue(ibdPType, FastIndexedSeq("i", "j"),
       computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
   }
 

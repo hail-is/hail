@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.io.{CodecSpec, exportTypes}
@@ -19,6 +20,14 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
+  def apply(rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(TableType(rowType.virtualType, FastIndexedSeq(), TStruct.empty()),
+        BroadcastRow.empty(),
+        RVD.unkeyed(rowType, rdd))),
+        key))
+  }
+
   def apply(rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     Interpret(
       TableKeyBy(TableLiteral(TableValue(TableType(rowType, FastIndexedSeq(), TStruct.empty()),
