@@ -1,5 +1,3 @@
-import secrets
-
 from ..database import Database, Table, make_where_statement
 
 
@@ -90,20 +88,6 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
-        self.tokens = TokensTable(self)
-
-
-class TokensTable(Table):
-    def __init__(self, db):
-        super().__init__(db, 'tokens')
-
-    async def new_token(self):
-        token = secrets.token_bytes(64)
-        await super().new_record(token=token)
-        return token
-
-    async def has_token(self, token):
-        return super().has_record({'token': token})
 
 
 class JobsTable(Table):

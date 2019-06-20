@@ -7,6 +7,7 @@ import threading
 import traceback
 import json
 import uuid
+import secrets
 from shlex import quote as shq
 
 import jinja2
@@ -944,8 +945,9 @@ async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
-    token = request.query.get('_csrf')
-    if not await db.tokens.has_token(token):
+    token1 = request.query.get('_csrf')
+    token2 = request.cookies.get('_csrf')
+    if token1 is None or token2 is None or token1 != token2:
         abort(404)
 
     await _cancel_batch(batch_id, user)
@@ -955,14 +957,19 @@ async def ui_cancel_batch(request, userdata):
 
 
 @routes.get('/batches', name='batches')
-@aiohttp_jinja2.template('batches.html')
 @authenticated_users_only
 async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    token = await db.tokens.new_token()
-    return {'batch_list': batches, 'token': token}
+    token = secrets.token_bytes(64)
+    context = {'batch_list': batches, 'token': token}
+
+    response = aiohttp_jinja2.render_template('batches.html',
+                                              request,
+                                              context)
+    response.cookies['_csrf'] = token
+    return response
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
