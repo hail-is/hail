@@ -341,6 +341,12 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
+    def test_scan_filter(self):
+        ht = hl.utils.range_table(10, n_partitions=10)
+        ht = ht.annotate(x = hl.scan.count())
+        ht = ht.filter(ht.idx == 9)
+        assert ht.x.collect() == [9]
+
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
