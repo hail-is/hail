@@ -186,6 +186,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(escape_str("cat"), "cat")
         self.assertEqual(escape_str("my name is 名谦"), "my name is \\u540D\\u8C26")
         self.assertEqual(escape_str('"', backticked=True), '"')
+        self.assertEqual(escape_str(chr(200)), '\\u00C8')
+        self.assertEqual(escape_str(chr(500)), '\\u01F4')
 
     def test_escape_id(self):
         self.assertEqual(escape_id("`"), "`\\``")
