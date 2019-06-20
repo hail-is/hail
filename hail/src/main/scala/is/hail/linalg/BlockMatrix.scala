@@ -260,7 +260,8 @@ object BlockMatrix {
     overwrite: Boolean,
     delimiter: String,
     header: Option[String],
-    addIndex: Boolean): Unit = {
+    addIndex: Boolean,
+    compression: Option[String]): Unit = {
     val fs = HailContext.sFS
 
     if (overwrite)
@@ -272,11 +273,14 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val bcFS = HailContext.bcFS
+
+    val extension = compression.map(x => "." + x).getOrElse("")
+
     val partitionCounts = collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
-        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv"
+        val path = prefix + "/" + StringUtils.leftPad(i.toString, d, '0') + ".tsv" + extension
 
         using(
           new PrintWriter(

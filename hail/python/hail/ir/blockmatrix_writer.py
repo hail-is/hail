@@ -104,19 +104,21 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixNativeMultiWriter) and \
+        return isinstance(other, BlockMatrixBinaryMultiWriter) and \
                self.prefix == other.prefix and \
                self.overwrite == other.overwrite
 
 
 class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool)
-    def __init__(self, prefix, overwrite, delimiter, header, add_index):
+    @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool,
+                      compression=nullable(enumeration('gz', 'bgz')))
+    def __init__(self, prefix, overwrite, delimiter, header, add_index, compression):
         self.prefix = prefix
         self.overwrite = overwrite
         self.delimiter = delimiter
         self.header = header
         self.add_index = add_index
+        self.compression = compression
 
     def render(self):
         writer = {'name': 'BlockMatrixTextMultiWriter',
@@ -124,7 +126,8 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                   'overwrite': self.overwrite,
                   'delimiter': self.delimiter,
                   'header': self.header,
-                  'addIndex': self.add_index}
+                  'addIndex': self.add_index,
+                  'compression': self.compression}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -133,4 +136,5 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
                self.overwrite == other.overwrite and \
                self.delimiter == other.overwrite and \
                self.header == other.header and \
-               self.add_index == other.add_index
+               self.add_index == other.add_index and \
+               self.compression == other.compression
