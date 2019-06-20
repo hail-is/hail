@@ -18,7 +18,7 @@ import kubernetes as kube
 import requests
 import uvloop
 
-from hailjwt import authenticated_users_only
+from hailjwt import authenticated_users_only, new_csrf_token, check_csrf_token
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
@@ -940,18 +940,12 @@ async def ui_batch(request, userdata):
 
 @routes.post('/batches/{batch_id}/cancel')
 @aiohttp_jinja2.template('batches.html')
+@check_csrf_token
 @authenticated_users_only
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-
-    token1 = request.query.get('_csrf')
-    token2 = request.cookies.get('_csrf')
-    if token1 is None or token2 is None or token1 != token2:
-        abort(404)
-
     await _cancel_batch(batch_id, user)
-
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -962,7 +956,7 @@ async def ui_batches(request, userdata):
     params = request.query
     user = userdata['username']
     batches = await _get_batches_list(params, user)
-    token = secrets.token_bytes(64)
+    token = new_csrf_token()
     context = {'batch_list': batches, 'token': token}
 
     response = aiohttp_jinja2.render_template('batches.html',
