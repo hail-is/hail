@@ -38,6 +38,9 @@ class Tests(unittest.TestCase):
             tstruct(a=tfloat64, bb=tint32, c=tbool),
             tstruct(a=tint32, b=tint32),
             tstruct(**{'___': tint32, '_ . _': tint32}),
+            tunion(),
+            tunion(a=tint32, b=tstr),
+            tunion(**{'!@#$%^&({[': tstr}),
             ttuple(tstr, tint32),
             ttuple(tarray(tint32), tstr, tstr, tint32, tbool),
             ttuple()]

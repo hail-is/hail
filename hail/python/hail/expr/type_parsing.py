@@ -5,7 +5,7 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = _ (array / ndarray / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
+    type = _ (array / ndarray / set / dict / struct / union / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
@@ -21,6 +21,7 @@ type_grammar = Grammar(
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
+    union = ("tunion" / "union") _ "{" (fields / _) "}"
     tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
     fields = field ("," field)*
     field = identifier ":" type
@@ -101,6 +102,14 @@ class TypeConstructor(NodeVisitor):
         else:
             fields = maybe_fields[0]
             return hl.tstruct(**dict(fields))
+
+    def visit_union(self, node, visited_children):
+        tunion, _, brace, maybe_fields, brace = visited_children
+        if not maybe_fields:
+            return hl.tunion()
+        else:
+            fields = maybe_fields[0]
+            return hl.tunion(**dict(fields))
 
     def visit_tuple(self, node, visited_children):
         ttuple, _, paren, [maybe_types], paren = visited_children
