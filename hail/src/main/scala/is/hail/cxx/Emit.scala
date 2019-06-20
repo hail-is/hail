@@ -921,11 +921,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
            """.stripMargin)
 
-<<<<<<< HEAD
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayAgg =>
-=======
-      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayReshape =>
->>>>>>> deforest reshape
+      case _: ir.NDArrayMap | _: ir.NDArrayMap2 | _: ir.NDArraySlice | _: ir.NDArrayAgg | _: ir.NDArrayReshape =>
         val emitter = emitDeforestedNDArray(resultRegion, x, env)
         present(emitter.emit(x.pType.asInstanceOf[PNDArray].elementType))
 
