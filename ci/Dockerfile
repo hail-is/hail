@@ -1,9 +1,9 @@
 FROM {{ base_image.image }}
 
-COPY hailjwt/setup.py /hailjwt/
-COPY hailjwt/hailjwt /hailjwt/hailjwt
-RUN python3 -m pip install --no-cache-dir /hailjwt && \
-  rm -rf /hailjwt
+COPY gear/setup.py /gear/
+COPY gear/gear/ /gear/gear/
+RUN python3 -m pip install --no-cache-dir /gear \
+  && rm -rf /gear
 
 COPY batch_client/setup.py /batch_client/
 COPY batch_client/batch_client /batch_client/batch_client

@@ -3,7 +3,7 @@ import math
 import time
 import random
 
-import hailjwt as hj
+import gear.auth as hj
 
 from .globals import complete_states
 

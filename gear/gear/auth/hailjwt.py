@@ -4,8 +4,7 @@ from functools import wraps
 from aiohttp import web
 import jwt
 
-
-log = logging.getLogger('hailjwt')
+log = logging.getLogger('gear.auth')
 
 
 class JWTClient:

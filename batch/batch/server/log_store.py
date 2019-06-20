@@ -1,7 +1,7 @@
 import os
 
 import google
-import hailjwt as hj
+import gear.auth as hj
 
 from .google_storage import GCS
 

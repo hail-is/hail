@@ -1,7 +1,7 @@
 - project: docker
-- project: hailjwt
+- project: gear
 - project: batch
-  dependencies: ["docker", "hailjwt"]
+  dependencies: ["docker", "gear"]
   dependencies: ["batch"]
 - project: ci
 - project: cloudtools
@@ -10,7 +10,7 @@
 - project: gateway
 - project: hail
 - project: apiserver
-  dependencies: ["hail", "hailjwt"]
+  dependencies: ["hail", "gear"]
 - project: image-fetcher
 - project: letsencrypt
 - project: notebook

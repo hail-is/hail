@@ -3,7 +3,7 @@ import logging
 from functools import wraps
 from aiohttp import web
 
-log = logging.getLogger('hailjwt')
+log = logging.getLogger('gear.auth')
 
 
 def new_csrf_token():

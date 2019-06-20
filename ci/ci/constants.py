@@ -1,5 +1,5 @@
 import os
-import hailjwt as hj
+import gear.auth as hj
 
 GITHUB_CLONE_URL = 'https://github.com/'
 

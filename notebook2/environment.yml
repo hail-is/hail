@@ -10,4 +10,4 @@ dependencies:
   - libsass==0.18.*
   - authlib==0.10.*
   - pymysql==0.9.*
-  - ./hailjwt
+  - ./gear
