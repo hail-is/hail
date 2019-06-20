@@ -79,7 +79,7 @@
             {% endif %}
             {% if pr.status_age is not none %}
               {{ pr.status_age }}
-            {% if pr.out_of_date %}
+            {% elif pr.out_of_date %}
               *
             {% endif %}
           </td>
