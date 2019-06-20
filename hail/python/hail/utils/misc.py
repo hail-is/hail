@@ -9,6 +9,7 @@ from random import Random
 import hail
 from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
+from io import StringIO
 
 import numpy as np
 
@@ -471,3 +472,47 @@ def np_type_to_hl_type(t):
         return hail.tbool
     else:
         raise TypeError(f'Unsupported numpy type: {t}')
+
+def upper_hex(n, num_digits=None):
+    if num_digits is None:
+        return "{0:X}".format(n)
+    else:
+        return "{0:0{1}X}".format(n, num_digits)
+
+def escape_str(s):
+    sb = StringIO()
+
+    rewrite_dict = {
+        '\b': '\\b',
+        '\n': '\\n',
+        '\t': '\\t',
+        '\f': '\\f',
+        '\r': '\\r'
+    }
+
+    for ch in s:
+        chNum = ord(ch)
+        if chNum > 0x7f:
+            sb.write("\\u" + upper_hex(chNum, 4))
+        elif chNum < 32:
+            if ch in rewrite_dict:
+                sb.write(rewrite_dict[ch])
+            else:
+                if chNum > 0xf:
+                    sb.write("\\u00" + upper_hex(chNum))
+                else:
+                    sb.write("\\u000" + upper_hex(chNum))
+        else:
+            if ch == '"':
+                sb.write('\\\"')
+            elif ch == '\\':
+                sb.write('\\\\')
+            else:
+                sb.write(ch)
+    
+    escaped = sb.getvalue()
+    sb.close()
+
+    return escaped
+            
+

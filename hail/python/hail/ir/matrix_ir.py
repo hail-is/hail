@@ -1,6 +1,7 @@
 import hail as hl
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
+from hail.utils.java import escape_id, parsable_strings, dump_json
+from hail.utils.misc import escape_str
 
 
 class MatrixAggregateRowsByKey(MatrixIR):

@@ -6,7 +6,7 @@ from ..expr.types import tfloat32, tfloat64
 from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import *
 from ..utils import wrap_to_list
-from ..utils.java import escape_str
+from ..utils.misc import escape_str
 
 
 class MatrixReader(object):
