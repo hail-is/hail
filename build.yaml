@@ -159,7 +159,7 @@ steps:
  - kind: buildImage
    name: builder_utils_image
    dockerFile: builder/Dockerfile
-   contextPath: .
+   contextPath: builder/
    publishAs: builder-utils
    dependsOn:
      - base_image
