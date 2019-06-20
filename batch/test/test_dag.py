@@ -7,8 +7,8 @@ from flask import Response
 
 import hailjwt as hj
 
-from batch.client import BatchClient, Job
-import batch.aioclient as aioclient
+from batch_client.client import BatchClient, Job
+import batch_client.aioclient as aioclient
 from .serverthread import ServerThread
 
 
