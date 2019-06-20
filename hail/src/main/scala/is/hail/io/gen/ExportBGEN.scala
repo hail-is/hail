@@ -293,7 +293,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
 
 object ExportBGEN {
   def apply(mv: MatrixValue, path: String, exportType: Int): Unit = {
-    val colValues = mv.colValues.value
+    val colValues = mv.colValues.javaValue
 
     val sampleIds = colValues.map(_.asInstanceOf[Row].getString(0))
     val partitionSizes = mv.rvd.countPerPartition()

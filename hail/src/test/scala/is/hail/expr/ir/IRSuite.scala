@@ -1897,11 +1897,11 @@ class IRSuite extends HailSuite {
       val args = FastIndexedSeq((i, TBoolean()))
 
       IRSuite.globalCounter = 0
-      Interpret[Any](x, env, args, None, optimize = false)
+      Interpret[Any](ctx, x, env, args, None, optimize = false)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
-      Interpret[Any](x, env, args, None)
+      Interpret[Any](ctx, x, env, args, None)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
@@ -2048,7 +2048,7 @@ class IRSuite extends HailSuite {
         |      (Ref __uid_1))))
       """.stripMargin
 
-    Interpret(ir.IRParser.parse_table_ir(irStr), optimize = false).rvd.count()
+    Interpret(ir.IRParser.parse_table_ir(irStr), ctx, optimize = false).rvd.count()
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {
@@ -2056,8 +2056,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
-    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, hc.backend), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, hc.backend), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)), ctx)
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)), ctx)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))

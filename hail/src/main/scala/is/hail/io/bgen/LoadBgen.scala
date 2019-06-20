@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.expr.ir
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, LowerMatrixIR, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, LowerMatrixIR, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io._
@@ -396,7 +396,9 @@ case class MatrixBGENReader(
       assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      val rvd = Interpret(ir.TableDistinct(variantsTableIR)).rvd
+      val rvd = ExecuteContext.scoped { ctx =>
+        Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+      }
 
       val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
         .toRows(rowType.physicalType)
@@ -413,7 +415,7 @@ case class MatrixBGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     require(files.nonEmpty)
 
     val requestedType = tr.typ
@@ -451,7 +453,7 @@ case class MatrixBGENReader(
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 
-    val globalValue = makeGlobalValue(requestedType, sampleIds.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType, sampleIds.map(Row(_)))
 
     TableValue(tr.typ, globalValue, rvd)
   }

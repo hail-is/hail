@@ -1,7 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.HailContext
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
@@ -14,7 +14,7 @@ case class MatrixWriteBlockMatrix(path: String,
   blockSize: Int) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
-  def execute(mv: MatrixValue): Any = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
     val rvd = mv.rvd
 
     // FIXME

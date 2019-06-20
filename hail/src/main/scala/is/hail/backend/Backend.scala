@@ -6,7 +6,7 @@ import is.hail.expr.ir.IRParser
 import is.hail.io.CodecSpec
 import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, IR, MakeTuple, Pretty}
+import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
@@ -83,7 +83,7 @@ abstract class Backend {
         cxxLowerAndExecute(ir, optimize)
     } catch {
       case (_: cxx.CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
-        CompileAndEvaluate(ir, optimize = optimize)
+        ExecuteContext.scoped(ctx => CompileAndEvaluate(ctx, ir, optimize = optimize))
     }
   }
 

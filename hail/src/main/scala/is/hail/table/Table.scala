@@ -52,7 +52,9 @@ object Table {
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    TableLiteral(TableValue(signature, key, df.rdd))
+    ExecuteContext.scoped { ctx =>
+      TableLiteral(TableValue(ctx, signature, key, df.rdd), ctx)
+    }
   }
 
   def read(hc: HailContext, path: String): Table =
@@ -141,12 +143,14 @@ object Table {
     isSorted: Boolean
   ): Table = {
     val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature.physicalType))
-    new Table(hc, TableLiteral(
-      TableValue(
-        TableType(signature, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
-        RVD.unkeyed(signature.physicalType, crdd2)))
-    ).keyBy(key, isSorted)
+    ExecuteContext.scoped { ctx =>
+      new Table(hc, TableKeyBy(TableLiteral(
+        TableValue(
+          TableType(signature, FastIndexedSeq(), globalSignature),
+          BroadcastRow(ctx, globals.asInstanceOf[Row], globalSignature),
+          RVD.unkeyed(signature.physicalType, crdd2)), ctx),
+        key, isSorted))
+    }
   }
 
   def apply(
@@ -166,12 +170,15 @@ object Table {
     isSorted: Boolean
   ): Table = {
     val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
-    new Table(hc, TableLiteral(
-      TableValue(
-        TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
-        RVD.unkeyed(signature, crdd2)))
-    ).keyBy(key, isSorted)
+    ExecuteContext.scoped { ctx =>
+      new Table(hc, TableLiteral(
+        TableValue(
+          TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
+          BroadcastRow(ctx, globals.asInstanceOf[Row], globalSignature),
+          RVD.unkeyed(signature, crdd2)),
+        ctx)
+      ).keyBy(key, isSorted)
+    }
   }
 
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
@@ -203,21 +210,24 @@ class Table(val hc: HailContext, val tir: TableIR) {
     key: IndexedSeq[String] = FastIndexedSeq(),
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty
-  ) = this(hc,
+  ) = this(hc, ExecuteContext.scoped { ctx =>
         TableLiteral(
           TableValue(
             TableType(signature, key, globalSignature),
-            BroadcastRow(globals, globalSignature, hc.backend),
-            RVD.coerce(RVDType(signature.physicalType, key), crdd)))
+            BroadcastRow(ctx, globals, globalSignature),
+            RVD.coerce(RVDType(signature.physicalType, key), crdd)), ctx)}
   )
 
   def typ: TableType = tir.typ
 
-  lazy val value@TableValue(ktType, globals, rvd) = Interpret(tir, optimize = true)
+  lazy val (globals, rvd, rdd, lit) = {
+    ExecuteContext.scoped { ctx =>
+      val tv = Interpret(tir, ctx, optimize = true)
+      (tv.globals.safeJavaValue, tv.rvd, tv.rdd, TableLiteral(tv, ctx))
+    }
+  }
 
   val TableType(signature, key, globalSignature) = tir.typ
-
-  lazy val rdd: RDD[Row] = value.rdd
 
   if (!(fieldNames ++ globalSignature.fieldNames).areDistinct())
     fatal(s"Column names are not distinct: ${ (fieldNames ++ globalSignature.fieldNames).duplicates().mkString(", ") }")
@@ -232,7 +242,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def nPartitions: Int = rvd.getNumPartitions
 
-  def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
+  def count(): Long = ExecuteContext.scoped { ctx => ir.Interpret[Long](ctx, ir.TableCount(tir)) }
 
   def valueSignature: TStruct = {
     val (t, _) = signature.filterSet(key.toSet, include = false)
@@ -241,11 +251,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def typeCheck() {
 
-    if (!globalSignature.typeCheck(globals.value)) {
+    if (!globalSignature.typeCheck(globals)) {
       fatal(
         s"""found violation of global signature
            |  Schema: ${ globalSignature.toString }
-           |  Annotation: ${ globals.value }""".stripMargin)
+           |  Annotation: ${ globals }""".stripMargin)
     }
 
     val localSignature = signature
@@ -293,11 +303,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
            | right: ${ other.globalSignature.toString }
            |""".stripMargin)
       false
-    } else if (!globalSignatureOpt.valuesSimilar(globals.value, other.globals.value)) {
+    } else if (!globalSignatureOpt.valuesSimilar(globals, other.globals)) {
       info(
         s"""different global annotations:
-           | left: ${ globals.value }
-           | right: ${ other.globals.value }
+           | left: ${ globals }
+           | right: ${ other.globals }
            |""".stripMargin)
       false
     } else if (key.nonEmpty) {
@@ -369,7 +379,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableMapRows(tir, newRow))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
-    ir.Interpret(ir.TableWrite(tir, ir.TableTextWriter(path, typesFile, header, exportType, delimiter)))
+    ExecuteContext.scoped { ctx =>
+      ir.Interpret[Unit](ctx, ir.TableWrite(tir, ir.TableTextWriter(path, typesFile, header, exportType, delimiter)))
+    }
   }
 
   def distinctByKey(): Table = {
@@ -393,16 +405,21 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def collect(): Array[Row] = rdd.collect()
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.TableWrite(tir, TableNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
+    ExecuteContext.scoped { ctx =>
+      ir.Interpret[Unit](ctx, ir.TableWrite(tir, TableNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
+    }
   }
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
     globalSignature: TStruct = globalSignature,
-    globals: BroadcastRow = globals): Table = {
-    new Table(hc, TableLiteral(
-      TableValue(TableType(signature, key, globalSignature), globals, rvd)
-    ))
+    globals: BroadcastRow = null): Table = ExecuteContext.scoped { ctx =>
+    new Table(hc,
+      TableLiteral(TableValue(TableType(signature, key, globalSignature),
+        Option(globals).getOrElse(BroadcastRow(ctx, this.globals, globalSignature)),
+        rvd),
+        ctx)
+    )
   }
 }

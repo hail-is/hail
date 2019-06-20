@@ -49,7 +49,7 @@ class JoinSuite extends HailSuite {
     rightKt.typeCheck()
     val right = MatrixTable.fromRowsTable(rightKt)
 
-    val localRowType = left.value.rvRowType
+    val localRowType = left.rvRowPType
 
     // Inner distinct ordered join
     val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner", (_, it) => it.map(_._1), left.rvd.typ)
@@ -57,7 +57,7 @@ class JoinSuite extends HailSuite {
 
     assert(jInner.count() == jInnerOrdRDD1.count())
     assert(jInner.map { rv =>
-      val r = SafeRow(localRowType.physicalType, rv)
+      val r = SafeRow(localRowType, rv)
       r.getAs[Locus](0)
     }.collect() sameElements jInnerOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
 
@@ -68,7 +68,7 @@ class JoinSuite extends HailSuite {
     assert(jLeft.count() == jLeftOrdRDD1.count())
     assert(jLeft.forall(rv => rv != null))
     assert(jLeft.map { rv =>
-      val r = SafeRow(localRowType.physicalType, rv)
+      val r = SafeRow(localRowType, rv)
       r.getAs[Locus](0)
     }.collect() sameElements jLeftOrdRDD1.map(_._1.asInstanceOf[Row].get(0)).collect().sorted(vType.ordering.toOrdering))
   }

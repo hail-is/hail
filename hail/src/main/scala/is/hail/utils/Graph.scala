@@ -3,6 +3,8 @@ package is.hail.utils
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
 import is.hail.expr.types.physical.{PBaseStruct, PSet, PTuple, PType}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
+import is.hail.expr.types.physical.PBaseStruct
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -36,7 +38,7 @@ object Graph {
   def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
     val nodeType = IRParser.parseType(nodeTypeStr)
     
-    val edges = Interpret[IndexedSeq[Row]](edgesIR).toArray
+    val edges = ExecuteContext.scoped { ctx => Interpret[IndexedSeq[Row]](ctx, edgesIR).toArray }
 
     val resultType = TSet(nodeType)
     val result = maximalIndependentSet(edges, nodeType, tieBreaker)

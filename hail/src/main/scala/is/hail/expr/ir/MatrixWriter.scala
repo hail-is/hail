@@ -20,7 +20,7 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   colsFieldName: String,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
-  def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colsFieldName, entriesFieldName, colKey))
+  def apply(tv: TableValue): Unit = writer(tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixWriter {
