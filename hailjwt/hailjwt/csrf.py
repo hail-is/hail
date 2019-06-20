@@ -7,7 +7,7 @@ log = logging.getLogger('hailjwt')
 
 
 def new_csrf_token():
-    return secrets.token_bytes(64)
+    return secrets.token_urlsafe(64)
 
 
 def check_csrf_token(fun):

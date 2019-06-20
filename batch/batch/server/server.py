@@ -7,7 +7,6 @@ import threading
 import traceback
 import json
 import uuid
-import secrets
 from shlex import quote as shq
 
 import jinja2
