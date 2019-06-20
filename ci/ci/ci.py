@@ -15,6 +15,7 @@ from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh
 
 import batch
 from hailjwt import authenticated_developers_only
+from hailjwt import new_csrf_token, check_csrf_token
 
 from .log import log
 from .constants import BUCKET
@@ -39,7 +40,6 @@ start_time = datetime.datetime.now()
 
 @routes.get('/')
 @authenticated_developers_only
-@aiohttp_jinja2.template('index.html')
 async def index(request):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -81,10 +81,19 @@ async def index(request):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    return {
+    token = new_csrf_token()
+
+    context = {
         'watched_branches': wb_configs,
-        'age': pretty_timestamp_age(datetime.datetime.now() - start_time)
+        'age': pretty_timestamp_age(datetime.datetime.now() - start_time),
+        'token': token
     }
+
+    response = aiohttp_jinja2.render_template('index.html',
+                                              request,
+                                              context)
+    response.cookies['_csrf'] = token
+    return response
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
@@ -177,6 +186,7 @@ async def get_job_log(request):
 
 
 @routes.post('/authorize_source_sha')
+@check_csrf_token
 @authenticated_developers_only
 async def post_authorized_source_sha(request):
     app = request.app
