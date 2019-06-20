@@ -1,5 +1,7 @@
 .PHONY: build clean
 
+PROJECT := $(shell gcloud config get-value project)
+
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hailjwt python3
 
@@ -25,18 +27,18 @@ build:
 	make -C ../docker build
 	-docker pull $(BUILDER_UTILS_LATEST)
 	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-	docker build -t builder -f Dockerfile.out --cache-from builder,$(BUILDER_UTILS_LATEST),base .
+	docker build -t builder-utils -f Dockerfile.out --cache-from builder,$(BUILDER_UTILS_LATEST),base .
 
 push: build
-	docker tag builder $(BUILDER_UTILS_LATEST)
+	docker tag builder-utils $(BUILDER_UTILS_LATEST)
 	docker push $(BUILDER_UTILS_LATEST)
-	docker tag builder $(BUILDER_UTILS_IMAGE)
+	docker tag builder-utils $(BUILDER_UTILS_IMAGE)
 	docker push $(BUILDER_UTILS_IMAGE)
 else
 build:
 	make -C ../docker build
 	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
-	docker build -t builder -f Dockerfile.out .
+	docker build -t builder-utils -f Dockerfile.out .
 endif
 
 clean:
