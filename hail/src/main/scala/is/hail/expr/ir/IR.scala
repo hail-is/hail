@@ -14,16 +14,21 @@ sealed trait IR extends BaseIR {
   private var _ptype: PType = null
   private var _typ: Type = null
 
+  // start with a _ptype2
+  // write the pass that does bottom up inference (and passing down the environment from the top)
+  // it wil lbe called from Compile.scala
+
   def pType: PType = {
     if (_ptype == null)
       _ptype = PType.canonical(typ)
     _ptype
   }
 
+  // Need check that virutal and physical types agree
   def typ: Type = {
     if (_typ == null)
       try {
-        _typ = InferType(this)
+        _typ = InferType(this) // FIXME: take as a parameter the environment of physical types of references; variables and some values associated with variables
       } catch {
         case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
       }

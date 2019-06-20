@@ -2,20 +2,22 @@ package is.hail.annotations
 
 import is.hail.HailContext
 import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.expr.types.physical.PBaseStruct
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct}
+import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 
 object BroadcastRow {
   def empty(): BroadcastRow =
-    BroadcastRow(Row.empty, TStruct.empty(), HailContext.backend)
+    BroadcastRow(Row.empty, PStruct.empty(), HailContext.backend)
 
-  def apply(value: Row, t: TBaseStruct, sc: SparkContext): BroadcastRow =
+  def apply(value: Row, t: PBaseStruct, sc: SparkContext): BroadcastRow =
     BroadcastRow(value, t, HailContext.backend)
 }
 
 case class BroadcastRow(value: Row,
-  t: TBaseStruct,
+  t: PBaseStruct,
   backend: Backend) {
   require(Annotation.isSafe(t, value))
 
@@ -25,7 +27,7 @@ case class BroadcastRow(value: Row,
 
   def toRegion(region: Region): Long = {
     val rvb = new RegionValueBuilder(region)
-    rvb.start(t.physicalType)
+    rvb.start(t)
     rvb.addAnnotation(t, value)
     rvb.end()
   }

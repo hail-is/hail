@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PDict, PInterval, PSet, PType}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -64,23 +65,23 @@ object Annotation {
     }
   }
 
-  def isSafe(typ: Type, a: Annotation): Boolean = {
-    a == null || (typ match {
-      case t: TBaseStruct =>
+  def isSafe(ptyp: PType, a: Annotation): Boolean = {
+    a == null || (ptyp match {
+      case t: PBaseStruct =>
         val r = a.asInstanceOf[Row]
         !r.isInstanceOf[UnsafeRow] && Array.range(0, t.size).forall(i => Annotation.isSafe(t.types(i), r(i)))
 
-      case t: TArray =>
+      case t: PArray =>
         !a.isInstanceOf[UnsafeIndexedSeq] && a.asInstanceOf[IndexedSeq[Annotation]].forall(Annotation.isSafe(t.elementType, _))
 
-      case t: TSet =>
+      case t: PSet =>
         a.asInstanceOf[Set[Annotation]].forall(Annotation.isSafe(t.elementType, _))
 
-      case t: TDict =>
+      case t: PDict =>
         a.asInstanceOf[Map[Annotation, Annotation]]
           .forall { case (k, v) => Annotation.isSafe(t.keyType, k) && Annotation.isSafe(t.valueType, v) }
 
-      case t: TInterval =>
+      case t: PInterval =>
         val i = a.asInstanceOf[Interval]
         Annotation.isSafe(t.pointType, i.start) && Annotation.isSafe(t.pointType, i.end)
 

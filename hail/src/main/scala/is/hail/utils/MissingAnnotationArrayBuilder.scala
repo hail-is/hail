@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 
 import scala.collection.mutable
@@ -36,7 +37,7 @@ class MissingAnnotationArrayBuilder extends Serializable {
     }
   }
 
-  def write(rvb: RegionValueBuilder, t: Type) {
+  def write(rvb: RegionValueBuilder, ptype: PType) {
     rvb.startArray(len)
     var i = 0
     var j = 0
@@ -44,7 +45,7 @@ class MissingAnnotationArrayBuilder extends Serializable {
       if (isMissing(i))
         rvb.setMissing()
       else {
-        rvb.addAnnotation(t, elements(j))
+        rvb.addAnnotation(ptype, elements(j))
         j += 1
       }
       i += 1

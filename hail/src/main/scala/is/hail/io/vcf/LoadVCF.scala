@@ -7,6 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -28,7 +29,6 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
-
 import is.hail.io.fs.FS
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {
@@ -1225,7 +1225,7 @@ object LoadVCF {
             val line = lwc.value
             try {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
-              rvb.start(t.physicalType)
+              rvb.start(t.physicalType) // FIXME: should this be canonical?
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, hasRSID, skipInvalidLoci)
               if (present) {
@@ -1504,6 +1504,9 @@ case class MatrixVCFReader(
 
   override lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
+  // we're loading vcf, not off-heap (generating off-heap), can be canonicl
+  // we're specifying the type of data we're putting off heap
+  // if something takes an RDD.
   val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
 
   private lazy val lines = {

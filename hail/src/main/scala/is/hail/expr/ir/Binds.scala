@@ -27,6 +27,7 @@ object Bindings {
     case NDArrayMap2(l, r, lName, rName, _) => if (i == 2) Array(lName -> -coerce[TNDArray](l.typ).elementType, rName -> -coerce[TNDArray](r.typ).elementType) else empty
     case CollectDistributedArray(contexts, globals, cname, gname, _) => if (i == 2) Array(cname -> -coerce[TArray](contexts.typ).elementType, gname -> globals.typ) else empty
     case Uniroot(argname, _, _, _) => if (i == 0) Array(argname -> TFloat64()) else empty
+    //
     case TableAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case MatrixAggregate(child, _) => if (i == 1) child.typ.globalEnv.m else empty
     case TableFilter(child, _) => if (i == 1) child.typ.rowEnv.m else empty

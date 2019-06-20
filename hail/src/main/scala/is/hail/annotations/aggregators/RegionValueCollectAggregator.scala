@@ -1,6 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
@@ -184,14 +185,15 @@ class RegionValueCollectDoubleAggregator extends RegionValueAggregator {
   }
 }
 
-class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggregator {
+// TODO: Keep input as Type?
+class RegionValueCollectAnnotationAggregator(pType: PType) extends RegionValueAggregator {
   private var ab = new MissingAnnotationArrayBuilder()
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (missing)
       ab.addMissing()
     else
-      ab.add(SafeRow.read(t.physicalType, region, offset))
+      ab.add(SafeRow.read(pType, region, offset))
   }
 
   def combOp(agg2: RegionValueAggregator) {
@@ -204,13 +206,13 @@ class RegionValueCollectAnnotationAggregator(t: Type) extends RegionValueAggrega
   }
 
   def result(rvb: RegionValueBuilder) {
-    ab.write(rvb, t)
+    ab.write(rvb, pType)
   }
 
   def newInstance(): RegionValueCollectAnnotationAggregator = new RegionValueCollectAnnotationAggregator(t)
 
   def copy(): RegionValueCollectAnnotationAggregator = {
-    val rva = new RegionValueCollectAnnotationAggregator(t)
+    val rva = new RegionValueCollectAnnotationAggregator(pType)
     rva.ab = ab.clone()
     rva
   }

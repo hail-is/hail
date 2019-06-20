@@ -290,6 +290,7 @@ class UnsafeSuite extends HailSuite {
     assert(PStruct().byteSize == 0)
   }
 
+  // FIXME
   @Test def testUnsafeOrdering() {
     val region = Region()
     val region2 = Region()
@@ -302,14 +303,15 @@ class UnsafeSuite extends HailSuite {
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2)) =>
 
-      val tv = t.virtualType
-
-      tv.typeCheck(a1)
-      tv.typeCheck(a2)
+      // FIXME
+      // TypeCheck or check is compatible with?
+      // What does typeCheck add here? (checks either required && not null or is null.
+//      t.typeCheck(a1)
+//      t.typeCheck(a2)
 
       region.clear()
-      rvb.start(tv.physicalType.fundamentalType)
-      rvb.addRow(tv, a1.asInstanceOf[Row])
+      rvb.start(t.fundamentalType)
+      rvb.addRow(t, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
       val ur1 = new UnsafeRow(tv.physicalType, region, offset)

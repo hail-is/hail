@@ -231,7 +231,7 @@ object ExportVCF {
     mv.typ.requireRowKeyVariant()
 
     val typ = mv.typ
-
+    // TODO: mv
     val tg = typ.entryType match {
       case t: TStruct => t.physicalType
       case t =>

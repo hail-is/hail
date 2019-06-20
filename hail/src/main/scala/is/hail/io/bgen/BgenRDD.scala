@@ -63,7 +63,9 @@ case class BgenSettings(
     case _: EntriesWithFields =>
       matrixType.canonicalRVDType.rowType.virtualType
   }
-
+  // anywhere we take in data and using t.physicalType -> thread through the physical
+  // which means changing the t: Type to a t: PType and all the downstream consequences
+  // rowType.physicalType is wrong
   def pType: PStruct = typ.physicalType
 
   def rg: Option[ReferenceGenome] = rgBc.map(_.value)

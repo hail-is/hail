@@ -290,12 +290,12 @@ class RegionValueBuilder(var region: Region) {
     addBinary(s.getBytes)
   }
 
-  def addRow(t: TBaseStruct, r: Row) {
+  def addRow(p: PBaseStruct, r: Row) {
     assert(r != null)
     startBaseStruct()
     var i = 0
-    while (i < t.size) {
-      addAnnotation(t.types(i), r.get(i))
+    while (i < p.size) {
+      addAnnotation(p.types(i), r.get(i))
       i += 1
     }
     endBaseStruct()
@@ -505,20 +505,20 @@ class RegionValueBuilder(var region: Region) {
     addRegionValue(t, uis.region, uis.aoff)
   }
 
-  def addAnnotation(t: Type, a: Annotation) {
+  def addAnnotation(ptype: PType, a: Annotation) {
     if (a == null)
       setMissing()
     else
-      t match {
-        case _: TBoolean => addBoolean(a.asInstanceOf[Boolean])
-        case _: TInt32 => addInt(a.asInstanceOf[Int])
-        case _: TInt64 => addLong(a.asInstanceOf[Long])
-        case _: TFloat32 => addFloat(a.asInstanceOf[Float])
-        case _: TFloat64 => addDouble(a.asInstanceOf[Double])
-        case _: TString => addString(a.asInstanceOf[String])
-        case _: TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+      ptype match {
+        case _: PBoolean => addBoolean(a.asInstanceOf[Boolean])
+        case _: PInt32 => addInt(a.asInstanceOf[Int])
+        case _: PInt64 => addLong(a.asInstanceOf[Long])
+        case _: PFloat32 => addFloat(a.asInstanceOf[Float])
+        case _: PFloat64 => addDouble(a.asInstanceOf[Double])
+        case _: PString => addString(a.asInstanceOf[String])
+        case _: PBinary => addBinary(a.asInstanceOf[Array[Byte]])
 
-        case t: TArray =>
+        case ptype: PArray =>
           a match {
             case uis: UnsafeIndexedSeq if currentType() == uis.t =>
               addUnsafeArray(uis.t.asInstanceOf[PArray], uis)
@@ -527,13 +527,13 @@ class RegionValueBuilder(var region: Region) {
               startArray(is.length)
               var i = 0
               while (i < is.length) {
-                addAnnotation(t.elementType, is(i))
+                addAnnotation(ptype, is(i))
                 i += 1
               }
               endArray()
           }
 
-        case t: TBaseStruct =>
+        case t: PBaseStruct =>
           a match {
             case ur: UnsafeRow if currentType() == ur.t =>
               addUnsafeRow(ur.t, ur)
@@ -541,7 +541,7 @@ class RegionValueBuilder(var region: Region) {
               addRow(t, r)
           }
 
-        case TSet(elementType, _) =>
+        case PSet(elementType, _) =>
           val s = a.asInstanceOf[Set[Annotation]]
             .toArray
             .sorted(elementType.ordering.toOrdering)
