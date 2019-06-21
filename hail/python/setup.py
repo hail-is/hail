@@ -25,10 +25,10 @@ setup(
     packages=find_packages('.'),
     package_dir={
         'hail': 'hail',
-        'hailctl': 'hailctl'},
+        'hailtop': 'hailtop'},
     package_data={
         'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
-        'hailctl': ['deploy.yaml', 'hail_pip_version', 'hail_version']},
+        'hailtop': ['deploy.yaml', 'hail_pip_version', 'hail_version']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
@@ -36,6 +36,6 @@ setup(
     python_requires=">=3.6",
     install_requires=dependencies,
     entry_points={
-        'console_scripts': ['hailctl = hailctl.__main__:main']
+        'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
 )
