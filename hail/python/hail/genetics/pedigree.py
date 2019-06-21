@@ -1,5 +1,7 @@
+import re
+
 from hail.typecheck import *
-from hail.utils.java import *
+from hail.utils.java import Env, FatalError
 
 
 class Trio(object):
@@ -166,16 +168,7 @@ class Pedigree(object):
     """
 
     def __init__(self, trios):
-        #self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = tuple(trios)
-
-    # @classmethod
-    # def _from_java(cls, jrep):
-    #     ped = Pedigree.__new__(cls)
-    #     ped._jrep = jrep
-    #     ped._trios = None
-    #     super(Pedigree, ped).__init__()
-    #     return ped
 
     def __eq__(self, other):
         return isinstance(other, Pedigree) and self._trios == other._trios
@@ -186,7 +179,7 @@ class Pedigree(object):
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
-    def read(cls, fam_path, delimiter='\\s+') -> 'Pedigree':
+    def read(cls, fam_path, delimiter='\s') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**
@@ -206,13 +199,10 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        # jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.sFS(), delimiter)
-        # return Pedigree._from_java(jrep)
-
         trios = []
         with Env.fs().open(fam_path) as file:
             for line in file:
-                split_line = line.split(delimiter)
+                split_line = re.split(delimiter, line.strip())
                 num_fields = len(split_line)
                 if num_fields != 6:
                     raise FatalError("Require 6 fields per line in .fam, but this line has {}: {}".format(num_fields, line))
@@ -236,8 +226,7 @@ class Pedigree(object):
         :rtype: list of :class:`.Trio`
         """
 
-        # if not self._trios:
-        #     self._trios = [Trio._from_java(t) for t in jiterable_to_list(self._jrep.trios())]
+    
         return self._trios
 
     def complete_trios(self):
@@ -298,8 +287,8 @@ class Pedigree(object):
         :type path: str
         """
 
-        lines = [t._to_fam_file_line for t in self._trios]
+        lines = [t._to_fam_file_line() for t in self._trios]
 
-        with Env.fs().open(path) as file:
+        with Env.fs().open(path, mode="w") as file:
             for line in lines:
                 file.write(line + "\n")
