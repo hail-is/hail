@@ -1,7 +1,8 @@
 import re
+from collections import Counter
 
 from hail.typecheck import *
-from hail.utils.java import Env, FatalError
+from hail.utils.java import Env, FatalError, warn
 
 
 class Trio(object):
@@ -200,6 +201,8 @@ class Pedigree(object):
         """
 
         trios = []
+        missing_sex_count = 0
+        missing_sex_values = set()
         with Env.fs().open(fam_path) as file:
             for line in file:
                 split_line = re.split(delimiter, line.strip())
@@ -209,12 +212,25 @@ class Pedigree(object):
                 (fam, kid, dad, mom, sex, _) = tuple(split_line)
                 # 1 is male, 2 is female, 0 is unknown.
                 is_female = sex == "2" if sex == "1" or sex == "2" else None
+                
+                if is_female is None:
+                    missing_sex_count += 1
+                    missing_sex_values.add(sex)
+                
                 trio = Trio(kid,
                             fam if fam != "0" else None, 
                             dad if dad != "0" else None, 
                             mom if mom != "0" else None, 
                             is_female)
                 trios.append(trio)
+        
+        only_ids = [trio.s for trio in trios]
+        duplicate_ids = [id for id, count in Counter(only_ids).items() if count > 1]
+        if duplicate_ids:
+            raise FatalError("Invalid pedigree: found duplicate proband IDs\n{}".format(duplicate_ids))
+        
+        if missing_sex_count > 0:
+            warn("Found {} samples with missing sex information (not 1 or 2)")
         
         return Pedigree(trios)
 
