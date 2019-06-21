@@ -5,8 +5,25 @@ import random
 
 import hailjwt as hj
 
-from .requests_helper import filter_params
 from .globals import complete_states
+
+
+def filter_params(complete, success, attributes):
+    params = None
+    if complete is not None:
+        if not params:
+            params = {}
+        params['complete'] = '1' if complete else '0'
+    if success is not None:
+        if not params:
+            params = {}
+        params['success'] = '1' if success else '0'
+    if attributes is not None:
+        if not params:
+            params = {}
+        for n, v in attributes.items():
+            params[f'a:{n}'] = v
+    return params
 
 
 class Job:
