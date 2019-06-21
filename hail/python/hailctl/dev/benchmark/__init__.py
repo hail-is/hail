@@ -6,5 +6,5 @@ from .table_benchmarks import *
 __all__ = [
     'run_all',
     'run_single',
-    'initialize'
+    'initialize',
 ]
