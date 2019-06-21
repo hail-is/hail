@@ -1,7 +1,10 @@
 import json
+import logging
 import asyncio
 import aiomysql
 from asyncinit import asyncinit
+
+log = logging.getLogger('batch.database')
 
 
 def run_synchronous(coro):
@@ -120,6 +123,7 @@ class Table:  # pylint: disable=R0903
                 sql = f"DELETE FROM `{self.name}` WHERE {where_template}"
                 await cursor.execute(sql, tuple(where_values))
 
+
 class BatchBuilder:
     jobs_fields = {'batch_id', 'job_id', 'state', 'pod_name',
                    'pvc_name', 'pvc_size', 'callback', 'attributes',
@@ -127,8 +131,7 @@ class BatchBuilder:
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
-    def __init__(self, batch_db, n_jobs, log):
-        self._log = log
+    def __init__(self, batch_db, n_jobs):
         self._db = batch_db
         self._conn = None
         self._batch_id = None
@@ -182,21 +185,21 @@ class BatchBuilder:
                 await cursor.executemany(self._jobs_sql, self._jobs)
                 n_jobs_inserted = cursor.rowcount
                 if n_jobs_inserted != self.n_jobs:
-                    self._log.info(f'inserted {n_jobs_inserted} jobs, but expected {self.n_jobs} jobs')
+                    log.info(f'inserted {n_jobs_inserted} jobs, but expected {self.n_jobs} jobs')
                     return False
 
             if len(self._jobs_parents) > 0:
                 await cursor.executemany(self._jobs_parents_sql, self._jobs_parents)
                 n_jobs_parents_inserted = cursor.rowcount
                 if n_jobs_parents_inserted != len(self._jobs_parents):
-                    self._log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
+                    log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                     return False
 
         try:
             await self._conn.commit()
             return True
-        except:
-            self._log.info(f'committing to database failed')
+        except:  # pylint: disable=bare-except
+            log.exception(f'committing to database failed')
             return False
 
 
@@ -236,7 +239,6 @@ class JobsTable(Table):
                 select_fields.append(f'{self._db.batch.name}.{f}')
         return select_fields
 
-
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
@@ -249,7 +251,7 @@ class JobsTable(Table):
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 fields = ', '.join(self._select_fields())
-                sql = f"""SELECT {fields} FROM `{self.name}` 
+                sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN {batch_name} ON `{self.name}`.batch_id = `{batch_name}`.id"""
                 await cursor.execute(sql)
                 return await cursor.fetchall()
@@ -261,8 +263,8 @@ class JobsTable(Table):
                 where_items = {'batch_id': batch_id, 'job_id': ids}
                 where_template, where_values = make_where_statement(where_items)
                 fields = ', '.join(self._select_fields(fields))
-                sql = f"""SELECT {fields} FROM `{self.name}` 
-                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
+                sql = f"""SELECT {fields} FROM `{self.name}`
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           WHERE {where_template}"""
                 await cursor.execute(sql, tuple(where_values))
                 result = await cursor.fetchall()
@@ -274,7 +276,7 @@ class JobsTable(Table):
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement({'batch_id': batch_id, 'job_id': ids, f'user': user})
                 fields = ', '.join(self._select_fields())
-                sql = f"""SELECT {fields} FROM `{self.name}` 
+                sql = f"""SELECT {fields} FROM `{self.name}`
                 INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                 WHERE {where_template} AND EXISTS
                 (SELECT id from `{batch_name}` WHERE `{batch_name}`.id = batch_id AND `{batch_name}`.deleted = FALSE)"""
@@ -322,7 +324,7 @@ class JobsTable(Table):
                 where_template, where_values = make_where_statement(condition)
                 fields = ', '.join(self._select_fields())
                 sql = f"""SELECT {fields} FROM `{self.name}`
-                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id 
+                          INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
                           WHERE {where_template}"""
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
