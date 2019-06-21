@@ -1126,17 +1126,29 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(60)
 
 
-def serve(port=5000):
-    batch_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
-    routes.static('/static', os.path.join(batch_root, 'static'))
-    app.add_routes(routes)
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        app['blocking_pool'] = pool
-        app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
-        app['log_store'] = LogStore(pool, INSTANCE_ID, log)
-        asyncio.ensure_future(polling_event_loop())
-        asyncio.ensure_future(kube_event_loop())
-        asyncio.ensure_future(db_cleanup_event_loop())
-        asyncio.ensure_future(create_pods_if_ready())
-        web.run_app(app, host='0.0.0.0', port=port)
+batch_root = os.path.dirname(os.path.abspath(__file__))
+aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
+routes.static('/static', os.path.join(batch_root, 'static'))
+app.add_routes(routes)
+
+
+async def on_startup(app):
+    app['blocking_pool'] = concurrent.futures.ThreadPoolExecutor()
+    app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
+    app['log_store'] = LogStore(pool, INSTANCE_ID, log)
+
+    asyncio.ensure_future(polling_event_loop())
+    asyncio.ensure_future(kube_event_loop())
+    asyncio.ensure_future(db_cleanup_event_loop())
+    asyncio.ensure_future(create_pods_if_ready())
+
+
+app.on_startup.append(on_startup)
+
+
+async def on_cleanup(app):
+    blocking_pool = app['blocking_pool']
+    blocking_pool.shutdown()
+
+
+app.on_cleanup.append(on_cleanup)
