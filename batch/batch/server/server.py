@@ -842,29 +842,41 @@ async def get_batches_list(request, userdata):
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
-    parameters = await request.json()
+    reader = await request.multipart()
+
+    part = await reader.next()
+    batch_parameters = await part.json()
 
     validator = cerberus.Validator(schemas.batch_schema)
-    if not validator.validate(parameters):
+    if not validator.validate(batch_parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    jobs_parameters = parameters.get('jobs', [])
-    n_jobs = len(jobs_parameters)
-    jobs = []
-
+    n_jobs = batch_parameters['n_jobs']
     start_time = time.time()
     batch_builder = BatchBuilder(db, n_jobs, log)
 
     try:
         batch = await Batch.create_batch(
             batch_builder,
-            attributes=parameters.get('attributes'),
-            callback=parameters.get('callback'),
+            attributes=batch_parameters.get('attributes'),
+            callback=batch_parameters.get('callback'),
             userdata=userdata)
 
-        for job_params in jobs_parameters:
-            job = await create_job(batch_builder, batch.id, userdata, job_params)
-            jobs.append(job)
+        jobs = []
+        while True:
+            part = await reader.next()
+            if part is None:
+                break
+
+            jobs_part_data = await part.json()
+
+            validator = cerberus.Validator(schemas.job_array_schema)
+            if not validator.validate(jobs_part_data):
+                abort(400, 'invalid request: {}'.format(validator.errors))
+
+            for job_params in jobs_part_data['jobs']:
+                job = await create_job(batch_builder, batch.id, userdata, job_params)
+                jobs.append(job)
 
         success = await batch_builder.commit()
         if not success:
