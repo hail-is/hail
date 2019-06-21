@@ -7,7 +7,7 @@ import hail
 from hail.expr.types import *
 from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import *
-from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
+from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer

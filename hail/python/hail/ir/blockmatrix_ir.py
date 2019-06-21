@@ -4,7 +4,6 @@ from hail.expr.types import tarray
 from hail.ir import BlockMatrixIR, IR
 from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.ir import BlockMatrixIR, IR, tarray, Renderer
-from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof, sized_tupleof, oneof
 
 from typing import List

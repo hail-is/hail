@@ -13,7 +13,7 @@ from hail.ir import *
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
-from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
+from hail.utils.java import warn, jiterable_to_list, Env, scala_object, joption, jnone
 from hail.utils.misc import *
 
 
