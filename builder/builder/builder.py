@@ -4,10 +4,10 @@ import json
 from shlex import quote as shq
 import yaml
 import jinja2
+
 from .log import log
 from .utils import flatten, generate_token
-from .constants import BUCKET
-from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
+from .environment import BUCKET, GCP_PROJECT, DOMAIN, IP, BUILDER_UTILS_IMAGE
 
 
 def expand_value_from(value, config):
@@ -289,7 +289,7 @@ date
             }
         }]
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     resources={
                                         'requests': {
@@ -338,7 +338,7 @@ date
 true
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     volumes=volumes,
@@ -560,7 +560,7 @@ kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata
 date
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
@@ -581,7 +581,7 @@ date
 true
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     service_account_name='ci-agent',
@@ -690,7 +690,7 @@ date
             attrs['link'] = ','.join(self.link)
             attrs['domain'] = f'{self.namespace}.internal.{DOMAIN}'
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes=attrs,
                                     # FIXME configuration
@@ -711,7 +711,7 @@ date
                     assert w['kind'] == 'Pod', w['kind']
                     script += f'kubectl -n {self.namespace} logs {name}\n'
             script += 'date\n'
-            self.job = batch.create_job(CI_UTILS_IMAGE,
+            self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                         command=['bash', '-c', script],
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
@@ -843,7 +843,7 @@ date
 echo done.
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': self.name},
                                     # FIXME configuration
@@ -868,7 +868,7 @@ date
 true
 '''
 
-        self.job = batch.create_job(CI_UTILS_IMAGE,
+        self.job = batch.create_job(BUILDER_UTILS_IMAGE,
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     # FIXME configuration
