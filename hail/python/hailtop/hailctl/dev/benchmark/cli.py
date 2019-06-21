@@ -22,7 +22,7 @@ def main(args_):
                         type=str,
                         help='Log file path')
 
-    args, pass_through_args = parser.parse_args(args_)
+    args = parser.parse_args(args_)
 
     initialize(args.cores, args.log, args.n_iter)
     if args.tests:
