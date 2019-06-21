@@ -26,25 +26,14 @@ class Trio(object):
                       mat_id=nullable(str),
                       is_female=nullable(bool))
     def __init__(self, s, fam_id=None, pat_id=None, mat_id=None, is_female=None):
-        jobject = Env.hail().variant.Sex
-        if is_female is not None:
-            jsex = jsome(jobject.Female()) if is_female else jsome(jobject.Male())
-        else:
-            jsex = jnone()
 
-        self._jrep = Env.hail().methods.BaseTrio(s, joption(fam_id), joption(pat_id), joption(mat_id), jsex)
         self._fam_id = fam_id
         self._s = s
         self._pat_id = pat_id
         self._mat_id = mat_id
         self._is_female = is_female
 
-    @classmethod
-    def _from_java(cls, jrep):
-        trio = Trio.__new__(cls)
-        trio._jrep = jrep
-        super(Trio, trio).__init__()
-        return trio
+
 
     def __repr__(self):
         return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
@@ -57,12 +46,12 @@ class Trio(object):
             str(self.mat_id), str(self.is_female))
 
     def __eq__(self, other):
-        return isinstance(other, Trio) and 
-        self._s == other._s and
-        self._mat_id == other._mat_id and
-        self._pat_id == other._pat_id and 
-        self._fam_id == other._fam_id and
-        self._is_female == other._is_female
+        return (isinstance(other, Trio) and 
+            self._s == other._s and
+            self._mat_id == other._mat_id and
+            self._pat_id == other._pat_id and 
+            self._fam_id == other._fam_id and
+            self._is_female == other._is_female)
 
 
     def __hash__(self):
@@ -74,8 +63,7 @@ class Trio(object):
 
         :rtype: str
         """
-        if not hasattr(self, '_s'):
-            self._s = self._jrep.kid()
+
         return self._s
 
     @property
@@ -85,8 +73,6 @@ class Trio(object):
         :rtype: str or None
         """
 
-        if not hasattr(self, '_pat_id'):
-            self._pat_id = from_option(self._jrep.dad())
         return self._pat_id
 
     @property
@@ -96,8 +82,6 @@ class Trio(object):
         :rtype: str or None
         """
 
-        if not hasattr(self, '_mat_id'):
-            self._mat_id = from_option(self._jrep.mom())
         return self._mat_id
 
     @property
@@ -107,8 +91,6 @@ class Trio(object):
         :rtype: str or None
         """
 
-        if not hasattr(self, '_fam_id'):
-            self._fam_id = from_option(self._jrep.fam())
         return self._fam_id
 
     @property
@@ -118,13 +100,10 @@ class Trio(object):
 
         :rtype: bool or None
         """
-        if not hasattr(self, '_is_female'):
-            j_female = self._jrep.isFemale()
-            j_male = self._jrep.isFemale()
-            if not j_female and not j_male:
-                self._is_female = None
-            else:
-                self._is_female = j_female
+
+        if self._is_female is None:
+            return None
+        
         return self._is_female is False
 
     @property
@@ -135,13 +114,9 @@ class Trio(object):
         :rtype: bool or None
         """
 
-        if not hasattr(self, '_is_female'):
-            j_female = self._jrep.isFemale()
-            j_male = self._jrep.isFemale()
-            if not j_female and not j_male:
-                self._is_female = None
-            else:
-                self._is_female = j_female
+        if self._is_female is None:
+            return None
+        
         return self._is_female is True
 
     def is_complete(self):
@@ -154,9 +129,19 @@ class Trio(object):
         :rtype: bool
         """
 
-        if not hasattr(self, '_complete'):
-            self._complete = self._jrep.isComplete()
-        return self._complete
+        return self._pat_id is not None and self._mat_id is not None and self._is_female is not None
+
+    #ids should be a set
+    def _restrict_to(self, ids):
+        if self._s not in ids:
+            return None
+        
+        return Trio(self._s,
+                    self._fam_id,
+                    self._pat_id if self._pat_id in ids else None,
+                    self._mat_id if self._mat_id in ids else None,
+                    self._is_female)
+
 
 
 class Pedigree(object):
@@ -167,19 +152,19 @@ class Pedigree(object):
     """
 
     def __init__(self, trios):
-        self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
+        #self._jrep = Env.hail().methods.Pedigree(jindexed_seq([t._jrep for t in trios]))
         self._trios = tuple(trios)
 
-    @classmethod
-    def _from_java(cls, jrep):
-        ped = Pedigree.__new__(cls)
-        ped._jrep = jrep
-        ped._trios = None
-        super(Pedigree, ped).__init__()
-        return ped
+    # @classmethod
+    # def _from_java(cls, jrep):
+    #     ped = Pedigree.__new__(cls)
+    #     ped._jrep = jrep
+    #     ped._trios = None
+    #     super(Pedigree, ped).__init__()
+    #     return ped
 
     def __eq__(self, other):
-        return isinstance(other, Pedigree) and self._trios == other.__trios
+        return isinstance(other, Pedigree) and self._trios == other._trios
 
     def __hash__(self):
         return hash(self._trios)
@@ -207,17 +192,27 @@ class Pedigree(object):
         :rtype: :class:`.Pedigree`
         """
 
-        jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.sFS(), delimiter)
-        return Pedigree._from_java(jrep)
+        # jrep = Env.hail().methods.Pedigree.read(fam_path, Env.hc()._jhc.sFS(), delimiter)
+        # return Pedigree._from_java(jrep)
 
-        with open(fam_path) as file:
+        trios = []
+        with Env.fs().open(fam_path) as file:
             for line in file:
                 split_line = line.split(delimiter)
                 num_fields = len(split_line)
                 if num_fields != 6:
                     raise FatalError("Require 6 fields per line in .fam, but this line has {}: {}".format(num_fields, line))
                 (fam, kid, dad, mom, sex, _) = tuple(split_line)
-                sexOption = sex if sex == 1 or sex == 2 else None
+                # 1 is male, 2 is female, 0 is unknown.
+                is_female = sex == "2" if sex == "1" or sex == "2" else None
+                trio = Trio(kid,
+                            fam if fam != "0" else None, 
+                            dad if dad != "0" else None, 
+                            mom if mom != "0" else None, 
+                            is_female)
+                trios.append(trio)
+        
+        return Pedigree(trios)
 
 
     @property
@@ -227,8 +222,8 @@ class Pedigree(object):
         :rtype: list of :class:`.Trio`
         """
 
-        if not self._trios:
-            self._trios = [Trio._from_java(t) for t in jiterable_to_list(self._jrep.trios())]
+        # if not self._trios:
+        #     self._trios = [Trio._from_java(t) for t in jiterable_to_list(self._jrep.trios())]
         return self._trios
 
     def complete_trios(self):
