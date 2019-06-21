@@ -440,7 +440,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def stringSampleIdSet: Set[String] = stringSampleIds.toSet
 
-  def countRows(): Long = ExecuteContext.scoped { ctx => Interpret(ctx, TableCount(MatrixRowsTable(ast))) }
+  def countRows(): Long = ExecuteContext.scoped { ctx => Interpret[Long](ctx, TableCount(MatrixRowsTable(ast))) }
 
   def countCols(): Long = ast.columnCount.map(_.toLong)
     .getOrElse(ExecuteContext.scoped { ctx => Interpret[Long](ctx, TableCount(MatrixColsTable(ast))) })
@@ -585,7 +585,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ExecuteContext.scoped { ctx =>
-      ir.Interpret(ctx, ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
+      ir.Interpret[Unit](ctx, ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
     }
   }
 }

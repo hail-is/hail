@@ -163,6 +163,6 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
     }
 
-    mv.copy(newType, TableValue(newTableType, mv.globals, RVD(rvdType, mv.rvd.partitioner, newRDD)))
+    mv.copy(newType, TableValue(newTableType, mv.tv.globals, RVD(rvdType, mv.rvd.partitioner, newRDD)))
   }
 }

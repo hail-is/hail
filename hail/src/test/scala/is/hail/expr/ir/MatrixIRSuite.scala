@@ -263,7 +263,7 @@ class MatrixIRSuite extends HailSuite {
   @Test def testMatrixNativeWrite() {
     val range = MatrixTable.range(hc, 11, 3, Some(10))
     val path = tmpDir.createLocalTempFile(extension = "mt")
-    Interpret(ctx, MatrixWrite(range.ast, MatrixNativeWriter(path)))
+    Interpret[Unit](ctx, MatrixWrite(range.ast, MatrixNativeWriter(path)))
     val read = MatrixTable.read(hc, path)
     assert(read.same(range))
   }
@@ -271,21 +271,21 @@ class MatrixIRSuite extends HailSuite {
   @Test def testMatrixVCFWrite() {
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val path = tmpDir.createLocalTempFile(extension = "vcf")
-    Interpret(ctx, MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
+    Interpret[Unit](ctx, MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
   }
 
   @Test def testMatrixMultiWrite() {
     // partitioning must be the same
     val ranges = FastIndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
     val path = tmpDir.createLocalTempFile()
-    Interpret(ctx, MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
+    Interpret[Unit](ctx, MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
     val read0 = MatrixTable.read(hc, path + "0.mt")
     val read1 = MatrixTable.read(hc, path + "1.mt")
     assert(ranges(0).same(read0))
     assert(ranges(1).same(read1))
 
     val pathRef = tmpDir.createLocalTempFile(extension = "mt")
-    Interpret(ctx, MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
+    Interpret[Unit](ctx, MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
     val readRef = MatrixTable.read(hc, path)
     assert(readRef.same(read1))
   }

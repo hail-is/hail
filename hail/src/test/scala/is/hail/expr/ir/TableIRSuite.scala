@@ -409,7 +409,7 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = tmpDir.createLocalTempFile(extension = "ht")
-    Interpret(ctx, TableWrite(table, TableNativeWriter(path)))
+    Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
     val before = table.execute(ctx)
     val after = Table.read(hc, path)
     assert(before.globals.javaValue == after.globals)

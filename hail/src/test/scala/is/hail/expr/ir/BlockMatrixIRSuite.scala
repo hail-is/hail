@@ -50,7 +50,7 @@ class BlockMatrixIRSuite extends HailSuite {
 
   @Test def testBlockMatrixWriteRead() {
     val tempPath = tmpDir.createLocalTempFile()
-    Interpret(ctx, BlockMatrixWrite(new BlockMatrixLiteral(ones),
+    Interpret[Unit](ctx, BlockMatrixWrite(new BlockMatrixLiteral(ones),
       BlockMatrixNativeWriter(tempPath, false, false, false)))
 
     val actualMatrix = BlockMatrixRead(BlockMatrixNativeReader(tempPath)).execute(ctx)

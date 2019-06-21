@@ -57,7 +57,7 @@ object PCRelate {
     statistics: PCRelate.StatisticSubset): TableIR = {
 
     ExecuteContext.scoped { ctx =>
-      val scoresLocal = Interpret(ctx, scores).asInstanceOf[IndexedSeq[Row]].toArray
+      val scoresLocal = Interpret[IndexedSeq[Row]](ctx, scores).toArray
       assert(scoresLocal.length == blockedG.nCols)
 
       val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python

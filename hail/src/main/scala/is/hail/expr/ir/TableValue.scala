@@ -169,7 +169,6 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       typ.rowType.deleteKey(entriesFieldName),
       typ.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-    println(globals.safeJavaValue)
     MatrixValue(mType, rename(
       Map(colsFieldName -> LowerMatrixIR.colsFieldName),
       Map(entriesFieldName -> LowerMatrixIR.entriesFieldName)))
