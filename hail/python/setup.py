@@ -28,7 +28,8 @@ setup(
         'hailtop': 'hailtop'},
     package_data={
         'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
-        'hailtop': ['deploy.yaml', 'hail_pip_version', 'hail_version']},
+        'hailtop': ['hail_pip_version', 'hail_version']
+        'hailtop.hailctl': ['deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
