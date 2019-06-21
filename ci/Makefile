@@ -5,7 +5,7 @@ DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../gear:../builder python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../gear python3
 
 PY_FILES := $(shell find ci -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
@@ -24,30 +24,28 @@ ifeq ($(IN_HAIL_CI),1)
 
 PROJECT := $(shell gcloud config get-value project)
 
-BUILDER_UTILS_LATEST = gcr.io/$(PROJECT)/builder-utils:latest
-BUILDER_UTILS_IMAGE = gcr.io/$(PROJECT)/builder-utils:$(shell docker images -q --no-trunc builder-utils | sed -e 's,[^:]*:,,')
+CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
+CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
 
 CI_LATEST = gcr.io/$(PROJECT)/ci:latest
 CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
-build-builder-utils:
-	make -C ../builder \
-	  BUILDER_UTILS_LATEST="$(BUILDER_UTILS_LATEST)" \
-          BUILDER_UTILS_IMAGE="$(BUILDER_UTILS_IMAGE)" \
-          IN_HAIL_CI="$(IN_HAIL_CI)" \
-          build
+build-ci-utils:
+	make -C ../docker build
+	-docker pull $(CI_UTILS_LATEST)
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
+	docker build -t ci-utils -f Dockerfile.ci-utils.out --cache-from ci-utils,$(CI_UTILS_LATEST),base .
 
-push-builder-utils: build-builder-utils
-	make -C ../builder \
-	  BUILDER_UTILS_LATEST="$(BUILDER_UTILS_LATEST)" \
-          BUILDER_UTILS_IMAGE="$(BUILDER_UTILS_IMAGE)" \
-          IN_HAIL_CI="$(IN_HAIL_CI)" \
-          push
+push-ci-utils: build-ci-utils
+	docker tag ci-utils $(CI_UTILS_LATEST)
+	docker push $(CI_UTILS_LATEST)
+	docker tag ci-utils $(CI_UTILS_IMAGE)
+	docker push $(CI_UTILS_IMAGE)
 
 build:
 	make -C ../docker build
 	-docker	pull $(CI_LATEST)
-	python3 ../builder/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	python3 jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
 	docker build -t ci -f Dockerfile.out --cache-from ci,$(CI_LATEST),base ..
 
 push: build
@@ -56,21 +54,17 @@ push: build
 	docker tag ci $(CI_IMAGE)
 	docker push $(CI_IMAGE)
 
-deploy: push push-builder-utils
-	python3 ../builder/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"builder_utils_image":{"image":"$(BUILDER_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
+deploy: push push-ci-utils
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"default"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","ip":"$(IP)","domain":"$(DOMAIN)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-ci-user-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 else
-build-builder-utils:
+build-ci-utils:
 	make -C ../docker build
-	make -C ../builder \
-	  BUILDER_UTILS_LATEST="$(BUILDER_UTILS_LATEST)" \
-          BUILDER_UTILS_IMAGE="$(BUILDER_UTILS_IMAGE)" \
-          IN_HAIL_CI="$(IN_HAIL_CI)" \
-          build
+	docker build -t ci-utils -f Dockerfile.ci-utils .
 
 build:
 	make -C ../docker build
-	docker build -t ci -f Dockerfile ..
+	docker build -t ci -f Dockerfile.ci ..
 endif
 
 PROXY_REMOTE_PORT = 3001
@@ -92,13 +86,13 @@ restart-proxy:
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 	sleep 2 && kill -0 $$(cat proxy.pid)
 
-# Paradox: can't push locally, but ci needs builder_utils.  Just use the latest.
+# Paradox: can't push locally, but ci needs ci-utils.  Just use the latest.
 run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-proxy
 	HAIL_GCP_PROJECT=$(PROJECT) \
 	  HAIL_DOMAIN=$(DOMAIN) \
 	  HAIL_IP=$(IP) \
-	  HAIL_BUILDER_UTILS_IMAGE=gcr.io/hail-vdc/builder-utils:e4ac7efc365999b2168975412ab165e0219c59ebd99c0f2610c7803547c47d8e \
+	  HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc/ci-utils:f477fdaa98d0e640f1bc2003ccfe1d2a86cf2d7531ff595476ca2412d28fc678 \
 	  $(PYTHON) -c 'import ci; ci.run()'
 
 run-docker:
