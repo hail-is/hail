@@ -1,5 +1,5 @@
 import os
-import hailjwt as hj
+import gear.auth as hj
 
 with open(os.environ['HAIL_TOKEN_FILE']) as f:
     userdata = hj.JWTClient.unsafe_decode(f.read())
