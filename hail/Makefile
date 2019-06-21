@@ -22,7 +22,7 @@ releaseJar:
 	./gradlew releaseJar
 
 build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailctl/hail_version python/hailctl/hail_pip_version
+	python/hailtop/hail_version python/hailtop/hail_pip_version
 
 define properties
 endef
@@ -40,13 +40,13 @@ src/main/resources/build-info.properties:
 python/hail/hail_version:
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > python/hail/hail_version
 
-python/hailctl/hail_version: python/hail/hail_version
+python/hailtop/hail_version: python/hail/hail_version
 	cp -f $< $@
 
 python/hail/hail_pip_version:
 	echo $(HAIL_PIP_VERSION) > python/hail/hail_pip_version
 
-python/hailctl/hail_pip_version: python/hail/hail_pip_version
+python/hailtop/hail_pip_version: python/hail/hail_pip_version
 	cp -f $< $@
 
 jars: build-info
@@ -80,15 +80,15 @@ HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-resources := $(wildcard python/hailctl/dataproc/resources/*)
-.PHONY: python/hailctl/deploy.yaml
-python/hailctl/deploy.yaml:
-	rm -f python/hailctl/deploy.yaml
+resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
+.PHONY: python/hailtop/deploy.yaml
+python/hailtop/deploy.yaml:
+	rm -f python/hailtop/deploy.yaml
 	echo "dataproc:" >> python/hailctl/deploy.yaml
 	for FILE in $(notdir $(resources)); do \
-	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailctl/deploy.yaml || break; done || exit
-	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailctl/deploy.yaml
+	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailtop/hailctl/deploy.yaml || break; done || exit
+	echo "  wheel: $(wheel_cloud_path)" >> python/hailtop/hailctl/deploy.yaml
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailtop/hailctl/deploy.yaml
 
 .PHONY: upload-artifacts
 upload-artifacts: wheel
@@ -112,7 +112,7 @@ test-dataproc: install-hailctl-wheel
 	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || break; done || exit
 
 .PHONY: init-scripts
-init-scripts: python/hailctl/deploy.yaml
+init-scripts: python/hailtop/deploy.yaml
 
 DEPLOYED_VERSION = $(shell \
   $(PIP) --no-cache-dir search hail \
