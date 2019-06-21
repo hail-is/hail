@@ -13,7 +13,7 @@ import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
-import batch
+from batch_client.aioclient import BatchClient, Job
 from hailjwt import authenticated_developers_only
 from hailjwt import new_csrf_token, check_csrf_token
 
@@ -120,7 +120,7 @@ async def get_pr(request):
             for j in status['jobs']:
                 if 'duration' in j and j['duration'] is not None:
                     j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-                j['exit_code'] = batch.aioclient.Job.exit_code(j)
+                j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
                     attrs['link'] = attrs['link'].split(',')
@@ -164,7 +164,7 @@ async def get_batch(request):
     for j in status['jobs']:
         if 'duration' in j and j['duration'] is not None:
             j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-        j['exit_code'] = batch.aioclient.Job.exit_code(j)
+        j['exit_code'] = Job.exit_code(j)
     return {
         'batch': status
     }
@@ -292,7 +292,7 @@ async def on_startup(app):
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
+    app['batch_client'] = BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())

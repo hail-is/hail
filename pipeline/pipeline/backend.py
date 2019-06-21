@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import uuid
 from shlex import quote as shq
-import batch.client as client
+from batch_client.client import BatchClient, Job
 import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
@@ -189,7 +189,7 @@ class BatchBackend(Backend):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self._batch_client = client.BatchClient(session, url)
+        self._batch_client = BatchClient(session, url)
 
     def close(self):
         self._batch_client.close()
@@ -341,7 +341,7 @@ class BatchBackend(Backend):
 
         fail_msg = ''
         for jid, ec in failed_jobs:
-            ec = client.Job.exit_code(ec)
+            ec = Job.exit_code(ec)
             job = self._batch_client.get_job(*jid)
             log = job.log()
             name = job.status()['attributes'].get('name', None)

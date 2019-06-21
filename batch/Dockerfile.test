@@ -5,10 +5,10 @@ COPY hailjwt/hailjwt /hailjwt/hailjwt/
 RUN pip3 install --no-cache-dir /hailjwt && \
   rm -rf /hailjwt
 
-COPY batch/setup.py /batch/
-COPY batch/batch/ /batch/batch/
-RUN pip3 install --no-cache-dir /batch && \
-  rm -rf /batch
+COPY batch_client/setup.py /batch_client/
+COPY batch_client/batch_client /batch_client/batch_client
+RUN pip3 install --no-cache-dir /batch_client && \
+  rm -rf /batch_client
 
 COPY batch/test/ /test/
 
