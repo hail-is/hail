@@ -2824,19 +2824,18 @@ class Tests(unittest.TestCase):
         np_a = np.array([1, 2, 3, 4, 5, 6])
         a = hl._ndarray(np_a)
 
-        self.ndarray_eq(a.reshape((2, 3)), np_a.reshape((2, 3)))
-        self.ndarray_eq(a.reshape((3, 2)), np_a.reshape((3, 2)))
-
         np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7], order='F').reshape((2, 2, 2))
         cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7], row_major=False).reshape((2, 2, 2))
-
         cube_to_rect = cube.reshape((2, 4))
         np_cube_to_rect = np_cube.reshape((2, 4))
-        self.ndarray_eq(cube_to_rect, np_cube_to_rect)
-
         cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
         np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
-        self.ndarray_eq(cube_t_to_rect, np_cube_t_to_rect)
+
+        self.ndarrays_eq(
+            (a.reshape((2, 3)), np_a.reshape((2, 3))),
+            (a.reshape((3, 2)), np_a.reshape((3, 2))),
+            (cube_to_rect, np_cube_to_rect),
+            (cube_t_to_rect, np_cube_t_to_rect))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
