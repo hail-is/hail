@@ -17,6 +17,9 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
+  def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
+    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
+
   def rvRowPType(locusType: PType, allelesType: PType): PStruct = PStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> PArray(PInt64Required), "nSamples" -> PInt32Required, "mean" -> PFloat64(), "centered_length_rec" -> PFloat64())
 }
@@ -301,7 +304,7 @@ case class LocalLDPrune(
       fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
     val nSamples = mv.nCols
-    
+
     val fullRowPType = mv.rvRowPType
 
     val locusIndex = fullRowPType.fieldIdx("locus")
@@ -337,7 +340,7 @@ case class LocalLDPrune(
             None
         }
       })
-    
+
     val rvdLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
@@ -352,7 +355,7 @@ case class LocalLDPrune(
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.canonicalPType)
+        rvb.start(tableType.rowType.physicalType )
         rvb.startStruct()
         rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()

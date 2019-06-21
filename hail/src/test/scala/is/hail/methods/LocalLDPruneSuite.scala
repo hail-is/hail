@@ -7,7 +7,7 @@ import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TString}
+import is.hail.expr.types.virtual.TArray
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -49,7 +49,7 @@ object LocalLDPruneSuite {
   val genotypesPerPack = LocalLDPrune.genotypesPerPack
 
   val rvRowPType = PStruct(
-    "locus" -> PLocus(ReferenceGenome.GRCh37),
+    "locus" -> PType.canonical(ReferenceGenome.GRCh37.locusType).asInstanceOf[PLocus],
     "alleles" -> PArray(PStruct()),
     MatrixType.entriesIdentifier -> PArray(PType.canonical(Genotype.htsGenotypeType))
   )
@@ -142,7 +142,7 @@ class LocalLDPruneSuite extends HailSuite {
   val nCores = 4
   lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
-  
+
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table):
@@ -327,8 +327,8 @@ class LocalLDPruneSuite extends HailSuite {
     Region.scoped { r =>
       val rvb = new RegionValueBuilder(r)
       val t = BitPackedVectorView.rvRowPType(
-        PLocus(ReferenceGenome.GRCh37),
-        PArray(PString()))
+        +PLocus(ReferenceGenome.GRCh37),
+        +PArray(+PString()))
       val bpv = new BitPackedVectorView(t)
       r.appendInt(0xbeef)
       rvb.start(t)
