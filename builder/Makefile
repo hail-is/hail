@@ -3,7 +3,7 @@
 PROJECT := $(shell gcloud config get-value project)
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
-PYTHON := PYTHONPATH=$(PYTHONPATH)../batch:../hailjwt python3
+PYTHON := PYTHONPATH=$(PYTHONPATH)../batch_client:../hailjwt python3
 
 PY_FILES := $(shell find builder -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
