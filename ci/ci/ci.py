@@ -14,7 +14,7 @@ import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
 from batch_client.aioclient import BatchClient, Job
-from hailjwt import authenticated_developers_only
+from hailjwt import web_authenticated_developers_only
 from hailjwt import new_csrf_token, check_csrf_token
 
 from .log import log
@@ -39,7 +39,7 @@ start_time = datetime.datetime.now()
 
 
 @routes.get('/')
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def index(request):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -97,7 +97,7 @@ async def index(request):  # pylint: disable=unused-argument
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('pr.html')
 async def get_pr(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
@@ -142,7 +142,7 @@ async def get_pr(request):
 
 
 @routes.get('/batches')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('batches.html')
 async def get_batches(request):
     batch_client = request.app['batch_client']
@@ -154,7 +154,7 @@ async def get_batches(request):
 
 
 @routes.get('/batches/{batch_id}')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('batch.html')
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
@@ -171,7 +171,7 @@ async def get_batch(request):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('job_log.html')
 async def get_job_log(request):
     batch_id = int(request.match_info['batch_id'])
@@ -187,7 +187,7 @@ async def get_job_log(request):
 
 @routes.post('/authorize_source_sha')
 @check_csrf_token
-@authenticated_developers_only
+@web_authenticated_developers_only
 async def post_authorized_source_sha(request):
     app = request.app
     dbpool = app['dbpool']
