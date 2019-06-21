@@ -131,7 +131,6 @@ class Trio(object):
 
         return self._pat_id is not None and self._mat_id is not None and self._is_female is not None
 
-    #ids should be a set
     def _restrict_to(self, ids):
         if self._s not in ids:
             return None
@@ -141,6 +140,21 @@ class Trio(object):
                     self._pat_id if self._pat_id in ids else None,
                     self._mat_id if self._mat_id in ids else None,
                     self._is_female)
+    
+    def _sex_as_numeric_string(self):
+        if self._is_female is None:
+            return "0"
+        return "2" if self.is_female else "1"
+
+    def _to_fam_file_line(self):
+        def sample_id_or_else_zero(sample_id):
+            if sample_id is None:
+                return "0"
+            return sample_id
+        line_list = [sample_id_or_else_zero(self._fam_id), self._s, sample_id_or_else_zero(self._pat_id), 
+                     sample_id_or_else_zero(self._mat_id), self._sex_as_numeric_string(), "0"]
+        return "\t".join(line_list)
+
 
 
 
@@ -250,8 +264,15 @@ class Pedigree(object):
 
         :rtype: :class:`.Pedigree`
         """
+        sample_set = set(samples)
 
-        return Pedigree._from_java(self._jrep.filterTo(jset(samples)))
+        filtered_trios = []
+        for trio in self._trios:
+            restricted_trio = trio._restrict_to(sample_set)
+            if restricted_trio is not None:
+                filtered_trios.append(restricted_trio)
+
+        return Pedigree(filtered_trios)
 
     @typecheck_method(path=str)
     def write(self, path):
@@ -277,4 +298,8 @@ class Pedigree(object):
         :type path: str
         """
 
-        self._jrep.write(path, Env.hc()._jhc.sFS())
+        lines = [t._to_fam_file_line for t in self._trios]
+
+        with Env.fs().open(path) as file:
+            for line in lines:
+                file.write(line + "\n")
