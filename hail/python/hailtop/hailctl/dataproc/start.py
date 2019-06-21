@@ -3,7 +3,7 @@ import sys
 import re
 import subprocess as sp
 
-import hailctl
+from hailtop import hailctl
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {

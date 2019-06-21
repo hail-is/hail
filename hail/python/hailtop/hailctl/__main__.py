@@ -5,7 +5,7 @@ import argparse
 import re
 import time
 
-import hailctl
+from hailtop import hailctl
 
 
 def print_help():
@@ -83,11 +83,13 @@ def main():
         if module == 'version':
             print_version()
         elif module == 'dataproc':
-            from hailctl.dataproc import cli
+            from hailtop.hailctl.dataproc import cli
             cli.main(args)
         elif module == 'dev':
-            from hailctl.dev import cli
+            from hailtop.hailctl.dev import cli
             cli.main(args)
+        elif module == '-h' or module == '--help' or module == 'help':
+            print_help()
         else:
             sys.stderr.write(f"ERROR: no such module: {module!r}")
             print_help()
