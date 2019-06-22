@@ -17,8 +17,8 @@ import kubernetes as kube
 import requests
 import uvloop
 
-from hailjwt import rest_authenticated_users_only, web_authenticated_users_only
-from hailjwt import new_csrf_token, check_csrf_token
+from gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
+    new_csrf_token, check_csrf_token
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore

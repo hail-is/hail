@@ -1,4 +1,4 @@
-import hailjwt as hj
+import gear.auth as hj
 import json
 import sys
 

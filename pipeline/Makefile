@@ -1,6 +1,6 @@
 .PHONY: test-local test-local-in-cluster check clean
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../batch:../hailjwt
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../batch:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)

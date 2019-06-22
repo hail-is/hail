@@ -5,7 +5,7 @@ import aiohttp
 import re
 from flask import Response
 
-import hailjwt as hj
+import gear.auth as hj
 
 from batch_client.client import BatchClient, Job
 import batch_client.aioclient as aioclient
