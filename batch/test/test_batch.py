@@ -13,7 +13,7 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import gear.auth as hj
+import hailtop.gear.auth as hj
 
 from .serverthread import ServerThread
 

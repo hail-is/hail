@@ -1,9 +1,9 @@
 FROM {{ base_image.image }}
 
-COPY gear/setup.py /gear/
-COPY gear/gear/ /gear/gear/
-RUN python3 -m pip install --no-cache-dir /gear \
-  && rm -rf /gear
+COPY hail/python/setup-hailtop.py /hailtop/
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-cache-dir /hailtop \
+  && rm -rf /hailtop
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/

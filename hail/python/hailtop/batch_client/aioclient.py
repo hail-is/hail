@@ -4,7 +4,7 @@ import time
 import random
 import aiohttp
 
-import gear.auth as hj
+import hailtop.gear.auth as hj
 
 from .globals import complete_states
 

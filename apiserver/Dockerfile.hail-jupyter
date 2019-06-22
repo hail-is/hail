@@ -1,14 +1,9 @@
 FROM {{ hail_base_image.image }}
 
-COPY gear/setup.py /gear/
-COPY gear/gear/ /gear/gear/
-RUN python3 -m pip install --no-cache-dir /gear \
-  && rm -rf /gear
-
-COPY batch_client/setup.py /batch_client/
-COPY batch_client/batch_client /batch_client/batch_client
-RUN pip3 install --no-cache-dir /batch_client && \
-  rm -rf /batch_client
+COPY hail/python/setup-hailtop.py /hailtop/
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-cache-dir /hailtop \
+  && rm -rf /hailtop
 
 COPY pipeline/setup.py /pipeline/
 COPY pipeline/pipeline /pipeline/pipeline

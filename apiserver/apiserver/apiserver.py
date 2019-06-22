@@ -10,7 +10,7 @@ import jwt
 import hail as hl
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
-from gear.auth import authenticated_users_only
+from hailtop.gear.auth import authenticated_users_only
 
 uvloop.install()
 

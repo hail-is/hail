@@ -7,8 +7,8 @@ from aiohttp import web
 from kubernetes_asyncio import client, config
 import logging
 
-import gear
-from gear.auth import authenticated_developers_only
+from hailtop import gear
+from hailtop.gear.auth import authenticated_developers_only
 
 uvloop.install()
 

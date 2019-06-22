@@ -1,7 +1,7 @@
 import os
 
 import google
-import gear.auth as hj
+import hailtop.gear.auth as hj
 
 from .google_storage import GCS
 
