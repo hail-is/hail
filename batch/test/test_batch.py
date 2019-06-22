@@ -1,7 +1,7 @@
 import random
 import math
 import collections
-from batch_client.client import BatchClient
+from hailtop.batch_client.client import BatchClient
 import json
 import os
 import pkg_resources
