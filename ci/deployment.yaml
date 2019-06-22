@@ -40,8 +40,8 @@ spec:
               value: http://batch.{{ default_ns.name }}
             - name: HAIL_GCP_PROJECT
               value: "{{ global.project }}"
-            - name: HAIL_BUILDER_UTILS_IMAGE
-              value: "{{ builder_utils_image.image }}"
+            - name: HAIL_CI_UTILS_IMAGE
+              value: "{{ ci_utils_image.image }}"
             - name: HAIL_IP
               value: "{{ global.ip }}"
             - name: HAIL_DOMAIN
