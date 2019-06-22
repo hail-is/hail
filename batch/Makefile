@@ -40,7 +40,7 @@ check: flake8-stmp pylint-stmp
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
-	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	python3 ../builder/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),base ..
 
 build-test:

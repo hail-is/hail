@@ -7,5 +7,6 @@ setup(
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
     description = 'Kubernetes job manager',
-    packages = find_packages()
+    packages = find_packages(),
+    include_package_data=True
 )
