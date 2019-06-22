@@ -5,11 +5,6 @@ COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
-COPY batch_client/setup.py /batch_client/
-COPY batch_client/batch_client /batch_client/batch_client
-RUN pip3 install --no-cache-dir /batch_client && \
-  rm -rf /batch_client
-
 COPY batch/test/ /test/
 
 CMD ["python3", "-m", "pytest", "-v", "-s", "/test/"]
