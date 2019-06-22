@@ -1177,7 +1177,7 @@ class Table(ExprContainer):
 
         Notes
         -----
-        An alias for :meth:`write` followed by :func:`.reatd_table`. It is
+        An alias for :meth:`write` followed by :func:`.read_table`. It is
         possible to read the file at this path later with :func:`.read_table`.
 
         Examples
