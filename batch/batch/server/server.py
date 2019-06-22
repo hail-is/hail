@@ -17,6 +17,7 @@ import kubernetes as kube
 import requests
 import uvloop
 
+import gear
 from gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token
 
@@ -28,34 +29,10 @@ from ..globals import complete_states
 
 from .. import schemas
 
-
-def make_logger():
-    fmt = logging.Formatter(
-        # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
-
-    file_handler = logging.FileHandler('batch.log')
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(fmt)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(fmt)
-
-    log = logging.getLogger('batch')
-    log.setLevel(logging.INFO)
-
-    logging.basicConfig(handlers=[file_handler, stream_handler], level=logging.INFO)
-
-    return log
-
-
-log = make_logger()
-
+gear.configure_logging()
+log = logging.getLogger('batch')
 
 uvloop.install()
-
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))

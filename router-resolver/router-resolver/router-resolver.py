@@ -7,30 +7,13 @@ from aiohttp import web
 from kubernetes_asyncio import client, config
 import logging
 
+import gear
 from gear.auth import authenticated_developers_only
 
 uvloop.install()
 
-
-def make_logger():
-    fmt = logging.Formatter(
-        # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(fmt)
-
-    log = logging.getLogger('router-resolver')
-    log.setLevel(logging.INFO)
-
-    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
-
-    return log
-
-
-log = make_logger()
+gear.configure_logging()
+log = logging.getLogger('router-resolver')
 
 app = web.Application()
 routes = web.RouteTableDef()
