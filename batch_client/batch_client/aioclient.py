@@ -9,7 +9,7 @@ import gear.auth as hj
 from .globals import complete_states
 
 
-job_array_size = 50
+job_array_size = 1
 
 
 def filter_params(complete, success, attributes):
