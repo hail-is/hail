@@ -64,7 +64,7 @@ build-ci-utils:
 
 build:
 	make -C ../docker build
-	docker build -t ci -f Dockerfile.ci ..
+	docker build -t ci -f Dockerfile ..
 endif
 
 PROXY_REMOTE_PORT = 3001
