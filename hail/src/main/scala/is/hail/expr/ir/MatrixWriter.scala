@@ -29,11 +29,12 @@ abstract class MatrixWriter {
 
 case class MatrixNativeWriter(
   path: String,
-  overwrite: Boolean = false,
-  stageLocally: Boolean = false,
-  codecSpecJSONStr: String = null
+  partitionsJSON: String,
+  overwrite: Boolean,
+  stageLocally: Boolean,
+  codecSpecJSONStr: String
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = mv.write(path, overwrite, stageLocally, codecSpecJSONStr)
+  def apply(mv: MatrixValue): Unit = mv.write(path, partitionsJSON, overwrite, stageLocally, codecSpecJSONStr)
 }
 
 case class MatrixVCFWriter(

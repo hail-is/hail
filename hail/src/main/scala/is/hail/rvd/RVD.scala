@@ -745,8 +745,149 @@ class RVD(
   def writeRowsSplit(
     path: String,
     codecSpec: CodecSpec,
-    stageLocally: Boolean
-  ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
+    stageLocally: Boolean,
+    targetPartitioner: RVDPartitioner
+  ): Array[Long] = {
+    val fs = HailContext.sFS
+
+    fs.mkDir(path + "/rows/rows/parts")
+    fs.mkDir(path + "/entries/rows/parts")
+
+    val bcFS = HailContext.bcFS
+    val nPartitions =
+      if (targetPartitioner != null)
+        targetPartitioner.numPartitions
+      else
+        crdd.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val fullRowType = typ.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
+
+    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
+
+    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
+
+    val partFilePartitionCounts: Array[(String, Long)] =
+      if (targetPartitioner != null) {
+        val nInputParts = partitioner.numPartitions
+        val nOutputParts = targetPartitioner.numPartitions
+
+        val inputFirst = new Array[Int](nInputParts)
+        val inputLast = new Array[Int](nInputParts)
+        val outputFirst = new Array[Int](nInputParts)
+        val outputLast = new Array[Int](nInputParts)
+        var i = 0
+        while (i < nInputParts) {
+          outputFirst(i) = -1
+          outputLast(i) = -1
+          inputFirst(i) = i
+          inputLast(i) = i
+          i += 1
+        }
+
+        var j = 0
+        while (j < nOutputParts) {
+          var (s, e) = partitioner.intervalRange(targetPartitioner.rangeBounds(j))
+          s = math.min(s, nInputParts - 1)
+          e = math.min(e, nInputParts - 1)
+
+          if (outputFirst(s) == -1)
+            outputFirst(s) = j
+
+          if (outputLast(s) < j)
+            outputLast(s) = j
+
+          if (inputLast(s) < e)
+            inputLast(s) = e
+
+          j += 1
+        }
+
+        val targetPartitionerBc = targetPartitioner.broadcast(crdd.sparkContext)
+        val localRowPType = rowPType
+        val localTyp = typ
+
+        crdd.blocked(inputFirst, inputLast)
+          .cmapPartitionsWithIndex { (i, ctx, it) =>
+            val s = outputFirst(i)
+            if (s == -1)
+              Iterator.empty[(String, Long)]
+            else {
+              val e = outputLast(i)
+
+              val fs = bcFS.value
+              val bit = it.buffered
+
+              val kOrd = localTyp.kType.virtualType.ordering
+              val extractKey: (RegionValue) => Any = (rv: RegionValue) => {
+                val ur = new UnsafeRow(localRowPType, rv)
+                Row.fromSeq(localTyp.kFieldIdx.map(i => ur.get(i)))
+              }
+
+              (s to e).iterator.map { j =>
+                val b = targetPartitionerBc.value.rangeBounds(j)
+
+                while (bit.hasNext && b.isAbovePosition(kOrd, extractKey(bit.head)))
+                  bit.next()
+
+                assert(
+                  !bit.hasNext || {
+                    val k = extractKey(bit.head)
+                    b.contains(kOrd, k) || b.isBelowPosition(kOrd, k)
+                  })
+
+                val it2 = new Iterator[RegionValue] {
+                  def hasNext: Boolean = {
+                    bit.hasNext && b.contains(kOrd, extractKey(bit.head))
+                  }
+
+                  def next(): RegionValue = bit.next()
+                }
+
+                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                  fs,
+                  path,
+                  typ,
+                  it2,
+                  j,
+                  ctx,
+                  d,
+                  stageLocally,
+                  makeRowsEnc,
+                  makeEntriesEnc)
+
+                partFileAndCount
+              }
+            }
+          }.collect()
+      } else {
+        crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+          val fs = bcFS.value
+          val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+            fs,
+            path,
+            typ,
+            it,
+            i,
+            ctx,
+            d,
+            stageLocally,
+            makeRowsEnc,
+            makeEntriesEnc)
+
+          Iterator.single(partFileAndCount)
+        }.collect()
+      }
+
+    val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
+
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, typ.key, rowsRVType, entriesRVType, partFiles,
+      if (targetPartitioner != null) targetPartitioner else partitioner)
+
+    partitionCounts
+  }
 
   // Joining
 
