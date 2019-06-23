@@ -18,6 +18,7 @@ Jinja2==2.10.1
 kubernetes==9.0.0
 kubernetes-asyncio==9.1.0
 libsass==0.19.2
+nest_asyncio==1.0.0
 parsimonious==0.8.1
 PyGithub==1.43.7
 pylint==2.3.1
