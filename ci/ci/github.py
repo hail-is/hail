@@ -768,3 +768,78 @@ fi
 
 git checkout {shq(self.sha)}
 '''
+
+
+class UnwatchedBranch(Code):
+    def __init__(self, branch, sha, userdata, namespace=None):
+        self.branch = branch
+        self.userdata = userdata
+        self.user = userdata['username']
+        self.sha = sha
+
+        self.deploy_batch = None
+
+    def short_str(self):
+        return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
+
+    def repo_dir(self):
+        return f'repos/{self.branch.repo.short_str()}'
+
+    def config(self):
+        return {
+            'checkout_script': self.checkout_script(),
+            'branch': self.branch.name,
+            'repo': self.branch.repo.short_str(),
+            'repo_url': self.branch.repo.url,
+            'sha': self.sha,
+            'user': self.user
+        }
+
+    async def _deploy(self, batch_client):
+        assert not self.deploy_batch
+
+        deploy_batch = None
+        try:
+            repo_dir = self.repo_dir()
+            await check_shell(f'''
+mkdir -p {shq(repo_dir)}
+(cd {shq(repo_dir)}; {self.checkout_script()})
+''')
+            with open(f'{repo_dir}/build.yaml', 'r') as f:
+                config = BuildConfiguration(self, f.read(), scope='dev')
+
+            log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
+            deploy_batch = batch_client.create_batch(
+                attributes={
+                    'token': secrets.token_hex(16),
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha,
+                    'user': self.user
+                })
+            config.build(deploy_batch, self, scope='dev')
+            deploy_batch = await deploy_batch.submit()
+            self.deploy_batch = deploy_batch
+            await deploy_batch.wait()
+        except concurrent.futures.CancelledError:
+            raise
+        except Exception as e:  # pylint: disable=broad-except
+            raise e
+        finally:
+            if deploy_batch and not self.deploy_batch:
+                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
+                await deploy_batch.cancel()
+
+    def checkout_script(self):
+        return f'''
+if [ ! -d .git ]; then
+  time git clone {shq(self.branch.repo.url)} .
+
+  git config user.email ci@hail.is
+  git config user.name ci
+else
+  git reset --merge
+  time git fetch -q origin
+fi
+
+git checkout {shq(self.sha)}
+'''

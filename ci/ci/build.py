@@ -75,11 +75,14 @@ class BuildConfiguration:
             name_step[step.name] = step
 
     def build(self, batch, code, scope):
-        assert scope in ('deploy', 'test')
+        assert scope in ('deploy', 'test', 'dev')
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
+
+        if scope == 'dev':
+            return
 
         parents = set()
         for step in self.steps:
@@ -117,6 +120,7 @@ class Step(abc.ABC):
             'ip': IP
         }
         config['token'] = self.token
+        config['deploy'] = scope == 'deploy'
         config['scope'] = scope
         config['code'] = code.config()
         if self.deps:
