@@ -320,7 +320,7 @@ mkdir -p {shq(repo_dir)}
             self.sha = sha_out.decode('utf-8').strip()
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), deploy=False)
+                config = BuildConfiguration(self, f.read(), scope='test')
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -333,7 +333,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
-            config.build(batch, self, deploy=False)
+            config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
@@ -723,7 +723,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), deploy=True)
+                config = BuildConfiguration(self, f.read(), scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -734,7 +734,7 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
-            config.build(deploy_batch, self, deploy=True)
+            config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:

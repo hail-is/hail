@@ -56,33 +56,30 @@ class Code(abc.ABC):
 
 
 class StepParameters:
-    def __init__(self, code, deploy, json, name_step):
+    def __init__(self, code, scope, json, name_step):
         self.code = code
-        self.deploy = deploy
+        self.scope = scope
         self.json = json
         self.name_step = name_step
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, deploy):
+    def __init__(self, code, config_str, scope):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
         for step_config in config['steps']:
-            step_params = StepParameters(code, deploy, step_config, name_step)
+            step_params = StepParameters(code, scope, step_config, name_step)
             step = Step.from_json(step_params)
             self.steps.append(step)
             name_step[step.name] = step
 
-    def build(self, batch, code, deploy):
-        if deploy:
-            scope = 'deploy'
-        else:
-            scope = 'test'
+    def build(self, batch, code, scope):
+        assert scope in ('deploy', 'test')
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                step.build(batch, code, deploy)
+                step.build(batch, code, scope)
 
         parents = set()
         for step in self.steps:
@@ -96,7 +93,7 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, deploy, sink)
+                step.cleanup(batch, scope, sink)
 
 
 class Step(abc.ABC):
@@ -112,7 +109,7 @@ class Step(abc.ABC):
 
         self.token = generate_token()
 
-    def input_config(self, code, deploy):
+    def input_config(self, code, scope):
         config = {}
         config['global'] = {
             'project': GCP_PROJECT,
@@ -120,11 +117,11 @@ class Step(abc.ABC):
             'ip': IP
         }
         config['token'] = self.token
-        config['deploy'] = deploy
+        config['scope'] = scope
         config['code'] = code.config()
         if self.deps:
             for d in self.deps:
-                config[d.name] = d.config(deploy)
+                config[d.name] = d.config(scope)
         return config
 
     def deps_parents(self):
@@ -148,7 +145,7 @@ class Step(abc.ABC):
         raise ValueError(f'unknown build step kind: {kind}')
 
     @abc.abstractmethod
-    def build(self, batch, code, deploy):
+    def build(self, batch, code, scope):
         pass
 
 
@@ -159,7 +156,7 @@ class BuildImageStep(Step):
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
-        if params.deploy and publish_as:
+        if params.scope == 'deploy' and publish_as:
             self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
@@ -180,13 +177,13 @@ class BuildImageStep(Step):
                               json.get('publishAs'),
                               json.get('inputs'))
 
-    def config(self, deploy):  # pylint: disable=unused-argument
+    def config(self, scope):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'image': self.image
         }
 
-    def build(self, batch, code, deploy):
+    def build(self, batch, code, scope):
         if self.inputs:
             input_files = []
             for i in self.inputs:
@@ -194,7 +191,7 @@ class BuildImageStep(Step):
         else:
             input_files = None
 
-        config = self.input_config(code, deploy)
+        config = self.input_config(code, scope)
 
         if self.context_path:
             context = f'repo/{self.context_path}'
@@ -217,7 +214,7 @@ class BuildImageStep(Step):
         push_image = f'''
 time docker push {self.image}
 '''
-        if deploy and self.publish_as:
+        if scope == 'deploy' and self.publish_as:
             push_image = f'''
 docker tag {shq(self.image)} {self.base_image}:latest
 docker push {self.base_image}:latest
@@ -306,8 +303,8 @@ date
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, deploy, sink):
-        if deploy and self.publish_as:
+    def cleanup(self, batch, scope, sink):
+        if scope == 'deploy' and self.publish_as:
             return
 
         volumes = [{
@@ -349,7 +346,7 @@ true
 class RunImageStep(Step):
     def __init__(self, params, image, script, inputs, outputs, resources, service_account, secrets, always_run):  # pylint: disable=unused-argument
         super().__init__(params)
-        self.image = expand_value_from(image, self.input_config(params.code, params.deploy))
+        self.image = expand_value_from(image, self.input_config(params.code, params.scope))
         self.script = script
         self.inputs = inputs
         self.outputs = outputs
@@ -377,14 +374,14 @@ class RunImageStep(Step):
                             json.get('secrets'),
                             json.get('alwaysRun', False))
 
-    def config(self, deploy):  # pylint: disable=unused-argument
+    def config(self, scope):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
 
-    def build(self, batch, code, deploy):
+    def build(self, batch, code, scope):
         template = jinja2.Template(self.script, undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-        rendered_script = template.render(**self.input_config(code, deploy))
+        rendered_script = template.render(**self.input_config(code, scope))
 
         log.info(f'step {self.name}, rendered script:\n{rendered_script}')
 
@@ -433,7 +430,7 @@ class RunImageStep(Step):
             parents=self.deps_parents(),
             always_run=self.always_run)
 
-    def cleanup(self, batch, deploy, sink):
+    def cleanup(self, batch, scope, sink):
         pass
 
 
@@ -444,14 +441,14 @@ class CreateNamespaceStep(Step):
         if admin_service_account:
             self.admin_service_account = {
                 'name': admin_service_account['name'],
-                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(params.code, params.deploy))
+                'namespace': get_namespace(admin_service_account['namespace'], self.input_config(params.code, params.scope))
             }
         else:
             self.admin_service_account = None
         self.public = public
         self.secrets = secrets
         self.job = None
-        if params.deploy:
+        if params.scope == 'deploy':
             self._name = namespace_name
         else:
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
@@ -470,20 +467,20 @@ class CreateNamespaceStep(Step):
                                    json.get('public', False),
                                    json.get('secrets'))
 
-    def config(self, deploy):
+    def config(self, scope):
         conf = {
             'token': self.token,
             'kind': 'createNamespace',
             'name': self._name
         }
         if self.public:
-            if deploy:
+            if scope == 'deploy':
                 conf['domain'] = DOMAIN
             else:
                 conf['domain'] = 'internal'
         return conf
 
-    def build(self, batch, code, deploy):  # pylint: disable=unused-argument
+    def build(self, batch, code, scope):  # pylint: disable=unused-argument
         # FIXME label
         config = f'''\
 apiVersion: v1
@@ -550,7 +547,7 @@ date
 echo {shq(config)} | kubectl apply -f -
 '''
 
-        if self.secrets and not deploy:
+        if self.secrets and not scope == 'deploy':
             for s in self.secrets:
                 script += f'''
 kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
@@ -567,8 +564,8 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, deploy, sink):
-        if deploy:
+    def cleanup(self, batch, scope, sink):
+        if scope == 'deploy':
             return
 
         script = f'''
@@ -592,7 +589,7 @@ true
 class DeployStep(Step):
     def __init__(self, params, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(params)
-        self.namespace = get_namespace(namespace, self.input_config(params.code, params.deploy))
+        self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.config_file = config_file
         self.link = link
         self.wait = wait
@@ -613,15 +610,15 @@ class DeployStep(Step):
                           json.get('link'),
                           json.get('wait'))
 
-    def config(self, deploy):  # pylint: disable=unused-argument
+    def config(self, scope):  # pylint: disable=unused-argument
         return {
             'token': self.token
         }
 
-    def build(self, batch, code, deploy):
+    def build(self, batch, code, scope):
         with open(f'{code.repo_dir()}/{self.config_file}', 'r') as f:
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
-            rendered_config = template.render(**self.input_config(code, deploy))
+            rendered_config = template.render(**self.input_config(code, scope))
 
         script = '''\
 set -ex
@@ -697,7 +694,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, deploy, sink):  # pylint: disable=unused-argument
+    def cleanup(self, batch, scope, sink):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -725,11 +722,11 @@ class CreateDatabaseStep(Step):
         super().__init__(params)
         # FIXME validate
         self.database_name = database_name
-        self.namespace = get_namespace(namespace, self.input_config(params.code, params.deploy))
+        self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.job = None
 
         # MySQL user name can be up to 16 characters long before MySQL 5.7.8 (32 after)
-        if params.deploy:
+        if params.scope == 'deploy':
             self._name = database_name
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
@@ -753,7 +750,7 @@ class CreateDatabaseStep(Step):
                                   json['databaseName'],
                                   json['namespace'])
 
-    def config(self, deploy):  # pylint: disable=unused-argument
+    def config(self, scope):  # pylint: disable=unused-argument
         return {
             'token': self.token,
             'name': self._name,
@@ -763,7 +760,7 @@ class CreateDatabaseStep(Step):
             'user_secret_name': self.user_secret_name
         }
 
-    def build(self, batch, code, deploy):  # pylint: disable=unused-argument
+    def build(self, batch, code, scope):  # pylint: disable=unused-argument
         script = f'''
 set -e
 echo date
@@ -850,8 +847,8 @@ echo done.
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, deploy, sink):
-        if deploy:
+    def cleanup(self, batch, scope, sink):
+        if scope == 'deploy':
             return
 
         script = f'''
