@@ -6,19 +6,7 @@ setup(
     url = 'https://github.com/hail-is/hail.git',
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
-    description = 'Kubernetes job manager client',
+    description = 'Kubernetes job manager',
     packages = find_packages(),
-    include_package_data=True,
-    install_requires=[
-        'cerberus',
-        'kubernetes',
-        'flask',
-        'requests',
-        'aiohttp',
-        'aiodns',
-        'cchardet',
-        'uvloop>=0.12',
-        'pymysql',
-        'google-cloud-storage==1.14.0'
-    ],
+    include_package_data=True
 )

@@ -25,9 +25,9 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, BatchBuilder
 from .k8s import K8s
-from ..globals import complete_states
+from .globals import complete_states
 
-from .. import schemas
+from . import schemas
 
 gear.configure_logging()
 log = logging.getLogger('batch')
@@ -438,7 +438,7 @@ class Job:
         if self._state == 'Pending' and not incomplete_parent_ids:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
-                (not self._cancelled and all(p.is_successful() for p in parents))):
+                    (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 await self.set_state('Ready')
@@ -451,11 +451,11 @@ class Job:
         self._cancelled = True
         if self.is_complete() or self._state == 'Pending':
             return
-        else:
-            assert self._state == 'Ready', self._state
-            if not self.always_run:
-                await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-                await self._delete_k8s_resources()
+
+        assert self._state == 'Ready', self._state
+        if not self.always_run:
+            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
+            await self._delete_k8s_resources()
 
     def is_complete(self):
         return self._state in complete_states
@@ -514,7 +514,7 @@ class Job:
             new_state = 'Failed'
 
         await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
-        
+
         if exit_code == 0:
             if has_next_task:
                 await self._create_pod()
@@ -561,8 +561,6 @@ class Job:
 
 
 async def create_job(batch_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
-    user = userdata['username']
-
     pod_spec = v1.api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
 
@@ -830,7 +828,7 @@ async def create_batch(request, userdata):
 
     n_jobs = batch_parameters['n_jobs']
     start_time = time.time()
-    batch_builder = BatchBuilder(db, n_jobs, log)
+    batch_builder = BatchBuilder(db, n_jobs)
 
     try:
         batch = await Batch.create_batch(
@@ -1126,17 +1124,30 @@ async def db_cleanup_event_loop():
         await asyncio.sleep(60)
 
 
-def serve(port=5000):
-    batch_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
-    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
-    routes.static('/static', os.path.join(batch_root, 'static'))
-    app.add_routes(routes)
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        app['blocking_pool'] = pool
-        app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
-        app['log_store'] = LogStore(pool, INSTANCE_ID, log)
-        asyncio.ensure_future(polling_event_loop())
-        asyncio.ensure_future(kube_event_loop())
-        asyncio.ensure_future(db_cleanup_event_loop())
-        asyncio.ensure_future(create_pods_if_ready())
-        web.run_app(app, host='0.0.0.0', port=port)
+batch_root = os.path.dirname(os.path.abspath(__file__))
+aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
+routes.static('/static', os.path.join(batch_root, 'static'))
+app.add_routes(routes)
+
+
+async def on_startup(app):
+    pool = concurrent.futures.ThreadPoolExecutor()
+    app['blocking_pool'] = pool
+    app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
+    app['log_store'] = LogStore(pool, INSTANCE_ID, log)
+
+    asyncio.ensure_future(polling_event_loop())
+    asyncio.ensure_future(kube_event_loop())
+    asyncio.ensure_future(db_cleanup_event_loop())
+    asyncio.ensure_future(create_pods_if_ready())
+
+
+app.on_startup.append(on_startup)
+
+
+async def on_cleanup(app):
+    blocking_pool = app['blocking_pool']
+    blocking_pool.shutdown()
+
+
+app.on_cleanup.append(on_cleanup)
