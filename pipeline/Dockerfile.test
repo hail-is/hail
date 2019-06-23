@@ -5,11 +5,6 @@ COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
-COPY pipeline/setup.py /pipeline/
-COPY pipeline/pipeline /pipeline/pipeline/
-RUN pip3 install --no-cache-dir /pipeline && \
-  rm -rf /pipeline
-
 COPY pipeline/test /test/
 
 CMD ["python3", "-m", "pytest", "-v", "-s", "/test/"]

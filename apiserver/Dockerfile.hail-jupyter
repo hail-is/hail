@@ -5,11 +5,6 @@ COPY hail/python/hailtop /hailtop/hailtop/
 RUN python3 -m pip install --no-cache-dir /hailtop \
   && rm -rf /hailtop
 
-COPY pipeline/setup.py /pipeline/
-COPY pipeline/pipeline /pipeline/pipeline
-RUN python3 -m pip install --no-cache-dir /pipeline && \
-  rm -rf /pipeline
-
 RUN python3 -m pip install --no-cache-dir https://github.com/hail-is/jgscm/archive/v0.1.10-hail.zip
 
 RUN mkdir /home/jovian && \
