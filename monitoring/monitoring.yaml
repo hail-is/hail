@@ -417,7 +417,6 @@ spec:
   selector:
     app: grafana
 ---
-# Note that this file should probably be merged with monitoring.yamnl once it's done.
 kind: Service
 apiVersion: v1
 metadata:
