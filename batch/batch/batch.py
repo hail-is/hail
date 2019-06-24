@@ -17,8 +17,8 @@ import kubernetes as kube
 import requests
 import uvloop
 
-import gear
-from gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
+from hailtop import gear
+from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
     new_csrf_token, check_csrf_token
 
 from .blocking_to_async import blocking_to_async

@@ -1,6 +1,6 @@
-import gear.auth as hj
 import json
 import sys
+import hailtop.gear.auth as hj
 
 with open(sys.argv[1], 'rb') as f:
     c = hj.JWTClient(f.read())

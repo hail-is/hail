@@ -13,8 +13,8 @@ import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
-from batch_client.aioclient import BatchClient, Job
-from gear.auth import web_authenticated_developers_only, new_csrf_token, check_csrf_token
+from hailtop.batch_client.aioclient import BatchClient, Job
+from hailtop.gear.auth import web_authenticated_developers_only, new_csrf_token, check_csrf_token
 
 from .log import log
 from .constants import BUCKET

@@ -8,7 +8,7 @@ import jinja2
 import aiohttp_jinja2
 import uvloop
 
-import gear
+from hailtop import gear
 
 uvloop.install()
 

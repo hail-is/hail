@@ -1,7 +1,7 @@
 import random
 import math
 import collections
-from batch_client.client import BatchClient
+from hailtop.batch_client.client import BatchClient
 import json
 import os
 import pkg_resources
@@ -13,7 +13,7 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import gear.auth as hj
+import hailtop.gear.auth as hj
 
 from .serverthread import ServerThread
 

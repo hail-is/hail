@@ -2,7 +2,7 @@ import os
 import asyncio
 import aiohttp
 import unittest
-from batch_client.aioclient import BatchClient
+from hailtop.batch_client.aioclient import BatchClient
 
 
 class Test(unittest.TestCase):
