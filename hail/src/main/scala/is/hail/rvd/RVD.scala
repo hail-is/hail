@@ -769,6 +769,8 @@ class RVD(
 
     val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
+    val localTyp = typ
+
     val partFilePartitionCounts: Array[(String, Long)] =
       if (targetPartitioner != null) {
         val nInputParts = partitioner.numPartitions
@@ -805,17 +807,19 @@ class RVD(
           j += 1
         }
 
-        val targetPartitionerBc = targetPartitioner.broadcast(crdd.sparkContext)
+        val sc = crdd.sparkContext
+        val targetPartitionerBc = targetPartitioner.broadcast(sc)
         val localRowPType = rowPType
-        val localTyp = typ
+        val outputFirstBc = sc.broadcast(outputFirst)
+        val outputLastBc = sc.broadcast(outputLast)
 
         crdd.blocked(inputFirst, inputLast)
           .cmapPartitionsWithIndex { (i, ctx, it) =>
-            val s = outputFirst(i)
+            val s = outputFirstBc.value(i)
             if (s == -1)
-              Iterator.empty[(String, Long)]
+              Iterator.empty
             else {
-              val e = outputLast(i)
+              val e = outputLastBc.value(i)
 
               val fs = bcFS.value
               val bit = it.buffered
@@ -849,7 +853,7 @@ class RVD(
                 val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
                   fs,
                   path,
-                  typ,
+                  localTyp,
                   it2,
                   j,
                   ctx,
@@ -868,7 +872,7 @@ class RVD(
           val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
             fs,
             path,
-            typ,
+            localTyp,
             it,
             i,
             ctx,

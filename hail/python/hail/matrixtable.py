@@ -2465,9 +2465,10 @@ class MatrixTable(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _partitions=nullable(str))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None):
+              _codec_spec: Optional[str] = None, _partitions: Optional[str] = None):
         """Write to disk.
 
         Examples
@@ -2490,7 +2491,7 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
+        writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions)
         Env.backend().execute(MatrixWrite(self._mir, writer))
 
     class _Show:

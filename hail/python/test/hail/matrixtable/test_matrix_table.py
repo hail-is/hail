@@ -1,6 +1,7 @@
 import math
 import operator
 import random
+import json
 import unittest
 
 import hail as hl
@@ -1259,3 +1260,41 @@ class Tests(unittest.TestCase):
     def test_show(self):
         mt = self.get_vds()
         mt.show()
+
+    def test_partitioned_write(self):
+        mt = hl.utils.range_matrix_table(40, 3, 5)
+
+        def test_parts(parts, expected=mt):
+            parts = [
+                {'start': {'row_idx': s}, 'end': {'row_idx': e}, 'includeStart': _is, 'includeEnd': ie}
+                for (s, e, _is, ie) in parts
+            ]
+
+            tmp = new_temp_file(suffix='mt')
+            mt.write(tmp, _partitions=json.dumps(parts))
+
+            mt2 = hl.read_matrix_table(tmp)
+            self.assertEqual(mt2.n_partitions(), len(parts))
+            self.assertTrue(mt2._same(expected))
+
+        test_parts([
+            (0, 40, True, False)
+        ])
+
+        test_parts([
+            (-34, -31, True, True),
+            (-30, 9, True, True),
+            (10, 107, True, True),
+            (108, 1000, True, True)
+        ])
+
+        test_parts([
+            (0, 5, True, False),
+            (35, 40, True, True)
+        ],
+                   mt.filter_rows((mt.row_idx < 5) | (mt.row_idx >= 35)))
+
+        test_parts([
+            (5, 35, True, False)
+        ],
+                   mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))

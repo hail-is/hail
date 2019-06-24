@@ -186,9 +186,9 @@ case class MatrixValue(
 
   def write(path: String,
     overwrite: Boolean,
-    partitionsJSON: String,
     stageLocally: Boolean,
-    codecSpecJSONStr: String) = {
+    codecSpecJSONStr: String,
+    partitions: String) = {
     val hc = HailContext.get
     val fs = hc.sFS
 
@@ -208,9 +208,9 @@ case class MatrixValue(
     fs.mkDir(path)
 
     val targetPartitioner =
-      if (partitionsJSON != null) {
-        val jv = JsonMethods.parse(partitionsJSON)
-        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, typ.rowKeyStruct)
+      if (partitions != null) {
+        val jv = JsonMethods.parse(partitions)
+        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, TArray(TInterval(typ.rowKeyStruct)))
           .asInstanceOf[IndexedSeq[Interval]]
         new RVDPartitioner(typ.rowKey.toArray, typ.rowKeyStruct, rangeBounds)
       } else

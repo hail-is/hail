@@ -2008,16 +2008,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     crdd.writePartitions(path, stageLocally, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
   }
 
-  def writeRowsSplit(
-    path: String,
-    t: RVDType,
-    codecSpec: CodecSpec,
-    partitioner: RVDPartitioner,
-    stageLocally: Boolean
-  ): Array[Long] = {
-
-  }
-
   def toRows(rowType: PStruct): RDD[Row] = {
     crdd.run.map(rv => SafeRow(rowType, rv.region, rv.offset))
   }
