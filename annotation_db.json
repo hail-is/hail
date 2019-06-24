@@ -4619,6 +4619,69 @@
       "entry_fields":null
    },
    {
+       "path":"gs://hail-datasets-hail-data/gencode_v30.GRCh38.ht",
+       "type":"Table",
+       "name":"gencode",
+       "version":"v30",
+       "reference_genome":"GRCh38",
+       "gene_key": false,
+       "n_rows":58870,
+       "n_cols":null,
+       "n_partitions":37,
+       "global_fields":[
+           
+       ],
+       "row_fields":[
+           [
+               "interval",
+               "interval<locus<GRCh38>>"
+           ],
+           [
+               "ID",
+               "str"
+           ],
+           [
+               "gene_id",
+               "str"
+           ],
+           [
+               "gene_name",
+               "str"
+           ],
+           [
+               "gene_type",
+               "str"
+           ],
+           [
+               "level",
+               "str"
+           ],
+           [
+               "type",
+               "str"
+           ],
+           [
+               "gene_score",
+               "str"
+           ],
+           [
+               "gene_strand",
+               "str"
+           ],
+           [
+               "gene_phase",
+               "str"
+           ]
+
+       ],
+       "row_key":[
+           "interval"
+       ],
+       "col_fields":null,
+       "col_key":null,
+       "entry_fields":null
+   },
+   {
        "path":"gs://hail-datasets-hail-data/gnomad.v2.1.1.GRCh38.ht",
        "type":"Table",
        "name":"gnomad",
@@ -4947,7 +5010,7 @@
            [
                "end_position",
                "int32"
-           ],
+           ]
            
        ],
        "row_key":[
