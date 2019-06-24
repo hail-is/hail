@@ -286,26 +286,15 @@ data:
           action: replace
           target_label: nodename
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: prometheus-storage
-  namespace: monitoring
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
----
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   labels:
     name: prometheus
   name: prometheus
   namespace: monitoring
 spec:
+  serviceName: "prometheus"
   selector:
     matchLabels:
       app: prometheus
@@ -343,9 +332,16 @@ spec:
        - name: etc-prometheus
          configMap:
            name: etc-prometheus
-       - name: prometheus-storage
-         persistentVolumeClaim:
-           claimName: prometheus-storage
+  volumeClaimTemplates:
+    - metadata:
+        name: prometheus-storage
+        namespace: monitoring
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
 ---
 apiVersion: v1
 kind: Service
