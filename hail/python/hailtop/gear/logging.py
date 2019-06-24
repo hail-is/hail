@@ -1,10 +1,13 @@
 import logging
+from pythonjsonlogger import jsonlogger
+
+class CustomJsonFormatter(jsonlogger.JsonFormatter):
+    def add_fields(self, log_record, record, message_dict):
+        super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+        log_record['funcNameAndLine'] = "{}:{}".format(record.funcName, record.lineno)
 
 def configure_logging():
-    fmt = logging.Formatter(
-        # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
+    fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.INFO)
