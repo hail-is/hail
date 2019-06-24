@@ -53,13 +53,13 @@ ByteArrayInputStream::ByteArrayInputStream(char *bytes, long size) :
   bytes{bytes}, cursor{0}, size{size} {}
 
 int ByteArrayInputStream::read(char *dest, int n) {
-  int count = std::min(static_cast<long>(n), size - cursor);
+  auto count = std::min(static_cast<long>(n), size - cursor);
   std::memcpy(dest, bytes, count);
   return count;
 }
 
 long ByteArrayInputStream::skip(long n) {
-  int diff = std::min(size - cursor, n);
+  auto diff = std::min(size - cursor, n);
   cursor += diff;
   return diff;
 }
