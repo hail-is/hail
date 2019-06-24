@@ -73,12 +73,21 @@ def table_foreign_key_join_left_higher_cardinality():
 
 
 @benchmark
+def table_annotate_many_flat():
+    N = 1_000_000
+    M = 100
+    ht = hl.utils.range_table(N)
+    ht = ht.annotate(**{f'x{i}': i + ht.idx for i in range(M)})
+    ht._force_count()
+
+
+@benchmark
 def table_annotate_many_nested_no_dependence():
     N = 1_000_000
     M = 100
     ht = hl.utils.range_table(N)
     for i in range(M):
-        ht = ht.annotate(**{f'x{i}': i})
+        ht = ht.annotate(**{f'x{i}': i + ht.idx})
     ht._force_count()
 
 
