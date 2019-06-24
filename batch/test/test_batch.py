@@ -364,6 +364,6 @@ class Test(unittest.TestCase):
 
     def test_large_batch(self):
         b = self.client.create_batch()
-        for _ in range(0, 10000):
+        for _ in range(0, 100):
             b.create_job('alpine:3.10.0', ['true'])
         b = b.submit()
