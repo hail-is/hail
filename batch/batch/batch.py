@@ -582,7 +582,7 @@ async def create_job(batch_builder, batch_id, userdata, parameters):  # pylint: 
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
-    state = 'Ready' if len(parent_ids) != 0 else 'Pending'
+    state = 'Ready' if len(parent_ids) == 0 else 'Pending'
 
     job = Job.create_job(
         batch_builder,
