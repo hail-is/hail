@@ -1,7 +1,8 @@
 import unittest
 
-from hail.genetics import *
+from hail.genetics import Trio, Pedigree
 from ..helpers import *
+from hail.utils.java import FatalError
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -44,3 +45,6 @@ class Tests(unittest.TestCase):
 
         complete_trios = ped.complete_trios()
         self.assertEqual(len(complete_trios), 3)
+
+        with self.assertRaises(FatalError):
+            Pedigree.read(resource('duplicate_id.fam'))

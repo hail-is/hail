@@ -180,7 +180,7 @@ class Pedigree(object):
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
-    def read(cls, fam_path, delimiter='\s') -> 'Pedigree':
+    def read(cls, fam_path, delimiter='\s+') -> 'Pedigree':
         """Read a PLINK .fam file and return a pedigree object.
 
         **Examples**
@@ -212,18 +212,18 @@ class Pedigree(object):
                 (fam, kid, dad, mom, sex, _) = tuple(split_line)
                 # 1 is male, 2 is female, 0 is unknown.
                 is_female = sex == "2" if sex == "1" or sex == "2" else None
-                
+
                 if is_female is None:
                     missing_sex_count += 1
                     missing_sex_values.add(sex)
-                
+
                 trio = Trio(kid,
                             fam if fam != "0" else None, 
                             dad if dad != "0" else None, 
                             mom if mom != "0" else None, 
                             is_female)
                 trios.append(trio)
-        
+
         only_ids = [trio.s for trio in trios]
         duplicate_ids = [id for id, count in Counter(only_ids).items() if count > 1]
         if duplicate_ids:
@@ -231,7 +231,7 @@ class Pedigree(object):
         
         if missing_sex_count > 0:
             warn("Found {} samples with missing sex information (not 1 or 2)")
-        
+
         return Pedigree(trios)
 
 
