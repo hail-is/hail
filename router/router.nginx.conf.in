@@ -49,7 +49,7 @@ server {
 
 server {
     server_name batch.@domain@;
-    client_max_body_size 100m;
+    client_max_body_size 10000m;
 
     location / {
         proxy_pass http://batch/;
