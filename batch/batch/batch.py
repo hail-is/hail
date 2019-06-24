@@ -122,6 +122,7 @@ class JobTask:  # pylint: disable=R0903
 
 class Job:
     async def _create_pvc(self):
+        start = time.time()
         pvc, err = await app['k8s'].create_pvc(
             body=kube.client.V1PersistentVolumeClaim(
                 metadata=kube.client.V1ObjectMeta(
@@ -139,8 +140,15 @@ class Job:
             if err.status == 403:
                 await self.mark_complete(None, failed=True, failure_reason=str(err))
             return None
+
         pvc_name = pvc.metadata.name
+        elapsed_time = round(time.time() - start, 4)
+        log.info(f'took {elapsed_time} seconds to create pvc {pvc_name}')
+
+        start = time.time()
         await db.jobs.update_record(*self.id, pvc_name=pvc_name)
+        elapsed_time = round(time.time() - start, 4)
+        log.info(f'took {elapsed_time} seconds to update the db with pvc_name')
         log.info(f'created pvc name: {pvc_name} for job {self.id}')
         return pvc_name
 
@@ -192,14 +200,21 @@ class Job:
                         }),
             spec=pod_spec)
 
+        start = time.time()
         pod, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.id} with the following error: {err}')
             return
+        elapsed_time = round(time.time() - start, 4)
+        log.info(f'took {elapsed_time} seconds to create pod {pod.metadata.name}')
+
         self._pod_name = pod.metadata.name
+        start = time.time()
         await db.jobs.update_record(*self.id,
                                     pod_name=self._pod_name)
+        elapsed_time = round(time.time() - start, 4)
+        log.info(f'took {elapsed_time} seconds to update the db with pod_name')
         log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
                                                                    self.id,
                                                                    self._current_task.name))
