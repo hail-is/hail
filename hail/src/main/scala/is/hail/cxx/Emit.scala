@@ -1535,18 +1535,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val resTyp = x.pType.asInstanceOf[PNDArray]
 
         val childEmitter = deforest(child)
-        val shape = fb.variable("shape", "std::vector<long>")
 
-        var shapeBuilder = new ListBuffer[String]() :+ shape.define
-        var dim = 0
-        while (dim < childTyp.nDims) {
+        var shapeBuilder = new ListBuffer[String]()
+        (0 until childTyp.nDims).foreach { dim =>
           if (!axes.contains(dim)) {
-            shapeBuilder += s"$shape.push_back(${ childEmitter.shape }[$dim]);"
+            shapeBuilder += s"${ childEmitter.shape }[$dim]"
           }
-          dim += 1
         }
+        val shape = fb.variable("shape", "std::vector<long>", shapeBuilder.mkString("{", ", ", "}"))
 
-        val setup = Code(childEmitter.setup, Code.sequence(shapeBuilder))
+        val setup = Code(childEmitter.setup, shape.define)
         new NDArrayEmitter(fb, resultRegion, resTyp.nDims, shape, setup) {
           override def outputElement(resultIdxVars: Seq[Variable]): Code = {
             val aggIdxVars = axes.map(axis => (axis, fb.variable("dim", "int"))).toMap
