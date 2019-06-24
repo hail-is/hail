@@ -15,11 +15,13 @@ HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
 
+ifdef HAIL_COMPILE_NATIVES
+shadowJar:
+	./gradlew releaseJar
+else
 shadowJar:
 	./gradlew shadowJar
-
-releaseJar:
-	./gradlew releaseJar
+endif
 
 build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
 	python/hailtop/hail_version python/hailtop/hail_pip_version
@@ -95,18 +97,18 @@ upload-artifacts: wheel
 	gsutil -m cp -r $(resources) $(wheel_path) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
 
-.PHONY: install-wheel
-install-wheel: wheel
+.PHONY: install
+install: wheel
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(wheel_path)
 
-.PHONY: install-hailctl-wheel
-install-hailctl-wheel: install-wheel upload-artifacts
+.PHONY: install-hailctl
+install-hailctl: install upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
 .PHONY: test-dataproc
-test-dataproc: install-hailctl-wheel
+test-dataproc: install-hailctl
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
 	for FILE in `ls python/cluster-tests`; do \
 	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || break; done || exit
