@@ -1,9 +1,9 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import org.testng.annotations.Test
 
-class SpillingCollectIteratorSuite extends SparkSuite {
+class SpillingCollectIteratorSuite extends HailSuite {
   @Test def addOneElement() {
     val array = (0 to 100000).toArray
     val sci = SpillingCollectIterator(sc.parallelize(array, 10000), 100)
