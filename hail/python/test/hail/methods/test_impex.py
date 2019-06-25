@@ -1088,6 +1088,17 @@ class BGENTests(unittest.TestCase):
             index_file_map = {bgen_file: index_file}
             hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
+    def test_bgen_export_same(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'))
+        tmp = new_temp_file()
+        hl.export_bgen(bgen, tmp)
+        hl.index_bgen(tmp + '.bgen')
+        self.assertTrue(bgen._same(hl.import_bgen(tmp + '.bgen',
+                                                  entry_fields=['GP'],
+                                                  sample_file=tmp + '.sample')))
+
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),

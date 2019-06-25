@@ -101,7 +101,6 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   def emitVariant(rv: RegionValue): Array[Byte] = {
     bb.clear()
 
-    val ur = new UnsafeRow(rowPType, rv)
     gs.setRegion(rv)
     v.setRegion(rv)
     va.setRegion(rv)

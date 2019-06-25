@@ -163,40 +163,38 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
 @typecheck(mt=MatrixTable,
            output=str,
+           varid=nullable(expr_str),
+           rsid=nullable(expr_str),
            parallel=nullable(str))
-def export_bgen(mt, output, parallel=None):
+def export_bgen(mt, output, varid=None, rsid=None, parallel=None):
     # FIXME document
     require_row_key_variant(mt, 'export_bgen')
     require_col_key_str(mt, 'export_bgen')
-
-    sample_exprs = {'s': mt.col_key[0]}
 
     if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
         entry_exprs = {'GP': mt.GP}
     else:
         entry_exprs = {}
 
-    varid = None
-    if 'varid' in mt.row and mt.varid.dtype == tstr:
-        varid = mt.varid
+    if varid is None:
+        if 'varid' in mt.row and mt.varid.dtype == tstr:
+            varid = mt.varid
 
-    rsid = None
-    if 'rsid' in mt.row and mt.rsid.dtype == tstr:
-        rsid = mt.rsid
+    if rsid is None:
+        if 'rsid' in mt.row and mt.rsid.dtype == tstr:
+            rsid = mt.rsid
 
     l = mt.locus
     a = mt.alleles
     gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'rsid': expr_or_else(rsid, ".")}
 
-    for exprs, axis in [(sample_exprs, mt._col_indices),
-                        (gen_exprs, mt._row_indices),
+    for exprs, axis in [(gen_exprs, mt._row_indices),
                         (entry_exprs, mt._entry_indices)]:
         for name, expr in exprs.items():
             analyze('export_gen/{}'.format(name), expr, axis)
 
-    mt = mt._select_all(col_exprs=sample_exprs,
-                        col_key=[],
+    mt = mt._select_all(col_exprs={},
                         row_exprs=gen_exprs,
                         entry_exprs=entry_exprs)
 
