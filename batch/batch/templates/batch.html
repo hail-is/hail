@@ -35,7 +35,7 @@
           <td>{{ job['state'] }}</td>
           <td>{{ job['exit_code'] }}</td>
           <td>{{ job['duration'] }}</td>
-          <td><a href="/ui/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
+          <td><a href="/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}/log">log</a></td>
         </tr>
         {% endfor %}
       </tbody>
