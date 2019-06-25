@@ -855,7 +855,7 @@ async def create_batch(request, userdata):
     elapsed_time = round(end_time - start_time, 4)
     log.info(f'created batch {batch.id} with {n_jobs} jobs in {elapsed_time} seconds')
 
-    await asyncio.gather(j._create_pod() for j in jobs if j._state == 'Ready')
+    await asyncio.gather(*(j._create_pod() for j in jobs if j._state == 'Ready'))
 
     log.info(f'started all jobs in batch {batch.id}')
 
