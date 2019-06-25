@@ -32,9 +32,9 @@ def parser():
         help='Cancel a batch',
         description='Cancel a batch')
 
-
-
     list_parser.set_defaults(module='list')
+    list_batches.init_parser(list_parser)
+
     
     return main_parser
 
