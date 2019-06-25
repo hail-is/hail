@@ -73,6 +73,13 @@ def table_foreign_key_join_left_higher_cardinality():
 
 
 @benchmark
+def table_aggregate_array_sum():
+    N = 10_000_000
+    M = 100
+    ht = hl.utils.range_table(N)
+    ht.aggregate(hl.agg.array_sum(hl.range(0, M)))
+
+@benchmark
 def table_annotate_many_flat():
     N = 1_000_000
     M = 100
