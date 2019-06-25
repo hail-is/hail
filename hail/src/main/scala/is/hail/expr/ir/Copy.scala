@@ -127,6 +127,9 @@ object Copy {
       case ArrayFlatMap(_, name, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFlatMap(a, name, body)
+      case ArrayJoin(_, _, lName, rName, _, _, _, _) =>
+        val IndexedSeq(l: IR, r: IR, stepLeftF: IR, stepRightF: IR, produceValueF: IR, joinF: IR) = newChildren
+        ArrayJoin(l, r, lName, rName, stepLeftF, stepRightF, produceValueF, joinF)
       case ArrayFold(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayFold(a, zero, accumName, valueName, body)

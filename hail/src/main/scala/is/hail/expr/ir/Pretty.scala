@@ -179,6 +179,7 @@ object Pretty {
             case ArrayMap(_, name, _) => prettyIdentifier(name)
             case ArrayFilter(_, name, _) => prettyIdentifier(name)
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
+            case ArrayJoin(_, _, lName, rName, _, _, _, _) => prettyIdentifier(lName) + " " + prettyIdentifier(rName)
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)

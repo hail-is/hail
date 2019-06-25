@@ -91,7 +91,11 @@ object SparkFunctionContext {
 case class SparkFunctionContext(sparkEnv: Code, fs: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
-  def emit(f: (Code, Code) => Code): Code
+  // f: (missing, value) => result
+  def consume(f: (Code, Code) => Code): Code
+
+  // k: (element => result, end-of-stream) => result
+  def produce(k: (Code => Code, Code) => Code): Code = ""
 }
 
 object NDArrayEmitter {

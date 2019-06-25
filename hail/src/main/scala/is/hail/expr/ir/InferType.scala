@@ -93,6 +93,8 @@ object InferType {
         a.typ
       case ArrayFlatMap(a, name, body) =>
         coerce[TStreamable](a.typ).copyStreamable(coerce[TIterable](body.typ).elementType)
+      case ArrayJoin(l, r, _, _, _, _, _, joinF) =>
+        coerce[TStreamable](l.typ).copyStreamable(joinF.typ)
       case ArrayFold(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         zero.typ

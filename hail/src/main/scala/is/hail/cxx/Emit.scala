@@ -567,7 +567,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |    $accv = ${ zerot.v };
              |  ${ ae.setupLen }
              |  ${
-            ae.emit { case (m, v) =>
+            ae.consume { case (m, v) =>
               val vm = fb.variable("vm", "bool")
               val vv = fb.variable("vv", typeToCXXType(eltType))
               val vt = EmitTriplet(eltType, "", vm.toString, vv.toString, ae.arrayRegion)
@@ -616,7 +616,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                    |  ${ ae.setupLen }
                    |  ${ sab.start(length) }
                    |  ${
-                  ae.emit { case (m, v) =>
+                  ae.consume { case (m, v) =>
                     s"""
                        |if (${ m })
                        |  ${ sab.setMissing() }
@@ -641,7 +641,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                    |  ${ xs.define }
                    |  ${ ms.define }
                    |  ${
-                  ae.emit { case (m, v) =>
+                  ae.consume { case (m, v) =>
                     s"""
                        |if (${ m }) {
                        |  $ms.push_back(true);
@@ -694,7 +694,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""{
              |${ sorter.define }
              |${ array.setupLen }
-             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |${ array.consume { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
              |$sorter.sort();
              |$sorter.to_region($resultRegion);
              |}
@@ -751,7 +751,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""{
              |${ sorter.define }
              |${ array.setupLen }
-             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |${ array.consume { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
              |$sorter.sort();
              |$sorter.distinct<${ eqClass.name }>($removeMissing);
              |$sorter.to_region($resultRegion);
@@ -1175,7 +1175,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  $len = ($llen < 0) ? 0 : (int)$llen;
              |""".stripMargin, Some(len.toString), arrayRegion) {
 
-          def emit(f: (Code, Code) => Code): Code = {
+          def consume(f: (Code, Code) => Code): Code = {
             val i = fb.variable("i", "int", "0")
             val v = fb.variable("v", "int", startv.toString)
             s"""
@@ -1187,13 +1187,17 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |}
                |""".stripMargin
           }
+
+          override def produce(k: (Code => Code, Code) => Code): Code = {
+            ""
+          }
         }
 
       case ir.MakeStream(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
+          def consume(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
             val m = fb.variable("argm", "bool")
             val v = fb.variable("argv", typeToCXXType(t.elementType.physicalType))
@@ -1224,8 +1228,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           env.bind(name, EmitTriplet(elemType, "", vm.toString, vv.toString, arrayRegion)))
 
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
+          def consume(f: (Code, Code) => Code): Code = {
+            ae.consume { (m2: Code, v2: Code) =>
               s"""
                  |{
                  |  ${ vm.define }
@@ -1254,8 +1258,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)))
 
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length, arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
+          def consume(f: (Code, Code) => Code): Code = {
+            ae.consume { (m2: Code, v2: Code) =>
               s"""
                  |{
                  |  ${ vm.define }
@@ -1283,8 +1287,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)), sameRegion)
 
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, bodyt.arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
+          def consume(f: (Code, Code) => Code): Code = {
+            ae.consume { (m2: Code, v2: Code) =>
               s"""
                  |{
                  |  ${ vm.define }
@@ -1295,7 +1299,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |  ${ bodyt.setup }
                  |  if (!${ bodyt.m }) {
                  |    ${ bodyt.setupLen }
-                 |    ${ bodyt.emit(f) }
+                 |    ${ bodyt.consume(f) }
                  |  }
                  |}
                  |""".stripMargin
@@ -1315,7 +1319,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin
 
         new ArrayEmitter(setup, ae.m, ae.setupLen, None, ae.arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = ae.emit(f)
+          def consume(f: (Code, Code) => Code): Code = ae.consume(f)
         }
 
       case ir.ToStream(array) =>
@@ -1332,7 +1336,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |""".stripMargin, Some(len.toString), arrayRegion) {
           val i = fb.variable("i", "int", "0")
 
-          def emit(f: (Code, Code) => Code): Code = {
+          def consume(f: (Code, Code) => Code): Code = {
             s"""
                |for (${ i.define } $i < $len; ++$i) {
                |  ${ arrayRegion.defineIfUsed(sameRegion) }

@@ -214,6 +214,11 @@ final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
 final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
+
+final case class ArrayJoin(left: IR, right: IR, lName: String, rName: String, stepLeftF: IR, stepRightF: IR, produceValueF: IR, joinF: IR) extends IR {
+  override def typ: TStreamable = coerce[TStreamable](super.typ)
+}
+
 final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
 
 final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR

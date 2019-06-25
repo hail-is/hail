@@ -79,6 +79,8 @@ object Children {
       Array(a, cond)
     case ArrayFlatMap(a, name, body) =>
       Array(a, body)
+    case ArrayJoin(l, r, _, _, stepLeftF, stepRightF, produceValueF, joinF) =>
+      Array(l, r, stepLeftF, stepRightF, produceValueF, joinF)
     case ArrayFold(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
     case ArrayScan(a, zero, accumName, valueName, body) =>

@@ -921,6 +921,37 @@ class IRSuite extends HailSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testArrayJoin() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val key = "key"
+    def makeValues(keys: Int*): IR = {
+      MakeArray(keys.map { k => MakeStruct(Seq("key" -> I32(k), "val" -> I32(k))) },
+        TArray(TStruct("key" -> TInt32(), "val" -> TInt32())))
+    }
+
+    def innerJoinDistinct(left: IR, right: IR): IR = {
+      val l = Ref("l", left.typ.asInstanceOf[TStreamable].elementType)
+      val r = Ref("r", right.typ.asInstanceOf[TStreamable].elementType)
+      val lKey = GetField(l, key)
+      val rKey = GetField(r, key)
+
+      ArrayJoin(left, right, "l", "r",
+        ApplyComparisonOp(LT(TInt32(), TInt32()), lKey, rKey),
+        ApplyComparisonOp(LT(TInt32(), TInt32()), rKey, lKey),
+        ApplyComparisonOp(EQ(TInt32(), TInt32()), lKey, rKey),
+        InsertFields(l, Seq("val2" -> GetField(r, "val"))))
+    }
+
+    def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
+      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", array.typ.asInstanceOf[TStreamable].elementType)))
+
+    val join = innerJoinDistinct(makeValues(1, 2, 3, 4), makeValues(2, 4, 6))
+    val sum = fold(join, I32(0), (sum, struct) => ApplyBinaryPrimOp(Add(), sum, GetField(struct, "val2")))
+
+    assertEvalsTo(sum, 6)
+  }
+
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
     MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64())), MakeTuple(shape.map(I64)), rowMajor)
   }
