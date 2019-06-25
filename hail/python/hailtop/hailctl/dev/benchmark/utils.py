@@ -45,7 +45,11 @@ def download_data():
     print(f'using benchmark data directory {_data_dir}')
     os.makedirs(_data_dir, exist_ok=True)
 
-    files = map(lambda f: os.path.join(_data_dir, f), ['profile.vcf.bgz', 'profile.mt'])
+    files = map(lambda f: os.path.join(_data_dir, f), ['profile.vcf.bgz',
+                                                       'profile.mt',
+                                                       'table_10M_par_1000.ht',
+                                                       'table_10M_par_100.ht',
+                                                       'table_10M_par_10.ht'])
     if not all(os.path.exists(file) for file in files):
         vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
         print('files not found - downloading...', end='', flush=True)
@@ -53,7 +57,13 @@ def download_data():
                     os.path.join(_data_dir, vcf))
         print('done', flush=True)
         print('importing...', end='', flush=True)
-        hl.import_vcf(vcf).write(os.path.join(_data_dir, 'profile.mt'))
+        hl.import_vcf(vcf).write(os.path.join(_data_dir, 'profile.mt'), overwrite=True)
+
+        ht = hl.utils.range_table(10_000_000, 1000).annotate(**{f'f_{i}': hl.rand_unif(0, 1) for i in range(5)})
+        ht = ht.checkpoint(os.path.join(_data_dir, 'table_10M_par_1000.ht'), overwrite=True)
+        ht = ht.naive_coalesce(100).checkpoint(os.path.join(_data_dir, 'table_10M_par_100.ht'), overwrite=True)
+        ht.naive_coalesce(10).write(os.path.join(_data_dir, 'table_10M_par_10.ht'), overwrite=True)
+
         print('done', flush=True)
     else:
         print('all files found.', flush=True)

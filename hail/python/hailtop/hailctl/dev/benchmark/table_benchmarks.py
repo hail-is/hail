@@ -1,5 +1,5 @@
 import hail as hl
-from .utils import benchmark
+from .utils import benchmark, resource
 
 
 @benchmark
@@ -73,12 +73,21 @@ def table_foreign_key_join_left_higher_cardinality():
 
 
 @benchmark
+def table_annotate_many_flat():
+    N = 1_000_000
+    M = 100
+    ht = hl.utils.range_table(N)
+    ht = ht.annotate(**{f'x{i}': i + ht.idx for i in range(M)})
+    ht._force_count()
+
+
+@benchmark
 def table_annotate_many_nested_no_dependence():
     N = 1_000_000
     M = 100
     ht = hl.utils.range_table(N)
     for i in range(M):
-        ht = ht.annotate(**{f'x{i}': i})
+        ht = ht.annotate(**{f'x{i}': i + ht.idx})
     ht._force_count()
 
 
@@ -90,3 +99,83 @@ def table_annotate_many_nested_dependence():
     for i in range(1, M):
         ht = ht.annotate(**{f'x{i}': i + ht[f'x{i - 1}']})
     ht._force_count()
+
+@benchmark
+def read_force_count_p1000():
+    hl.read_table(resource('table_10M_par_1000.ht'))._force_count()
+
+@benchmark
+def read_force_count_p100():
+    hl.read_table(resource('table_10M_par_100.ht'))._force_count()
+
+@benchmark
+def read_force_count_p10():
+    hl.read_table(resource('table_10M_par_10.ht'))._force_count()
+
+@benchmark
+def union_p100_p100():
+    ht1 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht1.union(ht2)._force_count()
+
+@benchmark
+def union_p1000_p1000():
+    ht1 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht1.union(ht2)._force_count()
+
+
+@benchmark
+def union_p10_p1000():
+    ht1 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht1.union(ht2)._force_count()
+
+@benchmark
+def union_p1000_p10():
+    ht1 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht1.union(ht2)._force_count()
+
+@benchmark
+def union_p10_p100():
+    ht1 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht1.union(ht2)._force_count()
+
+@benchmark
+def join_p100_p100():
+    ht1 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht1.join(ht2)._force_count()
+
+@benchmark
+def join_p1000_p1000():
+    ht1 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht1.join(ht2)._force_count()
+
+
+@benchmark
+def join_p10_p1000():
+    ht1 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht1.join(ht2)._force_count()
+
+@benchmark
+def join_p1000_p10():
+    ht1 = hl.read_table(resource('table_10M_par_1000.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht1.join(ht2)._force_count()
+
+@benchmark
+def join_p10_p100():
+    ht1 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht1.join(ht2)._force_count()
+
+@benchmark
+def join_p100_p10():
+    ht1 = hl.read_table(resource('table_10M_par_100.ht'))
+    ht2 = hl.read_table(resource('table_10M_par_10.ht'))
+    ht1.join(ht2)._force_count()
