@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -145,6 +146,31 @@ object Table {
         TableType(signature, FastIndexedSeq(), globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
         RVD.unkeyed(signature.physicalType, crdd2)))
+    ).keyBy(key, isSorted)
+  }
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: PStruct,
+    key: IndexedSeq[String]
+  ): Table = apply(hc, ContextRDD.weaken[RVDContext](rdd), signature, key, TStruct.empty(), Annotation.empty, false)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: PStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Annotation,
+    isSorted: Boolean
+  ): Table = {
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
+    new Table(hc, TableLiteral(
+      TableValue(
+        TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
+        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
+        RVD.unkeyed(signature, crdd2)))
     ).keyBy(key, isSorted)
   }
 

@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.PString
+import is.hail.expr.types.physical.{PFloat64, PInt64, PString, PStruct}
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
@@ -20,10 +20,8 @@ object IBDInfo {
     IBDInfo(Z0, Z1, Z2, Z1 / 2 + Z2)
   }
 
-  val signature =
-    TStruct(("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()), ("PI_HAT", TFloat64()))
-
-  private val pType = signature.physicalType
+  val pType =
+    PStruct(("Z0", PFloat64()), ("Z1", PFloat64()), ("Z2", PFloat64()), ("PI_HAT", PFloat64()))
 
   def fromRegionValue(rv: RegionValue): IBDInfo =
     fromRegionValue(rv.region, rv.offset)
@@ -54,10 +52,8 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 }
 
 object ExtendedIBDInfo {
-  val signature =
-    TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64()), ("ibs1", TInt64()), ("ibs2", TInt64()))
-
-  private val pType = signature.physicalType
+  val pType =
+    PStruct(("ibd", IBDInfo.pType), ("ibs0", PInt64()), ("ibs1", PInt64()), ("ibs2", PInt64()))
 
   def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
     fromRegionValue(rv.region, rv.offset)
@@ -291,7 +287,7 @@ object IBD {
           eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
           if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
         } yield {
-          rvb.start(ibdSignature.physicalType)
+          rvb.start(ibdPType)
           rvb.startStruct()
           rvb.addString(sampleIds(i))
           rvb.addString(sampleIds(j))
@@ -323,17 +319,15 @@ object IBD {
     val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
     val sampleIds = input.stringSampleIds
 
-    TableLiteral(TableValue(ibdSignature, FastIndexedSeq("i", "j"),
+    TableLiteral(TableValue(ibdPType, FastIndexedSeq("i", "j"),
       computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
   }
 
-  private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
+  private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
 
-  private val ibdPType = ibdSignature.physicalType
-
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
+  def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdSignature, FastIndexedSeq("i", "j"))
+    Table(hc, ktRdd, ibdPType, FastIndexedSeq("i", "j"))
   }
 
   def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
