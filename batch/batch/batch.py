@@ -498,7 +498,8 @@ class Job:
             pod_log, err = await app['k8s'].read_pod_log(pod.metadata.name)
             if err:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod')
+                log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod '
+                         f'Error: {err}')
                 await self.mark_unscheduled()
                 return
 
