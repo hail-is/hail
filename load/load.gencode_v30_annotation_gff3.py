@@ -1,3 +1,5 @@
+import hail as hl
+
 t = hl.import_table('/Users/bfranco/downloads/gencode.v30.annotation.gff3',no_header=True, impute=True, comment=('#'))
 
 t2 = t.annotate(GFF_Columns = t.f8.split(";").map(lambda x: x.split("=")))
