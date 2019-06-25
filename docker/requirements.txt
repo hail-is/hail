@@ -24,6 +24,7 @@ PyGithub==1.43.7
 pylint==2.3.1
 PyMySQL==0.9.3
 pytest==4.6.3
+python-json-logger
 requests==2.22.0
 urllib3==1.24.3
 uvloop==0.12.2
