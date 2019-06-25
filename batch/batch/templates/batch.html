@@ -4,31 +4,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
-  <script type="text/javascript">
-    function searchTable() {
-      var searchTerms = document.getElementById("searchBar");
-      var filter = searchTerms.value.toLowerCase();
-      var table = document.getElementById("batch");
-      var tableRecords = table.getElementsByTagName("tr");
-
-      for (var i = 1; i < tableRecords.length; ++i) {
-        var record = tableRecords[i];
-        var tds = record.getElementsByTagName("td");
-        var anyMatch = false;
-        for (var j = 0; j < tds.length; ++j) {
-          var td = tds[j]
-          if ((td.textContent || td.innerText).toLowerCase().indexOf(filter) >= 0) {
-            anyMatch = true;
-            break;
-          }
-        }
-        if (anyMatch)
-          record.style.display = "";
-        else
-          record.style.display = "none";
-      }
-    }
-  </script>
+  <script src="/js/search_bar.js"></script>
   <body>
     <h1>Batch {{ batch['id'] }}</h1>
     {% if 'attributes' in batch %}
@@ -37,7 +13,7 @@
     {% endfor %}
     {% endif %}
     <h2>Jobs</h2>
-    <input type="text" id="searchBar" onkeyup="searchTable()" placeholder="Search terms...">
+    <input type="text" id="searchBar" onkeyup="searchTable('batch', 'searchBar')" placeholder="Search terms...">
     <table id="batch">
       <thead>
         <tr>
