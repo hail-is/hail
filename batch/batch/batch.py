@@ -805,6 +805,15 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
+async def start_batch(batch, jobs):
+    start_time = time.time()
+    for j in jobs:
+        if j._state == 'Ready':
+            await j._create_pod()
+    elapsed_time = round(time.time() - start_time, 4)
+    log.info(f'started all jobs in batch {batch.id} in {elapsed_time} seconds')
+
+
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
@@ -854,11 +863,7 @@ async def create_batch(request, userdata):
     elapsed_time = round(end_time - start_time, 4)
     log.info(f'created batch {batch.id} with {n_jobs} jobs in {elapsed_time} seconds')
 
-    for j in jobs:
-        if j._state == 'Ready':
-            await j._create_pod()
-
-    log.info(f'started all jobs in batch {batch.id}')
+    asyncio.ensure_future(start_batch(batch, jobs))
 
     return jsonify(await batch.to_dict(include_jobs=False))
 
