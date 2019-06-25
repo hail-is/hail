@@ -23,7 +23,7 @@ from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_u
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase, BatchBuilder
+from .database import BatchDatabase, JobsBuilder
 from .k8s import K8s
 from .globals import complete_states
 
@@ -328,7 +328,7 @@ class Job:
         return jobs
 
     @staticmethod
-    def create_job(batch_builder, pod_spec, batch_id, job_id, attributes, callback,
+    def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
                    parent_ids, input_files, output_files, userdata, always_run, pvc_size):
         pvc_name = None
         pod_name = None
@@ -345,7 +345,7 @@ class Job:
         tasks = [t for t in tasks if t is not None]
         exit_codes = [None for _ in tasks]
 
-        batch_builder.create_job(
+        jobs_builder.create_job(
             batch_id=batch_id,
             job_id=job_id,
             state=state,
@@ -360,7 +360,7 @@ class Job:
             duration=duration)
 
         for parent in parent_ids:
-            batch_builder.create_job_parent(
+            jobs_builder.create_job_parent(
                 batch_id=batch_id,
                 job_id=job_id,
                 parent_id=parent)
@@ -561,15 +561,11 @@ class Job:
         return result
 
 
-async def create_job(batch_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
+def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable=R0912
     pod_spec = v1.api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
 
     job_id = parameters.get('job_id')
-    has_record = await db.jobs.has_record(batch_id, job_id)
-    if has_record:
-        abort(400, f'invalid request: batch {batch_id} already has a job_id={job_id}')
-
     parent_ids = parameters.get('parent_ids', [])
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
@@ -596,7 +592,7 @@ async def create_job(batch_builder, batch_id, userdata, parameters):  # pylint: 
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
     job = Job.create_job(
-        batch_builder,
+        jobs_builder,
         batch_id=batch_id,
         job_id=job_id,
         pod_spec=pod_spec,
@@ -663,12 +659,12 @@ class Batch:
                 state = 'failure'
             elif record['n_cancelled'] > 0:
                 state = 'cancelled'
-            elif record['n_succeeded'] == record['n_jobs']:
+            elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
                 state = 'success'
             else:
                 state = 'running'
 
-            complete = record['n_completed'] == record['n_jobs']
+            complete = record['closed'] and record['n_completed'] == record['n_jobs']
 
             return Batch(id=record['id'],
                          attributes=attributes,
@@ -678,7 +674,8 @@ class Batch:
                          state=state,
                          complete=complete,
                          deleted=record['deleted'],
-                         cancelled=record['cancelled'])
+                         cancelled=record['cancelled'],
+                         closed=record['closed'])
         return None
 
     @staticmethod
@@ -695,24 +692,26 @@ class Batch:
         return batches
 
     @staticmethod
-    async def create_batch(batch_builder, attributes, callback, userdata):
+    async def create_batch(attributes, callback, userdata):
         user = userdata['username']
 
-        id = await batch_builder.create_batch(
+        id = await db.batch.new_record(
             attributes=json.dumps(attributes),
             callback=callback,
             userdata=json.dumps(userdata),
             user=user,
             deleted=False,
-            cancelled=False)
+            cancelled=False,
+            closed=False)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
-                      complete=False, deleted=False, cancelled=False)
+                      complete=False, deleted=False, cancelled=False,
+                      closed=False)
         return batch
 
     def __init__(self, id, attributes, callback, userdata, user,
-                 state, complete, deleted, cancelled):
+                 state, complete, deleted, cancelled, closed):
         self.id = id
         self.attributes = attributes
         self.callback = callback
@@ -722,6 +721,7 @@ class Batch:
         self.complete = complete
         self.deleted = deleted
         self.cancelled = cancelled
+        self.closed = closed
 
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
@@ -733,11 +733,17 @@ class Batch:
             await j.cancel()
         log.info(f'batch {self.id} cancelled')
 
+    async def close(self):
+        await db.batch.update_record(self.id, closed=True)
+        self.closed = True
+
     async def mark_deleted(self):
         await self.cancel()
         await db.batch.update_record(self.id,
-                                     deleted=True)
+                                     deleted=True,
+                                     closed=True)
         self.deleted = True
+        self.closed = True
         log.info(f'batch {self.id} marked for deletion')
 
     async def delete(self):
@@ -772,7 +778,8 @@ class Batch:
         result = {
             'id': self.id,
             'state': self.state,
-            'complete': self.complete
+            'complete': self.complete,
+            'closed': self.closed
         }
         if self.attributes:
             result['attributes'] = self.attributes
@@ -815,64 +822,59 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
-async def start_batch(batch, jobs):
+async def start_jobs(batch_id, jobs):
     start_time = time.time()
     for j in jobs:
         await j.run()
     elapsed_time = round(time.time() - start_time, 4)
-    log.info(f'started all jobs in batch {batch.id} in {elapsed_time} seconds')
+    log.info(f'started {len(jobs)} jobs in batch {batch_id} in {elapsed_time} seconds')
 
+
+@routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
+@rest_authenticated_users_only
+async def create_jobs(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    batch = await Batch.from_db(batch_id, user)
+    if not batch:
+        abort(404)
+    if batch.closed:
+        abort(400, f'batch {batch_id} is already closed')
+
+    jobs_parameters = await request.json()
+
+    validator = cerberus.Validator(schemas.job_array_schema)
+    if not validator.validate(jobs_parameters):
+        abort(400, 'invalid request: {}'.format(validator.errors))
+
+    jobs_builder = JobsBuilder(db)
+    try:
+        jobs = []
+        for job_params in jobs_parameters['jobs']:
+            job = create_job(jobs_builder, batch.id, userdata, job_params)
+            jobs.append(job)
+
+        success = await jobs_builder.commit()
+        if not success:
+            abort(400, f'insertion of jobs in db failed')
+    finally:
+        await jobs_builder.close()
+
+    asyncio.ensure_future(start_jobs(batch_id, jobs))
 
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
-    reader = await request.multipart()
-
-    part = await reader.next()
-    batch_parameters = await part.json()
+    parameters = await request.json()
 
     validator = cerberus.Validator(schemas.batch_schema)
-    if not validator.validate(batch_parameters):
+    if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    n_jobs = batch_parameters['n_jobs']
-    start_time = time.time()
-    batch_builder = BatchBuilder(db, n_jobs)
-
-    try:
-        batch = await Batch.create_batch(
-            batch_builder,
-            attributes=batch_parameters.get('attributes'),
-            callback=batch_parameters.get('callback'),
-            userdata=userdata)
-
-        jobs = []
-        while True:
-            part = await reader.next()
-            if part is None:
-                break
-
-            jobs_part_data = await part.json()
-
-            validator = cerberus.Validator(schemas.job_array_schema)
-            if not validator.validate(jobs_part_data):
-                abort(400, 'invalid request: {}'.format(validator.errors))
-
-            for job_params in jobs_part_data['jobs']:
-                job = await create_job(batch_builder, batch.id, userdata, job_params)
-                jobs.append(job)
-
-        success = await batch_builder.commit()
-        if not success:
-            abort(400, f'batch creation failed')
-    finally:
-        await batch_builder.close()
-
-    end_time = time.time()
-    elapsed_time = round(end_time - start_time, 4)
-    log.info(f'created batch {batch.id} with {n_jobs} jobs in {elapsed_time} seconds')
-
-    asyncio.ensure_future(start_batch(batch, jobs))
+    batch = await Batch.create_batch(
+        attributes=parameters.get('attributes'),
+        callback=parameters.get('callback'),
+        userdata=userdata)
 
     return jsonify(await batch.to_dict(include_jobs=False))
 
@@ -905,6 +907,18 @@ async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     await _cancel_batch(batch_id, user)
+    return jsonify({})
+
+
+@routes.patch('/api/v1alpha/batches/{batch_id}/close')
+@rest_authenticated_users_only
+async def close_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    batch = await Batch.from_db(batch_id, user)
+    if not batch:
+        abort(404)
+    await batch.close()
     return jsonify({})
 
 

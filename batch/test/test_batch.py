@@ -302,8 +302,10 @@ class Test(unittest.TestCase):
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
             (requests.get, '/api/v1alpha/batches'),
             (requests.post, '/api/v1alpha/batches/create'),
+            (requests.post, '/api/v1alpha/batches/0/jobs/create'),
             (requests.get, '/api/v1alpha/batches/0'),
             (requests.delete, '/api/v1alpha/batches/0'),
+            (requests.patch, '/api/v1alpha/batches/0/close'),
             (requests.get, '/batches'),
             (requests.get, '/batches/0'),
             (requests.get, '/batches/0/jobs/0/log')]

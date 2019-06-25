@@ -2,14 +2,13 @@ import os
 import math
 import time
 import random
-import aiohttp
 
 import hailtop.gear.auth as hj
 
 from .globals import complete_states
 
 
-job_array_size = 1
+job_array_size = 20
 
 
 def filter_params(complete, success, attributes):
@@ -339,30 +338,29 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        with aiohttp.MultipartWriter('batch') as mpwriter:
-            batch_doc = {'n_jobs': len(self._job_docs)}
-            if self.attributes:
-                batch_doc['attributes'] = self.attributes
-            if self.callback:
-                batch_doc['callback'] = self.callback
-            mpwriter.append_json(batch_doc)
+        batch_doc = {'n_jobs': len(self._job_docs)}
+        if self.attributes:
+            batch_doc['attributes'] = self.attributes
+        if self.callback:
+            batch_doc['callback'] = self.callback
 
-            docs = []
-            n = 0
-            for jdoc in self._job_docs:
-                n += 1
-                docs.append(jdoc)
-                if n == job_array_size:
-                    mpwriter.append_json({'jobs': docs})
-                    n = 0
-                    docs = []
-
-            if docs:
-                mpwriter.append_json({'jobs': docs})
-
-            b = await self._client._post_data('/api/v1alpha/batches/create', data=mpwriter)
-
+        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
         batch = Batch(self._client, b['id'], b.get('attributes'))
+
+        docs = []
+        n = 0
+        for jdoc in self._job_docs:
+            n += 1
+            docs.append(jdoc)
+            if n == job_array_size:
+                await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+                n = 0
+                docs = []
+
+        if docs:
+            await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+
+        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -403,11 +401,6 @@ class BatchClient:
     async def _get(self, path, params=None):
         response = await self._session.get(
             self.url + path, params=params, cookies=self._cookies, headers=self._headers)
-        return await response.json()
-
-    async def _post_data(self, path, data=None):
-        response = await self._session.post(
-            self.url + path, data=data, cookies=self._cookies, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):

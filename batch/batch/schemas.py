@@ -40,5 +40,5 @@ batch_schema = {
         'valueschema': {'type': 'string'}
     },
     'callback': {'type': 'string'},
-    'n_jobs': {'type': 'integer', 'nullable': False}
+    'n_jobs':
 }
