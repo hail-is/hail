@@ -4,6 +4,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
+  <script src="/js/search_bar.js"></script>
   <body>
     <h1>Batch {{ batch['id'] }}</h1>
     {% if 'attributes' in batch %}
@@ -12,7 +13,8 @@
     {% endfor %}
     {% endif %}
     <h2>Jobs</h2>
-    <table>
+    <input type="text" id="searchBar" onkeyup="searchTable('batch', 'searchBar')" placeholder="Search terms...">
+    <table id="batch">
       <thead>
         <tr>
           <th>ID</th>
@@ -41,4 +43,7 @@
       </tbody>
     </table>
   </body>
+  <script type="text/javascript">
+    document.getElementById("searchBar").focus();
+  </script>
 </html>
