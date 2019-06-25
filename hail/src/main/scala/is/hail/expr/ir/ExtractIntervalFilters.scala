@@ -134,8 +134,10 @@ object ExtractIntervalFilters {
       case ApplySpecial("||", Seq(l, r)) =>
         extractAndRewrite(l, es)
           .liftedZip(extractAndRewrite(r, es))
-          .map { case ((_, i1), (_, i2)) =>
-            (True(), Interval.union(i1 ++ i2, es.iOrd))
+          .flatMap {
+            case ((True(), i1), (True(), i2)) =>
+              Some((True(), Interval.union(i1 ++ i2, es.iOrd)))
+            case _ => None
           }
       case ApplySpecial("&&", Seq(l, r)) =>
         val ll = extractAndRewrite(l, es)
@@ -267,30 +269,33 @@ object ExtractIntervalFilters {
   }
 
   def apply(ir0: BaseIR): BaseIR = {
+    MapIR.mapBaseIR(ir0, (ir: BaseIR) => {
+      (ir match {
+        case TableFilter(child, pred) =>
+          extractPartitionFilters(pred, Ref("row", child.typ.rowType), child.typ.key)
+            .map { case (newCond, intervals) =>
+              log.info(s"generated TableFilterIntervals node with ${ intervals.length } intervals:\n  " +
+                s"Intervals: ${ intervals.mkString(", ") }\n  " +
+                s"Predicate: ${ Pretty(pred) }\n " +
+                s"Post: ${ Pretty(newCond) }")
+              TableFilter(
+                TableFilterIntervals(child, intervals, keep = true),
+                newCond)
+            }
+        case MatrixFilterRows(child, pred) =>
+          extractPartitionFilters(pred, Ref("va", child.typ.rowType), child.typ.rowKey)
+            .map { case (newCond, intervals) =>
+              log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
+                s"Intervals: ${ intervals.mkString(", ") }\n  " +
+                s"Predicate: ${ Pretty(pred) }\n " +
+                s"Post: ${ Pretty(newCond) }")
+              MatrixFilterRows(
+                MatrixFilterIntervals(child, intervals, keep = true),
+                newCond)
+            }
 
-    RewriteBottomUp(ir0, {
-      case TableFilter(child, pred) =>
-        extractPartitionFilters(pred, Ref("row", child.typ.rowType), child.typ.key)
-          .map { case (newCond, intervals) =>
-            log.info(s"generated TableFilterIntervals node with ${ intervals.length } intervals:\n  " +
-              s"Intervals: ${ intervals.mkString(", ") }\n  " +
-              s"Predicate: ${ Pretty(pred) }")
-            TableFilter(
-              TableFilterIntervals(child, intervals, keep = true),
-              newCond)
-          }
-      case MatrixFilterRows(child, pred) =>
-        extractPartitionFilters(pred, Ref("va", child.typ.rowType), child.typ.rowKey)
-          .map { case (newCond, intervals) =>
-            log.info(s"generated MatrixFilterIntervals node with ${ intervals.length } intervals:\n  " +
-              s"Intervals: ${ intervals.mkString(", ") }\n  " +
-              s"Predicate: ${ Pretty(pred) }")
-            MatrixFilterRows(
-              MatrixFilterIntervals(child, intervals, keep = true),
-              newCond)
-          }
-
-      case _ => None
+        case _ => None
+      }).getOrElse(ir)
     })
   }
 }
