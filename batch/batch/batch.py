@@ -1011,6 +1011,10 @@ class DeblockedIterator:
 
 
 async def pod_changed(pod):
+    if pod is None:
+        log.info('ignoring pod=None')
+        return
+
     job = Job.from_record(await db.jobs.get_record_by_pod(pod.metadata.name))
 
     if job and not job.is_complete():
@@ -1047,6 +1051,10 @@ async def refresh_k8s_pods():
 
     seen_pods = set()
     for pod in pods.items:
+        if pod is None:
+            log.info('ignoring pod=None')
+            continue
+
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
 
