@@ -9,14 +9,16 @@ import is.hail.expr.ir
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.io.compress.LZ4Utils
+import is.hail.io.fs.FS
+import is.hail.io.index.IndexWriter
 import is.hail.nativecode._
-import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, IndexedRVDSpec, IndexSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.{HailContext, cxx}
-import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -54,6 +56,8 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
+  require(blockSize <= (1 << 16))
+
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
@@ -84,6 +88,8 @@ trait BlockBufferSpec extends Serializable {
 }
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+  require(blockSize <= (1 << 16))
+
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
@@ -301,10 +307,14 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
 trait OutputBlockBuffer extends Closeable {
   def writeBlock(buf: Array[Byte], len: Int): Unit
+
+  def getPos(): Long
 }
 
 trait InputBlockBuffer extends Closeable {
   def close(): Unit
+
+  def seek(offset: Long)
 
   def readBlock(buf: Array[Byte]): Int
 }
@@ -321,6 +331,8 @@ final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer
     out.write(lenBuf, 0, 4)
     out.write(buf, 0, len)
   }
+
+  def getPos(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 }
 
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
@@ -329,6 +341,9 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   def close() {
     in.close()
   }
+
+  // this takes a virtual offset and will seek the underlying stream to offset >> 16
+  def seek(offset: Long): Unit = in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
 
   def readBlock(buf: Array[Byte]): Int = {
     in.readFully(lenBuf, 0, 4)
@@ -483,6 +498,8 @@ final class MemoryBuffer extends Serializable {
 final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   def close() {}
 
+  def seek(offset: Long) = ???
+
   def readByte(): Byte = mb.readByte()
 
   def readInt(): Int = mb.readInt()
@@ -515,6 +532,8 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 
   def close() {}
 
+  def indexOffset(): Long = ???
+
   def writeByte(b: Byte): Unit = mb.writeByte(b)
 
   def writeInt(i: Int): Unit = mb.writeInt(i)
@@ -534,6 +553,8 @@ trait OutputBuffer extends Closeable {
   def flush(): Unit
 
   def close(): Unit
+
+  def indexOffset(): Long
 
   def writeByte(b: Byte): Unit
 
@@ -562,6 +583,8 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
   override def flush(): Unit = out.flush()
 
   override def close(): Unit = out.close()
+
+  def indexOffset(): Long = out.asInstanceOf[ByteTrackingOutputStream].bytesWritten
 
   override def writeByte(b: Byte): Unit = out.write(Array(b))
 
@@ -602,6 +625,8 @@ final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def close() {
     out.close()
   }
+
+  def indexOffset(): Long = out.indexOffset()
 
   def writeByte(b: Byte): Unit = out.writeByte(b)
 
@@ -648,11 +673,15 @@ final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     Memory.storeInt(comp, 0, decompLen) // decompLen
     out.writeBlock(comp, compLen + 4)
   }
+
+  def getPos(): Long = out.getPos()
 }
 
 final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends OutputBuffer {
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
+
+  def indexOffset(): Long = (out.getPos() << 16) | off
 
   private def writeBlock() {
     out.writeBlock(buf, off)
@@ -744,6 +773,8 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 trait InputBuffer extends Closeable {
   def close(): Unit
 
+  def seek(offset: Long): Unit
+
   def readByte(): Byte
 
   def readInt(): Int
@@ -781,6 +812,8 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
   private val buff = new Array[Byte](8)
 
   def close(): Unit = in.close()
+
+  def seek(offset: Long) = in.asInstanceOf[ByteTrackingInputStream].seek(offset)
 
   def readByte(): Byte = {
     in.read(buff, 0, 1)
@@ -836,6 +869,8 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readByte(): Byte = {
     in.readByte()
@@ -897,12 +932,13 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 final class LZ4InputBlockBuffer(blockSize: Int, in: InputBlockBuffer) extends InputBlockBuffer {
   private val comp = new Array[Byte](4 + LZ4Utils.maxCompressedLength(blockSize))
   private var decompBuf = new Array[Byte](blockSize)
-  private var pos = 0
   private var lim = 0
 
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readBlock(buf: Array[Byte]): Int = {
     val blockLen = in.readBlock(comp)
@@ -938,6 +974,14 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 
   def close() {
     in.close()
+  }
+
+  def seek(offset: Long): Unit = {
+    in.seek(offset)
+    off = end
+    readBlock()
+    off = (offset & 0xFFFF).asInstanceOf[Int]
+    assert(off < end)
   }
 
   def readByte(): Byte = {
@@ -1054,6 +1098,8 @@ trait Decoder extends Closeable {
   def readRegionValue(region: Region): Long
 
   def readByte(): Byte
+
+  def seek(offset: Long): Unit
 }
 
 class MethodBuilderSelfLike(val mb: MethodBuilder) extends MethodBuilderLike[MethodBuilderSelfLike] {
@@ -1378,6 +1424,8 @@ final class NativePackDecoder(in: InputStream, module: NativeDecoderModule) exte
   def readByte(): Byte = decode_byte(st, decoder.get()).toByte
 
   def readRegionValue(region: Region): Long = decode_row(st, decoder.get(), region.get())
+
+  def seek(offset: Long): Unit = ???
 }
 
 final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, InputBuffer, Long]) extends Decoder {
@@ -1390,12 +1438,16 @@ final class CompiledPackDecoder(in: InputBuffer, f: () => AsmFunction2[Region, I
   def readRegionValue(region: Region): Long = {
     f()(region, in)
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 }
 
 final class PackDecoder(rowType: PType, in: InputBuffer) extends Decoder {
   def close() {
     in.close()
   }
+
+  def seek(offset: Long): Unit = in.seek(offset)
 
   def readByte(): Byte = in.readByte()
 
@@ -1500,6 +1552,8 @@ trait Encoder extends Closeable {
   def writeRegionValue(region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
+
+  def indexOffset(): Long
 }
 
 object EmitPackEncoder { self =>
@@ -1687,6 +1741,8 @@ final class CompiledPackEncoder(out: OutputBuffer, f: () => AsmFunction3[Region,
   def writeByte(b: Byte) {
     out.writeByte(b)
   }
+
+  def indexOffset(): Long = out.indexOffset()
 }
 
 final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
@@ -1780,6 +1836,8 @@ final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {
         writeArray(t, region, offset)
     }
   }
+
+  def indexOffset(): Long = out.indexOffset()
 }
 
 case class NativeEncoderModule(
@@ -1834,10 +1892,16 @@ final class NativePackEncoder(out: OutputStream, module: NativeEncoderModule) ex
     encodeByteF(st, buf.get(), b)
     assert(st.ok, st.toString())
   }
+
+  def indexOffset(): Long = ???
 }
 
 object RichContextRDDRegionValue {
-  def writeRowsPartition(makeEnc: (OutputStream) => Encoder)(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream): Long = {
+  def writeRowsPartition(
+    makeEnc: (OutputStream) => Encoder,
+    indexKeyFieldIndices: Array[Int] = null,
+    rowType: PStruct = null
+  )(ctx: RVDContext, it: Iterator[RegionValue], os: OutputStream, iw: IndexWriter): Long = {
     val context = TaskContext.get
     val outputMetrics =
       if (context != null)
@@ -1849,6 +1913,11 @@ object RichContextRDDRegionValue {
     var rowCount = 0L
 
     it.foreach { rv =>
+      if (iw != null) {
+        val off = en.indexOffset()
+        val key = SafeRow.selectFields(rowType, rv)(indexKeyFieldIndices)
+        iw += (key, off, Row())
+      }
       en.writeByte(1)
       en.writeRegionValue(rv.region, rv.offset)
       ctx.region.clear()
@@ -1879,6 +1948,7 @@ object RichContextRDDRegionValue {
     ctx: RVDContext,
     partDigits: Int,
     stageLocally: Boolean,
+    makeIndexWriter: (FS, String) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder
   ): (String, Long) = {
@@ -1889,17 +1959,20 @@ object RichContextRDDRegionValue {
     val outputMetrics = context.taskMetrics().outputMetrics
     val finalRowsPartPath = path + "/rows/rows/parts/" + f
     val finalEntriesPartPath = path + "/entries/rows/parts/" + f
-    val (rowsPartPath, entriesPartPath) =
+    val finalIdxPath = path + "/index/" + f + ".idx"
+    val (rowsPartPath, entriesPartPath, idxPath) =
       if (stageLocally) {
         val rowsPartPath = fs.getTemporaryFile("file:///tmp")
         val entriesPartPath = fs.getTemporaryFile("file:///tmp")
+        val idxPath = rowsPartPath + ".idx"
         context.addTaskCompletionListener { (context: TaskContext) =>
           fs.delete(rowsPartPath, recursive = false)
           fs.delete(entriesPartPath, recursive = false)
+          fs.delete(idxPath, recursive = true)
         }
-        (rowsPartPath, entriesPartPath)
+        (rowsPartPath, entriesPartPath, idxPath)
       } else
-        (finalRowsPartPath, finalEntriesPartPath)
+        (finalRowsPartPath, finalEntriesPartPath, finalIdxPath)
 
     val rowCount = fs.writeFile(rowsPartPath) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
@@ -1908,32 +1981,39 @@ object RichContextRDDRegionValue {
         fs.writeFile(entriesPartPath) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
+            using(makeIndexWriter(fs, idxPath)) { iw =>
 
-            var rowCount = 0L
+              var rowCount = 0L
 
-            it.foreach { rv =>
-              rowsEN.writeByte(1)
-              rowsEN.writeRegionValue(rv.region, rv.offset)
+              it.foreach { rv =>
+                val rows_off = rowsEN.indexOffset()
+                val ents_off = entriesEN.indexOffset()
+                val key = SafeRow.selectFields(fullRowType, rv)(t.kFieldIdx)
+                iw += (key, rows_off, Row(ents_off))
 
-              entriesEN.writeByte(1)
-              entriesEN.writeRegionValue(rv.region, rv.offset)
+                rowsEN.writeByte(1)
+                rowsEN.writeRegionValue(rv.region, rv.offset)
 
-              ctx.region.clear()
+                entriesEN.writeByte(1)
+                entriesEN.writeRegionValue(rv.region, rv.offset)
 
-              rowCount += 1
+                ctx.region.clear()
 
+                rowCount += 1
+
+                ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
+                ExposedMetrics.setRecords(outputMetrics, 2 * rowCount)
+              }
+
+              rowsEN.writeByte(0) // end
+              entriesEN.writeByte(0)
+
+              rowsEN.flush()
+              entriesEN.flush()
               ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
-              ExposedMetrics.setRecords(outputMetrics, 2 * rowCount)
+
+              rowCount
             }
-
-            rowsEN.writeByte(0) // end
-            entriesEN.writeByte(0)
-
-            rowsEN.flush()
-            entriesEN.flush()
-            ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
-
-            rowCount
           }
         }
       }
@@ -1942,6 +2022,8 @@ object RichContextRDDRegionValue {
     if (stageLocally) {
       fs.copy(rowsPartPath, finalRowsPartPath)
       fs.copy(entriesPartPath, finalEntriesPartPath)
+      fs.copy(idxPath + "/index", finalIdxPath + "/index")
+      fs.copy(idxPath + "/metadata.json.gz", finalIdxPath + "/metadata.json.gz")
     }
 
     f -> rowCount
@@ -1951,16 +2033,19 @@ object RichContextRDDRegionValue {
     fs: FS,
     path: String,
     codecSpec: CodecSpec,
-    key: IndexedSeq[String],
+    t: RVDType,
     rowsRVType: PStruct,
     entriesRVType: PStruct,
     partFiles: Array[String],
     partitioner: RVDPartitioner
   ) {
-    val rowsSpec = OrderedRVDSpec(rowsRVType, key, codecSpec, partFiles, partitioner)
+    val rowsSpec = IndexedRVDSpec(
+      rowsRVType, t.key, codecSpec, IndexSpec.defaultAnnotation("../../index", t.kType.virtualType), partFiles, partitioner)
     rowsSpec.write(fs, path + "/rows/rows")
 
-    val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitioner.numPartitions))
+    val entriesSpec = IndexedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec,
+      IndexSpec.defaultAnnotation("../../index", t.kType.virtualType, withOffsetField = true), partFiles,
+      RVDPartitioner.unkeyed(partitioner.numPartitions))
     entriesSpec.write(fs, path + "/entries/rows")
   }
 }
@@ -1991,8 +2076,22 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       }
     }
 
-  def writeRows(path: String, t: PStruct, stageLocally: Boolean, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
-    crdd.writePartitions(path, stageLocally, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
+  def writeRows(
+    path: String,
+    idxRelPath: String,
+    t: RVDType,
+    stageLocally: Boolean,
+    codecSpec: CodecSpec
+  ): (Array[String], Array[Long]) = {
+    crdd.writePartitions(
+      path,
+      idxRelPath,
+      stageLocally,
+      IndexWriter.builder(t.kType.virtualType, +TStruct()),
+      RichContextRDDRegionValue.writeRowsPartition(
+        codecSpec.buildEncoder(t.rowType),
+        t.kFieldIdx,
+        t.rowType))
   }
 
   def writeRowsSplit(
@@ -2007,6 +2106,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     fs.mkDir(path + "/rows/rows/parts")
     fs.mkDir(path + "/entries/rows/parts")
+    fs.mkDir(path + "/index")
 
     val bcFS = HailContext.bcFS
     val nPartitions = crdd.getNumPartitions
@@ -2017,8 +2117,8 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
     val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
-
     val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
+    val makeIndexWriter = IndexWriter.builder(t.kType.virtualType, +TStruct("entries_offset" -> TInt64()))
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val fs = bcFS.value
@@ -2031,6 +2131,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
         ctx,
         d,
         stageLocally,
+        makeIndexWriter,
         makeRowsEnc,
         makeEntriesEnc)
 
@@ -2039,7 +2140,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, t.key, rowsRVType, entriesRVType, partFiles, partitioner)
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, t, rowsRVType, entriesRVType, partFiles, partitioner)
 
     partitionCounts
   }

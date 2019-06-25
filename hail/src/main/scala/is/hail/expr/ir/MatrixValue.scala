@@ -67,7 +67,7 @@ case class MatrixValue(
     val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
 
     val colsSpec = TableSpec(
-      FileFormat.version.rep,
+      FileFormat.version_1_0.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
       typ.colsTableType,
@@ -85,7 +85,7 @@ case class MatrixValue(
     AbstractRVDSpec.writeSingle(fs, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
-      FileFormat.version.rep,
+      FileFormat.version_1_0.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
       TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),

@@ -83,6 +83,8 @@ abstract class RelationalSpec {
   }
 
   def rvdType(path: String): RVDType
+
+  def version: SemanticVersion = SemanticVersion(file_version)
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
@@ -95,6 +97,18 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     val rvdPath = path + "/" + rel_path
     rvdSpec(hc.sFS, path)
       .read(hc, rvdPath, requestedType)
+  }
+
+  def readIndexed(
+    hc: HailContext,
+    path: String,
+    requestedType: PStruct,
+    newPartitioner: Option[RVDPartitioner],
+    filterIntervals: Boolean
+  ): RVD = {
+    val rvdPath = path + "/" + rel_path
+    rvdSpec(hc.sFS, path)
+      .readIndexed(hc, rvdPath, requestedType, newPartitioner, filterIntervals)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
@@ -143,7 +157,10 @@ case class MatrixTableSpec(
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+  val indicesVersion: SemanticVersion = SemanticVersion(1, 1, 0)
+  val version: SemanticVersion = indicesVersion
+
+  val version_1_0: SemanticVersion = SemanticVersion(1, 0, 0)
 }
 
 object MatrixTable {

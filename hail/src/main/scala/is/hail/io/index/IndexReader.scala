@@ -18,9 +18,7 @@ import org.json4s.jackson.JsonMethods
 
 object IndexReaderBuilder {
   def apply(fs: FS, path: String): (FS, String, Int) => IndexReader = {
-    val metadata = IndexReader.readMetadata(fs, path)
-    val keyType = IRParser.parseType(metadata.keyType)
-    val annotationType = IRParser.parseType(metadata.annotationType)
+    val (keyType, annotationType) = IndexReader.readTypes(fs, path)
     IndexReaderBuilder(keyType, annotationType)
   }
 
@@ -28,15 +26,18 @@ object IndexReaderBuilder {
     IndexReaderBuilder(settings.matrixType.rowKeyStruct, settings.indexAnnotationType)
 
   def apply(keyType: Type, annotationType: Type): (FS, String, Int) => IndexReader = {
-    val leafType = LeafNodeBuilder.typ(keyType, annotationType).physicalType
-    val internalType = InternalNodeBuilder.typ(keyType, annotationType).physicalType
+    val (leafDecoder, internalDecoder) = IndexReader.buildDecoders(keyType, annotationType)
 
-    val codecSpec = CodecSpec.default
-    val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
-    val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
+    (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder,
+      internalDecoder, Some(keyType -> annotationType))
+  }
 
-    (fs, path, cacheCapacity) => new IndexReader(fs, path, cacheCapacity, leafDecoder, internalDecoder,
-      Some(keyType -> annotationType))
+  def withDecoders(
+    leafDec: (InputStream) => Decoder, intDec: (InputStream) => Decoder,
+    keyType: Type, annotationType: Type
+  ): (FS, String, Int) => IndexReader = {
+    (fs, path, cacheCapacity) => new IndexReader(fs, path, cacheCapacity, leafDec,
+      intDec, Some(keyType -> annotationType))
   }
 }
 
@@ -45,6 +46,25 @@ object IndexReader {
     val jv = fs.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
     implicit val formats: Formats = defaultJSONFormats
     jv.extract[IndexMetadata]
+  }
+
+  def readTypes(fs: FS, path: String): (Type, Type) = {
+    val metadata = IndexReader.readMetadata(fs, path)
+    val keyType = IRParser.parseType(metadata.keyType)
+    val annotationType = IRParser.parseType(metadata.annotationType)
+    keyType -> annotationType
+  }
+
+  def buildDecoders(
+    keyType: Type, annotationType: Type
+  ): ((InputStream) => Decoder, (InputStream) => Decoder) = {
+    val leafType = LeafNodeBuilder.typ(keyType, annotationType).physicalType
+    val internalType = InternalNodeBuilder.typ(keyType, annotationType).physicalType
+
+    val codecSpec = CodecSpec.default
+    val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
+    val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
+    leafDecoder -> internalDecoder
   }
 
   def apply(fs: FS, path: String, cacheCapacity: Int = 8): IndexReader = {

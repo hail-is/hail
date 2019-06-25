@@ -3,11 +3,12 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
+import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
@@ -17,7 +18,11 @@ import is.hail.variant._
 import java.io.{ ObjectInputStream, ObjectOutputStream }
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{Formats, ShortTypeHints}
+import org.json4s.{Formats, ShortTypeHints, CustomSerializer, JObject}
+import org.json4s.JsonAST.{JArray, JInt, JNull, JString, JField, JNothing}
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods
+
 
 import scala.reflect.ClassTag
 
@@ -83,9 +88,11 @@ case class TableLiteral(value: TableValue) extends TableIR {
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[TableNativeReader],
+      classOf[TableNativeZippedReader],
       classOf[TextTableReader],
       classOf[TextInputFilterAndReplace],
-      classOf[TableFromBlockMatrixNativeReader]))
+      classOf[TableFromBlockMatrixNativeReader])
+    ) + new TableNativeReaderSerializer() + new TableNativeZippedReaderSerializer()
 }
 
 abstract class TableReader {
@@ -96,7 +103,47 @@ abstract class TableReader {
   def fullType: TableType
 }
 
-case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) extends TableReader {
+class TableNativeReaderSerializer() extends CustomSerializer[TableNativeReader](
+  format =>
+    ({ case jObj: JObject =>
+      implicit val fmt = format
+      val path = (jObj \ "path").extract[String]
+      val intervalPointType = (jObj \ "intervals" \ "pointType").extractOpt[String].map { tstring =>
+        IRParser.parseType(tstring)
+      }
+      val jIntervals = (jObj \ "intervals" \ "value").toOption
+      if (intervalPointType.isDefined) require(jIntervals.isDefined)
+      val filterIntervals = (jObj \ "intervals" \ "filter").extractOpt[Boolean].getOrElse(false)
+      val intervals = jIntervals.map { jv =>
+        val intType = TArray(TInterval(intervalPointType.get))
+        JSONAnnotationImpex.importAnnotation(jv, intType).asInstanceOf[IndexedSeq[Interval]]
+      }
+      TableNativeReader(path, intervals, intervalPointType, filterIntervals)
+  }, { case reader: TableNativeReader =>
+    implicit val fmt = format
+    val intType = reader.intervalPointType.map { pt => TArray(TInterval(pt)) }
+    val obj = JObject(
+      JField("name", JString(reader.getClass.getSimpleName)),
+      JField("path", JString(reader.path)))
+    if (reader.intervalPointType.isEmpty)
+      obj
+    else {
+      val intervalsJson: JObject = ("intervals" ->
+          ("pointType" -> reader.intervalPointType.map { t => t.parsableString() }) ~
+          ("value" -> reader.intervals.map(JSONAnnotationImpex.exportAnnotation(_, intType.get))) ~
+          ("filter" -> reader.filterIntervals))
+      obj.merge(intervalsJson)
+    }
+  })
+)
+
+case class TableNativeReader(
+  path: String,
+  intervals: Option[IndexedSeq[Interval]] = None,
+  intervalPointType: Option[Type] = None,
+  filterIntervals: Boolean = false,
+  var _spec: AbstractTableSpec = null
+) extends TableReader {
   lazy val spec = if (_spec != null)
     _spec
   else
@@ -105,17 +152,29 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
       case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
     }
 
-  def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+  def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
 
   def fullType: TableType = spec.table_type
+
+  val indexed = spec.version.supports(FileFormat.indicesVersion)
+  if (intervals.nonEmpty && !indexed)
+    fatal("""`intervals` specified on an unindexed table.
+            |This table was written using an older version of hail
+            |rewrite the table in order to create an index to proceed""" )
 
   def apply(tr: TableRead): TableValue = {
     val hc = HailContext.get
 
     val globals = spec.globalsComponent.readLocal(hc, path, tr.typ.globalType.physicalType)(0)
-    val rvd = if (tr.dropRows)
+    val rvd = if (tr.dropRows) {
       RVD.empty(hc.sc, tr.typ.canonicalRVDType)
-    else {
+    } else if (indexed) {
+      val partitioner = if (filterIntervals)
+        intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
+      else
+        intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
+      spec.rowsComponent.readIndexed(hc, path, tr.typ.rowType.physicalType, partitioner, filterIntervals)
+    } else {
       val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType.physicalType)
       if (rvd.typ.key startsWith tr.typ.key)
         rvd
@@ -125,6 +184,111 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
       }
     }
     TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.backend), rvd)
+  }
+}
+
+class TableNativeZippedReaderSerializer() extends CustomSerializer[TableNativeZippedReader](
+  format =>
+    ({ case jObj: JObject =>
+      implicit val fmt = format
+      val pathLeft = (jObj \ "pathLeft").extract[String]
+      val pathRight = (jObj \ "pathLeft").extract[String]
+      val intervalPointType = (jObj \ "intervals" \ "pointType").extractOpt[String].map { tstring =>
+        IRParser.parseType(tstring)
+      }
+      val jIntervals = (jObj \ "intervals" \ "value").toOption
+      if (intervalPointType.isDefined) require(jIntervals.isDefined)
+      val filterIntervals = (jObj \ "intervals" \ "filter").extractOpt[Boolean].getOrElse(false)
+      val intervals = jIntervals.map { jv =>
+        val intType = TArray(TInterval(intervalPointType.get))
+        JSONAnnotationImpex.importAnnotation(jv, intType).asInstanceOf[IndexedSeq[Interval]]
+      }
+      TableNativeZippedReader(pathLeft, pathRight, intervals, intervalPointType, filterIntervals)
+  }, { case reader: TableNativeZippedReader =>
+    implicit val fmt = format
+    val intType = reader.intervalPointType.map { pt => TArray(TInterval(pt)) }
+    val obj = JObject(
+      JField("name", JString(reader.getClass.getSimpleName)),
+      JField("pathLeft", JString(reader.pathLeft)),
+      JField("pathRight", JString(reader.pathRight)))
+    if (reader.intervalPointType.isEmpty)
+      obj
+    else {
+      val intervalsJson: JObject = ("intervals" ->
+          ("pointType" -> reader.intervalPointType.map { t => t.parsableString() }) ~
+          ("value" -> reader.intervals.map(JSONAnnotationImpex.exportAnnotation(_, intType.get))) ~
+          ("filter" -> reader.filterIntervals))
+      obj.merge(intervalsJson)
+    }
+  })
+)
+
+case class TableNativeZippedReader(
+  pathLeft: String,
+  pathRight: String,
+  intervals: Option[IndexedSeq[Interval]] = None,
+  intervalPointType: Option[Type] = None,
+  filterIntervals: Boolean = false,
+  var _specLeft: AbstractTableSpec = null,
+  var _specRight: AbstractTableSpec = null
+) extends TableReader {
+  private def getSpec(path: String) = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+    case ts: AbstractTableSpec => ts
+    case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+  }
+
+  lazy val specLeft = if (_specLeft != null) _specLeft else getSpec(pathLeft)
+  lazy val specRight = if (_specRight != null) _specRight else getSpec(pathRight)
+
+  require((specLeft.table_type.rowType.fieldNames ++ specRight.table_type.rowType.fieldNames).areDistinct())
+  require(specRight.table_type.key.isEmpty)
+  require(specLeft.partitionCounts sameElements specRight.partitionCounts)
+  require(specLeft.version == specRight.version)
+
+  val indexed = FileFormat.indicesVersion.supports(specLeft.version)
+  if (intervals.nonEmpty && !indexed)
+    fatal("""`intervals` specified on an unindexed matrix table.
+            |This matrix table was written using an older version of hail
+            |rewrite the matrix in order to create an index to proceed""" )
+
+  def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
+
+  def fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
+
+  def apply(tr: TableRead): TableValue = {
+    val hc = HailContext.get
+    val globals = specLeft.globalsComponent.readLocal(hc, pathLeft, tr.typ.globalType.physicalType)(0)
+    val rvd = if (tr.dropRows) {
+      RVD.empty(hc.sc, tr.typ.canonicalRVDType)
+    } else {
+      val partitioner = if (filterIntervals)
+        intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
+      else
+        intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
+      val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
+      val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
+      if (tr.typ.rowType.fieldNames.forall(f => !rightFieldSet.contains(f))) {
+        specLeft.rowsComponent.readIndexed(hc, pathLeft, tr.typ.rowType.physicalType, partitioner, filterIntervals)
+      } else if (tr.typ.rowType.fieldNames.forall(f => !leftFieldSet.contains(f))) {
+        specRight.rowsComponent.readIndexed(hc, pathRight, tr.typ.rowType.physicalType, partitioner, filterIntervals)
+      } else {
+        val rvdSpecLeft = specLeft.rowsComponent.rvdSpec(hc.sFS, pathLeft)
+        val rvdSpecRight = specRight.rowsComponent.rvdSpec(hc.sFS, pathRight)
+        val rvdPathLeft = specLeft.rowsComponent.absolutePath(pathLeft)
+        val rvdPathRight = specRight.rowsComponent.absolutePath(pathRight)
+
+        val leftRType = tr.typ.rowType.filter(f => leftFieldSet.contains(f.name))._1.physicalType
+        val rightRType = tr.typ.rowType.filter(f => rightFieldSet.contains(f.name))._1.physicalType
+        AbstractRVDSpec.readZipped(hc,
+          rvdSpecLeft, rvdSpecRight,
+          rvdPathLeft, rvdPathRight,
+          tr.typ.rowType.physicalType,
+          leftRType, rightRType,
+          partitioner, filterIntervals)
+      }
+    }
+
+    TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.sc), rvd)
   }
 }
 

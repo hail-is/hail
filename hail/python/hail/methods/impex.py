@@ -1785,9 +1785,12 @@ def import_plink(bed, bim, fam,
 
 
 @typecheck(path=str,
+           _intervals=nullable(sequenceof(anytype)),
+           _filter_intervals=bool,
            _drop_cols=bool,
            _drop_rows=bool)
-def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
+def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
+                      _drop_rows=False) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -1799,7 +1802,8 @@ def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(MatrixRead(MatrixNativeReader(path), _drop_cols, _drop_rows))
+    return MatrixTable(MatrixRead(MatrixNativeReader(path, _intervals, _filter_intervals),
+                       _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
@@ -2182,8 +2186,10 @@ def index_bgen(path,
     Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
-@typecheck(path=str)
-def read_table(path) -> Table:
+@typecheck(path=str,
+           _intervals=nullable(sequenceof(anytype)),
+           _filter_intervals=bool)
+def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -2195,7 +2201,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    tr = TableNativeReader(path)
+    tr = TableNativeReader(path, _intervals, _filter_intervals)
     return Table(TableRead(tr, False))
 
 

@@ -29,7 +29,8 @@ class ValueIRTests(unittest.TestCase):
         table = ir.TableRange(5, 3)
 
         matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
 
         block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
 
@@ -136,11 +137,12 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
-            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -205,9 +207,11 @@ class MatrixIRTests(unittest.TestCase):
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
-            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
+            ir.MatrixNativeReader(
+                resource('backward_compatability/1.0.0/matrix_table/0.hmt'), None, False),
+            False, False)
         table_read = ir.TableRead(
-            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht'), None, False), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
         matrix_irs = [
