@@ -251,7 +251,8 @@ class Job:
                 else:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'ignoring: could not read log for {self.id} '
-                             f'{self._current_task.name}; will still try to load other tasks')
+                             f'{self._current_task.name} due to {err}; '
+                             f'will still try to load other tasks')
             return logs
         if self.is_complete():
             return logs
