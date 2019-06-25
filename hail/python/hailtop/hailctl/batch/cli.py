@@ -53,7 +53,7 @@ def main(args):
     session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-    client = BatchClient(session, url="http://batch.hail.is")
+    client = BatchClient(session, url="https://batch.hail.is")
 
     args, pass_through_args = parser().parse_known_args(args=args)
     jmp[args.module].main(args, pass_through_args, client)
