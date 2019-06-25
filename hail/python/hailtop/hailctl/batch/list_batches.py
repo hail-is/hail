@@ -21,7 +21,7 @@ def main(args, passthrough_args, client):
         except:
             raise argparse.ArgumentTypeError("Boolean value expected for success")
     
-    complete = None 
+    complete = None
     if args.complete:
         try:
             complete = bool_string_to_bool(args.complete)

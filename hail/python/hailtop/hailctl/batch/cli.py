@@ -18,7 +18,7 @@ def parser():
         prog='hailctl batch',
         description='Manage batches running on the batch service managed by the Hail team.')
     subparsers = main_parser.add_subparsers()
-    
+
     list_parser = subparsers.add_parser(
         'list',
         help="List batches",
@@ -35,7 +35,9 @@ def parser():
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
 
-    
+    describe_parser.set_defaults(module='describe')
+    describe.init_parser(describe_parser)
+
     return main_parser
 
 def main(args):
