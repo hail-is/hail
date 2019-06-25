@@ -5,7 +5,7 @@ import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.zip.Inflater
+import java.util.zip.{Deflater, Inflater}
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
@@ -25,7 +25,6 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
-
 import is.hail.io.fs.FS
 package utils {
   trait Truncatable {
@@ -747,6 +746,20 @@ package object utils extends Logging
            |  Written with version ${ hc.version }
            |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
     }
+  }
+
+  def compress(bb: ArrayBuilder[Byte], input: Array[Byte]): Int = {
+    val compressor = new Deflater()
+    compressor.setInput(input)
+    compressor.finish()
+    val buffer = new Array[Byte](1024)
+    var compressedLength = 0
+    while (!compressor.finished()) {
+      val nCompressedBytes = compressor.deflate(buffer)
+      bb ++= (buffer, nCompressedBytes)
+      compressedLength += nCompressedBytes
+    }
+    compressedLength
   }
 }
 

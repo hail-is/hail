@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.io._
-import is.hail.io.gen.ExportGen
+import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.ExportType
@@ -50,6 +50,12 @@ case class MatrixGENWriter(
   precision: Int = 4
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportGen(mv, path, precision)
+}
+
+case class MatrixBGENWriter(
+  path: String
+) extends MatrixWriter {
+  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path)
 }
 
 case class MatrixPLINKWriter(

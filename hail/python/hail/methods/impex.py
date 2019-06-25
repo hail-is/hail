@@ -161,6 +161,15 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
+@typecheck(mt=MatrixTable,
+           output=str)
+def export_bgen(mt, output):
+    # FIXME document
+    require_row_key_variant(mt, 'export_bgen')
+    require_col_key_str(mt, 'export_bgen')
+    Env.backend().execute(MatrixWrite(dataset._mir, MatrixBGENWriter(output)))
+
+
 @typecheck(dataset=MatrixTable,
            output=str,
            call=nullable(expr_call),
