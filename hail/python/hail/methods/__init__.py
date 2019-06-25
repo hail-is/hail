@@ -1,5 +1,5 @@
 from .family_methods import trio_matrix, mendel_errors, transmission_disequilibrium_test, de_novo
-from .impex import export_elasticsearch, export_gen, export_plink, export_vcf, \
+from .impex import export_elasticsearch, export_gen, export_bgen, export_plink, export_vcf, \
     import_locus_intervals, import_bed, import_fam, grep, import_bgen, import_gen, import_table, \
     import_plink, read_matrix_table, read_table, get_vcf_metadata, import_vcf, import_vcfs, \
     index_bgen, import_matrix_table
@@ -34,6 +34,7 @@ __all__ = ['trio_matrix',
            'mendel_errors',
            'export_elasticsearch',
            'export_gen',
+           'export_bgen',
            'export_plink',
            'export_vcf',
            'vep',

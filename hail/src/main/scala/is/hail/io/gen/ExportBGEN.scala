@@ -346,13 +346,23 @@ object ExportBGEN {
     }
 
     if (exportType == ExportType.CONCATENATED) {
-      using(fs.unsafeWriter(path + ".bgen")) { out =>
-        files.foreach { f =>
-          using(fs.unsafeReader(f)) { in =>
-            IOUtils.copyBytes(in, out, 4096)
+      val (_, dt) = time {
+        using(fs.unsafeWriter(path + ".bgen")) { out =>
+          out.write(
+            BgenWriter.headerBlock(sampleIds, nVariants))
+
+          files.foreach { f =>
+            using(fs.unsafeReader(f)) { in =>
+              IOUtils.copyBytes(in, out, 4096)
+            }
           }
         }
       }
+
+      info(
+        s"""while writing:
+           |    ${ path }.bgen
+           |  merge time: ${ formatTime(dt) }""".stripMargin)
 
       fs.delete(parallelOutputPath, recursive = true)
     }

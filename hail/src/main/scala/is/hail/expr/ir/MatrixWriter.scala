@@ -10,8 +10,8 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter], classOf[MatrixPLINKWriter],
-        classOf[WrappedMatrixWriter]))
+      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]))
     override val typeHintFieldName = "name"
   }
 }
@@ -53,9 +53,10 @@ case class MatrixGENWriter(
 }
 
 case class MatrixBGENWriter(
-  path: String
+  path: String,
+  exportType: Int
 ) extends MatrixWriter {
-  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path)
+  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path, exportType)
 }
 
 case class MatrixPLINKWriter(

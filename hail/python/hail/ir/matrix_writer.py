@@ -96,12 +96,13 @@ class MatrixBGENWriter(MatrixWriter):
     def render(self):
         writer = {'name': 'MatrixBGENWriter',
                   'path': self.path,
-                  'export_type': export_type}
+                  'exportType': self.export_type}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
         return isinstance(other, MatrixBGENWriter) and \
-               other.path == self.path
+               other.path == self.path and \
+               other.export_type == self.export_type
 
 
 class MatrixPLINKWriter(MatrixWriter):
