@@ -361,9 +361,3 @@ class Test(unittest.TestCase):
         r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
-
-    def test_large_batch(self):
-        b = self.client.create_batch()
-        for _ in range(0, 100):
-            b.create_job('alpine:3.10.0', ['true'])
-        b = b.submit()
