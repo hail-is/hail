@@ -13,13 +13,17 @@ from . import log
 def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl batch',
-        description='Manage batches running on the batch service managed by the Hail team.'
-    subparsers = main_parser.add_subparser()
+        description='Manage batches running on the batch service managed by the Hail team.')
+    subparsers = main_parser.add_subparsers()
     
     list_parser = subparsers.add_parser(
         'list',
-        help="List batches"
+        help="List batches",
         description="List batches")
+
+    list_parser.set_defaults(module='list')
+    
+    return main_parser
 
 def main(args):
     if not args:
