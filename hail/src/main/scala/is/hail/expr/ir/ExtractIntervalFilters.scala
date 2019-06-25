@@ -47,7 +47,7 @@ object ExtractIntervalFilters {
       case _: TBoolean => false
       case t: TLocus =>
         val rg = t.rg.asInstanceOf[ReferenceGenome]
-        Locus(rg.contigs(0), 1)
+        Locus(rg.contigs.head, 1)
       case tbs: TBaseStruct => Row.fromSeq(tbs.types.map(minimumValueByType))
     }
   }
