@@ -304,6 +304,7 @@ class JobsTable(Table):
                 return [(record['batch_id'], record['job_id']) for record in result]
 
     async def get_record_by_pod(self, pod):
+        assert pod is not None
         records = await self.get_records_where({'pod_name': pod})
         if len(records) == 0:  # pylint: disable=R1705
             return None
