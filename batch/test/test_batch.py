@@ -1,6 +1,7 @@
-
+import random
+import math
 import collections
-import batch
+from hailtop.batch_client.client import BatchClient
 import json
 import os
 import pkg_resources
@@ -12,9 +13,22 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import hailjwt as hj
+import hailtop.gear.auth as hj
 
 from .serverthread import ServerThread
+
+
+def poll_until(p, max_polls=None):
+    i = 0
+    while True and (max_polls is None or i < max_polls):
+        x = p()
+        if x:
+            return x
+        # max 4.5s
+        j = random.randrange(math.floor(1.1 ** min(i, 40)))
+        time.sleep(0.100 * j)
+        i = i + 1
+    raise ValueError(f'poll_until: exceeded max polls: {i} {max_polls}')
 
 
 class Test(unittest.TestCase):
@@ -22,7 +36,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
 
     def tearDown(self):
         self.client.close()
@@ -85,7 +99,7 @@ class Test(unittest.TestCase):
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
             # list_batches returns all batches for all prev run tests
-            actual = set([batch.id for batch in batches]).intersection({b1.id, b2.id})
+            actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
@@ -261,7 +275,7 @@ class Test(unittest.TestCase):
             b = b.submit()
             j.wait()
 
-            batch.poll_until(lambda: 'status' in d)
+            poll_until(lambda: 'status' in d)
             status = d['status']
             self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
@@ -307,7 +321,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        bc = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
+        bc = BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])

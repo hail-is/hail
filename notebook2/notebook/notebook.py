@@ -24,7 +24,7 @@ import kubernetes as kube
 import jwt
 
 from table import Table
-from hailjwt import JWTClient, get_domain
+from hailtop.gear.auth import JWTClient, get_domain
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long

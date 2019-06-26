@@ -23,7 +23,7 @@ object ExecStrategy extends Enumeration {
   val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
   val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
   val nonLowering: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile, CxxCompile)
-  val backendOnly: Set[ExecStrategy] = Set(JvmCompile, CxxCompile)
+  val backendOnly: Set[ExecStrategy] = Set(LoweredJVMCompile, CxxCompile)
 }
 
 object TestUtils {

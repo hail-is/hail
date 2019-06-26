@@ -5,10 +5,10 @@ import aiohttp
 import re
 from flask import Response
 
-import hailjwt as hj
+import hailtop.gear.auth as hj
 
-from batch.client import BatchClient, Job
-import batch.aioclient as aioclient
+from hailtop.batch_client.client import BatchClient, Job
+import hailtop.batch_client.aioclient as aioclient
 from .serverthread import ServerThread
 
 

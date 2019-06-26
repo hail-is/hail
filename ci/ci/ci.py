@@ -13,8 +13,8 @@ import humanize
 import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
-import batch
-from hailjwt import authenticated_developers_only
+from hailtop.batch_client.aioclient import BatchClient, Job
+from hailtop.gear.auth import web_authenticated_developers_only, new_csrf_token, check_csrf_token
 
 from .log import log
 from .constants import BUCKET
@@ -38,8 +38,7 @@ start_time = datetime.datetime.now()
 
 
 @routes.get('/')
-@authenticated_developers_only
-@aiohttp_jinja2.template('index.html')
+@web_authenticated_developers_only
 async def index(request):  # pylint: disable=unused-argument
     app = request.app
     dbpool = app['dbpool']
@@ -81,14 +80,23 @@ async def index(request):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    return {
+    token = new_csrf_token()
+
+    context = {
         'watched_branches': wb_configs,
-        'age': pretty_timestamp_age(datetime.datetime.now() - start_time)
+        'age': humanize.naturaldelta(datetime.datetime.now() - start_time),
+        'token': token
     }
+
+    response = aiohttp_jinja2.render_template('index.html',
+                                              request,
+                                              context)
+    response.set_cookie('_csrf', token, secure=True, httponly=True)
+    return response
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('pr.html')
 async def get_pr(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
@@ -111,7 +119,7 @@ async def get_pr(request):
             for j in status['jobs']:
                 if 'duration' in j and j['duration'] is not None:
                     j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-                j['exit_code'] = batch.aioclient.Job.exit_code(j)
+                j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
                     attrs['link'] = attrs['link'].split(',')
@@ -133,7 +141,7 @@ async def get_pr(request):
 
 
 @routes.get('/batches')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('batches.html')
 async def get_batches(request):
     batch_client = request.app['batch_client']
@@ -145,7 +153,7 @@ async def get_batches(request):
 
 
 @routes.get('/batches/{batch_id}')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('batch.html')
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
@@ -155,14 +163,14 @@ async def get_batch(request):
     for j in status['jobs']:
         if 'duration' in j and j['duration'] is not None:
             j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
-        j['exit_code'] = batch.aioclient.Job.exit_code(j)
+        j['exit_code'] = Job.exit_code(j)
     return {
         'batch': status
     }
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
-@authenticated_developers_only
+@web_authenticated_developers_only
 @aiohttp_jinja2.template('job_log.html')
 async def get_job_log(request):
     batch_id = int(request.match_info['batch_id'])
@@ -177,7 +185,8 @@ async def get_job_log(request):
 
 
 @routes.post('/authorize_source_sha')
-@authenticated_developers_only
+@check_csrf_token
+@web_authenticated_developers_only
 async def post_authorized_source_sha(request):
     app = request.app
     dbpool = app['dbpool']
@@ -282,7 +291,7 @@ async def on_startup(app):
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = batch.aioclient.BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
+    app['batch_client'] = BatchClient(app['client_session'], url=os.environ.get('BATCH_SERVER_URL'))
 
     with open('/ci-user-secret/sql-config.json', 'r') as f:
         config = json.loads(f.read().strip())

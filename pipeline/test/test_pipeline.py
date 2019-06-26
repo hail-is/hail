@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
