@@ -233,9 +233,9 @@ class Pedigree(object):
         duplicate_ids = [id for id, count in Counter(only_ids).items() if count > 1]
         if duplicate_ids:
             raise FatalError("Invalid pedigree: found duplicate proband IDs\n{}".format(duplicate_ids))
-        
+
         if missing_sex_count > 0:
-            warn("Found {} samples with missing sex information (not 1 or 2)")
+            warn("Found {} samples with missing sex information (not 1 or 2).\n Missing samples: [{}]".format(missing_sex_count, missing_sex_values))
 
         return Pedigree(trios)
 
