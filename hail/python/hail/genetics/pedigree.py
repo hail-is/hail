@@ -169,7 +169,7 @@ class Pedigree(object):
     :type trios: list of :class:`.Trio`
     """
 
-    @typecheck(trios=sequenceof(Trio))
+    @typecheck_method(trios=sequenceof(Trio))
     def __init__(self, trios):
         self._trios = tuple(trios)
 
