@@ -5,7 +5,7 @@ import aiohttp
 from hailtop.batch_client.client import BatchClient
 from . import list_batches
 from . import delete
-from . import describe
+from . import get
 from . import cancel
 from . import wait
 from . import log
@@ -23,20 +23,26 @@ def parser():
         'list',
         help="List batches",
         description="List batches")
-    describe_parser = subparsers.add_parser(
-        'describe',
-        help='Describe a batch',
-        description='Describe a batch')
+    get_parser = subparsers.add_parser(
+        'get',
+        help='Get a particular batch\'s info',
+        description='Get a particular batch\'s info')
     cancel_parser = subparsers.add_parser(
         'cancel',
         help='Cancel a batch',
         description='Cancel a batch')
+    create_parser = subparsers.add_parser(
+        'create',
+        help='Create a batch',
+        description='Create a batch'
+    )
+    
 
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
 
-    describe_parser.set_defaults(module='describe')
-    describe.init_parser(describe_parser)
+    get_parser.set_defaults(module='get')
+    get.init_parser(get_parser)
 
     return main_parser
 
@@ -47,14 +53,14 @@ def main(args):
     jmp = {
         'list': list_batches,
         'delete': delete,
-        'describe': describe,
+        'get': get,
         'cancel': cancel,
         'log': log,
         'wait': wait
     }
     session = aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60))
+        raise_for_status=True,
+        timeout=aiohttp.ClientTimeout(total=60))
     client = BatchClient(session, url="https://batch.hail.is")
 
     args, pass_through_args = parser().parse_known_args(args=args)
