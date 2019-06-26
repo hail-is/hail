@@ -1133,6 +1133,7 @@ async def db_cleanup_event_loop():
 batch_root = os.path.dirname(os.path.abspath(__file__))
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root, 'templates')))
 routes.static('/static', os.path.join(batch_root, 'static'))
+routes.static('/js', os.path.join(batch_root, 'js'))
 app.add_routes(routes)
 
 
