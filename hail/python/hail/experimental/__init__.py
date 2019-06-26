@@ -14,7 +14,7 @@ from .ldscsim import simulate_phenotypes
 from .full_outer_join_mt import full_outer_join_mt
 from .tidyr import gather, separate, spread
 from .codec import encode, decode
-from . import ld_score
+from .ld_score import compute_ld_scores, ld_score_regression
 
 __all__ = ['write_expression',
            'read_expression',
@@ -42,4 +42,5 @@ __all__ = ['write_expression',
            'spread',
            'encode',
            'decode',
-           'ld_score']
+           'compute_ld_scores',
+           'ld_score_regression']
