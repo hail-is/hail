@@ -20,7 +20,7 @@ def main(args, passthrough_args, client):
             success = bool_string_to_bool(args.success)
         except:
             raise argparse.ArgumentTypeError("Boolean value expected for success")
-    
+
     complete = None
     if args.complete:
         try:
