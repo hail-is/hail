@@ -49,7 +49,8 @@ def download_data():
                                                        'profile.mt',
                                                        'table_10M_par_1000.ht',
                                                        'table_10M_par_100.ht',
-                                                       'table_10M_par_10.ht'])
+                                                       'table_10M_par_10.ht',
+                                                       'gnomad_dp_simulation.mt'])
     if not all(os.path.exists(file) for file in files):
         vcf = os.path.join(_data_dir, 'profile.vcf.bgz')
         print('files not found - downloading...', end='', flush=True)
@@ -63,6 +64,10 @@ def download_data():
         ht = ht.checkpoint(os.path.join(_data_dir, 'table_10M_par_1000.ht'), overwrite=True)
         ht = ht.naive_coalesce(100).checkpoint(os.path.join(_data_dir, 'table_10M_par_100.ht'), overwrite=True)
         ht.naive_coalesce(10).write(os.path.join(_data_dir, 'table_10M_par_10.ht'), overwrite=True)
+
+        mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
+        mt = mt.annotate_entries(x = hl.int(hl.rand_unif(0, 4.5) ** 3))
+        mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'))
 
         print('done', flush=True)
     else:
