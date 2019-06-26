@@ -262,7 +262,32 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Pending'
         return None
 
-    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state):
+    async def _read_pod_statuses(self):
+        async def _read_pod_status(jt):
+            pod_status = await db.jobs.get_pod_status(*self.id, jt.name)
+            return jt.name, pod_status
+
+        future_pod_statuses = asyncio.gather(*[_read_pod_status(jt) for idx, jt in enumerate(self._tasks)
+                                               if idx < self._task_idx])
+        pod_statuses = {k: v for k, v in await future_pod_statuses}
+
+        if self._state == 'Ready':
+            if self._pod_name:
+                pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
+                if err is None:
+                    pod_statuses[self._current_task.name] = pod_status
+                else:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'ignoring: could not get pod status for {self.id} '
+                             f'{self._current_task.name} due to {err}; '
+                             f'will still try to load other tasks')
+            return pod_statuses
+        if self.is_complete():
+            return pod_statuses
+        assert self._state == 'Cancelled' or self._state == 'Pending'
+        return None
+
+    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state, pod_status):
         self.exit_codes[self._task_idx] = exit_code
 
         self._task_idx += 1
@@ -275,7 +300,7 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'job {self.id} task {task_name} will have a missing log due to {err}')
 
-        await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code,
+        await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
                                          task_idx=self._task_idx,
                                          pod_name=None,
                                          duration=self.duration,
@@ -478,7 +503,9 @@ class Job:
         if failed:
             exit_code = 999  # FIXME hack
             pod_log = failure_reason
+            pod_status = None
         else:
+            pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
             if terminated.finished_at is not None and terminated.started_at is not None:
@@ -509,7 +536,7 @@ class Job:
         else:
             new_state = 'Failed'
 
-        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
+        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
 
         if exit_code == 0:
             if has_next_task:
@@ -634,6 +661,17 @@ async def _get_job_log(batch_id, job_id, user):
     abort(404)
 
 
+async def _get_pod_status(batch_id, job_id, user):
+    job = await Job.from_db(batch_id, job_id, user)
+    if not job:
+        abort(404)
+
+    pod_statuses = await job._read_pod_statuses()
+    if pod_statuses:
+        return pod_statuses
+    abort(404)
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
@@ -642,6 +680,16 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     user = userdata['username']
     job_log = await _get_job_log(batch_id, job_id, user)
     return jsonify(job_log)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
+@rest_authenticated_users_only
+async def get_pod_status(request, userdata):  # pylint: disable=R1710
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    pod_spec = await _get_pod_status(batch_id, job_id, user)
+    return jsonify(pod_spec)
 
 
 class Batch:
@@ -980,6 +1028,17 @@ async def ui_get_job_log(request, userdata):
     user = userdata['username']
     job_log = await _get_job_log(batch_id, job_id, user)
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
+@aiohttp_jinja2.template('pod_status.html')
+@web_authenticated_users_only
+async def ui_get_pod_status(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    pod_status = await _get_pod_status(batch_id, job_id, user)
+    return {'batch_id': batch_id, 'job_id': job_id, 'pod_status': pod_status}
 
 
 @routes.get('/')

@@ -99,6 +99,9 @@ class Job:
     async def log(self):
         return await self._job.log()
 
+    async def pod_status(self):
+        return await self._job.pod_status()
+
 
 class UnsubmittedJob:
     def _submit(self, batch):
@@ -143,6 +146,9 @@ class UnsubmittedJob:
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
 
+    async def pod_status(self):
+        raise ValueError("cannot get the pod status of an unsubmitted job")
+
 
 class SubmittedJob:
     def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
@@ -185,6 +191,9 @@ class SubmittedJob:
 
     async def log(self):
         return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+
+    async def pod_status(self):
+        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
 
 
 class Batch:
