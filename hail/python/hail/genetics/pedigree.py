@@ -120,16 +120,16 @@ class Trio(object):
         return self._is_female is True
 
     def is_complete(self):
-        """Returns True if the trio has a defined mother, father, and sex.
+        """Returns True if the trio has a defined mother, and father
 
-        The considered fields are :meth:`mat_id`, :meth:`pat_id`, and
-        :meth:`is_female`. Recall that ``s`` may never be missing. The
-        :meth:`fam_id` field may be missing in a complete trio.
+        The considered fields are :meth:`mat_id` and :meth:`pat_id`.
+        Recall that ``s`` may never be missing. The :meth:`fam_id`
+        and :meth:`is_female` fields may be missing in a complete trio.
 
         :rtype: bool
         """
 
-        return self._pat_id is not None and self._mat_id is not None and self._is_female is not None
+        return self._pat_id is not None and self._mat_id is not None
 
     def _restrict_to(self, ids):
         if self._s not in ids:

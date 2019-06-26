@@ -33,7 +33,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t4.is_complete(), True)
         self.assertEqual(t5.is_complete(), False)
-        self.assertEqual(t6.is_complete(), False)
+        self.assertEqual(t6.is_complete(), True)
 
 
     def test_pedigree(self):
