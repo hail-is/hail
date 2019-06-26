@@ -485,7 +485,7 @@ spec:
               value: "-Xms512m -Xmx512m" #Just grabbed numbers from tutorial
       initContainers:
         - name: fix-permissions
-          image: busybox
+          image: busybox:1.31
           command: ["sh", "-c", "chown -R 1000:1000 /usr/share/elasticsearch/data"]
           securityContext:
             privileged: true
@@ -493,12 +493,12 @@ spec:
             - name: data
               mountPath: /usr/share/elasticsearch/data
         - name: increase-vm-max-map
-          image: busybox
+          image: busybox:1.31
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
           securityContext:
             privileged: true
         - name: increase-fd-ulimit
-          image: busybox
+          image: busybox:1.31
           command: ["sh", "-c", "ulimit -n 65536"]
           securityContext:
             privileged: true
@@ -511,7 +511,7 @@ spec:
       accessModes: ["ReadWriteOnce"]
       resources:
         requests:
-          storage: 10Gi
+          storage: 20Gi
 ---
 apiVersion: v1
 kind: Service
@@ -632,10 +632,9 @@ spec:
       labels:
         app: fluentd
     spec:
-      serviceAccount: fluentd
       serviceAccountName: fluentd
       tolerations:
-        - key: node-rolde.kubernetes.io/master # This toleration makes Fluentd pod also run on master node.
+        - key: node-role.kubernetes.io/master # This toleration makes Fluentd pod also run on master node.
           effect: NoSchedule
       containers:
         - name: fluentd
@@ -669,6 +668,3 @@ spec:
         - name: varlibdockercontainers
           hostPath:
             path: /var/lib/docker/containers
-
-
-
