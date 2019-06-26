@@ -34,16 +34,16 @@ object Graph {
   }
 
   def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
-    val nodeType = IRParser.parsePType(nodeTypeStr)
+    val nodeType = IRParser.parseType(nodeTypeStr)
     
     val edges = Interpret[IndexedSeq[Row]](edgesIR).toArray
 
-    val resultType = PSet(nodeType)
+    val resultType = TSet(nodeType)
     val result = maximalIndependentSet(edges, nodeType, tieBreaker)
-    Literal(resultType.virtualType, result)
+    Literal(resultType, result)
   }
 
-  def maximalIndependentSet(edges: Array[Row], nodeType: PType, tieBreaker: Option[String]): Set[Any] = {
+  def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
       val Row(x, y) = r
       (x, y)
@@ -52,7 +52,7 @@ object Graph {
     if (edges2.length > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    val wrappedNodeType = PTuple(nodeType)
+    val wrappedNodeType = PTuple(PType.canonical(nodeType))
     val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
     val tieBreakerF = tieBreaker.map { e =>
@@ -67,13 +67,13 @@ object Graph {
 
           rvb.start(wrappedNodeType)
           rvb.startTuple()
-          rvb.addAnnotation(nodeType.virtualType, l)
+          rvb.addAnnotation(nodeType, l)
           rvb.endTuple()
           val lOffset = rvb.end()
 
           rvb.start(wrappedNodeType)
           rvb.startTuple()
-          rvb.addAnnotation(nodeType.virtualType, r)
+          rvb.addAnnotation(nodeType, r)
           rvb.endTuple()
           val rOffset = rvb.end()
 
