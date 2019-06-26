@@ -18,7 +18,7 @@ def main(args, pass_through_args, client):
 
     formatter = None
     if args.o == "json":
-        formatter = json.dumps
+        formatter = lambda s: json.dumps(s, indent=2)
     elif args.o == "yaml":
         formatter = yaml.dump
 
