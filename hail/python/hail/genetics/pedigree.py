@@ -36,8 +36,6 @@ class Trio(object):
         self._mat_id = mat_id
         self._is_female = is_female
 
-
-
     def __repr__(self):
         return 'Trio(s=%s, fam_id=%s, pat_id=%s, mat_id=%s, is_female=%s)' % (
             repr(self.s), repr(self.fam_id), repr(self.pat_id),
@@ -55,7 +53,6 @@ class Trio(object):
             self._pat_id == other._pat_id and 
             self._fam_id == other._fam_id and
             self._is_female == other._is_female)
-
 
     def __hash__(self):
         return hash((self._s, self._pat_id, self._mat_id, self._fam_id, self._is_female))
@@ -154,8 +151,12 @@ class Trio(object):
             if sample_id is None:
                 return "0"
             return sample_id
-        line_list = [sample_id_or_else_zero(self._fam_id), self._s, sample_id_or_else_zero(self._pat_id), 
-                     sample_id_or_else_zero(self._mat_id), self._sex_as_numeric_string(), "0"]
+        line_list = [sample_id_or_else_zero(self._fam_id), 
+                    self._s, 
+                    sample_id_or_else_zero(self._pat_id),
+                    sample_id_or_else_zero(self._mat_id),
+                    self._sex_as_numeric_string(), 
+                    "0"]
         return "\t".join(line_list)
 
 
@@ -168,6 +169,7 @@ class Pedigree(object):
     :type trios: list of :class:`.Trio`
     """
 
+    @typecheck(trios=sequenceof(Trio))
     def __init__(self, trios):
         self._trios = tuple(trios)
 
@@ -234,15 +236,12 @@ class Pedigree(object):
 
         return Pedigree(trios)
 
-
     @property
     def trios(self):
         """List of trio objects in this pedigree.
 
         :rtype: list of :class:`.Trio`
         """
-
-    
         return self._trios
 
     def complete_trios(self):

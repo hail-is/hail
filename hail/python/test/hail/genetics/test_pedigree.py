@@ -27,7 +27,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(t1.pat_id, 'dad1')
         self.assertEqual(t1.mat_id, None)
         self.assertEqual(t1.is_female, True)
-        self.assertEqual(t1.is_complete(), False)
         self.assertEqual(t1.is_female, True)
         self.assertEqual(t1.is_male, False)
         
