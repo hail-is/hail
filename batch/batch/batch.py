@@ -871,11 +871,13 @@ async def create_batch(request, userdata):
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
+    log.info('checked batch schema')
     batch = await Batch.create_batch(
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         userdata=userdata)
-
+    log.info('created batch in the db')
+    log.info(await batch.to_dict(include_jobs=False))
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
