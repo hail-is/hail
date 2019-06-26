@@ -1,5 +1,5 @@
 from .utils import benchmark, resource
-
+import tempfile
 import hail as hl
 
 
@@ -97,3 +97,51 @@ def matrix_table_many_aggs_col_wise():
 def matrix_table_aggregate_entries():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.aggregate_entries(hl.agg.stats(mt.GQ))
+
+# @benchmark never finishes
+def gnomad_coverage_stats():
+    mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
+    def get_coverage_expr(mt):
+        cov_arrays = hl.literal({
+            x:
+                [1, 1, 1, 1, 1, 1, 1, 1, 0] if x >= 50
+                else [1, 1, 1, 1, 1, 1, 1, 0, 0] if x >= 30
+                else ([1]*(i+2)) + ([0]*(7-i))
+            for i, x in enumerate(range(5, 100, 5))
+        })
+
+        return hl.bind(
+            lambda array_expr: hl.struct(
+                **{
+                    f'over_{x}': hl.int32(array_expr[i]) for i, x in enumerate([1, 5, 10, 15, 20, 25, 30, 50, 100])
+                }
+            ),
+            hl.agg.array_sum(
+                hl.case()
+                    .when(mt.x >= 100, [1, 1, 1, 1, 1, 1, 1, 1, 1])
+                    .when(mt.x >= 5, cov_arrays[mt.x - (mt.x % 5)])
+                    .when(mt.x >= 1, [1, 0, 0, 0, 0, 0, 0, 0, 0])
+                    .default([0, 0, 0, 0, 0, 0, 0, 0, 0])
+            )
+        )
+
+    mt = mt.annotate_rows(mean=hl.agg.mean(mt.x),
+                          median=hl.median(hl.agg.collect(mt.x)),
+                          **get_coverage_expr(mt))
+    mt.rows()._force_count()
+
+
+@benchmark
+def gnomad_coverage_stats_optimized():
+    mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
+    mt = mt.annotate_rows(mean=hl.agg.mean(mt.x),
+                          count_array=hl.rbind(hl.agg.counter(hl.min(100, mt.x)),
+                                               lambda c: hl.range(0, 100).map(lambda i: c.get(i, 0))))
+    mt = mt.annotate_rows(median=hl.rbind(hl.sum(mt.count_array) / 2, lambda s: hl.find(lambda x: x > s,
+                                                                                        hl.array_scan(
+                                                                                            lambda i, j: i + j,
+                                                                                            0,
+                                                                                            mt.count_array))),
+                          **{f'above_{x}': hl.sum(mt.count_array[x:]) for x in [1, 5, 10, 15, 20, 25, 30, 50, 100]}
+                          )
+    mt.rows()._force_count()
