@@ -43,6 +43,9 @@ def parser():
     get_parser.set_defaults(module='get')
     get.init_parser(get_parser)
 
+    cancel_parser.set_defaults(module='cancel')
+    cancel.init_parser(cancel_parser)
+
     delete_parser.set_defaults(module='delete')
     delete.init_parser(delete_parser)
 

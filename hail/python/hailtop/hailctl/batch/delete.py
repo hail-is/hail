@@ -12,3 +12,4 @@ def main(args, pass_through_args, client):
     batch = maybe_batch
 
     batch.delete()
+    print("Batch with id {} was deleted successfully".format(args.id))

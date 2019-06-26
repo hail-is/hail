@@ -1,5 +1,5 @@
-import tabulate
 import argparse
+import tabulate
 
 def init_parser(parser):
     parser.add_argument('--success', type=str, help="true or false")
