@@ -727,7 +727,9 @@ class Batch:
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
     async def cancel(self):
-        await db.batch.update_record(self.id, cancelled=True)
+        await db.batch.update_record(self.id, cancelled=True, closed=True)
+        self.cancelled = True
+        self.closed = True
         jobs = await self.get_jobs()
         for j in jobs:
             await j.cancel()
@@ -740,8 +742,7 @@ class Batch:
     async def mark_deleted(self):
         await self.cancel()
         await db.batch.update_record(self.id,
-                                     deleted=True,
-                                     closed=True)
+                                     deleted=True)
         self.deleted = True
         self.closed = True
         log.info(f'batch {self.id} marked for deletion')
