@@ -179,6 +179,9 @@ class Pedigree(object):
     def __hash__(self):
         return hash(self._trios)
 
+    def __iter__(self):
+        return self._trios.__iter__()
+
     @classmethod
     @typecheck_method(fam_path=str,
                       delimiter=str)
