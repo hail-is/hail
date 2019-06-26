@@ -19,7 +19,7 @@ object Streamify {
       else ArrayFlatMap(streamify(a), n, streamify(b))
     case ArrayJoin(l, r, lName, rName, stepL, stepR, produce, join) =>
       if (l.typ.isInstanceOf[TStream] && r.typ.isInstanceOf[TStream]) streamableNode
-      else ArrayJoin(streamify(l), streamify(r), lName, rName, stepL, stepR, produce, join)
+      else ArrayJoin(streamify(l), streamify(r), lName, rName, produce, join, stepL, stepR)
     case ArrayScan(a, zero, zn, an, body) =>
       if (a.typ.isInstanceOf[TStream]) streamableNode
       else ArrayScan(streamify(a), apply(zero), zn, an, apply(body))

@@ -215,7 +215,12 @@ final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
   override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 
-final case class ArrayJoin(left: IR, right: IR, lName: String, rName: String, stepLeftF: IR, stepRightF: IR, produceValueF: IR, joinF: IR) extends IR {
+final case class ArrayJoin(
+  left: IR, right: IR,
+  lName: String, rName: String,
+  produceValueF: IR, joinF: IR,
+  stepLeftF: IR, stepRightF: IR) extends IR {
+
   override def typ: TStreamable = coerce[TStreamable](super.typ)
 }
 

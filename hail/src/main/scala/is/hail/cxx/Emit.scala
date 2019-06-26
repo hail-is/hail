@@ -1188,8 +1188,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |""".stripMargin
           }
 
-          override def produce(k: (Code => Code, Code) => Code): Code = {
-            ""
+          override def produce(): (Code, (Code => Code, Code) => Code) = {
+            val i = fb.variable("i", "int", "0")
+            val next = (elementK: Code => Code, eosK: Code) =>
+            s"""
+               |if ($i < $len) {
+               |  ${ elementK(i.toString) }
+               |}
+               |else {
+               |  $eosK
+               |}
+             """.stripMargin
+
+            (i.define, next)
           }
         }
 
@@ -1273,6 +1284,24 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |""".stripMargin
             }
           }
+
+          override def produce(): (Code, (Code => Code, Code) => Code) = {
+            val (aInit, aNext) = ae.produce()
+            val next = (elementK: Code => Code, eosK: Code) =>
+              aNext(
+                (elem: Code) =>
+                  s"""
+                     |{
+                     |  ${ vv.define }
+                     |  $vv = $elem;
+                     |  ${ bodyt.setup }
+                     |  ${ elementK(bodyt.v) }
+                     |}
+                   """.stripMargin,
+                eosK)
+
+            (aInit, next)
+          }
         }
 
       case ir.ArrayFlatMap(a, name, body) =>
@@ -1304,6 +1333,42 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |}
                  |""".stripMargin
             }
+          }
+        }
+
+      case ir.ArrayJoin(l, r, lName, rName, stepLeftF, stepRightF, produceValueF, joinF) =>
+        val le = emitStream(resultRegion, l, env, sameRegion)
+        val re = emitStream(resultRegion, l, env, sameRegion)
+
+        val arrayRegion = le.arrayRegion
+
+        val lElemType = l.pType.asInstanceOf[PStreamable].elementType
+        val rElemType = r.pType.asInstanceOf[PStreamable].elementType
+
+        val lvm = fb.variable("m", "bool")
+        val lvv = fb.variable("v", typeToCXXType(lElemType))
+        val rvm = fb.variable("m", "bool")
+        val rvv = fb.variable("v", typeToCXXType(rElemType))
+
+        val newEnv = env.bind(
+          lName -> EmitTriplet(lElemType, "", lvm.toString, lvv.toString, arrayRegion),
+          rName -> EmitTriplet(rElemType, "", rvm.toString, rvv.toString, arrayRegion))
+
+        val stepLeftFt = outer.emit(arrayRegion, stepLeftF, newEnv)
+        val stepRightFt = outer.emit(arrayRegion, stepRightF, newEnv)
+        val produceValueFt = outer.emit(arrayRegion, produceValueF, newEnv)
+        val joinFt = outer.emit(arrayRegion, joinF, newEnv)
+
+        val setup = Code(le.setup, re.setup)
+        new ArrayEmitter(setup, s"${ le.m } || ${ re.m }", "", None, joinFt.region) {
+          override def consume(f: (Code, Code) => Code): Code = {
+            le.consume { (m2: Code, v2: Code) =>
+              ""
+            }
+          }
+
+          override def produce(k: ((Code, Code) => Code, Code) => Code): Code = {
+
           }
         }
 

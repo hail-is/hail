@@ -94,8 +94,9 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
   // f: (missing, value) => result
   def consume(f: (Code, Code) => Code): Code
 
-  // k: (element => result, end-of-stream) => result
-  def produce(k: (Code => Code, Code) => Code): Code = ""
+  // TODO: should be (missing, element) => result
+  // (init, (element) => result, end-of-stream) => result
+  def produce(): (Code, (Code => Code, Code) => Code) = ("", (_, _) => "")
 }
 
 object NDArrayEmitter {

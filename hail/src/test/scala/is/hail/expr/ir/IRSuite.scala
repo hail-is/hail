@@ -936,11 +936,7 @@ class IRSuite extends HailSuite {
       val lKey = GetField(l, key)
       val rKey = GetField(r, key)
 
-      ArrayJoin(left, right, "l", "r",
-        ApplyComparisonOp(LT(TInt32(), TInt32()), lKey, rKey),
-        ApplyComparisonOp(LT(TInt32(), TInt32()), rKey, lKey),
-        ApplyComparisonOp(EQ(TInt32(), TInt32()), lKey, rKey),
-        InsertFields(l, Seq("val2" -> GetField(r, "val"))))
+      ArrayJoin(left, right, "l", "r", ApplyComparisonOp(EQ(TInt32(), TInt32()), lKey, rKey), InsertFields(l, Seq("val2" -> GetField(r, "val"))), ApplyComparisonOp(LTEQ(TInt32(), TInt32()), lKey, rKey), ApplyComparisonOp(LT(TInt32(), TInt32()), rKey, lKey))
     }
 
     def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
