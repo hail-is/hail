@@ -319,6 +319,14 @@ class JobsTable(Table):
             return records[0][uri_field]
         return None
 
+    async def get_pod_status(self, batch_id, job_id, task_name):
+        pod_status_field = JobsTable.pod_status_mapping[task_name]
+        records = await self.get_records(batch_id, job_id, fields=[pod_status_field])
+        if records:
+            assert len(records) == 1
+            return records[0][pod_status_field]
+        return None
+
     @staticmethod
     def exit_code_field(task_name):
         return JobsTable.exit_code_mapping[task_name]
