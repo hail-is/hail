@@ -695,7 +695,7 @@ def array_sum(expr) -> ArrayExpression:
     -------
     :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
-    return _agg_func('Sum', [expr], expr.dtype)
+    return array_agg(hl.agg.sum, expr)
 
 
 @typecheck(expr=expr_float64)
