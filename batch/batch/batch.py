@@ -861,6 +861,7 @@ async def create_jobs(request, userdata):
         await jobs_builder.close()
 
     asyncio.ensure_future(start_jobs(batch_id, jobs))
+    return jsonify({})
 
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
