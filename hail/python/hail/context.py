@@ -274,19 +274,25 @@ def _hail_cite_url():
     return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
 
 
-def cite_hail():
-    """Generate Hail citation text."""
-    return f"Hail Team. Hail {read_version_info()}. {_hail_cite_url()}."
+def citation(*, bibtex=False):
+    """Generate a Hail citation.
 
+    Parameters
+    ----------
+    bibtex : bool
+        Generate a citation in BibTeX form.
 
-def cite_hail_bibtex():
-    """Generate Hail citation in BibTeX form."""
-    return f"""
-@misc{{Hail,
-  author = {{Hail Team}},
-  title = {{Hail}},
-  howpublished = {{\\url{{{_hail_cite_url()}}}}}
-}}"""
+    Returns
+    -------
+    str
+    """
+    if bibtex:
+        return f"@misc{{Hail," \
+            f"  author = {{Hail Team}}," \
+            f"  title = {{Hail}}," \
+            f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}" \
+            f"}}"
+    return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
 
 
 def stop():

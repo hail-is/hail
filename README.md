@@ -34,7 +34,6 @@ citation for the version of hail you installed by executing:
 
 ```python
 import hail as hl
-
 print(hl.cite_hail())
 ```
 
@@ -42,34 +41,6 @@ Which will look like:
 
 ```
 Hail Team. Hail 0.2.13-81ab564db2b4. https://github.com/hail-is/hail/releases/tag/0.2.13.
-```
-
-Or if you need a bibtex entry:
-
-```python
-import hail as hl
-
-print(hl.cite_hail_bibtex())
-```
-
-Which will look like:
-
-```
-@misc{Hail,
-  author = {Hail Team},
-  title = {Hail},
-  howpublished = {\url{https://github.com/hail-is/hail/releases/tag/0.2.13}}
-}
-```
-
-If you simply cannot stomach the idea of citing a GitHub repository (even though
-more than 2,800 people have [cited the Keras GitHub
-repository](https://scholar.google.com/scholar?cluster=17868569268188187229&hl=en&as_sdt=40000005&sciodt=0,22)),
-then please cite this DOI which always points to the latest published version of
-Hail:
-
-```
-Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ```
 
 ##### Acknowledgements
