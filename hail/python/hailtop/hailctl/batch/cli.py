@@ -31,18 +31,20 @@ def parser():
         'cancel',
         help='Cancel a batch',
         description='Cancel a batch')
-    create_parser = subparsers.add_parser(
-        'create',
-        help='Create a batch',
-        description='Create a batch'
+    delete_parser = subparsers.add_parser(
+        'delete',
+        help='Delete a batch',
+        description='Delete a batch'
     )
-    
 
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
 
     get_parser.set_defaults(module='get')
     get.init_parser(get_parser)
+
+    delete_parser.set_defaults(module='delete')
+    delete.init_parser(delete_parser)
 
     return main_parser
 
@@ -58,11 +60,12 @@ def main(args):
         'log': log,
         'wait': wait
     }
+    
+    args, pass_through_args = parser().parse_known_args(args=args)
+
     session = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     client = BatchClient(session, url="https://batch.hail.is")
-
-    args, pass_through_args = parser().parse_known_args(args=args)
     jmp[args.module].main(args, pass_through_args, client)
     client.close()
