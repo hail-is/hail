@@ -254,7 +254,7 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
-    case Let(x, InsertFields(insertedChild, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
+    case Let(x, InsertFields(parentRef: Ref, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
       val insFieldSet = insFields.map(_._1).toSet
 
       def allRefsCanBePassedThrough(ir1: IR, newBindingEnv: BindingEnv[Type]): Boolean = ir1 match {
@@ -276,7 +276,11 @@ object Simplify {
       fields.forall { case (_, ir) =>
         allRefsCanBePassedThrough(ir, baseEnv)
       }
-    } => InsertFields(InsertFields(insertedChild, insFields, ord1), fields, ord2)
+    } =>
+      val e = Env[IR]((x, parentRef))
+      Subst(
+        InsertFields(InsertFields(parentRef, insFields, ord1), fields, ord2),
+        BindingEnv(e, Some(e), Some(e)))
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
