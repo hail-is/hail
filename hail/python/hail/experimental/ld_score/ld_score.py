@@ -96,19 +96,6 @@ def _variance(x_array):
         lambda n: (hl.sum(x_array**2) - (hl.sum(x_array)**2 / n)) / (n - 1) / n)
 
 
-def _require_first_key_field_locus(dataset, method):
-    if isinstance(dataset, Table):
-        key = dataset.key
-    else:
-        assert isinstance(dataset, MatrixTable)
-        key = dataset.row_key
-    if (len(key) == 0 or
-            not isinstance(key[0].dtype, tlocus) or
-            list(key)[0] != 'locus'):
-        raise ValueError("Method '{}' requires first key field of type 'locus<any>'.\n"
-                         "  Found:{}".format(method, ''.join(
-            "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)))
-
 
 @typecheck(ld_matrix=BlockMatrix,
            annotation_exprs=oneof(expr_numeric,
@@ -295,6 +282,175 @@ def ld_score_regression(z_expr,
                         rg_pairs=None,
                         n_iterations=3,
                         max_chi_sq=None):
+    r"""Estimate SNP-heritability and level of confounding biases from
+    GWAS summary statistics.
+
+    Given genome-wide association study (GWAS) summary statistics,
+    :func:`.estimate_heritability` estimates the heritability of a
+    trait or set of traits and the level of confounding biases present in
+    the underlying association studies using the LD score regression
+    method. 
+
+    In the case where only a single LD score annotation is used (univariate LD score
+    regression), this function fits the model:
+
+    .. math::
+
+        \mathrm{E}[\chi_j^2] = 1 + Na + \frac{Nh_g^2}{M}l_j
+
+    *  :math:`\mathrm{E}[\chi_j^2]` is the expected chi-squared statistic
+       for variant :math:`j` resulting from a test of association between
+       variant :math:`j` and a trait.
+    *  :math:`l_j = \sum_{k} r_{jk}^2` is the LD score of variant
+       :math:`j`, calculated as the sum of squared correlation coefficients
+       between variant :math:`j` and nearby variants.
+    *  :math:`a` captures the contribution of confounding biases, such as
+       cryptic relatedness and uncontrolled population structure, to the
+       association test statistic.
+    *  :math:`h_g^2` is the SNP-heritability, or the proportion of variation
+       in the trait explained by the effects of variants included in the
+       regression model above.
+    *  :math:`M` is the number of variants used to estimate :math:`h_g^2`.
+    *  :math:`N` is the number of samples in the underlying association study.
+
+    In the case of stratified LD score regression, where multiple LD score annotations
+    are used, this function fits the model:
+
+    .. math::
+
+        \mathrm{E[\chi_j^2] = 1 + Na + N\sum_C\tau_Cl(j,C)}
+
+    *  :math:`\mathrm{E}[\chi_j^2]` is the expected chi-squared statistic
+       for variant :math:`j` resulting from a test of association between
+       variant :math:`j` and a trait.   
+
+    For more details on the method implemented in this function, see:
+
+    * `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
+
+    Examples
+    --------
+
+    Run the method on a matrix table of summary statistics, where the rows
+    are variants and the columns are different traits:
+
+    >>> mt_gwas = hl.read_matrix_table('data/ld_score.sumstats.mt')
+    >>> ht_results = hl.experimental.estimate_heritability(
+    ...     z_expr=mt_gwas.Z,
+    ...     n_samples_exprs=mt_gwas.N,
+    ...     weight_expr=mt_gwas.ld_score,
+    ...     ld_score_expr=mt_gwas.ld_score)
+
+
+    Run the method on a table with summary statistics for a single
+    trait:
+
+    >>> ht_gwas = hl.read_table('data/ld_score.sumstats.ht')
+    >>> ht_results = hl.experimental.estimate_heritability(
+    ...     z_expr=ht_gwas.Z_50_irnt,
+    ...     n_samples_expr=N_50_irnt,
+    ...     weight_expr=ht_gwas.ld_score,
+    ...     ld_score_expr=ht_gwas.ld_score)
+
+
+    Notes
+    -----
+
+    The ``exprs`` provided as arguments to :func:`.estimate_heritability`
+    must all originate from the same object, either a :class:`Table` or a
+    :class:`MatrixTable`.
+
+    **If the arguments originate from a table:**
+
+    *  The table must be keyed by fields ``locus`` of type
+       :class:`.tlocus` and ``alleles``, a :py:data:`.tarray` of
+       :py:data:`.tstr` elements.
+    *  ``z_expr``, ``n_samples_expr``, ``weight_expr``, and
+       ``ld_score_expr`` must be row-indexed fields.
+
+    **If the arguments originate from a matrix table:**
+
+    *  The dimensions of the matrix table must be variants
+       (rows) by traits (columns).
+    *  The rows of the matrix table must be keyed by fields
+       ``locus`` of type :class:`.tlocus` and ``alleles``,
+       a :py:data:`.tarray` of :py:data:`.tstr` elements.
+    *  The columns of the matrix table must be keyed by a field
+       of type :py:data:`.tstr` that uniquely identifies traits
+       represented in the matrix table. The column key must be a
+       single expression; compound keys are not accepted.
+    *  ``weight_expr`` and ``ld_score_expr`` must be row-indexed
+       fields.
+
+    The function returns a :class:`.Table` with the following fields:
+
+    *  **trait** (:py:data:`.tstr`) -- The name of the trait for which
+       SNP-heritability is being estimated, defined by the column key of
+       the originating matrix table. If the input expressions to the 
+       function originate from a table, this field is omitted.
+    *  **n_samples** (:py:data:`.tfloat`) -- The mean number of samples
+       across variants for the given trait.
+    *  **n_variants** (:py:data:`.tint`) -- The number of variants used
+       to estimate heritability.
+    *  **mean_chi_sq** (:py:data:`.tfloat64`) -- The mean chi-squared
+       test statistic for the given trait.
+    *  **intercept** (:py:data:`.tstruct`) -- Contains fields:
+
+       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
+          LD score regression intercept term :math:`1 + Na`.
+       -  **standard_error**  (:py:data:`.tfloat64`) -- An estimate of
+          the standard error of the point estimate.
+
+    *  **snp_heritability** (:py:data:`.tstruct`) -- Contains fields:
+
+       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
+          SNP-heritability :math:`h_g^2`.
+       -  **standard_error** (:py:data:`.tfloat64`) -- An estimate of
+          the standard error of the point estimate.
+
+    Warning
+    -------
+    :func:`.estimate_heritability` considers only rows for which the
+    fields ``z_expr``, ``weight_expr`` and ``ld_score_expr`` are defined. 
+    Rows with missing values in any of these fields are removed prior to
+    fitting the LD score regression model.
+
+    Parameters
+    ----------
+    z_expr : :class:`.NumericExpression`
+            A row-indexed (if table) or entry-indexed (if matrix table)
+            expression for Z statistics resulting from genome-wide
+            association studies.
+    n_samples_exprs: :class:`.NumericExpression`
+                    A row-indexed (if table) or entry-indexed
+                    (if matrix table) expression indicating the number of
+                    samples used in the studies that generated the
+                    ``z_expr`` test statistics.
+    weight_expr : :class:`.NumericExpression`
+                  Row-indexed expression for the LD scores used to derive
+                  variant weights in the model.
+    ld_score_expr : :class:`.NumericExpression`
+                    Row-indexed expression for the LD scores used as covariates
+                    in the model.
+    n_blocks : :obj:`int`
+               The number of blocks used in the jackknife approach to
+               estimating standard errors.
+    two_step_threshold : :obj:`int`, optional
+                         If specified, variants with chi-squared statistics greater
+                         than this value are excluded while estimating the intercept
+                         term in the first step of the two-step procedure used to fit
+                         the model. Default behavior is to estimate the intercept
+                         and SNP-heritability terms in a single step.
+    n_reference_panel_variants : :obj:`int`, optional
+                                 Number of variants used to estimate the LD
+                                 scores used as covariates in the model. Default
+                                 is number of variants for which `ld_score_expr`
+                                 is defined.
+
+    Returns
+    -------
+    :class:`.Table`
+        Table with fields described above."""
 
     ds = z_expr._indices.source
 
@@ -609,414 +765,6 @@ def ld_score_regression(z_expr,
                    'intercept',
                    'snp_heritability',
                    'ratio')
-
-    ht_tmp_file = new_temp_file()
-    ht.write(ht_tmp_file)
-    ht = hl.read_table(ht_tmp_file)
-
-    return ht
-
-        
-@typecheck(z_expr=expr_numeric,
-           n_samples_expr=expr_numeric,
-           weight_expr=expr_numeric,
-           ld_score_expr=expr_numeric,
-           annotation_exprs=nullable(oneof(expr_numeric,
-                                           sequenceof(expr_numeric))),
-           n_blocks=int,
-           two_step_threshold=nullable(int),
-           n_reference_panel_variants=nullable(int),
-           _return_block_estimates=bool)
-def estimate_heritability(z_expr,
-                          n_samples_expr,
-                          weight_expr,
-                          ld_score_expr,
-                          annotation_exprs=None,
-                          n_blocks=200,
-                          two_step_threshold=30,
-                          n_reference_panel_variants=None,
-                          _return_block_estimates=False) -> Table:
-    r"""Estimate SNP-heritability and level of confounding biases from
-    GWAS summary statistics.
-
-    Given genome-wide association study (GWAS) summary statistics,
-    :func:`.estimate_heritability` estimates the heritability of a
-    trait or set of traits and the level of confounding biases present in
-    the underlying association studies using the LD score regression
-    method. This approach leverages the model:
-
-    .. math::
-
-        \mathrm{E}[\chi_j^2] = 1 + Na + \frac{Nh_g^2}{M}l_j
-
-    *  :math:`\mathrm{E}[\chi_j^2]` is the expected chi-squared statistic
-       for variant :math:`j` resulting from a test of association between
-       variant :math:`j` and a trait.
-    *  :math:`l_j = \sum_{k} r_{jk}^2` is the LD score of variant
-       :math:`j`, calculated as the sum of squared correlation coefficients
-       between variant :math:`j` and nearby variants. See
-       :func:`calculate_ld_scores` for further details.
-    *  :math:`a` captures the contribution of confounding biases, such as
-       cryptic relatedness and uncontrolled population structure, to the
-       association test statistic.
-    *  :math:`h_g^2` is the SNP-heritability, or the proportion of variation
-       in the trait explained by the effects of variants included in the
-       regression model above.
-    *  :math:`M` is the number of variants used to estimate :math:`h_g^2`.
-    *  :math:`N` is the number of samples in the underlying association study.
-
-    For more details on the method implemented in this function, see:
-
-    * `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
-
-    Examples
-    --------
-
-    Run the method on a matrix table of summary statistics, where the rows
-    are variants and the columns are different traits:
-
-    >>> mt_gwas = hl.read_matrix_table('data/ld_score.sumstats.mt')
-    >>> ht_results = hl.experimental.estimate_heritability(
-    ...     z_expr=mt_gwas.Z,
-    ...     n_samples_exprs=mt_gwas.N,
-    ...     weight_expr=mt_gwas.ld_score,
-    ...     ld_score_expr=mt_gwas.ld_score)
-
-
-    Run the method on a table with summary statistics for a single
-    trait:
-
-    >>> ht_gwas = hl.read_table('data/ld_score.sumstats.ht')
-    >>> ht_results = hl.experimental.estimate_heritability(
-    ...     z_expr=ht_gwas.Z_50_irnt,
-    ...     n_samples_expr=N_50_irnt,
-    ...     weight_expr=ht_gwas.ld_score,
-    ...     ld_score_expr=ht_gwas.ld_score)
-
-
-    Notes
-    -----
-
-    The ``exprs`` provided as arguments to :func:`.estimate_heritability`
-    must all originate from the same object, either a :class:`Table` or a
-    :class:`MatrixTable`.
-
-    **If the arguments originate from a table:**
-
-    *  The table must be keyed by fields ``locus`` of type
-       :class:`.tlocus` and ``alleles``, a :py:data:`.tarray` of
-       :py:data:`.tstr` elements.
-    *  ``z_expr``, ``n_samples_expr``, ``weight_expr``, and
-       ``ld_score_expr`` must be row-indexed fields.
-
-    **If the arguments originate from a matrix table:**
-
-    *  The dimensions of the matrix table must be variants
-       (rows) by traits (columns).
-    *  The rows of the matrix table must be keyed by fields
-       ``locus`` of type :class:`.tlocus` and ``alleles``,
-       a :py:data:`.tarray` of :py:data:`.tstr` elements.
-    *  The columns of the matrix table must be keyed by a field
-       of type :py:data:`.tstr` that uniquely identifies traits
-       represented in the matrix table. The column key must be a
-       single expression; compound keys are not accepted.
-    *  ``weight_expr`` and ``ld_score_expr`` must be row-indexed
-       fields.
-
-    The function returns a :class:`.Table` with the following fields:
-
-    *  **trait** (:py:data:`.tstr`) -- The name of the trait for which
-       SNP-heritability is being estimated, defined by the column key of
-       the originating matrix table. If the input expressions to the 
-       function originate from a table, this field is omitted.
-    *  **n_samples** (:py:data:`.tfloat`) -- The mean number of samples
-       across variants for the given trait.
-    *  **n_variants** (:py:data:`.tint`) -- The number of variants used
-       to estimate heritability.
-    *  **mean_chi_sq** (:py:data:`.tfloat64`) -- The mean chi-squared
-       test statistic for the given trait.
-    *  **intercept** (:py:data:`.tstruct`) -- Contains fields:
-
-       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
-          LD score regression intercept term :math:`1 + Na`.
-       -  **standard_error**  (:py:data:`.tfloat64`) -- An estimate of
-          the standard error of the point estimate.
-
-    *  **snp_heritability** (:py:data:`.tstruct`) -- Contains fields:
-
-       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
-          SNP-heritability :math:`h_g^2`.
-       -  **standard_error** (:py:data:`.tfloat64`) -- An estimate of
-          the standard error of the point estimate.
-
-    Warning
-    -------
-    :func:`.estimate_heritability` considers only rows for which the
-    fields ``z_expr``, ``weight_expr`` and ``ld_score_expr`` are defined. 
-    Rows with missing values in any of these fields are removed prior to
-    fitting the LD score regression model.
-
-    Parameters
-    ----------
-    z_expr : :class:`.NumericExpression`
-            A row-indexed (if table) or entry-indexed (if matrix table)
-            expression for Z statistics resulting from genome-wide
-            association studies.
-    n_samples_exprs: :class:`.NumericExpression`
-                    A row-indexed (if table) or entry-indexed
-                    (if matrix table) expression indicating the number of
-                    samples used in the studies that generated the
-                    ``z_expr`` test statistics.
-    weight_expr : :class:`.NumericExpression`
-                  Row-indexed expression for the LD scores used to derive
-                  variant weights in the model.
-    ld_score_expr : :class:`.NumericExpression`
-                    Row-indexed expression for the LD scores used as covariates
-                    in the model.
-    n_blocks : :obj:`int`
-               The number of blocks used in the jackknife approach to
-               estimating standard errors.
-    two_step_threshold : :obj:`int`, optional
-                         If specified, variants with chi-squared statistics greater
-                         than this value are excluded while estimating the intercept
-                         term in the first step of the two-step procedure used to fit
-                         the model. Default behavior is to estimate the intercept
-                         and SNP-heritability terms in a single step.
-    n_reference_panel_variants : :obj:`int`, optional
-                                 Number of variants used to estimate the LD
-                                 scores used as covariates in the model. Default
-                                 is number of variants for which `ld_score_expr`
-                                 is defined.
-
-    Returns
-    -------
-    :class:`.Table`
-        Table with fields described above."""
-
-    ds = z_expr._indices.source
-
-    analyze('ld_score_regression/weight_expr',
-            weight_expr,
-            ds._row_indices)
-    for i, expr in ld_score_exprs:
-        analyze(f'ld_score_regression/ld_score_expr{i}',
-                expr,
-                ds._row_indices)
-
-    if not n_reference_panel_variants:
-        M = ds.aggregate_rows(hl.agg.count_where(
-            hl.is_defined(ld_score_expr)))
-    else:
-        M = n_reference_panel_variants
-
-    if isinstance(ds, MatrixTable):
-        if len(list(ds.col_key)) != 1:
-            raise ValueError("""Matrix table must be keyed by a single
-                trait field.""")
-
-        analyze(f'estimate_heritability/z_expr',
-                z_expr,
-                ds._entry_indices)
-        analyze(f'estimate_heritability/n_samples_expr',
-                n_samples_expr,
-                ds._entry_indices)
-
-        mt = ds._select_all(row_exprs={'locus': ds.locus,
-                                       'alleles': ds.alleles,
-                                       '__w_initial': weight_expr,
-                                       '__w_initial_floor': hl.max(weight_expr,
-                                                                   1.0),
-                                       '__x': ld_score_expr,
-                                       '__x_floor': hl.max(ld_score_expr,
-                                                           1.0)},
-                            row_key=['locus', 'alleles'],
-                            col_exprs={'__y_name': ds.col_key[0]},
-                            col_key=['__y_name'],
-                            entry_exprs={'__y': z_expr**2,
-                                         '__n': n_samples_expr})
-        mt = mt.annotate_entries(__w=mt.__w_initial)
-
-    else:
-        analyze(f'estimate_heritability/z_expr',
-                z_expr,
-                ds._row_indices)
-        analyze(f'estimate_heritability/n_samples_expr',
-                n_samples_expr,
-                ds._row_indices)
-
-        ds = ds.select(**{'locus': ds.locus,
-                          'alleles': ds.alleles,
-                          '__w_initial': weight_expr,
-                          '__w_initial_floor': hl.max(weight_expr,
-                                                      1.0),
-                          '__x': ld_score_expr,
-                          '__x_floor': hl.max(ld_score_expr,
-                                              1.0),
-                          '__entries': [hl.struct(
-                              __y=z_expr,
-                              __w=weight_expr,
-                              __n=n_samples_expr)]})
-        ds = ds.annotate_globals(__cols=[hl.struct(__y_name='trait')])
-        ds = ds.key_by(ds.locus, ds.alleles)
-        mt = ds._unlocalize_entries('__entries', '__cols', ['__y_name'])
-
-    mt = mt.filter_rows(hl.is_defined(mt.locus) &
-                        hl.is_defined(mt.alleles) &
-                        hl.is_defined(mt.__w_initial) &
-                        hl.is_defined(mt.__x))
-
-    mt_tmp1 = new_temp_file()
-    mt.write(mt_tmp1)
-    mt = hl.read_matrix_table(mt_tmp1)
-
-    if two_step_threshold:
-        mt = mt.annotate_entries(__in_step1=(hl.is_defined(mt.__y) &
-                                             (mt.__y < two_step_threshold)),
-                                 __in_step2=hl.is_defined(mt.__y))
-    else:
-        mt = mt.annotate_entries(__in_step1=hl.is_defined(mt.__y))
-
-    mt = mt.annotate_cols(__n_mean=hl.agg.mean(mt.__n),
-                          __m_step1=hl.float(hl.agg.count_where(mt.__in_step1)))
-
-    mt = _assign_blocks(mt, n_blocks, two_step_threshold)
-
-    mt = mt.annotate_cols(__step1_betas=hl.array([
-        1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)]))
-    for i in range(3):
-        mt = mt.annotate_entries(__w_step1=hl.cond(
-            mt.__in_step1,
-            1.0/(mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0] +
-                                               mt.__step1_betas[1] *
-                                               mt.__x_floor)**2),
-            0.0))
-        mt = mt.annotate_cols(__step1_betas=hl.agg.filter(
-            mt.__in_step1,
-            hl.agg.linreg(y=mt.__y,
-                          x=[1.0, mt.__x],
-                          weight=mt.__w_step1).beta))
-        mt = mt.annotate_cols(__step1_h2=hl.max(hl.min(
-            mt.__step1_betas[1] * M / mt.__n_mean, 1.0), 0.0))
-        mt = mt.annotate_cols(__step1_betas=hl.array([
-            mt.__step1_betas[0],
-            mt.__step1_h2 * mt.__n_mean / M]))
-
-    mt = mt.annotate_cols(__step1_block_betas=_block_betas(
-        block_expr=mt.__step1_block,
-        include_expr=mt.__in_step1,
-        y_expr=mt.__y,
-        covariates=[1.0, mt.__x],
-        w_expr=mt.__w_step1,
-        n_blocks=n_blocks))
-
-    mt = mt.annotate_cols(__step1_jackknife_variances=hl.map(
-        lambda i: hl.rbind(
-            _pseudovalues(mt.__step1_betas[i],
-                          hl.map(lambda block: block[i],
-                                 mt.__step1_block_betas)),
-            lambda pseudovalues: _variance(pseudovalues)),
-        hl.range(0, hl.len(mt.__step1_betas))))
-
-    if two_step_threshold:
-        mt = mt.annotate_cols(__initial_betas=hl.array([
-            1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)]))
-        mt = mt.annotate_cols(__step2_betas=mt.__initial_betas)
-        for i in range(3):
-            mt = mt.annotate_entries(__w_step2=hl.cond(
-                mt.__in_step2,
-                1.0/(mt.__w_initial_floor *
-                     2.0 * (mt.__step2_betas[0] +
-                            mt.__step2_betas[1] *
-                            mt.__x_floor)**2),
-                0.0))
-
-            mt = mt.annotate_cols(__step2_h2=hl.max(hl.min(
-                mt.__step2_betas[1] * M / mt.__n_mean, 1.0), 0.0))
-            mt = mt.annotate_cols(__step2_betas=hl.array([
-                mt.__step1_betas[0],
-                mt.__step2_h2 * mt.__n_mean / M]))
-    
-        mt = mt.annotate_cols(__step2_block_betas=_block_betas(
-            block_expr=mt.__step2_block,
-            include_expr=mt.__in_step2,
-            y_expr=mt.__y - mt.__step1_betas[0],
-            covariates=[mt.__x],
-            w_expr=mt.__w_step2,
-            n_blocks=n_blocks))
-
-        mt = mt.annotate_cols(__step2_jackknife_variances=hl.map(
-            lambda i: hl.rbind(
-                _pseudovalues(mt.__step2_betas[i],
-                              hl.map(lambda block: block[i],
-                                     mt.__step2_block_betas)),
-                lambda pseudovalues: _variance(pseudovalues)),
-            hl.range(0, hl.len(mt.__step2_betas))))
-
-        # combine step 1 and step 2 block jackknifes
-        #mt = mt.annotate_entries(
-        #    __initial_w=1.0/(mt.__w_initial_floor *
-        #                     2.0 * (mt.__initial_betas[0] +
-        #                            mt.__initial_betas[1] *
-        #                            mt.__x_floor)**2))
-
-        mt = mt.annotate_entries(
-            _initial_w=1.0 / (mt['_w_initial_floor'] * 2.0 * (
-                mt['_initial_betas'][0] + hl.sum(
-                    hl.map(
-                        lambda i: mt['_initial_betas'][i+1] * mt['_x_floor'][i],
-                        hl.range(0, k))))**2))
-
-        mt = mt.annotate_cols(__final_block_betas=hl.rbind(
-            (hl.agg.sum(mt.__initial_w * mt.__x) /
-             hl.agg.sum(mt.__initial_w * mt.__x**2)),
-            lambda c: hl.map(
-                    lambda i: hl.rbind(
-                        mt.__step2_block_betas[i] - c * (mt.__step1_block_betas[i][0] - mt.__step1_betas[0]),
-                        lambda final_block_beta: n_blocks * mt.__step2_betas[1] - (n_blocks - 1) * final_block_beta),
-                    hl.range(0, n_blocks))))
-
-        mt = mt.annotate_cols(
-            __final_betas=hl.array([
-                mt.__step1_betas[0], mt.__step2_betas[1]]),
-            __final_jackknife_variances=hl.array([
-                mt.__step1_jackknife_variance[0],
-                _variance(mt.__final_block_betas)]))
-
-    else:
-        mt = mt.annotate_cols(
-            __final_betas=mt.__step1_betas,
-            __final_jackknife_variances=mt.__step1_jackknife_variances,
-            __final_block_betas=hl.map(lambda block: block[1], mt.__step1_block_betas))
-
-    mt = mt.annotate_cols(
-        trait=mt.__y_name,
-        n_samples=mt.__n_mean,
-        n_variants=M,
-        mean_chi_sq=hl.agg.mean(mt.__y),
-        intercept=hl.struct(
-            estimate=mt.__final_betas[0],
-            standard_error=hl.sqrt(mt.__final_jackknife_variances[0])),
-        snp_heritability=hl.struct(
-            estimate=(M / mt.__n_mean) * mt.__final_betas[1],
-            standard_error=hl.sqrt((M / mt.__n_mean)**2 *
-                                   mt.__final_jackknife_variances[1])))
-
-    ht = mt.cols()
-    ht = ht.key_by(ht.trait)
-
-    if _return_block_estimates:
-        ht = ht.select(ht.n_samples,
-                       ht.n_variants,
-                       ht.mean_chi_sq,
-                       ht.intercept,
-                       ht.snp_heritability,
-                       ht.__final_block_betas)
-    else:
-        ht = ht.select(ht.n_samples,
-                       ht.n_variants,
-                       ht.mean_chi_sq,
-                       ht.intercept,
-                       ht.snp_heritability)
 
     ht_tmp_file = new_temp_file()
     ht.write(ht_tmp_file)
