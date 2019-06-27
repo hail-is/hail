@@ -15,7 +15,6 @@ InputStream::InputStream(UpcallEnv up, jobject jinput_stream) :
   jbuf_size_(-1) { }
 
 int InputStream::read(char * buf, int n) {
-  std::cerr << "InputStream::read" << std::endl;
   if (UNLIKELY(n == 0)) {
     return 0;
   }
