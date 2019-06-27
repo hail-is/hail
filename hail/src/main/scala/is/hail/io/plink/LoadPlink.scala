@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PBoolean, PFloat64, PString, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
 import is.hail.rvd.{RVD, RVDContext, RVDType}
@@ -44,14 +45,14 @@ object LoadPlink {
     """^-?(?:\d+|\d*\.\d+)(?:[eE]-?\d+)?$""".r
 
   def parseFam(filename: String, ffConfig: FamFileConfig,
-    fs: FS): (IndexedSeq[Row], TStruct) = {
+    fs: FS): (IndexedSeq[Row], PStruct) = {
 
     val delimiter = unescapeString(ffConfig.delimiter)
 
-    val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", TFloat64()) else ("is_case", TBoolean())
+    val phenoSig = if (ffConfig.isQuantPheno) ("quant_pheno", PFloat64()) else ("is_case", PBoolean())
 
-    val signature = TStruct(("id", TString()), ("fam_id", TString()), ("pat_id", TString()),
-      ("mat_id", TString()), ("is_female", TBoolean()), phenoSig)
+    val signature = PStruct(("id", PString()), ("fam_id", PString()), ("pat_id", PString()),
+      ("mat_id", PString()), ("is_female", PBoolean()), phenoSig)
 
     val idBuilder = new ArrayBuilder[String]
     val structBuilder = new ArrayBuilder[Row]
@@ -181,7 +182,7 @@ case class MatrixPLINKReader(
   val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty(),
     colKey = Array("s"),
-    colType = saSignature,
+    colType = saSignature.virtualType,
     rowType = TStruct(
       "locus" -> TLocus.schemaFromRG(referenceGenome),
       "alleles" -> TArray(TString()),
@@ -210,7 +211,7 @@ case class MatrixPLINKReader(
           nPartitions.getOrElse(sc.defaultMinPartitions)))
 
       val kType = requestedType.canonicalRVDType.kType
-      val rvRowType = requestedType.rowType
+      val rvRowType = requestedType.canonicalPType
 
       val hasRsid = requestedType.rowType.hasField("rsid")
       val hasCmPos = requestedType.rowType.hasField("cm_position")
@@ -260,7 +261,7 @@ case class MatrixPLINKReader(
           if (skipInvalidLociLocal && !rgLocal.forall(_.isValidLocus(contig, pos)))
             None
           else {
-            rvb.start(rvRowType.physicalType)
+            rvb.start(rvRowType)
             rvb.startStruct()
             rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rgLocal))
             rvb.startArray(2)
@@ -268,7 +269,7 @@ case class MatrixPLINKReader(
             rvb.addString(alt)
             rvb.endArray()
             if (hasRsid)
-              rvb.addAnnotation(rvRowType.types(2), rsid)
+              rvb.addAnnotation(rvRowType.types(2).virtualType, rsid)
             if (hasCmPos)
               rvb.addDouble(cmPos)
             if (!dropSamples)
