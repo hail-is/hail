@@ -7,6 +7,7 @@ import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -406,25 +407,24 @@ class UnsafeSuite extends HailSuite {
     val region = Region()
     region.setNumParents(5)
 
-    val r = assertUsesRegions(1) { region.getParentReference(4) }
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4) }) { r =>
+      offset(r)
+    }
 
-    val off4 = offset(r)
-    r.refreshRegion() // necessary to release direct reference to this region
+    val off2 = Region.scoped { r =>
+      region.setParentReference(r, 2)
+      offset(r)
+    }
 
-    val off2 = offset(r)
-    region.setParentReference(r, 2)
-    r.refreshRegion() // necessary to release direct reference to this region
+    using(region.getParentReference(2)) { r =>
+      assert(offset(r) == off2)
+    }
 
-    val r2 = region.getParentReference(2)
-    assert(offset(r2) == off2)
+    using(region.getParentReference(4)) { r =>
+      assert(offset(r) == off4)
+    }
 
-    val r4 = region.getParentReference(4)
-    assert(offset(r4) == off4)
-
-    r2.refreshRegion()
     assertUsesRegions(-1) { region.clearParentReference(2) }
-
-    r4.refreshRegion()
     assertUsesRegions(-1) { region.clearParentReference(4) }
   }
 

@@ -60,17 +60,18 @@ final class Region private (empty: Boolean) extends NativeBase() {
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
   final def allocate(n: Long): Long = nativeAllocate(n)
 
-  private var explicitParents: Int = -1
+  private var explicitParents: Int = 0
 
   final def reference(other: Region): Unit = {
-    assert(explicitParents < 0, s"can't use 'reference' if you're explicitly setting Region dependencies")
+    assert(explicitParents <= 0, s"can't use 'reference' if you're explicitly setting Region dependencies")
+    explicitParents = -1
     nativeReference(other)
   }
 
   final def refreshRegion(): Unit = nativeRefreshRegion()
 
   def setNumParents(n: Int): Unit = {
-//    assert(nativeGetNumParents() == 0, s"Can't explicitly set Region dependencies if references already exist")
+    assert(explicitParents >= 0 && nativeGetNumParents() < n, s"Can't shrink number of dependent regions")
     explicitParents = n
     nativeSetNumParents(n)
   }

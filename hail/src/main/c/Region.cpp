@@ -112,10 +112,6 @@ void ScalaRegionPool::own(RegionPool &&pool) {
 ScalaRegion::ScalaRegion(ScalaRegionPool * pool) :
 region_(pool->pool_.get_region()) { }
 
-ScalaRegion::~ScalaRegion() {
-  region_ = nullptr;
-}
-
 ScalaRegion::ScalaRegion(std::nullptr_t) :
 region_(nullptr) { }
 

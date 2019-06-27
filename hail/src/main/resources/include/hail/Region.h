@@ -111,7 +111,7 @@ class ScalaRegion : public NativeObj {
     Region * get_wrapped_region() { return region_.get(); };
 
     virtual const char* get_class_name() { return "Region"; }
-    virtual ~ScalaRegion();
+    virtual ~ScalaRegion() = default;
   };
 
 }
