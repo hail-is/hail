@@ -54,12 +54,6 @@ python/hailtop/hail_pip_version: python/hail/hail_pip_version
 jars: build-info
 	./gradlew shadowTestJar shadowJar
 
-.PHONY: install-editable
-install-editable: build-info shadowJar init-scripts
-	cp ../README.md python/
-	cp build/libs/hail-all-spark.jar python/hail
-	$(PIP) install -e python/
-
 .PHONY: wheel
 wheel: build-info shadowJar init-scripts
 	rm -rf build/deploy
