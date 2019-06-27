@@ -1,6 +1,7 @@
 package is.hail.cxx
 
 import is.hail.expr.types.physical._
+import org.apache.zookeeper.KeeperException.UnimplementedException
 
 object EmitTriplet {
   def apply(pType: PType, setup: Code, m: Code, v: Code, region: EmitRegion): EmitTriplet =
@@ -96,7 +97,7 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 
   // TODO: should be (missing, element) => result
   // (init, (element) => result, end-of-stream) => result
-  def produce(): (Code, (Code => Code, Code) => Code) = ("", (_, _) => "")
+  def produce(): (Code, (Code => Code, Code) => Code) = throw new UnimplementedException
 }
 
 object NDArrayEmitter {

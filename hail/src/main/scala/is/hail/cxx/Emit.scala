@@ -610,23 +610,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           val sab = resultRegion.arrayBuilder(fb, containerPType)
           ae.length match {
             case Some(length) =>
+              val (init, next) = ae.produce()
+              val advanceLabel = "advancelabel" //TODO unique names
+              val doneLabel = "donelabel"
               triplet(ae.setup, ae.m,
                 s"""
                    |({
                    |  ${ ae.setupLen }
                    |  ${ sab.start(length) }
-                   |  ${
-                  ae.consume { case (m, v) =>
-                    s"""
-                       |if (${ m })
-                       |  ${ sab.setMissing() }
-                       |else
-                       |  ${ sab.add(v) }
-                       |${ sab.advance() }
-                       |""".stripMargin
-                  }
-                }
-                   |  ${ sab.end() };
+                   |  $init
+                   |  $advanceLabel:
+                   |    ${ next(v => Code(sab.add(v), sab.advance(), s"goto $advanceLabel;"), s"goto $doneLabel;") }
+                   |  $doneLabel:
+                   |    ${ sab.end() };
                    |})
                    |""".stripMargin)
 
@@ -1190,17 +1186,20 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
           override def produce(): (Code, (Code => Code, Code) => Code) = {
             val i = fb.variable("i", "int", "0")
+            val v = fb.variable("v", "int", s"$startv - $stepv") // TODO HACK
             val next = (elementK: Code => Code, eosK: Code) =>
             s"""
                |if ($i < $len) {
-               |  ${ elementK(i.toString) }
+               |  $v += $stepv;
+               |  ++$i;
+               |  ${ elementK(v.toString) }
                |}
                |else {
                |  $eosK
                |}
              """.stripMargin
 
-            (i.define, next)
+            (Code(i.define, v.define), next)
           }
         }
 
@@ -1228,6 +1227,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             }
             sb.result().mkString
           }
+/*
+          override def produce(): (Code, (Code => Code, Code) => Code) = {
+            var i = 0
+            val next = (elementK: Code => Code, eosK: Code) => {
+              if (i < triplets.length) {
+                val argt = triplets(i)
+                i += 1
+                s"""
+                   |${ arrayRegion.defineIfUsed(sameRegion) }
+                   |${ argt.setup }
+                   |${ elementK(argt.v) }
+                 """.stripMargin
+              }
+              else
+                eosK
+            }
+
+            ("", next)
+          }
+          */
         }
 
       case ir.ArrayFilter(a, name, cond) =>
@@ -1292,8 +1311,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                 (elem: Code) =>
                   s"""
                      |{
-                     |  ${ vv.define }
-                     |  $vv = $elem;
+                     |  ${ vv.defineWith(elem) }
                      |  ${ bodyt.setup }
                      |  ${ elementK(bodyt.v) }
                      |}
@@ -1359,16 +1377,50 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val produceValueFt = outer.emit(arrayRegion, produceValueF, newEnv)
         val joinFt = outer.emit(arrayRegion, joinF, newEnv)
 
-        val setup = Code(le.setup, re.setup)
-        new ArrayEmitter(setup, s"${ le.m } || ${ re.m }", "", None, joinFt.region) {
+        val setup = Code(le.setup, re.setup, lvv.define, rvv.define)
+        new ArrayEmitter(setup, s"${ le.m } || ${ re.m }", Code(le.setupLen, re.setupLen), le.length, joinFt.region) {
           override def consume(f: (Code, Code) => Code): Code = {
             le.consume { (m2: Code, v2: Code) =>
               ""
             }
           }
 
-          override def produce(k: ((Code, Code) => Code, Code) => Code): Code = {
+          override def produce(): (Code, (Code => Code, Code) => Code) = {
+            val stepL = fb.variable("step_left", "bool")
+            val stepR = fb.variable("step_right", "bool")
 
+            val (linit, lnext) = le.produce()
+            val (rinit, rnext) = re.produce()
+
+            val init = Code(linit, rinit, stepLeftFt.setup, stepRightFt.setup, stepL.define, stepR.define)
+
+            val produceLabel = "producelabel1234" //TODO unique names
+            val advanceLabel = "advancelabel1234"
+            val next = (processAndAdvanceK: Code => Code, eosK: Code) => {
+              s"""
+                 |$produceLabel:
+                 |  $stepL = ${ stepLeftFt.v };
+                 |  $stepR = ${ stepLeftFt.v };
+                 |  ${
+                lnext(lElem =>
+                  rnext(rElem =>
+                    s"""
+                       |$lvv = $lElem;
+                       |$rvv = $rElem;
+                       |if (${ produceValueFt.v }) {
+                       |  ${ processAndAdvanceK(joinFt.v) }
+                       |}
+                     """.stripMargin, eosK), eosK)
+              }
+                 |
+                 |$advanceLabel:
+                 |if ($stepL) {
+                 |  $eosK;
+                 |}
+               """.stripMargin
+            }
+
+            (init, next)
           }
         }
 
