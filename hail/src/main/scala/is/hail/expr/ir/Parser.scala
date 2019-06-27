@@ -829,12 +829,14 @@ object IRParser {
         ResultOp2(i, aggSigs)
       case "ReadAggs" =>
         val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
         val aggSigs = agg_signatures(it)
         val path = ir_value_expr(env)(it)
         ReadAggs(i, path, spec, aggSigs)
       case "WriteAggs" =>
         val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
         val aggSigs = agg_signatures(it)
         val path = ir_value_expr(env)(it)
