@@ -36,6 +36,11 @@ def parser():
         help='Delete a batch',
         description='Delete a batch'
     )
+    log_parser = subparsers.add_parser(
+        'log',
+        help='Get log for a job',
+        description='Get log for a job'
+    )
 
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
@@ -48,6 +53,9 @@ def parser():
 
     delete_parser.set_defaults(module='delete')
     delete.init_parser(delete_parser)
+
+    log_parser.set_defaults(module='log')
+    log.init_parser(log_parser)
 
     return main_parser
 

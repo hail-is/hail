@@ -11,7 +11,7 @@ def init_parser(parser):
                         "KEY=VALUE form, do not put spaces before or after the equal sign.")
 
 def main(args, passthrough_args, client):
-    
+
     success = None
     if args.success:
         try:
@@ -35,8 +35,6 @@ def main(args, passthrough_args, client):
                 raise argparse.ArgumentTypeError('Attribute "{}" should contain exactly one equal sign')
             else:
                 attributes[key_value[0]] = key_value[1]
-
-    print(attributes)
 
     batch_list = client.list_batches(success=success, complete=complete, attributes=attributes)
     pretty_batches = [[batch.id, batch.status()['state'].capitalize()] for batch in batch_list]
