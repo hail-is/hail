@@ -1232,7 +1232,10 @@ class Table(ExprContainer):
             self.table = table
             self.n = n
             self.width = width
-            self.truncate = truncate
+            if truncate:
+                self.truncate = min(max(truncate, 4), width - 4)
+            else:
+                self.truncate = width - 4
             self.types = types
 
         def __str__(self):
@@ -1242,7 +1245,7 @@ class Table(ExprContainer):
             return self.__str__()
 
         def _repr_html_(self):
-            return self.table._html_str(self.n, self.types)
+            return self.table._html_str(self.n, self.types, self.truncate)
 
     def _take_n(self, n):
         if n < 0:
@@ -1276,38 +1279,33 @@ class Table(ExprContainer):
             s = hl.str(v)
         return hl.cond(hl.is_defined(v), s, "NA")
 
+    def _trunc(s, truncate):
+        if len(s) > truncate:
+            return s[:truncate - 3] + "..."
+        else:
+            return s
+
+    def _hl_trunc(s, truncate):
+        return hl.cond(hl.len(s) > truncate,
+                       s[:truncate - 3] + "...",
+                       s)
+
+    def _hl_format(v, truncate):
+        return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
+
     def _ascii_str(self, n, width, truncate, types):
         width = max(width, 8)
-
-        if truncate:
-            truncate = min(max(truncate, 4), width - 4)
-        else:
-            truncate = width - 4
-
-        def trunc(s):
-            if len(s) > truncate:
-                return s[:truncate - 3] + "..."
-            else:
-                return s
-
-        def hl_trunc(s):
-            return hl.cond(hl.len(s) > truncate,
-                           s[:truncate - 3] + "...",
-                           s)
-
-        def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s), Table._hl_repr(v))
 
         t = self
         t = t.flatten()
         fields = list(t.row)
-        trunc_fields = [trunc(f) for f in fields]
+        trunc_fields = [Table._trunc(f, truncate) for f in fields]
         n_fields = len(fields)
 
-        type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
+        type_strs = [Table._trunc(str(t.row[f].dtype), truncate) for f in fields] if types else [''] * len(fields)
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
-        t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
+        t = t.select(**{k: Table._hl_format(v, truncate) for (k, v) in t.row.items()})
         rows, has_more = t._take_n(n)
 
         rows = [[row[f] for f in fields] for row in rows]
@@ -1372,14 +1370,14 @@ class Table(ExprContainer):
 
         return s
 
-    def _html_str(self, n, types):
+    def _html_str(self, n, types, truncate):
         import html
 
         t = self
         t = t.flatten()
         fields = list(t.row)
 
-        formatted_t = t.select(**{k: Table._hl_repr(v) for (k, v) in t.row.items()})
+        formatted_t = t.select(**{k: Table._hl_format(v, truncate) for (k, v) in t.row.items()})
         rows, has_more = formatted_t._take_n(n)
 
         def format_line(values):
