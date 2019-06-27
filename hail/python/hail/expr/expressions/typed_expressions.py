@@ -1499,10 +1499,11 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
         indices, aggregations = unify_all(self, *insertions_dict.values())
-        return construct_expr(InsertFields(self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
-                              new_type,
-                              indices,
-                              aggregations)
+        return construct_expr(InsertFields.construct_with_deduplication(
+            self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
+            new_type,
+            indices,
+            aggregations)
 
     @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs):
@@ -1538,8 +1539,9 @@ class StructExpression(Mapping[str, Expression], Expression):
         result_type = tstruct(**new_types)
         indices, aggregations = unify_all(self, *[x for (f, x) in named_exprs.items()])
 
-        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
-                              result_type, indices, aggregations)
+        return construct_expr(InsertFields.construct_with_deduplication(
+            self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
+            result_type, indices, aggregations)
 
     @typecheck_method(fields=str, named_exprs=expr_any)
     def select(self, *fields, **named_exprs):

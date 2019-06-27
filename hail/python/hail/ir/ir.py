@@ -13,6 +13,7 @@ from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 from .table_writer import TableWriter
 
+import hashlib
 
 def _env_bind(env, k, v):
     env = env.copy()
@@ -1176,6 +1177,20 @@ class BaseApplyAggOp(IR):
                other.init_op_args == self.init_op_args and \
                other.seq_op_args == self.seq_op_args
 
+    def __hash__(self):
+        h = hash(self.agg_op)
+        h *= 37
+        for x in self.constructor_args:
+            h += 31 * hash(x)
+        h *= 37
+        if self.init_op_args:
+            for x in self.constructor_args:
+                h += 31 * hash(x)
+        h *= 37
+        for x in self.seq_op_args:
+            h += 31 * hash(x)
+        return h
+
     def _compute_type(self, env, agg_env):
         for a in self.constructor_args:
             a._compute_type(env, agg_env)
@@ -1284,6 +1299,34 @@ class InsertFields(IR):
 
         def render_children(self, r: 'Renderer'):
             return [self.child]
+
+    @staticmethod
+    @typecheck(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
+    def construct_with_deduplication(old, fields, field_order):
+        dd = defaultdict(int)
+        for k, v in fields:
+            if isinstance(v, GetField):
+                dd[v.o] += 1
+
+        replacements = {}
+        lets = []
+        for k, v in dd.items():
+            if v > 1:
+                uid = Env.get_uid()
+                lets.append((uid, k))
+                replacements[k] = uid
+
+        insert_irs = []
+        for k, v in fields:
+            if isinstance(v, GetField) and v.o in replacements:
+                insert_irs.append((k, GetField(Ref(replacements[v.o]), v.name)))
+            else:
+                insert_irs.append((k, v))
+
+        r = InsertFields(old, insert_irs, field_order)
+        for uid, value in lets:
+            r = Let(uid, value, r)
+        return r
 
     @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
     def __init__(self, old, fields, field_order):

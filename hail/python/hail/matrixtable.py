@@ -3024,16 +3024,20 @@ class MatrixTable(ExprContainer):
         mir = base._mir
 
         if row_exprs:
-            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
+            row_struct = InsertFields.construct_with_deduplication(
+                base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
             mir = MatrixMapRows(mir, row_struct)
         if col_exprs:
-            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
+            col_struct = InsertFields.construct_with_deduplication(
+                base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
             mir = MatrixMapCols(mir, col_struct, None)
         if entry_exprs:
-            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
+            entry_struct = InsertFields.construct_with_deduplication(
+                base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
             mir = MatrixMapEntries(mir, entry_struct)
         if global_exprs:
-            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
+            globals_struct = InsertFields.construct_with_deduplication(
+                base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
             mir = MatrixMapGlobals(mir, globals_struct)
 
         return cleanup(MatrixTable(mir))
