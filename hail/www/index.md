@@ -26,7 +26,7 @@ citation for the version of Hail you installed by executing:
 
 ```python
 import hail as hl
-print(hl.cite_hail())
+print(hl.citation())
 ```
 
 Which will look like:

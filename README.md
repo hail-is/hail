@@ -34,7 +34,7 @@ citation for the version of hail you installed by executing:
 
 ```python
 import hail as hl
-print(hl.cite_hail())
+print(hl.citation())
 ```
 
 Which will look like:
