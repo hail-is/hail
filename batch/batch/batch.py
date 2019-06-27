@@ -847,6 +847,7 @@ async def create_jobs(request, userdata):
         for job_params in jobs_parameters['jobs']:
             job = create_job(jobs_builder, batch.id, userdata, job_params)
             app['start_job_queue'].put(job)
+            log.info(f'put job {job.id} on the queue')
 
         success = await jobs_builder.commit()
         if not success:
@@ -1121,7 +1122,9 @@ async def create_pods_if_ready():
 async def start_job(queue):
     while True:
         job = await queue.get()
+        log.info(f'took job {job.id} off the queue')
         await job.run()
+        log.info(f'finished run() job {job.id}')
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
