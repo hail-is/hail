@@ -327,10 +327,6 @@ class JobsTable(Table):
             return records[0][pod_status_field]
         return None
 
-    @staticmethod
-    def exit_code_field(task_name):
-        return JobsTable.exit_code_mapping[task_name]
-
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
