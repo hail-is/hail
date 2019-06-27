@@ -5,11 +5,9 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical._
 
 final class ArrayGenotypeView(rvType: PStruct) {
-  println(rvType)
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
   private val tgs = rvType.types(entriesIndex).asInstanceOf[PArray]
   private val tg = tgs.elementType.asInstanceOf[PStruct]
-  println(tg)
 
   private def lookupField(name: String, pred: PType => Boolean): (Boolean, Int, PType) = {
     tg.selfField(name) match {
