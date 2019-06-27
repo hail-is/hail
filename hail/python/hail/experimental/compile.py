@@ -1,5 +1,8 @@
-import tempfile
 import ctypes
+import pkg_resources
+import platform
+import tempfile
+import zipfile
 
 from ..utils.java import Env
 from .codec import encode
@@ -9,8 +12,16 @@ __libhail_loaded = False
 
 
 def load_libhail():
-    ctypes.CDLL('/Users/dking/projects/hail/hail/src/main/c/lib/darwin/libhail.dylib',
-                mode=ctypes.RTLD_GLOBAL)
+    with zipfile.ZipFile(pkg_resources.resource_stream(
+            'hail',
+            "hail-all-spark.jar")) as jar:
+        if platform.system() == 'Darwin':
+            lib_path = 'darwin/libhail.dylib'
+        else:
+            lib_path = 'linux-x86-64/libhail.so'
+        with tempfile.NamedTemporaryFile() as f:
+            f.write(jar.read(lib_path))
+            ctypes.CDLL(f.name, mode=ctypes.RTLD_GLOBAL)
     global __libhail_loaded
     __libhail_loaded = True
 
