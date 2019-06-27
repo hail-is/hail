@@ -7,3 +7,11 @@ def get_batch_if_exists(client, id):
         if cle.code == 404:
             return None
         raise cle
+
+def bool_string_to_bool(bool_string):
+    if bool_string in ["True", "true", "t"]:
+        return True
+    elif bool_string in ['False', 'false', 'f']:
+        return False
+    else:
+        raise ValueError("Input could not be resolved to a bool")

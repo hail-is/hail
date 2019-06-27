@@ -1,19 +1,17 @@
 import argparse
 import tabulate
 
-def init_parser(parser):
-    parser.add_argument('--success', type=str, help="true or false")
-    parser.add_argument('--complete', type=str, help="true or false")
+from .batch_cli_utils import bool_string_to_bool
 
-def bool_string_to_bool(bool_string):
-    if bool_string in ["True", "true", "t"]:
-        return True
-    elif bool_string in ['False', 'false', 'f']:
-        return False
-    else:
-        raise ValueError("Input could not be resolved to a bool")
+def init_parser(parser):
+    parser.add_argument('--success', '-s', type=str, help="true or false")
+    parser.add_argument('--complete', '-c', type=str, help="true or false")
+    parser.add_argument('--attributes', '-a', metavar="KEY=VALUE", nargs='+',
+                        help="Filters list to specified attributes. Specify attributes using"
+                        "KEY=VALUE form, do not put spaces before or after the equal sign.")
 
 def main(args, passthrough_args, client):
+    
     success = None
     if args.success:
         try:
@@ -28,7 +26,19 @@ def main(args, passthrough_args, client):
         except:
             raise argparse.ArgumentTypeError("Boolean value expected for complete")
 
-    batch_list = client.list_batches(success=success, complete=complete)
+    attributes = {}
+    if args.attributes:
+        for att in args.attributes:
+            att = att.strip()
+            key_value = att.split('=')
+            if len(key_value) != 2:
+                raise argparse.ArgumentTypeError('Attribute "{}" should contain exactly one equal sign')
+            else:
+                attributes[key_value[0]] = key_value[1]
+
+    print(attributes)
+
+    batch_list = client.list_batches(success=success, complete=complete, attributes=attributes)
     pretty_batches = [[batch.id, batch.status()['state'].capitalize()] for batch in batch_list]
 
     print(tabulate.tabulate(pretty_batches, headers=["ID", "STATUS"], tablefmt='orgtbl'))
