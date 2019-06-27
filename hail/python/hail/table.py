@@ -1279,7 +1279,7 @@ class Table(ExprContainer):
             s = hl.str(v)
         return hl.cond(hl.is_defined(v), s, "NA")
 
-    def _trunc(s):
+    def _trunc(s, truncate):
         if len(s) > truncate:
             return s[:truncate - 3] + "..."
         else:
@@ -1291,7 +1291,7 @@ class Table(ExprContainer):
                        s)
 
     def _hl_format(v, truncate):
-        return hl.bind(lambda s: Table.hl_trunc(s), Table._hl_repr(v))
+        return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
 
     def _ascii_str(self, n, width, truncate, types):
         width = max(width, 8)
