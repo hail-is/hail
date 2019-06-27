@@ -38,6 +38,7 @@ abstract class AbstractTableSpec extends RelationalSpec {
     val rows = rowsSpec(path)
     RVDType(rows.encodedType, rows.key)
   }
+  def indexed(path: String): Boolean = rowsSpec(path).indexed
 }
 
 case class TableSpec(

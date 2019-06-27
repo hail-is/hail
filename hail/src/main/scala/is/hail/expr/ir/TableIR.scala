@@ -156,8 +156,7 @@ case class TableNativeReader(
 
   def fullType: TableType = spec.table_type
 
-  val indexed = spec.version.supports(FileFormat.indicesVersion)
-  if (intervals.nonEmpty && !indexed)
+  if (intervals.nonEmpty && !spec.indexed(path))
     fatal("""`intervals` specified on an unindexed table.
             |This table was written using an older version of hail
             |rewrite the table in order to create an index to proceed""" )
@@ -168,14 +167,12 @@ case class TableNativeReader(
     val globals = spec.globalsComponent.readLocal(hc, path, tr.typ.globalType.physicalType)(0)
     val rvd = if (tr.dropRows) {
       RVD.empty(hc.sc, tr.typ.canonicalRVDType)
-    } else if (indexed) {
+    } else {
       val partitioner = if (filterIntervals)
         intervals.map(i => RVDPartitioner.union(tr.typ.keyType, i, tr.typ.key.length - 1))
       else
         intervals.map(i => new RVDPartitioner(tr.typ.keyType, i))
-      spec.rowsComponent.readIndexed(hc, path, tr.typ.rowType.physicalType, partitioner, filterIntervals)
-    } else {
-      val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType.physicalType)
+      val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType.physicalType, partitioner, filterIntervals)
       if (rvd.typ.key startsWith tr.typ.key)
         rvd
       else {
@@ -245,12 +242,6 @@ case class TableNativeZippedReader(
   require(specLeft.partitionCounts sameElements specRight.partitionCounts)
   require(specLeft.version == specRight.version)
 
-  val indexed = FileFormat.indicesVersion.supports(specLeft.version)
-  if (intervals.nonEmpty && !indexed)
-    fatal("""`intervals` specified on an unindexed matrix table.
-            |This matrix table was written using an older version of hail
-            |rewrite the matrix in order to create an index to proceed""" )
-
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
   def fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
@@ -268,9 +259,9 @@ case class TableNativeZippedReader(
       val leftFieldSet = specLeft.table_type.rowType.fieldNames.toSet
       val rightFieldSet = specRight.table_type.rowType.fieldNames.toSet
       if (tr.typ.rowType.fieldNames.forall(f => !rightFieldSet.contains(f))) {
-        specLeft.rowsComponent.readIndexed(hc, pathLeft, tr.typ.rowType.physicalType, partitioner, filterIntervals)
+        specLeft.rowsComponent.read(hc, pathLeft, tr.typ.rowType.physicalType, partitioner, filterIntervals)
       } else if (tr.typ.rowType.fieldNames.forall(f => !leftFieldSet.contains(f))) {
-        specRight.rowsComponent.readIndexed(hc, pathRight, tr.typ.rowType.physicalType, partitioner, filterIntervals)
+        specRight.rowsComponent.read(hc, pathRight, tr.typ.rowType.physicalType, partitioner, filterIntervals)
       } else {
         val rvdSpecLeft = specLeft.rowsComponent.rvdSpec(hc.sFS, pathLeft)
         val rvdSpecRight = specRight.rowsComponent.rvdSpec(hc.sFS, pathRight)

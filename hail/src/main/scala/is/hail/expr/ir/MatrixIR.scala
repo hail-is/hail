@@ -204,6 +204,11 @@ case class MatrixNativeReader(
 
   def fullMatrixType: MatrixType = spec.matrix_type
 
+  if (intervals.nonEmpty && !spec.indexed(path))
+    fatal("""`intervals` specified on an unindexed matrix table.
+            |This matrix table was written using an older version of hail
+            |rewrite the matrix in order to create an index to proceed""" )
+
   override def lower(mr: MatrixRead): TableIR = {
     val rowsPath = path + "/rows"
     val entriesPath = path + "/entries"

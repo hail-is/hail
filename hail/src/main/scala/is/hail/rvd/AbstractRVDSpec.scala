@@ -185,22 +185,21 @@ abstract class AbstractRVDSpec {
 
   def codecSpec: CodecSpec
 
-  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
-    val requestedKey = key.takeWhile(requestedType.hasField)
-    val rvdType = RVDType(requestedType, requestedKey)
+  val indexed: Boolean = false
 
-    RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
-  }
-
-  def readIndexed(
+  def read(
     hc: HailContext,
     path: String,
-    rowType: PStruct,
-    partitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean
-  ): RVD = partitioner match {
+    requestedType: PStruct,
+    newPartitioner: Option[RVDPartitioner] = None,
+    filterIntervals: Boolean = false
+  ): RVD = newPartitioner match {
     case Some(_) => fatal("attempted to read unindexed data as indexed")
-    case None => read(hc, path, rowType)
+    case None =>
+      val requestedKey = key.takeWhile(requestedType.hasField)
+      val rvdType = RVDType(requestedType, requestedKey)
+
+      RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
@@ -282,12 +281,14 @@ case class IndexedRVDSpec(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  override def readIndexed(
+  override val indexed = true
+
+  override def read(
     hc: HailContext,
     path: String,
     requestedType: PStruct,
-    newPartitioner: Option[RVDPartitioner],
-    filterIntervals: Boolean
+    newPartitioner: Option[RVDPartitioner] = None,
+    filterIntervals: Boolean = false
   ): RVD = {
     val requestedKey = key.takeWhile(requestedType.hasField)
     val tmpPartitioner = partitioner.intersect(newPartitioner.getOrElse(partitioner))
