@@ -1128,6 +1128,7 @@ async def start_job(queue):
         log.info(f'took job {job.id} off the queue')
         await job.run()
         log.info(f'finished run() job {job.id}')
+        await queue.task_done()
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
@@ -1177,7 +1178,7 @@ async def on_startup(app):
     asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
     asyncio.ensure_future(create_pods_if_ready())
-    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16))
+    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16, loop=asyncio.get_event_loop()))
 
 
 app.on_startup.append(on_startup)
