@@ -99,7 +99,7 @@ object IndexBgen {
     val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)
     val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(indexKeyType, annotationType).physicalType)
 
-    val t = RVD.unkeyed(rowType, crvd)
+    RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
       .toRows
       .foreachPartition { it =>
