@@ -6,10 +6,10 @@ def init_parser(parser):
 def main(args, pass_through_args, client):
     maybe_batch = get_batch_if_exists(client, args.id)
     if maybe_batch is None:
-        print("Batch with id {} not found".format(args.id))
+        print(f"Batch with id {args.id} not found")
         return
 
     batch = maybe_batch
 
     batch.cancel()
-    print("Batch with id {} was cancelled successfully".format(args.id))
+    print(f"Batch with id {args.id} was cancelled successfully")

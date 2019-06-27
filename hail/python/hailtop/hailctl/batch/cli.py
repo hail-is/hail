@@ -83,5 +83,8 @@ def main(args):
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
     client = BatchClient(session, url="https://batch.hail.is")
-    jmp[args.module].main(args, pass_through_args, client)
-    client.close()
+
+    try:
+        jmp[args.module].main(args, pass_through_args, client)
+    finally:
+        client.close()

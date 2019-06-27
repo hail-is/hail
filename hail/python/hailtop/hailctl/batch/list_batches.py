@@ -32,7 +32,7 @@ def main(args, passthrough_args, client):
             att = att.strip()
             key_value = att.split('=')
             if len(key_value) != 2:
-                raise argparse.ArgumentTypeError('Attribute "{}" should contain exactly one equal sign')
+                raise argparse.ArgumentTypeError(f'Attribute {att!r} should contain exactly one equal sign')
             else:
                 attributes[key_value[0]] = key_value[1]
 

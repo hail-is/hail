@@ -6,8 +6,8 @@ def init_parser(parser):
 def main(args, pass_through_args, client):
     maybe_batch = get_batch_if_exists(client, args.batch_id)
     if maybe_batch is None:
-        print("Batch with id {} not found".format(args.batch_id))
-        return
+        print(f"Batch with id {args.batch_id} not found")
+        exit(1)
 
     batch = maybe_batch
     print(batch.wait())
