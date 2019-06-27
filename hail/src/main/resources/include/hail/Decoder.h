@@ -108,7 +108,6 @@ class StreamInputBuffer {
     bool read_boolean() { return read_byte() != 0; };
 };
 
-// StreamInputBlockBuffer
 template <typename IS>
 StreamInputBlockBuffer<IS>::StreamInputBlockBuffer(std::shared_ptr<IS> is) :
   input_stream_(is) { }
