@@ -1343,12 +1343,19 @@ def lambda_gc(p_value, approximate=True):
     """
     check_row_indexed('lambda_gc', p_value)
     t = table_source(p_value)
+    med_chisq = _lambda_gc_agg(p_value, approximate)
+    return t.aggregate(med_chisq)
+
+
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def _lambda_gc_agg(p_value, approximate=True):
     chisq = hl.qchisqtail(p_value, 1)
     if approximate:
         med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
     else:
         med_chisq = hl.median(hl.agg.collect(chisq))
-    return t.aggregate(med_chisq / hl.qchisqtail(0.5, 1))
+    return med_chisq / hl.qchisqtail(0.5, 1)
 
 
 @typecheck(call_expr=expr_call,
