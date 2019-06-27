@@ -1098,7 +1098,7 @@ class BGENTests(unittest.TestCase):
         bgen2 = hl.import_bgen(tmp + '.bgen',
                                entry_fields=['GP'],
                                sample_file=tmp + '.sample')
-        self.assertTrue(bgen._same(bgen2))
+        assert bgen._same(bgen2)
 
     def test_export_bgen_parallel(self):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
@@ -1109,9 +1109,10 @@ class BGENTests(unittest.TestCase):
         tmp = '/tmp/foo'
         hl.export_bgen(bgen, tmp, parallel='header_per_shard')
         hl.index_bgen(tmp + '.bgen')
-        self.assertTrue(bgen._same(hl.import_bgen(tmp + '.bgen',
-                                                  entry_fields=['GP'],
-                                                  sample_file=tmp + '.sample')))
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
 
     def test_export_bgen_from_vcf(self):
         mt = hl.import_vcf(resource('sample.vcf'))
@@ -1128,7 +1129,7 @@ class BGENTests(unittest.TestCase):
                                sample_file=tmp + '.sample')
         mt = mt.select_entries('GT').select_rows().select_cols()
         bgen2 = bgen2.unfilter_entries().select_rows() # drop varid, rsid
-        self.assertTrue(bgen2._same(mt))
+        assert bgen2._same(mt)
 
 
 class GENTests(unittest.TestCase):
