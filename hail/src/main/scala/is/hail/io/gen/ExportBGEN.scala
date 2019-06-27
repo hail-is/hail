@@ -312,14 +312,21 @@ object ExportBGEN {
       if (exportType == ExportType.CONCATENATED)
         fs.getTemporaryFile(hc.tmpDir)
       else
-        path
+        path + ".bgen"
     fs.mkDir(parallelOutputPath)
 
     val d = digitsNeeded(mv.rvd.getNumPartitions)
 
     val files = mv.rvd.crdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
       val context = TaskContext.get
-      val pf = parallelOutputPath + "/" + partFile(d, i, context) + ".bgen"
+      val pf =
+        parallelOutputPath + "/" +
+          (if (exportType == ExportType.CONCATENATED)
+            // includes stage info and UUID
+            partFile(d, i, context)
+          else
+            // Spark style
+            partFile(d, i))
 
       using(bcFS.value.unsafeWriter(pf)) { out =>
         val bpw = new BgenPartitionWriter(localRVRowPType, nSamples)

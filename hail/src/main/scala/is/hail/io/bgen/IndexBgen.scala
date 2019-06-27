@@ -91,7 +91,7 @@ object IndexBgen {
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
-    val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
+    val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
@@ -99,10 +99,10 @@ object IndexBgen {
     val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)
     val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(indexKeyType, annotationType).physicalType)
 
-    RVD.unkeyed(rowType, crvd)
+    val t = RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
       .toRows
-      .foreachPartition({ it =>
+      .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
 
         using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
@@ -113,6 +113,6 @@ object IndexBgen {
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")
-      })
+      }
   }
 }
