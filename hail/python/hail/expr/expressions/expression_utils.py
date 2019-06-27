@@ -274,6 +274,19 @@ def matrix_table_source(caller, expr):
 
 @typecheck(caller=str,
            expr=Expression)
+def table_source(caller, expr):
+    from hail import Table
+    source = expr._indices.source
+    if not isinstance(source, Table):
+        raise ValueError(
+            "{}: Expect an expression of 'Table', found {}".format(
+                caller,
+                "expression of '{}'".format(source.__class__) if source is not None else 'scalar expression'))
+    return source
+
+
+@typecheck(caller=str,
+           expr=Expression)
 def check_entry_indexed(caller, expr):
     if expr._indices.source is None:
         raise ExpressionException("{}: expression must be entry-indexed,"

@@ -1323,6 +1323,34 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     return Table(MatrixToTableApply(mt._mir, config))
 
 
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def lambda_gc(p_value, approximate=True):
+    """
+    Compute genomic inflation factor (lambda GC) from an Expression of p-values.
+
+    Parameters
+    ----------
+    p_value : :class:`.NumericExpression`
+        Row-indexed numeric expression of p-values.
+    approximate : :obj:`bool`
+        If False, computes exact lambda GC (slower and uses more memory).
+
+    Returns
+    -------
+    :obj:`float`
+        Genomic inflation factor (lambda genomic control).
+    """
+    check_row_indexed('lambda_gc', p_value)
+    t = table_source(p_value)
+    chisq = hl.qchisqtail(p_value, 1)
+    if approximate:
+        med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
+    else:
+        med_chisq = hl.median(hl.agg.collect(chisq))
+    return t.aggregate(med_chisq / hl.qchisqtail(0.5, 1))
+
+
 @typecheck(call_expr=expr_call,
            k=int,
            compute_loadings=bool)
