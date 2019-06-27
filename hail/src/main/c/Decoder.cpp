@@ -3,6 +3,7 @@
 #include "hail/Decoder.h"
 #include "lz4.h"
 #include "hail/Utils.h"
+#include <iostream>
 
 namespace hail {
 
@@ -14,6 +15,7 @@ InputStream::InputStream(UpcallEnv up, jobject jinput_stream) :
   jbuf_size_(-1) { }
 
 int InputStream::read(char * buf, int n) {
+  std::cerr << "InputStream::read" << std::endl;
   if (UNLIKELY(n == 0)) {
     return 0;
   }
@@ -55,7 +57,13 @@ ByteArrayInputStream::ByteArrayInputStream(char *bytes, long size) :
 int ByteArrayInputStream::read(char *dest, int n) {
   auto count = std::min(static_cast<long>(n), size - cursor);
   std::memcpy(dest, bytes + cursor, count);
-  cursor += count
+  std::cerr << "reading " << count << " bytes " << " cursor " << cursor
+            << " which are ";
+  for (int i = 0; i != n; ++i) {
+    std::cerr << " " << (dest + cursor)[i] << " ";
+  }
+  std::cerr << std::endl;
+  cursor += count;
   return count;
 }
 
