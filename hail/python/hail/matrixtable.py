@@ -2511,7 +2511,7 @@ class MatrixTable(ExprContainer):
         def _repr_html_(self):
             s = self.table_show._repr_html_()
             if self.displayed_n_cols != self.actual_n_cols:
-                s += '<p>'
+                s += '<p style="background: #fdd; padding: 0.4em;">'
                 s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
                 s += '</p>\n'
             return s

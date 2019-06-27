@@ -417,7 +417,7 @@ class HailContext private(
 
   lazy val sparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
   lazy val bcFS: Broadcast[FS] = sc.broadcast(sFS)
-  
+
   val tmpDir = TempDir.createTempDir(tmpDirPath, sFS)
   info(s"Hail temporary directory: $tmpDir")
 
@@ -610,7 +610,8 @@ class HailFeatureFlags {
   private[this] val flags: mutable.Map[String, String] =
     mutable.Map[String, String](
       "cpp" -> null,
-      "lower" -> null
+      "lower" -> null,
+      "max_leader_scans" -> "1000"
     )
 
   val available: java.util.ArrayList[String] =
