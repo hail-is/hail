@@ -1231,21 +1231,140 @@ class Table(ExprContainer):
                 n = n or min(max(10, (lines - 20)), 100)
             self.table = table
             self.n = n
-            self.width = width
+            self.width = max(width, 8)
             if truncate:
                 self.truncate = min(max(truncate, 4), width - 4)
             else:
                 self.truncate = width - 4
             self.types = types
+            self._data = None
 
         def __str__(self):
-            return self.table._ascii_str(self.n, self.width, self.truncate, self.types)
+            return self._ascii_str()
 
         def __repr__(self):
             return self.__str__()
 
+        def data(self):
+            if self._data is None:
+                t = self.table.flatten()
+                row_dtype = t.row.dtype
+                t = t.select(**{k: Table._hl_format(v, self.truncate) for (k, v) in t.row.items()})
+                rows, has_more = t._take_n(self.n)
+                self._data = (rows, has_more, row_dtype)
+            return self._data
+
         def _repr_html_(self):
-            return self.table._html_str(self.n, self.types, self.truncate)
+            return self._html_str()
+
+        def _ascii_str(self):
+            truncate = self.truncate
+            types = self.types
+
+            def trunc(s):
+                if len(s) > truncate:
+                    return s[:truncate - 3] + "..."
+                else:
+                    return s
+
+            rows, has_more, dtype = self.data()
+            fields = list(dtype)
+            trunc_fields = [trunc(f) for f in fields]
+            n_fields = len(fields)
+
+            type_strs = [trunc(str(dtype[f])) for f in fields] if types else [''] * len(fields)
+            right_align = [hl.expr.types.is_numeric(dtype[f]) for f in fields]
+
+            rows = [[row[f] for f in fields] for row in rows]
+
+            max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
+            column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
+
+            column_blocks = []
+            start = 0
+            i = 1
+            w = column_width[0] + 4
+            while i < len(fields):
+                w = w + column_width[i] + 3
+                if w > self.width:
+                    column_blocks.append((start, i))
+                    start = i
+                    w = column_width[i] + 4
+                i = i + 1
+            assert i == n_fields
+            column_blocks.append((start, i))
+
+            def format_hline(widths):
+                return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
+
+            def pad(v, w, ra):
+                e =  w - len(v)
+                if ra:
+                    return ' ' * e + v
+                else:
+                    return v + ' ' * e
+
+            def format_line(values, widths, right_align):
+                values = map(pad, values, widths, right_align)
+                return '| ' + ' | '.join(values) + ' |\n'
+
+            s = ''
+            first = True
+            for (start, end) in column_blocks:
+                if first:
+                    first = False
+                else:
+                    s += '\n'
+
+                block_column_width = column_width[start:end]
+                block_right_align = right_align[start:end]
+                hline = format_hline(block_column_width)
+
+                s += hline
+                s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
+                s += hline
+                if types:
+                    s += format_line(type_strs[start:end], block_column_width, block_right_align)
+                    s += hline
+                for row in rows:
+                    row = row[start:end]
+                    s += format_line(row, block_column_width, block_right_align)
+                s += hline
+
+            if has_more:
+                n_rows = len(rows)
+                s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+
+            return s
+
+        def _html_str(self):
+            import html
+            types = self.types
+
+            rows, has_more, dtype = self.data()
+            fields = list(dtype)
+
+            def format_line(values):
+                return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
+
+            s = '<table>'
+            s += '<thead style="font-weight: bold;">'
+            s += format_line(fields)
+            if types:
+                s += format_line([html.escape(str(dtype[f])) for f in fields])
+            s += '</thead><tbody>'
+            for row in rows:
+                s += format_line([html.escape(row[f]) for f in row])
+            s += '</tbody></table>'
+
+            if has_more:
+                n_rows = len(rows)
+                s += '<p style="background: #fdd; padding: 0.4em;">'
+                s += f"showing top { n_rows } { plural('row', n_rows) }"
+                s += '</p>\n'
+
+            return s
+
 
     def _take_n(self, n):
         if n < 0:
@@ -1279,127 +1398,15 @@ class Table(ExprContainer):
             s = hl.str(v)
         return hl.cond(hl.is_defined(v), s, "NA")
 
-    def _trunc(s, truncate):
-        if len(s) > truncate:
-            return s[:truncate - 3] + "..."
-        else:
-            return s
-
+    @staticmethod
     def _hl_trunc(s, truncate):
         return hl.cond(hl.len(s) > truncate,
                        s[:truncate - 3] + "...",
                        s)
 
+    @staticmethod
     def _hl_format(v, truncate):
         return hl.bind(lambda s: Table._hl_trunc(s, truncate), Table._hl_repr(v))
-
-    def _ascii_str(self, n, width, truncate, types):
-        width = max(width, 8)
-
-        t = self
-        t = t.flatten()
-        fields = list(t.row)
-        trunc_fields = [Table._trunc(f, truncate) for f in fields]
-        n_fields = len(fields)
-
-        type_strs = [Table._trunc(str(t.row[f].dtype), truncate) for f in fields] if types else [''] * len(fields)
-        right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
-
-        t = t.select(**{k: Table._hl_format(v, truncate) for (k, v) in t.row.items()})
-        rows, has_more = t._take_n(n)
-
-        rows = [[row[f] for f in fields] for row in rows]
-
-        max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
-
-        column_blocks = []
-        start = 0
-        i = 1
-        w = column_width[0] + 4
-        while i < len(fields):
-            w = w + column_width[i] + 3
-            if w > width:
-                column_blocks.append((start, i))
-                start = i
-                w = column_width[i] + 4
-            i = i + 1
-        assert i == n_fields
-        column_blocks.append((start, i))
-
-        def format_hline(widths):
-            return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
-
-        def pad(v, w, ra):
-            e =  w - len(v)
-            if ra:
-                return ' ' * e + v
-            else:
-                return v + ' ' * e
-
-        def format_line(values, widths, right_align):
-            values = map(pad, values, widths, right_align)
-            return '| ' + ' | '.join(values) + ' |\n'
-
-        s = ''
-        first = True
-        for (start, end) in column_blocks:
-            if first:
-                first = False
-            else:
-                s += '\n'
-
-            block_column_width = column_width[start:end]
-            block_right_align = right_align[start:end]
-            hline = format_hline(block_column_width)
-
-            s += hline
-            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
-            s += hline
-            if types:
-                s += format_line(type_strs[start:end], block_column_width, block_right_align)
-                s += hline
-            for row in rows:
-                row = row[start:end]
-                s += format_line(row, block_column_width, block_right_align)
-            s += hline
-
-        if has_more:
-            n_rows = len(rows)
-            s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
-
-        return s
-
-    def _html_str(self, n, types, truncate):
-        import html
-
-        t = self
-        t = t.flatten()
-        fields = list(t.row)
-
-        formatted_t = t.select(**{k: Table._hl_format(v, truncate) for (k, v) in t.row.items()})
-        rows, has_more = formatted_t._take_n(n)
-
-        def format_line(values):
-            return '<tr><td>' + '</td><td>'.join(values) + '</td></tr>\n'
-
-        s = '<table>'
-        s += '<thead style="font-weight: bold;">'
-        s += format_line(fields)
-        if types:
-            s += format_line([html.escape(str(t.row[f].dtype)) for f in fields])
-        s += '</thead><tbody>'
-        for row in rows:
-            s += format_line([html.escape(row[f]) for f in row])
-        s += '</tbody></table>'
-
-        if has_more:
-            n_rows = len(rows)
-            s += '<p style="background: #fdd; padding: 0.4em;">'
-            s += f"showing top { n_rows } { plural('row', n_rows) }"
-            s += '</p>\n'
-
-        return s
 
     @typecheck_method(n=nullable(int), width=nullable(int), truncate=nullable(int), types=bool, handler=nullable(anyfunc), n_rows=nullable(int))
     def show(self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None):
@@ -1436,7 +1443,7 @@ class Table(ExprContainer):
             Handler function for data string.
         """
         if n_rows is not None and n is not None:
-            raise ValueError(f'specify one of n_rows or n, recieved {n_rows} and {n}')
+            raise ValueError(f'specify one of n_rows or n, received {n_rows} and {n}')
         if n_rows is not None:
             n = n_rows
         del n_rows
