@@ -163,6 +163,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 
 @typecheck(mt=MatrixTable,
            output=str,
+           gp=nullable(expr_array(expr_float64)),
            varid=nullable(expr_str),
            rsid=nullable(expr_str),
            parallel=nullable(str))
@@ -184,7 +185,7 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
         Expression for the variant ID. If ``None``, the row field
         `varid` is used if defined and is of type :py:data:`.tstr`.
         The default and missing value is
-        ``hl.delimit([dataset.locus.contig, hl.str(dataset.locus.position), dataset.alleles[0], dataset.alleles[1]], ':')``
+        ``hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':')``
     rsid : :class:`.StringExpression`, optional
         Expression for the rsID. If ``None``, the row field `rsid` is
         used if defined and is of type :py:data:`.tstr`.  The default
@@ -200,8 +201,8 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
     require_col_key_str(mt, 'export_bgen')
 
     if gp is None:
-        if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
-            entry_exprs = {'GP': dataset.GP}
+        if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
+            entry_exprs = {'GP': mt.GP}
         else:
             entry_exprs = {}
     else:

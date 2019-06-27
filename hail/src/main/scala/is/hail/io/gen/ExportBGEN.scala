@@ -313,12 +313,13 @@ object ExportBGEN {
         fs.getTemporaryFile(hc.tmpDir)
       else
         path
+    fs.mkDir(parallelOutputPath)
 
     val d = digitsNeeded(mv.rvd.getNumPartitions)
 
     val files = mv.rvd.crdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
       val context = TaskContext.get
-      val pf = partFile(d, i, context) + ".bgen"
+      val pf = parallelOutputPath + "/" + partFile(d, i, context) + ".bgen"
 
       using(bcFS.value.unsafeWriter(pf)) { out =>
         val bpw = new BgenPartitionWriter(localRVRowPType, nSamples)
