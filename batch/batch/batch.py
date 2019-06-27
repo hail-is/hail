@@ -847,16 +847,14 @@ async def create_jobs(request, userdata):
         for job_params in jobs_parameters['jobs']:
             job = create_job(jobs_builder, batch.id, userdata, job_params)
             await app['start_job_queue'].put(job)
-            log.info(f'put job {job.id} on the queue')
 
         success = await jobs_builder.commit()
-        log.info(f'db commit = {success}')
         if not success:
             abort(400, f'insertion of jobs in db failed')
+        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
     finally:
         await jobs_builder.close()
 
-    log.info('finished creating jobs')
     return jsonify({})
 
 
@@ -1123,11 +1121,8 @@ async def create_pods_if_ready():
 
 async def start_job(queue):
     while True:
-        log.info(f'checking the queue')
         job = await queue.get()
-        log.info(f'took job {job.id} off the queue')
         await job.run()
-        log.info(f'finished run() job {job.id}')
         queue.task_done()
 
 
@@ -1178,7 +1173,7 @@ async def on_startup(app):
     asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
     asyncio.ensure_future(create_pods_if_ready())
-    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16, loop=asyncio.get_event_loop()))
+    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16))
 
 
 app.on_startup.append(on_startup)
