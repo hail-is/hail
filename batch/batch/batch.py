@@ -527,6 +527,11 @@ class Job:
                 self.duration = None
             pod_log, err = await app['k8s'].read_pod_log(pod.metadata.name)
             if err:
+                job = await Job.from_db(*self.id, self.user)
+                if job.log_uris[self._task_idx] is not None:
+                    log.info(f'no logs for {pod.metadata.name}, but log already exists in db, not rescheduling pod')
+                    return
+
                 traceback.print_tb(err.__traceback__)
                 log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod '
                          f'Error: {err}')
