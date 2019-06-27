@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.io._
-import is.hail.io.gen.ExportGen
+import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.ExportType
@@ -10,8 +10,8 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter], classOf[MatrixPLINKWriter],
-        classOf[WrappedMatrixWriter]))
+      List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]))
     override val typeHintFieldName = "name"
   }
 }
@@ -50,6 +50,13 @@ case class MatrixGENWriter(
   precision: Int = 4
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportGen(mv, path, precision)
+}
+
+case class MatrixBGENWriter(
+  path: String,
+  exportType: Int
+) extends MatrixWriter {
+  def apply(mv: MatrixValue): Unit = ExportBGEN(mv, path, exportType)
 }
 
 case class MatrixPLINKWriter(

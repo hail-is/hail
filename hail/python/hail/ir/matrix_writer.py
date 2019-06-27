@@ -87,6 +87,24 @@ class MatrixGENWriter(MatrixWriter):
                other.precision == self.precision
 
 
+class MatrixBGENWriter(MatrixWriter):
+    @typecheck_method(path=str, export_type=int)
+    def __init__(self, path, export_type):
+        self.path = path
+        self.export_type = export_type
+
+    def render(self):
+        writer = {'name': 'MatrixBGENWriter',
+                  'path': self.path,
+                  'exportType': self.export_type}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixBGENWriter) and \
+               other.path == self.path and \
+               other.export_type == self.export_type
+
+
 class MatrixPLINKWriter(MatrixWriter):
     @typecheck_method(path=str)
     def __init__(self, path):

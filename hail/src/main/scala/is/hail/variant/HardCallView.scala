@@ -4,28 +4,26 @@ import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 
-object ArrayGenotypeView {
-  val tArrayFloat64 = PArray(PFloat64())
-}
-
 final class ArrayGenotypeView(rvType: PStruct) {
   private val entriesIndex = rvType.fieldByName(MatrixType.entriesIdentifier).index
   private val tgs = rvType.types(entriesIndex).asInstanceOf[PArray]
   private val tg = tgs.elementType.asInstanceOf[PStruct]
 
-  private def lookupField(name: String, expected: PType): (Boolean, Int) = {
+  private def lookupField(name: String, pred: PType => Boolean): (Boolean, Int, PType) = {
     tg.selfField(name) match {
       case Some(f) =>
-        if (f.typ == expected)
-          (true, f.index)
+        if (pred(f.typ))
+          (true, f.index, f.typ)
         else
-          (false, 0)
-      case None => (false, 0)
+          (false, 0, null)
+      case None =>
+        (false, 0, null)
     }
   }
 
-  private val (gtExists, gtIndex) = lookupField("GT", PCall())
-  private val (gpExists, gpIndex) = lookupField("GP", ArrayGenotypeView.tArrayFloat64)
+  private val (gtExists, gtIndex, gtType) = lookupField("GT", _ == PCall())
+  private val (gpExists, gpIndex, gpType: PArray) = lookupField("GP",
+    pt => pt.isInstanceOf[PArray] && pt.asInstanceOf[PArray].elementType.isInstanceOf[PFloat64])
   private var m: Region = _
   private var gsOffset: Long = _
   private var gsLength: Int = _
@@ -57,17 +55,17 @@ final class ArrayGenotypeView(rvType: PStruct) {
 
   def getGP(idx: Int): Double = {
     val gpOffset = tg.loadField(m, gOffset, gpIndex)
-    val length = ArrayGenotypeView.tArrayFloat64.loadLength(m, gpOffset)
+    val length = gpType.loadLength(m, gpOffset)
     if (idx < 0 || idx >= length)
       throw new ArrayIndexOutOfBoundsException(idx)
-    assert(ArrayGenotypeView.tArrayFloat64.isElementDefined(m, gpOffset, idx))
-    val elementOffset = ArrayGenotypeView.tArrayFloat64.elementOffset(gpOffset, length, idx)
+    assert(gpType.isElementDefined(m, gpOffset, idx))
+    val elementOffset = gpType.elementOffset(gpOffset, length, idx)
     m.loadDouble(elementOffset)
   }
 
   def getGPLength(): Int = {
     val gpOffset = tg.loadField(m, gOffset, gpIndex)
-    ArrayGenotypeView.tArrayFloat64.loadLength(m, gpOffset)
+    gpType.loadLength(m, gpOffset)
   }
 }
 

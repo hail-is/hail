@@ -1088,6 +1088,50 @@ class BGENTests(unittest.TestCase):
             index_file_map = {bgen_file: index_file}
             hl.index_bgen(bgen_file, index_file_map=index_file_map)
 
+    def test_export_bgen(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'))
+        tmp = new_temp_file()
+        hl.export_bgen(bgen, tmp)
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
+
+    def test_export_bgen_parallel(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'),
+                              n_partitions=3)
+        # tmp = new_temp_file()
+        tmp = '/tmp/foo'
+        hl.export_bgen(bgen, tmp, parallel='header_per_shard')
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
+
+    def test_export_bgen_from_vcf(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+
+        tmp = new_temp_file()
+        hl.export_bgen(mt, tmp,
+                       gp=hl.or_missing(
+                           hl.is_defined(mt.GT),
+                           hl.map(lambda i: hl.cond(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
+                                  hl.range(0, hl.triangle(hl.len(mt.alleles))))))
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GT'],
+                               sample_file=tmp + '.sample')
+        mt = mt.select_entries('GT').select_rows().select_cols()
+        bgen2 = bgen2.unfilter_entries().select_rows() # drop varid, rsid
+        assert bgen2._same(mt)
+
+
 class GENTests(unittest.TestCase):
     def test_import_gen(self):
         gen = hl.import_gen(resource('example.gen'),
