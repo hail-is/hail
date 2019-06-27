@@ -2030,7 +2030,7 @@ def import_vcf(path,
 
 
 @typecheck(path=sequenceof(str),
-           partitions=str,
+           partitions=anytype,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
@@ -2059,39 +2059,24 @@ def import_vcfs(path,
                 _external_header=None) -> List[MatrixTable]:
     """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
-    The arguments to this function are almost identical to :func:`.import_vcf`,
-    the only difference is the `partitions` argument, which is used to divide
-    and filter the vcfs. It must be a JSON string that will deserialize to an
-    Array of Intervals of Locus structs. A partition will be created for every
-    element of the array. Loci that fall outside of any interval will not be
-    imported. For example:
+    The arguments to this function are almost identical to
+    :func:`.import_vcf`, the only difference is the `partitions`
+    argument, which is used to divide and filter the vcfs.  It must be
+    an expression or literal of type `array<interval<struct{locus:locus<RG>}>>`.  A
+    partition will be created for every element of the array. Loci
+    that fall outside of any interval will not be imported. For
+    example:
 
     .. code-block:: text
-        [
-          {
-            "start": {
-              "locus": {
-                "contig": "chr22",
-                "position": 1
-              }
-            },
-            "end": {
-              "locus": {
-                "contig": "chr22",
-                "position": 5332423
-              }
-            },
-            "includeStart": true,
-            "includeEnd": true
-          }
-        ]
+        [hl.Interval(hl.Locus("chr22", 1), hl.Locus("chr22", 5332423), includes_end=True)]
 
-    The `includeStart` and `includeEnd` keys must be `true`. The `contig` fields must
-    be the same.
+    The `include_start` and `include_end` keys must be `True`. The
+    `contig` fields must be the same.
 
     One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
     :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
     rather than `locus, alleles`.
+
     """
 
     rg = reference_genome.name if reference_genome else None
@@ -2099,6 +2084,13 @@ def import_vcfs(path,
     global _cached_importvcfs
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
+
+    partitions_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(rg))))
+    if isinstance(partitions, Expression):
+        if partitions.dtype != partitions_type:
+            raise ValueError(f'partitions has wrong type: got {partitions.dtype}, expected {partitions_type}')
+        partitions = hl.eval(partitions)
+    partitions = json.dumps(partitions_type._convert_to_json(partitions))
 
     vector_ref_s = _cached_importvcfs.pyApply(
         wrap_to_list(path),
@@ -2116,10 +2108,10 @@ def import_vcfs(path,
         find_replace[1] if find_replace is not None else None,
         _external_sample_ids,
         _external_header)
-    tmp = json.loads(vector_ref_s)
-    jir_vref = JIRVectorReference(tmp['vector_ir_id'],
-                                  tmp['length'],
-                                  hl.tmatrix._from_json(tmp['type']))
+    vector_ref = json.loads(vector_ref_s)
+    jir_vref = JIRVectorReference(vector_ref['vector_ir_id'],
+                                  vector_ref['length'],
+                                  hl.tmatrix._from_json(vector_ref['type']))
 
     return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 

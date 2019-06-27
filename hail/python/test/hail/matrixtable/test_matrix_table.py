@@ -1,7 +1,6 @@
 import math
 import operator
 import random
-import json
 import unittest
 
 import hail as hl
@@ -1266,12 +1265,13 @@ class Tests(unittest.TestCase):
 
         def test_parts(parts, expected=mt):
             parts = [
-                {'start': {'row_idx': s}, 'end': {'row_idx': e}, 'includeStart': _is, 'includeEnd': ie}
+                hl.Interval(start=hl.Struct(row_idx=s), end=hl.Struct(row_idx=e),
+                            includes_start=_is, includes_end=ie)
                 for (s, e, _is, ie) in parts
             ]
 
             tmp = new_temp_file(suffix='mt')
-            mt.write(tmp, _partitions=json.dumps(parts))
+            mt.write(tmp, _partitions=parts)
 
             mt2 = hl.read_matrix_table(tmp)
             self.assertEqual(mt2.n_partitions(), len(parts))

@@ -2466,9 +2466,9 @@ class MatrixTable(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _partitions=nullable(str))
+                      _partitions=nullable(anytype))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None, _partitions: Optional[str] = None):
+              _codec_spec: Optional[str] = None, _partitions: Optional[Any] = None):
         """Write to disk.
 
         Examples
@@ -2490,6 +2490,14 @@ class MatrixTable(ExprContainer):
         overwrite : bool
             If ``True``, overwrite an existing file at the destination.
         """
+
+        if _partitions:
+            partitions_type = hl.tarray(hl.tinterval(self.row_key.dtype))
+            if isinstance(_partitions, Expression):
+                if _partitions.dtype != partitions_type:
+                    raise ValueError(f'_partitions has wrong type: got {_partitions.dtype}, expected {partitions_type}')
+                _partitions = hl.eval(_partitions)
+            _partitions = json.dumps(partitions_type._convert_to_json(_partitions))
 
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions)
         Env.backend().execute(MatrixWrite(self._mir, writer))
