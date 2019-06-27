@@ -846,7 +846,7 @@ async def create_jobs(request, userdata):
     try:
         for job_params in jobs_parameters['jobs']:
             job = create_job(jobs_builder, batch.id, userdata, job_params)
-            app['start_job_queue'].put(job)
+            await app['start_job_queue'].put(job)
             log.info(f'put job {job.id} on the queue')
 
         success = await jobs_builder.commit()
