@@ -88,7 +88,7 @@ def test_cancel_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 3
+    assert batch_status_job_counter(status, 'Success') == 3, status
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -110,7 +110,7 @@ def test_cancel_left_after_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 2
+    assert batch_status_job_counter(status, 'Success') == 2, status
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -138,7 +138,7 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
-        batch.wait()
+        batch_status = batch.wait()
 
         i = 0
         while len(output) != 4:
@@ -149,11 +149,11 @@ def test_callback(client):
 
         assert len(output) == 4, output
         assert all([job_result['state'] == 'Success' and job_result['exit_code']['main'] == 0
-                    for job_result in output])
-        assert output[0]['job_id'] == head.job_id
+                    for job_result in output]), (output, batch_status)
+        assert output[0]['job_id'] == head.job_id, (output, batch_status)
         middle_ids = (output[1]['job_id'], output[2]['job_id'])
-        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id))
-        assert output[3]['job_id'] == tail.job_id
+        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id)), (output, batch_status)
+        assert output[3]['job_id'] == tail.job_id, (output, batch_status)
     finally:
         if server:
             server.shutdown()
