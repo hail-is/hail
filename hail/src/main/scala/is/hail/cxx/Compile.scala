@@ -131,6 +131,7 @@ object Compile {
     tub.include("hail/RegionPool.h")
     tub.include("hail/Region.h")
     tub.include("<cstring>")
+    tub.include("<iostream>")
     val o = new Orderings().ordering(tub, l, r)
     val typ = if (op == "compare") "int" else "bool"
     val decodel = codec.buildNativeDecoderClass(l, l, "ByteArrayInputStream", tub)

@@ -57,12 +57,6 @@ ByteArrayInputStream::ByteArrayInputStream(char *bytes, long size) :
 int ByteArrayInputStream::read(char *dest, int n) {
   auto count = std::min(static_cast<long>(n), size - cursor);
   std::memcpy(dest, bytes + cursor, count);
-  std::cerr << "reading " << count << " bytes " << " cursor " << cursor
-            << " which are ";
-  for (int i = 0; i != n; ++i) {
-    std::cerr << " " << (dest + cursor)[i] << " ";
-  }
-  std::cerr << std::endl;
   cursor += count;
   return count;
 }
