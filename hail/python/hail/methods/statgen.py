@@ -1329,9 +1329,7 @@ def lambda_gc(p_value, approximate=True):
     """
     Compute genomic inflation factor (lambda GC) from an Expression of p-values.
 
-    Note
-    ----
-    This method is experimental.
+    .. include:: ../_templates/experimental.rst
 
     Parameters
     ----------
