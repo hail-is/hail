@@ -1128,7 +1128,7 @@ async def start_job(queue):
         log.info(f'took job {job.id} off the queue')
         await job.run()
         log.info(f'finished run() job {job.id}')
-        await queue.task_done()
+        queue.task_done()
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
