@@ -98,7 +98,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   val v = new RegionValueVariant(rowPType)
   val va = new GenAnnotationView(rowPType)
 
-  def emitVariant(rv: RegionValue): Array[Byte] = {
+  def emitVariant(rv: RegionValue): (Array[Byte], Long) = {
     bb.clear()
 
     gs.setRegion(rv)
@@ -125,7 +125,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
     intToBytesLE(bb, 0) // placeholder for length of compressed data
     intToBytesLE(bb, 0) // placeholder for length of uncompressed data
 
-    emitGPData(nAlleles)
+    val dropped = emitGPData(nAlleles)
 
     val uncompressedLength = uncompressedData.length
     val compressedLength = compress(bb, uncompressedData.result())
@@ -133,7 +133,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
     updateIntToBytesLE(bb, compressedLength + 4, gtDataBlockStart)
     updateIntToBytesLE(bb, uncompressedLength, gtDataBlockStart + 4)
 
-    bb.result()
+    (bb.result(), dropped)
   }
 
   private def resetIndex(index: Array[Int]) {
@@ -226,7 +226,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   }
 
 
-  private def emitGPData(nAlleles: Int) {
+  private def emitGPData(nAlleles: Int): Long = {
     uncompressedData.clear()
     val nGenotypes = triangle(nAlleles)
 
@@ -258,6 +258,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
       }
     }
 
+    var dropped = 0L
     i = 0
     while (i < nSamples) {
       gs.setGenotype(i)
@@ -276,7 +277,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
           uncompressedData(samplePloidyStart + i) = ploidy
           roundWithConstantSum(gpResized, fractional, index, indexInverse, uncompressedData, totalProb)
         } else {
-          warn(s"GP sum was not in the range [0.999, 1.001]. Found $gpSum. Emitting missing probabilities.")
+          dropped += 1
           emitNullGP()
         }
       } else {
@@ -285,6 +286,8 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
 
       i += 1
     }
+
+    dropped
   }
 }
 
@@ -317,7 +320,7 @@ object ExportBGEN {
 
     val d = digitsNeeded(mv.rvd.getNumPartitions)
 
-    val files = mv.rvd.crdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
+    val (files, droppedPerPart) = mv.rvd.crdd.mapPartitionsWithIndex { case (i: Int, it: Iterator[RegionValue]) =>
       val context = TaskContext.get
       val pf =
         parallelOutputPath + "/" +
@@ -328,6 +331,7 @@ object ExportBGEN {
             // Spark style
             partFile(d, i))
 
+      var dropped = 0L
       using(bcFS.value.unsafeWriter(pf)) { out =>
         val bpw = new BgenPartitionWriter(localRVRowPType, nSamples)
 
@@ -337,13 +341,20 @@ object ExportBGEN {
         }
 
         it.foreach { rv =>
-          out.write(bpw.emitVariant(rv))
+          val (b, d) = bpw.emitVariant(rv)
+          out.write(b)
+          dropped += d
         }
       }
 
-      Iterator.single(pf)
+      Iterator.single((pf, dropped))
     }
       .collect()
+      .unzip
+
+    val dropped = droppedPerPart.sum
+    if (dropped != 0)
+      warn(s"Set $dropped genotypes to missing: total GP probability did not lie in [0.999, 1.001].")
 
     if (exportType == ExportType.PARALLEL_SEPARATE_HEADER) {
       using(fs.unsafeWriter(parallelOutputPath + "/header")) { out =>
