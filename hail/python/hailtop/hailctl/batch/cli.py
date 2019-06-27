@@ -10,9 +10,6 @@ from . import cancel
 from . import wait
 from . import log
 
-
-
-
 def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl batch',
@@ -41,6 +38,11 @@ def parser():
         help='Get log for a job',
         description='Get log for a job'
     )
+    wait_parser = subparsers.add_parser(
+        'wait',
+        help='Wait for a batch to complete, then print JSON status.',
+        description='Wait for a batch to complete, then print JSON status.'
+    )
 
     list_parser.set_defaults(module='list')
     list_batches.init_parser(list_parser)
@@ -57,6 +59,9 @@ def parser():
     log_parser.set_defaults(module='log')
     log.init_parser(log_parser)
 
+    wait_parser.set_defaults(module='wait')
+    wait.init_parser(wait_parser)
+
     return main_parser
 
 def main(args):
@@ -71,7 +76,7 @@ def main(args):
         'log': log,
         'wait': wait
     }
-    
+
     args, pass_through_args = parser().parse_known_args(args=args)
 
     session = aiohttp.ClientSession(
