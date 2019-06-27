@@ -69,6 +69,17 @@ object Pretty {
       sb += ')'
     }
 
+    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
+      sb.append(" " * depth)
+      sb += '('
+      sigs.foreach { x =>
+        sb += '\n'
+        sb.append(" " * (depth + 2))
+        prettyAggSignature(x)
+      }
+      sb += ')'
+    }
+
     def pretty(ir: BaseIR, depth: Int) {
       sb.append(" " * depth)
       sb += '('
@@ -130,6 +141,50 @@ object Pretty {
           pretty(i, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
+        case InitOp2(i, args, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          prettySeq(args, depth + 2)
+        case SeqOp2(i, args, aggSig) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+          sb += '\n'
+          prettySeq(args, depth + 2)
+        case CombOp2(i1, i2, aggSig) =>
+          sb += ' '
+          sb.append(i1)
+          sb += ' '
+          sb.append(i2)
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
+        case ResultOp2(i, aggSigs) =>
+          sb += ' '
+          sb.append(i)
+          sb += '\n'
+          prettyAggSeq(aggSigs, depth + 2)
+        case ReadAggs(i, path, spec, aggSigs) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(prettyStringLiteral(spec.toString))
+          sb += '\n'
+          prettyAggSeq(aggSigs, depth + 2)
+          sb += '\n'
+          pretty(i, depth + 2)
+        case WriteAggs(i, path, spec, aggSigs) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(prettyStringLiteral(spec.toString))
+          sb += '\n'
+          prettyAggSeq(aggSigs, depth + 2)
+          sb += '\n'
+          pretty(i, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
