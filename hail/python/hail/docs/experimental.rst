@@ -25,8 +25,6 @@ Genetics Methods
 
 .. autosummary::
 
-    ld_score
-    ld_score_regression
     write_expression
     read_expression
     filtering_allele_frequency
@@ -43,10 +41,10 @@ Genetics Methods
     gather
     separate
     spread
+    compute_ld_scores
+    ld_score_regression
 
 
-.. autofunction:: ld_score
-.. autofunction:: ld_score_regression
 .. autofunction:: write_expression
 .. autofunction:: read_expression
 .. autofunction:: hail_metadata
@@ -63,3 +61,5 @@ Genetics Methods
 .. autofunction:: gather
 .. autofunction:: separate
 .. autofunction:: spread
+.. autofunction:: compute_ld_scores
+.. autofunction:: ld_score_regression

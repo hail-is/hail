@@ -282,17 +282,20 @@ def ld_score_regression(z_expr,
                         rg_pairs=None,
                         n_iterations=3,
                         max_chi_sq=None):
-    r"""Estimate SNP-heritability and level of confounding biases from
-    GWAS summary statistics.
+    r"""Estimate SNP-heritability, level of confounding biases, and
+    genetic correlation from GWAS summary statistics.
+
+    SNP Heritability
+    ----------------
 
     Given genome-wide association study (GWAS) summary statistics,
-    :func:`.estimate_heritability` estimates the heritability of a
+    :func:`.ld_score_regression` estimates the heritability of a
     trait or set of traits and the level of confounding biases present in
-    the underlying association studies using the LD score regression
-    method. 
+    the underlying association studies using either a single LD score
+    per variant (univariate LD score regression) or a set of annotation-specific
+    LD scores per variant (partitioned or stratified LD score regression).
 
-    In the case where only a single LD score annotation is used (univariate LD score
-    regression), this function fits the model:
+    In univariate LD score regression, this function fits the model:
 
     .. math::
 
@@ -313,8 +316,7 @@ def ld_score_regression(z_expr,
     *  :math:`M` is the number of variants used to estimate :math:`h_g^2`.
     *  :math:`N` is the number of samples in the underlying association study.
 
-    In the case of stratified LD score regression, where multiple LD score annotations
-    are used, this function fits the model:
+    In partitioned LD score regression, this function fits the model:
 
     .. math::
 
@@ -322,41 +324,71 @@ def ld_score_regression(z_expr,
 
     *  :math:`\mathrm{E}[\chi_j^2]` is the expected chi-squared statistic
        for variant :math:`j` resulting from a test of association between
-       variant :math:`j` and a trait.   
+       variant :math:`j` and a trait.
 
-    For more details on the method implemented in this function, see:
+
+    Genetic Correlation
+    -------------------
+
+    By utilizing the ``rg_pairs`` argument, :func:`.ld_score_regression` can
+    also estimate genetic correlation between pairs of traits.
+
+    < to do: document>
+
+    For more details on the methods implemented in this function, see:
 
     * `LD Score regression distinguishes confounding from polygenicity in genome-wide association studies (Bulik-Sullivan et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4495769/>`__
+    * `Partitioning heritability by functional annotation using genome-wide association summary statistics (Finucane et al, 2015) <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/>`__
+    * `An atlas of genetic correlations across human diseases and traits (Bulik-Sullivan et al, 2015) < https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4797329/>`__
 
     Examples
     --------
 
-    Run the method on a matrix table of summary statistics, where the rows
-    are variants and the columns are different traits:
+    Run univariate LD score regression on a matrix table of summary statistics,
+    where the rows are variants and the columns are different traits:
 
-    >>> mt_gwas = hl.read_matrix_table('data/ld_score.sumstats.mt')
-    >>> ht_results = hl.experimental.estimate_heritability(
-    ...     z_expr=mt_gwas.Z,
-    ...     n_samples_exprs=mt_gwas.N,
-    ...     weight_expr=mt_gwas.ld_score,
-    ...     ld_score_expr=mt_gwas.ld_score)
+    >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sample.mt')
+    >>> ht_results = hl.experimental.ld_score_regression(
+    ...     z_expr=mt_gwas['Z'],
+    ...     n_samples_exprsmt_gwas['N'],
+    ...     weight_expr=mt_gwas['weight'],
+    ...     ld_score_exprs=[mt_gwas[x] for x in list(mt_gwas['ld_scores'])][0],
+    ...     n_reference_panel_variants_exprs=[mt_gwas[x] for x in list(mt_gwas['M_5_50'])][0],
+    ...     two_step_threshold=30,
+    ...     n_iterations=3)
 
+    Run partitioned LD score regression on the same matrix table:
 
-    Run the method on a table with summary statistics for a single
-    trait:
+    >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sample.mt')
+    >>> ht_results = hl.experimental.ld_score_regression(
+    ...     z_expr=mt_gwas['Z'],
+    ...     n_samples_expr=mt_gwas['N'],
+    ...     weight_expr=mt_gwas['weight'],
+    ...     ld_score_exprs=[mt_gwas[x] for x in list(mt_gwas['ld_scores'])],
+    ...     n_reference_panel_variants_exprs=[mt_gwas[x] for x in list(mt_gwas['M_5_50'])],
+    ...     two_step_threshold=None,
+    ...     n_iterations=1,
+    ...     max_chi_sq=80)
 
-    >>> ht_gwas = hl.read_table('data/ld_score.sumstats.ht')
-    >>> ht_results = hl.experimental.estimate_heritability(
-    ...     z_expr=ht_gwas.Z_50_irnt,
-    ...     n_samples_expr=N_50_irnt,
-    ...     weight_expr=ht_gwas.ld_score,
-    ...     ld_score_expr=ht_gwas.ld_score)
+    Run univariate LD score regression on a table with summary statistics
+    for a single trait:
+
+    >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sample.mt')
+    >>> ht_gwas = mt_gwas.filter_cols(mt['phenotype'] == '50_irnt').entries()
+    >>> ht_results = hl.experimental.ld_score_regression(
+    ...     z_expr=ht_gwas['Z_50_irnt'],
+    ...     n_samples_expr=ht_gwas['N_50_irnt'],
+    ...     weight_expr=ht_gwas['weight'],
+    ...     ld_score_expr=[ht_gwas[x] for x in list(ht_gwas['ld_scores'])][0],
+    ...     n_reference_panel_variants_exprs=[ht_gwas[x] for x in list(ht_gwas['M_5_50'])][0],
+    ...     two_step_threshold=30,
+    ...     n_iterations=3)
 
 
     Notes
     -----
 
-    The ``exprs`` provided as arguments to :func:`.estimate_heritability`
+    The ``exprs`` provided as arguments to :func:`.ld_score_regression`
     must all originate from the same object, either a :class:`Table` or a
     :class:`MatrixTable`.
 
@@ -379,7 +411,7 @@ def ld_score_regression(z_expr,
        of type :py:data:`.tstr` that uniquely identifies traits
        represented in the matrix table. The column key must be a
        single expression; compound keys are not accepted.
-    *  ``weight_expr`` and ``ld_score_expr`` must be row-indexed
+    *  ``weight_expr`` and ``ld_score_exprs`` must be row-indexed
        fields.
 
     The function returns a :class:`.Table` with the following fields:
@@ -410,8 +442,8 @@ def ld_score_regression(z_expr,
 
     Warning
     -------
-    :func:`.estimate_heritability` considers only rows for which the
-    fields ``z_expr``, ``weight_expr`` and ``ld_score_expr`` are defined. 
+    :func:`.ld_score_regression` considers only rows for which the
+    fields ``z_expr``, ``weight_expr`` and ``ld_score_exprs`` are defined. 
     Rows with missing values in any of these fields are removed prior to
     fitting the LD score regression model.
 
@@ -421,7 +453,7 @@ def ld_score_regression(z_expr,
             A row-indexed (if table) or entry-indexed (if matrix table)
             expression for Z statistics resulting from genome-wide
             association studies.
-    n_samples_exprs: :class:`.NumericExpression`
+    n_samples_expr: :class:`.NumericExpression`
                     A row-indexed (if table) or entry-indexed
                     (if matrix table) expression indicating the number of
                     samples used in the studies that generated the
@@ -429,9 +461,14 @@ def ld_score_regression(z_expr,
     weight_expr : :class:`.NumericExpression`
                   Row-indexed expression for the LD scores used to derive
                   variant weights in the model.
-    ld_score_expr : :class:`.NumericExpression`
+    ld_score_exprs : :class:`.NumericExpression`
                     Row-indexed expression for the LD scores used as covariates
                     in the model.
+    n_reference_panel_variants_exprs : :obj:`int`, optional
+                                 Number of variants used to estimate the LD
+                                 scores used as covariates in the model. Default
+                                 is number of variants for which `ld_score_expr`
+                                 is defined.
     n_blocks : :obj:`int`
                The number of blocks used in the jackknife approach to
                estimating standard errors.
@@ -441,11 +478,9 @@ def ld_score_regression(z_expr,
                          term in the first step of the two-step procedure used to fit
                          the model. Default behavior is to estimate the intercept
                          and SNP-heritability terms in a single step.
-    n_reference_panel_variants : :obj:`int`, optional
-                                 Number of variants used to estimate the LD
-                                 scores used as covariates in the model. Default
-                                 is number of variants for which `ld_score_expr`
-                                 is defined.
+    max_chi_sq : :obj:`int`, optional
+                 Summary statistics with chi-squared test statistics greater than
+                 this value are removed prior to fitting the model.
 
     Returns
     -------

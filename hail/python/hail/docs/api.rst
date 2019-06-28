@@ -39,7 +39,7 @@ Modules
     stats <stats/index>
     genetics <genetics/index>
     plot <plot>
-    experimental <experimental/index>
+    experimental <experimental>
 
 Top-Level Functions
 ~~~~~~~~~~~~~~~~~~~
