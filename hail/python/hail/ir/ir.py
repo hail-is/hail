@@ -1178,7 +1178,7 @@ class BaseApplyAggOp(IR):
     def __hash__(self):
         return hash(tuple([self.agg_op,
                            tuple(self.constructor_args),
-                           tuple(self.init_op_args),
+                           tuple(self.init_op_args) if self.init_op_args is not None else hash(None),
                            tuple(self.seq_op_args)]))
 
     def _compute_type(self, env, agg_env):
