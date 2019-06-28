@@ -38,12 +38,12 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
 github = Github(token)
 
 component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'konradjk', 'johnc1231'],
-    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'johnc1231'],
-    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'akotlar'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231'],
+    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
+    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar'],
     'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
     'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
-    'Web app (JS)': ['akotlar', 'danking', 'daniel-goldstein'],
+    'Web app (JS)': ['akotlar', 'danking'],
 }
 
 default_repo = 'hail'
