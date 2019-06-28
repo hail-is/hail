@@ -330,12 +330,12 @@ class Job:
 
     @staticmethod
     def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
-                   parent_ids, input_files, output_files, userdata, always_run, pvc_size):
+                   parent_ids, input_files, output_files, userdata, always_run,
+                   pvc_size, state):
         pvc_name = None
         pod_name = None
         duration = 0
         task_idx = 0
-        state = 'Pending'
         cancelled = False
         user = userdata['username']
 
@@ -397,14 +397,6 @@ class Job:
         self._state = state
         self._cancelled = cancelled
 
-    async def run(self):
-        parents = await db.jobs.get_parents(*self.id)
-        if not parents:
-            await self.set_state('Ready')
-            await self._create_pod()
-        else:
-            await self.refresh_parents_and_maybe_create()
-
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
             parent_job = Job.from_record(record)
@@ -422,16 +414,15 @@ class Job:
             await self.notify_children(new_state)
 
     async def notify_children(self, new_state):
+        if new_state not in complete_states:
+            return
+
         children = [Job.from_record(record) for record in await db.jobs.get_children(*self.id)]
         for child in children:
-            if child:
-                await child.parent_new_state(new_state, *self.id)
-            else:
-                log.info(f'missing child: {child.id}')
+            await child.parent_new_state(new_state, *self.id)
 
     async def parent_new_state(self, new_state, parent_batch_id, parent_job_id):
         assert parent_batch_id == self.batch_id
-        assert await db.jobs_parents.has_record(*self.id, parent_job_id)
         if new_state in complete_states:
             await self.create_if_ready()
 
@@ -593,6 +584,8 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
+    state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+
     job = Job.create_job(
         jobs_builder,
         batch_id=batch_id,
@@ -605,7 +598,8 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         output_files=output_files,
         userdata=userdata,
         always_run=always_run,
-        pvc_size=pvc_size)
+        pvc_size=pvc_size,
+        state=state)
     return job
 
 
@@ -852,10 +846,12 @@ async def create_jobs(request, userdata):
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
+
         log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
 
         for job in jobs:
-            await app['start_job_queue'].put(job)
+            if job._state == 'Ready':
+                await app['start_job_queue'].put(job)
     finally:
         await jobs_builder.close()
 
@@ -1114,7 +1110,8 @@ async def create_pods_if_ready():
     await asyncio.sleep(30)
     while True:
         for record in await db.jobs.get_records_where({'state': 'Ready',
-                                                       'pod_name': None}):
+                                                       'pod_name': None,
+                                                       'closed': True}):
             job = Job.from_record(record)
             try:
                 await job._create_pod()
@@ -1126,7 +1123,8 @@ async def create_pods_if_ready():
 async def start_job(queue):
     while True:
         job = await queue.get()
-        await job.run()
+        if job._state == 'Ready':
+            await job._create_pod()
         queue.task_done()
 
 
