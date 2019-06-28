@@ -103,7 +103,10 @@ def main(args, pass_through_args):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
-    deploy_metadata = hailctl._deploy_metadata['dataproc']
+    if not pkg_resources.resource_exists(__name__, "deploy.yaml"):
+        raise RuntimeError(f"package has no 'deploy.yaml' file")
+    deploy_metadata = yaml.safe_load(
+        pkg_resources.resource_stream(__name__, "deploy.yaml"))
 
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
