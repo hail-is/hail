@@ -15,13 +15,10 @@ object StagedRegionValueBuilder {
       else {
         val fix = f.typ.fundamentalType match {
           case t@(_: PBinary | _: PArray) =>
-            Code(
-              er.region.storeAddress(typ.fieldOffset(value, f.index),
-              deepCopy(er, t, typ.loadField(er.region, value, f.index))))
+            er.region.storeAddress(typ.fieldOffset(value, f.index),
+              deepCopy(er, t, typ.loadField(er.region, value, f.index)))
           case t: PBaseStruct =>
-            val off = er.mb.newField[Long]
-            Code(off := typ.loadField(er.region, value, f.index),
-              fixupStruct(er, t, off))
+              fixupStruct(er, t, typ.loadField(er.region, value, f.index))
         }
         typ.isFieldDefined(er.region, value, f.index).mux(fix, Code._empty)
       }
@@ -36,7 +33,7 @@ object StagedRegionValueBuilder {
     val i = er.mb.newField[Int]
     val len = er.mb.newField[Int]
 
-    val perElt = typ.elementType match {
+    val perElt = typ.elementType.fundamentalType match {
       case t@(_: PBinary | _: PArray) =>
         region.storeAddress(typ.elementOffset(value, len, i),
           deepCopy(er, t, typ.loadElement(region, value, i)))
@@ -80,7 +77,7 @@ object StagedRegionValueBuilder {
       case t: PArray =>
         Code(
           offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
-          region.copyFrom(region, value, offset, PBinary.loadLength(region, value).toL + 4L),
+          region.copyFrom(region, value, offset, t.contentsByteSize(t.loadLength(region, value))),
           fixupArray(er, t, offset))
       case t =>
         Code(
