@@ -323,10 +323,14 @@ class Job:
 
     @staticmethod
     async def from_pod(pod):
-        batch_id = pod.metadata.labels['batch_id']
-        job_id = pod.metadata.labels['job_id']
-        user = pod.metadata.labels['user']
-        return await Job.from_db(batch_id, job_id, user)
+        batch_id = pod.metadata.labels.get('batch_id')
+        job_id = pod.metadata.labels.get('job_id')
+        user = pod.metadata.labels.get('user')
+
+        if batch_id is None or job_id is None or user is None:
+            return await db.jobs.get_record_by_pod_name(pod.metadata.name)
+        else:
+            return await Job.from_db(batch_id, job_id, user)
 
     @staticmethod
     async def from_db(batch_id, job_id, user):
