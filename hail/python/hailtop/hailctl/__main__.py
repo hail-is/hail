@@ -22,6 +22,10 @@ def print_help():
     subs.add_parser('version',
                     help='Print version information and exit.',
                     description='Print version information and exit.')
+    subs.add_parser('batch',
+                    help='Manage batches running on the batch service managed by the Hail team.',
+                    description='Manage batches running on the batch service managed by the Hail team.')
+
     main_parser.print_help()
 
 
@@ -87,6 +91,9 @@ def main():
             cli.main(args)
         elif module == 'dev':
             from hailtop.hailctl.dev import cli
+            cli.main(args)
+        elif module == 'batch':
+            from hailtop.hailctl.batch import cli
             cli.main(args)
         elif module == '-h' or module == '--help' or module == 'help':
             print_help()
