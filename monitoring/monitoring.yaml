@@ -434,6 +434,7 @@ spec:
     - port: 9300
       name: inter-node
 ---
+{% set n_replicas = 3 %}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -441,7 +442,7 @@ metadata:
   namespace: monitoring
 spec:
   serviceName: elasticsearch
-  replicas: 3
+  replicas: {{ n_replicas }}
   selector:
     matchLabels:
       app: elasticsearch
@@ -478,7 +479,7 @@ spec:
             - name: discovery.zen.ping.unicast.hosts
               value: "es-cluster-0.elasticsearch,es-cluster-1.elasticsearch,es-cluster-2.elasticsearch"
             - name: discovery.zen.minimum_master_nodes
-              value: "2" #Should be N/2 + 1 at minimum, where N is the number of replicas.
+              value: "{{ n_replicas // 2 + 1 }}"
             - name: cluster.initial_master_nodes
               value: "es-cluster-0,es-cluster-1,es-cluster-2"
             - name: ES_JAVA_OPTS
