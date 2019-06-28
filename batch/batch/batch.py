@@ -128,7 +128,10 @@ class Job:
                 metadata=kube.client.V1ObjectMeta(
                     generate_name=f'batch-{self.batch_id}-job-{self.job_id}-',
                     labels={'app': 'batch-job',
-                            'hail.is/batch-instance': INSTANCE_ID}),
+                            'hail.is/batch-instance': INSTANCE_ID,
+                            'batch_id': self.batch_id,
+                            'job_id': self.job_id,
+                            'user': self.user}),
                 spec=kube.client.V1PersistentVolumeClaimSpec(
                     access_modes=['ReadWriteOnce'],
                     volume_mode='Filesystem',
@@ -189,7 +192,10 @@ class Job:
                 generate_name='batch-{}-job-{}-{}-'.format(self.batch_id, self.job_id, self._current_task.name),
                 labels={'app': 'batch-job',
                         'hail.is/batch-instance': INSTANCE_ID,
-                        'uuid': uuid.uuid4().hex
+                        'uuid': uuid.uuid4().hex,
+                        'batch_id': self.batch_id,
+                        'job_id': self.job_id,
+                        'user': self.user
                         }),
             spec=pod_spec)
 
@@ -314,6 +320,13 @@ class Job:
                        task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'],
                        cancelled=record['cancelled'])
         return None
+
+    @staticmethod
+    async def from_pod(pod):
+        batch_id = pod.metadata.labels['batch_id']
+        job_id = pod.metadata.labels['job_id']
+        user = pod.metadata.labels['user']
+        return await Job.from_db(batch_id, job_id, user)
 
     @staticmethod
     async def from_db(batch_id, job_id, user):
@@ -1021,12 +1034,7 @@ class DeblockedIterator:
 
 
 async def pod_changed(pod):
-    if pod.metadata.name is None:
-        log.info(f'ignoring pod.metadata.name is None: {pod.to_dict()}')
-        return
-
-    job = Job.from_record(await db.jobs.get_record_by_pod(pod.metadata.name))
-
+    job = await Job.from_pod(pod)
     if job and not job.is_complete():
         await update_job_with_pod(job, pod)
 
@@ -1068,7 +1076,7 @@ async def refresh_k8s_pods():
         pod_name = pod.metadata.name
         seen_pods.add(pod_name)
 
-        job = Job.from_record(await db.jobs.get_record_by_pod(pod_name))
+        job = await Job.from_pod(pod)
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
 
