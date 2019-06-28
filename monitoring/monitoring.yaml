@@ -469,20 +469,20 @@ spec:
             - name: data
               mountPath: /usr/share/elasticsearch/data
           env:
-            - name: cluster.name # Should this name be hardcoded?
+            - name: cluster.name 
               value: gke_hail-vdc_us-central1-a_vdc
             - name: node.name
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
             - name: discovery.zen.ping.unicast.hosts
-              value: "es-cluster-0.elasticsearch,es-cluster-1.elasticsearch,es-cluster-2.elasticsearch" #TODO This seems dumb, why must I list out all numbers?
+              value: "es-cluster-0.elasticsearch,es-cluster-1.elasticsearch,es-cluster-2.elasticsearch"
             - name: discovery.zen.minimum_master_nodes
               value: "2" #Should be N/2 + 1 at minimum, where N is the number of replicas.
             - name: cluster.initial_master_nodes
               value: "es-cluster-0,es-cluster-1,es-cluster-2"
             - name: ES_JAVA_OPTS
-              value: "-Xms512m -Xmx512m" #Just grabbed numbers from tutorial
+              value: "-Xms512m -Xmx512m"
       initContainers:
         - name: fix-permissions
           image: busybox:1.31
@@ -634,7 +634,7 @@ spec:
     spec:
       serviceAccountName: fluentd
       tolerations:
-        - key: node-role.kubernetes.io/master # This toleration makes Fluentd pod also run on master node.
+        - key: node-role.kubernetes.io/master
           effect: NoSchedule
       containers:
         - name: fluentd
