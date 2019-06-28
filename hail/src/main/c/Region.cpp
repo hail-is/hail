@@ -53,6 +53,30 @@ void Region::add_reference_to(RegionPtr region) {
   parents_.push_back(std::move(region));
 }
 
+size_t Region::get_num_parents() {
+  return parents_.size();
+}
+
+void Region::set_num_parents(int n) {
+  parents_.resize(n, nullptr);
+}
+
+void Region::set_parent_reference(RegionPtr region, int i) {
+  parents_[i] = region;
+}
+
+RegionPtr Region::get_parent_reference(int i) { return parents_[i]; }
+
+RegionPtr Region::new_parent_reference(int i) {
+  auto r = get_region();
+  parents_[i] = r;
+  return r;
+}
+
+void Region::clear_parent_reference(int i) {
+  parents_[i] = nullptr;
+}
+
 std::unique_ptr<char[]> RegionPool::get_block() {
   if (free_blocks_.empty()) {
     return std::make_unique<char[]>(REGION_BLOCK_SIZE);
@@ -87,6 +111,9 @@ void ScalaRegionPool::own(RegionPool &&pool) {
 
 ScalaRegion::ScalaRegion(ScalaRegionPool * pool) :
 region_(pool->pool_.get_region()) { }
+
+ScalaRegion::ScalaRegion(std::nullptr_t) :
+region_(nullptr) { }
 
 #define REGIONMETHOD(rtype, scala_class, scala_method) \
   extern "C" __attribute__((visibility("default"))) \
@@ -131,6 +158,14 @@ REGIONMETHOD(void, Region, nativeCtor)(
 ) {
   auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, poolJ));
   NativeObjPtr ptr = std::make_shared<ScalaRegion>(pool);
+  init_NativePtr(env, thisJ, &ptr);
+}
+
+REGIONMETHOD(void, Region, initEmpty)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  NativeObjPtr ptr = std::make_shared<ScalaRegion>(nullptr);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -186,6 +221,65 @@ REGIONMETHOD(void, Region, nativeRefreshRegion)(
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
   r->region_ = r->region_->get_region();
+}
+
+REGIONMETHOD(void, Region, nativeClearRegion)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  r->region_ = nullptr;
+}
+
+REGIONMETHOD(jint, Region, nativeGetNumParents)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jint) r->region_->get_num_parents();
+}
+
+REGIONMETHOD(void, Region, nativeSetNumParents)(
+  JNIEnv* env,
+  jobject thisJ,
+  jint i
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  r->region_->set_num_parents((int) i);
+}
+
+REGIONMETHOD(void, Region, nativeSetParentReference)(
+  JNIEnv* env,
+  jobject thisJ,
+  jobject otherJ,
+  jint i
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  r->region_->set_parent_reference(r2->region_, (int) i);
+}
+
+REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
+  JNIEnv* env,
+  jobject thisJ,
+  jobject otherJ,
+  jint i
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  r2->region_ = r->region_->get_parent_reference((int) i);
+  if (r2->region_.get() == nullptr) {
+    r2->region_ = r->region_->new_parent_reference((int) i);
+  }
+}
+
+REGIONMETHOD(void, Region, nativeClearParentReference)(
+  JNIEnv* env,
+  jobject thisJ,
+  jint i
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  r->region_->clear_parent_reference((int) i);
 }
 
 }

@@ -7,6 +7,7 @@ import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -391,6 +392,40 @@ class UnsafeSuite extends HailSuite {
     counts = getCurrentCounts
     region3.refreshRegion()
     assert(getCurrentCounts == counts.refreshRegion(2))
+  }
+
+  @Test def testRegionReferences() {
+    def offset(region: Region) = region.allocate(0)
+    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+    def assertUsesRegions[T](n: Int)(f: => T): T = {
+      val usedRegionCount = numUsed()
+      val res = f
+      assert(usedRegionCount == numUsed() - n)
+      res
+    }
+
+    val region = Region()
+    region.setNumParents(5)
+
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4) }) { r =>
+      offset(r)
+    }
+
+    val off2 = Region.scoped { r =>
+      region.setParentReference(r, 2)
+      offset(r)
+    }
+
+    using(region.getParentReference(2)) { r =>
+      assert(offset(r) == off2)
+    }
+
+    using(region.getParentReference(4)) { r =>
+      assert(offset(r) == off4)
+    }
+
+    assertUsesRegions(-1) { region.clearParentReference(2) }
+    assertUsesRegions(-1) { region.clearParentReference(4) }
   }
 
   // Tests for Region serialization have been removed since an off-heap Region
