@@ -564,7 +564,6 @@ def ld_score_regression(z_expr,
                 mt['_in_step1'],
                 1.0 / (mt['_w_initial_floor'] * 2.0 * (1.0 + (mt['_n'] * mt['_step1_h2'] * mt['_x_total'] / mt['_m_total']))**2),
                 0.0))
-        #mt = mt.annotate_rows(_x=hl.map(lambda x: mt['_n'] * x / mt['_n_mean'], mt['_x']))
         mt = mt.annotate_cols(
             _step1_betas=hl.agg.filter(
                 mt['_in_step1'],
