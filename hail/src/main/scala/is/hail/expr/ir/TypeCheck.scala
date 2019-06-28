@@ -61,7 +61,6 @@ object TypeCheck {
       .iterator
       .zipWithIndex
       .foreach {
-        case null => null
         case (child: IR, i) => check(child, ChildBindings(ir, i, env))
         case (tir: TableIR, _) => check(tir)
         case (mir: MatrixIR, _) => check(mir)
