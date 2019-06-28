@@ -26,6 +26,7 @@ from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder
 from .k8s import K8s
 from .globals import complete_states
+from .queue import scale_queue_consumers
 
 from . import schemas
 
@@ -824,14 +825,6 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
-async def start_jobs(batch_id, jobs):
-    start_time = time.time()
-    for j in jobs:
-        await j.run()
-    elapsed_time = round(time.time() - start_time, 4)
-    log.info(f'started {len(jobs)} jobs in batch {batch_id} in {elapsed_time} seconds')
-
-
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
@@ -859,11 +852,15 @@ async def create_jobs(request, userdata):
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
+        log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+
+        for job in jobs:
+            await app['start_job_queue'].put(job)
     finally:
         await jobs_builder.close()
 
-    asyncio.ensure_future(start_jobs(batch_id, jobs))
     return jsonify({})
+
 
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
@@ -1126,6 +1123,13 @@ async def create_pods_if_ready():
         await asyncio.sleep(30)
 
 
+async def start_job(queue):
+    while True:
+        job = await queue.get()
+        await job.run()
+        queue.task_done()
+
+
 async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
     await refresh_k8s_pods()
@@ -1167,11 +1171,13 @@ async def on_startup(app):
     app['blocking_pool'] = pool
     app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
     app['log_store'] = LogStore(pool, INSTANCE_ID, log)
+    app['start_job_queue'] = asyncio.Queue()
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
     asyncio.ensure_future(create_pods_if_ready())
+    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16))
 
 
 app.on_startup.append(on_startup)
