@@ -16,6 +16,7 @@ push: build
 	docker push $(MONITORING_ROUTER_IMAGE)
 
 deploy: push
-	kubectl apply -f monitoring.yaml
+	python3 ../ci/jinja2_render.py '{}' monitoring.yaml monitoring.yaml.out
+	kubectl apply -f monitoring.yaml.out
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"monitoring_router_image":{"image":"$(MONITORING_ROUTER_IMAGE)"}}' router.yaml router.yaml.out
 	kubectl apply -f router.yaml.out
