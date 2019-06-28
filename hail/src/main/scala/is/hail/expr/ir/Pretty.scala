@@ -75,7 +75,7 @@ object Pretty {
       sigs.foreach { x =>
         sb += '\n'
         sb.append(" " * (depth + 2))
-        prettyAggSignature(x)
+        sb.append(prettyAggSignature(x))
       }
       sb += ')'
     }
@@ -175,7 +175,7 @@ object Pretty {
           sb += '\n'
           prettyAggSeq(aggSigs, depth + 2)
           sb += '\n'
-          pretty(i, depth + 2)
+          pretty(path, depth + 2)
         case WriteAggs(i, path, spec, aggSigs) =>
           sb += ' '
           sb.append(i)
@@ -184,7 +184,7 @@ object Pretty {
           sb += '\n'
           prettyAggSeq(aggSigs, depth + 2)
           sb += '\n'
-          pretty(i, depth + 2)
+          pretty(path, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
