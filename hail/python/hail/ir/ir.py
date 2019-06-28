@@ -13,8 +13,6 @@ from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 from .table_writer import TableWriter
 
-import hashlib
-
 def _env_bind(env, k, v):
     env = env.copy()
     env[k] = v
@@ -1178,18 +1176,10 @@ class BaseApplyAggOp(IR):
                other.seq_op_args == self.seq_op_args
 
     def __hash__(self):
-        h = hash(self.agg_op)
-        h *= 37
-        for x in self.constructor_args:
-            h += 31 * hash(x)
-        h *= 37
-        if self.init_op_args:
-            for x in self.constructor_args:
-                h += 31 * hash(x)
-        h *= 37
-        for x in self.seq_op_args:
-            h += 31 * hash(x)
-        return h
+        return hash(tuple([self.agg_op,
+                           tuple(self.constructor_args),
+                           tuple(self.init_op_args),
+                           tuple(self.seq_op_args)]))
 
     def _compute_type(self, env, agg_env):
         for a in self.constructor_args:
@@ -1256,6 +1246,9 @@ class MakeStruct(IR):
     def __eq__(self, other):
         return isinstance(other, MakeStruct) \
                and other.fields == self.fields
+
+    def __hash__(self):
+        return hash(tuple(self.fields))
 
     def _compute_type(self, env, agg_env):
         for f, x in self.fields:
