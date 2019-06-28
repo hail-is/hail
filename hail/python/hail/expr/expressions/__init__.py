@@ -65,4 +65,5 @@ __all__ = ['Indices',
            'expr_interval',
            'expr_oneof',
            'matrix_table_source',
+           'table_source',
            ]
