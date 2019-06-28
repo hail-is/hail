@@ -98,6 +98,11 @@ def matrix_table_aggregate_entries():
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt.aggregate_entries(hl.agg.stats(mt.GQ))
 
+@benchmark
+def matrix_table_call_stats_star_star():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.annotate_rows(**hl.agg.call_stats(mt.GT, mt.alleles))._force_count_rows()
+
 # @benchmark never finishes
 def gnomad_coverage_stats():
     mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
@@ -145,3 +150,12 @@ def gnomad_coverage_stats_optimized():
                           **{f'above_{x}': hl.sum(mt.count_array[x:]) for x in [1, 5, 10, 15, 20, 25, 30, 50, 100]}
                           )
     mt.rows()._force_count()
+
+@benchmark
+def per_row_stats_star_star():
+    mt = hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))
+    mt.annotate_rows(**hl.agg.stats(mt.x))._force_count_rows()
+
+@benchmark
+def read_decode_gnomad_coverage():
+    hl.read_matrix_table(resource('gnomad_dp_simulation.mt'))._force_count_rows()

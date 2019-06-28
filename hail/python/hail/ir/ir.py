@@ -13,7 +13,6 @@ from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 from .table_writer import TableWriter
 
-
 def _env_bind(env, k, v):
     env = env.copy()
     env[k] = v
@@ -1176,6 +1175,12 @@ class BaseApplyAggOp(IR):
                other.init_op_args == self.init_op_args and \
                other.seq_op_args == self.seq_op_args
 
+    def __hash__(self):
+        return hash(tuple([self.agg_op,
+                           tuple(self.constructor_args),
+                           tuple(self.init_op_args) if self.init_op_args is not None else hash(None),
+                           tuple(self.seq_op_args)]))
+
     def _compute_type(self, env, agg_env):
         for a in self.constructor_args:
             a._compute_type(env, agg_env)
@@ -1242,6 +1247,9 @@ class MakeStruct(IR):
         return isinstance(other, MakeStruct) \
                and other.fields == self.fields
 
+    def __hash__(self):
+        return hash(tuple(self.fields))
+
     def _compute_type(self, env, agg_env):
         for f, x in self.fields:
             x._compute_type(env, agg_env)
@@ -1284,6 +1292,34 @@ class InsertFields(IR):
 
         def render_children(self, r: 'Renderer'):
             return [self.child]
+
+    @staticmethod
+    @typecheck(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
+    def construct_with_deduplication(old, fields, field_order):
+        dd = defaultdict(int)
+        for k, v in fields:
+            if isinstance(v, GetField):
+                dd[v.o] += 1
+
+        replacements = {}
+        lets = []
+        for k, v in dd.items():
+            if v > 1:
+                uid = Env.get_uid()
+                lets.append((uid, k))
+                replacements[k] = uid
+
+        insert_irs = []
+        for k, v in fields:
+            if isinstance(v, GetField) and v.o in replacements:
+                insert_irs.append((k, GetField(Ref(replacements[v.o]), v.name)))
+            else:
+                insert_irs.append((k, v))
+
+        r = InsertFields(old, insert_irs, field_order)
+        for uid, value in lets:
+            r = Let(uid, value, r)
+        return r
 
     @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
     def __init__(self, old, fields, field_order):
