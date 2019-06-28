@@ -608,21 +608,55 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
           val ae = emitStream(resultRegion, a, env, useOneRegion)
           val sab = resultRegion.arrayBuilder(fb, containerPType)
+
+          def emitProducer(): EmitTriplet = {
+            val producer = ae.produce()
+            val advanceLabel = fb.genSym("advance_label")
+            val doneLabel = fb.genSym("done_label")
+            val doneK = s"goto $doneLabel;"
+            val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
+            val i = fb.variable("i", "int")
+            present(
+              s"""
+                 |({
+                 |${ ae.setup }
+                 |${ ae.setupLen }
+                 |${ xs.define }
+                 |${ producer.init(doneK) }
+                 |$advanceLabel:
+                 |  $xs.push_back(${ producer.x });
+                 |  ${ producer.step(doneK) }
+                 |  goto $advanceLabel;
+                 |$doneLabel:
+                 |  ${ sab.start(s"$xs.size()") }
+                 |  for (${ i.defineWith("0") } $i < $xs.size(); ++$i) {
+                 |    ${ sab.add(s"$xs[$i]") }
+                 |    ${ sab.advance() }
+                 |  }
+                 |  ${ sab.end() };
+                 |})
+               """.stripMargin)
+          }
+
           ae.length match {
             case Some(length) =>
-              val (init, next) = ae.produce()
-              val advanceLabel = "advancelabel" //TODO unique names
-              val doneLabel = "donelabel"
               triplet(ae.setup, ae.m,
                 s"""
                    |({
                    |  ${ ae.setupLen }
                    |  ${ sab.start(length) }
-                   |  $init
-                   |  $advanceLabel:
-                   |    ${ next(v => Code(sab.add(v), sab.advance(), s"goto $advanceLabel;"), s"goto $doneLabel;") }
-                   |  $doneLabel:
-                   |    ${ sab.end() };
+                   |  ${
+                  ae.consume { case (m, v) =>
+                    s"""
+                       |if (${ m })
+                       |  ${ sab.setMissing() }
+                       |else
+                       |  ${ sab.add(v) }
+                       |${ sab.advance() }
+                       |""".stripMargin
+                  }
+                }
+                   |  ${ sab.end() };
                    |})
                    |""".stripMargin)
 
@@ -661,6 +695,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                    |  ${ sab.end() };
                    |})
                    |""".stripMargin)
+
+                emitProducer()
           }
         }
 
@@ -1146,8 +1182,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val s = StringEscapeUtils.escapeString(ir.Pretty.short(x))
 
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
+        val produceX = fb.variable("x", "int")
+
         new ArrayEmitter(
           s"""
+             |${ produceX.define }
              |${ startt.setup }
              |${ stopt.setup }
              |${ stept.setup }
@@ -1184,22 +1223,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                |""".stripMargin
           }
 
-          override def produce(): (Code, (Code => Code, Code) => Code) = {
-            val i = fb.variable("i", "int", "0")
-            val v = fb.variable("v", "int", s"$startv - $stepv") // TODO HACK
-            val next = (elementK: Code => Code, eosK: Code) =>
+          override def produce(): Producer = {
+            val init = (doneK: Code) =>
+              s"""
+                 |if ($len == 0) {
+                 |  $doneK
+                 |}
+                 |$produceX = $startv;
+               """.stripMargin
+
+            val step = (eosK: Code) =>
             s"""
-               |if ($i < $len) {
-               |  $v += $stepv;
-               |  ++$i;
-               |  ${ elementK(v.toString) }
+               |if ($produceX < $stopv) {
+               |  $produceX += $stepv;
                |}
                |else {
                |  $eosK
                |}
              """.stripMargin
 
-            (Code(i.define, v.define), next)
+            Producer(init, step, produceX)
           }
         }
 
@@ -1227,26 +1270,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             }
             sb.result().mkString
           }
-/*
-          override def produce(): (Code, (Code => Code, Code) => Code) = {
-            var i = 0
-            val next = (elementK: Code => Code, eosK: Code) => {
-              if (i < triplets.length) {
-                val argt = triplets(i)
-                i += 1
-                s"""
-                   |${ arrayRegion.defineIfUsed(sameRegion) }
-                   |${ argt.setup }
-                   |${ elementK(argt.v) }
-                 """.stripMargin
-              }
-              else
-                eosK
-            }
-
-            ("", next)
-          }
-          */
         }
 
       case ir.ArrayFilter(a, name, cond) =>
@@ -1287,7 +1310,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyt = outer.emit(arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length, arrayRegion) {
+        val x = fb.variable("x", typeToCXXType(body.pType))
+
+        new ArrayEmitter(Code(ae.setup, vv.define, x.define), ae.m, ae.setupLen, ae.length, arrayRegion) {
           def consume(f: (Code, Code) => Code): Code = {
             ae.consume { (m2: Code, v2: Code) =>
               s"""
@@ -1304,21 +1329,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
             }
           }
 
-          override def produce(): (Code, (Code => Code, Code) => Code) = {
-            val (aInit, aNext) = ae.produce()
-            val next = (elementK: Code => Code, eosK: Code) =>
-              aNext(
-                (elem: Code) =>
-                  s"""
-                     |{
-                     |  ${ vv.defineWith(elem) }
-                     |  ${ bodyt.setup }
-                     |  ${ elementK(bodyt.v) }
-                     |}
-                   """.stripMargin,
-                eosK)
+          override def produce(): Producer = {
+            val p = ae.produce()
 
-            (aInit, next)
+            val init = (doneK: Code) =>
+              s"""
+                 |${ p.init(doneK) }
+                 |${ bodyt.setup }
+                 |$vv = ${ p.x };
+                 |$x = ${ bodyt.v };
+               """.stripMargin
+
+            val step = (doneK: Code) =>
+              s"""
+                 |${ p.step(doneK) }
+                 |${ bodyt.setup }
+                 |$vv = ${ p.x };
+                 |$x = ${ bodyt.v };
+               """.stripMargin
+
+            Producer(init, step, x)
           }
         }
 
@@ -1354,73 +1384,112 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.ArrayJoin(l, r, lName, rName, stepLeftF, stepRightF, produceValueF, joinF) =>
+      case ir.ArrayJoin(l, r, lName, rName, lOnlyName, rOnlyName, compF, joinFs) =>
         val le = emitStream(resultRegion, l, env, sameRegion)
-        val re = emitStream(resultRegion, l, env, sameRegion)
+        val re = emitStream(resultRegion, r, env, sameRegion)
+        val arrayRegion = le.arrayRegion // TODO Which region should be used?
 
-        val arrayRegion = le.arrayRegion
+        val lP = le.produce()
+        val rP = re.produce()
 
         val lElemType = l.pType.asInstanceOf[PStreamable].elementType
         val rElemType = r.pType.asInstanceOf[PStreamable].elementType
 
-        val lvm = fb.variable("m", "bool")
-        val lvv = fb.variable("v", typeToCXXType(lElemType))
-        val rvm = fb.variable("m", "bool")
-        val rvv = fb.variable("v", typeToCXXType(rElemType))
+        val x = fb.variable("x", typeToCXXType(joinFs(0).pType))
 
-        val newEnv = env.bind(
-          lName -> EmitTriplet(lElemType, "", lvm.toString, lvv.toString, arrayRegion),
-          rName -> EmitTriplet(rElemType, "", rvm.toString, rvv.toString, arrayRegion))
+        val bothEnv = env.bind(
+          lName -> EmitTriplet(lElemType, "", "false", lP.x.toString, arrayRegion),
+          rName -> EmitTriplet(rElemType, "", "false", rP.x.toString, arrayRegion))
+        val compFt = outer.emit(arrayRegion, compF, bothEnv)
+        val joinBothFt = outer.emit(arrayRegion, joinFs(0), bothEnv)
 
-        val stepLeftFt = outer.emit(arrayRegion, stepLeftF, newEnv)
-        val stepRightFt = outer.emit(arrayRegion, stepRightF, newEnv)
-        val produceValueFt = outer.emit(arrayRegion, produceValueF, newEnv)
-        val joinFt = outer.emit(arrayRegion, joinF, newEnv)
+        def emitWithBinding(f: ir.IR, bindingName: String, varName: Variable, t: PType): EmitTriplet = {
+          outer.emit(arrayRegion, f,
+            env.bind(bindingName -> EmitTriplet(t, "", "false", varName.toString, arrayRegion)))
+        }
 
-        val setup = Code(le.setup, re.setup, lvv.define, rvv.define)
-        new ArrayEmitter(setup, s"${ le.m } || ${ re.m }", Code(le.setupLen, re.setupLen), le.length, joinFt.region) {
+        val (leftOnlyFt, rightOnlyFt) = (lOnlyName, rOnlyName) match {
+          case (Some(n1), Some(n2)) =>
+            (Some(emitWithBinding(joinFs(1), n1, lP.x, lElemType)),
+              Some(emitWithBinding(joinFs(2), n2, rP.x, rElemType)))
+
+          case (Some(n), None) =>
+            (Some(emitWithBinding(joinFs(1), n, lP.x, lElemType)), None)
+
+          case (None, Some(n)) =>
+            (None, Some(emitWithBinding(joinFs(1), n, lP.x, lElemType)))
+
+          case (None, None) => (None, None)
+        }
+
+        val cmpResult = fb.variable("cmp", "int")
+        val setup = Code(le.setup, re.setup, x.define, cmpResult.define)
+
+        new ArrayEmitter(setup, s"${ le.m } || ${ re.m }", Code(le.setupLen, re.setupLen), None, arrayRegion) {
           override def consume(f: (Code, Code) => Code): Code = {
             le.consume { (m2: Code, v2: Code) =>
-              ""
+              "" // TODO
             }
           }
 
-          override def produce(): (Code, (Code => Code, Code) => Code) = {
-            val stepL = fb.variable("step_left", "bool")
-            val stepR = fb.variable("step_right", "bool")
+          override def produce(): Producer = {
 
-            val (linit, lnext) = le.produce()
-            val (rinit, rnext) = re.produce()
-
-            val init = Code(linit, rinit, stepLeftFt.setup, stepRightFt.setup, stepL.define, stepR.define)
-
-            val produceLabel = "producelabel1234" //TODO unique names
-            val advanceLabel = "advancelabel1234"
-            val next = (processAndAdvanceK: Code => Code, eosK: Code) => {
+            val step = (doneK: Code) => {
+              val stepLabel = fb.genSym("step_label")
               s"""
-                 |$produceLabel:
-                 |  $stepL = ${ stepLeftFt.v };
-                 |  $stepR = ${ stepLeftFt.v };
-                 |  ${
-                lnext(lElem =>
-                  rnext(rElem =>
-                    s"""
-                       |$lvv = $lElem;
-                       |$rvv = $rElem;
-                       |if (${ produceValueFt.v }) {
-                       |  ${ processAndAdvanceK(joinFt.v) }
-                       |}
-                     """.stripMargin, eosK), eosK)
+                 |$stepLabel:
+                 |  ${ compFt.setup }
+                 |  $cmpResult = ${ compFt.v };
+                 |  if ($cmpResult < 0) {
+                 |    ${
+                if (leftOnlyFt.isDefined)
+                  s"""
+                     |${ leftOnlyFt.get.setup }
+                     |$x = ${ leftOnlyFt.get.v };
+                     |
+                     |${ lP.step(doneK) }
+                   """.stripMargin
+                else
+                  s"""
+                     |${ lP.step(doneK) }
+                     |goto $stepLabel;
+                   """.stripMargin
               }
+                 |  }
+                 |  else if ($cmpResult > 0) {
+                 |    ${
+                if (rightOnlyFt.isDefined)
+                  s"""
+                     |${ rightOnlyFt.get.setup }
+                     |$x = ${ rightOnlyFt.get.v };
+                     |
+                     |${ rP.step(doneK) }
+                   """.stripMargin
+                else
+                  s"""
+                     |${ rP.step(doneK) }
+                     |goto $stepLabel;
+                   """.stripMargin
+              }
+                 |  }
+                 |  else {
+                 |    ${ joinBothFt.setup }
+                 |    $x = ${ joinBothFt.v };
                  |
-                 |$advanceLabel:
-                 |if ($stepL) {
-                 |  $eosK;
-                 |}
+                 |    ${ lP.step(doneK) }
+                 |    ${ rP.step(doneK) }
+                 |  }
                """.stripMargin
             }
 
-            (init, next)
+            val init = (doneK: Code) =>
+              s"""
+                 |${ lP.init(doneK) }
+                 |${ rP.init(doneK) }
+                 |${ step(doneK) }
+               """.stripMargin
+
+            Producer(init, step, x)
           }
         }
 

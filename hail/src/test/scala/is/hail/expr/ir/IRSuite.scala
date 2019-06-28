@@ -933,43 +933,17 @@ class IRSuite extends HailSuite {
   @Test def testArrayJoin() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    val key = "key"
-    def makeStructs(keys: Int*): IR = {
-      MakeArray(keys.map { k => MakeStruct(Seq("key" -> I32(k), "val" -> I32(k))) },
-        TArray(TStruct("key" -> TInt32(), "val" -> TInt32())))
-    }
+    val left = ArrayRange(1, 5, 1)
+    val right = ArrayRange(2, 6, 2)
+    val l = Ref("l", left.typ.asInstanceOf[TStreamable].elementType)
+    val r = Ref("r", right.typ.asInstanceOf[TStreamable].elementType)
 
-    def makeArrays(nums: Int*): IR = {
-      MakeArray(nums.map(I32), TArray(TInt32()))
-    }
+    val join =
+      ArrayJoin(left, right, "l", "r", None, None,
+        ApplyComparisonOp(Compare(TInt32(), TInt32()), l, r),
+        FastIndexedSeq(ApplyBinaryPrimOp(Add(), l, r)))
 
-    def innerJoinDistinct(left: IR, right: IR): IR = {
-      val l = Ref("l", left.typ.asInstanceOf[TStreamable].elementType)
-      val r = Ref("r", right.typ.asInstanceOf[TStreamable].elementType)
-      val lKey = GetField(l, key)
-      val rKey = GetField(r, key)
-
-      ArrayJoin(left, right, "l", "r",
-        ApplyComparisonOp(EQ(TInt32(), TInt32()), lKey, rKey),
-        InsertFields(l, Seq("val2" -> GetField(r, "val"))),
-        ApplyComparisonOp(LTEQ(TInt32(), TInt32()), lKey, rKey),
-        ApplyComparisonOp(LT(TInt32(), TInt32()), rKey, lKey))
-    }
-
-    def innerJoinMatches(left: IR, right: IR): IR = {
-      val l = Ref("l", left.typ.asInstanceOf[TStreamable].elementType)
-      val r = Ref("r", right.typ.asInstanceOf[TStreamable].elementType)
-
-      ArrayJoin(left, right, "l", "r",
-        ApplyComparisonOp(EQ(TInt32(), TInt32()), l, r),
-        ApplyBinaryPrimOp(Add(), l, r),
-        ApplyComparisonOp(LTEQ(TInt32(), TInt32()), l, r),
-        ApplyComparisonOp(LT(TInt32(), TInt32()), l, r))
-    }
-
-    val join = innerJoinMatches(ArrayRange(1, 5, 1), ArrayRange(2, 6, 2))
-
-    assertEvalsTo(join, FastIndexedSeq())
+    assertEvalsTo(join, FastIndexedSeq(2 + 2, 4 + 4))
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {

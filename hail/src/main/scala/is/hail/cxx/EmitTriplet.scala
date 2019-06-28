@@ -95,10 +95,10 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
   // f: (missing, value) => result
   def consume(f: (Code, Code) => Code): Code
 
-  // TODO: should be (missing, element) => result
-  // (init, (element) => result, end-of-stream) => result
-  def produce(): (Code, (Code => Code, Code) => Code) = throw new UnimplementedException
+  def produce(): Producer = throw new UnimplementedException
 }
+
+case class Producer(init: Code => Code, step: Code => Code, x: Variable)
 
 object NDArrayEmitter {
   def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {

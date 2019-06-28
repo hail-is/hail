@@ -17,7 +17,7 @@ object Bindings {
     case ArrayFor(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFlatMap(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayFilter(a, name, _) => if (i == 1) Array(name -> -coerce[TStreamable](a.typ).elementType) else empty
-    case ArrayJoin(l, r, lName, rName, _, _, _, _) => if (i == 2 || i == 3 || i == 4 || i == 5) Array(lName -> -coerce[TStreamable](l.typ).elementType, rName -> -coerce[TStreamable](r.typ).elementType) else empty
+    case ArrayJoin(l, r, lName, rName, _, _, _, _) => if (!(i == 0 || i == 1)) Array(lName -> -coerce[TStreamable](l.typ).elementType, rName -> -coerce[TStreamable](r.typ).elementType) else empty
     case ArrayFold(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayScan(a, zero, accumName, valueName, _) => if (i == 2) Array(accumName -> zero.typ, valueName -> -coerce[TStreamable](a.typ).elementType) else empty
     case ArrayAggScan(a, name, _) => if (i == 1) FastIndexedSeq(name -> a.typ.asInstanceOf[TStreamable].elementType) else empty
