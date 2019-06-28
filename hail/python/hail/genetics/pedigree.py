@@ -120,7 +120,7 @@ class Trio(object):
         return self._is_female is True
 
     def is_complete(self):
-        """Returns True if the trio has a defined mother, and father
+        """Returns True if the trio has a defined mother and father.
 
         The considered fields are :meth:`mat_id` and :meth:`pat_id`.
         Recall that ``s`` may never be missing. The :meth:`fam_id`
@@ -134,13 +134,13 @@ class Trio(object):
     def _restrict_to(self, ids):
         if self._s not in ids:
             return None
-        
+
         return Trio(self._s,
                     self._fam_id,
                     self._pat_id if self._pat_id in ids else None,
                     self._mat_id if self._mat_id in ids else None,
                     self._is_female)
-    
+
     def _sex_as_numeric_string(self):
         if self._is_female is None:
             return "0"
@@ -152,11 +152,11 @@ class Trio(object):
                 return "0"
             return sample_id
         line_list = [sample_id_or_else_zero(self._fam_id), 
-                    self._s, 
-                    sample_id_or_else_zero(self._pat_id),
-                    sample_id_or_else_zero(self._mat_id),
-                    self._sex_as_numeric_string(), 
-                    "0"]
+                     self._s,
+                     sample_id_or_else_zero(self._pat_id),
+                     sample_id_or_else_zero(self._mat_id),
+                     self._sex_as_numeric_string(), 
+                     "0"]
         return "\t".join(line_list)
 
 
@@ -220,7 +220,7 @@ class Pedigree(object):
 
                 if is_female is None:
                     missing_sex_count += 1
-                    missing_sex_values.add(sex)
+                    missing_sex_values.add(kid)
 
                 trio = Trio(kid,
                             fam if fam != "0" else None, 
@@ -248,7 +248,7 @@ class Pedigree(object):
         return self._trios
 
     def complete_trios(self):
-        """List of trio objects that have a defined father, mother, and sex.
+        """List of trio objects that have a defined father and mother.
 
         :rtype: list of :class:`.Trio`
         """
