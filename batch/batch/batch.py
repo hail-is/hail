@@ -844,14 +844,18 @@ async def create_jobs(request, userdata):
 
     jobs_builder = JobsBuilder(db)
     try:
+        jobs = []
         for job_params in jobs_parameters['jobs']:
             job = create_job(jobs_builder, batch.id, userdata, job_params)
-            await app['start_job_queue'].put(job)
+            jobs.append(job)
 
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
         log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
+
+        for job in jobs:
+            await app['start_job_queue'].put(job)
     finally:
         await jobs_builder.close()
 
