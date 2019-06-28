@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
-import is.hail.expr.ir.agg.StagedRegionValueAggregator
 import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
