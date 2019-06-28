@@ -73,7 +73,7 @@ object StagedRegionValueBuilder {
       case _: PBinary =>
         Code(
           offset := PBinary.allocate(region, PBinary.loadLength(region, value)),
-          region.copyFrom(region, value, offset, PBinary.loadLength(region, value).toL + 4L))
+          region.copyFrom(region, value, offset, PBinary.contentByteSize(PBinary.loadLength(region, value))))
       case t: PArray =>
         Code(
           offset := region.allocate(t.contentsAlignment, t.contentsByteSize(t.loadLength(region, value))),
