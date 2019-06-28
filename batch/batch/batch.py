@@ -1117,7 +1117,7 @@ async def create_pods_if_ready():
                 await job._create_pod()
             except Exception as exc:  # pylint: disable=W0703
                 log.exception(f'Could not create pod for job {job.id} due to exception: {exc}')
-        await asyncio.sleep(30)
+        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
 async def start_job(queue):
