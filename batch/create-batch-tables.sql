@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX batch_user ON batch (user);
+CREATE INDEX batch_deleted ON batch (deleted);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
