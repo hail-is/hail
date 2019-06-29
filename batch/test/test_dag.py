@@ -185,7 +185,7 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n'
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_input_dependency_directory(client):
@@ -201,7 +201,7 @@ def test_input_dependency_directory(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_always_run_cancel(client):
