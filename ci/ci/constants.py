@@ -24,3 +24,9 @@ AUTHORIZED_USERS = {
     'GreatBrando',
     'johnc1231'
 }
+
+profiles = {
+    "batch_test": [
+        
+    ]
+}

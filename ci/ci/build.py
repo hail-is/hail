@@ -81,8 +81,8 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
 
-        if scope == 'dev':
-            return
+        # if scope == 'dev':
+        #     return
 
         parents = set()
         for step in self.steps:
@@ -454,8 +454,13 @@ class CreateNamespaceStep(Step):
         self.job = None
         if params.scope == 'deploy':
             self._name = namespace_name
-        else:
+        elif params.scope == 'test':
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
+        elif params.scope == 'dev':
+            #TODO
+            log("Dev namespace creation")
+        else:
+            raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
 
     def wrapped_job(self):
         if self.job:

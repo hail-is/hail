@@ -261,6 +261,10 @@ async def batch_callback_handler(request):
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     await wb.notify_batch_changed()
 
+@routes.post('/api/v1alpha/dev_test_branch')
+async def dev_test_branch(request):
+    pass
+
 
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
