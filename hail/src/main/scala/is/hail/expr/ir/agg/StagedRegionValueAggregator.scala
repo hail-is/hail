@@ -1,11 +1,9 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
 import is.hail.expr.types.physical.PType
-
-import scala.language.existentials
 
 case class RVAVariable(triplet: EmitTriplet, t: PType) {
   def setup: Code[Unit] = triplet.setup

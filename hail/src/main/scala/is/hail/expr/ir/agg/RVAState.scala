@@ -21,7 +21,7 @@ abstract class RVAState {
   def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
 
   def er: EmitRegion = EmitRegion(mb, region)
-  def using(definition: Code[Region])(f: => Code[Unit]): Code[Unit] =
+  def using(definition: Code[Region])(f: Code[Unit]): Code[Unit] =
     Code(r := definition, f, region.close())
 }
 
@@ -46,6 +46,8 @@ object StateContainer {
 case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   val nStates: Int = states.length
   val typ: PTuple = StateContainer.typ(nStates)
+
+  def apply(i: Int): RVAState = states(i)
   def getRegion(rOffset: Code[Int], i: Int): Code[Region] = topRegion.getParentReference(rOffset + i)
   def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
   def loadStateAddress(off: Code[Long], i: Int): Code[Long] = topRegion.loadAddress(getStateOffset(off, i))

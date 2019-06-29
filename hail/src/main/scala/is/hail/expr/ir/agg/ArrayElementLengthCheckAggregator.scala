@@ -18,7 +18,7 @@ object ArrayElementState {
 }
 
 case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], off: ClassFieldRef[Long], knownLength: Boolean) extends RVAState {
-  private val container: StateContainer = StateContainer(nested, r)
+  val container: StateContainer = StateContainer(nested, r)
   private val arrayType: PArray = PArray(container.typ)
 
   private val nStates: Int = nested.length
@@ -65,11 +65,11 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
     if (knownLength) check else (lenRef < 0).mux(initLength(len), check)
   }
 
-  def init(initOp: Array[() => Code[Unit]]): Code[Unit] = {
+  def init(initOp: Array[Code[Unit]]): Code[Unit] = {
       val c = Code(
         region.setNumParents(nStates),
         srvb.start(),
-        container.scoped(0)((i, _) => initOp(i)()),
+        container.scoped(0)((i, _) => initOp(i)),
         container.addState(srvb),
         srvb.advance())
     if (knownLength)
@@ -159,7 +159,7 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
   }
 }
 
-class ArrayElementRegionValueAggregator(nestedAggs: Array[StagedRegionValueAggregator], knownLength: Boolean) extends StagedRegionValueAggregator {
+class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggregator], knownLength: Boolean) extends StagedRegionValueAggregator {
   type State = ArrayElementState
   private val nStates: Int = nestedAggs.length
 
@@ -180,7 +180,7 @@ class ArrayElementRegionValueAggregator(nestedAggs: Array[StagedRegionValueAggre
       val agg = nestedAggs(sIdx)
       val vars = init.slice(i, i + agg.initOpTypes.length)
       i += agg.initOpTypes.length
-      () => agg.initOp(state.nested(sIdx), vars)
+      agg.initOp(state.nested(sIdx), vars)
     }
 
     if (knownLength) {
@@ -232,7 +232,7 @@ class ArrayElementRegionValueAggregator(nestedAggs: Array[StagedRegionValueAggre
     })
 }
 
-class ArrayElementRegionValueAggregator2(nestedAggs: Array[StagedRegionValueAggregator]) extends StagedRegionValueAggregator {
+class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedRegionValueAggregator]) extends StagedRegionValueAggregator {
   type State = ArrayElementState
 
   def initOpTypes: Array[PType] = Array()
@@ -241,10 +241,10 @@ class ArrayElementRegionValueAggregator2(nestedAggs: Array[StagedRegionValueAggr
   def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType)))
 
   def createState(mb: EmitMethodBuilder): State =
-    throw new UnsupportedOperationException("foo")
+    throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")
 
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] =
-    throw new UnsupportedOperationException("foo")
+    throw new UnsupportedOperationException("State must be initialized by ArrayElementLengthCheckAggregator.")
 
   def seqOp(state: State, seq: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     val Array(eltIdx, seqOps) = seq
@@ -262,8 +262,8 @@ class ArrayElementRegionValueAggregator2(nestedAggs: Array[StagedRegionValueAggr
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =
-    throw new UnsupportedOperationException("foo")
+    throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    throw new UnsupportedOperationException("foo")
+    throw new UnsupportedOperationException("Result must be defined by ArrayElementLengthCheckAggregator.")
 }
