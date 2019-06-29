@@ -39,6 +39,8 @@ final case class TakeBy() extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
 final case class AggElementsLengthCheck() extends AggOp
+final case class AggElements2(aggSig: IndexedSeq[AggSignature]) extends AggOp
+final case class AggElementsLengthCheck2(aggSig: IndexedSeq[AggSignature], knownLength: Boolean) extends AggOp
 final case class PrevNonnull() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
