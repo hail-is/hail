@@ -36,6 +36,15 @@ object InferType {
       case _: ArrayFor => TVoid
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
+      case _: InitOp2 => TVoid
+      case _: SeqOp2 => TVoid
+      case _: CombOp2 => TVoid
+      case ResultOp2(_, aggSigs) =>
+      // FIXME: This needs to wait for the Extract function to go in.
+      //        TTuple(aggSigs.map(agg.Extract.getType): _*)
+        TTuple(aggSigs.map(_ => TInt32()): _*)
+      case _: ReadAggs => TVoid
+      case _: WriteAggs => TVoid
       case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>

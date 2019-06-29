@@ -124,6 +124,12 @@ object Children {
       i +: args
     case SeqOp(i, args, _) =>
       i +: args
+    case InitOp2(_, args, _) => args
+    case SeqOp2(_, args, _) => args
+    case _: ResultOp2 => none
+    case _: CombOp2 => none
+    case WriteAggs(_, path, _, _) => Array(path)
+    case ReadAggs(_, path, _, _) => Array(path)
     case Begin(xs) =>
       xs
     case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
