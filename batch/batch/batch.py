@@ -262,9 +262,9 @@ class Job:
                          f'{self._current_task.name!r} due to {err}; '
                          f'will still try to load other tasks')
             return logs
-        if self.is_complete():
+        if self.is_complete() or self._state == 'Ready':
             return logs
-        assert self._state in ('Pending', 'Ready')
+        assert self._state == 'Pending'
         return None
 
     async def _read_pod_statuses(self):
