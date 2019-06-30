@@ -456,10 +456,10 @@ class BatchTable(Table):
         try:
             async with self._db.pool.acquire() as conn:
                 async with conn.cursor() as cursor:
-                    await cursor.execute(sql, tuple(values))
+                    await cursor.execute(sql, values)
                     return await cursor.fetchall()
         except Exception as err:
-            print(f'error encountered while executing: {sql}')
+            log.error(f'error encountered while executing: {sql} {values}')
             raise err
 
     async def has_record(self, id):
