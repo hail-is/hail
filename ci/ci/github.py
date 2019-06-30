@@ -678,7 +678,7 @@ class WatchedBranch(Code):
             if (pr.review_state == 'approved' and
                     (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
-                if not merge_candidate or pri > merge_candidate_pri:
+                if pr.authorized(dbpool) and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
         if merge_candidate:
