@@ -900,28 +900,26 @@ class Batch:
 
 
 async def _get_batches_list(params, user):
-    batches = [Batch.from_record(record)
-               for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
-
-    for name, value in params.items():
-        if name == 'complete':
-            if value not in ('0', '1'):
-                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
-            c = value == '1'
-            batches = [batch for batch in batches if batch.is_complete() == c]
-        elif name == 'success':
-            if value not in ('0', '1'):
-                abort(400, f'invalid success value, expected 0 or 1, got {value}')
-            s = value == '1'
-            batches = [batch for batch in batches if batch.is_successful() == s]
-        else:
-            if not name.startswith('a:'):
-                abort(400, f'unknown query parameter {name}')
-            k = name[2:]
-            batches = [batch for batch in batches
-                       if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
-
-    return [await batch.to_dict(include_jobs=False) for batch in batches]
+    complete = params.get('complete')
+    if complete:
+        del params['complete']
+        complete = complete == '1'
+    success = params.get('success')
+    if success:
+        del params['success']
+        success = success == '1'
+    attributes = {}
+    for k, v in params.items():
+        if not k.startswith('a:'):
+            abort(400, f'unknown query parameter {k}')
+        attributes[k[2:]] = v
+    return jsonify(
+        [await Batch.from_record(batch).to_dict(include_jobs=False)
+         for batch in await db.batch.find_records(user=user,
+                                                  complete=complete,
+                                                  success=success,
+                                                  deleted=False,
+                                                  attributes=attributes)])
 
 
 @prom_async_time(REQUEST_TIME_GET_BATCHES)

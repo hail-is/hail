@@ -210,6 +210,7 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
+        self.batch_attributes = BatchAttributesTable(self)
 
 
 class JobsTable(Table):
@@ -409,6 +410,58 @@ class BatchTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
+    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
+        sql = f"select batch.* from `{self.name}` as batch"
+        values = []
+        joins = []
+        wheres = []
+        havings = []
+        groups = []
+
+        values.append(user)
+        wheres.append("batch.user = %s")
+        if deleted is not None:
+            if deleted:
+                wheres.append("batch.deleted")
+            else:
+                wheres.append("not batch.deleted")
+        if complete is not None:
+            condition = "batch.closed and batch.n_completed = batch.n_jobs"
+            if complete:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if success is not None:
+            condition = "batch.closed and batch.n_succeeded = batch.n_jobs"
+            if success:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if attributes:
+            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.id')
+            groups.append("batch.id")
+            for k, v in attributes.items():
+                values.append(v)
+                values.append(len(attributes))
+                havings.append(f"sum(attr.`{k}` = %s) = %s")
+        if joins:
+            sql += " " + " ".join(joins)
+        if wheres:
+            sql += " where " + " and ".join(wheres)
+        if havings:
+            sql += " having " + " and ".join(havings)
+        if groups:
+            sql += " group by " + ", ".join(groups)
+        sql += ";"
+        try:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, tuple(values))
+                    return await cursor.fetchall()
+        except Exception as err:
+            print(f'error encountered while executing: {sql}')
+            raise err
+
     async def has_record(self, id):
         return await super().has_record({'id': id})
 
@@ -425,3 +478,17 @@ class BatchTable(Table):
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
+
+
+class BatchAttributesTable(Table):
+    def __init__(self, db):
+        super().__init__(db, 'batch-attributes')
+
+    async def _query(self, *select, **where):
+        return await super().get_records(where, select_fields=select)
+
+    async def get_attributes(self, batch_id):
+        return await self._query('key', 'value', batch_id=batch_id)
+
+    async def get_batches(self, key, value):
+        return await self._query('batch_id', key=key, value=value)
