@@ -286,9 +286,6 @@ class Job:
         self.exit_codes[self._task_idx] = exit_code
         self.pod_statuses[self._task_idx] = pod_status
 
-        self._task_idx += 1
-        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
-
         uri = None
         if log is not None:
             uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, log)
@@ -297,6 +294,9 @@ class Job:
                 log.info(f'job {self.id} task {task_name} will have a missing log due to {err}')
             else:
                 self.log_uris[self._task_idx] = uri
+
+        self._task_idx += 1
+        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
 
         await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
                                          task_idx=self._task_idx,
