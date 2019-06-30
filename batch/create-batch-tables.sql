@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
-CREATE INDEX batch_user ON batch (user);
+CREATE INDEX `batch_user` ON `batch` (`user`);
+CREATE INDEX `batch_deleted` ON `batch` (`deleted`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
@@ -40,6 +41,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX `jobs_state` ON `jobs` (`state`);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `batch_id` BIGINT NOT NULL,
