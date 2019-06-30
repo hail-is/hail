@@ -1129,9 +1129,6 @@ async def refresh_k8s_pods():
         job = await Job.from_k8s_labels(pod)
         if job and not job.is_complete():
             await update_job_with_pod(job, pod)
-        else:
-            log.info(f'deleting unknown pod {pod_name}')
-            await app['k8s'].delete_pod(pod_name)
 
     log.info('restarting ready and running jobs with pods not seen in k8s')
 
