@@ -117,7 +117,9 @@ class Table:  # pylint: disable=R0903
                     set_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in set_items.items()])
                     set_values = set_items.values()
                     sql = f"UPDATE `{self.name}` SET {set_template} WHERE {where_template}"
-                    await execute_with_retry(cursor, sql, (*set_values, *where_values))
+                    result = await execute_with_retry(cursor, sql, (*set_values, *where_values))
+                    return result
+        return 0
 
     async def get_records(self, where_items, select_fields=None):
         assert select_fields is None or len(select_fields) != 0
@@ -244,9 +246,12 @@ class JobsTable(Table):
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
-    async def update_record(self, batch_id, job_id, **items):
+    async def update_record(self, batch_id, job_id, compare_items=None, **items):
         assert not set(items).intersection(JobsTable.batch_view_fields)
-        await super().update_record({'batch_id': batch_id, 'job_id': job_id}, items)
+        where_items = {'batch_id': batch_id, 'job_id': job_id}
+        if compare_items is not None:
+            where_items.update(compare_items)
+        return await super().update_record(where_items, items)
 
     async def get_all_records(self):
         async with self._db.pool.acquire() as conn:
@@ -320,12 +325,14 @@ class JobsTable(Table):
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
 
-    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code, pod_status, **items):
-        await self.update_record(batch_id, job_id,
-                                 **{JobsTable.log_uri_mapping[task_name]: uri,
-                                    JobsTable.exit_code_mapping[task_name]: exit_code,
-                                    JobsTable.pod_status_mapping[task_name]: pod_status},
-                                 **items)
+    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code,
+                                 pod_status, compare_items=None, **items):
+        return await self.update_record(batch_id, job_id,
+                                        compare_items=compare_items,
+                                        **{JobsTable.log_uri_mapping[task_name]: uri,
+                                           JobsTable.exit_code_mapping[task_name]: exit_code,
+                                           JobsTable.pod_status_mapping[task_name]: pod_status},
+                                        **items)
 
     async def get_log_uri(self, batch_id, job_id, task_name):
         uri_field = JobsTable.log_uri_mapping[task_name]
@@ -387,8 +394,11 @@ class BatchTable(Table):
     def __init__(self, db):
         super().__init__(db, 'batch')
 
-    async def update_record(self, id, **items):
-        await super().update_record({'id': id}, items)
+    async def update_record(self, id, compare_items=None, **items):
+        where_items = {'id': id}
+        if compare_items is not None:
+            where_items.update(compare_items)
+        return await super().update_record(where_items, items)
 
     async def get_all_records(self):
         return await super().get_all_records()
