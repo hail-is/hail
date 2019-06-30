@@ -58,7 +58,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
     data : :class:`.Struct` or :class:`.Float64Expression`
         Sequence of data to plot.
     k : int
-        Accuracy parameter.
+        Accuracy parameter (passed to :func:`approx_cdf`).
     legend : str
         Label of data on the x-axis.
     title : str
