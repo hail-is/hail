@@ -262,16 +262,16 @@ class Job:
                          f'{self._current_task.name!r} due to {err}; '
                          f'will still try to load other tasks')
             return logs
-        if self.is_complete() or self._state == 'Ready':
+        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
             return logs
-        assert self._state == 'Pending'
+        assert self._state in ('Pending', 'Cancelled')
         return None
 
     async def _read_pod_statuses(self):
         pod_statuses = {jt.name: self.pod_statuses[idx] for idx, jt in enumerate(self._tasks)
                         if idx < self._task_idx}
 
-        if self._state == 'Ready':
+        if self._state == 'Running':
             if self._pod_name:
                 pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
                 if err is None:
@@ -282,9 +282,9 @@ class Job:
                              f'{self._current_task.name} due to {err}; '
                              f'will still try to load other tasks')
             return pod_statuses
-        if self.is_complete():
+        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
             return pod_statuses
-        assert self._state == 'Cancelled' or self._state == 'Pending'
+        assert self._state in ('Pending', 'Cancelled')
         return None
 
     async def _mark_job_task_complete(self, task_name, log, exit_code, new_state, pod_status):
