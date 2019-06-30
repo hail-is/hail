@@ -5,7 +5,6 @@ from hailtop.batch_client.client import BatchClient
 import json
 import os
 import pkg_resources
-import re
 import secrets
 import time
 import unittest
@@ -51,6 +50,7 @@ class Test(unittest.TestCase):
         self.assertEqual(status['exit_code']['main'], 0)
 
         self.assertEqual(j.log(), {'main': 'test\n'})
+        j.pod_status()
 
         self.assertTrue(j.is_complete())
 
@@ -79,6 +79,8 @@ class Test(unittest.TestCase):
             j.is_complete()
         with self.assertRaises(ValueError):
             j.log()
+        with self.assertRaises(ValueError):
+            j.pod_status()
         with self.assertRaises(ValueError):
             j.wait()
 
@@ -300,6 +302,7 @@ class Test(unittest.TestCase):
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0'),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status'),
             (requests.get, '/api/v1alpha/batches'),
             (requests.post, '/api/v1alpha/batches/create'),
             (requests.post, '/api/v1alpha/batches/0/jobs/create'),
@@ -361,5 +364,9 @@ class Test(unittest.TestCase):
 
         # just check successful response
         r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
+                         cookies={'user': token})
+        assert (r.status_code >= 200) and (r.status_code < 300)
+
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/pod_status',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)

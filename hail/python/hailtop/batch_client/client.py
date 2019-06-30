@@ -58,6 +58,9 @@ class Job:
     def log(self):
         return async_to_blocking(self._async_job.log())
 
+    def pod_status(self):
+        return async_to_blocking(self._async_job.pod_status())
+
 
 class Batch:
     @classmethod

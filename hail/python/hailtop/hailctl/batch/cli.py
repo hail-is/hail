@@ -9,6 +9,7 @@ from . import get
 from . import cancel
 from . import wait
 from . import log
+from . import pod_status
 
 def parser():
     main_parser = argparse.ArgumentParser(
@@ -38,6 +39,11 @@ def parser():
         help='Get log for a job',
         description='Get log for a job'
     )
+    pod_status_parser = subparsers.add_parser(
+        'pod_status',
+        help='Get pod status for a job',
+        description='Get pod status for a job'
+    )
     wait_parser = subparsers.add_parser(
         'wait',
         help='Wait for a batch to complete, then print JSON status.',
@@ -59,10 +65,14 @@ def parser():
     log_parser.set_defaults(module='log')
     log.init_parser(log_parser)
 
+    pod_status_parser.set_defaults(module='pod_status')
+    pod_status.init_parser(pod_status_parser)
+
     wait_parser.set_defaults(module='wait')
     wait.init_parser(wait_parser)
 
     return main_parser
+
 
 def main(args):
     if not args:
@@ -74,6 +84,7 @@ def main(args):
         'get': get,
         'cancel': cancel,
         'log': log,
+        'pod_status': pod_status,
         'wait': wait
     }
 

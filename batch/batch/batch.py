@@ -230,8 +230,8 @@ class Job:
             self._pod_name = None
 
     async def _read_logs(self):
-        async def _read_log(jt):
-            log_uri = await db.jobs.get_log_uri(*self.id, jt.name)
+        async def _read_log(jt, idx):
+            log_uri = self.log_uris[idx]
             if log_uri is None:
                 return None
             log, err = await app['log_store'].read_gs_log_file(log_uri)
@@ -242,7 +242,7 @@ class Job:
                          f'other tasks')
             return jt.name, log
 
-        future_logs = asyncio.gather(*[_read_log(jt) for idx, jt in enumerate(self._tasks)
+        future_logs = asyncio.gather(*[_read_log(jt, idx) for idx, jt in enumerate(self._tasks)
                                        if idx < self._task_idx])
         logs = {k: v for k, v in await future_logs}
 
@@ -262,11 +262,29 @@ class Job:
         assert self._state == 'Cancelled' or self._state == 'Pending'
         return None
 
-    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state):
-        self.exit_codes[self._task_idx] = exit_code
+    async def _read_pod_statuses(self):
+        pod_statuses = {jt.name: self.pod_statuses[idx] for idx, jt in enumerate(self._tasks)
+                        if idx < self._task_idx}
 
-        self._task_idx += 1
-        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
+        if self._state == 'Ready':
+            if self._pod_name:
+                pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
+                if err is None:
+                    pod_statuses[self._current_task.name] = pod_status
+                else:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'ignoring: could not get pod status for {self.id} '
+                             f'{self._current_task.name} due to {err}; '
+                             f'will still try to load other tasks')
+            return pod_statuses
+        if self.is_complete():
+            return pod_statuses
+        assert self._state == 'Cancelled' or self._state == 'Pending'
+        return None
+
+    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state, pod_status):
+        self.exit_codes[self._task_idx] = exit_code
+        self.pod_statuses[self._task_idx] = pod_status
 
         uri = None
         if log is not None:
@@ -274,8 +292,13 @@ class Job:
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'job {self.id} task {task_name} will have a missing log due to {err}')
+            else:
+                self.log_uris[self._task_idx] = uri
 
-        await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code,
+        self._task_idx += 1
+        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
+
+        await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
                                          task_idx=self._task_idx,
                                          pod_name=None,
                                          duration=self.duration,
@@ -305,16 +328,22 @@ class Job:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
 
-            exit_codes = [record[db.jobs.exit_code_field(t.name)] for t in tasks]
-            ec_indices = [idx for idx, ec in enumerate(exit_codes) if ec is not None]
-            assert record['task_idx'] == 1 + (ec_indices[-1] if len(ec_indices) else -1)
+            def get_compound_field(mapping):
+                data = [record[mapping[t.name]] for t in tasks]
+                non_null_indices = [idx for idx, x in enumerate(data) if x is not None]
+                assert record['task_idx'] == 1 + (non_null_indices[-1] if len(non_null_indices) else -1)
+                return data
+
+            exit_codes = get_compound_field(db.jobs.exit_code_mapping)
+            log_uris = get_compound_field(db.jobs.log_uri_mapping)
+            pod_statuses = get_compound_field(db.jobs.pod_status_mapping)
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
                        always_run=record['always_run'], pvc_name=record['pvc_name'], pod_name=record['pod_name'],
                        exit_codes=exit_codes, duration=record['duration'], tasks=tasks,
                        task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'],
-                       cancelled=record['cancelled'])
+                       cancelled=record['cancelled'], log_uris=log_uris, pod_statuses=pod_statuses)
         return None
 
     @staticmethod
@@ -347,6 +376,8 @@ class Job:
 
         tasks = [t for t in tasks if t is not None]
         exit_codes = [None for _ in tasks]
+        log_uris = [None for _ in tasks]
+        pod_statuses = [None for _ in tasks]
 
         jobs_builder.create_job(
             batch_id=batch_id,
@@ -371,13 +402,14 @@ class Job:
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run, pvc_name=pvc_name,
                   pod_name=pod_name, exit_codes=exit_codes, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled)
+                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled,
+                  log_uris=log_uris, pod_statuses=pod_statuses)
 
         return job
 
     def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
                  pvc_name, pod_name, exit_codes, duration, tasks, task_idx, state,
-                 pvc_size, cancelled):
+                 pvc_size, cancelled, log_uris, pod_statuses):
         self.batch_id = batch_id
         self.job_id = job_id
         self.id = (batch_id, job_id)
@@ -389,6 +421,8 @@ class Job:
         self.user = user
         self.exit_codes = exit_codes
         self.duration = duration
+        self.log_uris = log_uris
+        self.pod_statuses = pod_statuses
 
         self._pvc_name = pvc_name
         self._pvc_size = pvc_size
@@ -478,7 +512,9 @@ class Job:
         if failed:
             exit_code = 999  # FIXME hack
             pod_log = failure_reason
+            pod_status = None
         else:
+            pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
             if terminated.finished_at is not None and terminated.started_at is not None:
@@ -509,7 +545,7 @@ class Job:
         else:
             new_state = 'Failed'
 
-        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state)
+        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
 
         if exit_code == 0:
             if has_next_task:
@@ -634,6 +670,17 @@ async def _get_job_log(batch_id, job_id, user):
     abort(404)
 
 
+async def _get_pod_status(batch_id, job_id, user):
+    job = await Job.from_db(batch_id, job_id, user)
+    if not job:
+        abort(404)
+
+    pod_statuses = await job._read_pod_statuses()
+    if pod_statuses:
+        return pod_statuses
+    abort(404)
+
+
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
@@ -642,6 +689,16 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     user = userdata['username']
     job_log = await _get_job_log(batch_id, job_id, user)
     return jsonify(job_log)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
+@rest_authenticated_users_only
+async def get_pod_status(request, userdata):  # pylint: disable=R1710
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    pod_spec = await _get_pod_status(batch_id, job_id, user)
+    return jsonify(pod_spec)
 
 
 class Batch:
@@ -980,6 +1037,17 @@ async def ui_get_job_log(request, userdata):
     user = userdata['username']
     job_log = await _get_job_log(batch_id, job_id, user)
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
+
+
+@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
+@aiohttp_jinja2.template('pod_status.html')
+@web_authenticated_users_only
+async def ui_get_pod_status(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    user = userdata['username']
+    pod_status = await _get_pod_status(batch_id, job_id, user)
+    return {'batch_id': batch_id, 'job_id': job_id, 'pod_status': pod_status}
 
 
 @routes.get('/')

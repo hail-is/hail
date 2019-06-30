@@ -38,6 +38,9 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `input_log_uri` VARCHAR(1024),
   `main_log_uri` VARCHAR(1024),
   `output_log_uri` VARCHAR(1024),
+  `input_pod_status` TEXT(65535),
+  `main_pod_status` TEXT(65535),
+  `output_pod_status` TEXT(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;

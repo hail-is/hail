@@ -14,6 +14,7 @@ class K8s:
         self._create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
         self._create_pvc = self._wrap_k8s(k8s_api.create_namespaced_persistent_volume_claim)
         self._read_pod_log = self._wrap_k8s(k8s_api.read_namespaced_pod_log)
+        self._read_pod_status = self._wrap_k8s(k8s_api.read_namespaced_pod_status)
         self._list_pods = self._wrap_k8s(k8s_api.list_namespaced_pod)
         self._list_pvcs = self._wrap_k8s(k8s_api.list_namespaced_persistent_volume_claim)
 
@@ -33,6 +34,9 @@ class K8s:
 
     async def read_pod_log(self, *args, **kwargs):
         return await self._read_pod_log(*args, **kwargs)
+
+    async def read_pod_status(self, *args, **kwargs):
+        return await self._read_pod_status(*args, **kwargs)
 
     async def list_pods(self, *args, **kwargs):
         return await self._list_pods(*args, **kwargs)
