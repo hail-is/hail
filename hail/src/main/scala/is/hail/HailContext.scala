@@ -760,7 +760,7 @@ class HailContext private(
     val nPartitions = partFiles.length
     val localFS = bcFS
     val (keyType, annotationType) = indexSpec.types
-    indexSpec.offsetField.map { f =>
+    indexSpec.offsetField.foreach { f =>
       require(annotationType.asInstanceOf[TStruct].hasField(f))
       require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
     }
@@ -857,11 +857,11 @@ class HailContext private(
     val mkIndexReader = indexSpecRows.map { indexSpec =>
       val idxPath = indexSpec.relPath
       val (keyType, annotationType) = indexSpec.types
-      indexSpec.offsetField.map { f =>
+      indexSpec.offsetField.foreach { f =>
         require(annotationType.asInstanceOf[TStruct].hasField(f))
         require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
       }
-      indexSpecEntries.get.offsetField.map { f =>
+      indexSpecEntries.get.offsetField.foreach { f =>
         require(annotationType.asInstanceOf[TStruct].hasField(f))
         require(annotationType.asInstanceOf[TStruct].fieldType(f) == TInt64())
       }

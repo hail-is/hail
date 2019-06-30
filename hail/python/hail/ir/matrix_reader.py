@@ -51,10 +51,11 @@ class MatrixNativeReader(MatrixReader):
                   'path': self.path}
         if self.intervals is not None:
             assert self._interval_type is not None
-            reader['intervals'] = {
-                "value": self._interval_type._convert_to_json(self.intervals),
-                "pointType": self._interval_type.element_type.point_type._parsable_string(),
-                "filter": self.filter_intervals,
+            reader['options'] = {
+                'name': 'NativeReaderOptions',
+                'intervals': self._interval_type._convert_to_json(self.intervals),
+                'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
+                'filterIntervals': self.filter_intervals,
             }
         return escape_str(json.dumps(reader))
 

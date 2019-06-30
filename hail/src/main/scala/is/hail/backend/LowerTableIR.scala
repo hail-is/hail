@@ -99,7 +99,7 @@ object LowerTableIR {
       val globalRef = genUID()
 
       reader match {
-        case r@TableNativeReader(path, None, _, _, _) =>
+        case r@TableNativeReader(path, None, _) =>
           val globalsPath = r.spec.globalsComponent.absolutePath(path)
           val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
           val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)

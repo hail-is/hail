@@ -92,7 +92,7 @@ object TableReader {
       classOf[TextTableReader],
       classOf[TextInputFilterAndReplace],
       classOf[TableFromBlockMatrixNativeReader])
-    ) + new TableNativeReaderSerializer() + new TableNativeZippedReaderSerializer()
+    ) + new NativeReaderOptionsSerializer()
 }
 
 abstract class TableReader {
@@ -103,45 +103,9 @@ abstract class TableReader {
   def fullType: TableType
 }
 
-class TableNativeReaderSerializer() extends CustomSerializer[TableNativeReader](
-  format =>
-    ({ case jObj: JObject =>
-      implicit val fmt = format
-      val path = (jObj \ "path").extract[String]
-      val intervalPointType = (jObj \ "intervals" \ "pointType").extractOpt[String].map { tstring =>
-        IRParser.parseType(tstring)
-      }
-      val jIntervals = (jObj \ "intervals" \ "value").toOption
-      if (intervalPointType.isDefined) require(jIntervals.isDefined)
-      val filterIntervals = (jObj \ "intervals" \ "filter").extractOpt[Boolean].getOrElse(false)
-      val intervals = jIntervals.map { jv =>
-        val intType = TArray(TInterval(intervalPointType.get))
-        JSONAnnotationImpex.importAnnotation(jv, intType).asInstanceOf[IndexedSeq[Interval]]
-      }
-      TableNativeReader(path, intervals, intervalPointType, filterIntervals)
-  }, { case reader: TableNativeReader =>
-    implicit val fmt = format
-    val intType = reader.intervalPointType.map { pt => TArray(TInterval(pt)) }
-    val obj = JObject(
-      JField("name", JString(reader.getClass.getSimpleName)),
-      JField("path", JString(reader.path)))
-    if (reader.intervalPointType.isEmpty)
-      obj
-    else {
-      val intervalsJson: JObject = ("intervals" ->
-          ("pointType" -> reader.intervalPointType.map { t => t.parsableString() }) ~
-          ("value" -> reader.intervals.map(JSONAnnotationImpex.exportAnnotation(_, intType.get))) ~
-          ("filter" -> reader.filterIntervals))
-      obj.merge(intervalsJson)
-    }
-  })
-)
-
 case class TableNativeReader(
   path: String,
-  intervals: Option[IndexedSeq[Interval]] = None,
-  intervalPointType: Option[Type] = None,
-  filterIntervals: Boolean = false,
+  options: Option[NativeReaderOptions] = None,
   var _spec: AbstractTableSpec = null
 ) extends TableReader {
   lazy val spec = if (_spec != null)
@@ -156,10 +120,13 @@ case class TableNativeReader(
 
   def fullType: TableType = spec.table_type
 
+  private val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
+  private def intervals = options.map(_.intervals)
+
   if (intervals.nonEmpty && !spec.indexed(path))
     fatal("""`intervals` specified on an unindexed table.
             |This table was written using an older version of hail
-            |rewrite the table in order to create an index to proceed""" )
+            |rewrite the table in order to create an index to proceed""".stripMargin)
 
   def apply(tr: TableRead): TableValue = {
     val hc = HailContext.get
@@ -184,48 +151,10 @@ case class TableNativeReader(
   }
 }
 
-class TableNativeZippedReaderSerializer() extends CustomSerializer[TableNativeZippedReader](
-  format =>
-    ({ case jObj: JObject =>
-      implicit val fmt = format
-      val pathLeft = (jObj \ "pathLeft").extract[String]
-      val pathRight = (jObj \ "pathLeft").extract[String]
-      val intervalPointType = (jObj \ "intervals" \ "pointType").extractOpt[String].map { tstring =>
-        IRParser.parseType(tstring)
-      }
-      val jIntervals = (jObj \ "intervals" \ "value").toOption
-      if (intervalPointType.isDefined) require(jIntervals.isDefined)
-      val filterIntervals = (jObj \ "intervals" \ "filter").extractOpt[Boolean].getOrElse(false)
-      val intervals = jIntervals.map { jv =>
-        val intType = TArray(TInterval(intervalPointType.get))
-        JSONAnnotationImpex.importAnnotation(jv, intType).asInstanceOf[IndexedSeq[Interval]]
-      }
-      TableNativeZippedReader(pathLeft, pathRight, intervals, intervalPointType, filterIntervals)
-  }, { case reader: TableNativeZippedReader =>
-    implicit val fmt = format
-    val intType = reader.intervalPointType.map { pt => TArray(TInterval(pt)) }
-    val obj = JObject(
-      JField("name", JString(reader.getClass.getSimpleName)),
-      JField("pathLeft", JString(reader.pathLeft)),
-      JField("pathRight", JString(reader.pathRight)))
-    if (reader.intervalPointType.isEmpty)
-      obj
-    else {
-      val intervalsJson: JObject = ("intervals" ->
-          ("pointType" -> reader.intervalPointType.map { t => t.parsableString() }) ~
-          ("value" -> reader.intervals.map(JSONAnnotationImpex.exportAnnotation(_, intType.get))) ~
-          ("filter" -> reader.filterIntervals))
-      obj.merge(intervalsJson)
-    }
-  })
-)
-
 case class TableNativeZippedReader(
   pathLeft: String,
   pathRight: String,
-  intervals: Option[IndexedSeq[Interval]] = None,
-  intervalPointType: Option[Type] = None,
-  filterIntervals: Boolean = false,
+  options: Option[NativeReaderOptions] = None,
   var _specLeft: AbstractTableSpec = null,
   var _specRight: AbstractTableSpec = null
 ) extends TableReader {
@@ -236,6 +165,9 @@ case class TableNativeZippedReader(
 
   lazy val specLeft = if (_specLeft != null) _specLeft else getSpec(pathLeft)
   lazy val specRight = if (_specRight != null) _specRight else getSpec(pathRight)
+
+  private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
+  private def intervals = options.map(_.intervals)
 
   require((specLeft.table_type.rowType.fieldNames ++ specRight.table_type.rowType.fieldNames).areDistinct())
   require(specRight.table_type.key.isEmpty)

@@ -91,7 +91,7 @@ object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
       classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader],
-      classOf[TextInputFilterAndReplace])) + new MatrixNativeReaderSerializer()
+      classOf[TextInputFilterAndReplace])) + new NativeReaderOptionsSerializer()
 }
 
 trait MatrixReader {
@@ -147,45 +147,9 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
   }
 }
 
-class MatrixNativeReaderSerializer() extends CustomSerializer[MatrixNativeReader](
-  format =>
-    ({ case jObj: JObject =>
-      implicit val fmt = format
-      val path = (jObj \ "path").extract[String]
-      val intervalPointType = (jObj \ "intervals" \ "pointType").extractOpt[String].map { tstring =>
-        IRParser.parseType(tstring)
-      }
-      val jIntervals = (jObj \ "intervals" \ "value").toOption
-      if (intervalPointType.isDefined) require(jIntervals.isDefined)
-      val filterIntervals = (jObj \ "intervals" \ "filter").extractOpt[Boolean].getOrElse(false)
-      val intervals = jIntervals.map { jv =>
-        val intType = TArray(TInterval(intervalPointType.get))
-        JSONAnnotationImpex.importAnnotation(jv, intType).asInstanceOf[IndexedSeq[Interval]]
-      }
-      MatrixNativeReader(path, intervals, intervalPointType, filterIntervals)
-  }, { case reader: MatrixNativeReader =>
-    implicit val fmt = format
-    val intType = reader.intervalPointType.map { pt => TArray(TInterval(pt)) }
-    val obj = JObject(
-      JField("name", JString(reader.getClass.getSimpleName)),
-      JField("path", JString(reader.path)))
-    if (reader.intervalPointType.isEmpty)
-      obj
-    else {
-      val intervalsJson: JObject = ("intervals" ->
-          ("pointType" -> reader.intervalPointType.map { t => t.parsableString() }) ~
-          ("value" -> reader.intervals.map(JSONAnnotationImpex.exportAnnotation(_, intType.get))) ~
-          ("filter" -> reader.filterIntervals))
-      obj.merge(intervalsJson)
-    }
-  })
-)
-
 case class MatrixNativeReader(
   path: String,
-  intervals: Option[IndexedSeq[Interval]] = None,
-  intervalPointType: Option[Type] = None,
-  filterIntervals: Boolean = false,
+  options: Option[NativeReaderOptions] = None,
   _spec: AbstractMatrixTableSpec = null
 ) extends MatrixReader {
   lazy val spec: AbstractMatrixTableSpec = Option(_spec).getOrElse(
@@ -204,10 +168,12 @@ case class MatrixNativeReader(
 
   def fullMatrixType: MatrixType = spec.matrix_type
 
+  private def intervals = options.map(_.intervals)
+
   if (intervals.nonEmpty && !spec.indexed(path))
     fatal("""`intervals` specified on an unindexed matrix table.
             |This matrix table was written using an older version of hail
-            |rewrite the matrix in order to create an index to proceed""" )
+            |rewrite the matrix in order to create an index to proceed""".stripMargin)
 
   override def lower(mr: MatrixRead): TableIR = {
     val rowsPath = path + "/rows"
@@ -216,7 +182,7 @@ case class MatrixNativeReader(
 
     if (mr.dropCols) {
       val tt = TableType(mr.typ.rowType, mr.typ.rowKey, mr.typ.globalType)
-      val trdr: TableReader = TableNativeReader(rowsPath, intervals, intervalPointType, _spec = spec.rowsTableSpec(rowsPath))
+      val trdr: TableReader = TableNativeReader(rowsPath, options, _spec = spec.rowsTableSpec(rowsPath))
       var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       tr = TableMapGlobals(
         tr,
@@ -236,9 +202,7 @@ case class MatrixNativeReader(
       val trdr = TableNativeZippedReader(
         rowsPath,
         entriesPath,
-        intervals,
-        intervalPointType,
-        filterIntervals,
+        options,
         spec.rowsTableSpec(rowsPath),
         spec.entriesTableSpec(entriesPath))
       var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
