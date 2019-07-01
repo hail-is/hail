@@ -104,6 +104,9 @@ class JobTask:  # pylint: disable=R0903
     def copy_task(task_name, files):
         if files is not None:
             authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
+            touch_success = 'touch /io/__BATCH_{}_SUCCESS__'.format(task_name.upper())
+            check_success = 'test -e /io/__BATCH_{}_SUCCESS__ && exit 0'.format(task_name.upper())
+            clean = 'rm -rf /io/*' if task_name == 'input' else 'true'
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):
@@ -113,7 +116,7 @@ class JobTask:  # pylint: disable=R0903
                 return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
             copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
-            sh_expression = f'{authenticate} && {copies}'
+            sh_expression = f'{check_success} || {clean} && {authenticate} && {copies} && {touch_success}'
             container = kube.client.V1Container(
                 image='google/cloud-sdk:237.0.0-alpine',
                 name=task_name,
@@ -208,6 +211,18 @@ class Job:
             if container.volume_mounts is None:
                 container.volume_mounts = []
             container.volume_mounts.extend(volume_mounts)
+
+        if self._current_task.name == 'main':
+            success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
+            sh_expression = f'(test -e {success_file} && rm {success_file} && exit 1) || ' \
+                            f'(touch {success_file} && exit 0)'
+            init_container = kube.client.V1Container(
+                image='alpine:3.8',
+                name=self._current_task.name,
+                command=['/bin/sh', '-c', sh_expression],
+                resources=kube.client.V1ResourceRequirements(
+                    requests={'cpu': '500m'}))
+            pod_spec.init_containers = [init_container]
 
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
@@ -545,6 +560,19 @@ class Job:
         await self.set_state('Ready')
         await self._create_pod()
 
+    async def reset(self):
+        state = 'Pending'
+        duration = 0
+        log_uris = [None for _ in self._tasks]
+        exit_codes = [None for _ in self._tasks]
+        pod_statuses = [None for _ in self._tasks]
+        task_idx = 0
+
+        await self._delete_logs()
+        await db.jobs.reset_job_state(*self.id, state=state, duration=duration, task_idx=task_idx,
+                                      exit_codes=exit_codes, log_uris=log_uris, pod_statuses=pod_statuses)
+        await self.mark_unscheduled()
+
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
@@ -565,6 +593,15 @@ class Job:
             pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
+
+            if task_name == 'main':
+                init_terminated = pod.status.init_container_statuses[0].state.terminated
+                init_exit_code = init_terminated.exit_code
+                if init_exit_code == 1:
+                    log.info(f"{self.full_id} was previously run; restarting job")
+                    await self.reset()
+                    return
+
             if terminated.finished_at is not None and terminated.started_at is not None:
                 duration = (terminated.finished_at - terminated.started_at).total_seconds()
                 if self.duration is not None:

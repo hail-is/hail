@@ -350,6 +350,16 @@ class JobsTable(Table):
             return records[0][pod_status_field]
         return None
 
+    async def reset_job_state(self, batch_id, job_id, state, duration, task_idx,
+                        exit_codes, log_uris, pod_statuses):
+        await self.update_record(batch_id, job_id,
+                                 state=state,
+                                 duration=duration,
+                                 task_idx=task_idx,
+                                 **{fd: ec for fd, ec in zip(JobsTable.exit_code_mapping.keys(), exit_codes)},
+                                 **{fd: uri for fd, uri in zip(JobsTable.log_uri_mapping.keys(), log_uris)},
+                                 **{fd: pod_statuses for fd, ps in zip(JobsTable.pod_status_mapping.keys(), pod_statuses)})
+
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
