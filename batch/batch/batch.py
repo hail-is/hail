@@ -1059,7 +1059,7 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    if job.is_complete() or pod.metadata.labels['task'] != job._current_task.name:
+    if pod and (job.is_complete() or pod.metadata.labels['task'] != job._current_task.name):
         log.info(f'ignoring pod update for job {job.full_id} because it is at a different job task')
         return
 
