@@ -814,10 +814,11 @@ class Batch:
             closed=False)
 
         # batch_attributes = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
-        for k, v in attributes.items():
-            await db.batch_attributes.new_record(batch_id=id,
-                                                 key=k,
-                                                 value=v)
+        if attributes is not None:
+            for k, v in attributes.items():
+                await db.batch_attributes.new_record(batch_id=id,
+                                                     key=k,
+                                                     value=v)
 
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
