@@ -919,13 +919,18 @@ async def _get_batches_list(params, user):
         if not k.startswith('a:'):
             abort(400, f'unknown query parameter {k}')
         attributes[k[2:]] = v
+
+    records = await db.batch.find_records(user=user,
+                                          complete=complete,
+                                          success=success,
+                                          deleted=False,
+                                          attributes=attributes)
+    log.info(records)
+    batches = [await Batch.from_record(batch) for batch in records]
+    log.info(batches)
     return jsonify(
         [await Batch.from_record(batch).to_dict(include_jobs=False)
-         for batch in await db.batch.find_records(user=user,
-                                                  complete=complete,
-                                                  success=success,
-                                                  deleted=False,
-                                                  attributes=attributes)])
+         for batch in records])
 
 
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
