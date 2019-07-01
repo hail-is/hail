@@ -120,13 +120,13 @@ def run_pattern(pat):
             test_run = True
             _run(benchmark, _n_iter)
     if not test_run:
-        raise ValueError(f'pattern {repr(pat)} matched no benchmarks')
+        raise ValueError(f'pattern {pat!r} matched no benchmarks')
 
 
 def run_single(name):
     _ensure_initialized()
 
     if name not in _registry:
-        raise ValueError(f'test {repr(name)} not found')
+        raise ValueError(f'test {name!r} not found')
     else:
         _run(_registry[name], _n_iter)

@@ -14,8 +14,8 @@ def main(args_):
                         type=int,
                         default=1,
                         help='Number of cores to use.')
-    parser.add_argument('-k', type=str, required=False, metavar='PATTERN', dest='pattern',
-                        help='Run all tests that substring match <PATTERN>')
+    parser.add_argument('--pattern', '-k', type=str, required=False,
+                        help='Run all tests that substring match the pattern')
     parser.add_argument("--n-iter", "-n",
                         type=int,
                         default=3,
