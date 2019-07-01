@@ -453,7 +453,7 @@ spec:
     spec:
       containers:
         - name: elasticsearch
-          image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.1.1
+          image: docker.elastic.co/elasticsearch/elasticsearch:7.2.0
           resources:
             limits:
               cpu: 1000m
@@ -551,7 +551,7 @@ spec:
             name: kibana
       containers:
         - name: kibana
-          image: docker.elastic.co/kibana/kibana-oss:7.1.1
+          image: docker.elastic.co/kibana/kibana:7.2.0
           resources:
             limits:
               cpu: 1000m
