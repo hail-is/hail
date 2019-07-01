@@ -1237,7 +1237,6 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root
 routes.static('/static', os.path.join(batch_root, 'static'))
 routes.static('/js', os.path.join(batch_root, 'js'))
 app.add_routes(routes)
-#For Prometheus
 app.router.add_get("/metrics", server_stats)
 
 
