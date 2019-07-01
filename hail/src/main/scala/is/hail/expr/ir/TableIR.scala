@@ -826,6 +826,13 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
+    try {
+      return agg.TableMapIRNew(child.execute(ctx), newRow)
+    } catch {
+      case e: agg.UnsupportedExtraction =>
+        log.info(s"couldn't lower TableMapRows: $e")
+    }
+
     val tv = child.execute(ctx)
     val gType = tv.globals.t
 
