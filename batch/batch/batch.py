@@ -333,7 +333,7 @@ class Job:
 
             exit_codes = get_compound_field(db.jobs.exit_code_mapping)
             log_uris = get_compound_field(db.jobs.log_uri_mapping)
-            pod_statuses = get_compound_field(db.jobs.pod_status_mapping)
+            pod_statuses = [record[db.jobs.pod_status_mapping[t.name]] for t in tasks]
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
@@ -515,7 +515,10 @@ class Job:
         if failed:
             exit_code = 999  # FIXME hack
             pod_log = failure_reason
-            pod_status = None
+            if pod is None:
+                pod_status = None
+            else:
+                pod_status = pod.status.to_str()
         else:
             pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
