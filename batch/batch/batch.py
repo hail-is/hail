@@ -814,7 +814,7 @@ class Batch:
             closed=False)
 
         # batch_attributes = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
-        for k, v in attributes:
+        for k, v in attributes.items():
             await db.batch_attributes.new_record(batch_id=id,
                                                  key=k,
                                                  value=v)
