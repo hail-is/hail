@@ -1189,9 +1189,9 @@ private class Emit(
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
-        val ctxType = coerce[TArray](contexts.typ).elementType.physicalType
-        val gType = globals.typ.physicalType
-        val bType = body.typ.physicalType
+        val ctxType = coerce[PArray](contexts.pType).elementType
+        val gType = globals.pType
+        val bType = body.pType
 
         val ctxTypeTuple = PTuple(FastIndexedSeq(ctxType))
         val gTypeTuple = PTuple(FastIndexedSeq(gType))
