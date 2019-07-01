@@ -50,24 +50,4 @@ InputStream::~InputStream() {
   up_.env()->DeleteGlobalRef(jinput_stream_);
 }
 
-ByteArrayInputStream::ByteArrayInputStream(char *bytes, long size) :
-  bytes{bytes}, cursor{0}, size{size} {}
-
-int ByteArrayInputStream::read(char *dest, int n) {
-  auto count = std::min(static_cast<long>(n), size - cursor);
-  std::memcpy(dest, bytes + cursor, count);
-  cursor += count;
-  return count;
-}
-
-long ByteArrayInputStream::skip(long n) {
-  auto diff = std::min(size - cursor, n);
-  cursor += diff;
-  return diff;
-}
-
-void ByteArrayInputStream::close() {
-  return;
-}
-
 }

@@ -38,10 +38,26 @@ class ByteArrayInputStream {
   public:
     ByteArrayInputStream() = delete;
     ByteArrayInputStream(ByteArrayInputStream &is) = delete;
-    ByteArrayInputStream(char *bytes, long size);
-    int read(char *buf, int n);
-    long skip(long n);
-    void close();
+    ByteArrayInputStream(char *bytes, long size) :
+      bytes{bytes}, cursor{0}, size{size} {}
+
+    int read(char *dest, int n) {
+      auto count = std::min(static_cast<long>(n), size - cursor);
+      std::memcpy(dest, bytes + cursor, count);
+      cursor += count;
+      return count;
+    }
+
+    long skip(long n) {
+      auto diff = std::min(size - cursor, n);
+      cursor += diff;
+      return diff;
+    }
+
+    void close() {
+      return;
+    }
+
     ~ByteArrayInputStream() = default;
 };
 
