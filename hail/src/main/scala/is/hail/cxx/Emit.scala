@@ -672,13 +672,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val aType = coerce[PStream](a.pType)
-        val eltType = coerce[TStream](a.typ).elementType
-        val cxxType = typeToCXXType(eltType.physicalType)
-        val array = emitStream(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+        val eltType = aType.elementType
+        val cxxType = typeToCXXType(eltType)
+        val array = emitStream(resultRegion, a, env, sameRegion = !eltType.isPrimitive)
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
         val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
-        val trip = Emit.noContext(lt, ir.Subst(comp, BindingEnv(ir.Env(l -> ir.In(0, eltType), r -> ir.In(1, eltType)))))
+        val trip = Emit.noContext(lt, ir.Subst(comp, BindingEnv(ir.Env(l -> ir.In(0, eltType.virtualType), r -> ir.In(1, eltType.virtualType)))))
         lt += s"""
              |${ trip.setup }
              |if (${ trip.m }) { throw new FatalError("ArraySort: comparison function cannot evaluate to missing."); }
@@ -704,9 +704,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val a = x.children(0).asInstanceOf[ir.IR]
-        val eltType = coerce[TStream](a.typ).elementType
-        val array = emitStream(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
-        val cxxType = typeToCXXType(eltType.physicalType)
+        val eltPType = coerce[PStream](a.pType).elementType
+        val eltType = eltPType.virtualType
+
+        val array = emitStream(resultRegion, a, env, sameRegion = !eltPType.isPrimitive)
+        val cxxType = typeToCXXType(eltPType)
         val l = ir.In(0, eltType)
         val r = ir.In(1, eltType)
 
