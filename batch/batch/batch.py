@@ -17,8 +17,8 @@ import kubernetes as kube
 import requests
 import uvloop
 from prometheus_client import Summary
-from prometheus_async.aio import time, web
-
+from prometheus_async.aio import time
+from prometheus_async.aio.web import server_stats
 
 from hailtop import gear
 from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
@@ -1238,7 +1238,7 @@ routes.static('/static', os.path.join(batch_root, 'static'))
 routes.static('/js', os.path.join(batch_root, 'js'))
 app.add_routes(routes)
 #For Prometheus
-app.router.add_get("/metrics", aio.web.server_stats)
+app.router.add_get("/metrics", server_stats)
 
 
 async def on_startup(app):
