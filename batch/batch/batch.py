@@ -17,7 +17,7 @@ import kubernetes as kube
 import requests
 import uvloop
 from prometheus_client import Summary
-from prometheus_async.aio import time
+from prometheus_async.aio import time, web
 
 
 from hailtop import gear
@@ -1237,6 +1237,8 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root
 routes.static('/static', os.path.join(batch_root, 'static'))
 routes.static('/js', os.path.join(batch_root, 'js'))
 app.add_routes(routes)
+#For Prometheus
+app.router.add_get("/metrics", aio.web.server_stats)
 
 
 async def on_startup(app):
