@@ -328,7 +328,7 @@ class Table(ExprContainer):
     @staticmethod
     def _from_java(jtir):
         return Table(JavaTable(jtir))
-    
+
     def __init__(self, tir):
         super(Table, self).__init__()
 
@@ -2970,7 +2970,7 @@ class Table(ExprContainer):
         ----------
         df : :class:`.pyspark.sql.DataFrame`
             PySpark DataFrame.
-        
+
         key : :obj:`str` or :obj:`list` of :obj:`str`
             Key fields.
 
@@ -3063,14 +3063,14 @@ class Table(ExprContainer):
         r = other
         r = r.select_globals(**{right_global_value: r.globals})
         r = r.select(**{right_value: r._value})
-        
+
         t = l._zip_join(r)
 
         if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
             g = hl.eval(t.globals)
             print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
             return False
-        
+
         if not t.all(_values_similar(t[left_value], t[right_value], tolerance, absolute)):
             print('Table._same: rows differ:')
             t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
@@ -3078,7 +3078,7 @@ class Table(ExprContainer):
             for r in bad_rows:
                 print(f'  {r[left_value]}, {r[right_value]}')
             return False
-        
+
         return True
 
 
@@ -3219,7 +3219,40 @@ class Table(ExprContainer):
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
-    def _multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
+    def multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
+        """Combine many tables in a zip join
+
+        Notes
+        -----
+        The row type of the returned table is a struct with the key fields, and
+        one extra field, `data_field_name`, which is an array of structs with
+        the non key fields, one per input. The array elements are missing if
+        their corresponding input had no row with that key or possibly if there
+        is another input with more rows with that key than the corresponding
+        input.
+
+        The global type of the returned table is an array of structs of the
+        global type of all of the inputs.
+
+        The types for every input must be identical, not merely compatible,
+        including the keys.
+
+        A zip join is similar to an outer join however rows are not duplicated
+        to create the full Cartesian product of duplicate keys. Instead, there
+        is exactly one entry in some `data_field_name` array for every row in
+        the inputs.
+
+        Parameters
+        ----------
+        tables : :obj:`List[Table]`
+            A list of tables to combine
+        data_field_name : :obj:`str`
+            The name of the resulting data field
+        global_field_name : :obj:`str`
+            The name of the resulting global field
+
+        .. include:: _templates/experimental.rst
+        """
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
