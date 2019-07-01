@@ -441,8 +441,9 @@ class BatchTable(Table):
             joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.batch_id')
             groups.append("batch.id")
             for k, v in attributes.items():
+                values.append(k)
                 values.append(v)
-                havings.append(f"sum(attr.`{k}` = %s) = 1")
+                havings.append(f"sum(attr.`key` = %s and attr.value = %s) = 1")
         if joins:
             sql += " " + " ".join(joins)
         if wheres:
