@@ -125,9 +125,9 @@ class Table:  # pylint: disable=R0903
 
 
 class JobsBuilder:
-    jobs_fields = {'batch_id', 'job_id', 'state', 'pod_name',
-                   'pvc_name', 'pvc_size', 'callback', 'attributes',
-                   'tasks', 'task_idx', 'always_run', 'duration'}
+    jobs_fields = {'batch_id', 'job_id', 'state', 'pvc_size',
+                   'callback', 'attributes', 'tasks', 'task_idx',
+                   'always_run', 'duration', 'token'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
@@ -276,18 +276,6 @@ class JobsTable(Table):
                 await cursor.execute(sql, (('Pending', 'Ready', 'Running'), batch_id, job_id))
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
-
-    async def get_record_by_pod(self, pod):
-        assert pod is not None
-        records = await self.get_records_where({'pod_name': pod})
-        if len(records) == 0:  # pylint: disable=R1705
-            return None
-        elif len(records) == 1:
-            return records[0]
-        else:
-            jobs_w_pod = [str((record['batch_id'], record['job_id'])) for record in records]
-            raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
-                            f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
 
     async def get_records_by_batch(self, batch_id):
         return await self.get_records_where({'batch_id': batch_id})
