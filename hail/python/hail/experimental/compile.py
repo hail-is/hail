@@ -12,6 +12,9 @@ __libhail_loaded = False
 
 
 def load_libhail():
+    global __libhail_loaded
+    if __libhail_loaded:
+        return
     with zipfile.ZipFile(pkg_resources.resource_stream(
             'hail',
             "hail-all-spark.jar")) as jar:
@@ -22,7 +25,6 @@ def load_libhail():
         with tempfile.NamedTemporaryFile() as f:
             f.write(jar.read(lib_path))
             ctypes.CDLL(f.name, mode=ctypes.RTLD_GLOBAL)
-    global __libhail_loaded
     __libhail_loaded = True
 
 

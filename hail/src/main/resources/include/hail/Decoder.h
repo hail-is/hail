@@ -54,8 +54,17 @@ class StreamInputBlockBuffer {
   public:
     StreamInputBlockBuffer() = delete;
     StreamInputBlockBuffer(StreamInputBlockBuffer &buf) = delete;
-    StreamInputBlockBuffer(std::shared_ptr<IS> is);
-    int read_block(char * buf);
+    StreamInputBlockBuffer(std::shared_ptr<IS> is) :
+      input_stream_(is) { }
+
+    int read_block(char * buf) {
+      auto r = input_stream_->read(len_buf_, 4);
+      if (r == -1) {
+        return -1;
+      }
+      int len = load_int(len_buf_);
+      return input_stream_->read(buf, len);
+    }
 };
 
 template <typename IS>
@@ -107,20 +116,6 @@ class StreamInputBuffer {
     void skip_boolean() { skip_byte(); }
     bool read_boolean() { return read_byte() != 0; };
 };
-
-template <typename IS>
-StreamInputBlockBuffer<IS>::StreamInputBlockBuffer(std::shared_ptr<IS> is) :
-  input_stream_(is) { }
-
-template <typename IS>
-int StreamInputBlockBuffer<IS>::read_block(char * buf) {
-  auto r = input_stream_->read(len_buf_, 4);
-  if (r == -1) {
-    return -1;
-  }
-  int len = load_int(len_buf_);
-  return input_stream_->read(buf, len);
-}
 
 template <int BUFSIZE, typename InputBlockBuffer, typename IS>
 class LZ4InputBlockBuffer {
