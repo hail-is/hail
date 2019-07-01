@@ -902,6 +902,7 @@ class Batch:
         if include_jobs:
             jobs = await self.get_jobs()
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
+        log.info(result)
         return result
 
 
@@ -928,6 +929,7 @@ async def _get_batches_list(params, user):
     log.info(records)
     batches = [Batch.from_record(batch) for batch in records]
     log.info(batches)
+    log.info([await b.to_dict(include_jobs=False) for b in batches])
     return jsonify(
         [await Batch.from_record(batch).to_dict(include_jobs=False)
          for batch in records])
