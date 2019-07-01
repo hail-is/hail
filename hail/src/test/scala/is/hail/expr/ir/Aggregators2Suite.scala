@@ -233,4 +233,18 @@ class Aggregators2Suite extends HailSuite {
       assert(SafeRow(resType, region, res) == Row(expected))
     }
   }
+
+  @Test def testEmit() {
+    val elt = TStruct("a"->TInt32())
+    val array = Ref("array", TArray(elt))
+    val pnn = AggSignature(PrevNonnull(), FastSeq(), None, FastSeq(elt))
+    val arrayagg = AggSignature(AggElementsLengthCheck2(FastIndexedSeq(pnn), true), FastSeq[Type](), Some(FastSeq()), FastSeq(TInt32()))
+
+    val ir = SeqOp2(0, FastIndexedSeq(I32(0), SeqOp2(0, FastIndexedSeq(ArrayRef(array, 0)), pnn)), arrayagg)
+//    val ir = ReadAggs(0, Str("foo"), CodecSpec.defaultUncompressed, FastIndexedSeq(arrayagg))
+
+    val (_, f) = CompileWithAggregators2[Long, Unit](Array(arrayagg), array.name, array.pType, ir)
+
+    val f2 = f(0)
+  }
 }

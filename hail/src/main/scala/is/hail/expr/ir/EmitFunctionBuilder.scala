@@ -300,8 +300,11 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
-   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
      getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray

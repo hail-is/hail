@@ -58,6 +58,18 @@ object Emit {
 }
 
 case class AggContainer(aggs: Array[AggSignature], container: agg.StateContainer, off: Code[Long]) {
+  def nested(i: Int): AggContainer = {
+    aggs(i).op match {
+      case AggElements2(sigs) =>
+        val state = container(i).asInstanceOf[agg.ArrayElementState]
+        AggContainer(sigs.toArray, state.container, state.off)
+      case AggElementsLengthCheck2(sigs, _) =>
+        val state = container(i).asInstanceOf[agg.ArrayElementState]
+        AggContainer(sigs.toArray, state.container, state.off)
+      case op =>
+        throw new agg.UnsupportedExtraction(s"can't get nested aggs for aggOp $op")
+    }
+  }
 }
 
 object EmitRegion {
@@ -971,6 +983,97 @@ private class Emit(
               const(false),
               Code._empty)
         }
+
+      case InitOp2(i, args, aggSig) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.map(_.nested(i))), a.pType)).toArray
+        val rvAgg = agg.Extract.getAgg(aggSig)
+
+        val setup = Code(
+          sc.refreshOne(0, i),
+          sc.updateOne(0, aggOff, i,
+            rvAgg.initOp(sc(i), argVars)))
+
+        EmitTriplet(setup, false, Code._empty)
+
+      case SeqOp2(i, args, aggSig) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.map(_.nested(i))), a.pType)).toArray
+        val rvAgg = agg.Extract.getAgg(aggSig)
+        EmitTriplet(sc.updateOne(0, aggOff, i, rvAgg.seqOp(sc(i), argVars)),
+          false, Code._empty)
+
+      case CombOp2(i1, i2, aggSig) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
+        assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
+        val rvAgg = agg.Extract.getAgg(aggSig)
+        val comb = sc.updateOne(0, aggOff, i1,
+          sc.updateOne(0, aggOff, i2,
+            rvAgg.combOp(sc(i1), sc(i2))))
+
+        EmitTriplet(comb, false, Code._empty)
+
+      case x@ResultOp2(start, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val srvb = new StagedRegionValueBuilder(er, x.pType)
+        val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
+          val idx = start + j
+          assert(aggSigs(j) == aggs(idx))
+          val s = sc(idx)
+          val rvAgg = agg.Extract.getAgg(aggSigs(j))
+          Code(sc.updateOne(0, aggOff, idx, rvAgg.result(s, srvb)), srvb.advance())
+        }: _*))
+
+        EmitTriplet(Code._empty, false, Code(srvb.start(), addFields, srvb.offset))
+
+      case WriteAggs(start, path, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val ob = mb.newField[OutputBuffer]
+
+        val p = emit(path)
+        val pathString = Code.invokeScalaObject[Region, Long, String](
+          PString.getClass, "loadString", region, p.value[Long])
+
+        val serialize = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(s => s.serialize(spec)(ob))
+
+        val write = Code(
+          p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
+          ob := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pathString)),
+          sc.loadStateOffsets(aggOff),
+          coerce[Unit](Code(serialize: _*)))
+
+        EmitTriplet(write, false, Code._empty)
+
+      case ReadAggs(start, path, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val ib = mb.newField[InputBuffer]
+
+        val p = emit(path)
+        val pathString = Code.invokeScalaObject[Region, Long, String](
+          PString.getClass, "loadString", region, p.value[Long])
+
+        val deserializers = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(_.unserialize(spec))
+
+        val unserialize = Array.tabulate(aggSigs.length) { j =>
+          val idx = start + j
+          Code(
+            sc.refreshOne(0, idx),
+            sc.updateOne(0, aggOff, idx, deserializers(j)(ib)))
+        }
+
+        val read = Code(
+          p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
+          ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
+          coerce[Unit](Code(unserialize: _*)))
+
+        EmitTriplet(read, false, Code._empty)
 
       case Begin(xs) =>
         EmitTriplet(
