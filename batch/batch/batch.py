@@ -104,8 +104,9 @@ class JobTask:  # pylint: disable=R0903
     def copy_task(task_name, files):
         if files is not None:
             authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
-            touch_success = 'touch /io/__BATCH_{}_SUCCESS__'.format(task_name.upper())
-            check_success = 'test -e /io/__BATCH_{}_SUCCESS__ && exit 0'.format(task_name.upper())
+            success_file = '/io/__BATCH_{}_SUCCESS__'.format(task_name.upper())
+            touch_success = f'touch {success_file}'
+            check_success = f'test -e {success_file} && exit 0'
             clean = 'rm -rf /io/*' if task_name == 'input' else 'true'
 
             def copy_command(src, dst):
