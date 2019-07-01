@@ -16,6 +16,9 @@ import cerberus
 import kubernetes as kube
 import requests
 import uvloop
+from prometheus_client import Summary
+from prometheus_async.aio import time
+from prometheus_async.aio.web import server_stats
 
 from hailtop import gear
 from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_users_only, \
@@ -641,7 +644,9 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         state=state)
     return job
 
+req_time_summary = Summary('request_latency_seconds', 'Request latency in seconds')
 
+@time(req_time_summary)
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
@@ -1211,6 +1216,7 @@ aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader(os.path.join(batch_root
 routes.static('/static', os.path.join(batch_root, 'static'))
 routes.static('/js', os.path.join(batch_root, 'js'))
 app.add_routes(routes)
+app.router.add_get("/metrics", server_stats)
 
 
 async def on_startup(app):
