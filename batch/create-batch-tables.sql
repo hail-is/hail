@@ -56,7 +56,7 @@ CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
 
 CREATE TABLE IF NOT EXISTS `batch-attributes` (
   `batch_id` BIGINT NOT NULL,
-  `key` VARCHAR(256) NOT NULL,
+  `key` VARCHAR(100) NOT NULL,
   `value` TEXT(65535),
   PRIMARY KEY (`batch_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
