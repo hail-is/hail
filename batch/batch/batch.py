@@ -1118,7 +1118,7 @@ async def kube_event_loop():
 async def refresh_k8s_pods():
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
-    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': ('Ready', 'Running')})]
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': ['Ready', 'Running']})]
 
     pods, err = await app['k8s'].list_pods(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
