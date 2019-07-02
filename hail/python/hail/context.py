@@ -295,6 +295,26 @@ def citation(*, bibtex=False):
     return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
 
 
+def cite_hail():
+    """Generate a Hail citation.
+
+    Returns
+    -------
+    str
+    """
+    return hl.citation(bibtex=False)
+
+
+def cite_hail_bibtex():
+    """Generate a Hail citation in BibTeX form.
+
+    Returns
+    -------
+    str
+    """
+    return hl.citation(bibtex=True)
+
+
 def stop():
     """Stop the currently running Hail session."""
     if Env._hc:
