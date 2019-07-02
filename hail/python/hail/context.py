@@ -296,22 +296,10 @@ def citation(*, bibtex=False):
 
 
 def cite_hail():
-    """Generate a Hail citation.
-
-    Returns
-    -------
-    str
-    """
     return hl.citation(bibtex=False)
 
 
 def cite_hail_bibtex():
-    """Generate a Hail citation in BibTeX form.
-
-    Returns
-    -------
-    str
-    """
     return hl.citation(bibtex=True)
 
 
