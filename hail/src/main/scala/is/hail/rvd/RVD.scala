@@ -833,13 +833,13 @@ class RVD(
               (s to e).iterator.map { j =>
                 val b = targetPartitionerBc.value.rangeBounds(j)
 
-                while (bit.hasNext && b.isAbovePosition(kOrd, extractKey(bit.head)))
+                while (bit.hasNext && b.positionIsBelow(kOrd, extractKey(bit.head)))
                   bit.next()
 
                 assert(
                   !bit.hasNext || {
                     val k = extractKey(bit.head)
-                    b.contains(kOrd, k) || b.isBelowPosition(kOrd, k)
+                    b.contains(kOrd, k) || b.positionIsBelow(kOrd, k)
                   })
 
                 val it2 = new Iterator[RegionValue] {

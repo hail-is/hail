@@ -60,7 +60,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def includesEnd: Boolean = right.sign > 0
 
-  private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
+  private def ext(pord: ExtendedOrdering): IntervalEndpointOrdering = pord.intervalEndpointOrdering
 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).compare(left, p) < 0 && ext(pord).compare(right, p) > 0
@@ -80,6 +80,9 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     val pord = IRParser.parseType(t).ordering
     overlaps(pord, other)
   }
+
+  def positionIsBelow(pord: ExtendedOrdering, p: Any): Boolean =
+    ext(pord).compare(p, left) < 0
 
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).compare(left, p) > 0

@@ -1298,3 +1298,15 @@ class Tests(unittest.TestCase):
             (5, 35, True, False)
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
+
+    def test_partitioned_write_coerce(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        parts = [
+            hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))
+        ]
+        tmp = new_temp_file(suffix='mt')
+        mt.write(tmp, _partitions=parts)
+
+        mt2 = hl.read_matrix_table(tmp)
+        assert mt2.n_partitions() == len(parts)
+        assert hl.filter_intervals(mt, parts)._same(mt2)

@@ -2030,7 +2030,7 @@ def import_vcf(path,
 
 
 @typecheck(path=sequenceof(str),
-           partitions=anytype,
+           partitions=expr_any,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
@@ -2085,12 +2085,10 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    partitions_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(rg))))
-    if isinstance(partitions, Expression):
-        if partitions.dtype != partitions_type:
-            raise ValueError(f'partitions has wrong type: got {partitions.dtype}, expected {partitions_type}')
-        partitions = hl.eval(partitions)
-    partitions = json.dumps(partitions_type._convert_to_json(partitions))
+    if partitions is not None:
+        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg), alleles=hl.tarray(hl.tstr)))
+    else:
+        partitions_type = None
 
     vector_ref_s = _cached_importvcfs.pyApply(
         wrap_to_list(path),
@@ -2102,7 +2100,7 @@ def import_vcfs(path,
         skip_invalid_loci,
         force_bgz,
         force,
-        partitions,
+        partitions, partitions_type._parsable_string(),
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None,

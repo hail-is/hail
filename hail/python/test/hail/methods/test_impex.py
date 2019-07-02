@@ -334,14 +334,14 @@ class VCFTests(unittest.TestCase):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 18708366)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
                         includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 19776611)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
                         includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 21144633)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
                         includes_end=True)
         ]
         int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
@@ -361,14 +361,14 @@ class VCFTests(unittest.TestCase):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 18708366)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
                         includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 19776611)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
                         includes_end=True),
-            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612)),
-                        end=hl.Struct(locus=hl.Locus('chr20', 21144633)),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
                         includes_end=True)
         ]
         vcfs = [transform_one(mt.annotate_rows(info=mt.info.annotate(

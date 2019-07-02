@@ -1611,6 +1611,7 @@ object ImportVCFs {
     gzAsBGZ: Boolean,
     forceGZ: Boolean,
     partitionsJSON: String,
+    partitionsTypeStr: String,
     filter: String,
     find: String,
     replace: String,
@@ -1628,7 +1629,7 @@ object ImportVCFs {
       gzAsBGZ,
       forceGZ,
       TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
-      partitionsJSON,
+      partitionsJSON, partitionsTypeStr,
       Option(externalSampleIds).map(_.map(_.asScala.toArray).toArray),
       Option(externalHeader))
 
@@ -1654,7 +1655,7 @@ class VCFsReader(
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  partitionsJSON: String,
+  partitionsJSON: String, partitionsTypeStr: String,
   externalSampleIds: Option[Array[Array[String]]],
   externalHeader: Option[String]) {
 
@@ -1688,9 +1689,9 @@ class VCFsReader(
     entryType = header1.genotypeSignature)
 
   val partitioner: RVDPartitioner = {
-    val pkType = TArray(TInterval(TStruct("locus" -> locusType)))
+    val partitionsType = IRParser.parseType(partitionsTypeStr)
     val jv = JsonMethods.parse(partitionsJSON)
-    val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
+    val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
       .asInstanceOf[IndexedSeq[Interval]]
 
     rangeBounds.zipWithIndex.foreach { case (b, i) =>
