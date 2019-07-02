@@ -31,7 +31,7 @@ object Extract {
   def getAgg(aggSig: AggSignature): StagedRegionValueAggregator = aggSig match {
     case AggSignature(Sum(), _, _, Seq(t)) =>
       new SumAggregator(t.physicalType)
-    case AggSignature(Count(), _, _, Seq(t)) =>
+    case AggSignature(Count(), _, _, _) =>
       CountAggregator
     case AggSignature(AggElementsLengthCheck2(nestedAggs, knownLength), _, _, _) =>
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
