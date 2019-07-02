@@ -1,6 +1,8 @@
-from .utils import benchmark, resource
-import tempfile
+from os import path
+from tempfile import TemporaryDirectory
+
 import hail as hl
+from .utils import benchmark, resource
 
 
 @benchmark
@@ -33,6 +35,12 @@ def matrix_table_rows_force_count():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
     ht._force_count()
 
+@benchmark
+def write_range_matrix_table_p100():
+    with TemporaryDirectory() as tmpdir:
+        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+        mt = mt.annotate_entries(x = mt.col_idx + mt.row_idx)
+        mt.write(path.join(tmpdir, 'tmp.mt'))
 
 @benchmark
 def matrix_table_rows_is_transition():
