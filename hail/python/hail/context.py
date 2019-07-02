@@ -47,8 +47,9 @@ class HailContext(object):
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
             conf = SparkConf()
+            conf.set('spark.jars', hail_jar_path)
             conf.set('spark.driver.extraClassPath', hail_jar_path)
-            conf.set('spark.executor.extraClassPath', hail_jar_path)
+            conf.set('spark.executor.extraClassPath', './hail-all-spark.jar')
             SparkContext._ensure_initialized(conf=conf)
         else:
             SparkContext._ensure_initialized()
@@ -167,8 +168,6 @@ class HailContext(object):
         hail.ir.clear_session_functions()
         ReferenceGenome._references = {}
 
-    def upload_log(self):
-        self._jhc.uploadLog()
 
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
@@ -275,19 +274,25 @@ def _hail_cite_url():
     return f"https://github.com/hail-is/hail/commit/{sha_prefix}"
 
 
-def cite_hail():
-    """Generate Hail citation text."""
-    return f"Hail Team. Hail {read_version_info()}. {_hail_cite_url()}."
+def citation(*, bibtex=False):
+    """Generate a Hail citation.
 
+    Parameters
+    ----------
+    bibtex : bool
+        Generate a citation in BibTeX form.
 
-def cite_hail_bibtex():
-    """Generate Hail citation in BibTeX form."""
-    return f"""
-@misc{{Hail,
-  author = {{Hail Team}},
-  title = {{Hail}},
-  howpublished = {{\\url{{{_hail_cite_url()}}}}}
-}}"""
+    Returns
+    -------
+    str
+    """
+    if bibtex:
+        return f"@misc{{Hail," \
+            f"  author = {{Hail Team}}," \
+            f"  title = {{Hail}}," \
+            f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}" \
+            f"}}"
+    return f"Hail Team. Hail {hail.__version__}. {_hail_cite_url()}."
 
 
 def stop():
@@ -366,64 +371,6 @@ def set_global_seed(seed):
 def read_version_info() -> str:
     # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
     return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
-
-@typecheck(url=str)
-def _set_upload_url(url):
-    Env.hc()._jhc.setUploadURL(url)
-
-@typecheck(email=nullable(str))
-def set_upload_email(email):
-    """Set upload email.
-
-    If email is not set, uploads will be anonymous.  Upload email can
-    also be set through the `HAIL_UPLOAD_EMAIL` environment variable
-    or the `hail.uploadEmail` Spark configuration property.
-
-    Parameters
-    ----------
-    email : :obj:`str`
-        Email contact to include with uploaded data.  If `email` is
-        `None`, uploads will be anonymous.
-
-    """
-
-    Env.hc()._jhc.setUploadEmail(email)
-
-def enable_pipeline_upload():
-    """Upload all subsequent pipelines to the Hail team in order to
-    help improve Hail.
-    
-    Pipeline upload can also be enabled by setting the environment
-    variable `HAIL_ENABLE_PIPELINE_UPLOAD` or the Spark configuration
-    property `hail.enablePipelineUpload` to `true`.
-
-    Warning
-    -------
-    Shares potentially sensitive data with the Hail team.
-
-    """
-    
-    Env.hc()._jhc.enablePipelineUpload()
-
-def disable_pipeline_upload():
-    """Disable the uploading of pipelines.  By default, pipeline upload is
-    disabled.
-
-    """
-    
-    Env.hc()._jhc.disablePipelineUpload()
-
-@typecheck()
-def upload_log():
-    """Uploads the Hail log to the Hail team.
-
-    Warning
-    -------
-    Shares potentially sensitive data with the Hail team.
-
-    """
-
-    Env.hc()._jhc.uploadLog()
 
 
 def _set_flags(**flags):

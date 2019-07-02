@@ -5,6 +5,7 @@ import os
 import sys
 from flask import Flask, render_template, request, abort, url_for
 from github import Github
+from github.GithubException import RateLimitExceededException
 import random
 import threading
 import humanize
@@ -37,12 +38,12 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
 github = Github(token)
 
 component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'konradjk'],
-    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
-    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'akotlar'],
-    'cloudtools': ['tpoterba', 'danking', 'konradjk'],
-    'k8s, services': ['danking', 'jigold', 'akotlar'],
-    'Web app (JS)': ['akotlar', 'danking', 'daniel-goldstein'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231'],
+    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
+    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar'],
+    'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
+    'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
+    'Web app (JS)': ['akotlar', 'danking'],
 }
 
 default_repo = 'hail'
@@ -224,17 +225,20 @@ def update_data():
             'issues': []
         }
 
-    for repo_name, fq_repo in repos.items():
-        repo = github.get_repo(fq_repo)
+    try:
+        for repo_name, fq_repo in repos.items():
+            repo = github.get_repo(fq_repo)
 
-        for pr in repo.get_pulls(state='open'):
-            pr_data = get_pr_data(repo, repo_name, pr)
-            new_data[repo_name]['prs'].append(pr_data)
+            for pr in repo.get_pulls(state='open'):
+                pr_data = get_pr_data(repo, repo_name, pr)
+                new_data[repo_name]['prs'].append(pr_data)
 
-        for issue in repo.get_issues(state='open'):
-            if issue.pull_request is None:
-                issue_data = get_issue_data(repo_name, issue)
-                new_data[repo_name]['issues'].append(issue_data)
+            for issue in repo.get_issues(state='open'):
+                if issue.pull_request is None:
+                    issue_data = get_issue_data(repo_name, issue)
+                    new_data[repo_name]['issues'].append(issue_data)
+    except RateLimitExceededException as e:
+        log.error('Exceeded rate limit: ' + str(e))
 
 
     log.info('updating_data done')

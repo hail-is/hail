@@ -1,6 +1,6 @@
 package is.hail.vds
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations._
 import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.table.Table
@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 
 import scala.language.implicitConversions
 
-class JoinSuite extends SparkSuite {
+class JoinSuite extends HailSuite {
   @Test def testIterator() {
     val leftVariants = Array(
       Locus("1", 1),
@@ -49,7 +49,7 @@ class JoinSuite extends SparkSuite {
     rightKt.typeCheck()
     val right = MatrixTable.fromRowsTable(rightKt)
 
-    val localRowType = left.rvRowType
+    val localRowType = left.value.rvRowType
 
     // Inner distinct ordered join
     val jInner = left.rvd.orderedJoinDistinct(right.rvd, "inner", (_, it) => it.map(_._1), left.rvd.typ)

@@ -11,6 +11,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
+import is.hail.HailContext
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
@@ -169,7 +170,7 @@ case class Skat(
 
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
 
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: MatrixType): TableType = {
     val keyType = childType.rowType.fieldType(keyField)
     val skatSchema = TStruct(
       ("id", keyType),
@@ -177,8 +178,7 @@ case class Skat(
       ("q_stat", TFloat64()),
       ("p_value", TFloat64()),
       ("fault", TInt32()))
-    val tableType = TableType(skatSchema, FastIndexedSeq("id"), TStruct())
-    (tableType, tableType.canonicalRVDType)
+    TableType(skatSchema, FastIndexedSeq("id"), TStruct())
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -213,7 +213,7 @@ case class Skat(
     val (keyGsWeightRdd, keyType) =
       computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
 
-    val sc = keyGsWeightRdd.sparkContext
+    val backend = HailContext.backend
 
     def linearSkat(): RDD[Row] = { 
       // fit null model
@@ -229,8 +229,8 @@ case class Skat(
         }
       val sigmaSq = (res dot res) / d
       
-      val resBc = sc.broadcast(res)
-      val QtBc = sc.broadcast(qt)
+      val resBc = backend.broadcast(res)
+      val QtBc = backend.broadcast(qt)
       
       def linearTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -285,9 +285,9 @@ case class Skat(
         } else
           (BDV.fill(n)(0.5), y, new BDM[Double](0, n))
       
-      val sqrtVBc = sc.broadcast(sqrtV)
-      val resBc = sc.broadcast(res)
-      val CinvXtVBc = sc.broadcast(cinvXtV)
+      val sqrtVBc = backend.broadcast(sqrtV)
+      val resBc = backend.broadcast(res)
+      val CinvXtVBc = backend.broadcast(cinvXtV)
   
       def logisticTuple(x: BDV[Double], w: Double): SkatTuple = {
         val xw = x * math.sqrt(w)
@@ -313,7 +313,7 @@ case class Skat(
     
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
 
-    val (tableType, _) = typeInfo(mv.typ, mv.rvd.typ)
+    val tableType = typ(mv.typ)
 
     TableValue(tableType, BroadcastRow.empty(), skatRdd)
   }
@@ -325,7 +325,7 @@ case class Skat(
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = mv.typ.rvRowType.physicalType
+    val fullRowType = mv.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
@@ -334,19 +334,17 @@ case class Skat(
     val weightIndex = weightStructField.index
     assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
 
-    val sc = mv.sparkContext
-
-    val entryArrayType = mv.typ.entryArrayType.physicalType
-    val entryType = mv.typ.entryType.physicalType
+    val entryArrayType = mv.entryArrayPType
+    val entryType = mv.entryPType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = mv.typ.entriesIdx
+    val entryArrayIdx = mv.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length
-    val completeColIdxBc = sc.broadcast(completeColIdx)
+    val completeColIdxBc = HailContext.backend.broadcast(completeColIdx)
 
     (mv.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)

@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
-import is.hail.expr.types.physical.PBaseStruct
+import is.hail.expr.types.physical.{PBaseStruct, PSet, PTuple, PType}
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -52,12 +52,12 @@ object Graph {
     if (edges2.length > 400000)
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
-    val wrappedNodeType = TTuple(nodeType)
-    val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
+    val wrappedNodeType = PTuple(PType.canonical(nodeType))
+    val refMap = Map("l" -> wrappedNodeType.virtualType, "r" -> wrappedNodeType.virtualType)
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple(FastSeq(ir)))
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
       assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {
@@ -65,13 +65,13 @@ object Graph {
           val rvb = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(wrappedNodeType.physicalType)
+          rvb.start(wrappedNodeType)
           rvb.startTuple()
           rvb.addAnnotation(nodeType, l)
           rvb.endTuple()
           val lOffset = rvb.end()
 
-          rvb.start(wrappedNodeType.physicalType)
+          rvb.start(wrappedNodeType)
           rvb.startTuple()
           rvb.addAnnotation(nodeType, r)
           rvb.endTuple()

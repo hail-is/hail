@@ -1,18 +1,27 @@
 package is.hail.annotations
 
 import is.hail.HailContext
-import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct, Type}
+import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct}
 import org.apache.spark.SparkContext
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
 
-import scala.reflect.ClassTag
+object BroadcastRow {
+  def empty(): BroadcastRow =
+    BroadcastRow(Row.empty, TStruct.empty(), HailContext.backend)
 
-abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) {
+  def apply(value: Row, t: TBaseStruct, sc: SparkContext): BroadcastRow =
+    BroadcastRow(value, t, HailContext.backend)
+}
 
-  def safeValue: T
+case class BroadcastRow(value: Row,
+  t: TBaseStruct,
+  backend: Backend) {
+  require(Annotation.isSafe(t, value))
 
-  lazy val broadcast: Broadcast[T] = sc.broadcast(value)
+  lazy val safeValue: Row = value
+
+  lazy val broadcast: BroadcastValue[Row] = backend.broadcast(value)
 
   def toRegion(region: Region): Long = {
     val rvb = new RegionValueBuilder(region)
@@ -22,23 +31,24 @@ abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) 
   }
 }
 
-object BroadcastRow {
-  def empty(): BroadcastRow =
-    BroadcastRow(Row.empty, TStruct.empty(), HailContext.get.sc)
-}
-
-case class BroadcastRow(value: Row,
-  t: TBaseStruct,
-  sc: SparkContext) extends BroadcastValue[Row](value, t, sc) {
-  require(Annotation.isSafe(t, value))
-
-  lazy val safeValue: Row = value
+object BroadcastIndexedSeq {
+  def apply(value: IndexedSeq[Annotation], t: TArray, sc: SparkContext): BroadcastIndexedSeq =
+    BroadcastIndexedSeq(value, t, HailContext.backend)
 }
 
 case class BroadcastIndexedSeq(value: IndexedSeq[Annotation],
   t: TArray,
-  sc: SparkContext) extends BroadcastValue[IndexedSeq[Annotation]](value, t, sc) {
+  backend: Backend) {
   require(Annotation.isSafe(t, value))
 
   lazy val safeValue: IndexedSeq[Annotation] = value
+
+  lazy val broadcast: BroadcastValue[IndexedSeq[Annotation]] = backend.broadcast(value)
+
+  def toRegion(region: Region): Long = {
+    val rvb = new RegionValueBuilder(region)
+    rvb.start(t.physicalType)
+    rvb.addAnnotation(t, value)
+    rvb.end()
+  }
 }

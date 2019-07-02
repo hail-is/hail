@@ -1,6 +1,5 @@
 package is.hail.expr.ir.functions
 
-import is.hail.GenericIndexedSeqSerializer
 import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
@@ -13,7 +12,7 @@ import org.json4s.jackson.Serialization
 
 
 abstract class MatrixToMatrixFunction {
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (MatrixType, RVDType)
+  def typ(childType: MatrixType): MatrixType
 
   def execute(mv: MatrixValue): MatrixValue
 
@@ -25,7 +24,7 @@ abstract class MatrixToMatrixFunction {
 }
 
 abstract class MatrixToTableFunction {
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType)
+  def typ(childType: MatrixType): TableType
 
   def execute(mv: MatrixValue): TableValue
 
@@ -39,9 +38,9 @@ case class WrappedMatrixToTableFunction(
   colsFieldName: String,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableToTableFunction {
-  override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: TableType): TableType = {
     val mType = MatrixType.fromTableType(childType, colsFieldName, entriesFieldName, colKey)
-    function.typeInfo(mType, mType.canonicalRVDType) // MatrixType RVDTypes will go away
+    function.typ(mType) // MatrixType RVDTypes will go away
   }
 
   def execute(tv: TableValue): TableValue = function.execute(tv.toMatrixValue(colsFieldName, entriesFieldName, colKey))
@@ -51,27 +50,24 @@ case class WrappedMatrixToTableFunction(
 
 case class WrappedMatrixToMatrixFunction(function: MatrixToMatrixFunction,
   inColsFieldName: String,
-  outColsFieldName: String,
   inEntriesFieldName: String,
-  outEntriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableToTableFunction {
-  override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+  override def typ(childType: TableType): TableType = {
     val mType = MatrixType.fromTableType(childType, inColsFieldName, inEntriesFieldName, colKey)
-    val (outMatrixType, _) = function.typeInfo(mType, mType.canonicalRVDType) // MatrixType RVDTypes will go away
-
-    val tt = LowerMatrixIR.loweredType(outMatrixType, outEntriesFieldName, outColsFieldName)
-    tt -> tt.canonicalRVDType
+    val outMatrixType = function.typ(mType)
+    outMatrixType.canonicalTableType
   }
 
   def execute(tv: TableValue): TableValue = function.execute(tv
     .toMatrixValue(inColsFieldName, inEntriesFieldName, colKey))
-    .toTableValue(outColsFieldName, outEntriesFieldName)
+    .toTableValue
 
   def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
 }
 
 abstract class TableToTableFunction {
-  def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType)
+
+  def typ(childType: TableType): TableType
 
   def execute(tv: TableValue): TableValue
 
@@ -139,14 +135,19 @@ object RelationalFunctions {
     classOf[WrappedMatrixToValueFunction]
   ))
 
-  def extractTo[T : Manifest](config: String): T = {
+  def extractTo[T: Manifest](config: String): T = {
     Serialization.read[T](config)
   }
 
   def lookupMatrixToMatrix(config: String): MatrixToMatrixFunction = extractTo[MatrixToMatrixFunction](config)
+
   def lookupMatrixToTable(config: String): MatrixToTableFunction = extractTo[MatrixToTableFunction](config)
+
   def lookupTableToTable(config: String): TableToTableFunction = extractTo[TableToTableFunction](config)
+
   def lookupTableToValue(config: String): TableToValueFunction = extractTo[TableToValueFunction](config)
+
   def lookupMatrixToValue(config: String): MatrixToValueFunction = extractTo[MatrixToValueFunction](config)
+
   def lookupBlockMatrixToValue(config: String): BlockMatrixToValueFunction = extractTo[BlockMatrixToValueFunction](config)
 }

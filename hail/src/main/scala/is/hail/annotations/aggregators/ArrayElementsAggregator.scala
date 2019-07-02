@@ -12,15 +12,20 @@ final case class ArrayElementsAggregator(rvAggs: Array[RegionValueAggregator]) e
     ArrayElementsAggregator(rvAggs)
   }
 
+  def broadcast(n: Int): Unit = {
+    assert(a == null)
+    a = new Array[Array[RegionValueAggregator]](n)
+    var i = 0
+    while (i < n) {
+      a(i) = rvAggs.map(_.copy())
+      i += 1
+    }
+  }
+
   def checkSizeOrBroadcast(n: Int): Unit = {
-    if (a == null) {
-      a = new Array[Array[RegionValueAggregator]](n)
-      var i = 0
-      while (i < n) {
-        a(i) = rvAggs.map(_.copy())
-        i += 1
-      }
-    } else {
+    if (a == null)
+      broadcast(n)
+    else {
       if (n != a.length)
         fatal(s"cannot apply array aggregation: size mismatch: $n, ${ a.length }")
     }

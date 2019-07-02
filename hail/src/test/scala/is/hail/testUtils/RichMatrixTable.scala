@@ -9,8 +9,8 @@ import scala.reflect.ClassTag
 
 class RichMatrixTable(vsm: MatrixTable) {
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val fullRowType = vsm.rvRowType
-    val localEntriesIndex = vsm.entriesIndex
+    val fullRowType = vsm.value.rvRowType
+    val localEntriesIndex = vsm.value.entriesIdx
     val localRowType = vsm.rowType
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.map { rv =>

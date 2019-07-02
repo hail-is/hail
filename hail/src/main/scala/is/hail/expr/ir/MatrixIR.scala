@@ -35,76 +35,14 @@ object MatrixIR {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
     MatrixRead(reader.fullMatrixType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
-
-  def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
-    val rowType = typ.rvRowType
-    val keepType = TArray(+TInt32())
-    val (rTyp, makeF) = ir.Compile[Long, Long, Long]("row", rowType.physicalType,
-      "keep", keepType.physicalType,
-      body = InsertFields(ir.Ref("row", rowType), Seq((MatrixType.entriesIdentifier,
-        ir.ArrayMap(ir.Ref("keep", keepType), "i",
-          ir.ArrayRef(ir.GetField(ir.In(0, rowType), MatrixType.entriesIdentifier),
-            ir.Ref("i", TInt32())))))))
-    assert(rTyp.isOfType(rowType.physicalType))
-
-    val newMatrixType = typ.copy(rvRowType = coerce[TStruct](rTyp.virtualType))
-
-    val keepF = { (mv: MatrixValue, keep: Array[Int]) =>
-      val keepBc = mv.sparkContext.broadcast(keep)
-      mv.copy(typ = newMatrixType,
-        colValues = mv.colValues.copy(value = keep.map(mv.colValues.value)),
-        rvd = mv.rvd.mapPartitionsWithIndex(newMatrixType.canonicalRVDType, { (i, ctx, it) =>
-          val f = makeF(i)
-          val keep = keepBc.value
-          val rv2 = RegionValue()
-
-          it.map { rv =>
-            val region = ctx.region
-            rv2.set(region,
-              f(region, rv.offset, false, region.appendArrayInt(keep), false))
-            rv2
-          }
-        }))
-    }
-    (newMatrixType, keepF)
-  }
-
-  def filterCols(typ: MatrixType): (MatrixType, (MatrixValue, (Annotation, Int) => Boolean) => MatrixValue) = {
-    val (t, keepF) = chooseColsWithArray(typ)
-    (t, { (mv: MatrixValue, p: (Annotation, Int) => Boolean) =>
-      val keep = (0 until mv.nCols)
-        .view
-        .filter { i => p(mv.colValues.value(i), i) }
-        .toArray
-      keepF(mv, keep)
-    })
-  }
 }
 
 abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
-  def rvdType: RVDType = typ.canonicalRVDType
-
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def getOrComputePartitionCounts(): IndexedSeq[Long] = {
-    partitionCounts
-      .getOrElse(
-        Interpret(
-          TableMapRows(
-            TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
-            MakeStruct(FastIndexedSeq())
-          ))
-          .rvd
-          .countPerPartition()
-          .toFastIndexedSeq)
-  }
-
   def columnCount: Option[Int] = None
-
-  protected[ir] def execute(hc: HailContext): MatrixValue =
-    fatal("tried to execute unexecutable IR")
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 
@@ -134,11 +72,7 @@ abstract sealed class MatrixIR extends BaseIR {
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
   val typ: MatrixType = value.typ
 
-  override val rvdType: RVDType = value.rvd.typ
-
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = value
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
@@ -164,24 +98,21 @@ trait MatrixReader {
 
   def fullMatrixType: MatrixType
 
-  // TODO: remove fullRVDType when lowering is finished
-  def fullRVDType: RVDType
-
   def lower(mr: MatrixRead): TableIR
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
-  lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
+  lazy val fullType: TableType = fullMatrixType.canonicalTableType
 
   override def lower(mr: MatrixRead): TableIR = {
-    var tr: TableIR = TableRead(LowerMatrixIR.loweredType(mr.typ), mr.dropRows, this)
+    var tr: TableIR = TableRead(mr.typ.canonicalTableType, mr.dropRows, this)
     if (mr.dropCols) {
       // this lowering preserves dropCols using pruning
       tr = TableMapRows(
         tr,
         InsertFields(
           Ref("row", tr.typ.rowType),
-          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), mr.typ.entryArrayType))))
+          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
       tr = TableMapGlobals(
         tr,
         InsertFields(
@@ -205,10 +136,10 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
           .map(_.index)
           .toArray
         val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
-        BroadcastRow(Row(arr), requestedType.globalType, HailContext.get.sc)
+        BroadcastRow(Row(arr), requestedType.globalType, HailContext.backend)
       case None =>
         assert(requestedType.globalType == TStruct())
-        BroadcastRow(Row.empty, requestedType.globalType, HailContext.get.sc)
+        BroadcastRow(Row.empty, requestedType.globalType, HailContext.backend)
     }
   }
 }
@@ -219,8 +150,6 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
       case mts: AbstractMatrixTableSpec => mts
       case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
     })
-
-  override lazy val fullRVDType: RVDType = spec.rvdType(path)
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
@@ -294,17 +223,13 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
-  val fullMatrixType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType(
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
     rowKey = Array("row_idx"),
     rowType = TStruct("row_idx" -> TInt32()),
     entryType = TStruct.empty())
-
-  override lazy val fullRVDType: RVDType = RVDType(
-    PStruct("row_idx" -> PInt32(), MatrixType.entriesIdentifier -> PArray(PStruct())),
-    FastIndexedSeq("row_idx"))
 
   val columnCount: Option[Int] = Some(nCols)
 
@@ -316,12 +241,14 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   override def lower(mr: MatrixRead): TableIR = {
     val uid1 = Symbol(genUID())
 
-    TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+    val nRowsAdj = if (mr.dropRows) 0 else nRows
+    val nColsAdj = if (mr.dropCols) 0 else nCols
+    TableRange(nRowsAdj, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
       .rename(Map("idx" -> "row_idx"))
       .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
-        irRange(0, nCols).map('i ~> makeStruct('col_idx -> 'i))))
+        irRange(0, nColsAdj).map('i ~> makeStruct('col_idx -> 'i))))
       .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
-        irRange(0, nCols).map('i ~> makeStruct())))
+        irRange(0, nColsAdj).map('i ~> makeStruct())))
   }
 }
 
@@ -330,8 +257,6 @@ case class MatrixRead(
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
-
-  override lazy val rvdType: RVDType = reader.fullRVDType.subsetTo(typ.rvRowType)
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
@@ -372,7 +297,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
     MatrixFilterCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  val typ: MatrixType = MatrixIR.filterCols(child.typ)._1
+  val typ: MatrixType = child.typ
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 }
@@ -399,7 +324,7 @@ case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extend
     MatrixChooseCols(newChildren(0).asInstanceOf[MatrixIR], oldIndices)
   }
 
-  val typ: MatrixType = MatrixIR.chooseColsWithArray(child.typ)._1
+  val typ: MatrixType = child.typ
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -419,7 +344,7 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
     val newColType = child.typ.colKeyStruct ++ newColValueType
     val newEntryType = TStruct(child.typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ))))
 
-    child.typ.copyParts(colType = newColType, entryType = newEntryType)
+    child.typ.copy(colType = newColType, entryType = newEntryType)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -435,7 +360,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     MatrixAggregateRowsByKey(newChild, newEntryExpr, newRowExpr)
   }
 
-  val typ: MatrixType = child.typ.copyParts(
+  val typ: MatrixType = child.typ.copy(
     rowType = child.typ.rowKeyStruct ++ coerce[TStruct](rowExpr.typ),
     entryType = coerce[TStruct](entryExpr.typ)
   )
@@ -454,7 +379,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   }
 
   val typ = child.typ.copy(
-    rvRowType = child.typ.rvRowType.updateKey(MatrixType.entriesIdentifier, TArray(entryExpr.typ)),
+    entryType = coerce[TStruct](entryExpr.typ),
     colType = child.typ.colKeyStruct ++ coerce[TStruct](colExpr.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
@@ -483,7 +408,7 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 
   val typ: MatrixType =
-    child.typ.copy(rvRowType = child.typ.rvRowType.updateKey(MatrixType.entriesIdentifier, TArray(newEntries.typ)))
+    child.typ.copy(entryType = coerce[TStruct](newEntries.typ))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -515,22 +440,9 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     MatrixMapRows(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
   }
 
-  val newRVRow = newRow.typ.asInstanceOf[TStruct].fieldOption(MatrixType.entriesIdentifier) match {
-    case Some(f) =>
-      assert(f.typ == child.typ.entryArrayType)
-      newRow
-    case None =>
-      InsertFields(newRow, Seq(
-        MatrixType.entriesIdentifier -> GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier)))
-  }
-
   val typ: MatrixType = {
-    child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct])
+    child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
   }
-
-  override lazy val rvdType: RVDType = RVDType(
-      newRVRow.pType.asInstanceOf[PStruct],
-      typ.rowKey)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -551,275 +463,9 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     child.typ.copy(colKey = newColKey, colType = newColType)
   }
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-    assert(prev.typ == child.typ)
-
-    val localGlobalsType = prev.typ.globalType
-    val localColsType = TArray(prev.typ.colType)
-    val localNCols = prev.nCols
-    val colValuesBc = prev.colValues.broadcast
-    val globalsBc = prev.globals.broadcast
-
-    val colValuesType = TArray(prev.typ.colType)
-    val vaType = prev.rvd.rowPType
-    val gType = MatrixType.getEntryType(vaType)
-
-    var initOpNeedsSA = false
-    var initOpNeedsGlobals = false
-    var seqOpNeedsSA = false
-    var seqOpNeedsGlobals = false
-
-    val rewriteInitOp = { (nAggs: Int, initOp: IR) =>
-      initOpNeedsSA = Mentions(initOp, "sa")
-      initOpNeedsGlobals = Mentions(initOp, "global")
-      val colIdx = ir.genUID()
-
-      def rewrite(x: IR): IR = {
-        x match {
-          case InitOp(i, args, aggSig) =>
-            InitOp(
-              ir.ApplyBinaryPrimOp(ir.Add(),
-                ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
-                i),
-              args,
-              aggSig)
-          case _ =>
-            ir.MapIR(rewrite)(x)
-        }
-      }
-
-      val wrappedInit = if (initOpNeedsSA) {
-        ir.Let(
-          "sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
-          rewrite(initOp))
-      } else {
-        rewrite(initOp)
-      }
-
-      ir.ArrayFor(
-        ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-        colIdx,
-        wrappedInit)
-    }
-
-    val rewriteSeqOp = { (nAggs: Int, seqOp: IR) =>
-      seqOpNeedsSA = Mentions(seqOp, "sa")
-      seqOpNeedsGlobals = Mentions(seqOp, "global")
-
-      val colIdx = ir.genUID()
-
-      def rewrite(x: IR): IR = {
-        x match {
-          case SeqOp(i, args, aggSig) =>
-            SeqOp(
-              ir.ApplyBinaryPrimOp(ir.Add(),
-                ir.ApplyBinaryPrimOp(ir.Multiply(), ir.Ref(colIdx, TInt32()), ir.I32(nAggs)),
-                i),
-              args, aggSig)
-          case _ =>
-            ir.MapIR(rewrite)(x)
-        }
-      }
-
-      var oneSampleSeqOp = ir.Let(
-        "g",
-        ir.ArrayRef(
-          ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
-          ir.Ref(colIdx, TInt32())),
-        If(
-          IsNA(ir.Ref("g", gType.virtualType)),
-          Begin(FastSeq()),
-          rewrite(seqOp))
-      )
-
-      if (seqOpNeedsSA)
-        oneSampleSeqOp = ir.Let(
-          "sa", ir.ArrayRef(ir.Ref("colValues", colValuesType), ir.Ref(colIdx, TInt32())),
-          oneSampleSeqOp)
-
-      ir.ArrayFor(
-        ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-        colIdx,
-        oneSampleSeqOp)
-    }
-
-    val (entryAggs, initOps, seqOps, aggResultType, postAggIR) =
-      ir.CompileWithAggregators[Long, Long, Long, Long, Long](
-        "global", localGlobalsType.physicalType,
-        "colValues", colValuesType.physicalType,
-        "global", localGlobalsType.physicalType,
-        "colValues", colValuesType.physicalType,
-        "va", vaType,
-        newCol, "AGGR",
-        rewriteInitOp,
-        rewriteSeqOp)
-
-    var scanInitOpNeedsGlobals = false
-
-    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) =
-      ir.CompileWithAggregators[Long, Long, Long, Long](
-        "global", localGlobalsType.physicalType,
-        "AGGR", aggResultType,
-        "global", localGlobalsType.physicalType,
-        "sa", prev.typ.colType.physicalType,
-        CompileWithAggregators.liftScan(postAggIR), "SCANR",
-        { (nAggs, init) =>
-          scanInitOpNeedsGlobals = Mentions(init, "global")
-          init
-        },
-        (nAggs, seq) => seq)
-
-    val (rTyp, f) = ir.Compile[Long, Long, Long, Long, Long](
-      "AGGR", aggResultType,
-      "SCANR", scanResultType,
-      "global", localGlobalsType.physicalType,
-      "sa", prev.typ.colType.physicalType,
-      postScanIR)
-
-    val nAggs = entryAggs.length
-
-    assert(rTyp.virtualType == typ.colType, s"$rTyp, ${ typ.colType }")
-
-    log.info(
-      s"""MatrixMapCols: initOp ${ initOpNeedsGlobals } ${ initOpNeedsSA };
-         |seqOp ${ seqOpNeedsGlobals } ${ seqOpNeedsSA }""".stripMargin)
-
-    val depth = treeAggDepth(hc, prev.nPartitions)
-
-    val colRVAggs = new Array[RegionValueAggregator](nAggs * localNCols)
-    var i = 0
-    while (i < localNCols) {
-      var j = 0
-      while (j < nAggs) {
-        colRVAggs(i * nAggs + j) = entryAggs(j).newInstance()
-        j += 1
-      }
-      i += 1
-    }
-
-    val aggResults = if (nAggs > 0) {
-      Region.scoped { region =>
-        val rvb: RegionValueBuilder = new RegionValueBuilder()
-        rvb.set(region)
-
-        val globals = if (initOpNeedsGlobals) {
-          rvb.start(localGlobalsType.physicalType)
-          rvb.addAnnotation(localGlobalsType, globalsBc.value)
-          rvb.end()
-        } else 0L
-
-        val cols = if (initOpNeedsSA) {
-          rvb.start(localColsType.physicalType)
-          rvb.addAnnotation(localColsType, colValuesBc.value)
-          rvb.end()
-        } else 0L
-
-        initOps(0)(region, colRVAggs, globals, false, cols, false)
-      }
-
-      type PC = (CompileWithAggregators.IRAggFun3[Long, Long, Long], Long, Long)
-      prev.rvd.treeAggregateWithPartitionOp[PC, Array[RegionValueAggregator]](colRVAggs, { (i, ctx) =>
-        val rvb = new RegionValueBuilder(ctx.freshRegion)
-
-        val globals = if (seqOpNeedsGlobals) {
-          rvb.start(localGlobalsType.physicalType)
-          rvb.addAnnotation(localGlobalsType, globalsBc.value)
-          rvb.end()
-        } else 0L
-
-        val cols = if (seqOpNeedsSA) {
-          rvb.start(localColsType.physicalType)
-          rvb.addAnnotation(localColsType, colValuesBc.value)
-          rvb.end()
-        } else 0L
-
-        (seqOps(i), globals, cols)
-      })({ case ((seqOpF, globals, cols), colRVAggs, rv) =>
-
-        seqOpF(rv.region, colRVAggs, globals, false, cols, false, rv.offset, false)
-
-        colRVAggs
-      }, { (rvAggs1, rvAggs2) =>
-        var i = 0
-        while (i < rvAggs1.length) {
-          rvAggs1(i).combOp(rvAggs2(i))
-          i += 1
-        }
-        rvAggs1
-      }, depth = depth)
-    } else
-      Array.empty[RegionValueAggregator]
-
-    val prevColType = prev.typ.colType
-    val rvb = new RegionValueBuilder()
-
-    if (scanAggs.nonEmpty) {
-      Region.scoped { region =>
-        val rvb: RegionValueBuilder = new RegionValueBuilder()
-        rvb.set(region)
-        val globals = if (scanInitOpNeedsGlobals) {
-          rvb.start(localGlobalsType.physicalType)
-          rvb.addAnnotation(localGlobalsType, globalsBc.value)
-          rvb.end()
-        } else 0L
-
-        scanInitOps(0)(region, scanAggs, globals, false)
-      }
-    }
-
-    val colsF = f(0)
-    val scanSeqOpF = scanSeqOps(0)
-
-    val newColValues = Region.scoped { region =>
-      rvb.set(region)
-      rvb.start(localGlobalsType.physicalType)
-      rvb.addAnnotation(localGlobalsType, globalsBc.value)
-      val globalRVoffset = rvb.end()
-
-      val mapF = (a: Annotation, i: Int) => {
-
-        rvb.start(aggResultType)
-        rvb.startTuple()
-        var j = 0
-        while (j < nAggs) {
-          aggResults(i * nAggs + j).result(rvb)
-          j += 1
-        }
-        rvb.endTuple()
-        val aggResultsOffset = rvb.end()
-
-        val colRVb = new RegionValueBuilder(region)
-        colRVb.start(prevColType.physicalType)
-        colRVb.addAnnotation(prevColType, a)
-        val colRVoffset = colRVb.end()
-
-        rvb.start(scanResultType)
-        rvb.startTuple()
-        j = 0
-        while (j < scanAggs.length) {
-          scanAggs(j).result(rvb)
-          j += 1
-        }
-        rvb.endTuple()
-        val scanResultsOffset = rvb.end()
-
-        val resultOffset = colsF(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)
-        scanSeqOpF(region, scanAggs, aggResultsOffset, false, globalRVoffset, false, colRVoffset, false)
-
-        SafeRow(coerce[PStruct](rTyp), region, resultOffset)
-      }
-      BroadcastIndexedSeq(colValuesBc.value.zipWithIndex.map { case (a, i) => mapF(a, i) }, TArray(typ.colType), hc.sc)
-    }
-
-    prev.copy(typ = typ, colValues = newColValues)
-  }
 }
 
 case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
@@ -827,8 +473,6 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
 
   val typ: MatrixType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
-
-  override lazy val rvdType: RVDType = child.rvdType
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
@@ -870,8 +514,6 @@ case class MatrixAnnotateColsTable(
   private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
   val typ: MatrixType = child.typ.copy(colType = colType)
 
-  override lazy val rvdType: RVDType = child.rvdType
-
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
     MatrixAnnotateColsTable(
       newChildren(0).asInstanceOf[MatrixIR],
@@ -896,22 +538,14 @@ case class MatrixAnnotateRowsTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  val annotationType =
+  private val annotationType =
     if (product)
       TArray(table.typ.valueType)
     else
       table.typ.valueType
 
   val typ: MatrixType =
-    child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> annotationType))
-
-  val annotationRVDType =
-    if (product)
-      PArray(table.rvdType.rowType.dropFields(table.typ.key.toSet))
-    else
-      table.rvdType.rowType.dropFields(table.typ.key.toSet)
-  override lazy val rvdType: RVDType = child.rvdType.copy(
-    rowType = child.rvdType.rowType.appendKey(root, annotationRVDType))
+    child.typ.copy(rowType = child.typ.rowType.appendKey(root, annotationType))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
@@ -931,11 +565,10 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   override def columnCount: Option[Int] = child.columnCount
 
-  private val rvRowType = child.typ.rvRowType
-
   val idx = Ref(genUID(), TInt32())
-  val newRVRow: InsertFields = {
-    val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
+
+  val newRow: InsertFields = {
+    val refs = path.init.scanLeft(Ref("va", child.typ.rowType))((struct, name) =>
       Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
@@ -948,7 +581,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
     }.asInstanceOf[InsertFields]
   }
 
-  val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
+  val typ: MatrixType = child.typ.copy(rowType = newRow.typ)
 }
 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
@@ -964,31 +597,10 @@ case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends Mat
   override def columnCount: Option[Int] = child.columnCount
 }
 
-object MatrixUnionRows {
-  private def fixup(mir: MatrixIR): MatrixIR = {
-    MatrixMapRows(mir,
-      InsertFields(
-        SelectFields(
-          Ref("va", mir.typ.rvRowType),
-          mir.typ.rvRowType.fieldNames.filter(_ != MatrixType.entriesIdentifier)
-        ),
-        Seq(MatrixType.entriesIdentifier -> GetField(Ref("va", mir.typ.rvRowType), MatrixType.entriesIdentifier))
-      )
-    )
-  }
-
-  def unify(mirs: IndexedSeq[MatrixIR]): IndexedSeq[MatrixIR] = mirs.map(fixup)
-}
-
 case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(children.length > 1)
-
-  val typ = MatrixUnionRows.fixup(children.head).typ
-
-  require(children.tail.forall(_.typ.rowKeyStruct == typ.rowKeyStruct))
-  require(children.tail.forall(_.typ.rowType == typ.rowType))
-  require(children.tail.forall(_.typ.entryType == typ.entryType))
-  require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
+  require(children.map(_.typ).toSet.size == 1, children.map(_.typ))
+  val typ: MatrixType = children.head.typ
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
@@ -1077,26 +689,12 @@ case class CastTableToMatrix(
   colKey: IndexedSeq[String]
 ) extends MatrixIR {
 
-  private val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
-
   child.typ.rowType.fieldType(entriesFieldName) match {
     case TArray(TStruct(_, _), _) =>
     case t => fatal(s"expected entry field to be an array of structs, found $t")
   }
 
-  private val (colType, colsFieldIdx) = child.typ.globalType.field(colsFieldName) match {
-    case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
-    case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
-  }
-
-  val typ: MatrixType = MatrixType(
-    child.typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
-    colKey,
-    colType,
-    child.typ.key,
-    child.typ.rowType.rename(m))
-
-  override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType.rename(m))
+  val typ: MatrixType = MatrixType.fromTableType(child.typ, colsFieldName, entriesFieldName, colKey)
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
@@ -1110,20 +708,6 @@ case class CastTableToMatrix(
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val entries = GetField(Ref("row", child.typ.rowType), entriesFieldName)
-    val cols = GetField(Ref("global", child.typ.globalType), colsFieldName)
-    val checkedRow =
-      ir.If(ir.IsNA(entries),
-        ir.Die("missing entry array value in argument to CastTableToMatrix", child.typ.rowType),
-        ir.If(ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.ArrayLen(entries), ir.ArrayLen(cols)),
-          Ref("row", child.typ.rowType),
-          Die("incorrect entry array length in argument to CastTableToMatrix", child.typ.rowType)))
-    val checkedChild = ir.TableMapRows(child, checkedRow)
-
-    checkedChild.execute(hc).toMatrixValue(colsFieldName, entriesFieldName, colKey)
-  }
 }
 
 case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
@@ -1134,14 +718,10 @@ case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction
     MatrixToMatrixApply(newChild, function)
   }
 
-  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+  override lazy val typ: MatrixType = function.typ(child.typ)
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    function.execute(child.execute(hc))
-  }
 }
 
 case class MatrixRename(child: MatrixIR,
@@ -1151,7 +731,7 @@ case class MatrixRename(child: MatrixIR,
   require(rowMap.keys.forall(child.typ.rowType.hasField))
   require(entryMap.keys.forall(child.typ.entryType.hasField))
 
-  lazy val typ: MatrixType = MatrixType.fromParts(
+  lazy val typ: MatrixType = MatrixType(
     globalType = child.typ.globalType.rename(globalMap),
     colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),
     colType = child.typ.colType.rename(colMap),
@@ -1182,4 +762,15 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
   override lazy val typ: MatrixType = child.typ
 
   override def columnCount: Option[Int] = child.columnCount
+}
+
+case class RelationalLetMatrixTable(name: String, value: IR, body: MatrixIR) extends MatrixIR {
+  def typ: MatrixType = body.typ
+
+  def children: IndexedSeq[BaseIR] = Array(value, body)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
+    val IndexedSeq(newValue: IR, newBody: MatrixIR) = newChildren
+    RelationalLetMatrixTable(name, newValue, newBody)
+  }
 }

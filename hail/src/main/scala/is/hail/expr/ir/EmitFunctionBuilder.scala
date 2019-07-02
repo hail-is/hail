@@ -1,17 +1,19 @@
 package is.hail.expr.ir
 
-import java.io.PrintWriter
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
 
-import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s
+import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
+import is.hail.{HailContext, asm4s}
 import is.hail.asm4s._
-import is.hail.backend.spark.SparkBackendUtils
+import is.hail.backend.BackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.types.physical.PType
-import is.hail.expr.types.virtual.Type
+import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
+import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
 import org.objectweb.asm.tree.AbstractInsnNode
 
@@ -45,16 +47,28 @@ object EmitFunctionBuilder {
     new EmitFunctionBuilder[AsmFunction7[A, B, C, D, E, F, G, R]](Array(GenericTypeInfo[A], GenericTypeInfo[B], GenericTypeInfo[C], GenericTypeInfo[D], GenericTypeInfo[E], GenericTypeInfo[F], GenericTypeInfo[G]), GenericTypeInfo[R])
 }
 
-trait FunctionWithHadoopConfiguration {
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
+}
+
+trait FunctionWithLiterals {
+  def addLiterals(lit: Array[Byte]): Unit
 }
 
 trait FunctionWithSeededRandomness {
   def setPartitionIndex(idx: Int): Unit
 }
 
-trait FunctionWithSparkBackend {
-  def setSparkBackend(spark: SparkBackendUtils): Unit
+trait FunctionWithBackend {
+  def setBackend(spark: BackendUtils): Unit
 }
 
 class EmitMethodBuilder(
@@ -103,20 +117,32 @@ class DependentEmitFunction[F >: Null <: AnyRef : TypeInfo : ClassTag](
   private[this] val typMap: mutable.Map[Type, Code[Type]] =
     mutable.Map[Type, Code[Type]]()
 
+  private[this] val literalsMap: mutable.Map[(Type, Any), Code[_]] =
+    mutable.Map[(Type, Any), Code[_]]()
+
   override def getReferenceGenome(rg: ReferenceGenome): Code[ReferenceGenome] =
-    rgMap.getOrElse(rg, {
+    rgMap.getOrElseUpdate(rg, {
       val fromParent = parentfb.getReferenceGenome(rg)
       val field = addField[ReferenceGenome](fromParent)
       field.load()
     })
 
   override def getType(t: Type): Code[Type] =
-    typMap.getOrElse(t, {
+    typMap.getOrElseUpdate(t, {
       val fromParent = parentfb.getType(t)
       val field = addField[Type](fromParent)
       field.load()
     })
 
+  override def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    literalsMap.getOrElseUpdate(t -> v, {
+      val fromParent = parentfb.addLiteral(v, t, region)
+      val ti: TypeInfo[_] = typeToTypeInfo(t)
+      val field = addField(fromParent, dummy = true)(ti)
+      field.load()
+    })
+  }
 }
 
 class EmitFunctionBuilder[F >: Null](
@@ -149,46 +175,97 @@ class EmitFunctionBuilder[F >: Null](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] var _hconf: SerializableHadoopConfiguration = _
-  private[this] var _hfield: ClassFieldRef[SerializableHadoopConfiguration] = _
+  private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
+    mutable.Map[(Type, Any), ClassFieldRef[_]]()
+  private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
+  private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
+  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Region, Unit]
+
+  def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
+    assert(v != null)
+    val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
+    Code(
+      litDecoded.mux(
+        Code._empty,
+        decodeLiterals.invoke(region)),
+      f.load())
+  }
+
+  private[this] def encodeLiterals(): Array[Byte] = {
+    val spec = CodecSpec.defaultUncompressed
+    val literals = literalsMap.toArray
+    val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
+
+    val dec = spec.buildEmitDecoderF[Long](litType.physicalType, litType.physicalType, this)
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
+    mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
+    methods.append(mb2)
+
+    val off = decodeLiterals.newLocal[Long]
+    val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
+      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+    }
+
+    decodeLiterals.emit(Code(
+      off := dec(decodeLiterals.getArg[Region](1),
+        spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
+      Code(storeFields: _*)))
+
+    val baos = new ByteArrayOutputStream()
+    val enc = spec.buildEncoder(litType.physicalType, litType.physicalType)(baos)
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(litType.physicalType)
+      rvb.startTuple()
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
+      rvb.endTuple()
+      enc.writeRegionValue(region, rvb.end())
+    }
+    enc.flush()
+    enc.close()
+    baos.toByteArray
+  }
+
+  private[this] var _hfs: FS = _
+  private[this] var _hfield: ClassFieldRef[FS] = _
 
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
-  private[this] var _sparkField: ClassFieldRef[SparkBackendUtils] = _
+  private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  def sparkBackend(): Code[SparkBackendUtils] = {
-    if (_sparkField == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithSparkBackend].iname)
-      val sparkField = newField[SparkBackendUtils]
-      val mb = new EmitMethodBuilder(this, "setSparkBackend", Array(typeInfo[SparkBackendUtils]), typeInfo[Unit])
+  def backend(): Code[BackendUtils] = {
+    if (_backendField == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithBackend].iname)
+      val backendField = newField[BackendUtils]
+      val mb = new EmitMethodBuilder(this, "setBackend", Array(typeInfo[BackendUtils]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(sparkField := mb.getArg[SparkBackendUtils](1))
-      _sparkField = sparkField
+      mb.emit(backendField := mb.getArg[BackendUtils](1))
+      _backendField = backendField
     }
-    _sparkField
+    _backendField
   }
 
   def addModule(name: String, mod: Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
-  def addHadoopConfiguration(hConf: SerializableHadoopConfiguration): Unit = {
-    assert(hConf != null)
-    if (_hconf == null) {
-      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithHadoopConfiguration].iname)
-      val confField = newField[SerializableHadoopConfiguration]
-      val mb = new EmitMethodBuilder(this, "addHadoopConfiguration", Array(typeInfo[SerializableHadoopConfiguration]), typeInfo[Unit])
+  def getFS: Code[FS] = {
+    if (_hfs == null) {
+      cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithFS].iname)
+      val confField = newField[FS]
+      val mb = new EmitMethodBuilder(this, "addFS", Array(typeInfo[FS]), typeInfo[Unit])
       methods.append(mb)
-      mb.emit(confField := mb.getArg[SerializableHadoopConfiguration](1))
-      _hconf = hConf
+      mb.emit(confField := mb.getArg[FS](1))
+      _hfs = HailContext.sFS
       _hfield = confField
     }
-    assert(_hconf.value == hConf.value && _hfield != null)
-  }
 
-  def getHadoopConfiguration: Code[SerializableHadoopConfiguration] = {
-    assert(_hconf != null && _hfield != null, s"${_hfield == null}")
+    assert(_hfs == HailContext.sFS && _hfield != null)
     _hfield.load()
   }
+
+   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+     getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
@@ -358,12 +435,15 @@ class EmitFunctionBuilder[F >: Null](
     makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
+    val hasLiterals: Boolean = literalsMap.nonEmpty
+    val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
+
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
-    val localHConf = _hconf
+    val localFS = _hfs
 
-    val useSpark = _sparkField != null
-    val spark = if (useSpark) new SparkBackendUtils(_mods.result()) else null
+    val useBackend = _backendField != null
+    val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
@@ -382,10 +462,12 @@ class EmitFunctionBuilder[F >: Null](
             }
           }
           val f = theClass.newInstance().asInstanceOf[F]
-          if (localHConf != null)
-            f.asInstanceOf[FunctionWithHadoopConfiguration].addHadoopConfiguration(localHConf)
-          if (useSpark)
-            f.asInstanceOf[FunctionWithSparkBackend].setSparkBackend(spark)
+          if (localFS != null)
+            f.asInstanceOf[FunctionWithFS].addFS(localFS)
+          if (useBackend)
+            f.asInstanceOf[FunctionWithBackend].setBackend(backend)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literals)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

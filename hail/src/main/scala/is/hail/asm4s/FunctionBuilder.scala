@@ -144,6 +144,17 @@ trait DependentFunction[F >: Null <: AnyRef] extends FunctionBuilder[F] {
     cfr
   }
 
+  def addField[T](value: Code[_], dummy: Boolean)(implicit ti: TypeInfo[T]): ClassFieldRef[T] = {
+    val cfr = newField[T]
+    val add: (Growable[AbstractInsnNode]) => Unit = { (il: Growable[AbstractInsnNode]) =>
+      il += new TypeInsnNode(CHECKCAST, name)
+      value.emit(il)
+      il += new FieldInsnNode(PUTFIELD, name, cfr.name, typeInfo[T].name)
+    }
+    definedFields += add
+    cfr
+  }
+
   def newInstance()(implicit fct: ClassTag[F]): Code[F] = {
     val instance: Code[F] =
       new Code[F] {
@@ -343,20 +354,20 @@ class FunctionBuilder[F >: Null](val parameterTypeInfo: Array[MaybeGenericTypeIn
 
     new (() => F) with java.io.Serializable {
       @transient
-      @volatile private var f: F = null
+      @volatile private var theClass: Class[_] = null
 
       def apply(): F = {
         try {
-          if (f == null) {
+          if (theClass == null) {
             this.synchronized {
-              if (f == null) {
+              if (theClass == null) {
                 childClasses.foreach { case (fn, b) => loadClass(fn, b) }
-                f = loadClass(n, bytes).newInstance().asInstanceOf[F]
+                theClass = loadClass(n, bytes)
               }
             }
           }
 
-          f
+          theClass.newInstance().asInstanceOf[F]
         } catch {
           //  only triggers on classloader
           case e@(_: Exception | _: LinkageError) => {

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -11,7 +11,9 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class PruneSuite extends SparkSuite {
+import scala.collection.mutable
+
+class PruneSuite extends HailSuite {
   @Test def testUnionType() {
     val base = TStruct(
       "a" -> TStruct(
@@ -36,15 +38,15 @@ class PruneSuite extends SparkSuite {
     val irCopy = ir.deepCopy()
     assert(PruneDeadFields.isSupertype(requestedType, irCopy.typ),
       s"not supertype:\n  super: ${ requestedType.parsableString() }\n  sub:   ${ irCopy.typ.parsableString() }")
-    val memo = Memo.empty[BaseType]
+    val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     irCopy match {
-      case mir: MatrixIR => PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], memo)
-      case tir: TableIR => PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], memo)
-      case ir: IR => PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], memo)
+      case mir: MatrixIR => PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], ms)
+      case tir: TableIR => PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], ms)
+      case ir: IR => PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], ms)
     }
     irCopy.children.zipWithIndex.foreach { case (child, i) =>
-      if (expected(i) != null && expected(i) != memo.lookup(child)) {
-        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${ memo.lookup(child) }")
+      if (expected(i) != null && expected(i) != ms.requestedType.lookup(child)) {
+        fatal(s"For base IR $ir\n  Child $i\n  Expected: ${ expected(i) }\n  Actual:   ${ ms.requestedType.lookup(child) }")
       }
     }
   }
@@ -54,17 +56,17 @@ class PruneSuite extends SparkSuite {
     requestedType: BaseType,
     f: (T, T) => Boolean = (left: TableIR, right: TableIR) => left == right) {
     val irCopy = ir.deepCopy()
-    val memo = Memo.empty[BaseType]
+    val ms = PruneDeadFields.ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
     val rebuilt = (irCopy match {
       case mir: MatrixIR =>
-        PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], memo)
-        PruneDeadFields.rebuild(mir, memo)
+        PruneDeadFields.memoizeMatrixIR(mir, requestedType.asInstanceOf[MatrixType], ms)
+        PruneDeadFields.rebuild(mir, ms.rebuildState)
       case tir: TableIR =>
-        PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], memo)
-        PruneDeadFields.rebuild(tir, memo)
+        PruneDeadFields.memoizeTableIR(tir, requestedType.asInstanceOf[TableType], ms)
+        PruneDeadFields.rebuild(tir, ms.rebuildState)
       case ir: IR =>
-        PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], memo)
-        PruneDeadFields.rebuildIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), memo)
+        PruneDeadFields.memoizeValueIR(ir, requestedType.asInstanceOf[Type], ms)
+        PruneDeadFields.rebuildIR(ir, BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)), ms.rebuildState)
     }).asInstanceOf[T]
     if (!f(ir, rebuilt))
       fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
@@ -93,11 +95,9 @@ class PruneSuite extends SparkSuite {
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
     def fullType: TableType = tab.typ
-
-    def fullRVDType: RVDType = ???
   })
 
-  val mType = MatrixType.fromParts(
+  val mType = MatrixType(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
     FastIndexedSeq("ck"),
     TStruct("ck" -> TString(), "c2" -> TInt32(), "c3" -> TArray(TStruct("cc" -> TInt32()))),
@@ -106,8 +106,8 @@ class PruneSuite extends SparkSuite {
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64()))
   val mat = MatrixLiteral(MatrixValue(
     mType,
-    BroadcastRow(Row(1, 1.0), mType.globalType, sc),
-    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
+    BroadcastRow(Row(1, 1.0), mType.globalType, hc.backend),
+    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), hc.backend),
     RVD.empty(sc, mType.canonicalRVDType)))
 
   val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
@@ -116,8 +116,6 @@ class PruneSuite extends SparkSuite {
     def partitionCounts: Option[IndexedSeq[Long]] = None
 
     def fullMatrixType: MatrixType = mat.typ
-
-    def fullRVDType: RVDType = ???
 
     def lower(mr: MatrixRead): TableIR = ???
   })
@@ -150,7 +148,7 @@ class PruneSuite extends SparkSuite {
     fields.foreach { f =>
       val split = f.split("\\.")
       var ir: IR = split(0) match {
-        case "va" => Ref("va", mt.rvRowType)
+        case "va" => Ref("va", mt.rowType)
         case "sa" => Ref("sa", mt.colType)
         case "g" => Ref("g", mt.entryType)
         case "global" => Ref("global", mt.globalType)
@@ -202,7 +200,7 @@ class PruneSuite extends SparkSuite {
       val split = f.split("\\.")
       split(0) match {
         case "va" =>
-          rowFields += PruneDeadFields.subsetType(mt.rvRowType, split, 1).asInstanceOf[TStruct]
+          rowFields += PruneDeadFields.subsetType(mt.rowType, split, 1).asInstanceOf[TStruct]
         case "sa" =>
           colFields += PruneDeadFields.subsetType(mt.colType, split, 1).asInstanceOf[TStruct]
         case "g" =>
@@ -222,9 +220,8 @@ class PruneSuite extends SparkSuite {
       colKey = ck,
       globalType = PruneDeadFields.unify(mt.globalType, globalFields.result(): _*),
       colType = PruneDeadFields.unify(mt.colType, Array(PruneDeadFields.selectKey(mt.colType, ck)) ++ colFields.result(): _*),
-      rvRowType = PruneDeadFields.unify(mt.rvRowType, Array(PruneDeadFields.selectKey(mt.rvRowType, rk)) ++ rowFields.result() ++
-        Array(TStruct(MatrixType.entriesIdentifier -> TArray(PruneDeadFields.unify(mt.entryType, entryFields.result(): _*)))): _*)
-    )
+      rowType = PruneDeadFields.unify(mt.rowType, Array(PruneDeadFields.selectKey(mt.rowType, rk)) ++ rowFields.result(): _*),
+      entryType = PruneDeadFields.unify(mt.entryType, entryFields.result(): _*))
   }
 
   def mangle(t: TableIR): TableIR = {
@@ -682,6 +679,7 @@ class PruneSuite extends SparkSuite {
       "bar",
       ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
         AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      None,
       false),
       TArray(TArray(TStruct("a" -> TInt32()))),
       Array(TArray(TStruct("a" -> TInt32())),
@@ -729,6 +727,11 @@ class PruneSuite extends SparkSuite {
     checkMemo(MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean(),
       Array(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null))
+  }
+
+  @Test def testPipelineLetMemo() {
+    val t = TStruct("a" -> TInt32())
+    checkMemo(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct(), Array(TStruct(), TStruct()))
   }
 
   @Test def testTableFilterRebuild() {
@@ -1069,6 +1072,32 @@ class PruneSuite extends SparkSuite {
       })
   }
 
+  @Test def testPipelineLetRebuild() {
+    val t = TStruct("a" -> TInt32())
+    checkRebuild(RelationalLet("foo", NA(t), RelationalRef("foo", t)), TStruct(),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[RelationalLet].body == RelationalRef("foo", TStruct())
+      })
+  }
+
+  @Test def testPipelineLetTableRebuild() {
+    val t = TStruct("a" -> TInt32())
+    checkRebuild(RelationalLetTable("foo", NA(t), TableMapGlobals(tab, RelationalRef("foo", t))),
+      tab.typ.copy(globalType = TStruct()),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[RelationalLetTable].body.asInstanceOf[TableMapGlobals].newGlobals == RelationalRef("foo", TStruct())
+      })
+  }
+
+  @Test def testPipelineLetMatrixTableRebuild() {
+    val t = TStruct("a" -> TInt32())
+    checkRebuild(RelationalLetMatrixTable("foo", NA(t), MatrixMapGlobals(mat, RelationalRef("foo", t))),
+      mat.typ.copy(globalType = TStruct()),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[RelationalLetMatrixTable].body.asInstanceOf[MatrixMapGlobals].newGlobals == RelationalRef("foo", TStruct())
+      })
+  }
+
   @Test def testIfUnification() {
     val pred = False()
     val t = TStruct("a" -> TInt32(), "b" -> TInt32())
@@ -1083,7 +1112,8 @@ class PruneSuite extends SparkSuite {
       .bind(ifIR, pruneT)
 
     // should run without error!
-    PruneDeadFields.rebuildIR(ifIR, BindingEnv.empty[Type].bindEval("a", t), memo)
+    PruneDeadFields.rebuildIR(ifIR, BindingEnv.empty[Type].bindEval("a", t),
+      PruneDeadFields.RebuildMutableState(memo, mutable.HashMap.empty))
   }
 
   @DataProvider(name = "supertypePairs")

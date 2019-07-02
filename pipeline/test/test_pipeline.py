@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from pipeline import Pipeline, BatchBackend, LocalBackend
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -225,7 +225,7 @@ class LocalTests(unittest.TestCase):
     def test_select_tasks(self):
         p = self.pipeline()
         for i in range(3):
-            t = p.new_task().label(f'foo{i}')
+            t = p.new_task(name=f'foo{i}')
         self.assertTrue(len(p.select_tasks('foo')) == 3)
 
     def test_scatter_gather(self):
@@ -233,12 +233,12 @@ class LocalTests(unittest.TestCase):
             p = self.pipeline()
 
             for i in range(3):
-                t = p.new_task().label(f'foo{i}')
+                t = p.new_task(name=f'foo{i}')
                 t.command(f'echo "{i}" > {t.ofile}')
 
             merger = p.new_task()
             merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                                  key=lambda x: x._label,
+                                                                                                  key=lambda x: x.name,
                                                                                                   reverse=True)]),
                                                           ofile=merger.ofile))
 
@@ -290,9 +290,16 @@ class LocalTests(unittest.TestCase):
 
 
 class BatchTests(unittest.TestCase):
+    def setUp(self):
+        self.backend = BatchBackend(os.environ.get('BATCH_URL'))
+
+    def tearDown(self):
+        self.backend.close()
+
     def pipeline(self):
-        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
-                        default_image='google/cloud-sdk:237.0.0-alpine')
+        return Pipeline(backend=self.backend,
+                        default_image='google/cloud-sdk:237.0.0-alpine',
+                        attributes={'foo': 'a', 'bar': 'b'})
 
     def test_single_task_no_io(self):
         p = self.pipeline()
@@ -311,12 +318,13 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
         input = p.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
         t = p.new_task()
+        t.storage('0.25Gi')
         t.command(f'cat {input.foo}')
         p.run()
 
     def test_single_task_output(self):
         p = self.pipeline()
-        t = p.new_task()
+        t = p.new_task(attributes={'a': 'bar', 'b': 'foo'})
         t.command(f'echo hello > {t.ofile}')
         p.run()
 
@@ -376,12 +384,12 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
 
         for i in range(3):
-            t = p.new_task().label(f'foo{i}')
+            t = p.new_task(name=f'foo{i}')
             t.command(f'echo "{i}" > {t.ofile}')
 
         merger = p.new_task()
         merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
-                                                                                              key=lambda x: x._label,
+                                                                                              key=lambda x: x.name,
                                                                                               reverse=True)]),
                                                       ofile=merger.ofile))
 
@@ -394,3 +402,25 @@ class BatchTests(unittest.TestCase):
         t.command(f'cat {input} > {t.ofile}')
         p.write_output(t.ofile, f'{gcs_output_dir}/hello (foo) spaces.txt')
         p.run()
+
+    def test_dry_run(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command(f'echo hello > {t.ofile}')
+        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
+        p.run(dry_run=True)
+
+    def test_verbose(self):
+        p = self.pipeline()
+        input = p.read_input(f'{gcs_input_dir}/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input}')
+        p.write_output(input, f'{gcs_output_dir}/hello.txt')
+        p.run(verbose=True)
+
+    def test_failed_job_error_msg(self):
+        with self.assertRaises(PipelineException):
+            p = self.pipeline()
+            t = p.new_task()
+            t.command('false')
+            p.run()

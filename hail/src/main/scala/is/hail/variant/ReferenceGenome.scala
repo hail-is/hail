@@ -5,6 +5,7 @@ import java.io.InputStream
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
+import is.hail.backend.BroadcastValue
 import is.hail.check.Gen
 import is.hail.expr.types._
 import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser}
@@ -21,9 +22,8 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
-import org.apache.hadoop.conf.Configuration
+import is.hail.io.fs.FS
 import org.apache.spark.TaskContext
-import org.apache.spark.broadcast.Broadcast
 
 abstract class RGBase extends Serializable {
   def locusType: TLocus
@@ -39,8 +39,6 @@ abstract class RGBase extends Serializable {
   def checkLocus(l: Locus): Unit
 
   def checkLocus(contig: String, pos: Int): Unit
-
-  def checkLocusInterval(i: Interval): Unit
 
   def contigLength(contig: String): Int
 
@@ -78,7 +76,7 @@ abstract class RGBase extends Serializable {
 class BroadcastRGBase(rgParam: RGBase) extends Serializable {
   @transient private[this] val rg: RGBase = rgParam
 
-  private[this] val rgBc: Broadcast[ReferenceGenome] = {
+  private[this] val rgBc: BroadcastValue[ReferenceGenome] = {
     if (TaskContext.get != null)
       null
     else
@@ -254,47 +252,68 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def checkLocusInterval(i: Interval): Unit = {
-    val start = i.start.asInstanceOf[Locus]
-    val end = i.end.asInstanceOf[Locus]
-    val includesStart = i.includesStart
-    val includesEnd = i.includesEnd
-
-    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
-      if (!isValidContig(start.contig))
-        fatal(s"Invalid interval '$i' found. Contig '${ start.contig }' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid interval '$i' found. Start '$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome '$name'.")
-    }
-
-    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
-      if (!isValidContig(end.contig))
-        fatal(s"Invalid interval '$i' found. Contig '${ end.contig }' is not in the reference genome '$name'.")
-      else
-        fatal(s"Invalid interval '$i' found. End '$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome '$name'.")
-    }
-
-    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
-      if (start == end && ((includesStart && !includesEnd) || (!includesStart && includesStart)))
-        fatal(s"Invalid interval '$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
-      else
-        fatal(s"Invalid interval '$i' found. ")
-  }
-
-  def normalizeLocusInterval(i: Interval): Interval = {
+  def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
     var start = i.start.asInstanceOf[Locus]
     var end = i.end.asInstanceOf[Locus]
     var includesStart = i.includesStart
     var includesEnd = i.includesEnd
 
+    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
+      if (invalidMissing)
+        return null
+      else {
+        if (!isValidContig(start.contig))
+          fatal(s"Invalid interval '$i' found. Contig '${ start.contig }' is not in the reference genome '$name'.")
+        else
+          fatal(s"Invalid interval '$i' found. Start '$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome '$name'.")
+      }
+    }
+
+    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
+      if (invalidMissing)
+        return null
+      else {
+        if (!isValidContig(end.contig))
+          fatal(s"Invalid interval '$i' found. Contig '${ end.contig }' is not in the reference genome '$name'.")
+        else
+          fatal(s"Invalid interval '$i' found. End '$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome '$name'.")
+      }
+    }
+
+    val contigEnd = contigLength(end.contig)
+
     if (!includesStart && start.position == 0) {
-      start = start.copyChecked(this, position = 1)
+      start = start.copy(position = 1)
       includesStart = true
     }
-    if (!includesEnd && end.position == contigLength(end.contig) + 1) {
-      end = end.copyChecked(this, position = contigLength(end.contig))
+
+    if (!includesEnd && end.position == contigEnd + 1) {
+      end = end.copy(position = contigEnd)
       includesEnd = true
     }
+
+    if (start.contig == end.contig && start.position == end.position) {
+      (includesStart, includesEnd) match {
+        case (true, true) =>
+        case (true, false) =>
+          if (start.position != 1) {
+            start = start.copy(position = start.position - 1)
+            includesStart = false
+          }
+        case (false, true) =>
+          if (end.position != contigEnd) {
+            end = end.copy(position = end.position + 1)
+            includesEnd = false
+          }
+        case (false, false) =>
+      }
+    }
+
+    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+      if (invalidMissing)
+        return null
+      else
+        fatal(s"Invalid interval `$i' found. ")
 
     Interval(start, end, includesStart, includesEnd)
   }
@@ -337,13 +356,13 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
-    val hConf = hc.hadoopConf
-    if (!hConf.exists(fastaFile))
+    val fs = hc.sFS
+    if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
-    if (!hConf.exists(indexFile))
+    if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = FASTAReader.getUriLocalIndexFile(hConf, indexFile)
+    val localIndexFile = FASTAReader.getUriLocalIndexFile(fs, indexFile)
     val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
 
     val missingContigs = contigs.filterNot(index.hasIndexEntry)
@@ -363,13 +382,13 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Contig sizes in FASTA '$fastaFile' do not match expected sizes for reference genome '$name':\n  " +
         s"@1", invalidLengths.truncatable("\n  "))
 
-    val fastaPath = hConf.fileStatus(fastaFile).getPath.toString
-    val indexPath = hConf.fileStatus(indexFile).getPath.toString
+    val fastaPath = fs.fileStatus(fastaFile).getPath.toString
+    val indexPath = fs.fileStatus(indexFile).getPath.toString
     fastaReader = FASTAReader(hc, this, fastaPath, indexPath)
   }
 
-  def addSequenceFromReader(hConf: SerializableHadoopConfiguration, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
-    fastaReader = new FASTAReader(hConf, this, fastaFile, indexFile, blockSize, capacity)
+  def addSequenceFromReader(fs: FS, fastaFile: String, indexFile: String, blockSize: Int, capacity: Int): ReferenceGenome = {
+    fastaReader = new FASTAReader(fs, this, fastaFile, indexFile, blockSize, capacity)
     this
   }
 
@@ -405,11 +424,11 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
     if (hasLiftover(destRGName))
       fatal(s"Chain file already exists for source reference '$name' and destination reference '$destRGName'.")
-    val hConf = hc.hadoopConf
-    if (!hConf.exists(chainFile))
+    val fs = hc.sFS
+    if (!fs.exists(chainFile))
       fatal(s"Chain file '$chainFile' does not exist.")
 
-    val chainFilePath = hConf.fileStatus(chainFile).getPath.toString
+    val chainFilePath = fs.fileStatus(chainFile).getPath.toString
     val lo = LiftOver(hc, chainFilePath)
 
     val destRG = ReferenceGenome.getReference(destRGName)
@@ -421,8 +440,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     liftoverFunctions += destRGName -> irFunctions.registered
   }
 
-  def addLiftoverFromHConf(hConf: SerializableHadoopConfiguration, chainFilePath: String, destRGName: String): ReferenceGenome = {
-    val lo = new LiftOver(hConf, chainFilePath)
+  def addLiftoverFromFS(fs: FS, chainFilePath: String, destRGName: String): ReferenceGenome = {
+    val lo = new LiftOver(fs, chainFilePath)
     liftoverMaps += destRGName -> lo
     this
   }
@@ -451,7 +470,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
-  @transient lazy val broadcast: Broadcast[ReferenceGenome] = HailContext.sc.broadcast(this)
+  @transient lazy val broadcast: BroadcastValue[ReferenceGenome] = HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
     import org.apache.commons.lang.builder.HashCodeBuilder
@@ -491,8 +510,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   override def toString: String = name
 
-  def write(hadoopConf: org.apache.hadoop.conf.Configuration, file: String): Unit =
-    hadoopConf.writeTextFile(file) { out =>
+  def write(fs: is.hail.io.fs.FS, file: String): Unit =
+    fs.writeTextFile(file) { out =>
       val jrg = JSONExtractReferenceGenome(name,
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs, yContigs, mtContigs,
@@ -522,10 +541,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      fb.addHadoopConfiguration(HailContext.sHadoopConf)
-      rg = rg.invoke[SerializableHadoopConfiguration, String, String, Int, Int, ReferenceGenome](
+      rg = rg.invoke[FS, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
-        fb.getHadoopConfiguration,
+        fb.getFS,
         fastaReader.fastaFile,
         fastaReader.indexFile,
         fastaReader.blockSize,
@@ -533,10 +551,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.addHadoopConfiguration(HailContext.sHadoopConf)
-      rg = rg.invoke[SerializableHadoopConfiguration, String, String, ReferenceGenome](
-        "addLiftoverFromHConf",
-        fb.getHadoopConfiguration,
+      rg = rg.invoke[FS, String, String, ReferenceGenome](
+        "addLiftoverFromFS",
+        fb.getFS,
         lo.chainFile,
         destRG)
     }
@@ -621,7 +638,7 @@ object ReferenceGenome {
   }
 
   def fromFile(hc: HailContext, file: String): ReferenceGenome = {
-    val rg = hc.hadoopConf.readFile(file)(read)
+    val rg = hc.sFS.readFile(file)(read)
     addReference(rg)
     rg
   }
@@ -641,13 +658,13 @@ object ReferenceGenome {
   def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
     xContigs: Array[String] = Array.empty[String], yContigs: Array[String] = Array.empty[String],
     mtContigs: Array[String] = Array.empty[String], parInput: Array[String] = Array.empty[String]): ReferenceGenome = {
-    val hConf = hc.hadoopConf
-    if (!hConf.exists(fastaFile))
+    val fs = hc.sFS
+    if (!fs.exists(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist.")
-    if (!hConf.exists(indexFile))
+    if (!fs.exists(indexFile))
       fatal(s"FASTA index file '$indexFile' does not exist.")
 
-    val localIndexFile = FASTAReader.getUriLocalIndexFile(hConf, indexFile)
+    val localIndexFile = FASTAReader.getUriLocalIndexFile(fs, indexFile)
     val index = new FastaSequenceIndex(new java.io.File(localIndexFile))
 
     val contigs = new ArrayBuilder[String]
@@ -681,12 +698,12 @@ object ReferenceGenome {
     references(name).removeLiftover(destRGName)
   }
 
-  def importReferences(hConf: Configuration, path: String) {
-    if (hConf.exists(path)) {
-      val refs = hConf.listStatus(path)
-      refs.foreach { fs =>
-        val rgPath = fs.getPath.toString
-        val rg = hConf.readFile(rgPath)(read)
+  def importReferences(fs: FS, path: String) {
+    if (fs.exists(path)) {
+      val refs = fs.listStatus(path)
+      refs.foreach { fileSystem =>
+        val rgPath = fileSystem.getPath.toString
+        val rg = fs.readFile(rgPath)(read)
         val name = rg.name
         if (!ReferenceGenome.hasReference(name))
           addReference(rg)
@@ -698,10 +715,10 @@ object ReferenceGenome {
     }
   }
 
-  private def writeReference(hadoopConf: org.apache.hadoop.conf.Configuration, path: String, rg: RGBase) {
+  private def writeReference(fs: is.hail.io.fs.FS, path: String, rg: RGBase) {
     val rgPath = path + "/" + rg.name + ".json.gz"
-    if (!hailReferences.contains(rg.name) && !hadoopConf.exists(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(hadoopConf, rgPath)
+    if (!hailReferences.contains(rg.name) && !fs.exists(rgPath))
+      rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
   }
 
   def getReferences(t: Type): Set[ReferenceGenome] = {
@@ -714,9 +731,9 @@ object ReferenceGenome {
     rgs
   }
 
-  def exportReferences(hadoopConf: org.apache.hadoop.conf.Configuration, path: String, t: Type) {
+  def exportReferences(fs: is.hail.io.fs.FS, path: String, t: Type) {
     val rgs = getReferences(t)
-    rgs.foreach(writeReference(hadoopConf, path, _))
+    rgs.foreach(writeReference(fs, path, _))
   }
 
   def compare(contigsIndex: Map[String, Int], c1: String, c2: String): Int = {
@@ -815,8 +832,6 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
   def checkLocus(l: Locus): Unit = ???
 
   def checkLocus(contig: String, pos: Int): Unit = ???
-
-  def checkLocusInterval(i: Interval): Unit = ???
 
   def contigLength(contig: String): Int = ???
 

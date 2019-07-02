@@ -1,14 +1,17 @@
 package is.hail.annotations
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.asm4s._
+import is.hail.check.{Gen, Prop}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion}
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class StagedRegionValueSuite extends SparkSuite {
+class StagedRegionValueSuite extends HailSuite {
 
   val showRVInfo = true
 
@@ -452,5 +455,38 @@ class StagedRegionValueSuite extends SparkSuite {
 
     assert(run(3, true, 42.0) == ((3, true, 42.0)))
     assert(run(42, false, -1.0) == ((42, false, -1.0)))
+  }
+
+  @Test def testDeepCopy() {
+    val g = Type.genStruct
+      .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
+      .filter { case (t, a) => a != null }
+
+    val p = Prop.forAll(g) { case (t, a) =>
+      assert(t.typeCheck(a))
+      val copy = Region.scoped { region =>
+        val copyOff = Region.scoped { srcRegion =>
+          val src = ScalaToRegionValue(srcRegion, t, a)
+
+          val fb = EmitFunctionBuilder[Region, Long, Long]
+          fb.emit(
+            StagedRegionValueBuilder.deepCopy(
+              EmitRegion.default(fb.apply_method),
+              t.physicalType,
+              fb.getArg[Long](2).load()))
+          val copyF = fb.resultWithIndex()(0)
+          val newOff = copyF(region, src)
+
+
+          //clear old stuff
+          val len = srcRegion.allocate(0) - src
+          srcRegion.storeBytes(src, Array.fill(len.toInt)(0.toByte))
+          newOff
+        }
+        SafeRow(t.physicalType, region, copyOff)
+      }
+      copy == a
+    }
+    p.check()
   }
 }

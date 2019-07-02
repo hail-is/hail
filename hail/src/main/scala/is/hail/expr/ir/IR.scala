@@ -22,7 +22,11 @@ sealed trait IR extends BaseIR {
 
   def typ: Type = {
     if (_typ == null)
-      _typ = InferType(this)
+      try {
+        _typ = InferType(this)
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+      }
     _typ
   }
 
@@ -127,6 +131,9 @@ final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) exte
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
+final case class RelationalLet(name: String, value: IR, body: IR) extends IR
+final case class RelationalRef(name: String, _typ: Type) extends IR
+
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
@@ -227,6 +234,7 @@ final case class NDArrayReshape(nd: IR, shape: IR) extends IR {
 }
 
 final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR]) extends IR
+final case class NDArraySlice(nd: IR, slices: IR) extends IR
 
 final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
   override def typ: TNDArray = coerce[TNDArray](super.typ)
@@ -250,7 +258,7 @@ final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolea
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggArrayPerElement(a: IR, elementName: String, indexName: String, aggBody: IR, knownLength: Option[IR], isScan: Boolean) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -282,6 +290,20 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+
+final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+
+//final case class WriteAggs(path: IR, spec: CodecSpec) extends IR
+//final case class ReadAggs(path: IR, spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+//
+//final case class CombAggs(paths: IndexedSeq[IR], spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: Seq[String]) extends IR
@@ -322,10 +344,10 @@ final case class Die(message: IR, _typ: Type) extends IR
 final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
   var conversion: Seq[IR] => IR = _
 
-  lazy val explicitNode: IR = {
-    val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-    var body = conversion(refs).deepCopy()
+  private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+  lazy val body: IR = conversion(refs).deepCopy()
 
+  lazy val explicitNode: IR = {
     // foldRight because arg1 should be at the top so it is evaluated first
     refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
   }
@@ -353,6 +375,11 @@ final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
 
 final case class TableWrite(child: TableIR, writer: TableWriter) extends IR
+
+final case class TableMultiWrite(_children: IndexedSeq[TableIR], writer: WrappedMatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
+}
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

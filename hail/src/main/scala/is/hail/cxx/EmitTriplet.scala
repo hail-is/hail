@@ -82,19 +82,33 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
 
 object SparkFunctionContext {
   def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
-    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.hadoop_conf_",
+    SparkFunctionContext(s"$spark_context.spark_env_", s"$spark_context.fs_",
       EmitRegion(fb, s"$spark_context.region_"))
 
   def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class SparkFunctionContext(sparkEnv: Code, hadoopConfig: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, fs: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
 }
 
-object NDArrayLoopEmitter {
+object NDArrayEmitter {
+  def broadcastFlags(fb: FunctionBuilder, nDims: Int, shape: Code): Seq[Variable] = {
+    val broadcasted = 0
+    val notBroadcasted = 1
+    IndexedSeq.tabulate(nDims) { dim =>
+      fb.variable(s"not_broadcasted_$dim", "int", s"$shape[$dim] > 1 ? $notBroadcasted : $broadcasted")
+    }
+  }
+
+  def zeroBroadcastedDims(fb: FunctionBuilder, broadcastFlags: Seq[Variable], loopVars: Seq[Variable]): Seq[Variable] = {
+    broadcastFlags.zip(loopVars).map { case (flag, loopVar) =>
+      fb.variable("new_loop_var", "int", s"$flag * $loopVar")
+    }
+  }
+
   def loadElement(nd: Variable, idxs: Seq[Variable], elemType: PType): Code = {
     val index = linearizeIndices(idxs, s"$nd.strides")
     s"load_element<${ typeToCXXType(elemType) }>(load_index($nd, $index))"
@@ -107,7 +121,7 @@ object NDArrayLoopEmitter {
   }
 }
 
-abstract class NDArrayLoopEmitter(
+abstract class NDArrayEmitter(
   fb: FunctionBuilder,
   resultRegion: EmitRegion,
   val nDims: Int,

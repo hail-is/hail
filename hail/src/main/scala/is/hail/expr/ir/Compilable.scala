@@ -15,10 +15,8 @@ object Compilable {
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
       case _: BlockMatrixToValueApply => false
-      case _: Literal => false
-      case _: CollectDistributedArray => false
-      case _: ReadPartition => false
-
+      case _: RelationalRef => false
+      case _: RelationalLet => false
       case _ => true
     }
   }

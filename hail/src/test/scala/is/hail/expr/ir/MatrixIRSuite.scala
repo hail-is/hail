@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-class MatrixIRSuite extends SparkSuite {
+class MatrixIRSuite extends HailSuite {
 
   def rangeMatrix: MatrixIR = MatrixTable.range(hc, 20, 20, Some(4)).ast
 
@@ -23,7 +23,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
 
@@ -34,7 +34,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
@@ -45,7 +45,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref("va", mt.typ.rowType)
 
     val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
@@ -90,7 +90,7 @@ class MatrixIRSuite extends SparkSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = MatrixTable.range(hc, i, 5, Some(math.max(1, math.min(4, i)))).ast
-    val row = Ref("va", baseRange.typ.rvRowType)
+    val row = Ref("va", baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
         MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
@@ -140,7 +140,7 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 5, 2, None).ast
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastIndexedSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded = getRows(MatrixExplodeRows(annotated, path.toFastIndexedSeq)).map(q(_).asInstanceOf[Integer])
@@ -208,7 +208,7 @@ class MatrixIRSuite extends SparkSuite {
     val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
-    interceptSpark("incorrect entry array length") {
+    interceptSpark("length mismatch between entry array and column array") {
       Interpret(mir).rvd.count()
     }
 

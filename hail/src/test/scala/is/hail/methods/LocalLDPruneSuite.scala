@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import breeze.linalg.{Vector => BVector}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
@@ -136,7 +136,7 @@ object LocalLDPruneSuite {
   }
 }
 
-class LocalLDPruneSuite extends SparkSuite {
+class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
   lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
@@ -236,7 +236,7 @@ class LocalLDPruneSuite extends SparkSuite {
       Array(1, 0, 1, 0, 2, 2, 1, 1).map(toC2)
     )
 
-    val actualR2 = new MultiArray2(7, 7, hadoopConf.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
+    val actualR2 = new MultiArray2(7, 7, sFS.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
       line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
     }.value).toArray))
 

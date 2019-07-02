@@ -10,8 +10,7 @@ import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
+import is.hail.io.fs.FS
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{Partition, SparkContext}
 
@@ -24,12 +23,11 @@ trait BgenPartition extends Partition {
 
   def contigRecoding: Map[String, String]
 
-  def sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+  def bcFS: Broadcast[FS]
 
   def makeInputStream: HadoopFSDataBinaryReader = {
-    val hadoopPath = new Path(path)
-    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-    val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
+    val fileSystem = bcFS.value.fileSystem(path)
+    val bfis = new HadoopFSDataBinaryReader(fileSystem.open)
     bfis
   }
 
@@ -47,7 +45,7 @@ private case class LoadBgenPartition(
   partitionIndex: Int,
   startIndex: Long,
   endIndex: Long,
-  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+  bcFS: Broadcast[FS]
 ) extends BgenPartition {
   assert(startIndex <= endIndex)
 
@@ -55,7 +53,7 @@ private case class LoadBgenPartition(
 }
 
 object BgenRDDPartitions extends Logging {
-  def checkFilesDisjoint(hConf: Configuration, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+  def checkFilesDisjoint(fs: FS, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
     assert(fileMetadata.nonEmpty)
     val pord = keyType.ordering
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
@@ -91,10 +89,11 @@ object BgenRDDPartitions extends Logging {
     nPartitions: Option[Int],
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
-    val hConf = sc.hadoopConfiguration
-    val sHadoopConfBc = HailContext.hadoopConfBc
+    val hc = HailContext.get
+    val fs = hc.sFS
+    val bcFS = hc.bcFS
 
-    val fileRangeBounds = checkFilesDisjoint(hConf, files, keyType)
+    val fileRangeBounds = checkFilesDisjoint(fs, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering
 
     val sortedFiles = files.zip(fileRangeBounds)
@@ -128,7 +127,7 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(IndexReader(hConf, file.indexPath)) { index =>
+        using(IndexReader(fs, file.indexPath)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
@@ -148,7 +147,7 @@ object BgenRDDPartitions extends Logging {
               partitionIndex,
               firstVariantIndex,
               lastVariantIndex,
-              sHadoopConfBc
+              bcFS
             )
 
             rangeBounds += Interval(
@@ -303,14 +302,15 @@ object CompileDecoder {
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.physicalType.byteSize == 0)
           Code(
-            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
-              Code(
-                srvb.start(settings.nSamples),
-                i := 0,
-                Code.whileLoop(i < settings.nSamples,
-                  srvb.advance(),
-                  i := i + 1))
-            }),
+            srvb.addArray(settings.matrixType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
+              { srvb =>
+                Code(
+                  srvb.start(settings.nSamples),
+                  i := 0,
+                  Code.whileLoop(i < settings.nSamples,
+                    srvb.advance(),
+                    i := i + 1))
+              }),
             srvb.advance(),
             Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
 
@@ -402,62 +402,63 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
-              Code(
-                srvb.start(settings.nSamples),
-                i := 0,
-                Code.whileLoop(i < settings.nSamples,
-                  (data(i + 8) & 0x80).cne(0).mux(
-                    srvb.setMissing(),
-                    srvb.addBaseStruct(settings.matrixType.entryType.physicalType , { srvb =>
-                      Code(
-                        srvb.start(),
-                        off := const(settings.nSamples + 10) + i * 2,
-                        d0 := data(off) & 0xff,
-                        d1 := data(off + 1) & 0xff,
-                        d2 := const(255) - d0 - d1,
-                        if (includeGT) {
-                          Code(
-                            (d0 > d1).mux(
-                              (d0 > d2).mux(
-                                srvb.addInt(c0),
-                                (d2 > d0).mux(
+            srvb.addArray(settings.matrixType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
+              { srvb =>
+                Code(
+                  srvb.start(settings.nSamples),
+                  i := 0,
+                  Code.whileLoop(i < settings.nSamples,
+                    (data(i + 8) & 0x80).cne(0).mux(
+                      srvb.setMissing(),
+                      srvb.addBaseStruct(settings.matrixType.entryType.physicalType, { srvb =>
+                        Code(
+                          srvb.start(),
+                          off := const(settings.nSamples + 10) + i * 2,
+                          d0 := data(off) & 0xff,
+                          d1 := data(off + 1) & 0xff,
+                          d2 := const(255) - d0 - d1,
+                          if (includeGT) {
+                            Code(
+                              (d0 > d1).mux(
+                                (d0 > d2).mux(
+                                  srvb.addInt(c0),
+                                  (d2 > d0).mux(
+                                    srvb.addInt(c2),
+                                    // d0 == d2
+                                    srvb.setMissing())),
+                                // d0 <= d1
+                                (d2 > d1).mux(
                                   srvb.addInt(c2),
-                                  // d0 == d2
-                                  srvb.setMissing())),
-                              // d0 <= d1
-                              (d2 > d1).mux(
-                                srvb.addInt(c2),
-                                // d2 <= d1
-                                (d1.ceq(d0) || d1.ceq(d2)).mux(
-                                  srvb.setMissing(),
-                                  srvb.addInt(c1)))),
-                            srvb.advance())
-                        } else Code._empty,
-                        if (includeGP) {
-                          Code(
-                            srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray].physicalType, { srvb =>
-                              Code(
-                                srvb.start(3),
-                                srvb.addDouble(d0.toD / 255.0),
-                                srvb.advance(),
-                                srvb.addDouble(d1.toD / 255.0),
-                                srvb.advance(),
-                                srvb.addDouble(d2.toD / 255.0),
-                                srvb.advance())
-                            }),
-                            srvb.advance())
-                        } else Code._empty,
-                        if (includeDosage) {
-                          val dosage = (d1 + (d2 << 1)).toD / 255.0
-                          Code(
-                            srvb.addDouble(dosage),
-                            srvb.advance())
-                        } else Code._empty)
-                    })),
-                  srvb.advance(),
-                  i := i + 1))
-            }))
+                                  // d2 <= d1
+                                  (d1.ceq(d0) || d1.ceq(d2)).mux(
+                                    srvb.setMissing(),
+                                    srvb.addInt(c1)))),
+                              srvb.advance())
+                          } else Code._empty,
+                          if (includeGP) {
+                            Code(
+                              srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray].physicalType, { srvb =>
+                                Code(
+                                  srvb.start(3),
+                                  srvb.addDouble(d0.toD / 255.0),
+                                  srvb.advance(),
+                                  srvb.addDouble(d1.toD / 255.0),
+                                  srvb.advance(),
+                                  srvb.addDouble(d2.toD / 255.0),
+                                  srvb.advance())
+                              }),
+                              srvb.advance())
+                          } else Code._empty,
+                          if (includeDosage) {
+                            val dosage = (d1 + (d2 << 1)).toD / 255.0
+                            Code(
+                              srvb.addDouble(dosage),
+                              srvb.advance())
+                          } else Code._empty)
+                      })),
+                    srvb.advance(),
+                    i := i + 1))
+              }))
       },
       srvb.end())
 

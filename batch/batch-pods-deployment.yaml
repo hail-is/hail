@@ -15,5 +15,5 @@ metadata:
   namespace: {{ batch_pods_ns.name }}
 spec:
   hard:
-    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
-    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 300
+    batch.storageclass.storage.k8s.io/requests.storage: 100Ti
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100000

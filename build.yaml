@@ -4,7 +4,6 @@ steps:
    namespaceName: default
    public: true
    secrets:
-    - scorecard-github-access-token
     - hail-vdc-sa-key
     - notebook-secrets
     - gcr-pull-key
@@ -82,7 +81,7 @@ steps:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
-   serviceAccount: ci2-agent
+   serviceAccount: ci-agent
    scopes:
     - test
    dependsOn:
@@ -152,15 +151,15 @@ steps:
    publishAs: image-fetcher
  - kind: buildImage
    name: ci_image
-   dockerFile: ci2/Dockerfile
+   dockerFile: ci/Dockerfile
    contextPath: .
-   publishAs: ci2
+   publishAs: ci
    dependsOn:
      - base_image
  - kind: buildImage
    name: ci_utils_image
-   dockerFile: ci2/Dockerfile.ci-utils
-   contextPath: ci2
+   dockerFile: ci/Dockerfile.ci-utils
+   contextPath: ci
    publishAs: ci-utils
    dependsOn:
      - base_image
@@ -168,6 +167,10 @@ steps:
    name: build_hail
    image:
      valueFrom: hail_build_image.image
+   resources:
+     requests:
+       memory: "4G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -184,14 +187,18 @@ steps:
      tar czf www-src.tar.gz www
      tar czf cluster-tests.tar.gz python/cluster-tests
    outputs:
-     - from: /io/repo/hail/target/hail-0.2-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark.jar
        to: /hail.jar
-     - from: /io/repo/hail/target/hail-0.2-test-jar-with-dependencies.jar
+     - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
        to: /hail-test.jar
      - from: /io/repo/hail/testng.xml
        to: /testng.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
        to: /testng-cpp-codegen.xml
+     - from: /io/repo/hail/testng-distributed-backend.xml
+       to: /testng-distributed-backend.xml
+     - from: /io/repo/scheduler/testng.xml
+       to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
@@ -204,22 +211,22 @@ steps:
        to: /www-src.tar.gz
      - from: /io/repo/hail/cluster-tests.tar.gz
        to: /cluster-tests.tar.gz
-     - from: /io/repo/hail/create_config_file.py
-       to: /create_config_file.py
    dependsOn:
     - hail_build_image
  - kind: runImage
    name: test_hail_java
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
      mkdir -p src/test
      tar xzvf resources.tar.gz -C src/test
-     export HAIL_TEST_SKIP_R=1
-     java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng.xml
-     HAIL_ENABLE_CPP_CODEGEN=1 java -cp hail-test.jar org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+     HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng.xml
    inputs:
     - from: /resources.tar.gz
       to: /io/resources.tar.gz
@@ -227,11 +234,36 @@ steps:
       to: /io/hail-test.jar
     - from: /testng.xml
       to: /io/testng.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-output
+   dependsOn:
+    - hail_run_image
+    - build_hail
+ - kind: runImage
+   name: test_hail_java_cpp_codegen
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     tar xzvf resources.tar.gz -C src/test
+     HAIL_ENABLE_CPP_CODEGEN=1 HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-cpp-codegen.xml
+   inputs:
+    - from: /resources.tar.gz
+      to: /io/resources.tar.gz
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
     - from: /testng-cpp-codegen.xml
       to: /io/testng-cpp-codegen.xml
    outputs:
     - from: /io/test-output
-      to: /test-output
+      to: /test-cpp-codegen-output
    dependsOn:
     - hail_run_image
     - build_hail
@@ -249,12 +281,25 @@ steps:
     - from: /hail.zip
       to: /hail.zip
  - kind: buildImage
-   name: apiserver_image
-   dockerFile: apiserver/Dockerfile.apiserver
+   name: hail_test_base_image
+   dockerFile: apiserver/Dockerfile.hail-test-base
    contextPath: .
-   publishAs: apiserver
+   publishAs: hail-test-base
    dependsOn:
-    - hail_base_image
+    - hail_run_image
+    - build_hail
+   inputs:
+    - from: /hail-test.jar
+      to: /hail-test.jar
+    - from: /hail.zip
+      to: /hail.zip
+ - kind: buildImage
+   name: scheduler_image
+   dockerFile: scheduler/Dockerfile
+   contextPath: .
+   publishAs: scheduler
+   dependsOn:
+    - base_image
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
@@ -263,35 +308,6 @@ steps:
    dependsOn:
     - hail_base_image
     - default_ns
- - kind: buildImage
-   name: spark_master_image
-   dockerFile: apiserver/Dockerfile.spark-master
-   contextPath: apiserver
-   publishAs: spark-master
-   dependsOn:
-    - hail_base_image
- - kind: buildImage
-   name: spark_worker_image
-   dockerFile: apiserver/Dockerfile.spark-worker
-   contextPath: apiserver
-   publishAs: spark-worker
-   dependsOn:
-    - hail_base_image
- - kind: buildImage
-   name: test_apiserver_image
-   dockerFile: apiserver/Dockerfile.test-apiserver
-   contextPath: .
-   publishAs: test-apiserver
-   inputs:
-    - from: /test.tar.gz
-      to: /test.tar.gz
-    - from: /resources.tar.gz
-      to: /resources.tar.gz
-    - from: /data.tar.gz
-      to: /data.tar.gz
-   dependsOn:
-    - hail_base_image
-    - build_hail
  - kind: buildImage
    name: notebook2_image
    dockerFile: notebook2/Dockerfile
@@ -303,6 +319,10 @@ steps:
    name: test_hail_python
    image:
      valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
    script: |
      set -ex
      cd /io
@@ -313,7 +333,7 @@ steps:
      export HAIL_DOCTEST_DATA_DIR=./data
      export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./hail.jar --conf spark.executor.extraClassPath=./hail.jar pyspark-shell"
      export PYTHONPATH=${PYTHONPATH:+${PYTHONPATH}:}./hail.zip
-     python3 -m pytest test
+     python3 -m pytest test --durations=50
    inputs:
      - from: /hail.jar
        to: /io/hail.jar
@@ -343,77 +363,6 @@ steps:
    dependsOn:
     - hail_base_image
  - kind: runImage
-   name: test_dataproc
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -ex
-     # FIXME use local cloudtools
-     python3 -m pip install -U cloudtools==4.0.0
-     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
-     gcloud config set project broad-ctsa
-     SCRATCH=gs://hail-ci-0-1/temp/{{ token }}
-     time gsutil cp \
-       /io/hail.jar \
-       $SCRATCH/hail.jar
-     time gsutil cp \
-       /io/hail.zip \
-       $SCRATCH/hail.zip
-     tar xzf /io/cluster-tests.tar.gz
-     python3 /io/create_config_file.py 0.2 config.json
-     CLUSTER=ci-test-{{ token }}
-     time cluster start $CLUSTER \
-       --master-machine-type n1-standard-1 \
-       --master-boot-disk-size 40 \
-       --worker-machine-type n1-standard-1 \
-       --worker-boot-disk-size 40 \
-       --version 0.2 \
-       --spark 2.4.0 \
-       --max-idle 10m \
-       --bucket hail-ci-0-1-dataproc-staging-bucket \
-       --config-file config.json \
-       --hash {{ code.sha }} \
-       --jar $SCRATCH/hail.jar \
-       --zip $SCRATCH/hail.zip
-     for SCRIPT in python/cluster-tests/*.py; do
-       time cluster submit $CLUSTER $SCRIPT
-     done
-     time gsutil rm -rf $SCRATCH
-     time cluster stop $CLUSTER --async
-   secrets:
-    - name: hail-ci-0-1-service-account-key
-      mountPath: /secrets/ci-secrets
-   inputs:
-    - from: /hail.zip
-      to: /io/hail.zip
-    - from: /hail.jar
-      to: /io/hail.jar
-    - from: /cluster-tests.tar.gz
-      to: /io/cluster-tests.tar.gz
-    - from: /create_config_file.py
-      to: /io/create_config_file.py
-   dependsOn:
-    - base_image
-    - build_hail
- - kind: runImage
-   name: cleanup_dataproc
-   image:
-     valueFrom: base_image.image
-   script: |
-     set -x
-     gcloud auth activate-service-account --key-file=/secrets/ci-secrets/hail-ci-0-1.key
-     gcloud config set project broad-ctsa
-     time gsutil rm -rf gs://hail-ci-0-1/temp/{{ test_dataproc.token }}
-     time gcloud -q dataproc clusters delete --async ci-test-{{ test_dataproc.token }}
-     true
-   secrets:
-    - name: hail-ci-0-1-service-account-key
-      mountPath: /secret/ci-secrets
-   alwaysRun: true
-   dependsOn:
-    - base_image
-    - test_dataproc
- - kind: runImage
    name: make_docs
    image:
      valueFrom: hail_base_image.image
@@ -421,12 +370,10 @@ steps:
      set -ex
      export HAIL_SHORT_VERSION='0.2'
      export SPHINXOPTS='-tchecktutorial'
-     cd /io
-     unzip -q hail.zip
-     # docs refer to www, maintain standard relationship
-     mkdir python
-     mv hail python
-     tar xzf www-src.tar.gz
+     mkdir -p {{ token }}/python
+     cd {{ token }}
+     unzip -q -d python /io/hail.zip
+     tar xzf /io/www-src.tar.gz
      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
        < python/hail/docs/change_log.md \
        | pandoc -o python/hail/docs/change_log.rst
@@ -434,7 +381,7 @@ steps:
      make -C python/hail/docs BUILDDIR=_build clean html
      mkdir -p www/docs
      mv python/hail/docs/_build/html www/docs/0.2
-     tar czf www.tar.gz www
+     tar czf /io/www.tar.gz www
    inputs:
     - from: /hail.zip
       to: /io/hail.zip
@@ -453,9 +400,8 @@ steps:
    config: router/deployment.yaml
    link:
     - www
-    - scorecard
     - notebook2
-    - ci2
+    - ci
    dependsOn:
     - default_ns
     - router_image
@@ -473,23 +419,49 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: scorecard/deployment.yaml
+   scopes:
+    - deploy
    dependsOn:
     - default_ns
     - scorecard_image
     - deploy_router
+ - kind: createDatabase
+   name: ci_database
+   databaseName: ci
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: create_ci_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/create-ci-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-ci-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - base_image
+     - ci_database
  - kind: deploy
    name: deploy_ci
    namespace:
      valueFrom: default_ns.name
-   config: ci2/deployment.yaml
+   config: ci/deployment.yaml
    wait:
     - kind: Service
-      name: ci2
+      name: ci
       for: alive
    dependsOn:
     - default_ns
     - ci_image
     - ci_utils_image
+    - create_accounts
+    - ci_database
+    - create_ci_tables
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -544,6 +516,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - create_accounts
     - batch_image
     - batch_database
     - create_batch_tables
@@ -587,7 +560,6 @@ steps:
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
      gsutil -m cp -r /test/resources/*  gs://hail-test-1c9nm/{{ token }}/pipeline/input/
    secrets:
-    # hail|test-batch
     - name: test-gsa-key
       mountPath: /test-gsa-key
    dependsOn:
@@ -626,42 +598,26 @@ steps:
     - setup_pipeline    
     - test_pipeline
  - kind: deploy
-   name: deploy_apiserver
+   name: deploy_scheduler
    namespace:
      valueFrom: default_ns.name
-   config: apiserver/deployment.yaml
+   config: scheduler/deployment.yaml
    wait:
-    - kind: Deployment
-      name: spark-master
-      for: available
-    - kind: Deployment
-      name: spark-worker
-      for: available
     - kind: Service
-      name: apiserver
-      port: 5000
+      name: scheduler
+      port: 80
       for: alive
    dependsOn:
     - default_ns
-    - test_batch_image
-    - spark_master_image
-    - spark_worker_image
-    - apiserver_image
+    - scheduler_image
  - kind: deploy
-   name: test_apiserver
+   name: deploy_executors
    namespace:
-     valueFrom: batch_pods_ns.name
-   config: apiserver/test-apiserver-pod.yaml
-   wait:
-    - kind: Pod
-      name: test-apiserver
-      for: completed
-      timeout: 180
+     valueFrom: default_ns.name
+   config: scheduler/executors.yaml
    dependsOn:
     - default_ns
-    - batch_pods_ns
-    - test_apiserver_image
-    - deploy_apiserver
+    - hail_test_base_image
  - kind: deploy
    name: deploy_notebook2
    namespace:
@@ -672,6 +628,51 @@ steps:
     - notebook2_image
     - hail_jupyter_image
     - deploy_router
+ - kind: runImage
+   name: test_scheduler
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local CLASSPATH="$SPARK_HOME/jars/*:/io/hail-test.jar" java org.testng.TestNG -listener is.hail.LogTestListener /io/testng-scheduler.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-scheduler.xml
+      to: /io/testng-scheduler.xml
+   dependsOn:
+    - default_ns
+    - base_image
+    - build_hail
+    - deploy_scheduler
+    - deploy_executors
+ - kind: runImage
+   name: test_hail_java_distributed_backend
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     requests:
+       memory: "1G"
+       cpu: "1"
+   script: |
+     set -ex
+     cd /io
+     mkdir -p src/test
+     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local HAIL_TEST_SKIP_R=1 java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-distributed-backend.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-distributed-backend.xml
+      to: /io/testng-distributed-backend.xml
+   outputs:
+    - from: /io/test-output
+      to: /test-distributed-backend-output
+   dependsOn:
+    - default_ns
+    - hail_run_image
+    - build_hail
+    - deploy_scheduler
+    - deploy_executors
  - kind: runImage
    name: create_ci_test_repo
    image:
@@ -716,7 +717,6 @@ steps:
      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
      SPARK_VERSION=2.4.0
      BRANCH=0.2
-     CLOUDTOOLS_VERSION=4
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
      gsutil cp /io/hail.jar ${GS_JAR}
@@ -724,15 +724,12 @@ steps:
      GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
      gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
      gsutil acl set public-read ${GS_HAIL_ZIP}
-     CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
-     python /io/create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
-     gsutil cp hail-config-${BRANCH}-${SHA}.json ${CONFIG}
-     gsutil acl set public-read $CONFIG
      DOCS=gs://hail-common/builds/${BRANCH}/docs/hail-${BRANCH}-docs-${SHA}.tar.gz
      gsutil cp /io/www.tar.gz ${DOCS}
      gsutil acl set public-read ${DOCS}
      echo "{{ code.sha }}" > latest-hash-spark-${SPARK_VERSION}.txt
-     HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
+     # CLOUDTOOLS_VERSION=4
+     # HASH_TARGET=gs://hail-common/builds/${BRANCH}/latest-hash/cloudtools-${CLOUDTOOLS_VERSION}-spark-${SPARK_VERSION}.txt
      # gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
      # gsutil acl set public-read ${HASH_TARGET}
    image:
@@ -747,8 +744,6 @@ steps:
       to: /io/hail.zip
     - from: /www.tar.gz
       to: /io/www.tar.gz
-    - from: /create_config_file.py
-      to: /io/create_config_file.py
    scopes:
     - deploy
    dependsOn:

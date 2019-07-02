@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.expr._
 import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class TableSuite extends SparkSuite {
+class TableSuite extends HailSuite {
   def sampleKT1: Table = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
@@ -54,8 +54,8 @@ class TableSuite extends SparkSuite {
     val kt = hc.importTable(inputFile).keyBy(Array("Sample", "Status"))
     kt.export(outputFile)
 
-    val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
-    val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
+    val importedData = sFS.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
+    val exportedData = sFS.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
 
     intercept[AssertionError] {
       hc.importTable(inputFile).keyBy(Array("Sample", "Status", "BadKeyName"))

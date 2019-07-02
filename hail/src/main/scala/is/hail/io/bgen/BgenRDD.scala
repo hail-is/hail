@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
+import is.hail.backend.BroadcastValue
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TStruct, Type}
@@ -37,7 +38,7 @@ case class BgenSettings(
   entries: EntriesSetting,
   dropCols: Boolean,
   rowFields: RowFields,
-  rgBc: Option[Broadcast[ReferenceGenome]],
+  rgBc: Option[BroadcastValue[ReferenceGenome]],
   indexAnnotationType: Type
 ) {
   val (includeGT, includeGP, includeDosage) = entries match {
@@ -60,7 +61,7 @@ case class BgenSettings(
     case NoEntries =>
       matrixType.rowType
     case _: EntriesWithFields =>
-      matrixType.rvRowType
+      matrixType.canonicalRVDType.rowType.virtualType
   }
 
   def pType: PStruct = typ.physicalType
@@ -102,7 +103,7 @@ private class BgenRDD(
           assert(keys == null)
           new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
         case p: LoadBgenPartition =>
-          val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
+          val index: IndexReader = indexBuilder(p.bcFS.value, p.indexPath, 8)
           context.addTaskCompletionListener { (context: TaskContext) =>
             index.close()
           }

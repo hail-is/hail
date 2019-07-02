@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual.{Field, TArray, TStruct}
 import is.hail.io.{CodecSpec, exportTypes}
@@ -11,6 +12,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
@@ -18,6 +20,14 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
+  def apply(rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(TableType(rowType.virtualType, FastIndexedSeq(), TStruct.empty()),
+        BroadcastRow.empty(),
+        RVD.unkeyed(rowType, rdd))),
+        key))
+  }
+
   def apply(rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     Interpret(
       TableKeyBy(TableLiteral(TableValue(TableType(rowType, FastIndexedSeq(), TStruct.empty()),
@@ -71,7 +81,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
-    val hadoopConf = hc.hadoopConf
+    val fs = hc.sFS
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -82,22 +92,22 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         CodecSpec.default
 
     if (overwrite)
-      hadoopConf.delete(path, recursive = true)
-    else if (hadoopConf.exists(path))
+      fs.delete(path, recursive = true)
+    else if (fs.exists(path))
       fatal(s"file already exists: $path")
 
-    hadoopConf.mkDir(path)
+    fs.mkDir(path)
 
     val globalsPath = path + "/globals"
-    hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(hadoopConf, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
+    fs.mkDir(globalsPath)
+    AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
-    hadoopConf.mkDir(referencesPath)
-    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.rowType)
-    ReferenceGenome.exportReferences(hadoopConf, referencesPath, typ.globalType)
+    fs.mkDir(referencesPath)
+    ReferenceGenome.exportReferences(fs, referencesPath, typ.rowType)
+    ReferenceGenome.exportReferences(fs, referencesPath, typ.globalType)
 
     val spec = TableSpec(
       FileFormat.version.rep,
@@ -107,11 +117,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       Map("globals" -> RVDComponentSpec("globals"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
-    spec.write(hadoopConf, path)
+    spec.write(fs, path)
 
     writeNativeFileReadMe(path)
 
-    hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+    fs.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum
     info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
@@ -122,12 +132,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
-    hc.hadoopConf.delete(path, recursive = true)
+    hc.sFS.delete(path, recursive = true)
 
     val fields = typ.rowType.fields
 
     Option(typesFile).foreach { file =>
-      exportTypes(file, hc.hadoopConf, fields.map(f => (f.name, f.typ)).toArray)
+      exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
     }
 
     val localSignature = typ.rowType.physicalType
@@ -146,7 +156,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
         sb.result()
       }
-    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+    }.writeTable(hc.sFS, path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
   }
 
   def persist(storageLevel: StorageLevel): TableValue = copy(rvd = rvd.persist(storageLevel))
@@ -167,14 +177,13 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     }
     val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
 
-    val newRowType = typ.rowType.rename(m)
-
     val mType: MatrixType = MatrixType(
       typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
       colKey,
       colType,
       typ.key,
-      newRowType)
+      typ.rowType.deleteKey(entriesFieldName),
+      typ.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
     val colValues = globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
     val newGlobals = {
@@ -186,8 +195,8 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     MatrixValue(
       mType,
-      BroadcastRow(newGlobals, mType.globalType, HailContext.get.sc),
-      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.get.sc),
+      BroadcastRow(newGlobals, mType.globalType, HailContext.backend),
+      BroadcastIndexedSeq(colValues, TArray(mType.colType), HailContext.backend),
       newRVD
     )
   }

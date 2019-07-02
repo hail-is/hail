@@ -66,22 +66,26 @@ You will need to set some environment variables so that Hail can find Spark, Spa
     export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$SPARK_CLASSPATH --conf spark.executor.extraClassPath=$SPARK_CLASSPATH --driver-memory 8G pyspark-shell"
 
 
-Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
-manage some of hail's python dependencies. First, create a conda
-environment for hail:
+First, create a conda environment for hail:
 
 .. code-block:: bash
 
-    conda env create -f ./python/hail/dev-environment.yml
+    conda create -n hail python==3.6
 
-Activate the environment
+Activate the environment:
 
 .. code-block:: bash
 
-    source activate hail
+    conda activate hail
 
 Now the shell prompt should include the name of the environment, in this case
 "hail".
+
+Use make to install dependencies:
+
+.. code-block:: bash
+
+    make -C hail install-deps
 
 Now you can import hail from a python interpreter::
 
@@ -116,13 +120,13 @@ When you are finished developing hail, disable the environment
 
     source deactivate hail
 
-The ``dev-environment.yml`` file may change without warning; therefore, after
+The ``requirements.txt`` files may change without warning; therefore, after
 pulling new changes from a remote repository, we always recommend updating the
-conda environment
+conda environment:
 
 .. code-block:: bash
 
-    conda env update hail -f ./python/hail/dev-environment.yml
+    make -C hail install-deps
 
 
 Building the Docs

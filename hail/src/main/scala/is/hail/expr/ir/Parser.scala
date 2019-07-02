@@ -389,6 +389,12 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields, req)
+      case "Union" =>
+        punctuation(it, "{")
+        val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
+        punctuation(it, "}")
+        val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
+        TUnion(cases, req)
     }
     assert(typ.required == req)
     typ
@@ -487,7 +493,7 @@ object IRParser {
     val entryType = coerce[TStruct](type_expr(it))
     punctuation(it, "}")
 
-    MatrixType.fromParts(coerce[TStruct](-globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
+    MatrixType(coerce[TStruct](-globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
   def agg_op(it: TokenIterator): AggOp =
@@ -501,6 +507,13 @@ object IRParser {
     val seqOpArgs = type_exprs(it).map(t => -t)
     punctuation(it, ")")
     AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
+  }
+
+  def agg_signatures(it: TokenIterator): Array[AggSignature] = {
+    punctuation(it, "(")
+    val sigs = repUntil(it, agg_signature, PunctuationToken(")"))
+    punctuation(it, ")")
+    sigs
   }
 
   def ir_value(it: TokenIterator): (Type, Any) = {
@@ -584,6 +597,15 @@ object IRParser {
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
+      case "RelationalRef" =>
+        val id = identifier(it)
+        val t = type_expr(it)
+        RelationalRef(id, t)
+      case "RelationalLet" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (name -> value.typ))(it)
+        RelationalLet(name, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         val l = ir_value_expr(env)(it)
@@ -665,6 +687,10 @@ object IRParser {
         val nd = ir_value_expr(env)(it)
         val idxs = ir_value_children(env)(it)
         NDArrayRef(nd, idxs)
+      case "NDArraySlice" =>
+        val nd = ir_value_expr(env)(it)
+        val slices = ir_value_expr(env)(it)
+        NDArraySlice(nd, slices)
       case "NDArrayMatMul" =>
         val l = ir_value_expr(env)(it)
         val r = ir_value_expr(env)(it)
@@ -761,11 +787,13 @@ object IRParser {
         val elementName = identifier(it)
         val indexName = identifier(it)
         val isScan = boolean_literal(it)
+        val hasKnownLength = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env
           + (elementName -> coerce[TStreamable](a.typ).elementType)
           + (indexName -> TInt32()))(it)
-        AggArrayPerElement(a, elementName, indexName, aggBody, isScan)
+        val knownLength = if (hasKnownLength) Some(ir_value_expr(env)(it)) else None
+        AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -780,6 +808,39 @@ object IRParser {
         val seqOpArgs = ir_value_exprs(env)(it)
         val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
+      case "InitOp2" =>
+        val i = int32_literal(it)
+        val aggSig = agg_signature(it)
+        val args = ir_value_exprs(env)(it)
+        InitOp2(i, args, aggSig)
+      case "SeqOp2" =>
+        val i = int32_literal(it)
+        val aggSig = agg_signature(it)
+        val args = ir_value_exprs(env)(it)
+        SeqOp2(i, args, aggSig)
+      case "CombOp2" =>
+        val i1 = int32_literal(it)
+        val i2 = int32_literal(it)
+        val aggSig = agg_signature(it)
+        CombOp2(i1, i2, aggSig)
+      case "ResultOp2" =>
+        val i = int32_literal(it)
+        val aggSigs = agg_signatures(it)
+        ResultOp2(i, aggSigs)
+      case "ReadAggs" =>
+        val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        val path = ir_value_expr(env)(it)
+        ReadAggs(i, path, spec, aggSigs)
+      case "WriteAggs" =>
+        val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        val path = ir_value_expr(env)(it)
+        WriteAggs(i, path, spec, aggSigs)
       case "InitOp" =>
         val aggSig = agg_signature(it)
         val i = ir_value_expr(env)(it)
@@ -869,6 +930,11 @@ object IRParser {
         val writerStr = string_literal(it)
         val child = table_ir(env)(it)
         TableWrite(child, deserialize[TableWriter](writerStr))
+      case "TableMultiWrite" =>
+        implicit val formats = WrappedMatrixNativeMultiWriter.formats
+        val writerStr = string_literal(it)
+        val children = table_ir_children(env)(it)
+        TableMultiWrite(children, deserialize[WrappedMatrixNativeMultiWriter](writerStr))
       case "MatrixAggregate" =>
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
@@ -1075,6 +1141,11 @@ object IRParser {
             TArray(TInterval(child.typ.keyType)),
             padNulls = false).asInstanceOf[IndexedSeq[Interval]],
           keep)
+      case "RelationalLetTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = table_ir(env)(it)
+        RelationalLetTable(name, value, body)
       case "JavaTable" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[TableIR]
@@ -1226,6 +1297,11 @@ object IRParser {
             TArray(TInterval(child.typ.rowKeyStruct)),
             padNulls = false).asInstanceOf[IndexedSeq[Interval]],
           keep)
+      case "RelationalLetMatrixTable" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = matrix_ir(env)(it)
+        RelationalLetMatrixTable(name, value, body)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
@@ -1277,6 +1353,10 @@ object IRParser {
         val indices = literals(literals(int64_literal))(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixFilter(child, indices)
+      case "BlockMatrixSlice" =>
+        val slices = literals(literals(int64_literal))(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixSlice(child, slices.map(_.toFastIndexedSeq).toFastIndexedSeq)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
@@ -1288,6 +1368,11 @@ object IRParser {
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         BlockMatrixRandom(seed, gaussian, shape, blockSize)
+      case "RelationalLetBlockMatrix" =>
+        val name = identifier(it)
+        val value = ir_value_expr(env)(it)
+        val body = blockmatrix_ir(env)(it)
+        RelationalLetBlockMatrix(name, value, body)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]
@@ -1325,6 +1410,8 @@ object IRParser {
   def parsePType(code: String): PType = parse(code, type_expr).physicalType
 
   def parseStructType(code: String): TStruct = coerce[TStruct](parse(code, type_expr))
+
+  def parseUnionType(code: String): TUnion = coerce[TUnion](parse(code, type_expr))
 
   def parseRVDType(code: String): RVDType = parse(code, rvd_type_expr)
 

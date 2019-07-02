@@ -24,7 +24,9 @@ object EncodeNDArray {
 
   // Encode for the .npy format. Spec found here:
   // https://www.numpy.org/devdocs/reference/generated/numpy.lib.format.html
-  def npy(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, nd: Expression): Code = {
+  def npy(tub: TranslationUnitBuilder, t: PNDArray, output_buf_ptr: Expression, ndExpr: Expression): Code = {
+    val nd = tub.variable("nd", "NDArray", ndExpr.toString)
+
     val numpyMagicStr = "\"\\x93NUMPY\""
     val magicStrLen = 6
     val npyFormatMajorVersion = "'\\x01'"
@@ -40,6 +42,7 @@ object EncodeNDArray {
     val totalHeaderLen = tub.variable("header_len", "short", s"$headerOffset + $headerPadding")
 
     s"""
+       | ${ nd.define }
        | ${ header.define }
        | ${ headerOffset.define }
        | ${ headerPadding.define }
@@ -63,14 +66,11 @@ object EncodeNDArray {
     tub: TranslationUnitBuilder,
     t: PNDArray,
     output_buf_ptr: Expression,
-    nd: Expression): Code = {
+    nd: Variable): Code = {
 
     val dims = Array.tabulate(t.nDims){ i => tub.variable(s"dim${i}_", "int") }
-    val index = dims.zipWithIndex.foldRight("0"){ case ((idx, dim), linearIndex) =>
-      s"$idx * $nd.strides[$dim] + $linearIndex"
-    }
 
-    val element = Expression(s"load_element<${ typeToCXXType(t.elementType) }>(load_index($nd, $index))")
+    val element = Expression(NDArrayEmitter.loadElement(nd, dims, t.elementType))
     val body = PackEncoder.encode(tub, t.elementType, output_buf_ptr, element)
     dims.zipWithIndex.foldRight(body){ case ((dimVar, dimIdx), innerLoops) =>
       s"""

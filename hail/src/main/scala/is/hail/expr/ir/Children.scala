@@ -27,9 +27,13 @@ object Children {
       Array(cond, cnsq, altr)
     case Let(name, value, body) =>
       Array(value, body)
+    case RelationalLet(name, value, body) =>
+      Array(value, body)
     case AggLet(name, value, body, _) =>
       Array(value, body)
     case Ref(name, typ) =>
+      none
+    case RelationalRef(_, _) =>
       none
     case ApplyBinaryPrimOp(op, l, r) =>
       Array(l, r)
@@ -89,6 +93,8 @@ object Children {
       Array(a, query)
     case NDArrayRef(nd, idxs) =>
       nd +: idxs
+    case NDArraySlice(nd, slices) =>
+      Array(nd, slices)
     case NDArrayMap(nd, _, body) =>
       Array(nd, body)
     case NDArrayMap2(l, r, _, _, body) =>
@@ -107,7 +113,7 @@ object Children {
       Array(array, aggBody)
     case AggGroupBy(key, aggIR, _) =>
       Array(key, aggIR)
-    case AggArrayPerElement(a, _, _, aggBody, _) => Array(a, aggBody)
+    case AggArrayPerElement(a, _, _, aggBody, knownLength, _) => Array(a, aggBody) ++ knownLength.toArray[IR]
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -118,6 +124,12 @@ object Children {
       i +: args
     case SeqOp(i, args, _) =>
       i +: args
+    case InitOp2(_, args, _) => args
+    case SeqOp2(_, args, _) => args
+    case _: ResultOp2 => none
+    case _: CombOp2 => none
+    case WriteAggs(_, path, _, _) => Array(path)
+    case ReadAggs(_, path, _, _) => Array(path)
     case Begin(xs) =>
       xs
     case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
@@ -154,6 +166,7 @@ object Children {
     case TableAggregate(child, query) => Array(child, query)
     case MatrixAggregate(child, query) => Array(child, query)
     case TableWrite(child, _) => Array(child)
+    case TableMultiWrite(children, _) => children
     case TableToValueApply(child, _) => Array(child)
     case MatrixToValueApply(child, _) => Array(child)
     // from BlockMatrixIR

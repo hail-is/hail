@@ -15,9 +15,9 @@ class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
         if isinstance(a, BlockMatrix):
-            return np.matrix(a.to_numpy())
+            return np.array(a.to_numpy())
         else:
-            return np.matrix(a)
+            return np.array(a)
 
     def _assert_eq(self, a, b):
         self.assertTrue(np.array_equal(self._np_matrix(a), self._np_matrix(b)))
@@ -195,10 +195,10 @@ class Tests(unittest.TestCase):
         assert mt._same(mt_round_trip)
 
     def test_elementwise_ops(self):
-        nx = np.matrix([[2.0]])
-        nc = np.matrix([[1.0], [2.0]])
-        nr = np.matrix([[1.0, 2.0, 3.0]])
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nx = np.array([[2.0]])
+        nc = np.array([[1.0], [2.0]])
+        nr = np.array([[1.0, 2.0, 3.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
         x = BlockMatrix.from_numpy(nx, block_size=8)
@@ -228,11 +228,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r + r, 2 * r)
         self._assert_eq(m + m, 2 * m)
 
-        self._assert_eq(x + c, np.matrix([[3.0], [4.0]]))
-        self._assert_eq(x + r, np.matrix([[3.0, 4.0, 5.0]]))
-        self._assert_eq(x + m, np.matrix([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(c + m, np.matrix([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
-        self._assert_eq(r + m, np.matrix([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
+        self._assert_eq(x + c, np.array([[3.0], [4.0]]))
+        self._assert_eq(x + r, np.array([[3.0, 4.0, 5.0]]))
+        self._assert_eq(x + m, np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]))
+        self._assert_eq(c + m, np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]]))
+        self._assert_eq(r + m, np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]]))
         self._assert_eq(x + c, c + x)
         self._assert_eq(x + r, r + x)
         self._assert_eq(x + m, m + x)
@@ -270,11 +270,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r - r, np.zeros((1, 3)))
         self._assert_eq(m - m, np.zeros((2, 3)))
 
-        self._assert_eq(x - c, np.matrix([[1.0], [0.0]]))
-        self._assert_eq(x - r, np.matrix([[1.0, 0.0, -1.0]]))
-        self._assert_eq(x - m, np.matrix([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(c - m, np.matrix([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
-        self._assert_eq(r - m, np.matrix([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
+        self._assert_eq(x - c, np.array([[1.0], [0.0]]))
+        self._assert_eq(x - r, np.array([[1.0, 0.0, -1.0]]))
+        self._assert_eq(x - m, np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]]))
+        self._assert_eq(c - m, np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]]))
+        self._assert_eq(r - m, np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]]))
         self._assert_eq(x - c, -(c - x))
         self._assert_eq(x - r, -(r - x))
         self._assert_eq(x - m, -(m - x))
@@ -312,11 +312,11 @@ class Tests(unittest.TestCase):
         self._assert_eq(r * r, r ** 2)
         self._assert_eq(m * m, m ** 2)
 
-        self._assert_eq(x * c, np.matrix([[2.0], [4.0]]))
-        self._assert_eq(x * r, np.matrix([[2.0, 4.0, 6.0]]))
-        self._assert_eq(x * m, np.matrix([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(c * m, np.matrix([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
-        self._assert_eq(r * m, np.matrix([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
+        self._assert_eq(x * c, np.array([[2.0], [4.0]]))
+        self._assert_eq(x * r, np.array([[2.0, 4.0, 6.0]]))
+        self._assert_eq(x * m, np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]]))
+        self._assert_eq(c * m, np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]]))
+        self._assert_eq(r * m, np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]]))
         self._assert_eq(x * c, c * x)
         self._assert_eq(x * r, r * x)
         self._assert_eq(x * m, m * x)
@@ -354,11 +354,11 @@ class Tests(unittest.TestCase):
         self._assert_close(r / r, np.ones((1, 3)))
         self._assert_close(m / m, np.ones((2, 3)))
 
-        self._assert_close(x / c, np.matrix([[2 / 1.0], [2 / 2.0]]))
-        self._assert_close(x / r, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
-        self._assert_close(x / m, np.matrix([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(c / m, np.matrix([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
-        self._assert_close(r / m, np.matrix([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
+        self._assert_close(x / c, np.array([[2 / 1.0], [2 / 2.0]]))
+        self._assert_close(x / r, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]]))
+        self._assert_close(x / m, np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        self._assert_close(c / m, np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]]))
+        self._assert_close(r / m, np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]]))
         self._assert_close(x / c, 1 / (c / x))
         self._assert_close(x / r, 1 / (r / x))
         self._assert_close(x / m, 1 / (m / x))
@@ -392,12 +392,12 @@ class Tests(unittest.TestCase):
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
     def test_matrix_ops(self):
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
-        nsquare = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         square = BlockMatrix.from_numpy(nsquare, block_size=2)
 
-        nrow = np.matrix([[7.0, 8.0, 9.0]])
+        nrow = np.array([[7.0, 8.0, 9.0]])
         row = BlockMatrix.from_numpy(nrow, block_size=2)
 
         self._assert_eq(m.T, nm.T)
@@ -417,12 +417,12 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: m @ m)
         self.assertRaises(ValueError, lambda: m @ nm)
 
-        self._assert_eq(m.diagonal(), np.array([1.0, 5.0]))
-        self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
-        self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
+        self._assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
+        self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
+        self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
         self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
-        self._assert_eq(m.sum(axis=1).T, np.array([6.0, 15.0]))
+        self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
         self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
                                                          [14.0, 15.0, 16.0],
                                                          [16.0, 17.0, 18.0]]))
@@ -480,12 +480,16 @@ class Tests(unittest.TestCase):
                         (-8, slice(3, 4)),
                         (-1, slice(3, 4))]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 0))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(3, 4), 0),
                         (slice(3, 4), 1),
                         (slice(3, 4), -8),
                         (slice(3, 4), -1)]:
             self._assert_eq(bm[indices], np.expand_dims(nd[indices], 1))
+            self._assert_eq(bm[indices] - bm, nd[indices] - nd)
+            self._assert_eq(bm - bm[indices], nd - nd[indices])
 
         for indices in [(slice(0, 8), slice(0, 10)),
                         (slice(0, 8, 2), slice(0, 10, 2)),
@@ -496,6 +500,8 @@ class Tests(unittest.TestCase):
                         (slice(4, None), slice(4, None)),
                         (slice(None, None), slice(None, None))]:
             self._assert_eq(bm[indices], nd[indices])
+            self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
+            self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])
 
         self.assertRaises(ValueError, lambda: bm[0, ])
 

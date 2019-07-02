@@ -34,6 +34,10 @@ object Copy {
         val IndexedSeq(value: IR, body: IR) = newChildren
         AggLet(name, value, body, isScan)
       case Ref(name, t) => Ref(name, t)
+      case RelationalRef(name, t) => RelationalRef(name, t)
+      case RelationalLet(name, _, _) =>
+        val IndexedSeq(value: IR, body: IR) = newChildren
+        RelationalLet(name, value, body)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
         ApplyBinaryPrimOp(op, l, r)
@@ -72,6 +76,9 @@ object Copy {
       case NDArrayRef(_, _) =>
         val (nd: IR) +: (idxs: IndexedSeq[_]) = newChildren
         NDArrayRef(nd, idxs.asInstanceOf[IndexedSeq[IR]])
+      case NDArraySlice(_, _) =>
+        val IndexedSeq(nd: IR, slices: IR) = newChildren
+        NDArraySlice(nd, slices)
       case NDArrayMap(_, name, _) =>
         val IndexedSeq(nd: IR, body: IR) = newChildren
         NDArrayMap(nd, name, body)
@@ -147,9 +154,12 @@ object Copy {
       case AggGroupBy(_, _, isScan) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
         AggGroupBy(key, aggIR, isScan)
-      case AggArrayPerElement(a, elementName, indexName, aggBody, isScan) =>
-        val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
-        AggArrayPerElement(newA, elementName, indexName, newAggBody, isScan)
+      case AggArrayPerElement(_, elementName, indexName, _, _, isScan) =>
+        val (newA, newAggBody, newKnownLength) = newChildren match {
+          case IndexedSeq(newA: IR, newAggBody: IR) => (newA, newAggBody, None)
+          case IndexedSeq(newA: IR, newAggBody: IR, newKnownLength: IR) => (newA, newAggBody, Some(newKnownLength))
+        }
+        AggArrayPerElement(newA, elementName, indexName, newAggBody, newKnownLength, isScan)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -166,6 +176,19 @@ object Copy {
         InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(_, _, aggSig) =>
         SeqOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
+      case InitOp2(i, _, aggSig) =>
+        InitOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case SeqOp2(i, _, aggSig) =>
+        SeqOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case x@(_: ResultOp2 | _: CombOp2) =>
+        assert(newChildren.isEmpty)
+        x
+      case WriteAggs(startIdx, _, spec, aggSigs) =>
+        assert(newChildren.length == 1)
+        WriteAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
+      case ReadAggs(startIdx, _, spec, aggSigs) =>
+        assert(newChildren.length == 1)
+        ReadAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
@@ -229,6 +252,8 @@ object Copy {
       case TableWrite(_, writer) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableWrite(child, writer)
+      case TableMultiWrite(_, writer) =>
+        TableMultiWrite(newChildren.map(_.asInstanceOf[TableIR]), writer)
       case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)

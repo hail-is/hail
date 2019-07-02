@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt64, PStruct}
+import is.hail.expr.types.physical.{PInt64, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
@@ -96,6 +96,20 @@ class RVD(
     }.clearingRun
   }
 
+  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
+  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): RVD = {
+    require(newKey.forall(rowType.hasField))
+    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
+    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+
+    if (nPreservedFields == newKey.length)
+      this
+    else if (isSorted)
+      truncateKey(newKey.take(nPreservedFields)).extendKeyPreservesPartitioning(newKey).checkKeyOrdering()
+    else
+      changeKey(newKey)
+  }
+
   // Key and partitioner manipulation
   def changeKey(newKey: IndexedSeq[String]): RVD =
     changeKey(newKey, newKey.length)
@@ -114,6 +128,61 @@ class RVD(
       repartition(adjustedPartitioner)
         .copy(typ = rvdType, partitioner = adjustedPartitioner.copy(kType = rvdType.kType.virtualType))
     }
+  }
+
+  def checkKeyOrdering(): RVD = {
+    val partitionerBc = partitioner.broadcast(crdd.sparkContext)
+    val localType = typ
+    val localKPType = typ.kType
+
+    new RVD(
+      typ,
+      partitioner,
+      crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
+        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
+        val kUR = new UnsafeRow(localKPType)
+
+        new Iterator[RegionValue] {
+          var first = true
+
+          def hasNext: Boolean = it.hasNext
+
+          def next(): RegionValue = {
+            val rv = it.next()
+
+            if (first)
+              first = false
+            else {
+              if (localType.kRowOrd.gt(prevK.value, rv)) {
+                kUR.set(prevK.value)
+                val prevKeyString = kUR.toString()
+
+                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+                kUR.set(prevK.value)
+                val currKeyString = kUR.toString()
+                fatal(
+                  s"""RVD error! Keys found out of order:
+                     |  Current key:  $currKeyString
+                     |  Previous key: $prevKeyString
+                     |This error can occur after a split_multi if the dataset
+                     |contains both multiallelic variants and duplicated loci.
+                   """.stripMargin)
+              }
+            }
+
+            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+            kUR.set(prevK.value)
+
+            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.virtualType.ordering, kUR))
+              fatal(
+                s"""RVD error! Unexpected key in partition $i
+                   |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
+                   |  Range of partition IDs for key: [${ partitionerBc.value.lowerBound(kUR) }, ${ partitionerBc.value.upperBound(kUR) })
+                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
+            rv
+          }
+        }
+      })
   }
 
   def truncateKey(n: Int): RVD = {
@@ -413,7 +482,7 @@ class RVD(
     val (newRowPType, ins) = rowPType.unsafeStructInsert(PInt64(), List(name))
     val newRowType = newRowPType
 
-    val a = sparkContext.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
+    val a = HailContext.backend.broadcast(partitionCounts.map(_.toArray).getOrElse(countPerPartition()).scanLeft(0L)(_ + _))
 
     val newCRDD = crdd.cmapPartitionsWithIndex({ (i, ctx, it) =>
       val rv2 = RegionValue()
@@ -669,7 +738,7 @@ class RVD(
 
   def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
-    rvdSpec(codecSpec, partFiles).write(sparkContext.hadoopConfiguration, path)
+    rvdSpec(codecSpec, partFiles).write(HailContext.sFS, path)
     partitionCounts
   }
 
@@ -1261,62 +1330,8 @@ object RVD {
   ): RVD = {
     if (!HailContext.get.checkRVDKeys)
       return new RVD(typ, partitioner, crdd)
-
-    val sc = crdd.sparkContext
-
-    val partitionerBc = partitioner.broadcast(sc)
-    val localType = typ
-    val localKPType = typ.kType
-
-    new RVD(
-      typ,
-      partitioner,
-      crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
-        val kUR = new UnsafeRow(localKPType)
-
-        new Iterator[RegionValue] {
-          var first = true
-
-          def hasNext: Boolean = it.hasNext
-
-          def next(): RegionValue = {
-            val rv = it.next()
-
-            if (first)
-              first = false
-            else {
-              if (localType.kRowOrd.gt(prevK.value, rv)) {
-                kUR.set(prevK.value)
-                val prevKeyString = kUR.toString()
-
-                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
-                kUR.set(prevK.value)
-                val currKeyString = kUR.toString()
-                fatal(
-                  s"""RVD error! Keys found out of order:
-                     |  Current key:  $currKeyString
-                     |  Previous key: $prevKeyString
-                     |This error can occur after a split_multi if the dataset
-                     |contains both multiallelic variants and duplicated loci.
-                   """.stripMargin)
-              }
-            }
-
-            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
-            kUR.set(prevK.value)
-
-            if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.virtualType.ordering, kUR))
-              fatal(
-                s"""RVD error! Unexpected key in partition $i
-                   |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
-                   |  Range of partition IDs for key: [${ partitionerBc.value.lowerBound(kUR) }, ${ partitionerBc.value.upperBound(kUR) })
-                   |  Invalid key: ${ kUR.toString() }""".stripMargin)
-
-            rv
-          }
-        }
-      })
+    else
+      return new RVD(typ, partitioner, crdd).checkKeyOrdering()
   }
 
   def union(rvds: Seq[RVD], joinKey: Int): RVD = rvds match {
@@ -1341,9 +1356,9 @@ object RVD {
     val first = rvds.head
     require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
 
-    val sc = HailContext.sc
-    val hConf = HailContext.hadoopConf
-    val hConfBc = HailContext.hadoopConfBc
+    val sc = HailContext.get.sc
+    val fs = HailContext.sFS
+    val bcFS = HailContext.bcFS
 
     val nRVDs = rvds.length
     val partitioner = first.partitioner
@@ -1363,17 +1378,17 @@ object RVD {
     val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
       val s = StringUtils.leftPad(i.toString, fileDigits, '0')
-      hConf.mkDir(path + s + ".mt" + "/rows/rows/parts")
-      hConf.mkDir(path + s + ".mt" + "/entries/rows/parts")
+      fs.mkDir(path + s + ".mt" + "/rows/rows/parts")
+      fs.mkDir(path + s + ".mt" + "/entries/rows/parts")
     }
 
     val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[RegionValue]]) =>
       Iterator.single { ctx: RVDContext =>
-        val hConf = hConfBc.value.value
+        val fs = bcFS.value
         val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
         val fullPath = path + s + ".mt"
         val (f, rowCount) = RichContextRDDRegionValue.writeSplitRegion(
-          hConf,
+          fs,
           fullPath,
           localTyp,
           singletonElement(it)(ctx),
@@ -1405,10 +1420,10 @@ object RVD {
 
     sc.parallelize(partFiles.zipWithIndex, partFiles.length)
       .foreach { case (partFiles, i) =>
-        val hConf = hConfBc.value.value
+        val fs = bcFS.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
         val basePath = path + s + ".mt"
-        RichContextRDDRegionValue.writeSplitSpecs(hConf, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
       }
 
     partCounts

@@ -22,9 +22,13 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region() extends NativeBase() {
+final class Region private (empty: Boolean) extends NativeBase() {
+  def this() { this(false) }
   @native def nativeCtor(p: RegionPool): Unit
-  nativeCtor(RegionPool.get)
+  @native def initEmpty(): Unit
+  @native def nativeClearRegion(): Unit
+
+  if (empty) initEmpty() else nativeCtor(RegionPool.get)
   
   def this(b: Region) {
     this()
@@ -45,13 +49,54 @@ final class Region() extends NativeBase() {
   @native def nativeAllocate(n: Long): Long
   @native def nativeReference(r2: Region): Unit
   @native def nativeRefreshRegion(): Unit
-  
+
+  @native def nativeGetNumParents(): Int
+  @native def nativeSetNumParents(n: Int): Unit
+  @native def nativeSetParentReference(r2: Region, i: Int): Unit
+  @native def nativeGetParentReferenceInto(r2: Region, i: Int): Region
+  @native def nativeClearParentReference(i: Int): Unit
+
   final def align(a: Long) = nativeAlign(a)
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
   final def allocate(n: Long): Long = nativeAllocate(n)
 
-  final def reference(other: Region): Unit = nativeReference(other)
+  private var explicitParents: Int = 0
+
+  final def reference(other: Region): Unit = {
+    assert(explicitParents <= 0, s"can't use 'reference' if you're explicitly setting Region dependencies")
+    explicitParents = -1
+    nativeReference(other)
+  }
+
   final def refreshRegion(): Unit = nativeRefreshRegion()
+
+  def setNumParents(n: Int): Unit = {
+    assert(explicitParents >= 0 && nativeGetNumParents() < n, s"Can't shrink number of dependent regions")
+    explicitParents = n
+    nativeSetNumParents(n)
+  }
+
+  def setParentReference(r: Region, i: Int): Unit = {
+    assert(i < explicitParents)
+    nativeSetParentReference(r, i)
+  }
+
+  def setFromDependentRegion(base: Region, i: Int): Unit = {
+    assert(i < explicitParents)
+    base.nativeGetParentReferenceInto(this, i)
+  }
+
+  def getParentReference(i: Int): Region = {
+    assert(i < explicitParents)
+    val r = new Region(empty = true)
+    nativeGetParentReferenceInto(r, i)
+    r
+  }
+
+  def clearParentReference(i: Int): Unit = {
+    assert(i < explicitParents)
+    nativeClearParentReference(i)
+  }
   
   final def loadInt(addr: Long): Int = Memory.loadInt(addr)
   final def loadLong(addr: Long): Long = Memory.loadLong(addr)
@@ -261,7 +306,6 @@ final class Region() extends NativeBase() {
   def prettyBits(): String = {
     "FIXME: implement prettyBits on Region"
   }
-
 }
 
 object RegionPool {

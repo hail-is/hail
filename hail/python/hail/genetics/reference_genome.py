@@ -344,7 +344,7 @@ class ReferenceGenome(object):
             the fasta_file's extension with `fai`.
         """
         if index_file is None:
-            index_file = re.sub('\.[^.]*$', '.fai', fasta_file)
+            index_file = re.sub(r'\.[^.]*$', '.fai', fasta_file)
         Env.backend().add_sequence(self.name, fasta_file, index_file)
         self._has_sequence = True
 

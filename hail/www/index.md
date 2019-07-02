@@ -15,7 +15,7 @@ Hail is actively developed with new features and performance improvements integr
 
 ### Maintainer
 
-Hail is maintained by a team in the [Neale lab](https://nealelab.squarespace.com/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/scientific-community/science/programs/psychiatric-disease/stanley-center-psychiatric-research/stanle) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
+Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
 
 Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
@@ -26,42 +26,13 @@ citation for the version of Hail you installed by executing:
 
 ```python
 import hail as hl
-
-print(hl.cite_hail())
+print(hl.citation())
 ```
 
 Which will look like:
 
 ```
 Hail Team. Hail 0.2.13-81ab564db2b4. https://github.com/hail-is/hail/releases/tag/0.2.13.
-```
-
-Or if you need a bibtex entry:
-
-```python
-import hail as hl
-
-print(hl.cite_hail_bibtex())
-```
-
-Which will look like:
-
-```
-@misc{Hail,
-  author = {Hail Team},
-  title = {Hail},
-  howpublished = {\url{https://github.com/hail-is/hail/releases/tag/0.2.13}}
-}
-```
-
-If you simply cannot stomach the idea of citing a GitHub repository (even though
-more than 2,800 people have [cited the Keras GitHub
-repository](https://scholar.google.com/scholar?cluster=17868569268188187229&hl=en&as_sdt=40000005&sciodt=0,22)),
-then please cite this DOI which always points to the latest published version of
-Hail:
-
-```
-Hail Team. Hail. http://doi.org/10.5281/zenodo.2646680
 ```
 
 ##### Acknowledgements

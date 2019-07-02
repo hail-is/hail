@@ -16,7 +16,7 @@ import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.{HailContext, cxx}
-import org.apache.hadoop.conf.{Configuration => HadoopConf}
+import is.hail.io.fs.FS
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -152,6 +152,12 @@ object CodecSpec {
 
   val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
+  def fromString(s: String): CodecSpec = s match {
+    case "default" => CodecSpec.default
+    case "defaultUncompressed" => CodecSpec.defaultUncompressed
+    case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
+  }
+
   val baseBufferSpecs: Array[BufferSpec] = Array(
     new BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
@@ -174,11 +180,33 @@ object CodecSpec {
 }
 
 trait CodecSpec extends Serializable {
+  type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
+  type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
+
   def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+
+  def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
+    val baos = new ByteArrayOutputStream()
+    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
+    baos.toByteArray()
+  }
+
+  def decode(t: PType, bytes: Array[Byte], region: Region): Long = {
+    val bais = new ByteArrayInputStream(bytes)
+    buildDecoder(t, t)(bais).readRegionValue(region)
+  }
+
+  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
+
+  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
+
+  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T]
+
+  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
@@ -252,11 +280,19 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     }
   }
 
-  def buildEmitDecoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
-    EmitPackDecoder.buildMethod(t, requestedType, fb)
+  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = child.buildCodeInputBuffer(is)
 
-  def buildEmitEncoderMethod(t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder =
-    EmitPackEncoder.buildMethod(t, requestedType, fb)
+  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = child.buildCodeOutputBuffer(os)
+
+  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T] = {
+    val mb = EmitPackDecoder.buildMethod(t, requestedType, fb)
+    (region: Code[Region], buf: Code[InputBuffer]) => mb.invoke[T](region, buf)
+  }
+
+  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
+    val mb = EmitPackEncoder.buildMethod(t, requestedType, fb)
+    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
+  }
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
 
@@ -1266,13 +1302,13 @@ object EmitPackDecoder {
 
   def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
     val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]), ir.typeToTypeInfo(rt))
-    val in: Code[InputBuffer] = mb.getArg[InputBuffer](2)
+    val in = mb.getArg[InputBuffer](2)
     val decode: Code[_] = t match {
-      case _: PBoolean => in.readBoolean()
-      case _: PInt32 => in.readInt()
-      case _: PInt64 => in.readLong()
-      case _: PFloat32 => in.readFloat()
-      case _: PFloat64 => in.readDouble()
+      case _: PBoolean => in.load().readBoolean()
+      case _: PInt32 => in.load().readInt()
+      case _: PInt64 => in.load().readLong()
+      case _: PFloat32 => in.load().readFloat()
+      case _: PFloat64 => in.load().readDouble()
       case _ =>
         val srvb = new StagedRegionValueBuilder(mb, rt)
         val emit = t.fundamentalType match {
@@ -1516,8 +1552,6 @@ object EmitPackEncoder { self =>
         def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
           val mb = mbLike.mb
           val region = mb.getArg[Region](1).load()
-          val offset = mb.getArg[Long](2).load()
-          val out = mb.getArg[OutputBuffer](3).load()
 
           t.isFieldDefined(region, foff, i).mux(
             self.emit(f.typ, rf.typ, mb, region, t.fieldOffset(foff, i), out),
@@ -1545,8 +1579,6 @@ object EmitPackEncoder { self =>
         def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
           val mb = mbLike.mb
           val region = mb.getArg[Region](1).load()
-          val offset = mb.getArg[Long](2).load()
-          val out = mb.getArg[OutputBuffer](3).load()
 
           t.isFieldDefined(region, foff, i).mux(
             self.emit(ft, requestedType.types(i), mb, region, t.fieldOffset(foff, i), out),
@@ -1839,7 +1871,7 @@ object RichContextRDDRegionValue {
   }
 
   def writeSplitRegion(
-    hConf: HadoopConf,
+    fs: FS,
     path: String,
     t: RVDType,
     it: Iterator[RegionValue],
@@ -1859,21 +1891,21 @@ object RichContextRDDRegionValue {
     val finalEntriesPartPath = path + "/entries/rows/parts/" + f
     val (rowsPartPath, entriesPartPath) =
       if (stageLocally) {
-        val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
-        val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
+        val rowsPartPath = fs.getTemporaryFile("file:///tmp")
+        val entriesPartPath = fs.getTemporaryFile("file:///tmp")
         context.addTaskCompletionListener { (context: TaskContext) =>
-          hConf.delete(rowsPartPath, recursive = false)
-          hConf.delete(entriesPartPath, recursive = false)
+          fs.delete(rowsPartPath, recursive = false)
+          fs.delete(entriesPartPath, recursive = false)
         }
         (rowsPartPath, entriesPartPath)
       } else
         (finalRowsPartPath, finalEntriesPartPath)
 
-    val rowCount = hConf.writeFile(rowsPartPath) { rowsOS =>
+    val rowCount = fs.writeFile(rowsPartPath) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
       using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
 
-        hConf.writeFile(entriesPartPath) { entriesOS =>
+        fs.writeFile(entriesPartPath) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
 
@@ -1908,15 +1940,15 @@ object RichContextRDDRegionValue {
     }
 
     if (stageLocally) {
-      hConf.copy(rowsPartPath, finalRowsPartPath)
-      hConf.copy(entriesPartPath, finalEntriesPartPath)
+      fs.copy(rowsPartPath, finalRowsPartPath)
+      fs.copy(entriesPartPath, finalEntriesPartPath)
     }
 
     f -> rowCount
   }
 
   def writeSplitSpecs(
-    hConf: HadoopConf,
+    fs: FS,
     path: String,
     codecSpec: CodecSpec,
     key: IndexedSeq[String],
@@ -1926,10 +1958,10 @@ object RichContextRDDRegionValue {
     partitioner: RVDPartitioner
   ) {
     val rowsSpec = OrderedRVDSpec(rowsRVType, key, codecSpec, partFiles, partitioner)
-    rowsSpec.write(hConf, path + "/rows/rows")
+    rowsSpec.write(fs, path + "/rows/rows")
 
     val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitioner.numPartitions))
-    entriesSpec.write(hConf, path + "/entries/rows")
+    entriesSpec.write(fs, path + "/entries/rows")
   }
 }
 
@@ -1971,13 +2003,12 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     stageLocally: Boolean
   ): Array[Long] = {
     val sc = crdd.sparkContext
-    val hConf = sc.hadoopConfiguration
+    val fs = HailContext.sFS
 
-    hConf.mkDir(path + "/rows/rows/parts")
-    hConf.mkDir(path + "/entries/rows/parts")
+    fs.mkDir(path + "/rows/rows/parts")
+    fs.mkDir(path + "/entries/rows/parts")
 
-    val sHConfBc = HailContext.hadoopConfBc
-
+    val bcFS = HailContext.bcFS
     val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
@@ -1990,9 +2021,9 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      val hConf = sHConfBc.value.value
+      val fs = bcFS.value
       val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-        hConf,
+        fs,
         path,
         t,
         it,
@@ -2008,7 +2039,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    RichContextRDDRegionValue.writeSplitSpecs(hConf, path, codecSpec, t.key, rowsRVType, entriesRVType, partFiles, partitioner)
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, t.key, rowsRVType, entriesRVType, partFiles, partitioner)
 
     partitionCounts
   }

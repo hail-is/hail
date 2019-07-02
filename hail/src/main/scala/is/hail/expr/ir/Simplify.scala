@@ -182,7 +182,7 @@ object Simplify {
 
     case ApplyIR("contains", Seq(ToSet(x), element)) if x.typ.isInstanceOf[TArray] => invoke("contains", x, element)
 
-    case x: ApplyIR if x.explicitNode.size < 10 => x.explicitNode
+    case x: ApplyIR if x.body.size < 10 => x.explicitNode
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
@@ -254,6 +254,34 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
+    case Let(x, InsertFields(parentRef: Ref, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
+      val insFieldSet = insFields.map(_._1).toSet
+
+      def allRefsCanBePassedThrough(ir1: IR, newBindingEnv: BindingEnv[Type]): Boolean = ir1 match {
+        case GetField(Ref(`x`, _), fd) if !insFieldSet.contains(fd) => true
+        case Ref(`x`, _) => newBindingEnv.eval.lookupOption(x).isDefined
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case _ => ir1.children
+          .iterator
+          .zipWithIndex
+          .forall {
+            case (child: IR, idx) =>
+              allRefsCanBePassedThrough(child, ChildBindings(ir1, idx, newBindingEnv))
+            case _ => true
+          }
+      }
+
+      val baseEnv = BindingEnv(Env.empty[Type], Some(Env.empty[Type]), Some(Env.empty[Type]))
+      fields.forall { case (_, ir) =>
+        allRefsCanBePassedThrough(ir, baseEnv)
+      }
+    } =>
+      val e = Env[IR]((x, parentRef))
+      Subst(
+        InsertFields(InsertFields(parentRef, insFields, ord1), fields, ord2),
+        BindingEnv(e, Some(e), Some(e)))
+
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
 
@@ -278,6 +306,7 @@ object Simplify {
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
 
     case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
+    case TableCount(CastMatrixToTable(child, _, _)) => TableCount(MatrixRowsTable(child))
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
@@ -475,7 +504,8 @@ object Simplify {
       val uid = genUID()
       TableMapGlobals(child, Let(uid, ng1, Subst(ng2, BindingEnv(Env("global" -> Ref(uid, ng1.typ))))))
 
-    case TableHead(MatrixColsTable(child), n) => if (n > Int.MaxValue) MatrixColsTable(child) else MatrixColsTable(MatrixColsHead(child, n.toInt))
+    case TableHead(MatrixColsTable(child), n) if child.typ.colKey.isEmpty =>
+      if (n > Int.MaxValue) MatrixColsTable(child) else MatrixColsTable(MatrixColsHead(child, n.toInt))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -493,10 +523,9 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.typ.key) // FIXME: https://github.com/hail-is/hail/issues/6234
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
-      val uid = genUID()
       val row = Ref("row", child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
       val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
@@ -513,6 +542,12 @@ object Simplify {
             Some(1), 10),
           FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
+
+    case TableDistinct(TableDistinct(child)) => TableDistinct(child)
+    case TableDistinct(TableAggregateByKey(child, expr)) => TableAggregateByKey(child, expr)
+    case TableDistinct(TableMapRows(child, newRow)) => TableMapRows(TableDistinct(child), newRow)
+    case TableDistinct(TableLeftJoinRightDistinct(child, right, root)) => TableLeftJoinRightDistinct(TableDistinct(child), right, root)
+    case TableDistinct(TableRepartition(child, n, strategy)) if canRepartition => TableRepartition(TableDistinct(child), n, strategy)
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
       TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
@@ -536,7 +571,7 @@ object Simplify {
     // push down filter intervals nodes
     case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
       TableFilter(TableFilterIntervals(child, intervals, keep), pred)
-    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) =>
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) if !ContainsScan(newRow) =>
       TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)
@@ -661,5 +696,8 @@ object Simplify {
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
     case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
+    case BlockMatrixSlice(BlockMatrixMap(child, f), slices) => BlockMatrixMap(BlockMatrixSlice(child, slices), f)
+    case BlockMatrixSlice(BlockMatrixMap2(l, r, f), slices) =>
+      BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), f)
   }
 }

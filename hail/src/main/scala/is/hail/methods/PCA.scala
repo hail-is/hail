@@ -15,12 +15,11 @@ import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
 case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends MatrixToTableFunction {
-  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
-    val typ = TableType(
+  override def typ(childType: MatrixType): TableType = {
+    TableType(
       childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64())),
       childType.rowKey,
       TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(childType.colKeyStruct ++ TStruct("scores" -> TArray(TFloat64())))))
-    (typ, typ.canonicalRVDType)
   }
 
   def preservesPartitionCounts: Boolean = false
@@ -47,9 +46,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
           s"but user requested ${ k } principal components.")
 
     def collectRowKeys(): Array[Annotation] = {
-      val fullRowType = mv.typ.rvRowType.physicalType
       val rowKeyIdx = mv.typ.rowKeyFieldIdx
-      val localKeyStruct = mv.typ.rowKeyStruct
 
       mv.rvd.toRows.map[Any] { r =>
         Row.fromSeq(rowKeyIdx.map(r.get))
@@ -58,7 +55,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }
 
     val rowType = TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
-    val rowKeysBc = sc.broadcast(collectRowKeys())
+    val rowKeysBc = HailContext.backend.broadcast(collectRowKeys())
     val localRowKeySignature = mv.typ.rowKeyStruct.types
 
     val crdd: ContextRDD[RVDContext, RegionValue] = if (computeLoadings) {
@@ -120,6 +117,6 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val newGlobal = f2(g1, globalScores)
     
     TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
-      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], sc), rvd)
+      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], hc.backend), rvd)
   }
 }

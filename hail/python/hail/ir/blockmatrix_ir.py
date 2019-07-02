@@ -4,8 +4,7 @@ from hail.expr.types import tarray
 from hail.ir import BlockMatrixIR, IR
 from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.ir import BlockMatrixIR, IR, tarray, Renderer
-from hail.utils.java import escape_str
-from hail.typecheck import typecheck_method, sequenceof
+from hail.typecheck import typecheck_method, sequenceof, sized_tupleof, oneof
 
 from typing import List
 
@@ -145,6 +144,29 @@ class BlockMatrixFilter(BlockMatrixIR):
                  enumerate(self.indices_to_keep)]
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(shape[0], shape[1])
+        self._type = tblockmatrix(self.child.typ.element_type,
+                                  tensor_shape,
+                                  is_row_vector,
+                                  self.child.typ.block_size)
+
+
+class BlockMatrixSlice(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR, slices=sequenceof(slice))
+    def __init__(self, child, slices):
+        super().__init__(child)
+        self.child = child
+        self.slices = slices
+
+    def head_str(self):
+        return '{}'.format(_serialize_list([f'({s.start} {s.stop} {s.step})' for s in self.slices]))
+
+    def _eq(self, other):
+        return self.slices == other.slices
+
+    def _compute_type(self):
+        assert len(self.slices) == 2
+        matrix_shape = [1 + (s.stop - s.start - 1) // s.step for s in self.slices]
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(matrix_shape[0], matrix_shape[1])
         self._type = tblockmatrix(self.child.typ.element_type,
                                   tensor_shape,
                                   is_row_vector,

@@ -1,6 +1,0 @@
-kubernetes==9.*
-Flask_Sockets==0.2.*
-libsass==0.18.*
-authlib==0.10.*
-pymysql==0.9.*
-./hailjwt

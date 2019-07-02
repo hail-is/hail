@@ -1,9 +1,10 @@
 package is.hail.backend
 
+import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -45,7 +46,6 @@ object LowerTableIR {
 
     var ir = ir0
 
-    ir = ir.unwrap
     if (optimize) { ir = time( "first pass", opt(_, ir)) }
 
     ir = time("lowering MatrixIR", _ => LowerMatrixIR(ir))
@@ -70,7 +70,7 @@ object LowerTableIR {
 
     case TableCollect(child) =>
       val lowered = lower(child)
-      assert(lowered.body.typ.isInstanceOf[TContainer])
+      assert(lowered.body.typ.isInstanceOf[TContainer], s"${ lowered.body.typ }")
       val elt = genUID()
       MakeStruct(FastIndexedSeq(
         "rows" -> ArrayFlatMap(lowered.toIR(x => x), elt, Ref(elt, lowered.body.typ)),
@@ -81,7 +81,10 @@ object LowerTableIR {
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
-      
+
+    case node if node.children.exists( _.isInstanceOf[BlockMatrixIR] ) =>
+      throw new LowererUnsupportedOperation(s"BlockMatrixIR nodes are not supported: \n${ Pretty(node) }")
+
     case node =>
       Copy(node, ir.children.map { case c: IR => lower(c) })
   }
@@ -89,6 +92,54 @@ object LowerTableIR {
   // table globals should be stored in the first element of `globals` in TableStage;
   // globals in TableStage should have unique identifiers.
   def lower(tir: TableIR): TableStage = tir match {
+    case TableRead(typ, dropRows, reader) =>
+      val gType = typ.globalType
+      val rowType = typ.rowType
+      val rvdType = typ.canonicalRVDType
+      val globalRef = genUID()
+
+      reader match {
+        case r@TableNativeReader(path, _) =>
+          val globalsPath = r.spec.globalsComponent.absolutePath(path)
+          val globalsSpec = AbstractRVDSpec.read(HailContext.get, globalsPath)
+          val gPath = AbstractRVDSpec.partPath(globalsPath, globalsSpec.partFiles.head)
+          val gSpec = globalsSpec.codecSpec
+          val gEncType = globalsSpec.encodedType.virtualType
+
+          if (dropRows) {
+            TableStage(
+              MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ReadPartition(Str(gPath), gSpec, gEncType, gType), 0))),
+              globalRef,
+              rvdType,
+              RVDPartitioner.empty(rvdType),
+              TStruct(),
+              MakeArray(FastIndexedSeq(), TArray(TStruct())),
+              MakeArray(FastIndexedSeq(), TArray(rvdType.rowType.virtualType)))
+          } else {
+            val rowsPath = r.spec.rowsComponent.absolutePath(path)
+            val rowsSpec = AbstractRVDSpec.read(HailContext.get, rowsPath)
+            val partitioner = rowsSpec.partitioner
+            val rSpec = rowsSpec.codecSpec
+            val rowEncType = rowsSpec.encodedType.virtualType
+            val ctxType = TStruct("path" -> TString())
+
+            if (rowsSpec.key startsWith typ.key) {
+              TableStage(
+                MakeStruct(FastIndexedSeq(globalRef -> ArrayRef(ToArray(ReadPartition(Str(gPath), gSpec, gEncType, gType)), 0))),
+                globalRef,
+                rvdType,
+                partitioner,
+                ctxType,
+                MakeArray(rowsSpec.partFiles.map(f => MakeStruct(FastIndexedSeq("path" -> Str(AbstractRVDSpec.partPath(rowsPath, f))))), TArray(ctxType)),
+                ToArray(ReadPartition(GetField(Ref("context", ctxType), "path"), rSpec, rowEncType, rowType)))
+            } else {
+              throw new LowererUnsupportedOperation("can't lower a table if sort is needed after read.")
+            }
+          }
+        case r =>
+          throw new LowererUnsupportedOperation(s"can't lower a TableRead with reader $r.")
+      }
+
     case TableRange(n, nPartitions) =>
       val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
       val partCounts = partition(n, nPartitionsAdj)
@@ -140,11 +191,12 @@ object LowerTableIR {
     case TableFilter(child, cond) =>
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
-      val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
       loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, BindingEnv(env))))
 
     case TableMapRows(child, newRow) =>
+      if (ContainsScan(newRow))
+        throw new LowererUnsupportedOperation(s"scans are not supported: \n${ Pretty(newRow) }")
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
       val env: Env[IR] = Env("row" -> row, "global" -> loweredChild.globals)
@@ -154,7 +206,9 @@ object LowerTableIR {
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
 
-      val fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      var fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      if (!fieldRef.typ.isInstanceOf[TArray])
+        fieldRef = ToArray(fieldRef)
       val elt = Ref(genUID(), coerce[TContainer](fieldRef.typ).elementType)
 
       val refs = path.scanLeft(row)((struct, name) =>

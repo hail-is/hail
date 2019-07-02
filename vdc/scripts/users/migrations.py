@@ -1,9 +1,10 @@
 from table import Table
 import pymysql
 import os
-from secrets import get_secrets
+from utils import get_secrets
 
 HOST = os.environ.get('SQL_HOST')
+
 
 class MigrateTable(Table):
     def __init__(self):

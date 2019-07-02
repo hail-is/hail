@@ -1,10 +1,10 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.utils.MultiArray2
 import org.testng.annotations.Test
 
-class MultiArray2Suite extends SparkSuite{
+class MultiArray2Suite extends HailSuite{
   @Test def test() = {
 
     // test multiarray of size 0 will be created

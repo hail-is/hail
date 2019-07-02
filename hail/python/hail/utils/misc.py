@@ -5,10 +5,15 @@ import shutil
 import tempfile
 from collections import defaultdict, Counter, OrderedDict
 from random import Random
+import json
+import re
 
 import hail
 from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
+from io import StringIO
+
+import numpy as np
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
@@ -454,3 +459,81 @@ def timestamp_path(base, suffix=''):
                     '-',
                     datetime.datetime.now().strftime("%Y%m%d-%H%M"),
                     suffix])
+
+
+def np_type_to_hl_type(t):
+    if t == np.int64:
+        return hail.tint64
+    elif t == np.int32:
+        return hail.tint32
+    elif t == np.float64:
+        return hail.tfloat64
+    elif t == np.float32:
+        return hail.tfloat32
+    elif t == np.bool:
+        return hail.tbool
+    else:
+        raise TypeError(f'Unsupported numpy type: {t}')
+
+def upper_hex(n, num_digits=None):
+    if num_digits is None:
+        return "{0:X}".format(n)
+    else:
+        return "{0:0{1}X}".format(n, num_digits)
+
+def escape_str(s, backticked=False):
+    sb = StringIO()
+
+    rewrite_dict = {
+        '\b': '\\b',
+        '\n': '\\n',
+        '\t': '\\t',
+        '\f': '\\f',
+        '\r': '\\r'
+    }
+
+    for ch in s:
+        chNum = ord(ch)
+        if chNum > 0x7f:
+            sb.write("\\u" + upper_hex(chNum, 4))
+        elif chNum < 32:
+            if ch in rewrite_dict:
+                sb.write(rewrite_dict[ch])
+            else:
+                if chNum > 0xf:
+                    sb.write("\\u00" + upper_hex(chNum))
+                else:
+                    sb.write("\\u000" + upper_hex(chNum))
+        else:
+            if ch == '"':
+                if backticked:
+                    sb.write('"')
+                else:
+                    sb.write('\\\"')
+            elif ch == '`':
+                if backticked:
+                    sb.write("\\`")
+                else:
+                    sb.write("`")
+            elif ch == '\\':
+                sb.write('\\\\')
+            else:
+                sb.write(ch)
+
+    escaped = sb.getvalue()
+    sb.close()
+
+    return escaped
+   
+def escape_id(s):
+    if re.fullmatch(r'[_a-zA-Z]\w*', s):
+        return s
+    else:
+        return "`{}`".format(escape_str(s, backticked=True))
+
+def dump_json(obj):
+    return f'"{escape_str(json.dumps(obj))}"'
+
+def parsable_strings(strs):
+    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
+    return f"({strs})"

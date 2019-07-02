@@ -1,7 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR}
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDType
@@ -25,17 +25,6 @@ object MatrixType {
   def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
-  def fromParts(
-    globalType: TStruct,
-    colKey: IndexedSeq[String],
-    colType: TStruct,
-    rowKey: IndexedSeq[String],
-    rowType: TStruct,
-    entryType: TStruct
-  ): MatrixType = {
-    MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
-  }
-
   def fromTableType(
     typ: TableType,
     colsFieldName: String,
@@ -47,16 +36,16 @@ object MatrixType {
       case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
       case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
     }
-    val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
-
-    val newRowType = typ.rowType.rename(m)
+    val newRowType = typ.rowType.deleteKey(entriesFieldName)
+    val entryType = typ.rowType.field(entriesFieldName).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
 
     MatrixType(
       typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
       colKey,
       colType,
       typ.key,
-      newRowType)
+      newRowType,
+      entryType)
   }
 }
 
@@ -65,17 +54,13 @@ case class MatrixType(
   colKey: IndexedSeq[String],
   colType: TStruct,
   rowKey: IndexedSeq[String],
-  rvRowType: TStruct
+  rowType: TStruct,
+  entryType: TStruct
 ) extends BaseType {
   assert({
     val colFields = colType.fieldNames.toSet
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
-
-  lazy val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
-  lazy val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
-  lazy val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
-  lazy val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
   lazy val entriesRVType: TStruct = TStruct(
     MatrixType.entriesIdentifier -> TArray(entryType))
@@ -110,11 +95,27 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def canonicalRVDType: RVDType = RVDType(rvRowType.physicalType, rowKey)
+  def canonicalRVDType: RVDType = RVDType(rowType.appendKey(MatrixType.entriesIdentifier, TArray(entryType)).physicalType, rowKey)
+
+  def canonicalTableType: TableType = toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+
+  def toTableType(entriesFieldName: String, colsFieldName: String): TableType = TableType(
+    rowType = rowType.appendKey(entriesFieldName, TArray(entryType)),
+    key = rowKey,
+    globalType = globalType.appendKey(colsFieldName, TArray(colType)))
+
+  def isCompatibleWith(tt: TableType): Boolean = {
+    val globalType2 = tt.globalType.deleteKey(LowerMatrixIR.colsFieldName)
+    val colType2 = tt.globalType.field(LowerMatrixIR.colsFieldName).typ.asInstanceOf[TArray].elementType
+    val rowType2 = tt.rowType.deleteKey(LowerMatrixIR.entriesFieldName)
+    val entryType2 = tt.rowType.field(LowerMatrixIR.entriesFieldName).typ.asInstanceOf[TArray].elementType
+
+    globalType == globalType2 && colType == colType2 && rowType == rowType2 && entryType == entryType2 && rowKey == tt.key
+  }
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
-    "va" -> rvRowType,
+    "va" -> rowType,
     "sa" -> colType,
     "g" -> entryType)
 
@@ -169,23 +170,12 @@ case class MatrixType(
     sb += '}'
   }
 
-  def copyParts(
-    globalType: TStruct = globalType,
-    colKey: IndexedSeq[String] = colKey,
-    colType: TStruct = colType,
-    rowKey: IndexedSeq[String] = rowKey,
-    rowType: TStruct = rowType,
-    entryType: TStruct = entryType
-  ): MatrixType = {
-    MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
-  }
-
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
 
   @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
-    .bind("va" -> rvRowType)
+    .bind("va" -> rowType)
 
   @transient lazy val colEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
@@ -194,7 +184,7 @@ case class MatrixType(
   @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("sa" -> colType)
-    .bind("va" -> rvRowType)
+    .bind("va" -> rowType)
     .bind("g" -> entryType)
 
   def requireRowKeyVariant() {

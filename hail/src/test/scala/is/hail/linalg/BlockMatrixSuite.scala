@@ -2,7 +2,7 @@ package is.hail.linalg
 
 
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailSuite, TestUtils}
 import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Gen._
@@ -18,7 +18,7 @@ import org.testng.annotations.Test
 
 import scala.language.implicitConversions
 
-class BlockMatrixSuite extends SparkSuite {
+class BlockMatrixSuite extends HailSuite {
 
   // row major
   def toLM(nRows: Int, nCols: Int, data: Array[Double]): BDM[Double] =
@@ -380,11 +380,11 @@ class BlockMatrixSuite extends SparkSuite {
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
-    m.write(fname)
+    m.write(hc.sFS, fname)
     assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
 
     val fname2 = tmpDir.createTempFile("test2")
-    m.write(fname2, forceRowMajor = true)
+    m.write(hc.sFS, fname2, forceRowMajor = true)
     assert(m.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
   }
 
@@ -397,11 +397,11 @@ class BlockMatrixSuite extends SparkSuite {
       13, 14, 15, 16))
 
     val fname = tmpDir.createTempFile("test")
-    m.T.write(fname)
+    m.T.write(hc.sFS, fname)
     assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname).toBreezeMatrix())
 
     val fname2 = tmpDir.createTempFile("test2")
-    m.T.write(fname2, forceRowMajor = true)
+    m.T.write(hc.sFS, fname2, forceRowMajor = true)
     assert(m.T.toBreezeMatrix() == BlockMatrix.read(hc, fname2).toBreezeMatrix())
   }
 
@@ -409,7 +409,7 @@ class BlockMatrixSuite extends SparkSuite {
   def readWriteIdentityRandom() {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = tmpDir.createTempFile("test")
-      m.write(fname)
+      m.write(hc.sFS, fname)
       assert(sameDoubleMatrixNaNEqualsNaN(m.toBreezeMatrix(), BlockMatrix.read(hc, fname).toBreezeMatrix()))
       true
     }.check()
@@ -862,7 +862,7 @@ class BlockMatrixSuite extends SparkSuite {
       assert(flm === fbm.toIndexedRowMatrix().toHailBlockMatrix().toBreezeMatrix())
       
       val fname = tmpDir.createTempFile("test")
-      fbm.write(fname, forceRowMajor = true)
+      fbm.write(hc.sFS, fname, forceRowMajor = true)
       
       assert(RowMatrix.readBlockMatrix(hc, fname, Some(3)).toBreezeMatrix() === flm)
 

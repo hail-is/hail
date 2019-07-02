@@ -1,11 +1,11 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.expr.ir.TextTableReader
 import is.hail.expr.types.virtual._
 import org.testng.annotations.Test
 
-class TextTableSuite extends SparkSuite {
+class TextTableSuite extends HailSuite {
 
   @Test def testTypeGuessing() {
 

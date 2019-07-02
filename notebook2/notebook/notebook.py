@@ -24,7 +24,7 @@ import kubernetes as kube
 import jwt
 
 from table import Table
-from hailjwt import JWTClient, get_domain
+from hailtop.gear.auth import JWTClient, get_domain
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -56,8 +56,8 @@ os.makedirs(css_path, exist_ok=True)
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 
-def read_string(f):
-    with open(f, 'r') as f:
+def read_string(f, encoding = 'r'):
+    with open(f, encoding) as f:
         return f.read().strip()
 
 
@@ -69,13 +69,15 @@ AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
 
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
+SESSION_SECRET_KEY = read_string('/notebook-secrets/session-secret-key', 'rb')
+
 INSTANCE_ID = uuid.uuid4().hex
 
 POD_PORT = 8888
 
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = secrets.token_bytes(16),
+    SECRET_KEY = SESSION_SECRET_KEY,
     SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
@@ -173,7 +175,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{pod_id}/',
                     f'--GoogleStorageContentManager.default_path="{bucket}"',
-                    "--ip", "0.0.0.0", "--no-browser"
+                    "--ip", "0.0.0.0", "--no-browser", "--allow-root"
                 ],
                 name='default',
                 image=image,

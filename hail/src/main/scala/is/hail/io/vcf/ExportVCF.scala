@@ -271,6 +271,7 @@ object ExportVCF {
 
     def header: String = {
       val sb = new StringBuilder()
+      val fs = HailContext.sFS
 
       sb.append("##fileformat=VCFv4.2\n")
       sb.append(s"##hailversion=${ hail.HAIL_PRETTY_VERSION }\n")
@@ -312,7 +313,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        mv.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        fs.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -369,9 +370,13 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
 
-    val fullRowType = typ.rvRowType.physicalType
-    val localEntriesIndex = typ.entriesIdx
-    val localEntriesType = typ.entryArrayType.physicalType
+    val fullRowType = mv.rvRowPType
+    val localEntriesIndex = mv.entriesIdx
+    val localEntriesType = mv.entryArrayPType
+
+    val hc = HailContext.get
+    val fs = hc.sFS
+    val tmpDir = hc.tmpDir
 
     mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
@@ -463,6 +468,6 @@ object ExportVCF {
 
         sb.result()
       }
-    }.writeTable(path, HailContext.get.tmpDir, Some(header), exportType = exportType)
+    }.writeTable(fs, path, tmpDir, Some(header), exportType = exportType)
   }
 }

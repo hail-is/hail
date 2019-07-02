@@ -13,14 +13,14 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 
-case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean) extends MatrixToValueFunction {
+case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, headerJsonInFile: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(mv: MatrixValue): Any = {
 
-    val hConf = mv.sparkContext.hadoopConfiguration
+    val fs = HailContext.sFS
 
-    hConf.delete(path, recursive = true) // overwrite by default
+    fs.delete(path, recursive = true) // overwrite by default
 
     val allColValuesJSON = mv.colValues.value.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
@@ -42,11 +42,12 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val partFileBase = path + "/tmp/"
 
-      val hConfBc = HailContext.hadoopConfBc
+      val bcFS = HailContext.bcFS
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
+      val localHeaderJsonInFile = headerJsonInFile
 
-      val colValuesJSON = mv.sparkContext.broadcast(
+      val colValuesJSON = HailContext.backend.broadcast(
         (startIdx until endIdx)
           .map(allColValuesJSON)
           .toArray)
@@ -56,7 +57,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
         val partFolder = partFileBase + partFile(d, i, TaskContext.get())
 
         val fileHandles = Array.tabulate(endIdx - startIdx) { j =>
-          new OutputStreamWriter(hConfBc.value.value.unsafeWriter(partFolder + "/" + j.toString + extension), "UTF-8")
+          new OutputStreamWriter(bcFS.value.unsafeWriter(partFolder + "/" + j.toString + extension), "UTF-8")
         }
 
         if (i == 0) {
@@ -66,9 +67,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
             ).mkString("\t")
 
           fileHandles.zipWithIndex.foreach { case (f, jj) =>
-            f.write('#')
-            f.write(colValuesJSON.value(jj))
-            f.write('\n')
+            if (localHeaderJsonInFile) {
+              f.write('#')
+              f.write(colValuesJSON.value(jj))
+              f.write('\n')
+            }
             f.write(header)
             f.write('\n')
           }
@@ -118,8 +121,8 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
       val newFiles = mv.sparkContext.parallelize(0 until ns, numSlices = ns)
         .map { sampleIdx =>
           val partFilePath = path + "/" + partFile(digitsNeeded(nCols), sampleIdx, TaskContext.get)
-          val fileStatuses = partFolders.map(pf => hConfBc.value.value.fileStatus(pf + s"/$sampleIdx" + extension))
-          hConfBc.value.value.copyMergeList(fileStatuses, partFilePath, deleteSource = true)
+          val fileStatuses = partFolders.map(pf => bcFS.value.fileStatus(pf + s"/$sampleIdx" + extension))
+          bcFS.value.copyMergeList(fileStatuses, partFilePath, deleteSource = true)
           partFilePath
         }.collect()
 
@@ -132,11 +135,11 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
     def finalPath(idx: Int): String = path + "/" + partFile(padding, idx) + extension
 
     resultFiles.zipWithIndex.foreach { case (filePath, i) =>
-      hConf.copy(filePath, finalPath(i), deleteSource = true)
+      fs.copy(filePath, finalPath(i), deleteSource = true)
     }
-    hConf.delete(path + "/tmp", recursive = true)
+    fs.delete(path + "/tmp", recursive = true)
 
-    hConf.writeTable(path + "/index.tsv", allColValuesJSON.zipWithIndex.map { case (json, i) =>
+    fs.writeTable(path + "/index.tsv", allColValuesJSON.zipWithIndex.map { case (json, i) =>
       s"${ finalPath(i) }\t$json"
     })
 

@@ -20,22 +20,13 @@ _cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
-    if reference_genome:
-        if skip_invalid_intervals:
-            is_valid_locus_interval = (
-                (hl.is_valid_contig(contig, reference_genome) &
-                 (hl.is_valid_locus(contig, start, reference_genome) |
-                  (~hl.bool(includes_start) & (start == 0))) &
-                 (hl.is_valid_locus(contig, end, reference_genome) |
-                  (~hl.bool(includes_end) & hl.is_valid_locus(contig, end - 1, reference_genome)))))
+    includes_start = hl.bool(includes_start)
+    includes_end = hl.bool(includes_end)
 
-            return hl.or_missing(is_valid_locus_interval,
-                                 hl.locus_interval(contig, start, end,
-                                                   includes_start, includes_end,
-                                                   reference_genome))
-        else:
-            return hl.locus_interval(contig, start, end, includes_start,
-                                     includes_end, reference_genome)
+    if reference_genome:
+        return hl.locus_interval(contig, start, end, includes_start,
+                                 includes_end, reference_genome,
+                                 skip_invalid_intervals)
     else:
         return hl.interval(hl.struct(contig=contig, position=start),
                            hl.struct(contig=contig, position=end),
@@ -170,6 +161,80 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
+@typecheck(mt=MatrixTable,
+           output=str,
+           gp=nullable(expr_array(expr_float64)),
+           varid=nullable(expr_str),
+           rsid=nullable(expr_str),
+           parallel=nullable(str))
+def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
+    """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
+    bits of per probability.  Also writes SAMPLE file.
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+        Input matrix table.
+    output : :obj:`str`
+        Root for output BGEN and SAMPLE files.
+    gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
+        Expression for genotype probabilities.  If ``None``, entry
+        field `GP` is used if it exists and is of type
+        :py:data:`.tarray` with element type :py:data:`.tfloat64`.
+    varid : :class:`.StringExpression`, optional
+        Expression for the variant ID. If ``None``, the row field
+        `varid` is used if defined and is of type :py:data:`.tstr`.
+        The default and missing value is
+        ``hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':')``
+    rsid : :class:`.StringExpression`, optional
+        Expression for the rsID. If ``None``, the row field `rsid` is
+        used if defined and is of type :py:data:`.tstr`.  The default
+        and missing value is ``"."``.
+    parallel : :obj:`str`, optional
+        If ``None``, write a single BGEN file.  If
+        ``'header_per_shard'``, write a collection of BGEN files (one
+        per partition), each with its own header.  If
+        ``'separate_header'``, write a file for each partition,
+        without header, and a header file for the combined dataset.
+    """
+    require_row_key_variant(mt, 'export_bgen')
+    require_col_key_str(mt, 'export_bgen')
+
+    if gp is None:
+        if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
+            entry_exprs = {'GP': mt.GP}
+        else:
+            entry_exprs = {}
+    else:
+        entry_exprs = {'GP': gp}
+
+    if varid is None:
+        if 'varid' in mt.row and mt.varid.dtype == tstr:
+            varid = mt.varid
+
+    if rsid is None:
+        if 'rsid' in mt.row and mt.rsid.dtype == tstr:
+            rsid = mt.rsid
+
+    l = mt.locus
+    a = mt.alleles
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+                 'rsid': expr_or_else(rsid, ".")}
+
+    for exprs, axis in [(gen_exprs, mt._row_indices),
+                        (entry_exprs, mt._entry_indices)]:
+        for name, expr in exprs.items():
+            analyze('export_gen/{}'.format(name), expr, axis)
+
+    mt = mt._select_all(col_exprs={},
+                        row_exprs=gen_exprs,
+                        entry_exprs=entry_exprs)
+
+    Env.backend().execute(MatrixWrite(mt._mir, MatrixBGENWriter(
+        output,
+        Env.hail().utils.ExportType.getExportType(parallel))))
+
+
 @typecheck(dataset=MatrixTable,
            output=str,
            call=nullable(expr_call),
@@ -184,6 +249,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
                  mat_id=None, is_female=None, pheno=None, varid=None,
                  cm_position=None):
+
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
@@ -651,8 +717,9 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
 
     Warning
     -------
-    UCSC BED files are 0-indexed and end-exclusive. The line "5  100  105"
-    will contain locus ``5:105`` but not ``5:100``. Details
+    Intervals in UCSC BED files are 0-indexed and half open.
+    The line "5  100  105" correpsonds to the interval ``[5:101-5:106)`` in Hail's
+    1-indexed notation. Details
     `here <http://genome.ucsc.edu/blog/the-ucsc-genome-browser-coordinate-counting-systems/>`__.
 
     Parameters
@@ -688,18 +755,18 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False, *
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
                                                   t['f1'] + 1,
-                                                  t['f2'],
+                                                  t['f2'] + 1,
                                                   True,
-                                                  True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
         t = t.select(interval=locus_interval_expr(t['f0'],
                                                   t['f1'] + 1,
-                                                  t['f2'],
+                                                  t['f2'] + 1,
                                                   True,
-                                                  True,
+                                                  False,
                                                   reference_genome,
                                                   skip_invalid_intervals),
                      target=t['f3'])
@@ -1717,7 +1784,7 @@ def import_plink(bed, bim, fam,
     return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
+@typecheck(path=str,
            _drop_cols=bool,
            _drop_rows=bool)
 def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:

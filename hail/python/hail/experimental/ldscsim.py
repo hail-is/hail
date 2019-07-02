@@ -299,7 +299,7 @@ def multitrait_ss(mt, h2, pi, rg=0, seed=None):
 @typecheck(h2=list,
            rg=list)
 def create_cov_matrix(h2, rg):
-    """Creates covariance matrix for simulating correlated SNP effects.
+    r"""Creates covariance matrix for simulating correlated SNP effects.
     
     Given a list of heritabilities and a list of genetic correlations, :func:`.create_cov_matrix`
     constructs the covariance matrix necessary to draw from a multivariate normal

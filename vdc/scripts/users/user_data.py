@@ -7,15 +7,19 @@ from table import Table
 from base64 import b64decode
 import re
 import sys
+import secrets
+import json
 
 from globals import v1, kube_client, gcloud_service
-from secrets import get_secret_bin
+from utils import get_secret_bin
 from hailjwt import JWTClient
 
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
 SECRET_KEY = get_secret_bin('jwt-secret-key', 'default', 'secret-key')
 jwtclient = JWTClient(SECRET_KEY)
+
+table = Table()
 
 
 def create_service_id(username):
@@ -63,26 +67,35 @@ def delete_kube_namespace(namespace):
     return v1.delete_namespace(name=namespace, body={})
 
 
-def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project, kube_namespace):
+def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
+                          kube_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
         name=f'projects/{google_project}/serviceAccounts/{gsa_email}', body={}
     ).execute()
 
     key['privateKeyData'] = b64decode(key['privateKeyData']).decode("utf-8")
 
+    create_namespaced_secret(kube_namespace,
+                             secret_name=gsa_key_name,
+                             string_data=key,
+                             labels={
+                                 "type": "user"
+                             }, annotations={
+                                 "gsa_email": gsa_email
+                             })
+
+
+def create_namespaced_secret(kube_namespace, secret_name, string_data,
+                             labels=None, annotations=None):
     return v1.create_namespaced_secret(
         namespace=kube_namespace,
         body=kube_client.V1Secret(
             api_version='v1',
-            string_data=key,
+            string_data=string_data,
             metadata=kube_client.V1ObjectMeta(
-                name=gsa_key_name,
-                labels={
-                    "type": "user",
-                },
-                annotations={
-                    "gsa_email": gsa_email
-                }
+                name=secret_name,
+                labels=labels,
+                annotations=annotations
             )
         )
     )
@@ -231,6 +244,61 @@ def create_all(user_id, username, google_project, kube_namespace, email=None,
         ksa_response = create_kube_service_acccount(username, kube_namespace)
         out['ksa_name'] = ksa_response.metadata.name
 
+        # Create secrets
+        data = {
+            'db_name': username,
+            'admin_role': f"{username}-admin",
+            'user_role': f"{username}-user",
+            'admin_pass': secrets.token_urlsafe(16),
+            'user_pass': secrets.token_urlsafe(16),
+        }
+
+        table.create_user_db(**data)
+
+        create_namespaced_secret(kube_namespace=out['namespace_name'],
+                                 secret_name=f"sql-{username}-{data['admin_role']}",
+                                 string_data={
+                                     "sql-config.json": json.dumps({
+                                         "host": "10.80.0.3",
+                                         "port": 3306,
+                                         "user": data['admin_role'],
+                                         "password": data['admin_pass'],
+                                         "instance": "db-gh0um",
+                                         "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                         "db": data['db_name']
+                                     }),
+                                     'sql-config.cnf':
+                                     f"""
+                                     [client]
+                                     host=10.80.0.3
+                                     user={data['admin_role']}
+                                     password={data['admin_pass']}
+                                     database={data['db_name']}
+                                     """
+        })
+
+        create_namespaced_secret(kube_namespace=out['namespace_name'],
+                                 secret_name=f"sql-{username}-{data['user_role']}",
+                                 string_data={
+                                     "sql-config.json": json.dumps({
+                                         "host": "10.80.0.3",
+                                         "port": 3306,
+                                         "user": data['user_role'],
+                                         "password": data['user_pass'],
+                                         "instance": "db-gh0um",
+                                         "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                         "db": data['db_name']
+                                     }),
+                                     'sql-config.cnf':
+                                     f"""
+                                     [client]
+                                     host=10.80.0.3
+                                     user={data['user_role']}
+                                     password={data['user_pass']}
+                                     database={data['db_name']}
+                                     """
+        })
+
         create_rbac(out['namespace_name'], out['ksa_name'])
     else:
         out['developer'] = False
@@ -327,7 +395,6 @@ def email_to_username(email):
 
 def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
                           **kwargs):
-    table = Table()
     existing = table.get(user_id)
 
     if existing is None:
@@ -364,7 +431,6 @@ def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
 
 def delete_all_idempotent(user_id, google_project, kube_namespace):
 
-    table = Table()
     existing = table.get(user_id)
 
     if existing is None:
@@ -375,7 +441,6 @@ def delete_all_idempotent(user_id, google_project, kube_namespace):
 
 
 if __name__ == "__main__":
-    import json
     import yaml
 
     with open(sys.argv[1], 'r') as file:

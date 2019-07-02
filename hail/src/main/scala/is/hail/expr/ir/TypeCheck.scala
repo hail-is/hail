@@ -104,6 +104,7 @@ object TypeCheck {
       case x@Ref(name, _) =>
         val expected = env.eval.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+      case RelationalRef(_, _) =>
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
       case x@ApplyUnaryPrimOp(op, v) =>
@@ -151,6 +152,14 @@ object TypeCheck {
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(nd.typ.asInstanceOf[TNDArray].nDims == idxs.length)
         assert(idxs.forall(_.typ.isOfType(TInt64())))
+      case x@NDArraySlice(nd, slices) =>
+        assert(nd.typ.isInstanceOf[TNDArray])
+        val childTyp =nd.typ.asInstanceOf[TNDArray]
+        val slicesTuple = slices.typ.asInstanceOf[TTuple]
+        assert(slicesTuple.size == childTyp.nDims)
+        assert(slicesTuple.types.forall { t =>
+          t == TTuple(TInt64(), TInt64(), TInt64()) || t == TInt64()
+        })
       case x@NDArrayMap(_, _, body) =>
         assert(x.elementTyp == body.typ)
       case x@NDArrayMap2(l, r, _, _, body) =>
@@ -242,14 +251,25 @@ object TypeCheck {
         assert(x.typ == aggBody.typ)
       case x@AggGroupBy(key, aggIR, _) =>
         assert(x.typ == TDict(key.typ, aggIR.typ))
-      case x@AggArrayPerElement(a, _, _, aggBody, _) =>
+      case x@AggArrayPerElement(a, _, _, aggBody, knownLength, _) =>
         assert(x.typ == TArray(aggBody.typ))
+        assert(knownLength.forall(_.typ == TInt32()))
       case x@InitOp(i, args, aggSig) =>
         assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
       case x@SeqOp(i, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
+      case x@InitOp2(_, args, aggSig) =>
+        assert(args.map(_.typ) == aggSig.constructorArgs ++ aggSig.initOpArgs.getOrElse(FastIndexedSeq()))
+      case x@SeqOp2(_, args, aggSig) =>
+        assert(args.map(_.typ) == aggSig.seqOpArgs)
+      case _: CombOp2 =>
+      case _: ResultOp2 =>
+      case x@ReadAggs(_, path, _, _) =>
+        assert(path.typ isOfType TString())
+      case x@WriteAggs(_, path, _, _) =>
+        assert(path.typ isOfType TString())
       case x@Begin(xs) =>
         xs.foreach { x =>
           assert(x.typ == TVoid)
@@ -306,7 +326,9 @@ object TypeCheck {
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
         assert(x.typ == query.typ)
+      case RelationalLet(_, _, _) =>
       case TableWrite(_, _) =>
+      case TableMultiWrite(_, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

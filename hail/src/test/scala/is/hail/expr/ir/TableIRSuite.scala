@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.TestUtils._
 
-class TableIRSuite extends SparkSuite {
+class TableIRSuite extends HailSuite {
   def getKT: Table = {
     val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
@@ -34,6 +34,23 @@ class TableIRSuite extends SparkSuite {
     assertEvalsTo(node1, 10L)
     assertEvalsTo(node2, 15L)
     assertEvalsTo(node, 25L)
+  }
+
+  @Test def testRangeRead() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.LoweredJVMCompile)
+    val original = TableMapGlobals(TableRange(10, 3), MakeStruct(FastIndexedSeq("foo" -> I32(57))))
+
+    val path = tmpDir.createTempFile()
+    new Table(hc, original).write(path, overwrite = true)
+
+    val read = TableIR.read(hc, path, false, None)
+    val droppedRows = TableIR.read(hc, path, true, None)
+
+    val expectedRows = Array.tabulate(10)(i => Row(i)).toFastIndexedSeq
+    val expectedGlobals = Row(57)
+
+    assertEvalsTo(TableCollect(read), Row(expectedRows, expectedGlobals))
+    assertEvalsTo(TableCollect(droppedRows), Row(FastIndexedSeq(), expectedGlobals))
   }
 
   @Test def testRangeCollect() {
@@ -93,7 +110,6 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testTableMapWithLiterals() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     val t = TableRange(10, 2)
     val node = TableMapRows(t,
       InsertFields(Ref("row", t.typ.rowType),

@@ -179,10 +179,9 @@ object PCRelate {
   // now only used in tests
   private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.numCols
-    val localRowType = vds.rvRowType
-    val localRowPType = localRowType.physicalType
+    val localRowPType = vds.value.rvRowPType
     val partStarts = vds.partitionStarts()
-    val partStartsBc = vds.sparkContext.broadcast(partStarts)
+    val partStartsBc = vds.hc.backend.broadcast(partStarts)
     val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
       val view = HardCallView(localRowPType)
       val missingIndices = new ArrayBuilder[Int]()
@@ -262,7 +261,7 @@ class PCRelate(maf: Double, blockSize: Int, statistics: PCRelate.StatisticSubset
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phiFile = hc.getTemporaryFile(suffix=Some("bm"))
-    this.phi(mu, variance, blockedG).write(phiFile)
+    this.phi(mu, variance, blockedG).write(hc.sFS, phiFile)
     val phi = BlockMatrix.read(hc, phiFile)
 
     if (statistics >= PhiK2) {

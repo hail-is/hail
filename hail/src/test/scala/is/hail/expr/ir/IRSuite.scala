@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -75,7 +75,7 @@ object IRSuite {
 
 }
 
-class IRSuite extends SparkSuite {
+class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
   @Test def testI32() {
@@ -95,8 +95,6 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testStr() {
-    implicit val execStrats = ExecStrategy.javaOnly
-
     assertEvalsTo(Str("Hail"), "Hail")
   }
 
@@ -978,10 +976,10 @@ class IRSuite extends SparkSuite {
     val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
 
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(2)), 3.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(1, 0)), 3.0)
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(0)), 1.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(0, 0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(2)), 3.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(1, 0)), 3.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(0, 0)), 1.0)
   }
 
   @Test def testNDArrayMap() {
@@ -1116,6 +1114,24 @@ class IRSuite extends SparkSuite {
     val threeByTwoByFive = NDArrayReindex(twoByThreeByFive, IndexedSeq(1, 0, 2))
     val matMulCube = NDArrayMatMul(NDArrayReindex(matrixRowMajor, IndexedSeq(2, 0, 1)), threeByTwoByFive)
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
+  }
+
+  @Test def testNDArraySlice() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    val rightCol = NDArraySlice(matrixRowMajor, MakeTuple(Seq(MakeTuple(Seq(I64(0), I64(2), I64(1))), I64(1))))
+    assertEvalsTo(NDArrayShape(rightCol), Row(2L))
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(0)), 2.0)
+    assertEvalsTo(makeNDArrayRef(rightCol, FastIndexedSeq(1)), 4.0)
+
+    val topRow = NDArraySlice(matrixRowMajor,
+      MakeTuple(Seq(I64(0),
+      MakeTuple(Seq(I64(0), GetTupleElement(NDArrayShape(matrixRowMajor), 1), I64(1))))))
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(topRow, FastIndexedSeq(1)), 2.0)
+
+    val scalarSlice = NDArraySlice(scalarRowMajor, MakeTuple(FastSeq()))
+    assertEvalsTo(makeNDArrayRef(scalarSlice, FastIndexedSeq()), 3.0)
   }
 
   @Test def testNDArrayWrite() {
@@ -1382,7 +1398,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLiteral() {
-    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
     val types = Array(
       TTuple(TInt32(), TString(), TArray(TInt32())),
@@ -1398,6 +1414,12 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Literal(types(0), values(0)), values(0))
     assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
     assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
+  }
+
+  @Test def testSameLiteralsWithDifferentTypes() {
+    assertEvalsTo(ApplyComparisonOp(EQ(TArray(TInt32())),
+      ArrayMap(Literal(TArray(TFloat64()), FastIndexedSeq(1.0, 2.0)), "elt", Cast(Ref("elt", TFloat64()), TInt32())),
+      Literal(TArray(TInt32()), FastIndexedSeq(1, 2))), true)
   }
 
   @Test def testTableCount() {
@@ -1541,6 +1563,8 @@ class IRSuite extends SparkSuite {
       NDArrayAgg(nd, FastIndexedSeq(0)),
       NDArrayWrite(nd, Str(tmpDir.createTempFile())),
       NDArrayMatMul(nd, nd),
+      NDArraySlice(nd, MakeTuple(FastSeq(MakeTuple(FastSeq(F64(0), F64(2), F64(1))),
+                                         MakeTuple(FastSeq(F64(0), F64(2), F64(1)))))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1571,6 +1595,12 @@ class IRSuite extends SparkSuite {
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
+      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig),
+      SeqOp2(0, FastIndexedSeq(i), collectSig),
+      CombOp2(0, 1, collectSig),
+      ResultOp2(0, FastSeq(collectSig)),
+      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
+      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -1597,11 +1627,13 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
+      TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter(tmpDir.createLocalTempFile()), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32()))
+      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32())),
+      RelationalLet("x", I32(0), I32(0))
     )
     irs.map(x => Array(x))
   }
@@ -1656,7 +1688,8 @@ class IRSuite extends SparkSuite {
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo")),
-        TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
+        TableFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
+        RelationalLetTable("x", I32(0), read)
       )
       xs.map(x => Array(x))
     } catch {
@@ -1697,9 +1730,9 @@ class IRSuite extends SparkSuite {
           GetField(Ref("sa", read.typ.colType), "col_f32"),
           F32(-5.2f))))
       val newRow = MakeStruct(FastIndexedSeq(
-        "row_idx" -> GetField(Ref("va", read.typ.rvRowType), "row_idx"),
+        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
         "new_f32" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rvRowType), "row_f32"),
+          GetField(Ref("va", read.typ.rowType), "row_f32"),
           F32(-5.2f)))
       )
 
@@ -1744,7 +1777,8 @@ class IRSuite extends SparkSuite {
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", product=false),
         MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam")),
-        MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false)
+        MatrixFilterIntervals(read, FastIndexedSeq(Interval(IntervalEndpoint(Row(0), -1), IntervalEndpoint(Row(10), 1))), keep = false),
+        RelationalLetMatrixTable("x", I32(0), read)
       )
 
       xs.map(x => Array(x))
@@ -1761,8 +1795,13 @@ class IRSuite extends SparkSuite {
     val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
     val transpose = BlockMatrixBroadcast(read, FastIndexedSeq(1, 0), FastIndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
+    val slice = BlockMatrixSlice(read, FastIndexedSeq(FastIndexedSeq(0, 2, 1), FastIndexedSeq(0, 1, 1)))
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot)
+    val blockMatrixIRs = Array[BlockMatrixIR](read,
+      transpose,
+      dot,
+      RelationalLetBlockMatrix("x", I32(0), read),
+      slice)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -2017,8 +2056,8 @@ class IRSuite extends SparkSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
-    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, sc), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, hc.backend), RVD.empty(sc, t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, hc.backend), RVD.empty(sc, t2.canonicalRVDType)))
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -2043,11 +2082,50 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ir, 61L)
   }
 
+  @Test def testRelationalLet() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val ir = RelationalLet("x", NA(TInt32()), RelationalRef("x", TInt32()))
+    assertEvalsTo(ir, null)
+  }
+
+
+  @Test def testRelationalLetTable() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val t = TArray(TStruct("x" -> TInt32()))
+    val ir = TableAggregate(RelationalLetTable("x",
+      Literal(t, FastIndexedSeq(Row(1))),
+      TableParallelize(MakeStruct(FastSeq("rows" -> RelationalRef("x", t), "global" -> MakeStruct(FastSeq()))))),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), None, FastIndexedSeq())))
+    assertEvalsTo(ir, 1L)
+  }
+
+  @Test def testRelationalLetMatrixTable() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    val t = TArray(TStruct("x" -> TInt32()))
+    val m = CastTableToMatrix(
+      TableMapGlobals(
+        TableMapRows(
+          TableRange(1, 1), InsertFields(Ref("row", TStruct("idx" -> TInt32())), FastSeq("entries" -> RelationalRef("x", t)))),
+        MakeStruct(FastSeq("cols" -> MakeArray(FastSeq(MakeStruct(FastSeq("s" -> I32(0)))), TArray(TStruct("s" -> TInt32())))))),
+      "entries",
+      "cols",
+      FastIndexedSeq())
+    val ir = MatrixAggregate(RelationalLetMatrixTable("x",
+      Literal(t, FastIndexedSeq(Row(1))),
+      m),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(), AggSignature(Count(), FastIndexedSeq(), None, FastIndexedSeq())))
+    assertEvalsTo(ir, 1L)
+  }
+
+
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
     Array(VEP("foo", false, 1)),
-    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "bar", "baz", "qux", FastIndexedSeq("ck"))),
+    Array(WrappedMatrixToMatrixFunction(MatrixFilterPartitions(Array(1, 2, 3), false), "foo", "baz", FastIndexedSeq("ck"))),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),
@@ -2064,7 +2142,7 @@ class IRSuite extends SparkSuite {
     Array(NPartitionsMatrixTable()),
     Array(WrappedMatrixToValueFunction(NPartitionsMatrixTable(), "foo", "bar", FastIndexedSeq("a", "c"))),
     Array(MatrixWriteBlockMatrix("a", false, "b", 1)),
-    Array(MatrixExportEntriesByCol(1, "asd", false)),
+    Array(MatrixExportEntriesByCol(1, "asd", false, true)),
     Array(GetElement(FastSeq(1, 2)))
   )
 

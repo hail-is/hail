@@ -11,7 +11,7 @@ from hail.genetics.reference_genome import reference_genome_type, ReferenceGenom
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils.java import Env
-from hail.utils.misc import plural
+from hail.utils.misc import plural, np_type_to_hl_type
 
 import numpy as np
 
@@ -1094,13 +1094,15 @@ def interval(start,
 
 @typecheck(contig=expr_str, start=expr_int32,
            end=expr_int32, includes_start=expr_bool,
-           includes_end=expr_bool, reference_genome=reference_genome_type)
+           includes_end=expr_bool, reference_genome=reference_genome_type,
+           invalid_missing=expr_bool)
 def locus_interval(contig,
                    start,
                    end,
                    includes_start=True,
                    includes_end=False,
-                   reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+                   reference_genome: Union[str, ReferenceGenome] = 'default',
+                   invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression.
 
     Examples
@@ -1126,18 +1128,21 @@ def locus_interval(contig,
         If ``True``, interval includes end point.
     reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
+    invalid_missing : :class:`.BooleanExpression`
+        If ``True``, invalid intervals are set to NA rather than causing an exception.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     fname = 'LocusInterval({})'.format(reference_genome.name)
-    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end)
+    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
 
 
 @typecheck(s=expr_str,
-           reference_genome=reference_genome_type)
-def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+           reference_genome=reference_genome_type,
+           invalid_missing=expr_bool)
+def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default', invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression by parsing a string or string
     expression.
 
@@ -1200,13 +1205,15 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
         String to parse.
     reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
+    invalid_missing : :class:`.BooleanExpression`
+        If ``True``, invalid intervals are set to NA rather than causing an exception.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     return _func('LocusInterval({})'.format(reference_genome.name),
-                 tinterval(tlocus(reference_genome)), s)
+                 tinterval(tlocus(reference_genome)), s, invalid_missing)
 
 
 @typecheck(alleles=expr_int32,
@@ -2285,6 +2292,7 @@ _allele_ints = {v: k for k, v in _allele_enum.items()}
 
 
 @typecheck(ref=expr_str, alt=expr_str)
+@udf(tstr, tstr)
 def _num_allele_type(ref, alt) -> Int32Expression:
     return hl.bind(lambda r, a:
                    hl.cond(r.matches(_base_regex),
@@ -2411,6 +2419,7 @@ def is_transversion(ref, alt) -> BooleanExpression:
 
 
 @typecheck(ref=expr_str, alt=expr_str)
+@udf(tstr, tstr)
 def _is_snp_transition(ref, alt) -> BooleanExpression:
     indices = hl.range(0, ref.length())
     return hl.any(lambda i: ((ref[i] != alt[i]) & (((ref[i] == 'A') & (alt[i] == 'G')) |
@@ -3702,7 +3711,23 @@ def empty_array(t: Union[HailType, str]) -> ArrayExpression:
     return construct_expr(ir, array_t)
 
 
-def _ndarray(collection, row_major=True):
+def _ndarray(collection, row_major=None):
+    """Construct a Hail ndarray from either a `NumPy` ndarray or python value/nested lists.
+    If `row_major` is ``None`` and the input is a `NumPy` ndarray, the ndarray's existing ordering will
+    be used (column major if that's how it is stored and row major otherwise). Otherwise, the array will be stored
+    as specified by `row_major`. Note the exact memory layout is not preserved if it is not in one of the two orderings.
+    If the input is not a `NumPy` ndarray, `row_major` defaults to ``True``.
+
+    Parameters
+    ----------
+    collection : :class:`numpy.ndarray` or :obj:`numeric` or :obj: `list` of `numeric`
+        Type of the array elements.
+    row_major : :obj: `bool` or None
+
+    Returns
+    -------
+    :class:`.NDArrayExpression`
+    """
     def list_shape(x):
         if isinstance(x, list):
             dim_len = builtins.len(x)
@@ -3727,20 +3752,29 @@ def _ndarray(collection, row_major=True):
         return result
 
     if isinstance(collection, np.ndarray):
-        nd = collection.astype(np.float64)
-        data = list(nd.flat)
-        shape = nd.shape
+        if row_major is None:
+            row_major = not collection.flags.f_contiguous
+            flattened = collection.flatten('A')
+        else:
+            flattened = collection.flatten('C' if row_major else 'F')
+
+        elem_type = np_type_to_hl_type(collection.dtype)
+        data = [to_expr(i.item(), elem_type) for i in flattened]
+        shape = collection.shape
     elif isinstance(collection, list):
         shape = list_shape(collection)
         data = deep_flatten(collection)
     else:
         shape = []
-        data = hl.array([collection])
+        data = [collection]
+
+    if row_major is None:
+        row_major = True
 
     shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ir.ttuple(*[tint64 for _ in shape]))
     data_expr = hl.array(data)
-
     ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(row_major)._ir)
+
     return construct_expr(ndir, tndarray(data_expr.dtype.element_type, builtins.len(shape)))
 
 
@@ -4313,6 +4347,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     """
     return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)
 
+
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)
 def mendel_error_code(locus, is_female, father, mother, child):
     r"""Compute a Mendelian violation code for genotypes.
@@ -4875,6 +4910,54 @@ def bit_not(x):
     """
     return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
+
+@typecheck(array=expr_array(expr_numeric), elem=expr_numeric)
+def binary_search(array, elem) -> Int32Expression:
+    """Binary search `array` for the insertion point of `elem`.
+
+    Parameters
+    ----------
+    array : :class:`.Expression` of type :class:`.tarray`
+    elem : :class:`.Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+
+    Notes
+    -----
+    This function assumes that `array` is sorted in ascending order, and does
+    not perform any sortedness check. Missing values sort last.
+
+    The returned index is the lower bound on the insertion point of `elem` into
+    the ordered array, or the index of the first element in `array` not smaller
+    than `elem`. This is a value between 0 and the length of `array`, inclusive
+    (if all elements in `array` are smaller than `elem`, the returned value is
+    the length of `array` or the index of the first missing value, if one
+    exists).
+
+    If either `elem` or `array` is missing, the result is missing.
+
+    Examples
+    --------
+
+    >>> a = hl.array([0, 2, 4, 8])
+
+    >>> hl.eval(hl.binary_search(a, -1))
+    0
+
+    >>> hl.eval(hl.binary_search(a, 1))
+    1
+
+    >>> hl.eval(hl.binary_search(a, 10))
+    4
+
+    """
+    c = coercer_from_dtype(array.dtype.element_type)
+    if not c.can_coerce(elem.dtype):
+        raise TypeError(f"'binary_search': cannot search an array of type {array.dtype} for a value of type {elem.dtype}")
+    elem = c.coerce(elem)
+    return hl.switch(elem).when_missing(hl.null(hl.tint32)).default(_lower_bound(array, elem))
 
 @typecheck(s=expr_str)
 def _escape_string(s):

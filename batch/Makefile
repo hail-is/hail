@@ -13,7 +13,7 @@ BATCH_TEST_IMAGE = gcr.io/$(PROJECT)/batch-test:$(shell docker images -q --no-tr
 
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hailjwt
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 BATCH_PORT ?= 5000
@@ -40,7 +40,7 @@ check: flake8-stmp pylint-stmp
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
-	python3 ../ci2/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),base ..
 
 build-test:
@@ -103,7 +103,7 @@ test-local-in-cluster: check test/jwt-test-user-token
 		./test-locally.sh
 
 deploy: push
-	python3 ../ci2/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-batch-admin-config"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-batch-admin-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
 
 test-deploy: push-test
@@ -118,7 +118,6 @@ test-deploy: push-test
 	kubectl -n $(TEST_NAMESPACE) apply -f deployment.yaml
 
 clean:
-	rm -rf hailjwt
 	rm -f $(PY_CHECKERS)
 	rm -rf batch-secrets
 

@@ -730,10 +730,10 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(32)
         table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
         r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
-        self.assertEquals(r.bin_edges, [0, 2, 4, 6, 8, 10])
-        self.assertEquals(r.bin_freq, [6, 5, 6, 6, 7])
-        self.assertEquals(r.n_smaller, 1)
-        self.assertEquals(r.n_larger, 1)
+        self.assertEqual(r.bin_edges, [0, 2, 4, 6, 8, 10])
+        self.assertEqual(r.bin_freq, [6, 5, 6, 6, 7])
+        self.assertEqual(r.n_smaller, 1)
+        self.assertEqual(r.n_larger, 1)
 
     # Tested against R code
     # y = c(0.22848042, 0.09159706, -0.43881935, -0.99106171, 2.12823289)
@@ -2171,6 +2171,51 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(li.overlaps(li3)))
         self.assertFalse(hl.eval(li.overlaps(li5)))
 
+    def test_locus_interval_constructors(self):
+        li_contig_start = hl.locus_interval('1', 0, 2, False, False,
+                                            invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_start) == hl.utils.Interval(
+            hl.genetics.Locus("1", 1),
+            hl.genetics.Locus("1", 2),
+            includes_start=True,
+            includes_end=False))
+
+        li_contig_middle1 = hl.locus_interval('1', 100, 100, True, False,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle1) == hl.utils.Interval(
+            hl.genetics.Locus("1", 99),
+            hl.genetics.Locus("1", 100),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_middle2 = hl.locus_interval('1', 100, 100, False, True,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle2) == hl.utils.Interval(
+            hl.genetics.Locus("1", 100),
+            hl.genetics.Locus("1", 101),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_end = hl.locus_interval('1', 249250621, 249250622, True,
+                                          False, invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_end) == hl.utils.Interval(
+            hl.genetics.Locus("1", 249250621),
+            hl.genetics.Locus("1", 249250621),
+            includes_start=True,
+            includes_end=True))
+
+        li1 = hl.locus_interval('1', 0, 1, False, False, invalid_missing=True)
+        li2 = hl.locus_interval('1', 0, 1, True, False, invalid_missing=True)
+        li3 = hl.locus_interval('1', 20, 20, False, False, invalid_missing=True)
+        li4 = hl.locus_interval('1', 249250621, 249250622, False, True, invalid_missing=True)
+        li5 = hl.locus_interval('1', 20, 19, True, True, invalid_missing=True)
+
+        for expr in [li1, li2, li3, li4, li5]:
+            self.assertTrue(hl.eval(expr) is None)
+
+        li_parsed = hl.parse_locus_interval('(1:20-20)', invalid_missing=True)
+        self.assertTrue(hl.eval(li_parsed) is None)
+
     def test_reference_genome_fns(self):
         self.assertTrue(hl.eval(hl.is_valid_contig('1', 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_contig('chr1', 'GRCh37')))
@@ -2381,6 +2426,10 @@ class Tests(unittest.TestCase):
 
     def assert_evals_to(self, e, v):
         self.assertEqual(hl.eval(e), v)
+
+    def batch_assert_evals_to(self, *expr_and_expected):
+        exprs, expecteds = zip(*expr_and_expected)
+        self.assert_evals_to(hl.eval(hl.tuple(exprs)), expecteds)
 
     def test_set_functions(self):
         s = hl.set([1, 3, 7])
@@ -2694,18 +2743,57 @@ class Tests(unittest.TestCase):
                  [6, 7]]]
         h_cube = hl._ndarray(cube)
         h_np_cube = hl._ndarray(np.array(cube))
-        self.assert_evals_to(h_cube[0, 0, 1], 1)
-        self.assert_evals_to(h_cube[1, 1, 0], 6)
-        self.assert_evals_to(h_np_cube[0, 0, 1], 1)
-        self.assert_evals_to(h_np_cube[1, 1, 0], 6)
+        self.batch_assert_evals_to(
+            (h_cube[0, 0, 1], 1),
+            (h_cube[1, 1, 0], 6),
+            (h_np_cube[0, 0, 1], 1),
+            (h_np_cube[1, 1, 0], 6),
+            (hl._ndarray([[[[1]]]])[0, 0, 0, 0], 1),
+            (hl._ndarray([[[1, 2]], [[3, 4]]])[1, 0, 0], 3),
+            (h_np_cube[0, :, :][:, 0][1], 2))
 
         self.assertRaises(ValueError, hl._ndarray, [[4], [1, 2, 3], 5])
 
-    def ndarray_eq(self, expr, expected):
-        self.assertTrue(np.array_equal(expr.to_numpy(), expected))
+    def assert_ndarrays(self, asserter, exprs_and_expecteds):
+        exprs, expecteds = zip(*exprs_and_expecteds)
 
-    def ndarray_almost_eq(self, expr, expected):
-        self.assertTrue(np.allclose(expr.to_numpy(), expected))
+        from hail.ir import NDArrayWrite, Begin
+        tmp_files = [tempfile.NamedTemporaryFile(suffix='.npy').name for _ in exprs]
+        write_irs = [NDArrayWrite(expr._ir, hl.str(tmp_file)._ir) for (expr, tmp_file) in zip(exprs, tmp_files)]
+        hl.utils.java.Env.backend().execute(Begin(write_irs))
+
+        for (tmp_file, expected) in zip(tmp_files, expecteds):
+            self.assertTrue(asserter(np.load(tmp_file), expected))
+
+    def ndarrays_eq(self, *expr_and_expected):
+        self.assert_ndarrays(np.array_equal, expr_and_expected)
+
+    def ndarrays_almost_eq(self, *expr_and_expected):
+        self.assert_ndarrays(np.allclose, expr_and_expected)
+
+    @skip_unless_spark_backend()
+    @run_with_cxx_compile()
+    def test_ndarray_slice(self):
+        np_arr = np.array([[[0, 1, 2, 3],
+                            [4, 5, 6, 7],
+                            [8, 9, 10, 11]],
+                           [[12, 13, 14, 15],
+                            [16, 17, 18, 19],
+                            [20, 21, 22, 23]]])
+        arr = hl._ndarray(np_arr)
+        np_mat = np.array([[1, 2, 3, 4],
+                           [5, 6, 7, 8]])
+        mat = hl._ndarray(np_mat)
+
+        self.ndarrays_eq(
+            (arr[:, :, :], np_arr[:, :, :]),
+            (arr[:, :, 1], np_arr[:, :, 1]),
+            (arr[:, :, 1:4:2], np_arr[:, :, 1:4:2]),
+            (arr[:, 2, 1:4:2], np_arr[:, 2, 1:4:2]),
+            (arr[0, 2, 1:4:2], np_arr[0, 2, 1:4:2]),
+            (arr[0, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
+            (arr[0:, :, 1:4:2] + arr[:, :1, 1:4:2], np_arr[0:, :, 1:4:2] + np_arr[:, :1, 1:4:2]),
+            (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2721,30 +2809,33 @@ class Tests(unittest.TestCase):
         col = hl._ndarray(np_col)
         m = hl._ndarray(np_m)
         nd = hl._ndarray(np_nd)
-        self.assert_evals_to(e.shape, np_e.shape)
-        self.assert_evals_to(row.shape, np_row.shape)
-        self.assert_evals_to(m.shape, np_m.shape)
-        self.assert_evals_to(nd.shape, np_nd.shape)
-        self.assert_evals_to((row + nd).shape, (np_row + np_nd).shape)
-        self.assert_evals_to((row + col).shape, (np_row + np_col).shape)
+
+        self.batch_assert_evals_to(
+            (e.shape, np_e.shape),
+            (row.shape, np_row.shape),
+            (m.shape, np_m.shape),
+            (nd.shape, np_nd.shape),
+            ((row + nd).shape, (np_row + np_nd).shape),
+            ((row + col).shape, (np_row + np_col).shape))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
     def test_ndarray_reshape(self):
-        a = hl._ndarray([1, 2, 3, 4, 5, 6])
-        fat = a.reshape((2, 3))
-        skinny = a.reshape((3, 2))
+        np_a = np.array([1, 2, 3, 4, 5, 6])
+        a = hl._ndarray(np_a)
 
-        a_three = a[2]
-        fat_three = fat[0, 2]
-        skinny_three = skinny[1, 0]
-        self.assertTrue(hl.eval(a_three) == hl.eval(fat_three) == hl.eval(skinny_three) == 3)
-
-        nums = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7])
-        cube = nums.reshape((2, 2, 2))
-        rect = cube.reshape((2, 4))
+        np_cube = np.array([0, 1, 2, 3, 4, 5, 6, 7], order='F').reshape((2, 2, 2))
+        cube = hl._ndarray([0, 1, 2, 3, 4, 5, 6, 7], row_major=False).reshape((2, 2, 2))
+        cube_to_rect = cube.reshape((2, 4))
+        np_cube_to_rect = np_cube.reshape((2, 4))
         cube_t_to_rect = cube.transpose((1, 0, 2)).reshape((2, 4))
-        self.assertTrue(hl.eval(cube[0, 1, 1]) == hl.eval(rect[0, 3]) == hl.eval(cube_t_to_rect[1, 1]) == 3)
+        np_cube_t_to_rect = np_cube.transpose((1, 0, 2)).reshape((2, 4))
+
+        self.ndarrays_eq(
+            (a.reshape((2, 3)), np_a.reshape((2, 3))),
+            (a.reshape((3, 2)), np_a.reshape((3, 2))),
+            (cube_to_rect, np_cube_to_rect),
+            (cube_t_to_rect, np_cube_t_to_rect))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2753,9 +2844,10 @@ class Tests(unittest.TestCase):
         b = hl.map(lambda x: -x, a)
         c = hl.map(lambda x: True, a)
 
-        self.ndarray_eq(b, [[-2, -3, -4], [-5, -6, -7]])
-        self.ndarray_eq(c, [[True, True, True],
-                            [True, True, True]])
+        self.ndarrays_eq(
+            (b, [[-2, -3, -4], [-5, -6, -7]]),
+            (c, [[True, True, True],
+                 [True, True, True]]))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2782,77 +2874,79 @@ class Tests(unittest.TestCase):
         ncube1 = hl._ndarray(cube1)
         ncube2 = hl._ndarray(cube2)
 
-        # with lists/numerics
-        self.ndarray_eq(na + b, np.array(a + b))
-        self.ndarray_eq(b + na, np.array(a + b))
-        self.ndarray_eq(nx + y, x + y)
-        self.ndarray_eq(ncube1 + cube2, cube1 + cube2)
+        self.ndarrays_eq(
+            # with lists/numerics
+            (na + b, np.array(a + b)),
+            (b + na, np.array(a + b)),
+            (nx + y, x + y),
+            (ncube1 + cube2, cube1 + cube2),
 
-        # Addition
-        self.ndarray_eq(na + na, np.array(a + a))
-        self.ndarray_eq(nx + ny, x + y)
-        self.ndarray_eq(ncube1 + ncube2, cube1 + cube2)
-        # Broadcasting
-        self.ndarray_eq(ncube1 + na, cube1 + a)
-        self.ndarray_eq(na + ncube1, a + cube1)
-        self.ndarray_eq(ncube1 + ny, cube1 + y)
-        self.ndarray_eq(ny + ncube1, y + cube1)
-        self.ndarray_eq(nrow_vec + ncube1, row_vec + cube1)
-        self.ndarray_eq(ncube1 + nrow_vec, cube1 + row_vec)
+            # Addition
+            (na + na, np.array(a + a)),
+            (nx + ny, x + y),
+            (ncube1 + ncube2, cube1 + cube2),
+            # Broadcasting
+            (ncube1 + na, cube1 + a),
+            (na + ncube1, a + cube1),
+            (ncube1 + ny, cube1 + y),
+            (ny + ncube1, y + cube1),
+            (nrow_vec + ncube1, row_vec + cube1),
+            (ncube1 + nrow_vec, cube1 + row_vec),
 
-        # Subtraction
-        self.ndarray_eq(na - na, np.array(a - a))
-        self.ndarray_eq(nx - nx, x - x)
-        self.ndarray_eq(ncube1 - ncube2, cube1 - cube2)
-        # Broadcasting
-        self.ndarray_eq(ncube1 - na, cube1 - a)
-        self.ndarray_eq(na - ncube1, a - cube1)
-        self.ndarray_eq(ncube1 - ny, cube1 - y)
-        self.ndarray_eq(ny - ncube1, y - cube1)
-        self.ndarray_eq(ncube1 - nrow_vec, cube1 - row_vec)
-        self.ndarray_eq(nrow_vec - ncube1, row_vec - cube1)
+            # Subtraction
+            (na - na, np.array(a - a)),
+            (nx - nx, x - x),
+            (ncube1 - ncube2, cube1 - cube2),
+            # Broadcasting
+            (ncube1 - na, cube1 - a),
+            (na - ncube1, a - cube1),
+            (ncube1 - ny, cube1 - y),
+            (ny - ncube1, y - cube1),
+            (ncube1 - nrow_vec, cube1 - row_vec),
+            (nrow_vec - ncube1, row_vec - cube1),
 
-        # Multiplication
-        self.ndarray_eq(na * na, np.array(a * a))
-        self.ndarray_eq(nx * nx, x * x)
-        self.ndarray_eq(nx * na, x * a)
-        self.ndarray_eq(na * nx, a * x)
-        self.ndarray_eq(ncube1 * ncube2, cube1 * cube2)
-        # Broadcasting
-        self.ndarray_eq(ncube1 * na, cube1 * a)
-        self.ndarray_eq(na * ncube1, a * cube1)
-        self.ndarray_eq(ncube1 * ny, cube1 * y)
-        self.ndarray_eq(ny * ncube1, y * cube1)
-        self.ndarray_eq(ncube1 * nrow_vec, cube1 * row_vec)
-        self.ndarray_eq(nrow_vec * ncube1, row_vec * cube1)
+            # Multiplication
+            (na * na, np.array(a * a)),
+            (nx * nx, x * x),
+            (nx * na, x * a),
+            (na * nx, a * x),
+            (ncube1 * ncube2, cube1 * cube2),
+            # Broadcasting
+            (ncube1 * na, cube1 * a),
+            (na * ncube1, a * cube1),
+            (ncube1 * ny, cube1 * y),
+            (ny * ncube1, y * cube1),
+            (ncube1 * nrow_vec, cube1 * row_vec),
+            (nrow_vec * ncube1, row_vec * cube1),
+
+            # Floor div
+            (na // na, np.array(a // a)),
+            (nx // nx, x // x),
+            (nx // na, x // a),
+            (na // nx, a // x),
+            (ncube1 // ncube2, cube1 // cube2),
+            # Broadcasting
+            (ncube1 // na, cube1 // a),
+            (na // ncube1, a // cube1),
+            (ncube1 // ny, cube1 // y),
+            (ny // ncube1, y // cube1),
+            (ncube1 // nrow_vec, cube1 // row_vec),
+            (nrow_vec // ncube1, row_vec // cube1))
 
         # Division
-        self.ndarray_almost_eq(na / na, np.array(a / a))
-        self.ndarray_almost_eq(nx / nx, x / x)
-        self.ndarray_almost_eq(nx / na, x / a)
-        self.ndarray_almost_eq(na / nx, a / x)
-        self.ndarray_almost_eq(ncube1 / ncube2, cube1 / cube2)
-        # Broadcasting
-        self.ndarray_almost_eq(ncube1 / na, cube1 / a)
-        self.ndarray_almost_eq(na / ncube1, a / cube1)
-        self.ndarray_almost_eq(ncube1 / ny, cube1 / y)
-        self.ndarray_almost_eq(ny / ncube1, y / cube1)
-        self.ndarray_almost_eq(ncube1 / nrow_vec, cube1 / row_vec)
-        self.ndarray_almost_eq(nrow_vec / ncube1, row_vec / cube1)
-
-        # Floor div
-        self.ndarray_eq(na // na, np.array(a // a))
-        self.ndarray_eq(nx // nx, x // x)
-        self.ndarray_eq(nx // na, x // a)
-        self.ndarray_eq(na // nx, a // x)
-        self.ndarray_eq(ncube1 // ncube2, cube1 // cube2)
-        # Broadcasting
-        self.ndarray_eq(ncube1 // na, cube1 // a)
-        self.ndarray_eq(na // ncube1, a // cube1)
-        self.ndarray_eq(ncube1 // ny, cube1 // y)
-        self.ndarray_eq(ny // ncube1, y // cube1)
-        self.ndarray_eq(ncube1 // nrow_vec, cube1 // row_vec)
-        self.ndarray_eq(nrow_vec // ncube1, row_vec // cube1)
+        self.ndarrays_almost_eq(
+            (na / na, np.array(a / a)),
+            (nx / nx, x / x),
+            (nx / na, x / a),
+            (na / nx, a / x),
+            (ncube1 / ncube2, cube1 / cube2),
+            # Broadcastisng
+            (ncube1 / na, cube1 / a),
+            (na / ncube1, a / cube1),
+            (ncube1 / ny, cube1 / y),
+            (ny / ncube1, y / cube1),
+            (ncube1 / nrow_vec, cube1 / row_vec),
+            (nrow_vec / ncube1, row_vec / cube1))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2872,10 +2966,13 @@ class Tests(unittest.TestCase):
             np.array([True, False, True, True])
         ]
 
-        for arr in arrs:
+        for expected in arrs:
             with tempfile.NamedTemporaryFile(suffix='.npy') as f:
-                hl._ndarray(arr).save(f.name)
-                self.assertTrue(np.array_equal(arr, np.load(f.name)))
+                hl._ndarray(expected).save(f.name)
+                actual = np.load(f.name)
+
+                self.assertTrue(expected.dtype == actual.dtype, f'expected: {expected.dtype}, actual: {actual.dtype}')
+                self.assertTrue(np.array_equal(expected, actual))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2883,9 +2980,10 @@ class Tests(unittest.TestCase):
         np_m = np.array([[1, 2], [3, 4]])
         m = hl._ndarray(np_m)
 
-        self.ndarray_eq(m.sum(axis=0), np_m.sum(axis=0))
-        self.ndarray_eq(m.sum(axis=1), np_m.sum(axis=1))
-        self.ndarray_eq(m.sum(), np_m.sum())
+        self.ndarrays_eq(
+            (m.sum(axis=0), np_m.sum(axis=0)),
+            (m.sum(axis=1), np_m.sum(axis=1)),
+            (m.sum(), np_m.sum()))
 
     @skip_unless_spark_backend()
     @run_with_cxx_compile()
@@ -2900,11 +2998,12 @@ class Tests(unittest.TestCase):
         m = hl._ndarray(np_m)
         cube = hl._ndarray(np_cube)
 
-        self.ndarray_eq(v.T, np_v.T)
-        self.ndarray_eq(v.T, np_v)
-        self.ndarray_eq(m.T, np_m.T)
-        self.ndarray_eq(cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1)))
-        self.ndarray_eq(cube.T, np_cube.T)
+        self.ndarrays_eq(
+            (v.T, np_v.T),
+            (v.T, np_v),
+            (m.T, np_m.T),
+            (cube.transpose((0, 2, 1)), np_cube.transpose((0, 2, 1))),
+            (cube.T, np_cube.T))
 
         self.assertRaises(ValueError, lambda: v.transpose((1,)))
         self.assertRaises(ValueError, lambda: cube.transpose((1, 1)))
@@ -2928,20 +3027,25 @@ class Tests(unittest.TestCase):
         m = hl._ndarray(np_m)
         cube = hl._ndarray(np_cube)
         rect_prism = hl._ndarray(np_rect_prism)
+        np_broadcasted_mat = np.array([[[1, 2],
+                                        [3, 4]]])
 
         self.assertEqual(hl.eval(v @ v), np_v @ np_v)
-        self.ndarray_eq(m @ m, np_m @ np_m)
-        self.ndarray_eq(m @ m.T, np_m @ np_m.T)
-        self.ndarray_eq(v @ m, np_v @ np_m)
-        self.ndarray_eq(m @ v, np_m @ np_v)
-        self.ndarray_eq(cube @ cube, np_cube @ np_cube)
-        self.ndarray_eq(cube @ v, np_cube @ np_v)
-        self.ndarray_eq(v @ cube, np_v @ np_cube)
-        self.ndarray_eq(cube @ m, np_cube @ np_m)
-        self.ndarray_eq(m @ cube, np_m @ np_cube)
-        self.ndarray_eq(rect_prism @ m, np_rect_prism @ np_m)
-        self.ndarray_eq(m @ rect_prism, np_m @ np_rect_prism)
-        self.ndarray_eq(m @ rect_prism.T, np_m @ np_rect_prism.T)
+
+        self.ndarrays_eq(
+            (m @ m, np_m @ np_m),
+            (m @ m.T, np_m @ np_m.T),
+            (v @ m, np_v @ np_m),
+            (m @ v, np_m @ np_v),
+            (cube @ cube, np_cube @ np_cube),
+            (cube @ v, np_cube @ np_v),
+            (v @ cube, np_v @ np_cube),
+            (cube @ m, np_cube @ np_m),
+            (m @ cube, np_m @ np_cube),
+            (rect_prism @ m, np_rect_prism @ np_m),
+            (m @ rect_prism, np_m @ np_rect_prism),
+            (m @ rect_prism.T, np_m @ np_rect_prism.T),
+            (hl._ndarray(np_broadcasted_mat) @ rect_prism, np_broadcasted_mat @ np_rect_prism))
 
         self.assertRaises(ValueError, lambda: m @ 5)
         self.assertRaises(ValueError, lambda: m @ hl._ndarray(5))
@@ -2968,3 +3072,9 @@ class Tests(unittest.TestCase):
         self.assertRaises(AttributeError, lambda: hl.array([1,2,3])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([[1],[2],[3]])["a"])
         self.assertRaises(AttributeError, lambda: hl.array([{1},{2},{3}])["a"])
+
+    def test_binary_search(self):
+        a = hl.array([0, 2, 4, 8])
+        values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
+        expected = [0, 0, 1, 1, 2, 2, 4, None]
+        assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected

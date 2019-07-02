@@ -3,7 +3,7 @@ import json
 
 from hail.ir.utils import make_filter_and_replace
 from hail.typecheck import *
-from hail.utils.java import escape_str
+from hail.utils.misc import escape_str
 
 
 class TableReader(object):

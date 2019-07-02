@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: router
+  namespace: monitoring
+  labels:
+    app: router
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: router
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: router
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      containers:
+       - name: router
+         image: "{{ monitoring_router_image.image }}"
+         ports:
+          - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: router
+  namespace: monitoring
+  labels:
+    app: router
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: router

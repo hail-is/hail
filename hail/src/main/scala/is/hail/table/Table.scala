@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -61,10 +62,10 @@ object Table {
     delimiter: String = "\\t",
     missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.hadoopConf)
+    val (data, ptyp) = LoadPlink.parseFam(path, ffConfig, HailContext.sFS)
     val jv = JSONAnnotationImpex.exportAnnotation(
-      Row(typ.toString, data),
-      TStruct("type" -> TString(), "data" -> TArray(typ)))
+      Row(ptyp.toString, data),
+      TStruct("type" -> TString(), "data" -> TArray(ptyp.virtualType)))
     JsonMethods.compact(jv)
   }
 
@@ -143,8 +144,33 @@ object Table {
     new Table(hc, TableLiteral(
       TableValue(
         TableType(signature, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
+        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
         RVD.unkeyed(signature.physicalType, crdd2)))
+    ).keyBy(key, isSorted)
+  }
+
+  def apply(
+    hc: HailContext,
+    rdd: RDD[Row],
+    signature: PStruct,
+    key: IndexedSeq[String]
+  ): Table = apply(hc, ContextRDD.weaken[RVDContext](rdd), signature, key, TStruct.empty(), Annotation.empty, false)
+
+  def apply(
+    hc: HailContext,
+    crdd: ContextRDD[RVDContext, Row],
+    signature: PStruct,
+    key: IndexedSeq[String],
+    globalSignature: TStruct,
+    globals: Annotation,
+    isSorted: Boolean
+  ): Table = {
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
+    new Table(hc, TableLiteral(
+      TableValue(
+        TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
+        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
+        RVD.unkeyed(signature, crdd2)))
     ).keyBy(key, isSorted)
   }
 
@@ -181,7 +207,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         TableLiteral(
           TableValue(
             TableType(signature, key, globalSignature),
-            BroadcastRow(globals, globalSignature, hc.sc),
+            BroadcastRow(globals, globalSignature, hc.backend),
             RVD.coerce(RVDType(signature.physicalType, key), crdd)))
   )
 

@@ -289,6 +289,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+        slice_bm = ir.BlockMatrixSlice(matmul, [slice(0, 2, 1), slice(0, 1, 1)])
 
         return [
             read,
@@ -303,7 +304,8 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_row,
             squared_bm,
             transpose,
-            matmul
+            matmul,
+            slice_bm
         ]
 
     def test_parses(self):

@@ -5,7 +5,7 @@ import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.zip.Inflater
+import java.util.zip.{Deflater, Inflater}
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
@@ -25,7 +25,7 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
-
+import is.hail.io.fs.FS
 package utils {
   trait Truncatable {
     def truncate: String
@@ -87,7 +87,7 @@ package object utils extends Logging
     }
   }
 
-  def checkGzippedFile(hConf: org.apache.hadoop.conf.Configuration,
+  def checkGzippedFile(fs: FS,
     input: String,
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
@@ -101,7 +101,7 @@ package object utils extends Logging
            |  If you are sure that you want to load a non-block-gzipped file serially
            |  on one core, use the 'force' argument.""".stripMargin)
     else if (!gzAsBGZ) {
-      val fileSize = hConf.getFileSize(input)
+      val fileSize = fs.getFileSize(input)
       if (fileSize > 1024 * 1024 * maxSizeMB)
         warn(
           s"""file '$input' is ${ readableBytes(fileSize) }
@@ -740,12 +740,26 @@ package object utils extends Logging
     val hc = HailContext.get
     val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
 
-    hc.hadoopConf.writeTextFile(path + "/README.txt") { out =>
+    hc.sFS.writeTextFile(path + "/README.txt") { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
            |  Written with version ${ hc.version }
            |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
     }
+  }
+
+  def compress(bb: ArrayBuilder[Byte], input: Array[Byte]): Int = {
+    val compressor = new Deflater()
+    compressor.setInput(input)
+    compressor.finish()
+    val buffer = new Array[Byte](1024)
+    var compressedLength = 0
+    while (!compressor.finished()) {
+      val nCompressedBytes = compressor.deflate(buffer)
+      bb ++= (buffer, nCompressedBytes)
+      compressedLength += nCompressedBytes
+    }
+    compressedLength
   }
 }
 

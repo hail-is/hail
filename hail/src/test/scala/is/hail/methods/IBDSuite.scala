@@ -8,14 +8,14 @@ import is.hail.table.Table
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.{HailContext, SparkSuite, TestUtils}
+import is.hail.{HailContext, HailSuite, TestUtils}
 import org.testng.SkipException
 import org.testng.annotations.Test
 
 import scala.language._
 import scala.sys.process._
 
-class IBDSuite extends SparkSuite {
+class IBDSuite extends HailSuite {
 
   def toI(a: Any): Int =
     a.asInstanceOf[Int]
@@ -59,7 +59,7 @@ class IBDSuite extends SparkSuite {
 
     ExportVCF(vds, vcfFile)
 
-    hadoopConf.copy(vcfFile, localVCFFile)
+    sFS.copy(vcfFile, localVCFFile)
 
     val thresholdString = min.map(x => s" --min $x").getOrElse("") +
       max.map(x => s" --max $x").getOrElse("") +
@@ -70,7 +70,7 @@ class IBDSuite extends SparkSuite {
     val genomeFile = tmpdir + ".genome"
     val localGenomeFile = localTmpdir + ".genome"
 
-    hadoopConf.copy(localGenomeFile, genomeFile)
+    sFS.copy(localGenomeFile, genomeFile)
 
     val rdd = TextTableReader.read(hc)(Array(tmpdir + ".genome"),
       types = Map(("IID1", TString()), ("IID2", TString()), ("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()),

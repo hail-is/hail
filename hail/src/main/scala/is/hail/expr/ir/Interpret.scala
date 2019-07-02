@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, Uploader, stats}
+import is.hail.{HailContext, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
@@ -26,7 +26,7 @@ object Interpret {
     else
       tir
 
-    val lowered = LowerMatrixIR(LiftNonCompilable(tiropt).asInstanceOf[TableIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(tiropt)).asInstanceOf[TableIR])
 
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
@@ -45,13 +45,13 @@ object Interpret {
     else
       mir
 
-    val lowered = LowerMatrixIR(LiftNonCompilable(miropt).asInstanceOf[MatrixIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(EvaluateRelationalLets(miropt)).asInstanceOf[MatrixIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
       lowered
 
-    lowopt.execute(HailContext.get)
+    lowopt.execute(HailContext.get).toMatrixValue(LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, mir.typ.colKey)
   }
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
@@ -80,13 +80,12 @@ object Interpret {
     }
 
     if (optimize) optimizeIR(true, "Interpret, first pass")
-    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR(false, "Interpret, after lowering MatrixIR")
+    ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
-
-    Uploader.uploadPipeline(ir0, ir)
 
     result
   }
@@ -514,7 +513,7 @@ object Interpret {
           interpret(aggIR, agg=Some((row, aggElementType)))
         }
 
-      case x@AggArrayPerElement(a, elementName, indexName, aggBody, isScan) => ???
+      case x@AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
@@ -754,10 +753,10 @@ object Interpret {
       case TableCollect(child) =>
         val tv = child.execute(HailContext.get)
         Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
-      case MatrixMultiWrite(children, writer) =>
+      case TableMultiWrite(children, writer) =>
         val hc = HailContext.get
-        val mvs = children.map(_.execute(hc))
-        writer(mvs)
+        val tvs = children.map(_.execute(hc))
+        writer(tvs)
       case TableWrite(child, writer) =>
         writer(child.execute(HailContext.get))
       case BlockMatrixWrite(child, writer) =>

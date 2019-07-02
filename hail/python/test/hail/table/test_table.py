@@ -341,6 +341,12 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
+    def test_scan_filter(self):
+        ht = hl.utils.range_table(10, n_partitions=10)
+        ht = ht.annotate(x = hl.scan.count())
+        ht = ht.filter(ht.idx == 9)
+        assert ht.x.collect() == [9]
+
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
@@ -385,6 +391,10 @@ class Tests(unittest.TestCase):
     def test_index_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
+
+    def test_interval_filter_loci(self):
+        ht = hl.import_vcf(resource('sample.vcf')).rows()
+        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -443,7 +453,7 @@ class Tests(unittest.TestCase):
               {"id": 3, "name": "z", "data":  0.01}]
         s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
         ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
-        joined = hl.Table._multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        joined = hl.Table.multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
         dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
                                           {"name": "d", "data": 1.1},
                                           None]},
@@ -466,10 +476,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(expected._same(joined))
 
         expected2 = expected.transmute(data=expected['__data'])
-        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        joined_same_name = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('globals')
         self.assertTrue(expected2._same(joined_same_name))
 
-        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        joined_nothing = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
         self.assertEqual(joined_nothing._force_count(), 5)
 
     def test_multi_way_zip_join_globals(self):
@@ -480,14 +490,14 @@ class Tests(unittest.TestCase):
             hl.struct(x=hl.null(hl.tint32)),
             hl.struct(x=5),
             hl.struct(x=0)]))
-        joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
         ht = mt.rows()
-        j = hl.Table._multi_way_zip_join([ht, ht], 'd', 'g')
+        j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
     def test_index_maintains_count(self):
@@ -541,11 +551,11 @@ class Tests(unittest.TestCase):
         df.select(**exprs)
         df = df.transmute(**exprs)
 
-        df.explode('\%!^!@#&#&$%#$%')
-        df.explode(df['\%!^!@#&#&$%#$%'])
+        df.explode(r'\%!^!@#&#&$%#$%')
+        df.explode(df[r'\%!^!@#&#&$%#$%'])
 
-        df.drop('\%!^!@#&#&$%#$%')
-        df.drop(df['\%!^!@#&#&$%#$%'])
+        df.drop(r'\%!^!@#&#&$%#$%')
+        df.drop(df[r'\%!^!@#&#&$%#$%'])
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):

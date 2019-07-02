@@ -40,7 +40,7 @@ server {
     }
 
     location / {
-        proxy_pass http://hail-ci/;
+        proxy_pass http://ci/;
     }
 
     listen 80;
@@ -48,10 +48,11 @@ server {
 }
 
 server {
-    server_name ci2.@domain@;
+    server_name batch.@domain@;
+    client_max_body_size 10000m;
 
     location / {
-        proxy_pass http://ci2/;
+        proxy_pass http://batch/;
     }
 
     listen 80;

@@ -35,7 +35,7 @@ object LinearMixedModel {
   private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
 
   def toTableIR(rvd: RVD): TableIR = {
-    TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, HailContext.get.sc), rvd))
+    TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, HailContext.backend), rvd))
   }
 }
 
@@ -54,9 +54,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       fatal(s"pa_t and a_t must have the same number of rows, but found ${pa_t.nRows} and ${a_t.nRows}")
     else if (!(pa_t.partitionCounts() sameElements a_t.partitionCounts()))
       fatal(s"pa_t and a_t both have ${pa_t.nRows} rows, but row partitions are not aligned")
-        
-    val sc = hc.sc
-    val lmmDataBc = sc.broadcast(lmmData)
+
+    val lmmDataBc = hc.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType.physicalType
 
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
@@ -124,8 +123,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
   }
   
   def fitFullRank(pa_t: RowMatrix): TableIR = {
-    val sc = hc.sc
-    val lmmDataBc = sc.broadcast(lmmData)
+    val lmmDataBc = hc.backend.broadcast(lmmData)
     val rowType = LinearMixedModel.rowType.physicalType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>

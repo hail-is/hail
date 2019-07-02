@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, SparkSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -16,7 +16,7 @@ import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
 
-class AggregatorsSuite extends SparkSuite {
+class AggregatorsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
@@ -305,12 +305,20 @@ class AggregatorsSuite extends SparkSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TArray(hailType[T])))
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(hailType[T]))
     val aggregable = a.map(Row(_))
+
+    val tp = TableParallelize(MakeStruct(FastSeq(
+      ("rows", Literal(TArray(TStruct("foo" -> TArray(hailType[T]))), a.map(Row(_)))),
+      ("global", MakeStruct(FastSeq())))))
+
     assertEvalsTo(
-      ApplyAggOp(FastSeq(), None, FastSeq(Ref("a", TArray(hailType[T]))), aggSig),
+      TableAggregate(
+        tp,
+        AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
+          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", hailType[T])), aggSig), None, isScan = false)),
       (aggregable, TStruct("a" -> TArray(hailType[T]))),
-      expected)
+      expected)(ExecStrategy.interpretOnly)
   }
 
   @Test
@@ -383,35 +391,6 @@ class AggregatorsSuite extends SparkSuite {
         FastSeq(1L, 33L),
         FastSeq(42L, 3L)),
       FastSeq(43L, 36L)
-    )
-
-  private[this] def assertRequiredArraySumEvalsTo[T: HailRep](
-    a: IndexedSeq[Seq[T]],
-    expected: Seq[T]
-  ): Unit = {
-    val typ = TArray(hailType[T].setRequired(true))
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(typ))
-    val aggregable = a.map(Row(_))
-    assertEvalsTo(
-      ApplyAggOp(FastSeq(), None, FastSeq(Ref("a", typ)), aggSig),
-      (aggregable, TStruct("a" -> typ)),
-      expected)
-  }
-
-  @Test def arraySumInt64Required(): Unit =
-    assertRequiredArraySumEvalsTo(
-      FastIndexedSeq(
-        FastSeq(1L, 33L),
-        FastSeq(42L, 3L)),
-      FastSeq(43L, 36L)
-    )
-
-  @Test def arraySumFloat64Required(): Unit =
-    assertRequiredArraySumEvalsTo(
-      FastIndexedSeq(
-        FastSeq(1D, 33D),
-        FastSeq(42D, 3D)),
-      FastSeq(43D, 36D)
     )
 
   private[this] def assertTakeByEvalsTo(aggType: Type, keyType: Type, n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {
@@ -1013,11 +992,41 @@ class AggregatorsSuite extends SparkSuite {
             None,
             FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
             AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          None,
           false
         )
       )
     }
 
     assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
+  }
+
+  @Test def testArrayElementsAggregatorEmpty(): Unit = {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
+    def getAgg(n: Int, m: Int, knownLength: Option[IR]): IR = {
+      hc
+      val ht = TableRange(10, 3)
+        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
+        .mapGlobals('global.insertFields('m -> m))
+        .filter(false)
+
+      TableAggregate(
+        ht,
+        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt", "_'",
+          ApplyAggOp(
+            FastIndexedSeq(),
+            None,
+            FastIndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
+            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))),
+          knownLength,
+          false
+        )
+      )
+    }
+
+    assertEvalsTo(getAgg(10, 10, None), null)
+    assertEvalsTo(getAgg(10, 10, Some(1)), FastIndexedSeq(0L))
+    assertEvalsTo(getAgg(10, 10, Some(GetField(Ref("global", TStruct("m" -> TInt32())), "m"))), Array.fill(10)(0L).toFastIndexedSeq)
   }
 }

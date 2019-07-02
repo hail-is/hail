@@ -1499,10 +1499,11 @@ class StructExpression(Mapping[str, Expression], Expression):
 
         new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
         indices, aggregations = unify_all(self, *insertions_dict.values())
-        return construct_expr(InsertFields(self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
-                              new_type,
-                              indices,
-                              aggregations)
+        return construct_expr(InsertFields.construct_with_deduplication(
+            self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
+            new_type,
+            indices,
+            aggregations)
 
     @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs):
@@ -1538,8 +1539,9 @@ class StructExpression(Mapping[str, Expression], Expression):
         result_type = tstruct(**new_types)
         indices, aggregations = unify_all(self, *[x for (f, x) in named_exprs.items()])
 
-        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
-                              result_type, indices, aggregations)
+        return construct_expr(InsertFields.construct_with_deduplication(
+            self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
+            result_type, indices, aggregations)
 
     @typecheck_method(fields=str, named_exprs=expr_any)
     def select(self, *fields, **named_exprs):
@@ -3272,7 +3274,9 @@ class NDArrayExpression(Expression):
         shape_type = ttuple(*[tint64 for _ in range(self.ndim)])
         return construct_expr(NDArrayShape(self._ir), shape_type, self._indices, self._aggregations)
 
-    @typecheck_method(item=oneof(expr_int64, tupleof(expr_int64)))
+    opt_long_slice_ = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
+
+    @typecheck_method(item=oneof(expr_int64, opt_long_slice_, tupleof(oneof(expr_int64, opt_long_slice_))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
@@ -3280,6 +3284,22 @@ class NDArrayExpression(Expression):
         if len(item) != self.ndim:
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
+
+        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        if n_sliced_dims > 0:
+            slices = []
+            for i, s in enumerate(item):
+                if isinstance(s, slice):
+                    start = s.start if s.start is not None else to_expr(0, tint64)
+                    stop = s.stop if s.stop is not None else self.shape[i]
+                    step = s.step if s.step is not None else to_expr(1, tint64)
+                    slices.append(hl.tuple((start, stop, step)))
+                else:
+                    slices.append(s)
+            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                  tndarray(self._type.element_type, n_sliced_dims),
+                                  self._indices,
+                                  self._aggregations)
 
         return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]), self._type.element_type)
 

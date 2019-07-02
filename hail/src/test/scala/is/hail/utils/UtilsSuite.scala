@@ -1,12 +1,12 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.HailSuite
 import is.hail.check.{Gen, Prop}
-import is.hail.utils.richUtils.RichHadoopConfiguration
+import is.hail.io.fs.HadoopFS
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
-class UtilsSuite extends SparkSuite {
+class UtilsSuite extends HailSuite {
   @Test def testD_==() {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1E-7))
@@ -56,11 +56,11 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testHadoopStripCodec() {
-    assert(hadoopConf.stripCodec("file.tsv") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.gz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.bgz") == "file.tsv")
-    assert(hadoopConf.stripCodec("file.tsv.lz4") == "file.tsv")
-    assert(hadoopConf.stripCodec("file") == "file")
+    assert(sFS.stripCodec("file.tsv") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.gz") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.bgz") == "file.tsv")
+    assert(sFS.stripCodec("file.tsv.lz4") == "file.tsv")
+    assert(sFS.stripCodec("file") == "file")
   }
 
   @Test def testPairRDDNoDup() {
@@ -84,9 +84,9 @@ class UtilsSuite extends SparkSuite {
   }
 
   @Test def testSortFileStatus() {
-    val rhc = new RichHadoopConfiguration(sc.hadoopConfiguration)
+    val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val partFileNames = rhc.glob("src/test/resources/part-*").sortBy(fs => getPartNumber(fs.getPath.getName)).map(_.getPath.getName)
+    val partFileNames = fs.glob("src/test/resources/part-*").sortBy(fileSystem => getPartNumber(fileSystem.getPath.getName)).map(_.getPath.getName)
 
     assert(partFileNames(0) == "part-40001" && partFileNames(1) == "part-100001")
   }

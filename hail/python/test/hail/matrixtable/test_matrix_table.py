@@ -138,6 +138,11 @@ class Tests(unittest.TestCase):
         qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
                                               y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
 
+    def test_col_agg_no_rows(self):
+        mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
+        mt = mt.annotate_cols(x = hl.agg.count())
+        assert mt.x.collect() == [0, 0, 0]
+
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
               .annotate_globals(g1=5)
@@ -326,15 +331,15 @@ class Tests(unittest.TestCase):
         ds.annotate_entries(**exprs)
         ds.select_entries(**exprs)
 
-        ds1.explode_cols('\%!^!@#&#&$%#$%')
-        ds1.explode_cols(ds1['\%!^!@#&#&$%#$%'])
+        ds1.explode_cols(r'\%!^!@#&#&$%#$%')
+        ds1.explode_cols(ds1[r'\%!^!@#&#&$%#$%'])
         ds1.group_cols_by(ds1.a).aggregate(**{'*``81': agg.count()})
 
-        ds1.drop('\%!^!@#&#&$%#$%')
-        ds1.drop(ds1['\%!^!@#&#&$%#$%'])
+        ds1.drop(r'\%!^!@#&#&$%#$%')
+        ds1.drop(ds1[r'\%!^!@#&#&$%#$%'])
 
-        ds2.explode_rows('\%!^!@#&#&$%#$%')
-        ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
+        ds2.explode_rows(r'\%!^!@#&#&$%#$%')
+        ds2.explode_rows(ds2[r'\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
     def test_semi_anti_join_rows(self):
@@ -457,6 +462,11 @@ class Tests(unittest.TestCase):
         right = hl.import_vcf(resource('joinright.vcf'))
 
         self.assertTrue(left.union_cols(right)._same(joined))
+
+    def test_union_cols_distinct(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(x = mt.row_idx // 2)
+        assert mt.union_cols(mt).count_rows() == 5
 
     def test_index(self):
         ds = self.get_vds(min_partitions=8)
@@ -645,6 +655,10 @@ class Tests(unittest.TestCase):
         mt = hl.utils.range_matrix_table(10, 10)
         s = hl.literal({1, 3, 5, 7})
         self.assertEqual(mt.filter_cols(s.contains(mt.col_idx)).count_cols(), 4)
+
+    def test_filter_cols_agg(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        assert mt.filter_cols(hl.agg.count() > 5).count_cols() == 10
 
     def test_vcf_regression(self):
         ds = hl.import_vcf(resource('33alleles.vcf'))
