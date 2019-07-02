@@ -58,18 +58,6 @@ object Emit {
 }
 
 case class AggContainer(aggs: Array[AggSignature], container: agg.StateContainer, off: Code[Long]) {
-  def nested(i: Int): AggContainer = {
-    aggs(i).op match {
-      case AggElements2(sigs) =>
-        val state = container(i).asInstanceOf[agg.ArrayElementState]
-        AggContainer(sigs.toArray, state.container, state.off)
-      case AggElementsLengthCheck2(sigs, _) =>
-        val state = container(i).asInstanceOf[agg.ArrayElementState]
-        AggContainer(sigs.toArray, state.container, state.off)
-      case op =>
-        throw new agg.UnsupportedExtraction(s"can't get nested aggs for aggOp $op")
-    }
-  }
 }
 
 object EmitRegion {
