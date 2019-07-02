@@ -1,45 +1,58 @@
 
+from ..matrixtable import MatrixTable
 import requests
+import json
+import hail as hl
 
 class DB:
-
+    
     _annotation_dataset_urls = None
     
     @staticmethod
     def annotation_dataset_urls():
-        if MatrixTable._annotation_dataset_urls is None:
-            r = requests.get("http://storage.googleapis.com/hail-datasets/datasets.json")
-            j = r.json()
-            MatrixTable._annotation_dataset_urls = {(x["name"], x["reference_genome"]): x["path"] for x in j}
+        if DB._annotation_dataset_urls is None:
+            with open('/Users/bfranco/hail_datasets/hail-datasets/annotation_db.json') as f:
+                j = json.loads(f.read())
             
-            return MatrixTable._annotation_dataset_urls
+            DB._annotation_dataset_urls = {(x["name"], x["reference_genome"]): (x["path"], x["gene_key"]) for x in j}
+        
+        return DB._annotation_dataset_urls
+    
+    def annotate_rows_db(self,mt,name):
+        """
+            Examples
+            --------
+            Annotates rows based on keyword implementation of annotation name.
+            
+            >>> import hail as hl
+            >>> annotate_rows_db('vep', 'cadd', '...', name='something_else')
+            >>> db = hl.annotation_database(config)
+            
+            >>> cadd = db.get_dataset('CADD')
+            
+            >>> ht = db.annotate(ht, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to ht
+            ...
+            
+            Parameters
+            ----------
+            name: keyword argument of the annotation.
+            
+            Returns
+            -------
+            :class:`.MatrixTable`
+            """
+        d = DB.annotation_dataset_urls()
+        reference_genome = mt.row_key.locus.dtype.reference_genome.name
+        url, gene_key = d[(name,reference_genome)]
+        if gene_key is True:
+            gene_url, _ = d[('gencode', reference_genome)]
+            t = hl.read_table(gene_url)
+            mt = mt.annotate_rows(gene_name=t[mt.row_key].gene_name)
+            mt = mt.annotate_rows(**{name:t[mt.gene_name]})
+            return mt.drop('gene_name')
+        else:
+            t = hl.read_table(url)
+            return mt.annotate_rows(name=t[mt.row_key])
 
-    def annotate_rows_db(self,name):
-        """
-        Examples
-        --------
-        Annotates rows based on keyword implementation of annotation name. 
-        
-        >>> import hail as hl
-        >>> annotate_rows_db('vep', 'cadd', '...', name='something_else')
-        >>> db = hl.annotation_database(config)
-        
-        >>> cadd = db.get_dataset('CADD')
-        
-        >>> ht = db.annotate(ht, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to ht
-        ...
-        
-        Parameters
-        ----------
-        name: keyword argument of the annotation.
-        
-        Returns
-        -------
-        :class:`.MatrixTable`
-        """
-        d = MatrixTable.annotation_dataset_urls()
-        reference_genome = self.row_key.locus.dtype.reference_genome.name
-        url = d[(name,reference_genome)]
-        t = hl.read_table(url)
-                
-        return self.annotate_rows(name=t[self.row_key])
+
+
