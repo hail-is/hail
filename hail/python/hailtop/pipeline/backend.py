@@ -150,11 +150,13 @@ class LocalBackend(Backend):
             try:
                 sp.check_output(script, shell=True)
             except sp.CalledProcessError as e:
-                print(e.output)
+                print(e)
                 raise
             finally:
                 if delete_scratch_on_exit:
                     sp.run(f'rm -rf {tmpdir}', shell=True)
+
+        print('Pipeline completed successfully!')
 
     def _get_scratch_dir(self):
         def _get_random_name():
