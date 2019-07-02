@@ -1,9 +1,10 @@
-import sys
-
 import re
 import subprocess as sp
+import sys
 
-from hailtop import hailctl
+import pkg_resources
+import yaml
+
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {
