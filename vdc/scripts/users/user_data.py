@@ -244,60 +244,11 @@ def create_all(user_id, username, google_project, kube_namespace, email=None,
         ksa_response = create_kube_service_acccount(username, kube_namespace)
         out['ksa_name'] = ksa_response.metadata.name
 
-        # Create secrets
-        data = {
-            'db_name': username,
-            'admin_role': f"{username}-admin",
-            'user_role': f"{username}-user",
-            'admin_pass': secrets.token_urlsafe(16),
-            'user_pass': secrets.token_urlsafe(16),
-        }
+        (sql_admin_secret, sql_user_secret) = create_user_db(
+            out['namespace_name'], username)
 
-        table.create_user_db(**data)
-
-        create_namespaced_secret(kube_namespace=out['namespace_name'],
-                                 secret_name=f"sql-{username}-{data['admin_role']}",
-                                 string_data={
-                                     "sql-config.json": json.dumps({
-                                         "host": "10.80.0.3",
-                                         "port": 3306,
-                                         "user": data['admin_role'],
-                                         "password": data['admin_pass'],
-                                         "instance": "db-gh0um",
-                                         "connection_name": "hail-vdc:us-central1:db-gh0um",
-                                         "db": data['db_name']
-                                     }),
-                                     'sql-config.cnf':
-                                     f"""
-                                     [client]
-                                     host=10.80.0.3
-                                     user={data['admin_role']}
-                                     password={data['admin_pass']}
-                                     database={data['db_name']}
-                                     """
-        })
-
-        create_namespaced_secret(kube_namespace=out['namespace_name'],
-                                 secret_name=f"sql-{username}-{data['user_role']}",
-                                 string_data={
-                                     "sql-config.json": json.dumps({
-                                         "host": "10.80.0.3",
-                                         "port": 3306,
-                                         "user": data['user_role'],
-                                         "password": data['user_pass'],
-                                         "instance": "db-gh0um",
-                                         "connection_name": "hail-vdc:us-central1:db-gh0um",
-                                         "db": data['db_name']
-                                     }),
-                                     'sql-config.cnf':
-                                     f"""
-                                     [client]
-                                     host=10.80.0.3
-                                     user={data['user_role']}
-                                     password={data['user_pass']}
-                                     database={data['db_name']}
-                                     """
-        })
+        out['sql_admin_secret'] = sql_admin_secret
+        out['sql_user_secret'] = sql_user_secret
 
         create_rbac(out['namespace_name'], out['ksa_name'])
     else:
@@ -391,6 +342,61 @@ def sanitize_username(username):
 
 def email_to_username(email):
     return sanitize_username(email.split('@')[0])
+
+
+def create_user_db(kube_namespace, username):
+    # Create secrets
+    data = {
+        'db_name': username,
+        'admin_role': f"{username}-admin",
+        'user_role': f"{username}-user",
+        'admin_pass': secrets.token_urlsafe(16),
+        'user_pass': secrets.token_urlsafe(16),
+    }
+    admin_secret = f"sql-{username}-{data['admin_role']}"
+    user_secret = f"sql-{username}-{data['user_role']}"
+
+    table.create_user_db(**data)
+
+    create_namespaced_secret(kube_namespace=kube_namespace,
+                             secret_name=admin_secret,
+                             string_data={
+                                 "sql-config.json": json.dumps({
+                                     "host": "10.80.0.3",
+                                     "port": 3306,
+                                     "user": data['admin_role'],
+                                     "password": data['admin_pass'],
+                                     "instance": "db-gh0um",
+                                     "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                     "db": data['db_name']
+                                 }),
+                                 'sql-config.cnf':
+                                 f"[client]\nhost=10.80.0.3" +
+                                 f"\nuser={data['admin_role']}" +
+                                 f"\npassword={data['admin_pass']}"
+                                 f"\ndatabase={data['db_name']}\n"
+                             })
+
+    create_namespaced_secret(kube_namespace=kube_namespace,
+                             secret_name=user_secret,
+                             string_data={
+                                 "sql-config.json": json.dumps({
+                                     "host": "10.80.0.3",
+                                     "port": 3306,
+                                     "user": data['user_role'],
+                                     "password": data['user_pass'],
+                                     "instance": "db-gh0um",
+                                     "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                     "db": data['db_name']
+                                 }),
+                                 'sql-config.cnf':
+                                 f"[client]\nhost=10.80.0.3" +
+                                 f"\nuser={data['user_role']}" +
+                                 f"\npassword={data['user_pass']}"
+                                 f"\ndatabase={data['db_name']}\n"
+                             })
+
+    return admin_secret, user_secret
 
 
 def create_all_idempotent(user_id, kube_namespace, username=None, email=None,

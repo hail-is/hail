@@ -35,6 +35,8 @@ class MigrateTable(Table):
                         bucket_name VARCHAR(255) NOT NULL,
                         gsa_key_secret_name VARCHAR(255) NOT NULL,
                         jwt_secret_name VARCHAR(255) NOT NULL,
+                        sql_admin_secret VARCHAR(255) NOT NULL,
+                        sql_user_secret VARCHAR(255) NOT NULL,
                         PRIMARY KEY (id),
                         INDEX email (email),
                         INDEX username (username),

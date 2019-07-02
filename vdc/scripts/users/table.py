@@ -37,9 +37,9 @@ class Table:
 
         with cnx.cursor() as cursor:
             rows = cursor.execute("SHOW DATABASES LIKE %s", (db_name, ))
-            print("rows", rows)
 
             if rows != 0:
+                print(f"{db_name} exists, skipping")
                 return True
 
             edb = cnx.escape_string(db_name)
@@ -47,10 +47,6 @@ class Table:
             aff = cursor.execute(
                 f"CREATE DATABASE `{edb}`"
             )
-
-            print("AFFECTED", aff)
-            print("admin_pass", admin_pass)
-            print("Admin", admin_role)
 
             if aff == 0:
                 return True
