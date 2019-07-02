@@ -18,7 +18,7 @@ from hailtop.gear.auth import web_authenticated_developers_only, new_csrf_token,
 
 from .log import log
 from .constants import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, pretty_timestamp_age
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, pretty_timestamp_age
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -263,7 +263,14 @@ async def batch_callback_handler(request):
 
 @routes.post('/api/v1alpha/dev_test_branch/{branch_name}')
 async def dev_test_branch(request):
-    pass
+    # Need to make a repo
+    params = await request.json()
+    repo = Repo(params.get('owner'), params.get('name'))
+    # Need to make a branch
+    fq_branch = FQBranch(repo, params.get('name'))
+    # Need to make an UnwatchedBranch
+    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata, namespace)
+    #Call deploy function and iterate from there.
 
 
 @routes.post('/api/v1alpha/batch_callback')
