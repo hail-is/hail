@@ -260,4 +260,17 @@ abstract class PType extends BaseType with Serializable {
     // FIXME
     t.physicalType
   }
+
+  def deepOptional(): PType =
+    this match {
+      case t: PArray => PArray(t.elementType.deepOptional())
+      case t: PSet => PSet(t.elementType.deepOptional())
+      case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
+      case t: PStruct =>
+        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
+      case t: PTuple =>
+        PTuple(t.types.map(_.deepOptional()))
+      case t =>
+        t.setRequired(false)
+    }
 }

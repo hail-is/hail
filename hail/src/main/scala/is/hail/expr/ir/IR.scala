@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq}
+import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
 
@@ -20,12 +19,23 @@ sealed trait IR extends BaseIR {
     _ptype
   }
 
+  def pTypeInferred: PType = {
+    if (_ptype == null)
+      try {
+        _ptype = InferPType(this)
+      } catch {
+        case e: Throwable => throw new RuntimeException(s"pType: inference failure: \n${ Pretty(this) }", e)
+      }
+
+    _ptype
+  }
+
   def typ: Type = {
     if (_typ == null)
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+        case e: Throwable => throw new RuntimeException(s"type: inference failure: \n${ Pretty(this) }", e)
       }
     _typ
   }
