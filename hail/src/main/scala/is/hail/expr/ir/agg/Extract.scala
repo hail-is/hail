@@ -39,7 +39,7 @@ object Extract {
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
     case AggSignature(PrevNonnull(), _, _, Seq(t)) =>
       new PrevNonNullAggregator(t.physicalType)
-    case _ => throw new UnsupportedExtraction("foo")
+    case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
   def getPType(aggSig: AggSignature): PType = getAgg(aggSig).resultType
