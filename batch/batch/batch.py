@@ -36,6 +36,14 @@ from . import schemas
 gear.configure_logging()
 log = logging.getLogger('batch')
 
+#Prometheus timers
+REQUEST_TIME = Summary('request_latency_seconds', 'Request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
+REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
+REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST") 
+
 uvloop.install()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
@@ -647,14 +655,11 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         state=state)
     return job
 
-req_time_summary = Summary('request_latency_seconds', 'Request latency in seconds')
-
-@time(req_time_summary)
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
-
+@REQUEST_TIME_GET_JOB.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @rest_authenticated_users_only
 async def get_job(request, userdata):
@@ -690,6 +695,7 @@ async def _get_pod_status(batch_id, job_id, user):
     abort(404)
 
 
+@REQUEST_TIME_GET_JOB_LOG.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
@@ -700,6 +706,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return jsonify(job_log)
 
 
+@REQUEST_TIME_GET_POD_STATUS.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
 @rest_authenticated_users_only
 async def get_pod_status(request, userdata):  # pylint: disable=R1710
@@ -879,6 +886,7 @@ async def _get_batches_list(params, user):
     return [await batch.to_dict(include_jobs=False) for batch in batches]
 
 
+@REQUEST_TIME_GET_BATCHES.time()
 @routes.get('/api/v1alpha/batches')
 @rest_authenticated_users_only
 async def get_batches_list(request, userdata):
@@ -887,6 +895,7 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
+@REQUEST_TIME_POST_CREATE_JOBS.time()
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
