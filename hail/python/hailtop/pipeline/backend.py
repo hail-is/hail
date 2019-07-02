@@ -151,6 +151,7 @@ class LocalBackend(Backend):
                 sp.check_output(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e)
+                print(e.output)
                 raise
             finally:
                 if delete_scratch_on_exit:
