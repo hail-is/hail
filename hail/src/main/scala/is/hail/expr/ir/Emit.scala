@@ -58,16 +58,16 @@ object Emit {
 }
 
 case class AggContainer(aggs: Array[AggSignature], container: agg.StateContainer, off: Code[Long]) {
-  def nested(i: Int): AggContainer = {
+  def nested(i: Int): Option[AggContainer] = {
     aggs(i).op match {
       case AggElements2(sigs) =>
         val state = container(i).asInstanceOf[agg.ArrayElementState]
-        AggContainer(sigs.toArray, state.container, state.off)
+        Some(AggContainer(sigs.toArray, state.container, state.off))
       case AggElementsLengthCheck2(sigs, _) =>
         val state = container(i).asInstanceOf[agg.ArrayElementState]
-        AggContainer(sigs.toArray, state.container, state.off)
+        Some(AggContainer(sigs.toArray, state.container, state.off))
       case op =>
-        throw new agg.UnsupportedExtraction(s"can't get nested aggs for aggOp $op")
+        None
     }
   }
 }
@@ -987,7 +987,7 @@ private class Emit(
       case InitOp2(i, args, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.map(_.nested(i))), a.pType)).toArray
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
 
         val setup = Code(
@@ -1000,7 +1000,7 @@ private class Emit(
       case SeqOp2(i, args, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.map(_.nested(i))), a.pType)).toArray
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
         EmitTriplet(sc.updateOne(0, aggOff, i, rvAgg.seqOp(sc(i), argVars)),
           false, Code._empty)
