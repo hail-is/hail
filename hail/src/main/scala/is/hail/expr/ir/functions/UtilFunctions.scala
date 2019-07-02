@@ -41,7 +41,7 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) {
       case (er, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
-        assert(lT.virtualType == rT.virtualType)
+        assert(lT.virtualType.isOfType(rT.virtualType))
         val lb = boxArg(er, lT)(l)
         val rb = boxArg(er, rT)(r)
         er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
