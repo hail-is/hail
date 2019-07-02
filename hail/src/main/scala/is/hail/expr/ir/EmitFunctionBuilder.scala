@@ -51,6 +51,14 @@ trait FunctionWithFS {
   def addFS(fs: FS): Unit
 }
 
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
+}
+
 trait FunctionWithLiterals {
   def addLiterals(lit: Array[Byte]): Unit
 }
