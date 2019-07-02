@@ -32,7 +32,7 @@ object Extract {
     case AggSignature(Sum(), _, _, Seq(t)) =>
       new SumAggregator(t.physicalType)
     case AggSignature(Count(), _, _, Seq(t)) =>
-      new SumAggregator(t.physicalType)
+      CountAggregator
     case AggSignature(AggElementsLengthCheck2(nestedAggs, knownLength), _, _, _) =>
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
     case AggSignature(AggElements2(nestedAggs), _, _, _) =>
