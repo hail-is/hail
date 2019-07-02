@@ -26,7 +26,7 @@ from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_u
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase, JobsBuilder
+from .database import BatchDatabase, JobsBuilder, JobsTable
 from .k8s import K8s
 from .globals import complete_states
 from .queue import scale_queue_consumers
@@ -299,7 +299,8 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'job {self.full_id} will have a missing log due to {err}')
 
-        compare_items = {'state': self._state, 'task_idx': self._task_idx}
+        uri_name = JobsTable.log_uri_mapping[task_name]
+        compare_items = {'state': self._state, 'task_idx': self._task_idx, uri_name: None}
         n_updated = await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
                                                      compare_items=compare_items,
                                                      task_idx=self._task_idx,
