@@ -179,7 +179,7 @@ private class Emit(
 
   val resultRegion: EmitRegion = EmitRegion.default(mb)
   val region: Code[Region] = mb.getArg[Region](1)
-  val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
+  val methods: mutable.Map[String, Seq[(Seq[PType], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
   import Emit.{E, F}
 
@@ -1115,7 +1115,7 @@ private class Emit(
             Code._throw(Code.newInstance[HailException, String](
               cm.m.mux[String](
                 "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(er, m.typ)(cm.v)))))))
+                coerce[String](StringFunctions.wrapArg(er, m.pType)(cm.v)))))))
       case ir@ApplyIR(fn, args) =>
         val mfield = mb.newField[Boolean]
         val vfield = mb.newField()(typeToTypeInfo(ir.typ))
@@ -1135,13 +1135,17 @@ private class Emit(
 
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
+        val unified = impl.unify(args.map(_.typ))
+        assert(unified)
+
+        val argPTypes = args.map(_.pType)
         val meth =
-          methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
+          methods(fn).filter { case (argt, _) => argt.zip(argPTypes).forall { case (t1, t2) => t1 == t2 } } match {
             case Seq(f) =>
               f._2
             case Seq() =>
-              val methodbuilder = impl.getAsMethod(mb.fb, args.map(_.typ): _*)
-              methods.update(fn, methods(fn) :+ (args.map(_.typ) -> methodbuilder))
+              val methodbuilder = impl.getAsMethod(mb.fb, argPTypes: _*)
+              methods.update(fn, methods(fn) :+ (argPTypes -> methodbuilder))
               methodbuilder
           }
         val codeArgs = args.map(emit(_))
@@ -1150,14 +1154,14 @@ private class Emit(
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
       case x@ApplySeeded(fn, args, seed) =>
-        val codeArgs = args.map(emit(_))
+        val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
         val unified = impl.unify(args.map(_.typ))
         assert(unified)
         impl.setSeed(seed)
         impl.apply(er, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
-        val codeArgs = args.map(emit(_))
+        val codeArgs = args.map(a => (a.pType, emit(a)))
         val impl = x.implementation
         impl.argTypes.foreach(_.clear())
         val unified = impl.unify(args.map(_.typ))

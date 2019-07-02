@@ -320,9 +320,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64()) {
-      case (r, EmitTriplet(setup1, m1, v1), EmitTriplet(setup2, m2, v2)) =>
-        val t1 = PArray(PFloat64())
-        val t2 = PArray(PFloat64())
+      case (r, (t1: PArray, EmitTriplet(setup1, m1, v1)), (t2: PArray, EmitTriplet(setup2, m2, v2))) =>
         val region = r.region
 
         val xSum = r.mb.newLocal[Double]

@@ -3,6 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.types.physical.{PString, PTuple}
 import is.hail.utils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
@@ -38,81 +39,88 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) { case (er, l, r, tolerance, absolute) =>
-      val t = tv("T").subst()
-      val u = tv("U").subst()
-      val lb = boxArg(er, t)(l)
-      val rb = boxArg(er, u)(r)
-      er.mb.getType(t).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) {
+      case (er, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
+        assert(lT.virtualType == rT.virtualType)
+        val lb = boxArg(er, lT)(l)
+        val rb = boxArg(er, rT)(r)
+        er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
 
-    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
+    registerCode[Int]("triangle", TInt32(), TInt32()) { case (_, (nT, n: Code[Int])) => (n * (n + 1)) / 2 }
 
-    registerCode("toInt32", TBoolean(), TInt32()) { (_, x: Code[Boolean]) => x.toI }
-    registerCode("toInt64", TBoolean(), TInt64()) { (_, x: Code[Boolean]) => x.toI.toL }
-    registerCode("toFloat32", TBoolean(), TFloat32()) { (_, x: Code[Boolean]) => x.toI.toF }
-    registerCode("toFloat64", TBoolean(), TFloat64()) { (_, x: Code[Boolean]) => x.toI.toD }
-    registerCode("toInt32", TString(), TInt32()) { (r, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
-      Code.invokeScalaObject[String, Int](thisClass, "parseInt32", s)
+    registerCode[Boolean]("toInt32", TBoolean(), TInt32()) { case (_, (xT, x: Code[Boolean])) => x.toI }
+    registerCode[Boolean]("toInt64", TBoolean(), TInt64()) { case (_, (xT, x: Code[Boolean])) => x.toI.toL }
+    registerCode[Boolean]("toFloat32", TBoolean(), TFloat32()) { case (_, (xT, x: Code[Boolean])) => x.toI.toF }
+    registerCode[Boolean]("toFloat64", TBoolean(), TFloat64()) { case (_, (xT, x: Code[Boolean])) => x.toI.toD }
+    registerCode("toInt32", TString(), TInt32()) {
+      case (r, (xT: PString, x: Code[Long])) =>
+        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+        Code.invokeScalaObject[String, Int](thisClass, "parseInt32", s)
     }
-    registerCode("toInt64", TString(), TInt64()) { (r, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
-      Code.invokeScalaObject[String, Long](thisClass, "parseInt64", s)
+    registerCode("toInt64", TString(), TInt64()) {
+      case (r, (xT: PString, x: Code[Long])) =>
+        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+        Code.invokeScalaObject[String, Long](thisClass, "parseInt64", s)
     }
-    registerCode("toFloat32", TString(), TFloat32()) { (r, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
-      Code.invokeScalaObject[String, Float](thisClass, "parseFloat32", s)
+    registerCode("toFloat32", TString(), TFloat32()) {
+      case (r, (xT: PString, x: Code[Long])) =>
+        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+        Code.invokeScalaObject[String, Float](thisClass, "parseFloat32", s)
     }
-    registerCode("toFloat64", TString(), TFloat64()) { (r, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
-      Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
+    registerCode("toFloat64", TString(), TFloat64()) {
+      case (r, (xT: PString, x: Code[Long])) =>
+        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+        Code.invokeScalaObject[String, Double](thisClass, "parseFloat64", s)
     }
-    registerCode("toBoolean", TString(), TBoolean()) { (r, x: Code[Long]) =>
-      val s = asm4s.coerce[String](wrapArg(r, TString())(x))
-      Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
+    registerCode("toBoolean", TString(), TBoolean()) {
+      case (r, (xT: PString, x: Code[Long])) =>
+        val s = asm4s.coerce[String](wrapArg(r, xT)(x))
+        Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
     registerIR("min", tv("T"), tv("T"), tv("T"))(min)
     registerIR("max", tv("T"), tv("T"), tv("T"))(max)
 
-    registerCode("format", TString(), tv("T", "tuple"), TString()) { (r, format: Code[Long], args: Code[Long]) =>
-      val typ = tv("T").subst()
-      r.region.appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
-        asm4s.coerce[String](wrapArg(r, TString())(format)),
-        Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, typ)(args)))))
+    registerCode("format", TString(), tv("T", "tuple"), TString()) {
+      case (r, (fmtT: PString, format: Code[Long]), (argsT: PTuple, args: Code[Long])) =>
+        r.region.appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
+          asm4s.coerce[String](wrapArg(r, fmtT)(format)),
+          Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
     }
 
-    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) { (er, l, r) =>
-      val lm = Code(l.setup, l.m)
-      val rm = Code(r.setup, r.m)
+    registerCodeWithMissingness("&&", TBoolean(), TBoolean(), TBoolean()) {
+      case (er, (lT, l), (rT, r)) =>
+        val lm = Code(l.setup, l.m)
+        val rm = Code(r.setup, r.m)
 
-      val lv = l.value[Boolean]
-      val rv = r.value[Boolean]
+        val lv = l.value[Boolean]
+        val rv = r.value[Boolean]
 
-      val m = er.mb.newLocal[Boolean]
-      val v = er.mb.newLocal[Boolean]
-      val setup = Code(m := lm, v := !m && lv)
-      val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
-      val value = v
+        val m = er.mb.newLocal[Boolean]
+        val v = er.mb.newLocal[Boolean]
+        val setup = Code(m := lm, v := !m && lv)
+        val missing = m.mux(rm || rv, v && (rm || Code(v := rv, false)))
+        val value = v
 
-      EmitTriplet(setup, missing, value)
+        EmitTriplet(setup, missing, value)
     }
 
-    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) { (er, l, r) =>
-      val lm = Code(l.setup, l.m)
-      val rm = Code(r.setup, r.m)
+    registerCodeWithMissingness("||", TBoolean(), TBoolean(), TBoolean()) {
+      case (er, (lT, l), (rT, r)) =>
+        val lm = Code(l.setup, l.m)
+        val rm = Code(r.setup, r.m)
 
-      val lv = l.value[Boolean]
-      val rv = r.value[Boolean]
+        val lv = l.value[Boolean]
+        val rv = r.value[Boolean]
 
-      val m = er.mb.newLocal[Boolean]
-      val v = er.mb.newLocal[Boolean]
-      val setup = Code(m := lm, v := m || lv)
-      val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
-      val value = v
+        val m = er.mb.newLocal[Boolean]
+        val v = er.mb.newLocal[Boolean]
+        val setup = Code(m := lm, v := m || lv)
+        val missing = m.mux(rm || !rv, !v && (rm || Code(v := rv, false)))
+        val value = v
 
-      EmitTriplet(setup, missing, value)
+        EmitTriplet(setup, missing, value)
     }
   }
 }
