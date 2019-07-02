@@ -436,24 +436,30 @@ abstract class RegistryFunctions {
       }
     }
 
-  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1]) => Code[_]): Unit =
+  def registerSeeded[A1](mname: String, arg1: Type, rType: Type)(impl: (EmitRegion, Long, (PType, Code[A1])) => Code[_]): Unit =
     registerSeeded(mname, Array(arg1), rType) { (er, seed, array) =>
       (er: @unchecked, array: @unchecked) match {
-        case (r, Array(a1: Code[A1] @unchecked)) => impl(r, seed, a1)
+        case (r, Array(a1: (PType, Code[A1]) @unchecked)) => impl(r, seed, a1)
       }
     }
 
-  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1], Code[A2]) => Code[_]): Unit =
+  def registerSeeded[A1, A2](mname: String, arg1: Type, arg2: Type, rType: Type)
+    (impl: (EmitRegion, Long, (PType, Code[A1]), (PType, Code[A2])) => Code[_]): Unit =
     registerSeeded(mname, Array(arg1, arg2), rType) { (er, seed, array) =>
       (er: @unchecked, array: @unchecked) match {
-        case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(r, seed, a1, a2)
+        case (r, Array(a1: (PType, Code[A1]) @unchecked, a2: (PType, Code[A2]) @unchecked)) => impl(r, seed, a1, a2)
       }
     }
 
-  def registerSeeded[A1, A2, A3, A4](mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rType: Type)(impl: (EmitRegion, Long, Code[A1], Code[A2], Code[A3], Code[A4]) => Code[_]): Unit =
+  def registerSeeded[A1, A2, A3, A4](mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rType: Type)
+    (impl: (EmitRegion, Long, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4])) => Code[_]): Unit =
     registerSeeded(mname, Array(arg1, arg2, arg3, arg4), rType) { (er, seed, array) =>
       (er: @unchecked, array: @unchecked) match {
-        case (r, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked, a3: Code[A3] @unchecked, a4: Code[A4] @unchecked)) => impl(r, seed, a1, a2, a3, a4)
+        case (r, Array(
+        a1: (PType, Code[A1]) @unchecked,
+        a2: (PType, Code[A2]) @unchecked,
+        a3: (PType, Code[A3]) @unchecked,
+        a4: (PType, Code[A4]) @unchecked)) => impl(r, seed, a1, a2, a3, a4)
       }
     }
 }
