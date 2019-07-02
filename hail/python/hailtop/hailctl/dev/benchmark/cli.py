@@ -1,6 +1,6 @@
 import argparse
 
-from . import initialize, run_all, run_single
+from . import initialize, run_all, run_pattern, run_single
 
 
 def main(args_):
@@ -14,6 +14,8 @@ def main(args_):
                         type=int,
                         default=1,
                         help='Number of cores to use.')
+    parser.add_argument('--pattern', '-k', type=str, required=False,
+                        help='Run all tests that substring match the pattern')
     parser.add_argument("--n-iter", "-n",
                         type=int,
                         default=3,
@@ -28,5 +30,7 @@ def main(args_):
     if args.tests:
         for test in args.tests.split(','):
             run_single(test)
-    else:
+    if args.pattern:
+        run_pattern(args.pattern)
+    if not args.pattern and not args.tests:
         run_all()
