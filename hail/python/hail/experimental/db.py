@@ -1,4 +1,3 @@
-
 from ..matrixtable import MatrixTable
 import requests
 import json
@@ -18,24 +17,23 @@ class DB:
         
         return DB._annotation_dataset_urls
     
-    def annotate_rows_db(self,mt,name):
-        """
+    def annotate_rows_db(self,mt,*names):
+            """
             Examples
             --------
-            Annotates rows based on keyword implementation of annotation name.
+            Annotates rows based on keyword implementation of annotation name. The user can type in multiple annotation names when attaching to their datasets.
             
             >>> import hail as hl
-            >>> annotate_rows_db('vep', 'cadd', '...', name='something_else')
+            >>> annotate_rows_db(mt,'DANN','CADD', '...', name='something_else')
             >>> db = hl.annotation_database(config)
             
-            >>> cadd = db.get_dataset('CADD')
             
-            >>> ht = db.annotate(ht, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to ht
+            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to mt
             ...
             
             Parameters
             ----------
-            name: keyword argument of the annotation.
+            names: keyword argument of the annotation. Can include multiple annotations at one time.
             
             Returns
             -------
@@ -43,16 +41,18 @@ class DB:
             """
         d = DB.annotation_dataset_urls()
         reference_genome = mt.row_key.locus.dtype.reference_genome.name
-        url, gene_key = d[(name,reference_genome)]
-        if gene_key is True:
-            gene_url, _ = d[('gencode', reference_genome)]
-            t = hl.read_table(gene_url)
-            mt = mt.annotate_rows(gene_name=t[mt.row_key].gene_name)
-            mt = mt.annotate_rows(**{name:t[mt.gene_name]})
-            return mt.drop('gene_name')
-        else:
-            t = hl.read_table(url)
-            return mt.annotate_rows(name=t[mt.row_key])
+        for name in names:
+            url, gene_key = d[(name,reference_genome)]
+            if gene_key is True:
+                gene_url, _ = d[('gencode', reference_genome)]
+                t = hl.read_table(gene_url)
+                mt = mt.annotate_rows(gene_name=t[mt.row_key].gene_name)
+                mt = mt.annotate_rows(**{name:t[mt.gene_name]})
+                mt = mt.drop('gene_name')
+            else:
+                t = hl.read_table(url)
+                mt = mt.annotate_rows(**{name:t[mt.row_key]})
+        return mt
 
 
 
