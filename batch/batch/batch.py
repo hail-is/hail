@@ -291,10 +291,10 @@ class Job:
         assert self._state in ('Pending', 'Cancelled')
         return None
 
-    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state, pod_status):
+    async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
         uri = None
-        if log is not None:
-            uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, log)
+        if pod_log is not None:
+            uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, pod_log)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'job {self.full_id} will have a missing log due to {err}')
