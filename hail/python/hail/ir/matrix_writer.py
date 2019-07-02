@@ -37,7 +37,7 @@ class MatrixNativeWriter(MatrixWriter):
                   'stageLocally': self.stage_locally,
                   'codecSpecJSONStr': self.codec_spec,
                   'partitions': self.partitions,
-                  'partitionsTypeStr': self.partitions_type._parsable_string()}
+                  'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -47,7 +47,7 @@ class MatrixNativeWriter(MatrixWriter):
                other.stage_locally == self.stage_locally and \
                other.codec_spec == self.codec_spec and \
                other.partitions == self.partitions and \
-               other.partitions_types == self.partitions_type
+               other.partitions_type == self.partitions_type
                
 
 

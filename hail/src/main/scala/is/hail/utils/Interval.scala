@@ -81,9 +81,6 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     overlaps(pord, other)
   }
 
-  def positionIsBelow(pord: ExtendedOrdering, p: Any): Boolean =
-    ext(pord).compare(p, left) < 0
-
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).compare(left, p) > 0
 
