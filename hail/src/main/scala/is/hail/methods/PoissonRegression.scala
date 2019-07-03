@@ -4,7 +4,7 @@ import breeze.linalg._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
@@ -26,7 +26,7 @@ case class PoissonRegression(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val poisRegTest = PoissonRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType
@@ -103,6 +103,6 @@ case class PoissonRegression(
       }
     }
 
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }

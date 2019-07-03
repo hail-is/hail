@@ -302,7 +302,7 @@ object CompileDecoder {
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.physicalType.byteSize == 0)
           Code(
-            srvb.addArray(settings.matrixType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
+            srvb.addArray(settings.matrixType.canonicalTableType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
               { srvb =>
                 Code(
                   srvb.start(settings.nSamples),
@@ -402,7 +402,7 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(settings.matrixType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
+            srvb.addArray(settings.matrixType.canonicalTableType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
               { srvb =>
                 Code(
                   srvb.start(settings.nSamples),

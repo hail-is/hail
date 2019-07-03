@@ -5,7 +5,7 @@ import java.io.OutputStreamWriter
 import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.expr.TableAnnotationImpex
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.expr.ir.functions.MatrixToValueFunction
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual.{TVoid, Type}
@@ -16,13 +16,13 @@ import org.apache.spark.sql.Row
 case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean, headerJsonInFile: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
-  def execute(mv: MatrixValue): Any = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): Any = {
 
     val fs = HailContext.sFS
 
     fs.delete(path, recursive = true) // overwrite by default
 
-    val allColValuesJSON = mv.colValues.value.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
+    val allColValuesJSON = mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
     info(s"exporting ${ mv.nCols } files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism

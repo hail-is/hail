@@ -5,7 +5,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.tabix._
@@ -1557,7 +1557,7 @@ case class MatrixVCFReader(
   }
 
   private lazy val coercer = RVD.makeCoercer(
-    fullMatrixType.canonicalRVDType,
+    fullMatrixType.canonicalTableType.canonicalRVDType,
     1,
     parseLines(
       () => ()
@@ -1569,7 +1569,7 @@ case class MatrixVCFReader(
       arrayElementsRequired,
       skipInvalidLoci))
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val localCallFields = callFields
     val localFloatType = entryFloatType
     val headerLinesBc = hc.backend.broadcast(headerLines1)
@@ -1593,7 +1593,7 @@ case class MatrixVCFReader(
         lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
       ))
 
-    val globalValue = makeGlobalValue(requestedType, sampleIDs.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType, sampleIDs.map(Row(_)))
 
     TableValue(requestedType, globalValue, rvd)
   }
@@ -1772,15 +1772,11 @@ class VCFsReader(
       LoadVCF.parseLine(c, l, rvb)
     }(lines, tt.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
-    val rvd = RVD(typ.canonicalRVDType,
+    val rvd = RVD(tt.canonicalRVDType,
       partitioner,
       parsedLines)
 
-    MatrixLiteral(
-      MatrixValue(typ,
-        BroadcastRow(Row.empty, typ.globalType, hc.backend),
-        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), hc.backend),
-        rvd))
+    MatrixLiteral(typ, rvd, Row.empty, sampleIDs.map(Row(_)))
   }
 
   def read(): Array[MatrixIR] = {

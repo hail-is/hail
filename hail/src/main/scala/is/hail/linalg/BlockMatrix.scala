@@ -8,7 +8,7 @@ import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{CompileAndEvaluate, IR, TableValue}
+import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
@@ -474,7 +474,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filterRowIntervalsIR(startsAndStops: IR, blocksOnly: Boolean): BlockMatrix = {
-    val (Row(starts, stops), _) = CompileAndEvaluate[Row](startsAndStops)
+    val (Row(starts, stops), _) = ExecuteContext.scoped { ctx => CompileAndEvaluate[Row](ctx, startsAndStops) }
 
     filterRowIntervals(
       starts.asInstanceOf[IndexedSeq[Int]].map(_.toLong).toArray,
@@ -1244,7 +1244,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockSize, keepRows.length, keepCols.length)
   }
 
-  def entriesTable(): TableValue = {
+  def entriesTable(ctx: ExecuteContext): TableValue = {
     val rowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
@@ -1268,7 +1268,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    TableValue(rowType, FastIndexedSeq(), entriesRDD)
+    TableValue(ctx, rowType, FastIndexedSeq(), entriesRDD)
   }
 }
 

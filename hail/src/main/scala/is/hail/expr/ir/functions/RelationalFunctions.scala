@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixValue, TableValue}
 import is.hail.expr.types.virtual.Type
 import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
 import is.hail.linalg.BlockMatrix
@@ -14,7 +14,7 @@ import org.json4s.jackson.Serialization
 abstract class MatrixToMatrixFunction {
   def typ(childType: MatrixType): MatrixType
 
-  def execute(mv: MatrixValue): MatrixValue
+  def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue
 
   def preservesPartitionCounts: Boolean
 
@@ -26,7 +26,7 @@ abstract class MatrixToMatrixFunction {
 abstract class MatrixToTableFunction {
   def typ(childType: MatrixType): TableType
 
-  def execute(mv: MatrixValue): TableValue
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue
 
   def preservesPartitionCounts: Boolean
 
@@ -43,7 +43,7 @@ case class WrappedMatrixToTableFunction(
     function.typ(mType) // MatrixType RVDTypes will go away
   }
 
-  def execute(tv: TableValue): TableValue = function.execute(tv.toMatrixValue(colsFieldName, entriesFieldName, colKey))
+  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 
   override def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
 }
@@ -58,8 +58,8 @@ case class WrappedMatrixToMatrixFunction(function: MatrixToMatrixFunction,
     outMatrixType.canonicalTableType
   }
 
-  def execute(tv: TableValue): TableValue = function.execute(tv
-    .toMatrixValue(inColsFieldName, inEntriesFieldName, colKey))
+  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = function.execute(ctx, tv
+    .toMatrixValue(colKey, inColsFieldName, inEntriesFieldName))
     .toTableValue
 
   def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
@@ -69,7 +69,7 @@ abstract class TableToTableFunction {
 
   def typ(childType: TableType): TableType
 
-  def execute(tv: TableValue): TableValue
+  def execute(ctx: ExecuteContext, tv: TableValue): TableValue
 
   def preservesPartitionCounts: Boolean
 
@@ -79,7 +79,7 @@ abstract class TableToTableFunction {
 abstract class TableToValueFunction {
   def typ(childType: TableType): Type
 
-  def execute(tv: TableValue): Any
+  def execute(ctx: ExecuteContext, tv: TableValue): Any
 }
 
 case class WrappedMatrixToValueFunction(
@@ -92,13 +92,13 @@ case class WrappedMatrixToValueFunction(
     function.typ(MatrixType.fromTableType(childType, colsFieldName, entriesFieldName, colKey))
   }
 
-  def execute(tv: TableValue): Any = function.execute(tv.toMatrixValue(colsFieldName, entriesFieldName, colKey))
+  def execute(ctx: ExecuteContext, tv: TableValue): Any = function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 }
 
 abstract class MatrixToValueFunction {
   def typ(childType: MatrixType): Type
 
-  def execute(mv: MatrixValue): Any
+  def execute(ctx: ExecuteContext, mv: MatrixValue): Any
 
   def lower(): Option[TableToValueFunction] = None
 }
@@ -106,7 +106,7 @@ abstract class MatrixToValueFunction {
 abstract class BlockMatrixToValueFunction {
   def typ(childType: BlockMatrixType): Type
 
-  def execute(bm: BlockMatrix): Any
+  def execute(ctx: ExecuteContext, bm: BlockMatrix): Any
 }
 
 object RelationalFunctions {

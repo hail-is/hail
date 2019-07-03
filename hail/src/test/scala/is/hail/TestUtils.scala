@@ -368,9 +368,12 @@ object TestUtils {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]) {
     val t = x.typ
 
-    val i = Interpret[Any](x, env, args, agg)
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    val c = eval(x, env, args, agg)
+    val (i, i2, c) = ExecuteContext.scoped { ctx =>
+      val i = Interpret[Any](ctx, x, env, args, agg)
+      val i2 = Interpret[Any](ctx, x, env, args, agg, optimize = false)
+      val c = eval(x, env, args, agg)
+      (i, i2, c)
+    }
 
     assert(t.typeCheck(i))
     assert(t.typeCheck(i2))
@@ -415,30 +418,32 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    val filteredExecStrats: Set[ExecStrategy] =
-      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
-      else {
-        info("skipping interpret and non-lowering compile steps on non-spark backend")
-        execStrats.intersect(ExecStrategy.backendOnly)
-      }
-
-    filteredExecStrats.foreach { strat =>
-      try {
-        val res = strat match {
-          case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
-          case ExecStrategy.InterpretUnoptimized => Interpret[Any](x, env, args, agg, optimize = false)
-          case ExecStrategy.JvmCompile =>
-            assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
-            eval(x, env, args, agg)
-          case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
-          case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
+    ExecuteContext.scoped { ctx =>
+      val filteredExecStrats: Set[ExecStrategy] =
+        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+        else {
+          info("skipping interpret and non-lowering compile steps on non-spark backend")
+          execStrats.intersect(ExecStrategy.backendOnly)
         }
-        assert(t.typeCheck(res))
-        assert(t.valuesSimilar(res, expected), s"(res=$res, expect=$expected, strategy=$strat)")
-      } catch {
-        case e: Exception =>
-          error(s"error from strategy $strat")
-          if (execStrats.contains(strat)) throw e
+
+      filteredExecStrats.foreach { strat =>
+        try {
+          val res = strat match {
+            case ExecStrategy.Interpret => Interpret[Any](ctx, x, env, args, agg)
+            case ExecStrategy.InterpretUnoptimized => Interpret[Any](ctx, x, env, args, agg, optimize = false)
+            case ExecStrategy.JvmCompile =>
+              assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+              eval(x, env, args, agg)
+            case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+            case ExecStrategy.LoweredJVMCompile => loweredExecute(x, env, args, agg)
+          }
+          assert(t.typeCheck(res))
+          assert(t.valuesSimilar(res, expected), s"\n  result=$res\n  expect=$expected\n  strategy=$strat)")
+        } catch {
+          case e: Exception =>
+            error(s"error from strategy $strat")
+            if (execStrats.contains(strat)) throw e
+        }
       }
     }
   }
@@ -448,9 +453,11 @@ object TestUtils {
   }
 
   def assertThrows[E <: Throwable : Manifest](x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], regex: String) {
-    interceptException[E](regex)(Interpret[Any](x, env, args, agg))
-    interceptException[E](regex)(Interpret[Any](x, env, args, agg, optimize = false))
-    interceptException[E](regex)(eval(x, env, args, agg))
+    ExecuteContext.scoped { ctx =>
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg))
+      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, agg, optimize = false))
+      interceptException[E](regex)(eval(x, env, args, agg))
+    }
   }
 
   def assertFatal(x: IR, regex: String) {

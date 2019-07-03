@@ -307,20 +307,22 @@ object IBD {
     min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
 
-    val input = Interpret(inputIR)
-    input.requireUniqueSamples("ibd")
+    ExecuteContext.scoped { ctx =>
+      val input = Interpret(inputIR, ctx, optimize = true).toMatrixValue(inputIR.typ.colKey)
+      input.requireUniqueSamples("ibd")
 
-    min.liftedZip(max).foreach { case (min, max) =>
-      if (min > max) {
-        fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+      min.liftedZip(max).foreach { case (min, max) =>
+        if (min > max) {
+          fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+        }
       }
+
+      val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
+      val sampleIds = input.stringSampleIds
+
+      TableLiteral(TableValue(ctx, ibdPType, FastIndexedSeq("i", "j"),
+        computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)), ctx)
     }
-
-    val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
-    val sampleIds = input.stringSampleIds
-
-    TableLiteral(TableValue(ibdPType, FastIndexedSeq("i", "j"),
-      computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
   }
 
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType

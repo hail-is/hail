@@ -3,7 +3,7 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
@@ -167,7 +167,7 @@ case class MatrixGENReader(
     entryType = TStruct("GT" -> TCall(),
       "GP" -> TArray(TFloat64())))
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val rdd =
       if (tr.dropRows)
         HailContext.get.sc.emptyRDD[(Annotation, Iterable[Annotation])]
@@ -227,7 +227,7 @@ case class MatrixGENReader(
         }
       })
 
-    val globalValue = makeGlobalValue(requestedType, samples.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType, samples.map(Row(_)))
 
     TableValue(tr.typ, globalValue, rvd)
   }

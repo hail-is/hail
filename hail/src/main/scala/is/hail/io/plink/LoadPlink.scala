@@ -2,7 +2,7 @@ package is.hail.io.plink
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBoolean, PFloat64, PString, PStruct}
 import is.hail.expr.types.virtual._
@@ -191,7 +191,7 @@ case class MatrixPLINKReader(
     rowKey = Array("locus", "alleles"),
     entryType = TStruct("GT" -> TCall()))
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
@@ -292,7 +292,7 @@ case class MatrixPLINKReader(
     }
 
 
-    val globalValue = makeGlobalValue(requestedType, sampleInfo)
+    val globalValue = makeGlobalValue(ctx, requestedType, sampleInfo)
 
     TableValue(requestedType, globalValue, rvd)
   }
