@@ -2,6 +2,7 @@ import os
 import math
 import time
 import random
+import aiohttp
 
 import hailtop.gear.auth as hj
 
@@ -382,11 +383,16 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
-        if not url:
+    def __init__(self, session=None, url=None, token_file=None, token=None, headers=None):
+        if url is None:
             url = 'http://batch.default'
         self.url = url
+
+        if session is None:
+            session = aiohttp.ClientSession(raise_for_status=True,
+                                            timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
+
         if token is None:
             token = hj.find_token(token_file)
         userdata = hj.JWTClient.unsafe_decode(token)
