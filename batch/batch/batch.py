@@ -591,7 +591,7 @@ class Job:
         await self._delete_pvc()
         await self.notify_children(new_state)
 
-        log.info('job {} complete with state {}, exit_codes {}'.format(self.full_id, self._state, self.exit_codes))
+        log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
 
         if self.callback:
             def handler(id, callback, json):
