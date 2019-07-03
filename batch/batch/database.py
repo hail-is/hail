@@ -350,9 +350,11 @@ class JobsTable(Table):
             return records[0][pod_status_field]
         return None
 
-    async def reset_job_state(self, batch_id, job_id, state, duration, task_idx,
-                        exit_codes, log_uris, pod_statuses):
+    async def reset_job_state(self, batch_id, job_id, compare_items,
+                              state, duration, exit_codes, log_uris,
+                              pod_statuses, task_idx):
         await self.update_record(batch_id, job_id,
+                                 compare_items=compare_items,
                                  state=state,
                                  duration=duration,
                                  task_idx=task_idx,

@@ -349,7 +349,7 @@ class Job:
                                                      duration=self.duration,
                                                      state=new_state)
         if n_updated == 0:
-            log.info(f'could not update job {self.id} due to db not matching expected state and task_idx')
+            log.info(f'could not update job {self.id} due to db not matching expected state, task_idx, and log')
             return False
 
         self.exit_codes[self._task_idx] = exit_code
@@ -578,9 +578,29 @@ class Job:
         pod_statuses = [None for _ in self._tasks]
         task_idx = 0
 
-        await self._delete_logs()
-        await db.jobs.reset_job_state(*self.id, state=state, duration=duration, task_idx=task_idx,
-                                      exit_codes=exit_codes, log_uris=log_uris, pod_statuses=pod_statuses)
+        compare_items = {'state': self._state, 'task_idx': self._task_idx}
+        n_updated = await db.jobs.reset_job_state(*self.id,
+                                                  compare_items=compare_items,
+                                                  state=state,
+                                                  duration=duration,
+                                                  exit_codes=exit_codes,
+                                                  log_uris=log_uris,
+                                                  pod_statuses=pod_statuses,
+                                                  task_idx=task_idx)
+        if n_updated == 0:
+            log.info(f'could not reset job {self.id} due to db not matching expected state and task_idx')
+            return
+
+        await self._delete_logs()  # this must happen before resetting the task idx below
+
+        self._state = state
+        self.duration = duration
+        self.log_uris = log_uris
+        self.exit_codes = exit_codes
+        self.pod_statuses = pod_statuses
+        self._task_idx = task_idx
+        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
+
         await self.mark_unscheduled()
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
@@ -608,8 +628,12 @@ class Job:
                 init_terminated = pod.status.init_container_statuses[0].state.terminated
                 init_exit_code = init_terminated.exit_code
                 if init_exit_code == 1:
-                    log.info(f"{self.full_id} was previously run; restarting job")
-                    await self.reset()
+                    updated_job = await Job.from_db(*self.id, self.user)
+                    if updated_job.log_uris[self._task_idx] is None:
+                        log.info(f'{self.full_id} was previously run, but found no log in the db; restarting job')
+                        await self.reset()
+                    else:
+                        log.info(f'{self.full_id} was previously run, but found log in the db; ignoring pod update')
                     return
 
             if terminated.finished_at is not None and terminated.started_at is not None:
