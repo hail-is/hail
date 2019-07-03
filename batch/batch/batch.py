@@ -585,6 +585,7 @@ class Job:
 
         if exit_code == 0:
             if has_next_task:
+                log.info(f'starting next job task {self.full_id}')
                 await self._create_pod()
                 return
 
