@@ -104,10 +104,10 @@ def main(args, pass_through_args):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
-    if not pkg_resources.resource_exists(__name__, "deploy.yaml"):
+    if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
         raise RuntimeError(f"package has no 'deploy.yaml' file")
     deploy_metadata = yaml.safe_load(
-        pkg_resources.resource_stream(__name__, "deploy.yaml"))
+        pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']
 
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
