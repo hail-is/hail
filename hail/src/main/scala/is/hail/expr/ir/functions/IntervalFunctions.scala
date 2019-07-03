@@ -13,7 +13,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T"))) {
       case (r, (startT, start), (endT, end), (includeStartT, includeStart), (includeEndT, includeEnd)) =>
-        val srvb = new StagedRegionValueBuilder(r, PInterval(PType.canonical(startT)))
+        val srvb = new StagedRegionValueBuilder(r, PInterval(PType.canonical(startT.virtualType)))
 
         val mv = r.mb.newLocal[Boolean]
         val vv = r.mb.newLocal[Long]
