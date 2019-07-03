@@ -27,7 +27,7 @@ setup(
         'hail': 'hail',
         'hailctl': 'hailctl'},
     package_data={
-        'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version'],
+        'hail': ['hail-all-spark.jar', 'hail_pip_version', 'hail_version', 'annotation_db.json'],
         'hailctl': ['deploy.yaml', 'hail_pip_version', 'hail_version']},
     classifiers=[
         "Programming Language :: Python :: 3",

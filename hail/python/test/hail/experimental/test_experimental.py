@@ -332,3 +332,18 @@ class Tests(unittest.TestCase):
             a = arrs[i]
             a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
             self.assertTrue(np.array_equal(a, a2))
+
+    def test_DB(self):
+        
+        mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=10010)
+        
+        db = hl.experimental.DB()
+        mt = db.annotate_rows_db(mt,"DANN")
+        
+        a = mt.filter_rows(hl.is_defined(mt.DANN)).DANN.collect()
+        
+        array1 = [hl.Struct(score=0.3618202027281013), hl.Struct(score=0.36516159615040267), hl.Struct(score=0.3678246364006052), hl.Struct(score=0.3697632743148331)]
+        
+        for i in range(len(array1)):
+            self.assertAlmostEqual(a[i], array1[i])
+
