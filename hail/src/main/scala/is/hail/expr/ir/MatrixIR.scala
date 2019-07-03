@@ -4,6 +4,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.ir.IRBuilder._
@@ -22,6 +23,8 @@ import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+import org.json4s.JsonDSL._
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 
@@ -102,7 +105,7 @@ object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
       classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader],
-      classOf[TextInputFilterAndReplace]))
+      classOf[TextInputFilterAndReplace])) + new NativeReaderOptionsSerializer()
 }
 
 trait MatrixReader {
@@ -158,7 +161,11 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
   }
 }
 
-case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = null) extends MatrixReader {
+case class MatrixNativeReader(
+  path: String,
+  options: Option[NativeReaderOptions] = None,
+  _spec: AbstractMatrixTableSpec = null
+) extends MatrixReader {
   lazy val spec: AbstractMatrixTableSpec = Option(_spec).getOrElse(
     (RelationalSpec.read(HailContext.get, path): @unchecked) match {
       case mts: AbstractMatrixTableSpec => mts
@@ -171,37 +178,48 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
     .sum
     .toInt)
 
-  def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+  def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
 
   def fullMatrixType: MatrixType = spec.matrix_type
+
+  private def intervals = options.map(_.intervals)
+
+  if (intervals.nonEmpty && !spec.indexed(path))
+    fatal("""`intervals` specified on an unindexed matrix table.
+            |This matrix table was written using an older version of hail
+            |rewrite the matrix in order to create an index to proceed""".stripMargin)
 
   override def lower(mr: MatrixRead): TableIR = {
     val rowsPath = path + "/rows"
     val entriesPath = path + "/entries"
     val colsPath = path + "/cols"
 
-    var tr: TableIR = TableRead(
-      TableType(
-        mr.typ.rowType,
-        mr.typ.rowKey,
-        mr.typ.globalType
-      ),
-      mr.dropRows,
-      TableNativeReader(rowsPath, spec.rowsTableSpec(rowsPath))
-    )
-
     if (mr.dropCols) {
+      val tt = TableType(mr.typ.rowType, mr.typ.rowKey, mr.typ.globalType)
+      val trdr: TableReader = TableNativeReader(rowsPath, options, _spec = spec.rowsTableSpec(rowsPath))
+      var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       tr = TableMapGlobals(
         tr,
         InsertFields(
           Ref("global", tr.typ.globalType),
           FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
-      tr = TableMapRows(
+      TableMapRows(
         tr,
         InsertFields(
           Ref("row", tr.typ.rowType),
         FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
     } else {
+      val tt = TableType(
+        mr.typ.rowType.appendKey(LowerMatrixIR.entriesFieldName, TArray(mr.typ.entryType)),
+        mr.typ.rowKey,
+        mr.typ.globalType)
+      val trdr = TableNativeZippedReader(
+        rowsPath,
+        entriesPath,
+        options,
+        spec.rowsTableSpec(rowsPath),
+        spec.entriesTableSpec(entriesPath))
+      var tr: TableIR = TableRead(tt, mr.dropRows, trdr)
       val colsTable = TableRead(
         TableType(
           mr.typ.colType,
@@ -209,28 +227,14 @@ case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = nul
           TStruct()
         ),
         dropRows = false,
-        TableNativeReader(colsPath, spec.colsTableSpec(colsPath))
+        TableNativeReader(colsPath, _spec = spec.colsTableSpec(colsPath))
       )
 
-      tr = TableMapGlobals(tr, InsertFields(
+      TableMapGlobals(tr, InsertFields(
         Ref("global", tr.typ.globalType),
         FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
       ))
-
-      val entries: TableIR = TableRead(
-        TableType(
-          TStruct(LowerMatrixIR.entriesFieldName -> TArray(mr.typ.entryType)),
-          FastIndexedSeq(),
-          TStruct()
-        ),
-        mr.dropRows,
-        TableNativeReader(entriesPath, spec.entriesTableSpec(entriesPath))
-      )
-
-      tr = TableZipUnchecked(tr, entries)
     }
-
-    tr
   }
 }
 

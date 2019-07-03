@@ -83,6 +83,10 @@ abstract class RelationalSpec {
   }
 
   def rvdType(path: String): RVDType
+
+  def indexed(path: String): Boolean
+
+  def version: SemanticVersion = SemanticVersion(file_version)
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
@@ -91,10 +95,18 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
     AbstractRVDSpec.read(fs, absolutePath(path))
 
-  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
+  def indexed(hc: HailContext, path: String): Boolean = rvdSpec(hc.sFS, path).indexed
+
+  def read(
+    hc: HailContext,
+    path: String,
+    requestedType: PStruct,
+    newPartitioner: Option[RVDPartitioner] = None,
+    filterIntervals: Boolean = false
+  ): RVD = {
     val rvdPath = path + "/" + rel_path
     rvdSpec(hc.sFS, path)
-      .read(hc, rvdPath, requestedType)
+      .read(hc, rvdPath, requestedType, newPartitioner, filterIntervals)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct, forEachElement: RegionValue => Unit): Unit = {
@@ -123,6 +135,8 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
     RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
   }
 
+  def indexed(path: String): Boolean = rowsComponent.indexed(HailContext.get, path)
+
   def rowsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
   def colsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
   def entriesTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
@@ -143,7 +157,7 @@ case class MatrixTableSpec(
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+  val version: SemanticVersion = SemanticVersion(1, 1, 0)
 }
 
 object MatrixTable {
