@@ -17,9 +17,9 @@ import scala.language.{existentials, postfixOps}
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
 object TableMapIRNew {
-  def apply(tv: TableValue, newRow: IR): TableValue = {
+  def apply(tv: TableValue, newRow: IR, ctx: ExecuteContext): TableValue = {
     val typ = tv.typ
-    val gType = typ.globalType
+    val gType = tv.globals.t
 
     val scanRef = genUID()
     val extracted = Extract.apply(CompileWithAggregators.liftScan(newRow), scanRef)
@@ -53,25 +53,15 @@ object TableMapIRNew {
 
     val (_, initF) = ir.CompileWithAggregators2[Long, Long, Unit](
       extracted.aggs,
-      "global", gType.physicalType,
+      "global", gType,
       path.name, PString(),
       Begin(FastIndexedSeq(extracted.init, extracted.writeSet(0, path, spec))))
 
-    Region.scoped { region =>
-      val globals =
-        if (scanInitNeedsGlobals) {
-          val rvb = new RegionValueBuilder(region)
-          rvb.start(gType.physicalType)
-          rvb.addAnnotation(gType, globalsBc.value)
-          rvb.end()
-        } else
-          0
-      val pathOff = region.appendString(initPath)
-      val f = initF(0)
-      Region.scoped { aggRegion =>
-        f.newAggState(aggRegion)
-        f(region, globals, false, pathOff, false)
-      }
+    val pathOff = ctx.r.appendString(initPath)
+    val init = initF(0)
+    Region.scoped { aggRegion =>
+      init.newAggState(aggRegion)
+      init(ctx.r, tv.globals.value.offset, false, pathOff, false)
     }
 
     // 2. load in init op on each partition, seq op over partition, write out.
@@ -89,20 +79,16 @@ object TableMapIRNew {
 
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](
       extracted.aggs,
-      "global", gType.physicalType,
+      "global", gType,
       "row", typ.rowType.physicalType,
       extracted.seqPerElt)
 
     val scanPartitionPaths = tv.rvd.collectPerPartition { (i, ctx, it) =>
       val globalRegion = ctx.freshRegion
-      val globals =
-        if (scanSeqNeedsGlobals) {
-          val rvb = new RegionValueBuilder(globalRegion)
-          rvb.start(gType.physicalType)
-          rvb.addAnnotation(gType, globalsBc.value)
-          rvb.end()
-        } else
-          0
+      val globals = if (scanSeqNeedsGlobals)
+        globalsBc.value.readRegionValue(globalRegion)
+      else
+        0
 
       val aggRegion = ctx.freshRegion
 
@@ -144,25 +130,23 @@ object TableMapIRNew {
         Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, extracted.aggs(i))) :+
         extracted.writeSet(0, path2, spec)))
 
-    val resultPaths = Region.scoped { region =>
-      Region.scoped { aggRegion =>
-        val read = readF2(0)
-        val combOp = combOpF(0)
-        read.newAggState(aggRegion)
+    val resultPaths = Region.scoped { aggRegion =>
+      val read = readF2(0)
+      val combOp = combOpF(0)
+      read.newAggState(aggRegion)
 
-        var partPath = region.appendString(initPath)
+      var partPath = ctx.r.appendString(initPath)
 
-        read(region, partPath, false)
-        combOp.setAggState(aggRegion, read.getAggOffset())
+      read(ctx.r, partPath, false)
+      combOp.setAggState(aggRegion, read.getAggOffset())
 
-        val _resultPath = HailContext.get.getTemporaryFile(prefix = Some("scan-result"))
-        initPath +: Array.tabulate(scanPartitionPaths.length - 1) { i =>
-          partPath = region.appendString(scanPartitionPaths(i))
-          val destPath = _resultPath + "-%04d".format(i)
-          val pathOff = region.appendString(destPath)
-          combOp(region, partPath, false, pathOff, false)
-          destPath
-        }
+      val _resultPath = HailContext.get.getTemporaryFile(prefix = Some("scan-result"))
+      initPath +: Array.tabulate(scanPartitionPaths.length - 1) { i =>
+        partPath = ctx.r.appendString(scanPartitionPaths(i))
+        val destPath = _resultPath + "-%04d".format(i)
+        val pathOff = ctx.r.appendString(destPath)
+        combOp(ctx.r, partPath, false, pathOff, false)
+        destPath
       }
     }
 
@@ -170,22 +154,17 @@ object TableMapIRNew {
 
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](
       extracted.aggs,
-      "global", gType.physicalType,
+      "global", gType,
       "row", typ.rowType.physicalType,
       Let(scanRef, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == newRow.typ)
 
     val itF = { (i: Int, ctx: RVDContext, partitionAggs: String, it: Iterator[RegionValue]) =>
       val globalRegion = ctx.freshRegion
-      val rvb = new RegionValueBuilder(globalRegion)
-      val globals =
-        if (rowIterationNeedsGlobals || scanSeqNeedsGlobals) {
-          rvb.set(globalRegion)
-          rvb.start(gType.physicalType)
-          rvb.addAnnotation(gType, globalsBc.value)
-          rvb.end()
-        } else
-          0
+      val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
+        globalsBc.value.readRegionValue(globalRegion)
+      else
+        0
 
       val path = globalRegion.appendString(partitionAggs)
       val aggRegion = ctx.freshRegion
