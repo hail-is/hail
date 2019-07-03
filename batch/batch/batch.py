@@ -228,7 +228,7 @@ class Job:
                             f'(touch {success_file} && exit 0)'
             init_container = kube.client.V1Container(
                 image='alpine:3.8',
-                name=self._current_task.name,
+                name=f'{self._current_task.name}-init',
                 command=['/bin/sh', '-c', sh_expression],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '500m'}))
