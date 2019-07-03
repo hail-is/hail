@@ -34,7 +34,7 @@ trait BufferSpec extends Serializable {
 
   def nativeOutputBufferType: String
 
-  def nativeInputBufferType: String
+  def nativeInputBufferType(inputStreamType: String): String
 }
 
 final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -50,7 +50,8 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def nativeOutputBufferType: String = s"LEB128OutputBuffer<${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"LEB128InputBuffer<${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"LEB128InputBuffer<${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
@@ -66,7 +67,8 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def nativeOutputBufferType: String = s"BlockingOutputBuffer<$blockSize, ${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 trait BlockBufferSpec extends Serializable {
@@ -80,7 +82,7 @@ trait BlockBufferSpec extends Serializable {
 
   def nativeOutputBufferType: String
 
-  def nativeInputBufferType: String
+  def nativeInputBufferType(inputStreamType: String): String
 }
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
@@ -96,7 +98,8 @@ final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def nativeOutputBufferType: String = s"LZ4OutputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"LZ4InputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"LZ4InputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 object StreamBlockBufferSpec {
@@ -116,7 +119,7 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
 
   def nativeOutputBufferType: String = s"StreamOutputBlockBuffer"
 
-  def nativeInputBufferType: String = s"StreamInputBlockBuffer"
+  def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBlockBuffer<$inputStreamType>"
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
 }
@@ -132,9 +135,9 @@ final class StreamBufferSpec extends BufferSpec {
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
     Code.newInstance[StreamOutputBuffer, OutputStream](out)
 
-  override def nativeInputBufferType: String = s"StreamInputBuffer"
-
   override def nativeOutputBufferType: String = s"StreamOutputBuffer"
+
+  override def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBuffer<$inputStreamType>"
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBufferSpec]
 }
@@ -152,7 +155,7 @@ object CodecSpec {
 
   val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
-  def fromString(s: String): CodecSpec = s match {
+  def fromShortString(s: String): CodecSpec = s match {
     case "default" => CodecSpec.default
     case "defaultUncompressed" => CodecSpec.defaultUncompressed
     case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
@@ -208,7 +211,12 @@ trait CodecSpec extends Serializable {
 
   def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
 
-  def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
+  def buildNativeDecoderClass(
+    t: PType,
+    requestedType: PType,
+    inputStreamType: String,
+    tub: cxx.TranslationUnitBuilder
+  ): cxx.Class
 
   def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
@@ -294,7 +302,12 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
   }
 
-  def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
+  def buildNativeDecoderClass(
+    t: PType,
+    requestedType: PType,
+    inputStreamType: String,
+    tub: cxx.TranslationUnitBuilder
+  ): cxx.Class = cxx.PackDecoder(t, requestedType, inputStreamType, child, tub)
 
   def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackEncoder(t, child, tub)
 }

@@ -785,9 +785,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val (bodyF, mods, (lType, lits)) = Compile.makeNonmissingFunction(tub, body, cname -> ctxType, gname -> g.pType)
         assert(mods.isEmpty)
 
-        val ctxDec = spec.buildNativeDecoderClass(ctxType, ctxType, tub).name
-        val globDec = spec.buildNativeDecoderClass(g.pType, g.pType, tub).name
-        val litDec = spec.buildNativeDecoderClass(lType, lType, tub).name
+        val ctxDec = spec.buildNativeDecoderClass(ctxType, ctxType, "InputStream", tub).name
+        val globDec = spec.buildNativeDecoderClass(g.pType, g.pType, "InputStream", tub).name
+        val litDec = spec.buildNativeDecoderClass(lType, lType, "InputStream", tub).name
         val resEnc = PackEncoder(body.pType, spec.child, tub).name
 
         val fname = tub.genSym("wrapper")
@@ -841,7 +841,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
         val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PStreamable](c.pType).asPArray.cxxImpl }>"
         val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
-        val resDec = PackDecoder(body.pType, body.pType, spec.child, fb.translationUnitBuilder())
+        val resDec = PackDecoder(body.pType, body.pType, "InputStream", spec.child, fb.translationUnitBuilder())
 
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
         val arrayBuilder = StagedContainerBuilder.builderType(coerce[PStreamable](x.pType).asPArray)
