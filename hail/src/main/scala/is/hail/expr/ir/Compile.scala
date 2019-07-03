@@ -213,7 +213,7 @@ object CompileWithAggregators2 {
     ir = Subst(ir, BindingEnv(env))
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
 
-    Emit(ir, fb, nSpecialArgs)
+    Emit(ir, fb, nSpecialArgs, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
