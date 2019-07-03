@@ -16,7 +16,7 @@ import cerberus
 import kubernetes as kube
 import requests
 import uvloop
-from prometheus_client import Summary
+import prometheus_client as pc
 from prometheus_async.aio import time
 from prometheus_async.aio.web import server_stats
 
@@ -36,8 +36,7 @@ from . import schemas
 gear.configure_logging()
 log = logging.getLogger('batch')
 
-#Prometheus timers
-REQUEST_TIME = Summary('request_latency_seconds', 'Request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME = pc.Summary('request_latency_seconds', 'Request latency in seconds', ['endpoint', 'verb'])
 REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
 REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
