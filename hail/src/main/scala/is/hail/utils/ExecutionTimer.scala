@@ -2,18 +2,22 @@ package is.hail.utils
 
 import scala.collection.mutable
 
-class Timings(val value: mutable.Map[String, Map[String, Any]]) extends AnyVal {
-  def +=(timing: (String, Map[String, Any])) { value += timing }
+class Timings(val value: mutable.Map[String, Map[String, Any]], ord: mutable.ArrayBuffer[String]) {
+  def +=(timing: (String, Map[String, Any])) {
+    ord += timing._1
+    value += timing
+  }
 
   def logInfo() {
-    value.foreach { case (stage, timing) =>
+    ord.foreach { stage =>
+      val timing = value(stage)
       log.info(s"Time taken for $stage: ${ timing("readable") }")
     }
   }
 }
 
 class ExecutionTimer(val context: String) {
-  val timings: Timings = new Timings(mutable.Map.empty)
+  val timings: Timings = new Timings(mutable.Map.empty, mutable.ArrayBuffer.empty)
 
   def time[T](block: => T, stage: String): T = {
     val t0 = System.nanoTime()
