@@ -122,9 +122,10 @@
           <td align="left">
             {% if 'failure' == pr.build_state %}
             <form action="/invalidate_and_retest" method="post">
-            <input type="hidden" name="branch_id" value="{{ wb.branch }}"/>
-            <input type="hidden" name="pr_number" value="{{ pr.number }}"/>
-            <button type="submit">Retest</button>
+              <input type="hidden" name="branch_id" value="{{ wb.branch }}"/>
+              <input type="hidden" name="pr_number" value="{{ pr.number }}"/>
+              <input type="hidden" name="_csrf" value="{{ token }}"/>
+              <button type="submit">Retest</button>
             </form>
             {% endif %}
           </td>

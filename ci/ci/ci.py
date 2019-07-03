@@ -207,6 +207,7 @@ gh_router = gh_routing.Router()
 
 
 @routes.post('/invalidate_and_retest')
+@check_csrf_token
 @web_authenticated_developers_only
 async def invalidate_and_retest(request):
     app = request.app
