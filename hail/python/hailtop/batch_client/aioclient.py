@@ -368,7 +368,7 @@ class BatchBuilder:
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        b = None
+        batch = None
         try:
             b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
             batch = Batch(self._client, b['id'], b.get('attributes'))
@@ -388,8 +388,8 @@ class BatchBuilder:
 
             await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
         finally:
-            if b:
-                await b.cancel()
+            if batch:
+                await batch.cancel()
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
