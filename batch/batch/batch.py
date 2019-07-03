@@ -224,7 +224,7 @@ class Job:
 
         if self._current_task.name == 'main':
             success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
-            sh_expression = f'(test -e {success_file} && rm {success_file}; exit 1) || ' \
+            sh_expression = f'(test -e {success_file} && (rm {success_file}; exit 1)) || ' \
                             f'(touch {success_file} && exit 0)'
             init_container = kube.client.V1Container(
                 image='alpine:3.8',
