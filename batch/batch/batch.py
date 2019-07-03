@@ -1219,7 +1219,7 @@ async def kube_event_loop():
 
 async def refresh_k8s_pods():
     log.info(f'refreshing k8s pods')
-    
+
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
