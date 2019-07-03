@@ -2,7 +2,7 @@ import itertools
 from typing import *
 from collections import OrderedDict, Counter
 import warnings
-import requests
+
 import hail
 import hail as hl
 from hail.expr.expressions import *
@@ -539,7 +539,6 @@ class MatrixTable(ExprContainer):
     def _from_java(jmir):
         return MatrixTable(JavaMatrix(jmir))
 
-
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
 
@@ -665,54 +664,6 @@ class MatrixTable(ExprContainer):
         :class:`.StructExpression`
         """
         return self._row_key
-
-    @property
-    def test(self) -> 'StructExpression':
-        print("test")
-
-        return 5
-
-    def test2(self):
-        print("test2")
-
-    _annotation_dataset_urls = None         #Class Variable
-
-    @staticmethod
-    def annotation_dataset_urls():
-        if MatrixTable._annotation_dataset_urls is None:
-            r = requests.get("http://storage.googleapis.com/hail-datasets/datasets.json")                       #Gets Datasets.JSON from Google API
-            j = r.json()                                                                                        #Reads JSON file
-            MatrixTable._annotation_dataset_urls = {(x["name"], x["reference_genome"]): x["path"] for x in j}   #Makes Dictionary table and assigns it to MatrixTable._annotation_dataset_urls
-        return MatrixTable._annotation_dataset_urls
-
-    def annotate_rows_db(self,name):
-        """
-
-
-        >>> import hail as hl
-        >>> annotate_rows_db('vep', 'cadd', '...', name='something_else')
-        >>> db = hl.annotation_database(config)
-
-        >>> cadd = db.get_dataset('CADD')
-
-        >>> ht = db.annotate(ht, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to ht
-
-
-
-        Parameters
-        ----------
-        name
-
-        Returns
-        -------
-
-        """
-        d = MatrixTable.annotation_dataset_urls()
-        reference_genome = self.row_key.locus.dtype.reference_genome.name
-        url = d[(name,reference_genome)]                                                 #Searches dictionary based on the name and reference_genome and assignes them to URL
-        t = hl.read_table(url)                                                           #Creates a table based on the URL provided in read_table function
-
-        return self.annotate_rows(name=t[self.row_key])                                  #The matrix table will then annotate these rows based on the name of the annotation and the corresponding row key
 
     @property
     def globals(self) -> 'StructExpression':
