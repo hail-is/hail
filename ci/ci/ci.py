@@ -206,6 +206,30 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 gh_router = gh_routing.Router()
 
 
+@routes.post('/invalidate_and_retest')
+@web_authenticated_developers_only
+async def invalidate_and_retest(request):
+    app = request.app
+    dbpool = app['dbpool']
+    batch_client = app['batch_client']
+    post = await request.post()
+    branch_id = post['watched_branch'].strip()
+    pr_number = post['pull_request_number'].strip()
+    found = False
+    for wb in watched_branches:
+        if wb.short_str() == branch_id:
+            pr = wb.prs.get(pr_number)
+            if pr is not None:
+                found = True
+                pr.batch = None
+                pr._heal(app, batch_client, dbpool, on_deck=False)
+    if found:
+        log.info(f'initiated retest for {branch_id}, PR {pr_number}')
+    else:
+        log.warn(f'could not retest {branch_id}, pR {pr_number}: no such PR')
+    raise web.HTTPFound('/')
+
+
 @gh_router.register('pull_request')
 async def pull_request_callback(event):
     gh_pr = event.data['pull_request']

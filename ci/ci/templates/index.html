@@ -84,6 +84,7 @@
           <th align="left">Build State</th>
           <th align="left">Review State</th>
           <th align="left">Author</th>
+          <th align="left">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -117,6 +118,15 @@
           </td>
           <td align="left">
             {{ pr.author }}
+          </td>
+          <td align="left">
+            {% if 'failure' == pr.build_state %}
+            <form action="/invalidate_and_retest" method="post">
+            <input type="hidden" name="branch_id" value="{{ wb.branch }}"/>
+            <input type="hidden" name="pr_number" value="{{ pr.number }}"/>
+            <button type="submit">Retest</button>
+            </form>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
