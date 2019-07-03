@@ -1,0 +1,138 @@
+{
+  "name": "DANN",
+  "version": null,
+  "n_rows": 8575974291,
+  "n_cols": null
+}
+{
+  "name": "DANN",
+  "version": null,
+  "n_rows": 8574891918,
+  "n_cols": null
+}
+{
+  "name": "CADD",
+  "version": "1.4",
+  "n_rows": 8623633125,
+  "n_cols": null
+}
+{
+  "name": "CADD",
+  "version": "1.4",
+  "n_rows": 8892915237,
+  "n_cols": null
+}
+{
+  "name": "1000_Genomes_chrX",
+  "version": "phase_3",
+  "n_rows": 3476749,
+  "n_cols": 2504
+}
+{
+  "name": "1000_Genomes_chrX",
+  "version": "phase_3",
+  "n_rows": 1460229,
+  "n_cols": 2504
+}
+{
+  "name": "1000_Genomes_chrY",
+  "version": "phase_3",
+  "n_rows": 62054,
+  "n_cols": 1233
+}
+{
+  "name": "1000_Genomes_chrY",
+  "version": "phase_3",
+  "n_rows": 6513,
+  "n_cols": 1233
+}
+{
+  "name": "GTEx_RNA_seq_gene_TPMs",
+  "version": "v7",
+  "n_rows": 56202,
+  "n_cols": 11688
+}
+{
+  "name": "1000_Genomes_chrMT",
+  "version": "phase_3",
+  "n_rows": 4242,
+  "n_cols": 2534
+}
+{
+  "name": "UK_Biobank_Rapid_GWAS_male",
+  "version": "v2",
+  "n_rows": 13791467,
+  "n_cols": 3406
+}
+{
+  "name": "1000_Genomes_autosomes",
+  "version": "phase_3",
+  "n_rows": 81625463,
+  "n_cols": 2504
+}
+{
+  "name": "1000_Genomes_autosomes",
+  "version": "phase_3",
+  "n_rows": 81436887,
+  "n_cols": 2504
+}
+{
+  "name": "UK_Biobank_Rapid_GWAS_female",
+  "version": "v2",
+  "n_rows": 13791467,
+  "n_cols": 3546
+}
+{
+  "name": "GTEx_RNA_seq_gene_read_counts",
+  "version": "v7",
+  "n_rows": 56202,
+  "n_cols": 11688
+}
+{
+  "name": "UK_Biobank_Rapid_GWAS_both_sexes",
+  "version": "v2",
+  "n_rows": 13791467,
+  "n_cols": 4357
+}
+{
+  "name": "GTEx_RNA_seq_junction_read_counts",
+  "version": "v7",
+  "n_rows": 350388,
+  "n_cols": 11688
+}
+{
+  "name": "Ensembl_homo_sapiens_reference_genome",
+  "version": "release_95",
+  "n_rows": 2858674662,
+  "n_cols": null
+}
+{
+  "name": "Ensembl_homo_sapiens_reference_genome",
+  "version": "release_95",
+  "n_rows": 2934876993,
+  "n_cols": null
+}
+{
+  "name": "Ensembl_homo_sapiens_low_complexity_regions",
+  "version": "release_95",
+  "n_rows": 4499887,
+  "n_cols": null
+}
+{
+  "name": "Ensembl_homo_sapiens_low_complexity_regions",
+  "version": "release_95",
+  "n_rows": 4580445,
+  "n_cols": null
+}
+{
+  "name": "gencode",
+  "version": "v30",
+  "n_rows": 58870,
+  "n_cols": null
+}
+{
+  "name": "gnomad",
+  "version": "2.1.1",
+  "n_rows": 19704,
+  "n_cols": null
+}
