@@ -103,11 +103,10 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def copy_task(task_name, files):
         if files is not None:
-            authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
+            authenticate = 'gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
             success_file = '/io/__BATCH_{}_SUCCESS__'.format(task_name.upper())
+            clean_if_necessary = 'rm -rf /io/*' if task_name == 'input' else 'true'
             touch_success = f'touch {success_file}'
-            check_success = f'test -e {success_file} && exit 0'
-            clean = 'rm -rf /io/*' if task_name == 'input' else 'true'
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):
@@ -117,7 +116,17 @@ class JobTask:  # pylint: disable=R0903
                 return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
             copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
-            sh_expression = f'{check_success} || {clean} && {authenticate} && {copies} && {touch_success}'
+
+            sh_expression = f"""set -ex
+            if [ -e {success_file} ]; then
+                exit 0
+            fi
+            {clean_if_necessary}
+            {authenticate}
+            {copies}
+            {touch_success}
+            """
+
             container = kube.client.V1Container(
                 image='google/cloud-sdk:237.0.0-alpine',
                 name=task_name,
@@ -215,7 +224,7 @@ class Job:
 
         if self._current_task.name == 'main':
             success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
-            sh_expression = f'(test -e {success_file} && rm {success_file} && exit 1) || ' \
+            sh_expression = f'(test -e {success_file} && rm {success_file}; exit 1) || ' \
                             f'(touch {success_file} && exit 0)'
             init_container = kube.client.V1Container(
                 image='alpine:3.8',
