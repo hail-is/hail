@@ -157,10 +157,10 @@ object TableMapIRNew {
 
         val _resultPath = HailContext.get.getTemporaryFile(prefix = Some("scan-result"))
         initPath +: Array.tabulate(scanPartitionPaths.length - 1) { i =>
+          partPath = region.appendString(scanPartitionPaths(i))
           val destPath = _resultPath + "-%04d".format(i)
           val pathOff = region.appendString(destPath)
           combOp(region, partPath, false, pathOff, false)
-          partPath = pathOff
           destPath
         }
       }
