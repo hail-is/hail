@@ -891,8 +891,7 @@ class RVD(
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, typ, rowsRVType, entriesRVType, partFiles, partitioner)
-
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, typ, rowsRVType, entriesRVType, partFiles,
       if (targetPartitioner != null) targetPartitioner else partitioner)
 
     partitionCounts

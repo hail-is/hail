@@ -160,7 +160,7 @@ case class TableNativeReader(
     rvb.start(requestedGlobalType)
     spec.globalsComponent.readLocal(hc, path, requestedGlobalType, rvb.addRegionValue(requestedGlobalType, _))
     val globalsOffset = rvb.end()
-    val rvd = if (tr.dropRows)
+    val rvd = if (tr.dropRows) {
       RVD.empty(hc.sc, tr.typ.canonicalRVDType)
     } else {
       val partitioner = if (filterIntervals)
@@ -206,9 +206,13 @@ case class TableNativeZippedReader(
 
   def fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
-    val globals = specLeft.globalsComponent.readLocal(hc, pathLeft, tr.typ.globalType.physicalType)(0)
+    val requestedGlobalType = PType.canonical(tr.typ.globalType).asInstanceOf[PStruct]
+    val rvb = new RegionValueBuilder(ctx.r)
+    rvb.start(requestedGlobalType)
+    specLeft.globalsComponent.readLocal(hc, pathLeft, requestedGlobalType, rvb.addRegionValue(requestedGlobalType, _))
+    val globalsOffset = rvb.end()
     val rvd = if (tr.dropRows) {
       RVD.empty(hc.sc, tr.typ.canonicalRVDType)
     } else {
@@ -239,7 +243,7 @@ case class TableNativeZippedReader(
       }
     }
 
-    TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.sc), rvd)
+    TableValue(tr.typ, BroadcastRow(RegionValue(ctx.r, globalsOffset), requestedGlobalType, hc.backend), rvd)
   }
 }
 
