@@ -1045,7 +1045,9 @@ private class Emit(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
           ob := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pathString)),
           sc.loadStateOffsets(aggOff),
-          coerce[Unit](Code(serialize: _*)))
+          coerce[Unit](Code(serialize: _*)),
+          ob.invoke[Unit]("flush"),
+          ob.invoke[Unit]("close"))
 
         EmitTriplet(write, false, Code._empty)
 
