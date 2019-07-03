@@ -173,7 +173,7 @@ object TableMapIRNew {
       "global", gType.physicalType,
       "row", typ.rowType.physicalType,
       Let(scanRef, extracted.results, extracted.postAggIR))
-    assert(rTyp.virtualType == typ.rowType)
+    assert(rTyp.virtualType == newRow.typ)
 
     val itF = { (i: Int, ctx: RVDContext, partitionAggs: String, it: Iterator[RegionValue]) =>
       val globalRegion = ctx.freshRegion
@@ -208,7 +208,7 @@ object TableMapIRNew {
     }
 
     tv.copy(
-      typ = typ,
+      typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
       rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), resultPaths, itF))
   }
 }
