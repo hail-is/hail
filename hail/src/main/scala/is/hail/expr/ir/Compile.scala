@@ -9,7 +9,7 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
-case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
+case class CodeCacheKey(aggSigs: IndexedSeq[AggSignature], args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
 
 case class CodeCacheValue(typ: PType, f: Int => Any)
 
@@ -26,7 +26,7 @@ object Compile {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
-    val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    val k = CodeCacheKey(FastIndexedSeq[AggSignature](), args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
     codeCache.get(k) match {
       case Some(v) => 
         return (v.typ, v.f.asInstanceOf[Int => F])
@@ -175,6 +175,89 @@ object Compile {
       (name5, typ5, classTag[T5])
     ), body, 1,
       optimize = true)
+  }
+}
+
+object CompileWithAggregators2 {
+  private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
+
+  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    aggSigs: Array[AggSignature],
+    args: Seq[(String, PType, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    body: IR,
+    nSpecialArgs: Int,
+    optimize: Boolean
+  ): (PType, Int => (F with FunctionWithAggRegion)) = {
+    val normalizeNames = new NormalizeNames(_.toString)
+    val normalizedBody = normalizeNames(body,
+      Env(args.map { case (n, _, _) => n -> n }: _*))
+    val k = CodeCacheKey(aggSigs.toFastIndexedSeq, args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    codeCache.get(k) match {
+      case Some(v) =>
+        return (v.typ, v.f.asInstanceOf[Int => (F with FunctionWithAggRegion)])
+      case None =>
+    }
+
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+
+    var ir = body
+    if (optimize)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
+    TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
+
+    val env = args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+
+    ir = Subst(ir, BindingEnv(env))
+    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
+
+    Emit(ir, fb, nSpecialArgs)
+
+    val f = fb.resultWithIndex()
+    codeCache += k -> CodeCacheValue(ir.pType, f)
+    (ir.pType, f.asInstanceOf[Int => (F with FunctionWithAggRegion)])
+  }
+
+  def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    aggSigs: Array[AggSignature],
+    args: Seq[(String, PType, ClassTag[_])],
+    body: IR,
+    nSpecialArgs: Int,
+    optimize: Boolean
+  ): (PType, Int => (F with FunctionWithAggRegion)) = {
+    assert(args.forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
+
+    val ab = new ArrayBuilder[MaybeGenericTypeInfo[_]]()
+    ab += GenericTypeInfo[Region]()
+    if (nSpecialArgs == 2)
+      ab += GenericTypeInfo[Array[RegionValueAggregator]]()
+    args.foreach { case (_, t, _) =>
+      ab += GenericTypeInfo()(typeToTypeInfo(t))
+      ab += GenericTypeInfo[Boolean]()
+    }
+
+    val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
+
+    CompileWithAggregators2[F, R](aggSigs, args, argTypeInfo, body, nSpecialArgs, optimize)
+  }
+
+  def apply[T0: ClassTag, R: TypeInfo : ClassTag](
+    aggSigs: Array[AggSignature],
+    name0: String, typ0: PType,
+    body: IR): (PType, Int => AsmFunction3[Region, T0, Boolean, R] with FunctionWithAggRegion) = {
+
+    apply[AsmFunction3[Region, T0, Boolean, R], R](aggSigs, FastSeq((name0, typ0, classTag[T0])), body, 1, optimize = true)
+  }
+
+  def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
+    aggSigs: Array[AggSignature],
+    name0: String, typ0: PType,
+    name1: String, typ1: PType,
+    body: IR): (PType, Int => (AsmFunction5[Region, T0, Boolean, T1, Boolean, R] with FunctionWithAggRegion)) = {
+
+    apply[AsmFunction5[Region, T0, Boolean, T1, Boolean, R], R](aggSigs, FastSeq((name0, typ0, classTag[T0]), (name1, typ1, classTag[T1])), body, 1, optimize = true)
   }
 }
 

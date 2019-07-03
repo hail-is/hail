@@ -36,7 +36,7 @@ trait BufferSpec extends Serializable {
 
   def nativeOutputBufferType: String
 
-  def nativeInputBufferType: String
+  def nativeInputBufferType(inputStreamType: String): String
 }
 
 final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -52,7 +52,8 @@ final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def nativeOutputBufferType: String = s"LEB128OutputBuffer<${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"LEB128InputBuffer<${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"LEB128InputBuffer<${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
@@ -70,7 +71,8 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def nativeOutputBufferType: String = s"BlockingOutputBuffer<$blockSize, ${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 trait BlockBufferSpec extends Serializable {
@@ -84,7 +86,7 @@ trait BlockBufferSpec extends Serializable {
 
   def nativeOutputBufferType: String
 
-  def nativeInputBufferType: String
+  def nativeInputBufferType(inputStreamType: String): String
 }
 
 final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
@@ -102,7 +104,8 @@ final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
 
   def nativeOutputBufferType: String = s"LZ4OutputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeOutputBufferType }>"
 
-  def nativeInputBufferType: String = s"LZ4InputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeInputBufferType }>"
+  def nativeInputBufferType(inputStreamType: String): String =
+    s"LZ4InputBlockBuffer<${ 4 + LZ4Utils.maxCompressedLength(blockSize) }, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
 object StreamBlockBufferSpec {
@@ -122,7 +125,7 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
 
   def nativeOutputBufferType: String = s"StreamOutputBlockBuffer"
 
-  def nativeInputBufferType: String = s"StreamInputBlockBuffer"
+  def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBlockBuffer<$inputStreamType>"
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
 }
@@ -138,9 +141,9 @@ final class StreamBufferSpec extends BufferSpec {
   def buildCodeOutputBuffer(out: Code[OutputStream]): Code[OutputBuffer] =
     Code.newInstance[StreamOutputBuffer, OutputStream](out)
 
-  override def nativeInputBufferType: String = s"StreamInputBuffer"
-
   override def nativeOutputBufferType: String = s"StreamOutputBuffer"
+
+  override def nativeInputBufferType(inputStreamType: String): String = s"StreamInputBuffer<$inputStreamType>"
 
   override def equals(other: Any): Boolean = other.isInstanceOf[StreamBufferSpec]
 }
@@ -158,7 +161,7 @@ object CodecSpec {
 
   val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
 
-  def fromString(s: String): CodecSpec = s match {
+  def fromShortString(s: String): CodecSpec = s match {
     case "default" => CodecSpec.default
     case "defaultUncompressed" => CodecSpec.defaultUncompressed
     case "unblockedUncompressed" => CodecSpec.unblockedUncompressed
@@ -214,7 +217,12 @@ trait CodecSpec extends Serializable {
 
   def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
 
-  def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
+  def buildNativeDecoderClass(
+    t: PType,
+    requestedType: PType,
+    inputStreamType: String,
+    tub: cxx.TranslationUnitBuilder
+  ): cxx.Class
 
   def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
@@ -300,7 +308,12 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
   }
 
-  def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
+  def buildNativeDecoderClass(
+    t: PType,
+    requestedType: PType,
+    inputStreamType: String,
+    tub: cxx.TranslationUnitBuilder
+  ): cxx.Class = cxx.PackDecoder(t, requestedType, inputStreamType, child, tub)
 
   def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackEncoder(t, child, tub)
 }
@@ -2092,57 +2105,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
         codecSpec.buildEncoder(t.rowType),
         t.kFieldIdx,
         t.rowType))
-  }
-
-  def writeRowsSplit(
-    path: String,
-    t: RVDType,
-    codecSpec: CodecSpec,
-    partitioner: RVDPartitioner,
-    stageLocally: Boolean
-  ): Array[Long] = {
-    val sc = crdd.sparkContext
-    val fs = HailContext.sFS
-
-    fs.mkDir(path + "/rows/rows/parts")
-    fs.mkDir(path + "/entries/rows/parts")
-    fs.mkDir(path + "/index")
-
-    val bcFS = HailContext.bcFS
-    val nPartitions = crdd.getNumPartitions
-    val d = digitsNeeded(nPartitions)
-
-    val fullRowType = t.rowType
-    val rowsRVType = MatrixType.getRowType(fullRowType)
-    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
-
-    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
-    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
-    val makeIndexWriter = IndexWriter.builder(t.kType.virtualType, +TStruct("entries_offset" -> TInt64()))
-
-    val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-      val fs = bcFS.value
-      val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-        fs,
-        path,
-        t,
-        it,
-        i,
-        ctx,
-        d,
-        stageLocally,
-        makeIndexWriter,
-        makeRowsEnc,
-        makeEntriesEnc)
-
-      Iterator.single(partFileAndCount)
-    }.collect()
-
-    val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
-
-    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, t, rowsRVType, entriesRVType, partFiles, partitioner)
-
-    partitionCounts
   }
 
   def toRows(rowType: PStruct): RDD[Row] = {

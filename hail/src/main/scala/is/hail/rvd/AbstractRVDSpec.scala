@@ -37,20 +37,25 @@ object AbstractRVDSpec {
 
   def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.sFS, path)
 
-  def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext,
+    path: String,
+    rowType: PStruct,
+    codecSpec: CodecSpec,
+    partFiles: Array[String],
+    requestedType: PStruct,
+    forEachElement: RegionValue => Unit): Unit = {
     assert(partFiles.length == 1)
 
     val fs = hc.sFS
-    partFiles.flatMap { p =>
+    partFiles.foreach { p =>
       val f = partPath(path, p)
       fs.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
           HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
-            .map { rv =>
-              val r = SafeRow(requestedType, rv.region, rv.offset)
+            .foreach { rv =>
+              forEachElement(rv)
               ctx.region.clear()
-              r
-            }.toFastIndexedSeq
+            }
         }
       }
     }
@@ -202,8 +207,8 @@ abstract class AbstractRVDSpec {
       RVD(rvdType, partitioner.coarsen(requestedKey.length), hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
-    AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)
+  def readLocal(hc: HailContext, path: String, requestedType: PStruct, forEachElement: RegionValue => Unit): Unit =
+    AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType, forEachElement)
 
   def write(fs: FS, path: String) {
     fs.writeTextFile(path + "/metadata.json.gz") { out =>

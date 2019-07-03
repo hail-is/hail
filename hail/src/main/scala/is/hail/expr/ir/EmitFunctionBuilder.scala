@@ -8,7 +8,7 @@ import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
 import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
@@ -49,6 +49,14 @@ object EmitFunctionBuilder {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
 }
 
 trait FunctionWithLiterals {
@@ -186,9 +194,9 @@ class EmitFunctionBuilder[F >: Null](
   private[this] def encodeLiterals(): Array[Byte] = {
     val spec = CodecSpec.defaultUncompressed
     val literals = literalsMap.toArray
-    val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
+    val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
 
-    val dec = spec.buildEmitDecoderF[Long](litType.physicalType, litType.physicalType, this)
+    val dec = spec.buildEmitDecoderF[Long](litType, litType, this)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
     mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
@@ -196,7 +204,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val off = decodeLiterals.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
     }
 
     decodeLiterals.emit(Code(
@@ -205,10 +213,10 @@ class EmitFunctionBuilder[F >: Null](
       Code(storeFields: _*)))
 
     val baos = new ByteArrayOutputStream()
-    val enc = spec.buildEncoder(litType.physicalType, litType.physicalType)(baos)
+    val enc = spec.buildEncoder(litType, litType)(baos)
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
-      rvb.start(litType.physicalType)
+      rvb.start(litType)
       rvb.startTuple()
       literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
       rvb.endTuple()

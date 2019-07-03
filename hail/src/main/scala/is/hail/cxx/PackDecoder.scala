@@ -167,7 +167,7 @@ object PackDecoder {
     case t2: PBaseStruct => decodeBaseStruct(t2, rt.asInstanceOf[PBaseStruct], input_buf_ptr, region, off, fb)
   }
 
-  def apply(t: PType, rt: PType, bufSpec: BufferSpec, tub: TranslationUnitBuilder): Class = {
+  def apply(t: PType, rt: PType, inputStreamType: String, bufSpec: BufferSpec, tub: TranslationUnitBuilder): Class = {
     tub.include("hail/hail.h")
     tub.include("hail/Decoder.h")
     tub.include("hail/Region.h")
@@ -177,11 +177,11 @@ object PackDecoder {
 
     val decoderBuilder = tub.buildClass(tub.genSym("Decoder"), "NativeObj")
 
-    val bufType = bufSpec.nativeInputBufferType
+    val bufType = bufSpec.nativeInputBufferType(inputStreamType)
     val buf = decoderBuilder.variable("buf", s"std::shared_ptr<$bufType>")
     decoderBuilder += buf
 
-    decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
+    decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<$inputStreamType> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
     val (valueType, initialSize, returnVal) = rt match {
       case typ if typ.isPrimitive =>
@@ -209,7 +209,7 @@ object PackDecoder {
     assert(t.isInstanceOf[PBaseStruct] || t.isInstanceOf[PArray])
     val tub = new TranslationUnitBuilder()
 
-    val decoder = apply(t, rt, bufSpec, tub)
+    val decoder = apply(t, rt, "InputStream", bufSpec, tub)
     
     tub.include("hail/Decoder.h")
     tub.include("hail/ObjectArray.h")

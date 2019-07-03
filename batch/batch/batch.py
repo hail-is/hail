@@ -26,7 +26,7 @@ from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_u
 
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
-from .database import BatchDatabase, JobsBuilder
+from .database import BatchDatabase, JobsBuilder, JobsTable
 from .k8s import K8s
 from .globals import complete_states
 from .queue import scale_queue_consumers
@@ -209,14 +209,18 @@ class Job:
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.full_id}')
-                await db.jobs.update_record(*self.id, state='Running')
+                n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
+                if n_updated == 0:
+                    log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
                 return
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
             return
 
-        await db.jobs.update_record(*self.id, state='Running')
+        n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
+        if n_updated == 0:
+            log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
@@ -287,28 +291,41 @@ class Job:
         assert self._state in ('Pending', 'Cancelled')
         return None
 
-    async def _mark_job_task_complete(self, task_name, log, exit_code, new_state, pod_status):
-        self.exit_codes[self._task_idx] = exit_code
-        self.pod_statuses[self._task_idx] = pod_status
-
+    async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
         uri = None
-        if log is not None:
-            uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, log)
+        if pod_log is not None:
+            uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, pod_log)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'job {self.full_id} will have a missing log due to {err}')
-            else:
-                self.log_uris[self._task_idx] = uri
+
+        uri_name = JobsTable.log_uri_mapping[task_name]
+        compare_items = {'state': self._state, 'task_idx': self._task_idx, uri_name: None}
+        n_updated = await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
+                                                     compare_items=compare_items,
+                                                     task_idx=self._task_idx + 1,
+                                                     duration=self.duration,
+                                                     state=new_state)
+        if n_updated == 0:
+            log.info(f'could not update job {self.id} due to db not matching expected state and task_idx')
+            return False
+
+        self.exit_codes[self._task_idx] = exit_code
+        self.pod_statuses[self._task_idx] = pod_status
+        self.log_uris[self._task_idx] = uri
+        
+        if self._state != new_state:
+            log.info('job {} changed state: {} -> {}'.format(
+                self.full_id,
+                self._state,
+                new_state))
 
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
-
-        await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
-                                         task_idx=self._task_idx,
-                                         duration=self.duration,
-                                         state=new_state)
+        self._state = new_state
 
         await self._delete_pod()
+        return True
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -333,7 +350,7 @@ class Job:
 
             exit_codes = get_compound_field(db.jobs.exit_code_mapping)
             log_uris = get_compound_field(db.jobs.log_uri_mapping)
-            pod_statuses = get_compound_field(db.jobs.pod_status_mapping)
+            pod_statuses = [record[db.jobs.pod_status_mapping[t.name]] for t in tasks]
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
@@ -450,7 +467,12 @@ class Job:
 
     async def set_state(self, new_state):
         if self._state != new_state:
-            await db.jobs.update_record(*self.id, state=new_state)
+            n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
+            if n_updated == 0:
+                log.warning(f'changing the state from {self._state} -> {new_state} '
+                            f'for job {self.full_id} failed due to the expected state not in db')
+                return
+
             log.info('job {} changed state: {} -> {}'.format(
                 self.full_id,
                 self._state,
@@ -509,13 +531,19 @@ class Job:
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
+            if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
+                log.info(f'ignoring because pod task label does not match the current task for job {self.full_id}')
+                return
 
         task_name = self._current_task.name
 
         if failed:
             exit_code = 999  # FIXME hack
             pod_log = failure_reason
-            pod_status = None
+            if pod is None:
+                pod_status = None
+            else:
+                pod_status = pod.status.to_str()
         else:
             pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
@@ -553,17 +581,21 @@ class Job:
         else:
             new_state = 'Failed'
 
-        await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
+        success = await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
+        if not success:
+            log.warning(f'ignoring failed mark job task complete for job {self.full_id}')
+            return
 
         if exit_code == 0:
             if has_next_task:
+                log.info(f'starting next job task {self.full_id}')
                 await self._create_pod()
                 return
 
         await self._delete_pvc()
-        await self.set_state(new_state)
+        await self.notify_children(new_state)
 
-        log.info('job {} complete with state {}, exit_codes {}'.format(self.full_id, self._state, self.exit_codes))
+        log.info('job {} complete with state {}, exit_codes {}'.format(self.id, self._state, self.exit_codes))
 
         if self.callback:
             def handler(id, callback, json):
@@ -1064,10 +1096,6 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    if pod and (job.is_complete() or pod.metadata.labels['task'] != job._current_task.name):
-        log.info(f'ignoring pod update for job {job.full_id} because it is at a different job task')
-        return
-
     log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.full_id} mark unscheduled')

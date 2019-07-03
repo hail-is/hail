@@ -13,29 +13,39 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T"))) {
       (r, start, end, includeStart, includeEnd) =>
-        val srvb = new StagedRegionValueBuilder(r, PInterval(tv("T").t.physicalType))
-        val missing = includeStart.m || includeEnd.m
-        val value = Code(
-          srvb.start(),
-          start.m.mux(
-            srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t.physicalType)(start.v)),
-          srvb.advance(),
-          end.m.mux(
-            srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t.physicalType)(end.v)),
-          srvb.advance(),
-          srvb.addBoolean(includeStart.value[Boolean]),
-          srvb.advance(),
-          srvb.addBoolean(includeEnd.value[Boolean]),
-          srvb.advance(),
-          srvb.offset
-        )
+        val t = tv("T").t
+
+        val srvb = new StagedRegionValueBuilder(r, PInterval(t.physicalType))
+
+        val mv = r.mb.newLocal[Boolean]
+        val vv = r.mb.newLocal[Long]
+
+        val ctor = Code(
+          mv := includeStart.m || includeEnd.m,
+          vv := 0L,
+          mv.mux(
+            Code._empty,
+            Code(
+              srvb.start(),
+              start.m.mux(
+                srvb.setMissing(),
+                srvb.addIRIntermediate(t.physicalType)(start.v)),
+              srvb.advance(),
+              end.m.mux(
+                srvb.setMissing(),
+                srvb.addIRIntermediate(t.physicalType)(end.v)),
+              srvb.advance(),
+              srvb.addBoolean(includeStart.value[Boolean]),
+              srvb.advance(),
+              srvb.addBoolean(includeEnd.value[Boolean]),
+              srvb.advance(),
+              vv := srvb.offset)),
+          Code._empty[Unit])
 
         EmitTriplet(
-          Code(start.setup, end.setup, includeStart.setup, includeEnd.setup),
-          missing,
-          value)
+          Code(start.setup, end.setup, includeStart.setup, includeEnd.setup, ctor),
+          mv,
+          vv)
     }
 
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T")) {

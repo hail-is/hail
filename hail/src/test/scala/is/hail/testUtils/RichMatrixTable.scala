@@ -9,12 +9,12 @@ import scala.reflect.ClassTag
 
 class RichMatrixTable(vsm: MatrixTable) {
   def rdd: RDD[(Annotation, (Annotation, Iterable[Annotation]))] = {
-    val fullRowType = vsm.value.rvRowType
-    val localEntriesIndex = vsm.value.entriesIdx
+    val fullRowType = vsm.rvRowPType
+    val localEntriesIndex = vsm.entriesIdx
     val localRowType = vsm.rowType
     val rowKeyF = vsm.rowKeysF
     vsm.rvd.map { rv =>
-      val fullRow = SafeRow(fullRowType.physicalType, rv.region, rv.offset)
+      val fullRow = SafeRow(fullRowType, rv.region, rv.offset)
       val row = fullRow.deleteField(localEntriesIndex)
       (rowKeyF(fullRow), (row, fullRow.getAs[IndexedSeq[Any]](localEntriesIndex)))
     }

@@ -17,10 +17,10 @@ import org.json4s.jackson.JsonMethods
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def apply(tir: TableIR): TableValue =
-    apply(tir, optimize = true)
+  def apply(tir: TableIR, ctx: ExecuteContext): TableValue =
+    apply(tir, ctx, optimize = true)
 
-  def apply(tir: TableIR, optimize: Boolean): TableValue = {
+  def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val tiropt = if (optimize)
       Optimize(tir)
     else
@@ -33,13 +33,10 @@ object Interpret {
     else
       lowered
 
-    lowopt.execute(HailContext.get)
+    lowopt.execute(ctx)
   }
 
-  def apply(mir: MatrixIR): MatrixValue =
-    apply(mir, optimize = true)
-
-  def apply(mir: MatrixIR, optimize: Boolean): MatrixValue = {
+  def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val miropt = if (optimize)
       Optimize(mir)
     else
@@ -51,14 +48,19 @@ object Interpret {
     else
       lowered
 
-    lowopt.execute(HailContext.get).toMatrixValue(LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, mir.typ.colKey)
+    lowopt.execute(ctx)
   }
 
-  def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
+  def apply[T](ctx: ExecuteContext, ir: IR): T = {
+    ExecuteContext.scoped { ctx =>
+      apply[T](ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None)
+    }
+  }
 
-  def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
+  def apply[T](ctx: ExecuteContext, ir: IR, optimize: Boolean): T = apply(ctx, ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
 
-  def apply[T](ir0: IR,
+  def apply[T](ctx: ExecuteContext,
+    ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg],
@@ -85,14 +87,20 @@ object Interpret {
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
-    val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
+    val result = apply(ctx, ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
     result
   }
 
-  private def apply(ir: IR, env: Env[Any], args: IndexedSeq[(Any, Type)], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]], functionMemo: Memo[AsmFunction3[Region, Long, Boolean, Long]]): Any = {
+  private def apply(ctx: ExecuteContext,
+    ir: IR,
+    env: Env[Any],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[Agg],
+    aggregator: Option[TypedAggregator[Any]],
+    functionMemo: Memo[AsmFunction3[Region, Long, Boolean, Long]]): Any = {
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
-      apply(ir, env, args, agg, aggregator, functionMemo)
+      apply(ctx, ir, env, args, agg, aggregator, functionMemo)
 
     ir match {
       case I32(x) => x
@@ -510,7 +518,7 @@ object Interpret {
           interpret(key, env)
         }
         groupedAgg.mapValues { row =>
-          interpret(aggIR, agg=Some((row, aggElementType)))
+          interpret(aggIR, agg = Some((row, aggElementType)))
         }
 
       case x@AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => ???
@@ -712,7 +720,7 @@ object Interpret {
         val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
         val f = functionMemo.getOrElseUpdate(ir, {
           val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple.virtualType                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ), i)
+            GetTupleElement(Ref("in", argTuple.virtualType), i)
           }.toFastIndexedSeq
           val wrappedIR = Copy(ir, wrappedArgs)
 
@@ -747,30 +755,27 @@ object Interpret {
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
-          .getOrElse(child.execute(HailContext.get).rvd.count())
+          .getOrElse(child.execute(ctx).rvd.count())
       case TableGetGlobals(child) =>
-        child.execute(HailContext.get).globals.value
+        child.execute(ctx).globals.safeJavaValue
       case TableCollect(child) =>
-        val tv = child.execute(HailContext.get)
-        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
+        val tv = child.execute(ctx)
+        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
-        val hc = HailContext.get
-        val tvs = children.map(_.execute(hc))
+        val tvs = children.map(_.execute(ctx))
         writer(tvs)
       case TableWrite(child, writer) =>
-        writer(child.execute(HailContext.get))
+        writer(child.execute(ctx))
       case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
-        writer(hc, child.execute(hc))
+        writer(hc, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
-        val hc = HailContext.get
-        writer(blockMatrices.map(_.execute(hc)))
+        writer(blockMatrices.map(_.execute(ctx)))
       case TableToValueApply(child, function) =>
-        function.execute(child.execute(HailContext.get))
+        function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
-        function.execute(child.execute(HailContext.get))
+        function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
-        val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
           "global", child.typ.globalType.physicalType,
           "global", child.typ.globalType.physicalType,
@@ -784,20 +789,17 @@ object Interpret {
           "AGGR", aggResultType,
           postAggIR)
 
-        val value = child.execute(HailContext.get)
+        val value = child.execute(ctx)
         val globalsBc = value.globals.broadcast
 
+        val globalsOffset = value.globals.value.offset
+
         val aggResults = if (rvAggs.nonEmpty) {
-          Region.scoped { region =>
-            val rvb: RegionValueBuilder = new RegionValueBuilder()
-            rvb.set(region)
 
-            rvb.start(localGlobalSignature.physicalType)
-            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
-            val globals = rvb.end()
+          val rvb: RegionValueBuilder = new RegionValueBuilder()
+          rvb.set(ctx.r)
 
-            initOps(0)(region, rvAggs, globals, false)
-          }
+          initOps(0)(ctx.r, rvAggs, globalsOffset, false)
 
           val combOp = { (rvAggs1: Array[RegionValueAggregator], rvAggs2: Array[RegionValueAggregator]) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
@@ -805,12 +807,7 @@ object Interpret {
           }
 
           value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
-            val r = ctx.freshRegion
-            val rvb = new RegionValueBuilder()
-            rvb.set(r)
-            rvb.start(localGlobalSignature.physicalType)
-            rvb.addAnnotation(localGlobalSignature, globalsBc.value)
-            val globalsOffset = rvb.end()
+            val globalsOffset = globalsBc.value.readRegionValue(ctx.freshRegion)
             val seqOpsFunction = seqOps(i)
             (globalsOffset, seqOpsFunction)
           })({ case ((globalsOffset, seqOpsFunction), comb, rv) =>
@@ -819,25 +816,18 @@ object Interpret {
         } else
           Array.empty[RegionValueAggregator]
 
-        Region.scoped { region =>
-          val rvb: RegionValueBuilder = new RegionValueBuilder()
-          rvb.set(region)
+        val rvb: RegionValueBuilder = new RegionValueBuilder()
+        rvb.set(ctx.r)
 
-          rvb.start(aggResultType)
-          rvb.startTuple()
-          aggResults.foreach(_.result(rvb))
-          rvb.endTuple()
-          val aggResultsOffset = rvb.end()
+        rvb.start(aggResultType)
+        rvb.startTuple()
+        aggResults.foreach(_.result(rvb))
+        rvb.endTuple()
+        val aggResultsOffset = rvb.end()
 
-          rvb.start(localGlobalSignature.physicalType)
-          rvb.addAnnotation(localGlobalSignature, globalsBc.value)
-          val globalsOffset = rvb.end()
+        val resultOffset = f(0)(ctx.r, globalsOffset, false, aggResultsOffset, false)
 
-          val resultOffset = f(0)(region, globalsOffset, false, aggResultsOffset, false)
-
-          SafeRow(coerce[PTuple](t), region, resultOffset)
-            .get(0)
-        }
+        SafeRow(coerce[PTuple](t), ctx.r, resultOffset).get(0)
       case x: ReadPartition =>
         fatal(s"cannot interpret ${ Pretty(x) }")
     }

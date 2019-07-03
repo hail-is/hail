@@ -63,7 +63,7 @@ object RegressionUtils {
       field.index
     }
     mv.colValues
-      .value
+      .javaValue
       .map { a =>
         val struct = a.asInstanceOf[Row]
         fieldIndices.map(i => Option(struct.get(i)).map(_.asInstanceOf[Double]))

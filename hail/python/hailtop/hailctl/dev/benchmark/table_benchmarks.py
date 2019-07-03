@@ -1,4 +1,7 @@
 import hail as hl
+
+from os import path
+from tempfile import TemporaryDirectory
 from .utils import benchmark, resource
 
 
@@ -118,6 +121,24 @@ def read_force_count_p100():
 @benchmark
 def read_force_count_p10():
     hl.read_table(resource('table_10M_par_10.ht'))._force_count()
+
+@benchmark
+def write_range_table_p1000():
+    with TemporaryDirectory() as tmpdir:
+        ht = hl.utils.range_table(10_000_000, 1000)
+        ht.write(path.join(tmpdir, 'tmp.ht'))
+
+@benchmark
+def write_range_table_p100():
+    with TemporaryDirectory() as tmpdir:
+        ht = hl.utils.range_table(10_000_000, 100)
+        ht.write(path.join(tmpdir, 'tmp.ht'))
+
+@benchmark
+def write_range_table_p10():
+    with TemporaryDirectory() as tmpdir:
+        ht = hl.utils.range_table(10_000_000, 10)
+        ht.write(path.join(tmpdir, 'tmp.ht'))
 
 @benchmark
 def union_p100_p100():

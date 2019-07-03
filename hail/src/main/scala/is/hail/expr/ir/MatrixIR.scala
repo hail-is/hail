@@ -50,13 +50,17 @@ abstract sealed class MatrixIR extends BaseIR {
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 
   def persist(storageLevel: StorageLevel): MatrixIR = {
-    val mv = Interpret(this)
-    MatrixLiteral(mv.persist(storageLevel))
+    ExecuteContext.scoped { ctx =>
+      val tv = Interpret(this, ctx, optimize = true)
+      MatrixLiteral(this.typ, TableLiteral(tv, ctx))
+    }
   }
 
   def unpersist(): MatrixIR = {
-    val mv = Interpret(this)
-    MatrixLiteral(mv.unpersist())
+    this match {
+      case MatrixLiteral(typ, tl) => MatrixLiteral(typ, tl.unpersist().asInstanceOf[TableLiteral])
+      case x => x
+    }
   }
 
   def pyPersist(storageLevel: String): MatrixIR = {
@@ -72,17 +76,27 @@ abstract sealed class MatrixIR extends BaseIR {
   def pyUnpersist(): MatrixIR = unpersist()
 }
 
-case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
-  val typ: MatrixType = value.typ
+object MatrixLiteral {
+  def apply(typ: MatrixType, rvd: RVD, globals: Row, colValues: IndexedSeq[Row]): MatrixLiteral = {
+    val tt = typ.canonicalTableType
+    ExecuteContext.scoped { ctx =>
+      MatrixLiteral(typ,
+        TableLiteral(
+          TableValue(tt,
+            BroadcastRow(ctx, Row.merge(globals, Row(colValues)), typ.canonicalTableType.globalType),
+            rvd),
+          ctx))
+    }
+  }
+}
 
+case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
-    MatrixLiteral(value)
+    MatrixLiteral(typ, tl)
   }
-
-  override def columnCount: Option[Int] = Some(value.nCols)
 
   override def toString: String = "MatrixLiteral(...)"
 }
@@ -125,7 +139,7 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
     tr
   }
 
-  def makeGlobalValue(requestedType: TableType, values: => IndexedSeq[Row]): BroadcastRow = {
+  def makeGlobalValue(ctx: ExecuteContext, requestedType: TableType, values: => IndexedSeq[Row]): BroadcastRow = {
     assert(fullType.globalType.size == 1)
     val colType = requestedType.globalType.fieldOption(LowerMatrixIR.colsFieldName)
       .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
@@ -139,10 +153,10 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
           .map(_.index)
           .toArray
         val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
-        BroadcastRow(Row(arr), requestedType.globalType, HailContext.backend)
+        BroadcastRow(ctx, Row(arr), requestedType.globalType)
       case None =>
         assert(requestedType.globalType == TStruct())
-        BroadcastRow(Row.empty, requestedType.globalType, HailContext.backend)
+        BroadcastRow(ctx, Row.empty, requestedType.globalType)
     }
   }
 }

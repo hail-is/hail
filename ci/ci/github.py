@@ -376,7 +376,11 @@ mkdir -p {shq(repo_dir)}
             min_batch = None
             failed = None
             for b in batches:
-                s = await b.status()
+                try:
+                    s = await b.status()
+                except Exception as err:
+                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                    raise
                 if s['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
