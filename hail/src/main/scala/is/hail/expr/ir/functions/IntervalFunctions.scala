@@ -80,10 +80,8 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean()) {
       case (r, (intervalT: PInterval, intTriplet), (pointT, pointTriplet)) =>
-        val pointType = tv("T").t.physicalType
-
         val mPoint = r.mb.newLocal[Boolean]
-        val vPoint = r.mb.newLocal()(typeToTypeInfo(pointType))
+        val vPoint = r.mb.newLocal()(typeToTypeInfo(pointT))
 
         val cmp = r.mb.newLocal[Int]
         val interval = new IRInterval(r, intervalT, intTriplet.value[Long])
