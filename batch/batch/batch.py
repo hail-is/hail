@@ -531,6 +531,9 @@ class Job:
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
+            if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
+                log.info('ignoring because pod task label does not match the current task')
+                return
 
         task_name = self._current_task.name
 
@@ -1093,12 +1096,6 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    if pod and (job.is_complete() or pod.metadata.labels['task'] != job._current_task.name):
-        log.info(f'ignoring pod update for job {job.full_id} because it is at a '
-                 f'different job task: ({pod.metadata.labels["task"] if pod else None}, '
-                 f'{job._current_task.name if not job.is_complete() else None})')
-        return
-
     log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.full_id} mark unscheduled')
