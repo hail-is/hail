@@ -303,7 +303,7 @@ class Job:
         compare_items = {'state': self._state, 'task_idx': self._task_idx, uri_name: None}
         n_updated = await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
                                                      compare_items=compare_items,
-                                                     task_idx=self._task_idx,
+                                                     task_idx=self._task_idx + 1,
                                                      duration=self.duration,
                                                      state=new_state)
         if n_updated == 0:
