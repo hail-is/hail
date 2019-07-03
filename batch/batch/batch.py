@@ -1020,7 +1020,7 @@ async def cancel_batch(request, userdata):
     await _cancel_batch(batch_id, user)
     return jsonify({})
 
-@prom_asyn_time(REQUEST_TIME_PATCH_CLOSE_BATCH)
+@prom_async_time(REQUEST_TIME_PATCH_CLOSE_BATCH)
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
