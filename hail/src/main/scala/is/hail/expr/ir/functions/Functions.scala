@@ -477,7 +477,8 @@ abstract class IRFunctionWithoutMissingness extends IRFunction {
   }
 
   override def getAsMethod(fb: EmitFunctionBuilder[_], args: Type*): EmitMethodBuilder = {
-    unify(args)
+    val unified = unify(args)
+    assert(unified)
     val ts = argTypes.map(t => typeToTypeInfo(t.subst()))
     val methodbuilder = fb.newMethod((typeInfo[Region] +: ts).toArray, typeToTypeInfo(returnType.subst()))
     methodbuilder.emit(apply(EmitRegion.default(methodbuilder), ts.zipWithIndex.map { case (a, i) => methodbuilder.getArg(i + 2)(a).load() }: _*))

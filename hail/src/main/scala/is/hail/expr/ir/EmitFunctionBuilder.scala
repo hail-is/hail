@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, PrintWriter}
+import java.io._
 
 import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder}
 import is.hail.{HailContext, asm4s}
@@ -8,7 +8,7 @@ import is.hail.asm4s._
 import is.hail.backend.BackendUtils
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
 import is.hail.io.{CodecSpec, Decoder, PackCodecSpec}
 import is.hail.utils._
@@ -49,6 +49,14 @@ object EmitFunctionBuilder {
 
 trait FunctionWithFS {
   def addFS(fs: FS): Unit
+}
+
+trait FunctionWithAggRegion {
+  def getAggOffset(): Long
+
+  def setAggState(region: Region, offset: Long): Unit
+
+  def newAggState(region: Region): Unit
 }
 
 trait FunctionWithLiterals {
@@ -186,9 +194,9 @@ class EmitFunctionBuilder[F >: Null](
   private[this] def encodeLiterals(): Array[Byte] = {
     val spec = CodecSpec.defaultUncompressed
     val literals = literalsMap.toArray
-    val litType = TTuple(literals.map { case ((t, _), _) => t }: _*)
+    val litType = PType.canonical(TTuple(literals.map { case ((t, _), _) => t }: _*)).asInstanceOf[PTuple]
 
-    val dec = spec.buildEmitDecoderF[Long](litType.physicalType, litType.physicalType, this)
+    val dec = spec.buildEmitDecoderF[Long](litType, litType, this)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
     val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
     mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
@@ -196,7 +204,7 @@ class EmitFunctionBuilder[F >: Null](
 
     val off = decodeLiterals.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.physicalType.fieldOffset(off, i)))
+      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
     }
 
     decodeLiterals.emit(Code(
@@ -205,10 +213,10 @@ class EmitFunctionBuilder[F >: Null](
       Code(storeFields: _*)))
 
     val baos = new ByteArrayOutputStream()
-    val enc = spec.buildEncoder(litType.physicalType, litType.physicalType)(baos)
+    val enc = spec.buildEncoder(litType, litType)(baos)
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
-      rvb.start(litType.physicalType)
+      rvb.start(litType)
       rvb.startTuple()
       literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ, a) }
       rvb.endTuple()
@@ -224,6 +232,42 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
+
+  private[this] var _aggSigs: Array[AggSignature] = _
+  private[this] var _aggRegion: ClassFieldRef[Region] = _
+  private[this] var _aggOff: ClassFieldRef[Long] = _
+  private[this] var _aggState: agg.StateContainer = _
+
+  def addAggStates(aggSigs: Array[AggSignature]): (agg.StateContainer, Code[Long]) = {
+    if (_aggSigs != null) {
+      assert(aggSigs sameElements _aggSigs)
+      return _aggState -> _aggOff
+    }
+    cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithAggRegion].iname)
+    _aggSigs = aggSigs
+    _aggRegion = newField[Region]
+    _aggOff = newField[Long]
+    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(apply_method)).toArray, _aggRegion)
+
+    val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
+    val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
+    val getF = new EmitMethodBuilder(this, "getAggOffset", Array(), typeInfo[Long])
+
+    methods += newF
+    methods += setF
+    methods += getF
+
+    newF.emit(
+      Code(_aggRegion := newF.getArg[Region](1),
+      _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize)))
+
+    setF.emit(
+      Code(_aggRegion := setF.getArg[Region](1),
+        _aggOff := setF.getArg[Long](2)))
+
+    getF.emit(_aggOff)
+    _aggState -> _aggOff
+  }
 
   def backend(): Code[BackendUtils] = {
     if (_backendField == null) {

@@ -13,7 +13,7 @@ from hail.ir import *
 from hail.table import Table, ExprContainer, TableIndexKeyError
 from hail.typecheck import *
 from hail.utils import storage_level, LinkedList
-from hail.utils.java import escape_id, warn, jiterable_to_list, Env, scala_object, joption, jnone
+from hail.utils.java import warn, jiterable_to_list, Env, scala_object, joption, jnone
 from hail.utils.misc import *
 
 
@@ -2465,9 +2465,10 @@ class MatrixTable(ExprContainer):
     @typecheck_method(output=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      _codec_spec=nullable(str))
+                      _codec_spec=nullable(str),
+                      _partitions=nullable(expr_any))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None):
+              _codec_spec: Optional[str] = None, _partitions = None):
         """Write to disk.
 
         Examples
@@ -2490,7 +2491,12 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
+        if _partitions is not None:
+            _partitions, _partitions_type = hl.utils._dumps_partitions(_partitions, self.row_key.dtype)
+        else:
+            _partitions_type = None
+
+        writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type)
         Env.backend().execute(MatrixWrite(self._mir, writer))
 
     class _Show:
@@ -2511,7 +2517,7 @@ class MatrixTable(ExprContainer):
         def _repr_html_(self):
             s = self.table_show._repr_html_()
             if self.displayed_n_cols != self.actual_n_cols:
-                s += '<p>'
+                s += '<p style="background: #fdd; padding: 0.4em;">'
                 s += f"showing the first { self.displayed_n_cols } of { self.actual_n_cols } columns"
                 s += '</p>\n'
             return s
@@ -2571,10 +2577,18 @@ class MatrixTable(ExprContainer):
 
         t = self.localize_entries('entries', 'cols')
         t = t.key_by()
+        col_key_type = self.col_key.dtype
+        if len(col_key_type) == 1 and col_key_type[0] == hl.tstr:
+            col_key_field_name = list(col_key_type)[0]
+            cols = t.cols.collect()
+            entries = {cols[0][i][col_key_field_name]: t.entries[i]
+                       for i in range(0, displayed_n_cols)}
+        else:
+            entries = {str(i): t.entries[i] for i in range(0, displayed_n_cols)}
         t = t.select(
             **{f: t[f] for f in self.row_key},
             **{f: t[f] for f in self.row_value if include_row_fields},
-            **{str(i): t.entries[i] for i in range(0, displayed_n_cols)})
+            **entries)
         if handler is None:
             try:
                 from IPython.display import display
@@ -3016,16 +3030,20 @@ class MatrixTable(ExprContainer):
         mir = base._mir
 
         if row_exprs:
-            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
+            row_struct = InsertFields.construct_with_deduplication(
+                base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
             mir = MatrixMapRows(mir, row_struct)
         if col_exprs:
-            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
+            col_struct = InsertFields.construct_with_deduplication(
+                base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
             mir = MatrixMapCols(mir, col_struct, None)
         if entry_exprs:
-            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
+            entry_struct = InsertFields.construct_with_deduplication(
+                base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
             mir = MatrixMapEntries(mir, entry_struct)
         if global_exprs:
-            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
+            globals_struct = InsertFields.construct_with_deduplication(
+                base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
             mir = MatrixMapGlobals(mir, globals_struct)
 
         return cleanup(MatrixTable(mir))

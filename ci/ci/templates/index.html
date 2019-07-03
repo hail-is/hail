@@ -21,8 +21,34 @@
       }
     </style>
   </head>
+  <script type="text/javascript">
+    function searchTable() {
+      var searchTerms = document.getElementById("searchBar");
+      var filter = searchTerms.value.toLowerCase();
+      var table = document.getElementById("statuses");
+      var tableRecords = table.getElementsByTagName("tr");
+
+      for (var i = 1; i < tableRecords.length; ++i) {
+        var record = tableRecords[i];
+        var tds = record.getElementsByTagName("td");
+        var anyMatch = false;
+        for (var j = 0; j < tds.length; ++j) {
+          var td = tds[j]
+          if ((td.textContent || td.innerText).toLowerCase().indexOf(filter) >= 0) {
+            anyMatch = true;
+            break;
+          }
+        }
+        if (anyMatch)
+          record.style.display = "";
+        else
+          record.style.display = "none";
+      }
+    }
+  </script>
   <body>
     <h1>CI</h1>
+    <h3>Alive for {{ age }}.</h3>
     {% for wb in watched_branches %}
     <h2>{{ wb.branch }}</h2>
     <p>SHA:
@@ -36,8 +62,11 @@
       {% if wb.deploy_state is not none %}
       {{ wb.deploy_state }}
       {% endif %}
+      {% if wb.status_age is not none %}
+      {{ wb.status_age }}
+      {% endif %}
     </p>
-    <p>Deploy Batch: 
+    <p>Deploy Batch:
       {% if wb.deploy_batch_id is not none %}
       <a href="/batches/{{ wb.deploy_batch_id }}">{{ wb.deploy_batch_id }}</a>
       {% endif %}
@@ -46,7 +75,8 @@
     <h3>PRs</h3>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
-    <table id="statuses" class="searchable sortable">
+    <input type="text" id="searchBar" onkeyup="searchTable()" placeholder="Search terms...">
+    <table id="statuses">
       <thead>
         <tr>
           <th align="left">Number</th>
@@ -68,18 +98,17 @@
             {{ pr.title }}
           </td>
           <td align="left">
-            <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">
             {% if pr.build_state is not none %}
-              {{ pr.build_state }}
-            {% elif pr.batch_id is not none %}
-              building
+              <a href="/watched_branches/{{ wb.index }}/pr/{{ pr.number }}">{{ pr.build_state }}</a>
             {% else %}
               pending
             {% endif %}
-            {% if not pr.is_up_to_date %}
+            {% if pr.status_age is not none %}
+              {{ pr.status_age }}
+            {% endif %}
+            {% if pr.build_state is not none and pr.out_of_date %}
               *
             {% endif %}
-            </a>
           </td>
           <td align="left">
             {% if pr.review_state %}
@@ -104,8 +133,12 @@
     <h2>Authorize SHA</h2>
     <form action="/authorize_source_sha" method="post">
       <label for="sha">SHA:</label>
+      <input type="hidden" name="_csrf" value="{{ token }}"/>
       <input type="text" name="sha" id="sha">
       <button type="submit">Authorize</button>
     </form>
   </body>
+  <script type="text/javascript">
+    document.getElementById("searchBar").focus();
+  </script>
 </html>

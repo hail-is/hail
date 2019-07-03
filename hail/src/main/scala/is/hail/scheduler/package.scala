@@ -55,4 +55,6 @@ package object scheduler {
     }
     null.asInstanceOf[T]
   }
+
+  type Token = Array[Byte]
 }

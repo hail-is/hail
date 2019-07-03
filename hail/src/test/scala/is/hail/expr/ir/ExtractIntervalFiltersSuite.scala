@@ -293,6 +293,9 @@ class ExtractIntervalFiltersSuite extends HailSuite {
     assert(intervals.toSeq == FastSeq(Interval(wrappedIntervalEndpoint(0, 1), wrappedIntervalEndpoint(Int.MaxValue, 1))))
 
     assert(ExtractIntervalFilters.extractPartitionFilters(invoke("||", ir1, Ref("foo", TBoolean())), ref1, ref1Key).isEmpty)
+
+    val ir3 = invoke("||", ir1, invoke("&&", ir2, Ref("foo", TBoolean())))
+    assert(ExtractIntervalFilters.extractPartitionFilters(ir3, ref1, ref1Key).isEmpty)
   }
 
   @Test def testConjunction() {

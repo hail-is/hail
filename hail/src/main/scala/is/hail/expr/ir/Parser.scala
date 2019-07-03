@@ -389,6 +389,12 @@ object IRParser {
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
         TStruct(fields, req)
+      case "Union" =>
+        punctuation(it, "{")
+        val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
+        punctuation(it, "}")
+        val cases = args.zipWithIndex.map { case ((id, t), i) => Case(id, t, i) }
+        TUnion(cases, req)
     }
     assert(typ.required == req)
     typ
@@ -501,6 +507,13 @@ object IRParser {
     val seqOpArgs = type_exprs(it).map(t => -t)
     punctuation(it, ")")
     AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
+  }
+
+  def agg_signatures(it: TokenIterator): Array[AggSignature] = {
+    punctuation(it, "(")
+    val sigs = repUntil(it, agg_signature, PunctuationToken(")"))
+    punctuation(it, ")")
+    sigs
   }
 
   def ir_value(it: TokenIterator): (Type, Any) = {
@@ -795,6 +808,39 @@ object IRParser {
         val seqOpArgs = ir_value_exprs(env)(it)
         val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
+      case "InitOp2" =>
+        val i = int32_literal(it)
+        val aggSig = agg_signature(it)
+        val args = ir_value_exprs(env)(it)
+        InitOp2(i, args, aggSig)
+      case "SeqOp2" =>
+        val i = int32_literal(it)
+        val aggSig = agg_signature(it)
+        val args = ir_value_exprs(env)(it)
+        SeqOp2(i, args, aggSig)
+      case "CombOp2" =>
+        val i1 = int32_literal(it)
+        val i2 = int32_literal(it)
+        val aggSig = agg_signature(it)
+        CombOp2(i1, i2, aggSig)
+      case "ResultOp2" =>
+        val i = int32_literal(it)
+        val aggSigs = agg_signatures(it)
+        ResultOp2(i, aggSigs)
+      case "ReadAggs" =>
+        val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        val path = ir_value_expr(env)(it)
+        ReadAggs(i, path, spec, aggSigs)
+      case "WriteAggs" =>
+        val i = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        val path = ir_value_expr(env)(it)
+        WriteAggs(i, path, spec, aggSigs)
       case "InitOp" =>
         val aggSig = agg_signature(it)
         val i = ir_value_expr(env)(it)
@@ -1364,6 +1410,8 @@ object IRParser {
   def parsePType(code: String): PType = parse(code, type_expr).physicalType
 
   def parseStructType(code: String): TStruct = coerce[TStruct](parse(code, type_expr))
+
+  def parseUnionType(code: String): TUnion = coerce[TUnion](parse(code, type_expr))
 
   def parseRVDType(code: String): RVDType = parse(code, rvd_type_expr)
 

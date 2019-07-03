@@ -29,12 +29,15 @@ job_schema = {
     }
 }
 
+job_array_schema = {
+    'jobs': {'type': 'list', 'schema': job_schema}
+}
+
 batch_schema = {
     'attributes': {
         'type': 'dict',
         'keyschema': {'type': 'string'},
         'valueschema': {'type': 'string'}
     },
-    'callback': {'type': 'string'},
-    'jobs': {'type': 'list', 'schema': job_schema}
+    'callback': {'type': 'string'}
 }

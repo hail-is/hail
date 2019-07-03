@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `callback` TEXT(65535),
   `deleted` BOOLEAN NOT NULL default false,
   `cancelled` BOOLEAN NOT NULL default false,
+  `closed` BOOLEAN NOT NULL default false,
   `n_jobs` INT NOT NULL default 0,
   `n_completed` INT NOT NULL default 0,
   `n_succeeded` INT NOT NULL default 0,
@@ -14,7 +15,8 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE = InnoDB;
-CREATE INDEX batch_user ON batch (user);
+CREATE INDEX `batch_user` ON `batch` (`user`);
+CREATE INDEX `batch_deleted` ON `batch` (`deleted`);
 
 CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
@@ -23,8 +25,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `input_exit_code` INT,
   `main_exit_code` INT,
   `output_exit_code` INT,
-  `pod_name` VARCHAR(1024),
-  `pvc_name` TEXT(65535),
+  `token` VARCHAR(1024),
   `pvc_size` TEXT(65535),
   `callback` TEXT(65535),
   `task_idx` INT NOT NULL,
@@ -36,9 +37,13 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `input_log_uri` VARCHAR(1024),
   `main_log_uri` VARCHAR(1024),
   `output_log_uri` VARCHAR(1024),
+  `input_pod_status` TEXT(65535),
+  `main_pod_status` TEXT(65535),
+  `output_pod_status` TEXT(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
+CREATE INDEX `jobs_state` ON `jobs` (`state`);
 
 CREATE TABLE IF NOT EXISTS `jobs-parents` (
   `batch_id` BIGINT NOT NULL,

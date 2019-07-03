@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -359,7 +359,8 @@ object LoadMatrix {
       rowKey = rowKey.toFastIndexedSeq,
       entryType = cellType)
 
-    val rvdType = matrixType.canonicalRVDType
+    val tt = matrixType.canonicalTableType
+    val rvdType = tt.canonicalRVDType
 
     val rdd = ContextRDD.weaken[RVDContext](lines.filter(l => l.value.nonEmpty))
       .cmapPartitionsWithIndex { (i, ctx, it) =>
@@ -394,9 +395,6 @@ object LoadMatrix {
     } else
       RVD.coerce(rvdType, rdd)
 
-    MatrixLiteral(MatrixValue(matrixType,
-      BroadcastRow(Row(), matrixType.globalType, hc.backend),
-      BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.backend),
-      rvd))
+    MatrixLiteral(matrixType, rvd, Row(), colIDs.map(x => Row(x)))
   }
 }

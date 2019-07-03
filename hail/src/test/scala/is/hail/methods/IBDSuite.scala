@@ -106,7 +106,7 @@ class IBDSuite extends HailSuite {
     }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
-    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast))).collect().toMap
+    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast), ctx)).collect().toMap
 
     val plink = runPlinkIBD(vds)
     val sampleIds = vds.stringSampleIds

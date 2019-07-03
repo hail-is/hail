@@ -176,6 +176,19 @@ object Copy {
         InitOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case SeqOp(_, _, aggSig) =>
         SeqOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
+      case InitOp2(i, _, aggSig) =>
+        InitOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case SeqOp2(i, _, aggSig) =>
+        SeqOp2(i, newChildren.map(_.asInstanceOf[IR]), aggSig)
+      case x@(_: ResultOp2 | _: CombOp2) =>
+        assert(newChildren.isEmpty)
+        x
+      case WriteAggs(startIdx, _, spec, aggSigs) =>
+        assert(newChildren.length == 1)
+        WriteAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
+      case ReadAggs(startIdx, _, spec, aggSigs) =>
+        assert(newChildren.length == 1)
+        ReadAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>

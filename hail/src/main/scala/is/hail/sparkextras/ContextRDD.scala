@@ -590,8 +590,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       },
       partitions)
 
-  def blocked(partitionEnds: Array[Int]): ContextRDD[C, T] =
-    new ContextRDD(new BlockedRDD(rdd, partitionEnds), mkc)
+  def blocked(partFirst: Array[Int], partLast: Array[Int]): ContextRDD[C, T] = {
+    new ContextRDD(new BlockedRDD(rdd, partFirst, partLast), mkc)
+  }
 
   def sparkContext: SparkContext = rdd.sparkContext
 

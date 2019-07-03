@@ -13,7 +13,7 @@ BATCH_TEST_IMAGE = gcr.io/$(PROJECT)/batch-test:$(shell docker images -q --no-tr
 
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 
-PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hailjwt
+PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
 BATCH_PORT ?= 5000
@@ -118,7 +118,6 @@ test-deploy: push-test
 	kubectl -n $(TEST_NAMESPACE) apply -f deployment.yaml
 
 clean:
-	rm -rf hailjwt
 	rm -f $(PY_CHECKERS)
 	rm -rf batch-secrets
 

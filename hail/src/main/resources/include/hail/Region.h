@@ -88,6 +88,13 @@ class Region {
     }
     SharedPtr get_region();
     void add_reference_to(SharedPtr region);
+
+    size_t get_num_parents();
+    void set_num_parents(int n);
+    void set_parent_reference(SharedPtr region, int i);
+    SharedPtr get_parent_reference(int i);
+    SharedPtr new_parent_reference(int i);
+    void clear_parent_reference(int i);
 };
 
 using RegionPtr = Region::SharedPtr;
@@ -96,6 +103,7 @@ class ScalaRegion : public NativeObj {
   public:
     RegionPtr region_;
     ScalaRegion(ScalaRegionPool * pool);
+    ScalaRegion(std::nullptr_t);
     void align(size_t alignment) { region_->align(alignment); }
     char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
     char * allocate(size_t n) { return region_->allocate(n); }

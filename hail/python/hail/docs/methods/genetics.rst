@@ -26,6 +26,7 @@ Genetics
     pc_relate
     sample_qc
     skat
+    lambda_gc
     split_multi
     split_multi_hts
     summarize_variants
@@ -53,6 +54,7 @@ Genetics
 .. autofunction:: pc_relate
 .. autofunction:: sample_qc
 .. autofunction:: skat
+.. autofunction:: lambda_gc
 .. autofunction:: split_multi
 .. autofunction:: split_multi_hts
 .. autofunction:: summarize_variants

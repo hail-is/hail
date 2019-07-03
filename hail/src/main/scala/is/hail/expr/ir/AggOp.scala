@@ -39,6 +39,8 @@ final case class TakeBy() extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
 final case class AggElementsLengthCheck() extends AggOp
+final case class AggElements2(aggSig: IndexedSeq[AggSignature]) extends AggOp
+final case class AggElementsLengthCheck2(aggSig: IndexedSeq[AggSignature], knownLength: Boolean) extends AggOp
 final case class PrevNonnull() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
@@ -86,10 +88,6 @@ object AggOp {
 
     case (Sum(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueSumLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
     case (Sum(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueSumDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
-    case (Sum(), Seq(), None, Seq(TArray(TInt64(_), _))) =>
-      CodeAggregator[RegionValueArraySumLongAggregator](TArray(TInt64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
-    case (Sum(), Seq(), None, Seq(TArray(TFloat64(_), _))) =>
-      CodeAggregator[RegionValueArraySumDoubleAggregator](TArray(TFloat64()), constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
 
     case (CollectAsSet(), Seq(), None, Seq(in)) =>
       in match {

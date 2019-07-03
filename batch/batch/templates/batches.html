@@ -4,14 +4,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="/static/style.css">
   </head>
+  <script src="/js/search_bar.js"></script>
   <body>
     <h1>Batches</h1>
-    <table>
+    <input type="text" id="searchBar" onkeyup="searchTable('batches', 'searchBar')" placeholder="Search terms...">
+    <table id="batches">
       <thead>
         <tr>
           <th>ID</th>
           <th>Name</th>
           <th>State</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -24,9 +27,20 @@
             {% endif %}
           </td>
           <td>{{ batch['state'] }}</td>
+          <td>
+            {% if not batch['complete'] %}
+            <form action="/batches/{{ batch['id'] }}/cancel" method="post">
+              <input type="hidden" name="_csrf" value="{{ token }}"/>
+              <input type="submit" value="Cancel">
+            </form>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </body>
+  <script type="text/javascript">
+    document.getElementById("searchBar").focus();
+  </script>
 </html>

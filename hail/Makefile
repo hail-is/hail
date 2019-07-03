@@ -9,20 +9,22 @@ DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.15
+HAIL_PIP_VERSION := 0.2.16
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 
 
+ifdef HAIL_COMPILE_NATIVES
+shadowJar:
+	./gradlew releaseJar
+else
 shadowJar:
 	./gradlew shadowJar
-
-releaseJar:
-	./gradlew releaseJar
+endif
 
 build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailctl/hail_version python/hailctl/hail_pip_version
+	python/hailtop/hail_version python/hailtop/hail_pip_version
 
 define properties
 endef
@@ -40,13 +42,13 @@ src/main/resources/build-info.properties:
 python/hail/hail_version:
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > python/hail/hail_version
 
-python/hailctl/hail_version: python/hail/hail_version
+python/hailtop/hail_version: python/hail/hail_version
 	cp -f $< $@
 
 python/hail/hail_pip_version:
 	echo $(HAIL_PIP_VERSION) > python/hail/hail_pip_version
 
-python/hailctl/hail_pip_version: python/hail/hail_pip_version
+python/hailtop/hail_pip_version: python/hail/hail_pip_version
 	cp -f $< $@
 
 jars: build-info
@@ -80,39 +82,39 @@ HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
 wheel_cloud_path := $(cloud_base)/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 wheel_path := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-resources := $(wildcard python/hailctl/dataproc/resources/*)
-.PHONY: python/hailctl/deploy.yaml
-python/hailctl/deploy.yaml:
-	rm -f python/hailctl/deploy.yaml
-	echo "dataproc:" >> python/hailctl/deploy.yaml
+resources := $(wildcard python/hailtop/hailctl/dataproc/resources/*)
+.PHONY: python/hailtop/hailctl/deploy.yaml
+python/hailtop/hailctl/deploy.yaml:
+	rm -f $@
+	echo "dataproc:" >> $@
 	for FILE in $(notdir $(resources)); do \
-	  echo "  $$FILE: $(cloud_base)/$$FILE" >> python/hailctl/deploy.yaml || break; done || exit
-	echo "  wheel: $(wheel_cloud_path)" >> python/hailctl/deploy.yaml
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> python/hailctl/deploy.yaml
+	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
+	echo "  wheel: $(wheel_cloud_path)" >> $@
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: wheel
 	gsutil -m cp -r $(resources) $(wheel_path) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
 
-.PHONY: install-wheel
-install-wheel: wheel
+.PHONY: install
+install: wheel
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(wheel_path)
 
-.PHONY: install-hailctl-wheel
-install-hailctl-wheel: install-wheel upload-artifacts
+.PHONY: install-hailctl
+install-hailctl: install upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
 .PHONY: test-dataproc
-test-dataproc: install-hailctl-wheel
+test-dataproc: install-hailctl
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
 	for FILE in `ls python/cluster-tests`; do \
-	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || break; done || exit
+	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || exit 1; done || exit
 
 .PHONY: init-scripts
-init-scripts: python/hailctl/deploy.yaml
+init-scripts: python/hailtop/hailctl/deploy.yaml
 
 DEPLOYED_VERSION = $(shell \
   $(PIP) --no-cache-dir search hail \
@@ -129,7 +131,7 @@ check-pypi:
 HAIL_TWINE_CREDS_FOLDER ?= /secrets/
 
 .PHONY: pypi-deploy
-pypi-deploy: check-pypi wheel test-dataproc tag set-docs-sha
+pypi-deploy: check-pypi test-dataproc set-docs-sha
 	TWINE_USERNAME=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-username) \
 	TWINE_PASSWORD=$(shell cat $(HAIL_TWINE_CREDS_FOLDER)/pypi-password) \
 	twine upload build/deploy/dist/*

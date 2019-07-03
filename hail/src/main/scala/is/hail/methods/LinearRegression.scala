@@ -5,7 +5,7 @@ import breeze.numerics.sqrt
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
@@ -39,7 +39,7 @@ case class LinearRegressionRowsSingle(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 
     val n = y.rows // n_complete_samples
@@ -167,7 +167,7 @@ case class LinearRegressionRowsSingle(
             }
           }
       })
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 
@@ -196,7 +196,7 @@ case class LinearRegressionRowsChained(
 
   def preservesPartitionCounts: Boolean = true
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
 
     val localData = yFields.map(y => RegressionUtils.getPhenosCovCompleteSamples(mv, y.toArray, covFields.toArray))
 
@@ -354,7 +354,7 @@ case class LinearRegressionRowsChained(
             }
           }
       })
-    TableValue(tableType, BroadcastRow.empty(), newRVD)
+    TableValue(tableType, BroadcastRow.empty(ctx), newRVD)
   }
 }
 

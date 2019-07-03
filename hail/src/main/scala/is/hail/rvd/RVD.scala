@@ -7,8 +7,9 @@ import is.hail.annotations._
 import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt64, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
+import is.hail.expr.types.virtual.{TArray, TInt64, TInterval, TStruct}
 import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
+import is.hail.io.index.IndexWriter
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.commons.lang3.StringUtils
@@ -736,17 +737,165 @@ class RVD(
 
   def storageLevel: StorageLevel = StorageLevel.NONE
 
-  def write(path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
-    val (partFiles, partitionCounts) = crdd.writeRows(path, rowPType, stageLocally, codecSpec)
-    rvdSpec(codecSpec, partFiles).write(HailContext.sFS, path)
+  def write(path: String, idxRelPath: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
+    val (partFiles, partitionCounts) = crdd.writeRows(path, idxRelPath, typ, stageLocally, codecSpec)
+    rvdSpec(codecSpec, IndexSpec.emptyAnnotation(idxRelPath, typ.kType.virtualType), partFiles).write(HailContext.sFS, path)
     partitionCounts
   }
 
   def writeRowsSplit(
     path: String,
     codecSpec: CodecSpec,
-    stageLocally: Boolean
-  ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
+    stageLocally: Boolean,
+    targetPartitioner: RVDPartitioner
+  ): Array[Long] = {
+    val fs = HailContext.sFS
+
+    fs.mkDir(path + "/rows/rows/parts")
+    fs.mkDir(path + "/entries/rows/parts")
+    fs.mkDir(path + "/index")
+
+    val bcFS = HailContext.bcFS
+    val nPartitions =
+      if (targetPartitioner != null)
+        targetPartitioner.numPartitions
+      else
+        crdd.getNumPartitions
+    val d = digitsNeeded(nPartitions)
+
+    val fullRowType = typ.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
+
+    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
+    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
+    val makeIndexWriter = IndexWriter.builder(typ.kType.virtualType, +TStruct("entries_offset" -> TInt64()))
+
+    val localTyp = typ
+
+    val partFilePartitionCounts: Array[(String, Long)] =
+      if (targetPartitioner != null) {
+        val nInputParts = partitioner.numPartitions
+        val nOutputParts = targetPartitioner.numPartitions
+
+        val inputFirst = new Array[Int](nInputParts)
+        val inputLast = new Array[Int](nInputParts)
+        val outputFirst = new Array[Int](nInputParts)
+        val outputLast = new Array[Int](nInputParts)
+        var i = 0
+        while (i < nInputParts) {
+          outputFirst(i) = -1
+          outputLast(i) = -1
+          inputFirst(i) = i
+          inputLast(i) = i
+          i += 1
+        }
+
+        var j = 0
+        while (j < nOutputParts) {
+          var (s, e) = partitioner.intervalRange(targetPartitioner.rangeBounds(j))
+          s = math.min(s, nInputParts - 1)
+          e = math.min(e, nInputParts - 1)
+
+          if (outputFirst(s) == -1)
+            outputFirst(s) = j
+
+          if (outputLast(s) < j)
+            outputLast(s) = j
+
+          if (inputLast(s) < e)
+            inputLast(s) = e
+
+          j += 1
+        }
+
+        val sc = crdd.sparkContext
+        val targetPartitionerBc = targetPartitioner.broadcast(sc)
+        val localRowPType = rowPType
+        val outputFirstBc = sc.broadcast(outputFirst)
+        val outputLastBc = sc.broadcast(outputLast)
+
+        crdd.blocked(inputFirst, inputLast)
+          .cmapPartitionsWithIndex { (i, ctx, it) =>
+            val s = outputFirstBc.value(i)
+            if (s == -1)
+              Iterator.empty
+            else {
+              val e = outputLastBc.value(i)
+
+              val fs = bcFS.value
+              val bit = it.buffered
+
+              val kOrd = localTyp.kType.virtualType.ordering
+              val extractKey: (RegionValue) => Any = (rv: RegionValue) => {
+                val ur = new UnsafeRow(localRowPType, rv)
+                Row.fromSeq(localTyp.kFieldIdx.map(i => ur.get(i)))
+              }
+
+              (s to e).iterator.map { j =>
+                val b = targetPartitionerBc.value.rangeBounds(j)
+
+                while (bit.hasNext && b.isAbovePosition(kOrd, extractKey(bit.head)))
+                  bit.next()
+
+                assert(
+                  !bit.hasNext || {
+                    val k = extractKey(bit.head)
+                    b.contains(kOrd, k) || b.isBelowPosition(kOrd, k)
+                  })
+
+                val it2 = new Iterator[RegionValue] {
+                  def hasNext: Boolean = {
+                    bit.hasNext && b.contains(kOrd, extractKey(bit.head))
+                  }
+
+                  def next(): RegionValue = bit.next()
+                }
+
+                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                  fs,
+                  path,
+                  localTyp,
+                  it2,
+                  j,
+                  ctx,
+                  d,
+                  stageLocally,
+                  makeIndexWriter,
+                  makeRowsEnc,
+                  makeEntriesEnc)
+
+                partFileAndCount
+              }
+            }
+          }.collect()
+      } else {
+        crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+          val fs = bcFS.value
+          val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+            fs,
+            path,
+            localTyp,
+            it,
+            i,
+            ctx,
+            d,
+            stageLocally,
+            makeIndexWriter,
+            makeRowsEnc,
+            makeEntriesEnc)
+
+          Iterator.single(partFileAndCount)
+        }.collect()
+      }
+
+    val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
+
+    RichContextRDDRegionValue.writeSplitSpecs(fs, path, codecSpec, typ, rowsRVType, entriesRVType, partFiles,
+      if (targetPartitioner != null) targetPartitioner else partitioner)
+
+    partitionCounts
+  }
 
   // Joining
 
@@ -1072,11 +1221,19 @@ class RVD(
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
     new KeyedRVD(this, key)
 
-  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): AbstractRVDSpec =
+  private def ordRvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): AbstractRVDSpec =
     OrderedRVDSpec(
       typ.rowType,
       typ.key,
       codecSpec,
+      partFiles,
+      partitioner)
+
+  private def rvdSpec(codecSpec: CodecSpec, indexSpec: IndexSpec, partFiles: Array[String]): AbstractRVDSpec =
+    IndexedRVDSpec(
+      typ,
+      codecSpec,
+      indexSpec,
       partFiles,
       partitioner)
 }
@@ -1371,8 +1528,8 @@ object RVD {
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
     val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
-
     val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
+    val makeIndexWriter = IndexWriter.builder(localTyp.kType.virtualType, +TStruct("entries_offset" -> TInt64()))
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
@@ -1380,6 +1537,7 @@ object RVD {
       val s = StringUtils.leftPad(i.toString, fileDigits, '0')
       fs.mkDir(path + s + ".mt" + "/rows/rows/parts")
       fs.mkDir(path + s + ".mt" + "/entries/rows/parts")
+      fs.mkDir(path + s + ".mt" + "/index")
     }
 
     val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[RegionValue]]) =>
@@ -1396,6 +1554,7 @@ object RVD {
           ctx,
           partDigits,
           stageLocally,
+          makeIndexWriter,
           makeRowsEnc,
           makeEntriesEnc)
         Iterator.single((f, rowCount, originIdx))
@@ -1423,7 +1582,7 @@ object RVD {
         val fs = bcFS.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
         val basePath = path + s + ".mt"
-        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+        RichContextRDDRegionValue.writeSplitSpecs(fs, basePath, codecSpec, localTyp, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
       }
 
     partCounts

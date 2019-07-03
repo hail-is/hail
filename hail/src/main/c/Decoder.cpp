@@ -3,6 +3,7 @@
 #include "hail/Decoder.h"
 #include "lz4.h"
 #include "hail/Utils.h"
+#include <iostream>
 
 namespace hail {
 
@@ -47,19 +48,6 @@ InputStream::~InputStream() {
     jbuf_size_ = -1;
   }
   up_.env()->DeleteGlobalRef(jinput_stream_);
-}
-
-// StreamInputBlockBuffer
-StreamInputBlockBuffer::StreamInputBlockBuffer(std::shared_ptr<InputStream> is) :
-  input_stream_(is) { }
-
-int StreamInputBlockBuffer::read_block(char * buf) {
-  auto r = input_stream_->read(len_buf_, 4);
-  if (r == -1) {
-    return -1;
-  }
-  int len = load_int(len_buf_);
-  return input_stream_->read(buf, len);
 }
 
 }

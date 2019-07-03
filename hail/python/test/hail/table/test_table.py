@@ -341,6 +341,12 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
+    def test_scan_filter(self):
+        ht = hl.utils.range_table(10, n_partitions=10)
+        ht = ht.annotate(x = hl.scan.count())
+        ht = ht.filter(ht.idx == 9)
+        assert ht.x.collect() == [9]
+
     def test_semi_anti_join(self):
         ht = hl.utils.range_table(10)
         ht2 = ht.filter(ht.idx < 3)
@@ -385,6 +391,10 @@ class Tests(unittest.TestCase):
     def test_index_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(foo=5)
         assert hl.eval(ht.index_globals().foo) == 5
+
+    def test_interval_filter_loci(self):
+        ht = hl.import_vcf(resource('sample.vcf')).rows()
+        assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -443,7 +453,7 @@ class Tests(unittest.TestCase):
               {"id": 3, "name": "z", "data":  0.01}]
         s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
         ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
-        joined = hl.Table._multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        joined = hl.Table.multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
         dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
                                           {"name": "d", "data": 1.1},
                                           None]},
@@ -466,10 +476,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(expected._same(joined))
 
         expected2 = expected.transmute(data=expected['__data'])
-        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        joined_same_name = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('globals')
         self.assertTrue(expected2._same(joined_same_name))
 
-        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        joined_nothing = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
         self.assertEqual(joined_nothing._force_count(), 5)
 
     def test_multi_way_zip_join_globals(self):
@@ -480,14 +490,14 @@ class Tests(unittest.TestCase):
             hl.struct(x=hl.null(hl.tint32)),
             hl.struct(x=5),
             hl.struct(x=0)]))
-        joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
         ht = mt.rows()
-        j = hl.Table._multi_way_zip_join([ht, ht], 'd', 'g')
+        j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
     def test_index_maintains_count(self):
@@ -723,6 +733,24 @@ class Tests(unittest.TestCase):
         t.export(tmp_file)
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
+
+    def test_indexed_read(self):
+        t = hl.utils.range_table(2000, 10)
+        f = new_temp_file(suffix='ht')
+        t.write(f)
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ])
+        self.assertEqual(t2.n_partitions(), 2)
+        self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
+
+        t2 = hl.read_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ], _filter_intervals=True)
+        self.assertEqual(t2.n_partitions(), 3)
+        self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
@@ -993,7 +1021,7 @@ class Tests(unittest.TestCase):
 
         t2 = t1.annotate_globals(x = 7)
         self.assertFalse(t1._same(t2))
-        
+
         t3 = t1.annotate(x = 7)
         self.assertFalse(t1._same(t3))
 
@@ -1009,7 +1037,7 @@ class Tests(unittest.TestCase):
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
-        
+
         t2 = t1.annotate(x = 8)
         self.assertFalse(t1._same(t2))
 

@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -221,7 +221,12 @@ object ExportVCF {
 
   def apply(mt: MatrixTable, path: String, append: Option[String] = None,
     exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExportVCF(mt.value, path, append, exportType, metadata)
+    ExecuteContext.scoped { ctx =>
+
+      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
+        .toMatrixValue(mt.colKey),
+        path, append, exportType, metadata)
+    }
   }
 
   def apply(mv: MatrixValue, path: String, append: Option[String],

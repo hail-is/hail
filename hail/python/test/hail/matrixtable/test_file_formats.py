@@ -42,26 +42,29 @@ class Tests(unittest.TestCase):
 
         all_values_table, all_values_matrix_table = create_all_values_datasets()
 
-        table_dir = resource('backward_compatability/1.0.0/table')
-        matrix_table_dir = resource('backward_compatability/1.0.0/matrix_table')
+        resource_dir = resource('backward_compatability')
+        versions = os.listdir(resource_dir)
 
         n = 0
-        i = 0
-        f = os.path.join(table_dir, '{}.ht'.format(i))
-        while os.path.exists(f):
-            ds = hl.read_table(f)
-            self.assertTrue(ds._same(all_values_table))
-            i += 1
+        for v in versions:
+            table_dir = os.path.join(resource_dir, v, 'table')
+            i = 0
             f = os.path.join(table_dir, '{}.ht'.format(i))
-            n += 1
+            while os.path.exists(f):
+                ds = hl.read_table(f)
+                self.assertTrue(ds._same(all_values_table))
+                i += 1
+                f = os.path.join(table_dir, '{}.ht'.format(i))
+                n += 1
 
-        i = 0
-        f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-        while os.path.exists(f):
-            ds = hl.read_matrix_table(f)
-            self.assertTrue(ds._same(all_values_matrix_table))
-            i += 1
+            matrix_table_dir = os.path.join(resource_dir, v, 'matrix_table')
+            i = 0
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-            n += 1
+            while os.path.exists(f):
+                ds = hl.read_matrix_table(f)
+                self.assertTrue(ds._same(all_values_matrix_table))
+                i += 1
+                f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
+                n += 1
 
-        self.assertEqual(n, 8)
+        self.assertEqual(n, 20)

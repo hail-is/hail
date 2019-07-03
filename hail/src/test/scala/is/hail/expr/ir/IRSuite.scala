@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -17,7 +17,7 @@ import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils.{FastIndexedSeq, _}
-import is.hail.variant.{Call, Call2, MatrixTable}
+import is.hail.variant.{Call, Call2, Locus, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -976,10 +976,10 @@ class IRSuite extends HailSuite {
     val v = NDArrayReshape(matrixRowMajor, MakeTuple(Seq(I64(4))))
     val mat2 = NDArrayReshape(v, MakeTuple(Seq(I64(2), I64(2))))
 
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(2)), 3.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(1, 0)), 3.0)
-    assertEvalsTo(makeNDArrayRef(v, IndexedSeq(0)), 1.0)
-    assertEvalsTo(makeNDArrayRef(mat2, IndexedSeq(0, 0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(2)), 3.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(1, 0)), 3.0)
+    assertEvalsTo(makeNDArrayRef(v, FastIndexedSeq(0)), 1.0)
+    assertEvalsTo(makeNDArrayRef(mat2, FastIndexedSeq(0, 0)), 1.0)
   }
 
   @Test def testNDArrayMap() {
@@ -1595,6 +1595,12 @@ class IRSuite extends HailSuite {
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
+      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig),
+      SeqOp2(0, FastIndexedSeq(i), collectSig),
+      CombOp2(0, 1, collectSig),
+      ResultOp2(0, FastSeq(collectSig)),
+      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
+      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -1891,11 +1897,11 @@ class IRSuite extends HailSuite {
       val args = FastIndexedSeq((i, TBoolean()))
 
       IRSuite.globalCounter = 0
-      Interpret[Any](x, env, args, None, optimize = false)
+      Interpret[Any](ctx, x, env, args, None, optimize = false)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
-      Interpret[Any](x, env, args, None)
+      Interpret[Any](ctx, x, env, args, None)
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
@@ -2042,7 +2048,7 @@ class IRSuite extends HailSuite {
         |      (Ref __uid_1))))
       """.stripMargin
 
-    Interpret(ir.IRParser.parse_table_ir(irStr), optimize = false).rvd.count()
+    Interpret(ir.IRParser.parse_table_ir(irStr), ctx, optimize = false).rvd.count()
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {
@@ -2050,8 +2056,8 @@ class IRSuite extends HailSuite {
 
     val t1 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), FastIndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
-    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, hc.backend), RVD.empty(sc, t1.canonicalRVDType)))
-    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, hc.backend), RVD.empty(sc, t2.canonicalRVDType)))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(ctx, Row(1, 1.1), t1.globalType), RVD.empty(sc, t1.canonicalRVDType)), ctx)
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(ctx, Row(2, 2.2), t2.globalType), RVD.empty(sc, t2.canonicalRVDType)), ctx)
 
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
@@ -2164,5 +2170,24 @@ class IRSuite extends HailSuite {
       MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3)), TArray(TInt32())),
       MakeArray(FastIndexedSeq(I32(4), I32(5), I32(6)), TArray(TInt32())))
     assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
+  }
+
+  @Test def regressionTestUnifyBug(): Unit = {
+    // failed due to misuse of Type.unify
+    val ir = IRParser.parse_value_ir(
+      """
+        |(ArrayMap __uid_3
+        |    (Literal Array[Interval[Locus(GRCh37)]] "[{\"start\": {\"contig\": \"20\", \"position\": 10277621}, \"end\": {\"contig\": \"20\", \"position\": 11898992}, \"includeStart\": true, \"includeEnd\": false}]")
+        |    (Apply Interval
+        |       (MakeStruct (locus  (Apply start (Ref __uid_3))))
+        |       (MakeStruct (locus  (Apply end (Ref __uid_3)))) (True) (False)))
+        |""".stripMargin)
+    val (v, _) = HailContext.backend.execute(ir, optimize = true)
+    assert(
+      ir.typ.ordering.equiv(
+        FastIndexedSeq(
+          Interval(
+            Row(Locus("20", 10277621)), Row(Locus("20", 11898992)), includesStart = true, includesEnd = false)),
+        v))
   }
 }

@@ -728,6 +728,38 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
+    def test_indexed_read(self):
+        mt = hl.utils.range_matrix_table(2000, 100, 10)
+        f = new_temp_file(suffix='mt')
+        mt.write(f)
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ])
+        self.assertEqual(mt2.n_partitions(), 2)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ], _filter_intervals=True)
+        self.assertEqual(mt2.n_partitions(), 3)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+    def test_indexed_read_vcf(self):
+        vcf = self.get_vds(10)
+        f = new_temp_file(suffix='mt')
+        vcf.write(f)
+        l1, l2, l3, l4 = hl.Locus('20', 10000000), hl.Locus('20', 11000000), hl.Locus('20', 13000000), hl.Locus('20', 14000000)
+        mt = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=l1, end=l2),
+            hl.Interval(start=l3, end=l4),
+        ])
+        self.assertEqual(mt.n_partitions(), 2)
+        p = (vcf.locus >= l1) & (vcf.locus < l2)
+        q = (vcf.locus >= l3) & (vcf.locus < l4)
+        self.assertTrue(vcf.filter_rows(p | q)._same(mt))
+
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
@@ -1259,3 +1291,54 @@ class Tests(unittest.TestCase):
     def test_show(self):
         mt = self.get_vds()
         mt.show()
+
+    def test_partitioned_write(self):
+        mt = hl.utils.range_matrix_table(40, 3, 5)
+
+        def test_parts(parts, expected=mt):
+            parts = [
+                hl.Interval(start=hl.Struct(row_idx=s), end=hl.Struct(row_idx=e),
+                            includes_start=_is, includes_end=ie)
+                for (s, e, _is, ie) in parts
+            ]
+
+            tmp = new_temp_file(suffix='mt')
+            mt.write(tmp, _partitions=parts)
+
+            mt2 = hl.read_matrix_table(tmp)
+            self.assertEqual(mt2.n_partitions(), len(parts))
+            self.assertTrue(mt2._same(expected))
+
+        test_parts([
+            (0, 40, True, False)
+        ])
+
+        test_parts([
+            (-34, -31, True, True),
+            (-30, 9, True, True),
+            (10, 107, True, True),
+            (108, 1000, True, True)
+        ])
+
+        test_parts([
+            (0, 5, True, False),
+            (35, 40, True, True)
+        ],
+                   mt.filter_rows((mt.row_idx < 5) | (mt.row_idx >= 35)))
+
+        test_parts([
+            (5, 35, True, False)
+        ],
+                   mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
+
+    def test_partitioned_write_coerce(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+        parts = [
+            hl.Interval(hl.Locus('20', 10277621), hl.Locus('20', 11898992))
+        ]
+        tmp = new_temp_file(suffix='mt')
+        mt.write(tmp, _partitions=parts)
+
+        mt2 = hl.read_matrix_table(tmp)
+        assert mt2.n_partitions() == len(parts)
+        assert hl.filter_intervals(mt, parts)._same(mt2)
