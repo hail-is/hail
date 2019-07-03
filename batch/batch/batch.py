@@ -532,7 +532,7 @@ class Job:
         if pod is not None:
             assert pod.metadata.name == self._pod_name
             if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
-                log.info('ignoring because pod task label does not match the current task')
+                log.info(f'ignoring because pod task label does not match the current task for job {self.full_id}')
                 return
 
         task_name = self._current_task.name
