@@ -585,7 +585,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ExecuteContext.scoped { ctx =>
-      ir.Interpret[Unit](ctx, ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
+      ir.Interpret[Unit](ctx, ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr, null)))
     }
   }
 }

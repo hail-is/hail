@@ -1,5 +1,6 @@
 import abc
 import json
+from hail.expr.types import hail_type
 from ..typecheck import *
 from ..utils.misc import escape_str
 
@@ -18,19 +19,25 @@ class MatrixNativeWriter(MatrixWriter):
     @typecheck_method(path=str,
                       overwrite=bool,
                       stage_locally=bool,
-                      codec_spec=nullable(str))
-    def __init__(self, path, overwrite, stage_locally, codec_spec):
+                      codec_spec=nullable(str),
+                      partitions=nullable(str),
+                      partitions_type=nullable(hail_type))
+    def __init__(self, path, overwrite, stage_locally, codec_spec, partitions, partitions_type):
         self.path = path
         self.overwrite = overwrite
         self.stage_locally = stage_locally
         self.codec_spec = codec_spec
+        self.partitions = partitions
+        self.partitions_type = partitions_type
 
     def render(self):
         writer = {'name': 'MatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally,
-                  'codecSpecJSONStr': self.codec_spec}
+                  'codecSpecJSONStr': self.codec_spec,
+                  'partitions': self.partitions,
+                  'partitionsTypeStr': self.partitions_type._parsable_string() if self.partitions_type is not None else None}
         return escape_str(json.dumps(writer))
 
     def __eq__(self, other):
@@ -38,7 +45,10 @@ class MatrixNativeWriter(MatrixWriter):
                other.path == self.path and \
                other.overwrite == self.overwrite and \
                other.stage_locally == self.stage_locally and \
-               other.codec_spec == self.codec_spec
+               other.codec_spec == self.codec_spec and \
+               other.partitions == self.partitions and \
+               other.partitions_type == self.partitions_type
+               
 
 
 class MatrixVCFWriter(MatrixWriter):

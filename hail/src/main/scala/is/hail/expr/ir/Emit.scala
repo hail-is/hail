@@ -1135,9 +1135,6 @@ private class Emit(
 
       case ir@Apply(fn, args) =>
         val impl = ir.implementation
-        val unified = impl.unify(args.map(_.typ))
-        assert(unified)
-
         val meth =
           methods(fn).filter { case (argt, _) => argt.zip(args.map(_.typ)).forall { case (t1, t2) => t1 isOfType t2 } } match {
             case Seq(f) =>
@@ -1152,18 +1149,20 @@ private class Emit(
         val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
         val value = Code(ins :+ meth.invoke(mb.getArg[Region](1).load() +: vars.map { a => a.load() }: _*): _*)
         strict(value, codeArgs: _*)
-      case ir@ApplySeeded(fn, args, seed) =>
-        val impl = ir.implementation
+      case x@ApplySeeded(fn, args, seed) =>
+        val codeArgs = args.map(emit(_))
+        val impl = x.implementation
         val unified = impl.unify(args.map(_.typ))
         assert(unified)
         impl.setSeed(seed)
-        val codeArgs = args.map(emit(_))
         impl.apply(er, codeArgs: _*)
       case x@ApplySpecial(_, args) =>
-        x.implementation.argTypes.foreach(_.clear())
-        val unified = x.implementation.unify(args.map(_.typ))
+        val codeArgs = args.map(emit(_))
+        val impl = x.implementation
+        impl.argTypes.foreach(_.clear())
+        val unified = impl.unify(args.map(_.typ))
         assert(unified)
-        x.implementation.apply(er, args.map(emit(_)): _*)
+        impl.apply(er, codeArgs: _*)
       case x@Uniroot(argname, fn, min, max) =>
         val missingError = s"result of function missing in call to uniroot; must be defined along entire interval"
         val asmfunction = getAsDependentFunction[Double, Double](fn, Env[IR](argname -> In(0, TFloat64())), env, missingError)

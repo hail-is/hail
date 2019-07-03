@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
@@ -18,6 +19,7 @@ import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 
 case class MatrixValue(
@@ -182,7 +184,12 @@ case class MatrixValue(
       s"to $path")
   }
 
-  def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+  def write(path: String,
+    overwrite: Boolean,
+    stageLocally: Boolean,
+    codecSpecJSONStr: String,
+    partitions: String,
+    partitionsTypeStr: String) = {
     val hc = HailContext.get
     val fs = hc.sFS
 
@@ -201,7 +208,17 @@ case class MatrixValue(
 
     fs.mkDir(path)
 
-    val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
+    val targetPartitioner =
+      if (partitions != null) {
+        val partitionsType = IRParser.parseType(partitionsTypeStr)
+        val jv = JsonMethods.parse(partitions)
+        val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
+          .asInstanceOf[IndexedSeq[Interval]]
+        new RVDPartitioner(typ.rowKey.toArray, typ.rowKeyStruct, rangeBounds)
+      } else
+        null
+
+    val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally, targetPartitioner)
 
     finalizeWrite(fs, path, codecSpec, partitionCounts)
   }

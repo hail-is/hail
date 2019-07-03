@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.{ExecStrategy, HailContext, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -17,7 +17,7 @@ import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils.{FastIndexedSeq, _}
-import is.hail.variant.{Call, Call2, MatrixTable}
+import is.hail.variant.{Call, Call2, Locus, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -2170,5 +2170,24 @@ class IRSuite extends HailSuite {
       MakeArray(FastIndexedSeq(I32(1), I32(2), I32(3)), TArray(TInt32())),
       MakeArray(FastIndexedSeq(I32(4), I32(5), I32(6)), TArray(TInt32())))
     assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
+  }
+
+  @Test def regressionTestUnifyBug(): Unit = {
+    // failed due to misuse of Type.unify
+    val ir = IRParser.parse_value_ir(
+      """
+        |(ArrayMap __uid_3
+        |    (Literal Array[Interval[Locus(GRCh37)]] "[{\"start\": {\"contig\": \"20\", \"position\": 10277621}, \"end\": {\"contig\": \"20\", \"position\": 11898992}, \"includeStart\": true, \"includeEnd\": false}]")
+        |    (Apply Interval
+        |       (MakeStruct (locus  (Apply start (Ref __uid_3))))
+        |       (MakeStruct (locus  (Apply end (Ref __uid_3)))) (True) (False)))
+        |""".stripMargin)
+    val (v, _) = HailContext.backend.execute(ir, optimize = true)
+    assert(
+      ir.typ.ordering.equiv(
+        FastIndexedSeq(
+          Interval(
+            Row(Locus("20", 10277621)), Row(Locus("20", 11898992)), includesStart = true, includesEnd = false)),
+        v))
   }
 }
