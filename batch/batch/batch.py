@@ -16,7 +16,7 @@ import cerberus
 import kubernetes as kube
 import requests
 import uvloop
-from prometheus_client import Summary
+import prometheus_client as pc
 from prometheus_async.aio import time
 from prometheus_async.aio.web import server_stats
 
@@ -35,6 +35,23 @@ from . import schemas
 
 gear.configure_logging()
 log = logging.getLogger('batch')
+
+REQUEST_TIME = pc.Summary('request_latency_seconds', 'Request latency in seconds', ['endpoint', 'verb'])
+REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
+REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_POD_STATUS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/pod_status', verb="GET")
+REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
+REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
+REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
+REQUEST_TIME_POST_GET_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb='GET')
+REQUEST_TIME_PATCH_CANCEL_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/cancel', verb="PATCH")
+REQUEST_TIME_PATCH_CLOSE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/close', verb="PATCH")
+REQUEST_TIME_DELETE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb="DELETE")
+REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', verb='GET')
+REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
+REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
+REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
+REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/pod_status', verb="GET")
 
 uvloop.install()
 
@@ -676,14 +693,11 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         state=state)
     return job
 
-req_time_summary = Summary('request_latency_seconds', 'Request latency in seconds')
-
-@time(req_time_summary)
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
-
+@REQUEST_TIME_GET_JOB.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @rest_authenticated_users_only
 async def get_job(request, userdata):
@@ -719,6 +733,7 @@ async def _get_pod_status(batch_id, job_id, user):
     abort(404)
 
 
+@REQUEST_TIME_GET_JOB_LOG.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @rest_authenticated_users_only
 async def get_job_log(request, userdata):  # pylint: disable=R1710
@@ -729,6 +744,7 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
     return jsonify(job_log)
 
 
+@REQUEST_TIME_GET_POD_STATUS.time()
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/pod_status')
 @rest_authenticated_users_only
 async def get_pod_status(request, userdata):  # pylint: disable=R1710
@@ -908,6 +924,7 @@ async def _get_batches_list(params, user):
     return [await batch.to_dict(include_jobs=False) for batch in batches]
 
 
+@REQUEST_TIME_GET_BATCHES.time()
 @routes.get('/api/v1alpha/batches')
 @rest_authenticated_users_only
 async def get_batches_list(request, userdata):
@@ -916,6 +933,7 @@ async def get_batches_list(request, userdata):
     return jsonify(await _get_batches_list(params, user))
 
 
+@REQUEST_TIME_POST_CREATE_JOBS.time()
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
@@ -954,7 +972,7 @@ async def create_jobs(request, userdata):
 
     return jsonify({})
 
-
+@REQUEST_TIME_POST_CREATE_BATCH.time()
 @routes.post('/api/v1alpha/batches/create')
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
@@ -985,7 +1003,7 @@ async def _cancel_batch(batch_id, user):
         abort(404)
     await batch.cancel()
 
-
+@REQUEST_TIME_POST_GET_BATCH.time()
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @rest_authenticated_users_only
 async def get_batch(request, userdata):
@@ -993,7 +1011,7 @@ async def get_batch(request, userdata):
     user = userdata['username']
     return jsonify(await _get_batch(batch_id, user))
 
-
+@REQUEST_TIME_PATCH_CANCEL_BATCH.time()
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @rest_authenticated_users_only
 async def cancel_batch(request, userdata):
@@ -1002,7 +1020,7 @@ async def cancel_batch(request, userdata):
     await _cancel_batch(batch_id, user)
     return jsonify({})
 
-
+@REQUEST_TIME_PATCH_CLOSE_BATCH.time()
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
@@ -1014,7 +1032,7 @@ async def close_batch(request, userdata):
     await batch.close()
     return jsonify({})
 
-
+@REQUEST_TIME_DELETE_BATCH.time()
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @rest_authenticated_users_only
 async def delete_batch(request, userdata):
@@ -1027,7 +1045,7 @@ async def delete_batch(request, userdata):
     await batch.mark_deleted()
     return jsonify({})
 
-
+@REQUEST_TIME_GET_BATCH_UI.time()
 @routes.get('/batches/{batch_id}')
 @aiohttp_jinja2.template('batch.html')
 @web_authenticated_users_only
@@ -1038,6 +1056,7 @@ async def ui_batch(request, userdata):
     return {'batch': batch}
 
 
+@REQUEST_TIME_POST_CANCEL_BATCH_UI.time()
 @routes.post('/batches/{batch_id}/cancel')
 @aiohttp_jinja2.template('batches.html')
 @check_csrf_token
@@ -1050,6 +1069,7 @@ async def ui_cancel_batch(request, userdata):
     raise web.HTTPFound(location=location)
 
 
+@REQUEST_TIME_GET_BATCHES_UI.time()
 @routes.get('/batches', name='batches')
 @web_authenticated_users_only
 async def ui_batches(request, userdata):
@@ -1065,7 +1085,7 @@ async def ui_batches(request, userdata):
     response.set_cookie('_csrf', token, secure=True, httponly=True)
     return response
 
-
+@REQUEST_TIME_GET_LOGS_UI.time()
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only
@@ -1077,6 +1097,7 @@ async def ui_get_job_log(request, userdata):
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
+@REQUEST_TIME_GET_POD_STATUS_UI.time()
 @routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only
