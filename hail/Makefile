@@ -10,6 +10,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
 HAIL_PIP_VERSION := 0.2.16
+PARALLELISM := 2
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
@@ -53,6 +54,23 @@ python/hailtop/hail_pip_version: python/hail/hail_pip_version
 
 jars: build-info
 	./gradlew shadowTestJar shadowJar
+
+python/README.md: ../README.md
+	cp ../README.md python/
+
+python/hail/hail-all-spark.jar: shadowJar
+	cp build/libs/hail-all-spark.jar python/hail/
+
+.PHONY: install-editable
+install-editable: build-info init-scripts
+install-editable: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(PIP) install -e
+
+.PHONY: pytest
+pytest: build-info shadowJar init-scripts
+pytest: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
+    --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
 
 .PHONY: wheel
 wheel: build-info shadowJar init-scripts
@@ -167,3 +185,5 @@ install-deps:
 clean:
 	./gradlew clean
 	rm -rf build/deploy
+	rm -rf python/hail/hail-all-spark.jar
+	rm -rf python/README.md
