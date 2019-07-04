@@ -9,6 +9,7 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -34,7 +35,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[EmitTriplet]) => EmitTriplet) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[(PType, EmitTriplet)]) => EmitTriplet) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -44,28 +45,28 @@ object IRSuite {
 
         override val returnType: Type = rType
 
-        def applySeeded(seed: Long, r: EmitRegion, args: EmitTriplet*): EmitTriplet =
+        def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet =
           impl(r, seed, args.toArray)
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, EmitTriplet) => EmitTriplet): Unit =
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, (PType, EmitTriplet)) => EmitTriplet): Unit =
       registerSeededWithMissingness(mname, Array(mt1), rType) { case (r, seed, Array(a1)) => impl(r, seed, a1) }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { (mb, _, l) =>
+      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           l.v)
       }
 
-      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean()) { (mb, _, l) =>
+      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
           l.v)
       }
 
-      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean()) { (mb, _, l) =>
+      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
         EmitTriplet(l.setup,
           l.m,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))

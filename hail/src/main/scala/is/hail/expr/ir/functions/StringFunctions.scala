@@ -51,12 +51,13 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerCode("length", TString(), TInt32()) { (r: EmitRegion, s: Code[Long]) =>
-      asm4s.coerce[String](wrapArg(r, TString())(s)).invoke[Int]("length")
+    registerCode("length", TString(), TInt32()) { case (r: EmitRegion, (sT: PString, s: Code[Long])) =>
+      asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int]("length")
     }
 
-    registerCode("slice", TString(), TInt32(), TInt32(), TString()) { (r: EmitRegion, s: Code[Long], start: Code[Int], end: Code[Int]) =>
-      unwrapReturn(r, TString())(asm4s.coerce[String](wrapArg(r, TString())(s)).invoke[Int, Int, String]("substring", start, end))
+    registerCode("slice", TString(), TInt32(), TInt32(), TString()) {
+      case (r: EmitRegion, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
+      unwrapReturn(r, TString())(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
     registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (str, start, end) =>
@@ -87,17 +88,15 @@ object StringFunctions extends RegistryFunctions {
     registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => invoke("[*:*]", s, start, invoke("length", s)) }
     registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => invoke("[*:*]", s, I32(0), end) }
 
-    registerCode("str", tv("T"), TString()) { (r, a) =>
-      val typ = tv("T").subst()
-      val annotation = boxArg(r, typ)(a)
-      val str = r.mb.getType(typ).invoke[Any, String]("str", annotation)
+    registerCode("str", tv("T"), TString()) { case (r, (aT, a)) =>
+      val annotation = boxArg(r, aT)(a)
+      val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
       unwrapReturn(r, TString())(str)
     }
 
-    registerCodeWithMissingness("json", tv("T"), TString()) { (r, a) =>
-      val typ = tv("T").subst()
-      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, typ)(a.v))
-      val json = r.mb.getType(typ).invoke[Any, JValue]("toJSON", annotation)
+    registerCodeWithMissingness("json", tv("T"), TString()) { case (r, (aT, a)) =>
+      val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
+      val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitTriplet(Code._empty, false, unwrapReturn(r, TString())(str))
     }
@@ -123,7 +122,8 @@ object StringFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction("mkString", TArray(TString()), TString(), TString())(thisClass, "arrayMkString")
 
-    registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) { (er: EmitRegion, s: EmitTriplet, r: EmitTriplet) =>
+    registerCodeWithMissingness("firstMatchIn", TString(), TString(), TArray(TString())) {
+      case (er: EmitRegion, (sT: PString, s: EmitTriplet), (rT: PString, r: EmitTriplet)) =>
       val out: LocalRef[IndexedSeq[String]] = er.mb.newLocal[IndexedSeq[String]]
       val nout = new CodeNullable[IndexedSeq[String]](out)
 
@@ -136,8 +136,8 @@ object StringFunctions extends RegistryFunctions {
       val missing = s.m || r.m || Code(
         out := Code.invokeScalaObject[String, String, IndexedSeq[String]](
           thisClass, "firstMatchIn",
-          asm4s.coerce[String](wrapArg(er, TString())(s.value[Long])),
-          asm4s.coerce[String](wrapArg(er, TString())(r.value[Long]))),
+          asm4s.coerce[String](wrapArg(er, sT)(s.value[Long])),
+          asm4s.coerce[String](wrapArg(er, rT)(r.value[Long]))),
         nout.isNull)
       val value =
         nout.ifNull(
@@ -156,7 +156,8 @@ object StringFunctions extends RegistryFunctions {
       EmitTriplet(setup, missing, value)
     }
 
-    registerCodeWithMissingness("hamming", TString(), TString(), TInt32()) { case (r: EmitRegion, e1: EmitTriplet, e2: EmitTriplet) =>
+    registerCodeWithMissingness("hamming", TString(), TString(), TInt32()) {
+      case (r: EmitRegion, (e1T: PString, e1: EmitTriplet), (e2T: PString, e2: EmitTriplet)) =>
       val len = r.mb.newLocal[Int]
       val i = r.mb.newLocal[Int]
       val n = r.mb.newLocal[Int]

@@ -14,17 +14,15 @@ import is.hail.utils._
 
 object LocusFunctions extends RegistryFunctions {
 
-  def getLocus(r: EmitRegion, locus: Code[Long], typeString: String): Code[Locus] = {
-    val tlocus = types.coerce[TLocus](tv(typeString).t)
-    Code.checkcast[Locus](wrapArg(r, tlocus)(locus).asInstanceOf[Code[AnyRef]])
+  def getLocus(r: EmitRegion, locus: Code[Long], locusT: PLocus): Code[Locus] = {
+    Code.checkcast[Locus](wrapArg(r, locusT)(locus).asInstanceOf[Code[AnyRef]])
   }
 
   def registerLocusCode(methodName: String): Unit = {
     registerCode(methodName, tv("T", "locus"), TBoolean()) {
-      case (r: EmitRegion, locus: Code[Long]) =>
-        val locusObject = getLocus(r, locus, "T")
-        val tlocus = types.coerce[TLocus](tv("T").t)
-        val rg = tlocus.rg.asInstanceOf[ReferenceGenome]
+      case (r: EmitRegion, (locusT: PLocus, locus: Code[Long])) =>
+        val locusObject = getLocus(r, locus, locusT)
+        val rg = locusT.rg.asInstanceOf[ReferenceGenome]
 
         val codeRG = r.mb.getReferenceGenome(rg)
         unwrapReturn(r, TBoolean())(locusObject.invoke[RGBase, Boolean](methodName, codeRG))
@@ -33,15 +31,13 @@ object LocusFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerCode("contig", tv("T", "locus"), TString()) {
-      case (r, locus: Code[Long]) =>
-        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
-        tlocus.contig(r.region, locus)
+      case (r, (locusT: PLocus, locus: Code[Long])) =>
+        locusT.contig(r.region, locus)
     }
 
     registerCode("position", tv("T", "locus"), TInt32()) {
-      case (r, locus: Code[Long]) =>
-        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
-        tlocus.position(r.region, locus)
+      case (r, (locusT: PLocus, locus: Code[Long])) =>
+        locusT.position(r.region, locus)
     }
 
     registerLocusCode("isAutosomalOrPseudoAutosomal")
@@ -52,43 +48,45 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar")
     registerLocusCode("inYPar")
 
-    registerCode("min_rep", tv("T", "locus"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString()))) { (r, lOff, aOff) =>
-      val returnTuple = r.mb.newLocal[(Locus, IndexedSeq[String])]
-      val locus = getLocus(r, lOff, "T")
-      val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, TArray(TString()))(aOff).asInstanceOf[Code[AnyRef]])
-      val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
+    registerCode("min_rep", tv("T", "locus"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString()))) {
+      case (r, (locusT: PLocus, lOff), (allelesT, aOff)) =>
+        val returnTuple = r.mb.newLocal[(Locus, IndexedSeq[String])]
+        val locus = getLocus(r, lOff, locusT)
+        val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
+        val tuple = Code.invokeScalaObject[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](VariantMethods.getClass, "minRep", locus, alleles)
 
-      val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
-      val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
+        val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
+        val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
 
-      val srvb = new StagedRegionValueBuilder(r, PTuple(FastIndexedSeq(tv("T").t.physicalType, PArray(PString()))))
-      Code(
-        returnTuple := tuple,
-        srvb.start(),
-        srvb.addBaseStruct(types.coerce[PBaseStruct](tv("T").t.fundamentalType.physicalType), { locusBuilder =>
-          Code(
-            locusBuilder.start(),
-            locusBuilder.addString(newLocus.invoke[String]("contig")),
-            locusBuilder.advance(),
-            locusBuilder.addInt(newLocus.invoke[Int]("position")))
-        }),
-        srvb.advance(),
-        srvb.addArray(PArray(PString()), { allelesBuilder =>
-          Code(
-            allelesBuilder.start(newAlleles.invoke[Int]("size")),
-            Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
-              allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
-              allelesBuilder.advance()))
-        }),
-        srvb.offset)
+        val newLocusT = PLocus(locusT.rg)
+        val newAllelesT = PArray(PString())
+        val srvb = new StagedRegionValueBuilder(r, PTuple(FastIndexedSeq(newLocusT, newAllelesT)))
+        Code(
+          returnTuple := tuple,
+          srvb.start(),
+          srvb.addBaseStruct(newLocusT.fundamentalType.asInstanceOf[PStruct], { locusBuilder =>
+            Code(
+              locusBuilder.start(),
+              locusBuilder.addString(newLocus.invoke[String]("contig")),
+              locusBuilder.advance(),
+              locusBuilder.addInt(newLocus.invoke[Int]("position")))
+          }),
+          srvb.advance(),
+          srvb.addArray(newAllelesT, { allelesBuilder =>
+            Code(
+              allelesBuilder.start(newAlleles.invoke[Int]("size")),
+              Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),
+                allelesBuilder.addString(Code.checkcast[String](newAlleles.invoke[Int, java.lang.Object]("apply", allelesBuilder.arrayIdx))),
+                allelesBuilder.advance()))
+          }),
+          srvb.offset)
     }
 
     registerCode("locus_windows_per_contig", TArray(TArray(TFloat64())), TFloat64(), TTuple(TArray(TInt32()), TArray(TInt32()))) {
-      (r: EmitRegion, coords: Code[Long], radius: Code[Double]) =>
+      case (r: EmitRegion, (groupedT: PArray, coords: Code[Long]), (radiusT: PFloat64, radius: Code[Double])) =>
         val region: Code[Region] = r.region
 
-        val groupedt = PArray(PArray(PFloat64()))
-        val coordt = types.coerce[PArray](groupedt.elementType)
+        val coordT = types.coerce[PArray](groupedT.elementType)
         val rt = PTuple(FastIndexedSeq(PArray(PInt64()), PArray(PInt64())))
 
         val ncontigs = r.mb.newLocal[Int]("ncontigs")
@@ -103,15 +101,15 @@ object LocusFunctions extends RegistryFunctions {
         val lastCoord = r.mb.newLocal[Double]("coord")
 
         val getCoord = { i: Code[Int] =>
-          asm4s.coerce[Double](region.loadIRIntermediate(PFloat64())(coordt.elementOffset(coordsPerContig, len, i)))
+          asm4s.coerce[Double](region.loadIRIntermediate(coordT.elementType)(coordT.elementOffset(coordsPerContig, len, i)))
         }
 
         def forAllContigs(c: Code[Unit]): Code[Unit] = {
           Code(iContig := 0,
             Code.whileLoop(iContig < ncontigs,
               coordsPerContig := asm4s.coerce[Long](
-                region.loadIRIntermediate(coordt)(
-                  groupedt.elementOffset(coords, ncontigs, iContig))),
+                region.loadIRIntermediate(coordT)(
+                  groupedT.elementOffset(coords, ncontigs, iContig))),
               c,
               iContig += 1))
         }
@@ -127,17 +125,17 @@ object LocusFunctions extends RegistryFunctions {
               Code(
                 i := 0,
                 idx := 0,
-                len := coordt.loadLength(region, coordsPerContig),
+                len := coordT.loadLength(region, coordsPerContig),
                 len.ceq(0).mux(lastCoord := 0.0, lastCoord := getCoord(0)),
                 Code.whileLoop(i < len,
-                  coordt.isElementMissing(region, coordsPerContig, i).mux(
+                  coordT.isElementMissing(region, coordsPerContig, i).mux(
                     Code._fatal(
                       const("locus_windows: missing value for 'coord_expr' at row ")
                         .concat((offset + i).toS)),
-                      (lastCoord > getCoord(i)).mux(
-                        Code._fatal("locus_windows: 'coord_expr' must be in ascending order within each contig."),
-                        lastCoord := getCoord(i))),
-                    Code.whileLoop((idx < len) && cond, idx += 1),
+                    (lastCoord > getCoord(i)).mux(
+                      Code._fatal("locus_windows: 'coord_expr' must be in ascending order within each contig."),
+                      lastCoord := getCoord(i))),
+                  Code.whileLoop((idx < len) && cond, idx += 1),
                   sab.addInt(offset + idx),
                   sab.advance(),
                   i += 1),
@@ -146,9 +144,9 @@ object LocusFunctions extends RegistryFunctions {
 
         val srvb = new StagedRegionValueBuilder(r, rt)
         Code(
-          ncontigs := groupedt.loadLength(region, coords),
+          ncontigs := groupedT.loadLength(region, coords),
           totalLen := 0,
-          forAllContigs(totalLen := totalLen + coordt.loadLength(region, coordsPerContig)),
+          forAllContigs(totalLen := totalLen + coordT.loadLength(region, coordsPerContig)),
           srvb.start(),
           srvb.addArray(PArray(PInt32()), addIdxWithCondition(startCond, _)),
           srvb.advance(),
