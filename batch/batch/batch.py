@@ -195,44 +195,60 @@ class Job:
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name=self.userdata['gsa_key_secret_name']),
                 name='gsa-key')]
+
         volume_mounts = [
             kube.client.V1VolumeMount(
                 mount_path='/gsa-key',
                 name='gsa-key')]
+
+        init_containers = []
 
         if len(self._tasks) > 1:
             pvc_created = await self._create_pvc()
             if not pvc_created:
                 log.info(f'could not create pod for job {self.full_id} due to pvc creation failure')
                 return
+
             volumes.append(kube.client.V1Volume(
                 persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
                     claim_name=self._pvc_name),
                 name=self._pvc_name))
+
             volume_mounts.append(kube.client.V1VolumeMount(
                 mount_path='/io',
                 name=self._pvc_name))
 
+            if self._current_task.name == 'main':
+                success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
+                sh_expression = f'(test -e {success_file} && (rm {success_file}; exit 1)) || ' \
+                    f'(touch {success_file} && exit 0)'
+                init_containers.append(kube.client.V1Container(
+                    image='alpine:3.8',
+                    name=f'{self._current_task.name}-init',
+                    command=['/bin/sh', '-c', sh_expression],
+                    resources=kube.client.V1ResourceRequirements(
+                        requests={'cpu': '500m'})
+                ))
+
         pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec_dict, kube.client.V1PodSpec)
+
+        if pod_spec.init_containers is None:
+            pod_spec.init_containers = []
+        pod_spec.init_containers.extend(init_containers)
+
         if pod_spec.volumes is None:
             pod_spec.volumes = []
         pod_spec.volumes.extend(volumes)
+
         for container in pod_spec.containers:
             if container.volume_mounts is None:
                 container.volume_mounts = []
             container.volume_mounts.extend(volume_mounts)
 
-        if self._current_task.name == 'main':
-            success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
-            sh_expression = f'(test -e {success_file} && (rm {success_file}; exit 1)) || ' \
-                            f'(touch {success_file} && exit 0)'
-            init_container = kube.client.V1Container(
-                image='alpine:3.8',
-                name=f'{self._current_task.name}-init',
-                command=['/bin/sh', '-c', sh_expression],
-                resources=kube.client.V1ResourceRequirements(
-                    requests={'cpu': '500m'}))
-            pod_spec.init_containers = [init_container]
+        for init_container in pod_spec.init_containers:
+            if init_container.volume_mounts is None:
+                init_container.volume_mounts = []
+            init_container.volume_mounts.extend(volume_mounts)
 
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
@@ -602,6 +618,9 @@ class Job:
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
 
         await self.mark_unscheduled()
+
+    async def mark_init_complete(self, pod,):
+
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
@@ -1207,6 +1226,19 @@ async def update_job_with_pod(job, pod):
                   and container_status.state.waiting.reason == 'ImagePullBackOff'):
                 log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
                 await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
+    elif (pod
+          and pod.status
+          and pod.status.init_container_statuses):
+        assert len(pod.status.init_container_statuses) == 1
+        init_container_status = pod.status.init_container_statuses[0]
+        assert init_container_status.name == 'main-init'
+
+        if init_container_status.state:
+            if init_container_status.state.terminated:
+                ec = init_container_status.state.terminated
+                if ec != 0:
+                    log.info(f'job {job.full_id} mark complete from non-zero init container')
+                    await job.mark_complete(pod)
 
 
 class DeblockedIterator:
