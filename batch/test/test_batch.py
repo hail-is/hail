@@ -125,6 +125,15 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
+    def test_limit_offset(self):
+        b1 = self.client.create_batch()
+        for i in range(3):
+            b1.create_job('alpine', ['true'])
+        b1 = b1.submit()
+        s = b1.status(limit=2, offset=1)
+        filtered_jobs = {j['job_id'] for j in s['jobs']}
+        assert filtered_jobs == {2, 3}, s
+
     def test_fail(self):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['false'])

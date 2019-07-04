@@ -849,8 +849,8 @@ class Batch:
         self.cancelled = cancelled
         self.closed = closed
 
-    async def get_jobs(self):
-        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
+    async def get_jobs(self, limit=None, offset=None):
+        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id, limit, offset)]
 
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
@@ -906,7 +906,7 @@ class Batch:
     def is_successful(self):
         return self.state == 'success'
 
-    async def to_dict(self, include_jobs=False):
+    async def to_dict(self, include_jobs=False, limit=None, offset=None):
         result = {
             'id': self.id,
             'state': self.state,
@@ -916,7 +916,7 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = await self.get_jobs()
+            jobs = await self.get_jobs(limit, offset)
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
 
@@ -1009,11 +1009,11 @@ async def create_batch(request, userdata):
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
-async def _get_batch(batch_id, user):
+async def _get_batch(batch_id, user, limit=None, offset=None):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return await batch.to_dict(include_jobs=True)
+    return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
 
 
 async def _cancel_batch(batch_id, user):
@@ -1029,7 +1029,11 @@ async def _cancel_batch(batch_id, user):
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return jsonify(await _get_batch(batch_id, user))
+    params = request.query
+    limit = params.get('limit')
+    offset = params.get('offset')
+    return jsonify(await _get_batch(batch_id, user, limit=limit, offset=offset))
+
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -1075,7 +1079,10 @@ async def delete_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await _get_batch(batch_id, user)
+    params = request.query
+    limit = params.get('limit')
+    offset = params.get('offset')
+    batch = await _get_batch(batch_id, user, limit=limit, offset=offset)
     return {'batch': batch}
 
 
