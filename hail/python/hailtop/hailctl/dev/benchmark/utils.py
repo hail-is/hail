@@ -1,9 +1,8 @@
-import abc
 import os
-import subprocess
-import zipfile
-from urllib.request import urlretrieve
+import sys
 import timeit
+from urllib.request import urlretrieve
+
 import numpy as np
 
 import hail as hl
@@ -32,11 +31,17 @@ class Benchmark(object):
         self.f()
 
 
+class RunConfig(object):
+    def __init__(self, n_iter, handler, verbose):
+        self.n_iter = n_iter
+        self.handler = handler
+        self.verbose = verbose
+
+
 _registry = {}
 _data_dir = ''
 _mt = None
 _initialized = False
-_n_iter = None
 
 
 def download_data():
@@ -66,7 +71,7 @@ def download_data():
         ht.naive_coalesce(10).write(os.path.join(_data_dir, 'table_10M_par_10.ht'), overwrite=True)
 
         mt = hl.utils.range_matrix_table(n_rows=250_000, n_cols=1_000, n_partitions=32)
-        mt = mt.annotate_entries(x = hl.int(hl.rand_unif(0, 4.5) ** 3))
+        mt = mt.annotate_entries(x=hl.int(hl.rand_unif(0, 4.5) ** 3))
         mt.write(os.path.join(_data_dir, 'gnomad_dp_simulation.mt'))
 
         print('done', flush=True)
@@ -83,12 +88,9 @@ def _ensure_initialized():
                              "Are you running benchmark from the main module?")
 
 
-def initialize(cores, log, n_iter):
+def initialize(args):
     assert not _initialized
-    hl.init(master=f'local[{cores}]', quiet=True, log=log)
-
-    global _n_iter
-    _n_iter = n_iter
+    hl.init(master=f'local[{args.cores}]', quiet=True, log=args.log)
 
     download_data()
 
@@ -96,37 +98,44 @@ def initialize(cores, log, n_iter):
     hl.utils.range_table(1)._force_count()
 
 
-def _run(benchmark, n_iter):
-    print(f'running {benchmark.name}...')
+def _run(benchmark: Benchmark, config: RunConfig):
+    if config.verbose:
+        print(f'Running {benchmark.name}...', file=sys.stderr)
     times = []
-    for i in range(n_iter):
+    for i in range(config.n_iter):
         time = timeit.Timer(lambda: benchmark.run()).timeit(1)
         times.append(time)
-        print(f'    run {i + 1} took {time:.2f}s')
-    print(f'    Mean, Median: {np.mean(times):.2f}s, {np.median(times):.2f}s')
+        if config.verbose:
+            print(f'    run {i + 1}: {time:.2f}', file=sys.stderr)
+    config.handler({'name': benchmark.name,
+                    'mean': np.mean(times),
+                    'median': np.median(times),
+                    'stdev': np.std(times),
+                    'times': times})
 
 
-def run_all():
+def run_all(config: RunConfig):
     _ensure_initialized()
     for name, benchmark in _registry.items():
-        _run(benchmark, _n_iter)
+        _run(benchmark, config)
 
 
-def run_pattern(pat):
+def run_pattern(pattern, config: RunConfig):
     _ensure_initialized()
     test_run = False
     for name, benchmark in _registry.items():
-        if pat in name:
+        if pattern in name:
             test_run = True
-            _run(benchmark, _n_iter)
+            _run(benchmark, config)
     if not test_run:
-        raise ValueError(f'pattern {pat!r} matched no benchmarks')
+        raise ValueError(f'pattern {pattern!r} matched no benchmarks')
 
 
-def run_single(name):
+def run_list(tests, config: RunConfig):
     _ensure_initialized()
 
-    if name not in _registry:
-        raise ValueError(f'test {name!r} not found')
-    else:
-        _run(_registry[name], _n_iter)
+    for name in tests.split(','):
+        if name not in _registry:
+            raise ValueError(f'test {name!r} not found')
+        else:
+            _run(_registry[name], config)
