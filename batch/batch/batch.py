@@ -221,7 +221,7 @@ class Job:
             if self._current_task.name == 'main':
                 success_file = f'/io/__BATCH_{self._current_task.name.upper()}_SUCCESS__'
                 sh_expression = f'(test -e {success_file} && (rm {success_file}; exit 1)) || ' \
-                    f'(touch {success_file} && exit 0)'
+                    f'(touch {success_file} && exit 1)'  # FIXME: revert to 0
                 init_containers.append(kube.client.V1Container(
                     image='alpine:3.8',
                     name=f'{self._current_task.name}-init',
@@ -619,15 +619,24 @@ class Job:
 
         await self.mark_unscheduled()
 
-    async def mark_init_complete(self, pod,):
-
+    async def check_init_container(self, pod):
+        assert self._current_task.name == 'main'
+        init_terminated = pod.status.init_container_statuses[0].state.terminated
+        init_exit_code = init_terminated.exit_code
+        if init_exit_code == 1:
+            updated_job = await Job.from_db(*self.id, self.user)
+            if updated_job.log_uris[self._task_idx] is None:
+                log.info(f'{self.full_id} was previously run, but found no log in the db; restarting job')
+                await self.reset()
+            else:
+                log.info(f'{self.full_id} was previously run, but found log in the db; ignoring pod update')
+        else:
+            assert init_exit_code == 0
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
-            if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
-                log.info(f'ignoring because pod task label does not match the current task for job {self.full_id}')
-                return
+            assert pod.metadata.labels['task'] == self._current_task.name
 
         task_name = self._current_task.name
 
@@ -642,18 +651,6 @@ class Job:
             pod_status = pod.status.to_str()
             terminated = pod.status.container_statuses[0].state.terminated
             exit_code = terminated.exit_code
-
-            if task_name == 'main':
-                init_terminated = pod.status.init_container_statuses[0].state.terminated
-                init_exit_code = init_terminated.exit_code
-                if init_exit_code == 1:
-                    updated_job = await Job.from_db(*self.id, self.user)
-                    if updated_job.log_uris[self._task_idx] is None:
-                        log.info(f'{self.full_id} was previously run, but found no log in the db; restarting job')
-                        await self.reset()
-                    else:
-                        log.info(f'{self.full_id} was previously run, but found log in the db; ignoring pod update')
-                    return
 
             if terminated.finished_at is not None and terminated.started_at is not None:
                 duration = (terminated.finished_at - terminated.started_at).total_seconds()
@@ -1207,38 +1204,40 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
+    if pod is not None:
+        if job.is_complete() or pod.metadata.labels['task'] != job._current_task.name:
+            log.info(f'ignoring because pod task label does not match the current task for job {job.full_id}')
+            return
+
     log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.full_id} mark unscheduled')
         await job.mark_unscheduled()
-    elif (pod
-          and pod.status
-          and pod.status.container_statuses):
-        assert len(pod.status.container_statuses) == 1
-        container_status = pod.status.container_statuses[0]
-        assert container_status.name in ['input', 'main', 'output']
-
-        if container_status.state:
-            if container_status.state.terminated:
-                log.info(f'job {job.full_id} mark complete')
-                await job.mark_complete(pod)
-            elif (container_status.state.waiting
-                  and container_status.state.waiting.reason == 'ImagePullBackOff'):
-                log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
-                await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
-    elif (pod
-          and pod.status
-          and pod.status.init_container_statuses):
-        assert len(pod.status.init_container_statuses) == 1
-        init_container_status = pod.status.init_container_statuses[0]
-        assert init_container_status.name == 'main-init'
-
-        if init_container_status.state:
-            if init_container_status.state.terminated:
-                ec = init_container_status.state.terminated
-                if ec != 0:
-                    log.info(f'job {job.full_id} mark complete from non-zero init container')
+    elif pod and pod.status:
+        if pod.status.container_statuses:
+            assert len(pod.status.container_statuses) == 1
+            container_status = pod.status.container_statuses[0]
+            assert container_status.name in ('input', 'main', 'output')
+            if container_status.state:
+                if container_status.state.terminated:
+                    log.info(f'job {job.full_id} mark complete')
                     await job.mark_complete(pod)
+                elif (container_status.state.waiting
+                      and container_status.state.waiting.reason == 'ImagePullBackOff'):
+                    log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
+                    await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
+        elif pod.status.init_container_statuses:
+            assert len(pod.status.init_container_statuses) == 1
+            init_container_status = pod.status.init_container_statuses[0]
+            assert init_container_status.name == 'main-init'
+            if init_container_status.state:
+                if init_container_status.state.terminated:
+                    log.info(f'job {job.full_id} check init container')
+                    await job.check_init_container(pod)
+                elif (init_container_status.state.waiting
+                      and init_container_status.state.waiting.reason == 'ImagePullBackOff'):
+                    log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
+                    await job.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
 
 
 class DeblockedIterator:
