@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS `batch-attributes` (
   PRIMARY KEY (`batch_id`, `key`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
 ) ENGINE = InnoDB;
-CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`(256), `value`(256));
+CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
 
 DELIMITER $$
 
