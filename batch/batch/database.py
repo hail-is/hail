@@ -484,7 +484,7 @@ class BatchAttributesTable(Table):
 
     def __init__(self, db):
         super().__init__(db, 'batch-attributes')
-        self._batch_attributes_sql = self.new_record_template(BatchAttributesTable.batch_attribute_fields)
+        self._batch_attributes_sql = self.new_record_template(*BatchAttributesTable.batch_attribute_fields)
 
     async def new_records(self, items):
         async with self._db.pool.acquire() as conn:
