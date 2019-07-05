@@ -249,7 +249,7 @@ class Job:
             if init_container.volume_mounts is None:
                 init_container.volume_mounts = []
             init_container.volume_mounts.extend(volume_mounts)
-            
+
         log.info(f'pod_spec: {pod_spec.to_dict()}')
 
         pod_template = kube.client.V1Pod(
@@ -622,6 +622,29 @@ class Job:
         await self.mark_unscheduled()
 
     async def check_init_container(self, pod):
+        assert len(pod.status.init_container_statuses) == 1
+        init_container_status = pod.status.init_container_statuses[0]
+        assert init_container_status.name == 'main-init'
+        assert self._current_task.name == 'main'
+
+        if init_container_status.state:
+            if init_container_status.state.terminated:
+                init_terminated = init_container_status.state.terminated
+                init_exit_code = init_terminated.exit_code
+                if init_exit_code == 1:
+                    updated_job = await Job.from_db(*self.id, self.user)
+                    if updated_job.log_uris[self._task_idx] is None:
+                        log.info(f'{self.full_id} was previously run, but found no log in the db; restarting job')
+                        await self.reset()
+                    else:
+                        log.info(f'{self.full_id} was previously run, but found log in the db; ignoring pod update')
+                else:
+                    assert init_exit_code == 0
+            elif (init_container_status.state.waiting
+                  and init_container_status.state.waiting.reason == 'ImagePullBackOff'):
+                log.info(f'job {self.full_id} mark failed from init container: ImagePullBackOff')
+                await self.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
+
         assert self._current_task.name == 'main'
         init_terminated = pod.status.init_container_statuses[0].state.terminated
         init_exit_code = init_terminated.exit_code
@@ -1221,6 +1244,7 @@ async def update_job_with_pod(job, pod):
             assert len(pod.status.container_statuses) == 1
             container_status = pod.status.container_statuses[0]
             assert container_status.name in ('input', 'main', 'output')
+
             if container_status.state:
                 if container_status.state.terminated:
                     log.info(f'job {job.full_id} mark complete')
@@ -1229,18 +1253,22 @@ async def update_job_with_pod(job, pod):
                       and container_status.state.waiting.reason == 'ImagePullBackOff'):
                     log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
                     await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
-        elif pod.status.init_container_statuses:
-            assert len(pod.status.init_container_statuses) == 1
-            init_container_status = pod.status.init_container_statuses[0]
-            assert init_container_status.name == 'main-init'
-            if init_container_status.state:
-                if init_container_status.state.terminated:
-                    log.info(f'job {job.full_id} check init container')
-                    await job.check_init_container(pod)
-                elif (init_container_status.state.waiting
-                      and init_container_status.state.waiting.reason == 'ImagePullBackOff'):
-                    log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
-                    await job.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
+                elif (container_status.state.waiting
+                      and container_status.state.waiting.reason == 'PodInitializing'):
+                    if pod.status.init_container_statuses:
+                        await job.check_init_container(pod)
+                        assert len(pod.status.init_container_statuses) == 1
+                        init_container_status = pod.status.init_container_statuses[0]
+                        assert init_container_status.name == 'main-init'
+
+                        if init_container_status.state:
+                            if init_container_status.state.terminated:
+                                log.info(f'job {job.full_id} check init container')
+                                await job.check_init_container(pod)
+                            elif (init_container_status.state.waiting
+                                  and init_container_status.state.waiting.reason == 'ImagePullBackOff'):
+                                log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
+                                await job.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
 
 
 class DeblockedIterator:
