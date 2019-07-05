@@ -227,7 +227,7 @@ async def invalidate_and_retest(request):
     if found:
         log.info(f'initiated retest for {branch_id}, PR {pr_number}')
     else:
-        log.warn(f'could not retest {branch_id}, pR {pr_number}: no such PR')
+        log.warn(f'could not retest {branch_id}, PR {pr_number}: no such PR')
     raise web.HTTPFound('/')
 
 
