@@ -645,19 +645,6 @@ class Job:
                 log.info(f'job {self.full_id} mark failed from init container: ImagePullBackOff')
                 await self.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
 
-        assert self._current_task.name == 'main'
-        init_terminated = pod.status.init_container_statuses[0].state.terminated
-        init_exit_code = init_terminated.exit_code
-        if init_exit_code == 1:
-            updated_job = await Job.from_db(*self.id, self.user)
-            if updated_job.log_uris[self._task_idx] is None:
-                log.info(f'{self.full_id} was previously run, but found no log in the db; restarting job')
-                await self.reset()
-            else:
-                log.info(f'{self.full_id} was previously run, but found log in the db; ignoring pod update')
-        else:
-            assert init_exit_code == 0
-
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
