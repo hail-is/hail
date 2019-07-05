@@ -480,22 +480,22 @@ class BatchTable(Table):
 
 
 class BatchAttributesTable(Table):
-    # batch_attribute_fields = {'batch_id', 'key', 'value'}
+    batch_attribute_fields = {'batch_id', 'key', 'value'}
 
     def __init__(self, db):
         super().__init__(db, 'batch-attributes')
-        # self._batch_attributes_sql = self.new_record_template(BatchAttributesTable.batch_attribute_fields)
+        self._batch_attributes_sql = self.new_record_template(BatchAttributesTable.batch_attribute_fields)
 
-    # async def new_records(self, items):
-    #     async with self._db.pool.acquire() as conn:
-    #         async with conn.cursor() as cursor:
-    #             if len(items) > 0:
-    #                 await cursor.executemany(self._batch_attributes_sql, items)
-    #                 n_inserted = cursor.rowcount
-    #                 if n_inserted != len(items):
-    #                     log.info(f'inserted {n_inserted} batch attributes, but expected {len(items)}')
-    #                     return False
-    #             return True
+    async def new_records(self, items):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if len(items) > 0:
+                    await executemany_with_retry(cursor, self._batch_attributes_sql, items)
+                    n_inserted = cursor.rowcount
+                    if n_inserted != len(items):
+                        log.info(f'inserted {n_inserted} batch attributes, but expected {len(items)}')
+                        return False
+                return True
 
     async def _query(self, *select, **where):
         return await super().get_records(where, select_fields=select)

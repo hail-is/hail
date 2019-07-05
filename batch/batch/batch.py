@@ -474,7 +474,7 @@ class Job:
     @property
     def full_id(self):
         task_name = self._current_task.name if self._current_task else None
-        return (self.batch_id, self.job_id, task_name)
+        return self.batch_id, self.job_id, task_name
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
@@ -813,16 +813,18 @@ class Batch:
             cancelled=False,
             closed=False)
 
-        if attributes is not None:
-            for k, v in attributes.items():
-                await db.batch_attributes.new_record(batch_id=id,
-                                                     key=k,
-                                                     value=v)
-
         batch = Batch(id=id, attributes=attributes, callback=callback,
                       userdata=userdata, user=user, state='running',
                       complete=False, deleted=False, cancelled=False,
                       closed=False)
+
+        if attributes is not None:
+            items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
+            success = await db.batch_attributes.new_records(items)
+            if not success:
+                await batch.delete()
+                return
+
         return batch
 
     def __init__(self, id, attributes, callback, userdata, user,
@@ -992,6 +994,8 @@ async def create_batch(request, userdata):
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         userdata=userdata)
+    if batch is None:
+        abort(400, f'creation of batch in db failed')
 
     return jsonify(await batch.to_dict(include_jobs=False))
 
