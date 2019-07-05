@@ -1257,18 +1257,6 @@ async def update_job_with_pod(job, pod):
                       and container_status.state.waiting.reason == 'PodInitializing'):
                     if pod.status.init_container_statuses:
                         await job.check_init_container(pod)
-                        assert len(pod.status.init_container_statuses) == 1
-                        init_container_status = pod.status.init_container_statuses[0]
-                        assert init_container_status.name == 'main-init'
-
-                        if init_container_status.state:
-                            if init_container_status.state.terminated:
-                                log.info(f'job {job.full_id} check init container')
-                                await job.check_init_container(pod)
-                            elif (init_container_status.state.waiting
-                                  and init_container_status.state.waiting.reason == 'ImagePullBackOff'):
-                                log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
-                                await job.mark_complete(pod, failed=True, failure_reason=init_container_status.state.waiting.reason)
 
 
 class DeblockedIterator:
