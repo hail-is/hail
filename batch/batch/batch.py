@@ -250,8 +250,6 @@ class Job:
                 init_container.volume_mounts = []
             init_container.volume_mounts.extend(volume_mounts)
 
-        log.info(f'pod_spec: {pod_spec.to_dict()}')
-
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
                 name=self._pod_name,
@@ -1226,7 +1224,6 @@ async def update_job_with_pod(job, pod):
         log.info(f'job {job.full_id} mark unscheduled')
         await job.mark_unscheduled()
     elif pod and pod.status:
-        log.info(f'pod.status = {pod.status.to_str()}')
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
             container_status = pod.status.container_statuses[0]
