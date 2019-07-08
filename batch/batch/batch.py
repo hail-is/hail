@@ -542,8 +542,9 @@ class Job:
 
     async def mark_unscheduled(self):
         await self._delete_pod()
-        await self.set_state('Ready')
-        await self._create_pod()
+        if not self._cancelled or self.always_run:
+            await self.set_state('Ready')
+            await self._create_pod()
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
