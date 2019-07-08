@@ -1033,6 +1033,7 @@ inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
        and batch.cancelled = FALSE
 ;
     update batch set cancelled = TRUE, closed = TRUE
+;
 ''', (batch_id, user, batch_id, user, batch_id, user))
             actionable_jobs = await cursor.fetchall()
             cancelled = [Job.from_record(job) for job in actionable_jobs if job['state'] == 'Cancelled']
