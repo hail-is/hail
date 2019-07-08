@@ -10,7 +10,7 @@ metadata:
   labels:
     app: batch
     hail.is/sha: "{{ code.sha }}"
- spec:
+spec:
   selector:
     matchLabels:
       app: batch
