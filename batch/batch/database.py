@@ -339,8 +339,8 @@ class JobsTable(Table):
 
                 sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
-                          {order_by} {ascending}
                           WHERE {where_template}
+                          {order_by} {ascending}                          
                           {limit} {offset}"""
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
