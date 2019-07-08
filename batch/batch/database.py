@@ -156,8 +156,9 @@ class Table:  # pylint: disable=R0903
 
 class JobsBuilder:
     jobs_fields = {'batch_id', 'job_id', 'state', 'pvc_size',
-                   'callback', 'attributes', 'tasks', 'task_idx',
-                   'always_run', 'duration', 'token'}
+                   'callback', 'attributes', 'always_run',
+                   'duration', 'token', 'pod_spec', 'input_files',
+                   'output_files'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
@@ -214,18 +215,6 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
-    log_uri_mapping = {'input': 'input_log_uri',
-                       'main': 'main_log_uri',
-                       'output': 'output_log_uri'}
-
-    exit_code_mapping = {'input': 'input_exit_code',
-                         'main': 'main_exit_code',
-                         'output': 'output_exit_code'}
-
-    pod_status_mapping = {'input': 'input_pod_status',
-                          'main': 'main_pod_status',
-                          'output': 'output_pod_status'}
-
     batch_view_fields = {'cancelled', 'user', 'userdata'}
 
     def _select_fields(self, fields=None):
@@ -325,31 +314,6 @@ class JobsTable(Table):
                           WHERE {where_template}"""
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
-
-    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code,
-                                 pod_status, compare_items=None, **items):
-        return await self.update_record(batch_id, job_id,
-                                        compare_items=compare_items,
-                                        **{JobsTable.log_uri_mapping[task_name]: uri,
-                                           JobsTable.exit_code_mapping[task_name]: exit_code,
-                                           JobsTable.pod_status_mapping[task_name]: pod_status},
-                                        **items)
-
-    async def get_log_uri(self, batch_id, job_id, task_name):
-        uri_field = JobsTable.log_uri_mapping[task_name]
-        records = await self.get_records(batch_id, job_id, fields=[uri_field])
-        if records:
-            assert len(records) == 1
-            return records[0][uri_field]
-        return None
-
-    async def get_pod_status(self, batch_id, job_id, task_name):
-        pod_status_field = JobsTable.pod_status_mapping[task_name]
-        records = await self.get_records(batch_id, job_id, fields=[pod_status_field])
-        if records:
-            assert len(records) == 1
-            return records[0][pod_status_field]
-        return None
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:

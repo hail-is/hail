@@ -64,12 +64,14 @@ REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 INSTANCE_ID = os.environ.get('HAIL_INSTANCE_ID', uuid.uuid4().hex)
+BATCH_IMAGE = os.environ.get('BATCH_IMAGE', 'gcr.io/hail-vdc/batch:latest')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
+log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -84,6 +86,7 @@ routes = web.RouteTableDef()
 
 db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
+tasks = ('setup', 'main', 'cleanup')
 
 def abort(code, reason=None):
     if code == 400:
@@ -97,54 +100,21 @@ def jsonify(data):
     return web.json_response(data)
 
 
-class JobTask:  # pylint: disable=R0903
-    @staticmethod
-    def from_dict(d):
-        name = d['name']
-        pod_spec_dict = d['pod_spec_dict']
-        return JobTask(name, pod_spec_dict)
+def copy(files):
+    if files is None:
+        return 'true'
 
-    @staticmethod
-    def copy_task(task_name, files):
-        if files is not None:
-            authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
+    authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/privateKeyData'
 
-            def copy_command(src, dst):
-                if not dst.startswith('gs://'):
-                    mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
-                else:
-                    mkdirs = ""
-                return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
+    def copy_command(src, dst):
+        if not dst.startswith('gs://'):
+            mkdirs = f'mkdir -p {shq(os.path.dirname(dst))};'
+        else:
+            mkdirs = ""
+        return f'{mkdirs} gsutil -m cp -R {shq(src)} {shq(dst)}'
 
-            copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
-            sh_expression = f'{authenticate} && {copies}'
-            container = kube.client.V1Container(
-                image='google/cloud-sdk:237.0.0-alpine',
-                name=task_name,
-                command=['/bin/sh', '-c', sh_expression],
-                resources=kube.client.V1ResourceRequirements(
-                    requests={'cpu': '500m'}))
-            spec = kube.client.V1PodSpec(
-                containers=[container],
-                restart_policy='Never',
-                tolerations=[
-                    kube.client.V1Toleration(key='preemptible', value='true')
-                ])
-            return JobTask.from_spec(task_name, spec)
-        return None
-
-    @staticmethod
-    def from_spec(name, pod_spec):
-        assert pod_spec is not None
-        return JobTask(name, v1.api_client.sanitize_for_serialization(pod_spec))
-
-    def __init__(self, name, pod_spec_dict):
-        self.pod_spec_dict = pod_spec_dict
-        self.name = name
-
-    def to_dict(self):
-        return {'name': self.name,
-                'pod_spec_dict': self.pod_spec_dict}
+    copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
+    return f'{authenticate} && {copies}'
 
 
 class Job:
@@ -157,7 +127,6 @@ class Job:
                             'hail.is/batch-instance': INSTANCE_ID,
                             'batch_id': str(self.batch_id),
                             'job_id': str(self.job_id),
-                            'task': self._current_task.name,
                             'user': self.user}),
                 spec=kube.client.V1PersistentVolumeClaimSpec(
                     access_modes=['ReadWriteOnce'],
@@ -168,34 +137,87 @@ class Job:
         if err is not None:
             if err.status == 409:
                 return True
-            log.info(f'persistent volume claim cannot be created for job {self.full_id} with the following error: {err}')
+            log.info(f'pvc cannot be created for job {self.id} with the following error: {err}')
             PVC_CREATION_FAILURES.inc()
             if err.status == 403:
                 await self.mark_complete(None, failed=True, failure_reason=str(err))
             return False
 
-        log.info(f'created pvc name: {self._pvc_name} for job {self.full_id}')
+        log.info(f'created pvc name: {self._pvc_name} for job {self.id}')
         return True
 
-    # may be called twice with the same _current_task
+    def _setup_container(self, success_file):
+        sh_expression = f"""
+        set -ex
+        if [ -e {success_file} ]; then
+            exit 1
+        fi
+        rm -rf /io/*
+        {copy(self.input_files)}
+         """
+
+        setup_container = kube.client.V1Container(
+            image='google/cloud-sdk:237.0.0-alpine',
+            name='setup',
+            command=['/bin/sh', '-c', sh_expression],
+            resources=kube.client.V1ResourceRequirements(
+                requests={'cpu': '500m'}))
+
+        return setup_container
+
+    def _cleanup_container(self, success_file):
+        sh_expression = f"""
+        set -ex
+        python3 sidecar.py
+        touch {success_file}
+        """
+
+        env = {'INSTANCE_ID': INSTANCE_ID,
+               'OUTPUT_DIRECTORY': app['log_store'].gs_job_output_directory(*self.id, self.token),
+               'COPY_OUTPUT_CMD': copy(self.output_files),
+               'BATCH_USE_KUBE_CONFIG': os.environ.get('BATCH_USE_KUBE_CONFIG')}
+        env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env]
+        env.append(kube.client.V1EnvVar(name='POD_NAME', value_from='metadata.name'))
+
+        cleanup_container = kube.client.V1Container(
+            image=BATCH_IMAGE,
+            name='cleanup',
+            command=['/bin/sh', '-c', sh_expression],
+            env=env,
+            resources=kube.client.V1ResourceRequirements(
+                requests={'cpu': '500m'}),
+            volume_mounts=[kube.client.V1VolumeMount(
+                mount_path='/batch-gsa-key',
+                name='batch-gsa-key')])
+
+        return cleanup_container
+
     async def _create_pod(self):
-        assert self._current_task is not None
         assert self.userdata is not None
+
+        success_file = '/io/__BATCH_SUCCESS__'  # FIXME: /io doesn't always exist
+        setup_container = self._setup_container(success_file)
+        cleanup_container = self._cleanup_container(success_file)
 
         volumes = [
             kube.client.V1Volume(
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name=self.userdata['gsa_key_secret_name']),
-                name='gsa-key')]
+                name='gsa-key'),
+            kube.client.V1Volume(
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name='batch-gsa-key'),
+                name='batch-gsa-key')]
+
         volume_mounts = [
             kube.client.V1VolumeMount(
                 mount_path='/gsa-key',
                 name='gsa-key')]
 
-        if len(self._tasks) > 1:
+        if self._pvc_name is not None:
             pvc_created = await self._create_pvc()
             if not pvc_created:
-                log.info(f'could not create pod for job {self.full_id} due to pvc creation failure')
+                log.info(f'could not create pod for job {self.id} due to pvc creation failure')
                 return
             volumes.append(kube.client.V1Volume(
                 persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
@@ -205,14 +227,18 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
-        pod_spec = v1.api_client._ApiClient__deserialize(self._current_task.pod_spec_dict, kube.client.V1PodSpec)
+        pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
+        pod_spec.containers.extend(cleanup_container)
+        pod_spec.init_containers = [setup_container]
+
         if pod_spec.volumes is None:
             pod_spec.volumes = []
         pod_spec.volumes.extend(volumes)
-        for container in pod_spec.containers:
-            if container.volume_mounts is None:
-                container.volume_mounts = []
-            container.volume_mounts.extend(volume_mounts)
+        for container_set in [pod_spec.containers, pod_spec.init_containers]:
+            for container in container_set:
+                if container.volume_mounts is None:
+                    container.volume_mounts = []
+                container.volume_mounts.extend(volume_mounts)
 
         pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(
@@ -221,7 +247,6 @@ class Job:
                         'hail.is/batch-instance': INSTANCE_ID,
                         'batch_id': str(self.batch_id),
                         'job_id': str(self.job_id),
-                        'task': self._current_task.name,
                         'user': self.user,
                         'uuid': uuid.uuid4().hex
                         }),
@@ -230,19 +255,19 @@ class Job:
         pod, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             if err.status == 409:
-                log.info(f'pod already exists for job {self.full_id}')
+                log.info(f'pod already exists for job {self.id}')
                 n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
                 if n_updated == 0:
-                    log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
+                    log.warning(f'changing the state for job {self.id} failed due to the expected state {self._state} not in db')
                 return
             traceback.print_tb(err.__traceback__)
-            log.info(f'pod creation failed for job {self.full_id} '
+            log.info(f'pod creation failed for job {self.id} '
                      f'with the following error: {err}')
             return
 
         n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
         if n_updated == 0:
-            log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
+            log.warning(f'changing the state for job {self.id} failed due to the expected state {self._state} not in db')
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
@@ -258,127 +283,87 @@ class Job:
         err = await app['k8s'].delete_pod(name=self._pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring pod deletion failure for job {self.full_id} due to {err}')
+            log.info(f'ignoring pod deletion failure for job {self.id} due to {err}')
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
         await self._delete_pod()
 
     async def _read_logs(self):
-        async def _read_log(jt, idx):
-            log_uri = self.log_uris[idx]
-            if log_uri is None:
-                return None
-            log, err = await app['log_store'].read_gs_log_file(log_uri)
+        async def _read_log_from_gcs():
+            pod_logs, err = await app['log_store'].read_gs_file(self.directory,
+                                                                LogStore.log_file_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.full_id} '
-                         f'due to {err}; will still try to load other tasks')
-            return jt.name, log
+                log.info(f'ignoring: could not read log for {self.id} '
+                         f'due to {err}')
+                return None
+            return json.loads(pod_logs)
 
-        future_logs = asyncio.gather(*[_read_log(jt, idx) for idx, jt in enumerate(self._tasks)
-                                       if idx < self._task_idx])
-        logs = {k: v for k, v in await future_logs}
+        async def _read_log_from_k8s(task_name):
+            pod_log, err = await app['k8s'].read_pod_log(self._pod_name, container=task_name)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring: could not read log for {self.id} '
+                         f'due to {err}; will still try to load other tasks')
+            return task_name, pod_log
 
         if self._state == 'Running':
-            pod_log, err = await app['k8s'].read_pod_log(self._pod_name)
-            if err is None:
-                logs[self._current_task.name] = pod_log
-            else:
-                traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not read log for {self.full_id} '
-                         f'due to {err}; will still try to load other tasks')
-            return logs
-        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
-            return logs
-        assert self._state in ('Pending', 'Cancelled')
+            future_logs = asyncio.gather(*[_read_log_from_k8s(task) for task in tasks])
+            return {k: v for k, v in await future_logs}
+        elif self._state in ('Error', 'Failed', 'Success'):
+            return await _read_log_from_gcs()
+        assert self._state in ('Ready', 'Pending', 'Cancelled')
         return None
 
     async def _read_pod_statuses(self):
-        pod_statuses = {jt.name: self.pod_statuses[idx] for idx, jt in enumerate(self._tasks)
-                        if idx < self._task_idx}
-
-        if self._state == 'Running':
-            if self._pod_name:
-                pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
-                if err is None:
-                    pod_statuses[self._current_task.name] = pod_status
-                else:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'ignoring: could not get pod status for {self.full_id} '
-                             f'due to {err}; will still try to load other tasks')
-            return pod_statuses
-        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
-            return pod_statuses
-        assert self._state in ('Pending', 'Cancelled')
-        return None
-
-    async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
-        uri = None
-        if pod_log is not None:
-            uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, pod_log)
+        async def _read_pod_status_from_gcs():
+            pod_status, err = await app['log_store'].read_gs_file(self.directory,
+                                                                  LogStore.pod_status_file_name)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'job {self.full_id} will have a missing log due to {err}')
+                log.info(f'ignoring: could not read pod status for {self.id} '
+                         f'due to {err}')
+                return None
+            return json.loads(pod_status)
 
-        uri_name = JobsTable.log_uri_mapping[task_name]
-        compare_items = {'state': self._state, 'task_idx': self._task_idx, uri_name: None}
-        n_updated = await db.jobs.update_with_log_ec(*self.id, task_name, uri, exit_code, pod_status,
-                                                     compare_items=compare_items,
-                                                     task_idx=self._task_idx + 1,
-                                                     duration=self.duration,
-                                                     state=new_state)
-        if n_updated == 0:
-            log.info(f'could not update job {self.id} due to db not matching expected state and task_idx')
-            return False
+        if self.is_complete():
 
-        self.exit_codes[self._task_idx] = exit_code
-        self.pod_statuses[self._task_idx] = pod_status
-        self.log_uris[self._task_idx] = uri
-        
-        if self._state != new_state:
-            log.info('job {} changed state: {} -> {}'.format(
-                self.full_id,
-                self._state,
-                new_state))
+        if self._state == 'Running':
+            pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'ignoring: could not get pod status for {self.id} '
+                         f'due to {err}')
+            return pod_status
+        else:
+            assert self._state in ('Pending', 'Ready')
+            return None
 
-        self._task_idx += 1
-        self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
-        self._state = new_state
-
-        await self._delete_pod()
-        return True
-
-    async def _delete_logs(self):
-        for idx, jt in enumerate(self._tasks):
-            if idx < self._task_idx:
-                err = await app['log_store'].delete_gs_log_file(*self.id, jt.name)
-                if err is not None:
-                    traceback.print_tb(err.__traceback__)
-                    log.info(f'could not delete log {idx} due to {err}')
+    async def _delete_gs_files(self):
+        errs = await app['log_store'].delete_gs_files(self.directory)
+        for file, err in errs:
+            if err is not None:
+                traceback.print_tb(err.__traceback__)
+                log.info(f'could not delete {self.directory}/{file} for job {self.id} due to {err}')
 
     @staticmethod
     def from_record(record):
         if record is not None:
-            tasks = [JobTask.from_dict(item) for item in json.loads(record['tasks'])]
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
-
-            def get_compound_field(mapping):
-                data = [record[mapping[t.name]] for t in tasks]
-                non_null_indices = [idx for idx, x in enumerate(data) if x is not None]
-                assert record['task_idx'] == 1 + (non_null_indices[-1] if len(non_null_indices) else -1)
-                return data
-
-            exit_codes = get_compound_field(db.jobs.exit_code_mapping)
-            log_uris = get_compound_field(db.jobs.log_uri_mapping)
-            pod_statuses = [record[db.jobs.pod_status_mapping[t.name]] for t in tasks]
+            pod_spec = v1.api_client.sanitize_for_serialization(record['pod_spec'])
+            input_files = json.loads(record['input_files'])
+            output_files = json.loads(record['output_files'])
+            exit_codes = json.loads(record['exit_codes'])
+            durations = json.loads(record['durations'])
 
             return Job(batch_id=record['batch_id'], job_id=record['job_id'], attributes=attributes,
                        callback=record['callback'], userdata=userdata, user=record['user'],
-                       always_run=record['always_run'], exit_codes=exit_codes, duration=record['duration'],
-                       tasks=tasks, task_idx=record['task_idx'], state=record['state'], pvc_size=record['pvc_size'],
-                       cancelled=record['cancelled'], log_uris=log_uris, pod_statuses=pod_statuses, token=record['token'])
+                       always_run=record['always_run'], exit_codes=exit_codes, durations=durations,
+                       state=record['state'], pvc_size=record['pvc_size'], cancelled=record['cancelled'],
+                       directory=record['directory'], token=record['token'], pod_spec=pod_spec,
+                       input_files=input_files, output_files=output_files)
 
         return None
 
@@ -406,20 +391,14 @@ class Job:
     def create_job(jobs_builder, pod_spec, batch_id, job_id, attributes, callback,
                    parent_ids, input_files, output_files, userdata, always_run,
                    pvc_size, state):
-        duration = 0
-        task_idx = 0
         cancelled = False
         user = userdata['username']
         token = uuid.uuid4().hex[:6]
 
-        tasks = [JobTask.copy_task('input', input_files),
-                 JobTask.from_spec('main', pod_spec),
-                 JobTask.copy_task('output', output_files)]
-
-        tasks = [t for t in tasks if t is not None]
-        exit_codes = [None for _ in tasks]
-        log_uris = [None for _ in tasks]
-        pod_statuses = [None for _ in tasks]
+        exit_codes = None
+        durations = None
+        directory = app['log_store'].gs_job_output_directory()
+        pod_spec = v1.api_client.sanitize_for_serialization(pod_spec)
 
         jobs_builder.create_job(
             batch_id=batch_id,
@@ -428,11 +407,12 @@ class Job:
             pvc_size=pvc_size,
             callback=callback,
             attributes=json.dumps(attributes),
-            tasks=json.dumps([jt.to_dict() for jt in tasks]),
-            task_idx=task_idx,
             always_run=always_run,
-            duration=duration,
-            token=token)
+            token=token,
+            pod_spec=json.dumps(pod_spec),
+            input_files=json.dumps(input_files),
+            output_files=json.dumps(output_files),
+            output_directory=directory)
 
         for parent in parent_ids:
             jobs_builder.create_job_parent(
@@ -442,15 +422,15 @@ class Job:
 
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run,
-                  exit_codes=exit_codes, duration=duration, tasks=tasks,
-                  task_idx=task_idx, state=state, pvc_size=pvc_size, cancelled=cancelled,
-                  log_uris=log_uris, pod_statuses=pod_statuses, token=token)
+                  exit_codes=exit_codes, durations=durations, state=state, pvc_size=pvc_size,
+                  cancelled=cancelled, directory=directory, token=token,
+                  pod_spec=pod_spec, input_files=input_files, output_files=output_files)
 
         return job
 
     def __init__(self, batch_id, job_id, attributes, callback, userdata, user, always_run,
-                 exit_codes, duration, tasks, task_idx, state,
-                 pvc_size, cancelled, log_uris, pod_statuses, token):
+                 exit_codes, durations, state, pvc_size, cancelled, directory,
+                 token, pod_spec, input_files, output_files):
         self.batch_id = batch_id
         self.job_id = job_id
         self.id = (batch_id, job_id)
@@ -461,25 +441,19 @@ class Job:
         self.userdata = userdata
         self.user = user
         self.exit_codes = exit_codes
-        self.log_uris = log_uris
-        self.pod_statuses = pod_statuses
-        self.duration = duration
+        self.directory = directory
+        self.durations = durations
         self.token = token
+        self.input_files = input_files
+        self.output_files = output_files
 
         name = f'batch-{batch_id}-job-{job_id}-{token}'
         self._pod_name = name
-        self._pvc_name = name
+        self._pvc_name = name if self.input_files or self.output_files or self._pvc_size else None
         self._pvc_size = pvc_size
-        self._tasks = tasks
-        self._task_idx = task_idx
-        self._current_task = tasks[task_idx] if task_idx < len(tasks) else None
         self._state = state
         self._cancelled = cancelled
-
-    @property
-    def full_id(self):
-        task_name = self._current_task.name if self._current_task else None
-        return self.batch_id, self.job_id, task_name
+        self._pod_spec = pod_spec
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
@@ -492,11 +466,11 @@ class Job:
             n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
             if n_updated == 0:
                 log.warning(f'changing the state from {self._state} -> {new_state} '
-                            f'for job {self.full_id} failed due to the expected state not in db')
+                            f'for job {self.id} failed due to the expected state not in db')
                 return
 
             log.info('job {} changed state: {} -> {}'.format(
-                self.full_id,
+                self.id,
                 self._state,
                 new_state))
             self._state = new_state
@@ -521,12 +495,12 @@ class Job:
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
                     (not self._cancelled and all(p.is_successful() for p in parents))):
-                log.info(f'all parents complete for {self.full_id},'
+                log.info(f'all parents complete for {self.id},'
                          f' creating pod')
                 await self.set_state('Ready')
                 await self._create_pod()
             else:
-                log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
+                log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
                 await self.set_state('Cancelled')
 
     async def cancel(self):
@@ -546,6 +520,11 @@ class Job:
         return self._state == 'Success'
 
     async def mark_unscheduled(self):
+        updated_job = await Job.from_db(*self.id, self.user)
+        if updated_job.is_complete():
+            log.info(f'job is already completed in db, not rescheduling pod')
+            return
+
         await self._delete_pod()
         if not self._cancelled or self.always_run:
             await self.set_state('Ready')
@@ -554,68 +533,115 @@ class Job:
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
-            if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
-                log.info(f'ignoring because pod task label does not match the current task for job {self.full_id}')
+            if self.is_complete():
+                log.info(f'ignoring because job {self.id} is already complete')
                 return
 
-        task_name = self._current_task.name
+        new_state = None
 
         if failed:
-            exit_code = 999  # FIXME hack
-            pod_log = failure_reason
-            if pod is None:
-                pod_status = None
-            else:
+            if failure_reason is not None:
+                uri, err = await app['log_store'].write_gs_file(self.directory,
+                                                                LogStore.log_file_name,
+                                                                failure_reason)
+                if err is not None:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'job {self.id} will have a missing log due to {err}')
+
+            if pod is not None:
                 pod_status = pod.status.to_str()
+                err = await app['log_store'].write_gs_file(self.directory,
+                                                           LogStore.pod_status_file_name,
+                                                           pod_status)
+                if err is not None:
+                    traceback.print_tb(err.__traceback__)
+                    log.info(f'job {self.id} will have a missing pod status due to {err}')
+
+            new_state = 'Error'
+            exit_codes = None
+            durations = None
         else:
-            pod_status = pod.status.to_str()
-            terminated = pod.status.container_statuses[0].state.terminated
-            exit_code = terminated.exit_code
-            if terminated.finished_at is not None and terminated.started_at is not None:
-                duration = (terminated.finished_at - terminated.started_at).total_seconds()
-                if self.duration is not None:
-                    self.duration += duration
+            pod_outputs = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
+
+            if pod_outputs is None:
+                exit_codes = {t: None for t in tasks}
+                durations = {t: None for t in tasks}
+                container_logs = {t: None for t in tasks}
+
+                setup_container = pod.status.init_container_statuses[0]
+                assert setup_container.name == 'setup'
+                setup_terminated = setup_container.state.terminated
+
+                if setup_terminated.exit_code != 0:
+                    if setup_terminated.finished_at is not None and setup_terminated.started_at is not None:
+                        durations['setup'] = (setup_terminated.finished_at - setup_terminated.started_at).total_seconds()
+                    else:
+                        log.warning(f'setup container terminated but has no timing information. {setup_container.to_str()}')
+
+                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='setup')
+                    if err:
+                        await self.mark_unscheduled()
+
+                    container_logs['setup'] = container_log
+                    exit_codes['setup'] = setup_terminated.exit_code
+
+                    await app['log_store'].write_gs_file(self.directory,
+                                                         LogStore.log_file_name,
+                                                         json.dumps(container_logs))
+
+                    pod_status, err = await app['k8s'].read_pod_status(pod.metadata.name)
+                    if err:
+                        await self.mark_unscheduled()
+                    else:
+                        assert pod_status is not None
+                        await app['log_store'].write_gs_file(self.directory,
+                                                             LogStore.pod_status_file_name,
+                                                             pod_status)
+
+                    new_state = 'Failed'
+                    durations = json.dumps(durations)
+                    exit_codes = json.dumps(exit_codes)
+                else:
+                    # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
+                    cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
+                    assert cleanup_container.state.terminated.exit_code != 0
+                    log.info(f'rescheduling job {self.id} -- cleanup container failed')
+                    await self.mark_unscheduled()
             else:
-                log.warning(f'job {self.full_id} has pod {pod.metadata.name} which is '
-                            f'terminated but has no timing information. {pod}')
-                self.duration = None
-            pod_log, err = await app['k8s'].read_pod_log(pod.metadata.name)
-            if err:
-                updated_job = await Job.from_db(*self.id, self.user)
-                if updated_job.log_uris[self._task_idx] is not None:
-                    log.info(f'no logs for {pod.metadata.name}, but log already exists in db, not rescheduling pod')
-                    return
+                pod_outputs = json.loads(pod_outputs)
 
                 READ_POD_LOG_FAILURES.inc()
-                traceback.print_tb(err.__traceback__)
-                log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod '
-                         f'Error: {err}')
-                await self.mark_unscheduled()
-                return
+                exit_codes = pod_outputs['exit_codes']
+                durations = pod_outputs['durations']
 
-        has_next_task = self._task_idx + 1 < len(self._tasks)
+                if all([ec == 0 for ec in exit_codes]):
+                    new_state = 'Success'
+                else:
+                    new_state = 'Failed'
 
-        if exit_code == 0:
-            if has_next_task:
-                new_state = 'Ready'
-            else:
-                new_state = 'Success'
-        elif exit_code == 999:
-            new_state = 'Error'
-        else:
-            new_state = 'Failed'
+        assert new_state is not None
+        n_updated = await db.jobs.update_record(*self.id,
+                                                compare_items={'state': self._state},
+                                                durations=durations,
+                                                exit_codes=exit_codes,
+                                                state=new_state)
 
-        success = await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
-        if not success:
-            log.warning(f'ignoring failed mark job task complete for job {self.full_id}')
+        if n_updated == 0:
+            log.info(f'could not update job {self.id} due to db not matching expected state')
             return
 
-        if exit_code == 0:
-            if has_next_task:
-                log.info(f'starting next job task {self.full_id}')
-                await self._create_pod()
-                return
+        self.exit_codes = exit_codes
+        self.durations = durations
 
+        if self._state != new_state:
+            log.info('job {} changed state: {} -> {}'.format(
+                self.id,
+                self._state,
+                new_state))
+
+        self._state = new_state
+
+        await self._delete_pod()
         await self._delete_pvc()
         await self.notify_children(new_state)
 
@@ -637,6 +663,8 @@ class Job:
             if batch is not None:
                 await batch.mark_job_complete(self)
 
+        await app['gcs'].delete_file(self.directory, LogStore.results_file_name)
+
     def to_dict(self):
         result = {
             'batch_id': self.batch_id,
@@ -644,8 +672,8 @@ class Job:
             'state': self._state
         }
         if self.is_complete():
-            result['exit_code'] = {t.name: ec for ec, t in zip(self.exit_codes, self._tasks)}
-            result['duration'] = self.duration
+            result['exit_code'] = self.exit_codes
+            result['duration'] = self.durations
 
         if self.attributes:
             result['attributes'] = self.attributes
@@ -882,7 +910,7 @@ class Batch:
     async def delete(self):
         for j in await self.get_jobs():
             # Job deleted from database when batch is deleted with delete cascade
-            await j._delete_logs()
+            await j._delete_gs_files()
         await db.batch.delete_record(self.id)
         log.info(f'batch {self.id} deleted')
 
@@ -1142,26 +1170,17 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
+    log.info(f'update job {job.id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         POD_EVICTIONS.inc()
-        log.info(f'job {job.full_id} mark unscheduled')
+        log.info(f'job {job.id} mark unscheduled -- pod is missing or was evicted')
         await job.mark_unscheduled()
-    elif (pod
-          and pod.status
-          and pod.status.container_statuses):
-        assert len(pod.status.container_statuses) == 1
-        container_status = pod.status.container_statuses[0]
-        assert container_status.name in ['input', 'main', 'output']
-
-        if container_status.state:
-            if container_status.state.terminated:
-                log.info(f'job {job.full_id} mark complete')
-                await job.mark_complete(pod)
-            elif (container_status.state.waiting
-                  and container_status.state.waiting.reason == 'ImagePullBackOff'):
-                log.info(f'job {job.full_id} mark failed: ImagePullBackOff')
-                await job.mark_complete(pod, failed=True, failure_reason=container_status.state.waiting.reason)
+    elif pod and pod.phase in ('Succeeded', 'Failed'):
+        log.info(f'job {job.id} mark complete')
+        await job.mark_complete(pod)
+    elif pod and pod.phase == 'Unknown':
+        log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
+        await job.mark_unscheduled()
 
 
 class DeblockedIterator:
@@ -1227,7 +1246,7 @@ async def refresh_k8s_pods():
 
     for job in pod_jobs:
         if job._pod_name not in seen_pods:
-            log.info(f'restarting job {job.full_id}')
+            log.info(f'restarting job {job.id}')
             await update_job_with_pod(job, None)
 
 
@@ -1258,7 +1277,7 @@ async def start_job(queue):
             try:
                 await job._create_pod()
             except Exception as exc:  # pylint: disable=W0703
-                log.exception(f'Could not create pod for job {job.full_id} due to exception: {exc}')
+                log.exception(f'Could not create pod for job {job.id} due to exception: {exc}')
         queue.task_done()
 
 

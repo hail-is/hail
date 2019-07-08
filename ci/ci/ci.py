@@ -118,7 +118,9 @@ async def get_pr(request):
             status = await pr.batch.status()
             for j in status['jobs']:
                 if 'duration' in j and j['duration'] is not None:
-                    j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+                    duration = Job.duration(j)
+                    if duration is not None:
+                        j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=duration))
                 j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
