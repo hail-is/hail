@@ -1036,12 +1036,13 @@ inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
 ;
 ''', (batch_id, user, batch_id, user, batch_id, user))
             actionable_jobs = await cursor.fetchall()
-            cancelled = [Job.from_record(job) for job in actionable_jobs if job['state'] == 'Cancelled']
-            create = [Job.from_record(job) for job in actionable_jobs if job['state'] == 'Ready']
-    for job in cancelled:
-        job.delete_k8s_resources()
-    for job in create:
-        job._create_pod()
+    for record in actionable_jobs:
+        job = Job.from_record(record)
+        if record['state'] == 'Cancelled':
+            await job._delete_k8s_resources()
+        else:
+            assert record['state'] == 'Ready'
+            await job._create_pod()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
