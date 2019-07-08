@@ -106,9 +106,7 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
         idx := 0,
         Code.whileLoop(idx < lenRef,
           scoped(idx, serialize),
-          idx := idx + 1),
-        region.close(),
-        r := Code._null)
+          idx := idx + 1))
     }
   }
 
@@ -221,19 +219,22 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    srvb.addArray(resultType, { sab =>
-      Code(
-        sab.start(state.lenRef),
-        Code.whileLoop(sab.arrayIdx < state.lenRef,
-          sab.addBaseStruct(resultEltType, { ssb =>
-            Code(
-              ssb.start(),
-              state.scoped(sab.arrayIdx) { (i, s) =>
-                Code(nestedAggs(i).result(s, ssb), ssb.advance())
-              })
-          }),
-          sab.advance()))
-    })
+    (state.lenRef < 0).mux(
+      srvb.setMissing(),
+      srvb.addArray(resultType, { sab =>
+        Code(
+          sab.start(state.lenRef),
+          Code.whileLoop(sab.arrayIdx < state.lenRef,
+            sab.addBaseStruct(resultEltType, { ssb =>
+              Code(
+                ssb.start(),
+                state.scoped(sab.arrayIdx) { (i, s) =>
+                  Code(nestedAggs(i).result(s, ssb), ssb.advance())
+                })
+            }),
+            sab.advance()))
+      })
+    )
 }
 
 class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedRegionValueAggregator]) extends StagedRegionValueAggregator {

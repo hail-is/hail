@@ -472,7 +472,7 @@ private class Emit(
         val xmv = mb.newLocal[Boolean]()
         val prettied = Pretty(x)
         val irString =
-          if (prettied.size > 100) prettied.take(100) + " ..."
+          if (prettied.size > 100) prettied.take(1000) + " ..."
           else prettied
         val setup = Code(
           codeA.setup,
@@ -989,7 +989,11 @@ private class Emit(
         val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val setup = rvAgg.initOp(sc(i), argVars)
+        val setup = Code(
+          sc(i).region.close(),
+          sc(i).r := Code.newInstance[Region](),
+          sc.setPresent(aggOff, i),
+          rvAgg.initOp(sc(i), argVars))
 
         EmitTriplet(setup, false, Code._empty)
 
@@ -1056,11 +1060,18 @@ private class Emit(
           .slice(start, start + aggSigs.length)
           .map(_.unserialize(spec))
 
+        val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
+          .map(i => Code(
+            sc(i).region.close(),
+            sc(i).r := Code.newInstance[Region](),
+            sc.setPresent(aggOff, i))): _*))
+
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
         }
 
         val read = Code(
+          init,
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
           ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
           coerce[Unit](Code(unserialize: _*)))

@@ -44,7 +44,7 @@ case class TypedRVAState(typ: PType, mb: EmitMethodBuilder, r: ClassFieldRef[Reg
 }
 
 object StateContainer {
-  def typ(n: Int): PTuple = PTuple(Array.fill(n)(PInt64(true)), required = true)
+  def typ(n: Int): PTuple = PTuple(Array.fill(n)(PInt64()), required = true)
 }
 
 case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
@@ -56,6 +56,9 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
   def loadStateAddress(off: Code[Long], i: Int): Code[Long] = topRegion.loadAddress(getStateOffset(off, i))
 
+  def setAllMissing(off: Code[Long]): Code[Unit] = toCode((i, _) => typ.setFieldMissing(topRegion, off, i))
+  def setPresent(off: Code[Long], i: Int): Code[Unit] = typ.setFieldPresent(topRegion, off, i)
+
   def toCode(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
@@ -63,7 +66,9 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
     toCode((i, s) => s.r := topRegion.getParentReference(rOffset + i))
 
   def loadStateOffsets(stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.loadStateFrom(loadStateAddress(stateOffset, i)))
+    toCode((i, s) => typ.isFieldMissing(topRegion, stateOffset, i).mux(
+      Code._empty,
+      s.loadStateFrom(loadStateAddress(stateOffset, i))))
 
   def storeRegions(rOffset: Code[Int]): Code[Unit] =
     toCode((i, s) => topRegion.setParentReference(s.region, rOffset + i))
