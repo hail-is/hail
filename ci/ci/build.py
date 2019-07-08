@@ -81,8 +81,8 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
 
-        # if scope == 'dev':
-        #     return
+        if scope == 'dev':
+            return
 
         parents = set()
         for step in self.steps:
@@ -457,8 +457,7 @@ class CreateNamespaceStep(Step):
         elif params.scope == 'test':
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
         elif params.scope == 'dev':
-            #TODO
-            log("Dev namespace creation")
+            self._name = None 
         else:
             raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
 
@@ -490,6 +489,9 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        if scope == 'dev':
+            return
+
         # FIXME label
         config = f'''\
 apiVersion: v1
@@ -574,7 +576,7 @@ date
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, sink):
-        if scope == 'deploy':
+        if scope in ['deploy', 'dev']:
             return
 
         script = f'''
