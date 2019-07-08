@@ -252,7 +252,7 @@ class Aggregators2Suite extends HailSuite {
 
     val spec = CodecSpec.defaultUncompressed
     val partitioned = value.grouped(3).toFastIndexedSeq
-    val fileNames = Array.tabulate(partitioned.length)(tmpDir.createTempFile()).toFastIndexedSeq
+    val fileNames = Array.tabulate(partitioned.length)(_ => tmpDir.createTempFile()).toFastIndexedSeq
 
     val (_, initAndSeqF) = CompileWithAggregators2[Long, Long, Unit](
       Array(lcAggSig),
