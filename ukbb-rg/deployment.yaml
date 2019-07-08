@@ -25,6 +25,10 @@ spec:
        - name: ukbb-rg-static
          image: gcr.io/hail-vdc/ukbb-rg-static
          imagePullPolicy: Always
+         resources:
+           requests:
+             memory: "3.75G"
+             cpu: "1"
          ports:
           - containerPort: 80
             protocol: TCP
@@ -64,6 +68,10 @@ spec:
        - name: ukbb-rg-browser
          image: gcr.io/hail-vdc/ukbb-rg-browser
          imagePullPolicy: Always
+         resources:
+           requests:
+             memory: "3.75G"
+             cpu: "1"
          ports:
           - containerPort: 3838
             protocol: TCP
