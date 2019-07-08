@@ -42,6 +42,12 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
   private def stateAddressOffset(eltIdx: Code[Int], stateIdx: Int): Code[Long] = container.getStateOffset(statesOffset(eltIdx), stateIdx)
   private def eltState(eltIdx: Code[Int], stateIdx: Int): Code[Long] = container.loadStateAddress(statesOffset(eltIdx), stateIdx)
 
+  def loadStateFrom(src: Code[Long]): Code[Unit] =
+  Code(
+    off := src,
+    lenRef := typ.isFieldMissing(region, off, 1).mux(-1,
+      arrayType.loadLength(region, typ.loadField(region, off, 1))))
+
   def initLength(len: Code[Int]): Code[Unit] = {
     val srvb2 = new StagedRegionValueBuilder(er, arrayType)
     Code(
@@ -85,7 +91,7 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
     container.scoped(regionOffset(eltIdx), statesOffset(eltIdx))(f)
 
   def update(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-    container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
+      container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
 
   def update(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     container.update(regionOffset(eltIdx), statesOffset(eltIdx))(f)
@@ -95,13 +101,11 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
     { ob: Code[OutputBuffer] =>
       val serialize = coerce[Unit](Code(serializers.map(_(ob)): _*))
       Code(
-        container.loadStateOffsets(initStatesOffset),
-        serialize,
+        container.scoped(0, initStatesOffset, serialize),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
-          container.loadStateOffsets(statesOffset(idx)),
-          serialize,
+          scoped(idx, serialize),
           idx := idx + 1),
         region.close(),
         r := Code._null)

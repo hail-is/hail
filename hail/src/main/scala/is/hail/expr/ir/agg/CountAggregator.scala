@@ -15,7 +15,7 @@ object CountAggregator extends StagedRegionValueAggregator {
 
   private val stateType: PTuple = PTuple(PInt64(true))
 
-  def createState(mb: EmitMethodBuilder): State = TypedRVAState(PTuple(PInt64(true)), mb, mb.newField[Region], mb.newField[Long])
+  def createState(mb: EmitMethodBuilder): State = TypedRVAState(PTuple(FastIndexedSeq(PInt64(true)), required = true), mb, mb.newField[Region], mb.newField[Long])
 
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)

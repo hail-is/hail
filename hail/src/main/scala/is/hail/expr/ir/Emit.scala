@@ -5,7 +5,6 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.ir.agg.RVAState
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -43,15 +42,15 @@ object Emit {
     nSpecialArguments: Int,
     aggs: Option[Array[AggSignature]]): EmitTriplet = {
     TypeCheck(ir)
-    val (container, setNumAggs) = aggs.map { a =>
+    val container = aggs.map { a =>
       val (c, off) = fb.addAggStates(a)
-      Some(AggContainer(a, c, off)) -> c.topRegion.setNumParents(a.length)
-    }.getOrElse(None -> Code._empty)
+      Some(AggContainer(a, c, off))
+    }.getOrElse(None)
 
     val baseTriplet = new Emit(fb.apply_method, nSpecialArguments).emit(ir, env, EmitRegion.default(fb.apply_method), container = container)
 
     EmitTriplet(
-      Code(setNumAggs, baseTriplet.setup),
+      baseTriplet.setup,
       baseTriplet.m,
       baseTriplet.v)
   }
@@ -990,10 +989,7 @@ private class Emit(
         val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val setup = Code(
-          sc.refreshOne(0, i),
-          sc.updateOne(0, aggOff, i,
-            rvAgg.initOp(sc(i), argVars)))
+        val setup = rvAgg.initOp(sc(i), argVars)
 
         EmitTriplet(setup, false, Code._empty)
 
@@ -1002,7 +998,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
-        EmitTriplet(sc.updateOne(0, aggOff, i, rvAgg.seqOp(sc(i), argVars)),
+        EmitTriplet(rvAgg.seqOp(sc(i), argVars),
           false, Code._empty)
 
       case CombOp2(i1, i2, aggSig) =>
@@ -1010,9 +1006,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
-        val comb = sc.updateOne(0, aggOff, i1,
-          sc.updateOne(0, aggOff, i2,
-            rvAgg.combOp(sc(i1), sc(i2))))
+        val comb = rvAgg.combOp(sc(i1), sc(i2))
 
         EmitTriplet(comb, false, Code._empty)
 
@@ -1024,7 +1018,7 @@ private class Emit(
           assert(aggSigs(j) == aggs(idx))
           val s = sc(idx)
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
-          Code(sc.updateOne(0, aggOff, idx, rvAgg.result(s, srvb)), srvb.advance())
+          Code(rvAgg.result(s, srvb), srvb.advance())
         }: _*))
 
         EmitTriplet(Code._empty, false, Code(srvb.start(), addFields, srvb.offset))
@@ -1043,8 +1037,9 @@ private class Emit(
 
         val write = Code(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
+          Code._println(const("path: ").concat(pathString)),
           ob := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pathString)),
-          sc.scoped(0, aggOff, coerce[Unit](Code(serialize: _*))),
+          coerce[Unit](Code(serialize: _*)),
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"))
 
@@ -1063,14 +1058,13 @@ private class Emit(
           .map(_.unserialize(spec))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
-          val idx = start + j
-          Code(
-            sc.refreshOne(0, idx),
-            sc.updateOne(0, aggOff, idx, deserializers(j)(ib)))
+          deserializers(j)(ib)
         }
 
         val read = Code(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
+          Code._println(const("path: ").concat(pathString)),
+          Code._println(const(s"nAggSigs: ${ unserialize.length }")),
           ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
           coerce[Unit](Code(unserialize: _*)))
 
@@ -1225,13 +1219,15 @@ private class Emit(
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
       case Die(m, typ) =>
         val cm = emit(m)
-        present(
+        EmitTriplet(
           Code(
             cm.setup,
             Code._throw(Code.newInstance[HailException, String](
               cm.m.mux[String](
                 "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(er, m.typ)(cm.v)))))))
+                coerce[String](StringFunctions.wrapArg(er, m.typ)(cm.v)))))),
+          false,
+          defaultValue(typ))
       case ir@ApplyIR(fn, args) =>
         val mfield = mb.newField[Boolean]
         val vfield = mb.newField()(typeToTypeInfo(ir.typ))

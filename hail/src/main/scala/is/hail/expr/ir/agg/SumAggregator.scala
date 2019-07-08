@@ -13,7 +13,7 @@ class SumAggregator(typ: PType) extends StagedRegionValueAggregator {
   val seqOpTypes: Array[PType] = Array(typ)
   val resultType: PType = typ
 
-  private val stateType: PTuple = PTuple(typ.setRequired(true))
+  private val stateType: PTuple = PTuple(FastIndexedSeq(typ.setRequired(true)), required = true)
   def floatOrLong[T](float: T, long: T): T = typ match {
     case _: PInt64 => long
     case _: PFloat64 => float

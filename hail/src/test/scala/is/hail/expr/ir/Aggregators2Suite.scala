@@ -14,11 +14,15 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 object TUtils {
-  def printBytes(region: Region, off: Long, n: Int): String =
-    region.loadBytes(off, n).map("%02x".format(_)).mkString(" ")
+  def printBytes(region: Region, off: Long, n: Int, header: String = null): String = {
+    region.loadBytes(off, n).zipWithIndex
+      .grouped(16)
+      .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
+      .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
+  }
 
   def printBytes(region: Code[Region], off: Code[Long], n: Int): Code[String] =
-    Code.invokeScalaObject[Region, Long, Int, String](TUtils.getClass, "printBytes", region, off, n)
+    Code.invokeScalaObject[Region, Long, Int, String, String](TUtils.getClass, "printBytes", region, off, n, "")
 
   def printRow(region: Region, off: Long): String =
     SafeRow(TStruct("a" -> TString(), "b" -> TInt32()).physicalType, region, off).toString
@@ -33,14 +37,23 @@ class Aggregators2Suite extends HailSuite {
   val arrayType = PArray(rowType)
   val streamType = PArray(arrayType)
 
-  val pnnAgg = new PrevNonNullAggregator(rowType)
-  val countAgg = CountAggregator
-  val sumAgg = new SumAggregator(PInt64())
+  val pnnAggSig = AggSignature(PrevNonnull(), FastSeq[Type](), None, FastSeq[Type](rowType.virtualType))
+  val pnnAgg = agg.Extract.getAgg(pnnAggSig)
+  val countAggSig = AggSignature(Count(), FastSeq[Type](), None, FastSeq[Type]())
+  val countAgg = agg.Extract.getAgg(countAggSig)
+  val sumAggSig = AggSignature(Sum(), FastSeq[Type](), None, FastSeq[Type](TInt64()))
+  val sumAgg = agg.Extract.getAgg(sumAggSig)
 
+  val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
   val aggs: Array[StagedRegionValueAggregator] = Array(pnnAgg, countAgg, sumAgg)
 
-  val lcAgg = new ArrayElementLengthCheckAggregator(aggs, false)
-  val eltAgg = new ArrayElementwiseOpAggregator(aggs)
+
+  val lcAggSig = AggSignature(AggElementsLengthCheck2(aggSigs, false), FastSeq[Type](), Some(FastSeq[Type]()), FastSeq[Type](TInt32()))
+  val lcAgg: ArrayElementLengthCheckAggregator = agg.Extract.getAgg(lcAggSig).asInstanceOf[ArrayElementLengthCheckAggregator]
+  val eltAggSig = AggSignature(AggElements2(aggSigs), FastSeq[Type](), None, FastSeq[Type](TInt32(), TVoid))
+  val eltAgg: ArrayElementwiseOpAggregator = agg.Extract.getAgg(eltAggSig).asInstanceOf[ArrayElementwiseOpAggregator]
+
+  val resType = PTuple(FastSeq(lcAgg.resultType))
 
   val value = FastIndexedSeq(
     FastIndexedSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
@@ -150,7 +163,6 @@ class Aggregators2Suite extends HailSuite {
     val r = fb.apply_method.getArg[Region](1)
     val off = fb.apply_method.getArg[Long](2)
 
-    val resType = PTuple(FastSeq(lcAgg.resultType))
     val s = lcAgg.createState(fb.apply_method)
     val srvb = new StagedRegionValueBuilder(EmitRegion.default(fb.apply_method), resType)
 
@@ -178,7 +190,6 @@ class Aggregators2Suite extends HailSuite {
     val r = fb.apply_method.getArg[Region](1)
     val off = fb.apply_method.getArg[Long](2)
 
-    val resType = PTuple(FastSeq(lcAgg.resultType))
     val s = lcAgg.createState(fb.apply_method)
     val s2 = lcAgg.createState(fb.apply_method)
     val srvb = new StagedRegionValueBuilder(EmitRegion.default(fb.apply_method), resType)
@@ -235,16 +246,77 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testEmit() {
-    val elt = TStruct("a"->TInt32())
-    val array = Ref("array", TArray(elt))
-    val pnn = AggSignature(PrevNonnull(), FastSeq(), None, FastSeq(elt))
-    val arrayagg = AggSignature(AggElementsLengthCheck2(FastIndexedSeq(pnn), true), FastSeq[Type](), Some(FastSeq()), FastSeq(TInt32()))
+    val array = Ref("array", arrayType.virtualType)
+    val idx = Ref("idx", TInt32())
+    val elt = Ref("elt", rowType.virtualType)
 
-    val ir = SeqOp2(0, FastIndexedSeq(I32(0), SeqOp2(0, FastIndexedSeq(ArrayRef(array, 0)), pnn)), arrayagg)
-//    val ir = ReadAggs(0, Str("foo"), CodecSpec.defaultUncompressed, FastIndexedSeq(arrayagg))
+    val spec = CodecSpec.defaultUncompressed
+    val partitioned = value.grouped(3).toFastIndexedSeq
+    val fileNames = Array.tabulate(partitioned.length)(tmpDir.createTempFile()).toFastIndexedSeq
 
-    val (_, f) = CompileWithAggregators2[Long, Unit](Array(arrayagg), array.name, array.pType, ir)
+    val (_, initAndSeqF) = CompileWithAggregators2[Long, Long, Unit](
+      Array(lcAggSig),
+      "stream", streamType,
+      "path", PString(),
+      Begin(FastIndexedSeq(
+        InitOp2(0, FastIndexedSeq(), lcAggSig),
+        ArrayFor(Ref("stream", streamType.virtualType),
+          array.name,
+          Begin(FastIndexedSeq(
+            SeqOp2(0, FastIndexedSeq(ArrayLen(array)), lcAggSig),
+            ArrayFor(
+              ArrayRange(I32(0), ArrayLen(array), I32(1)),
+              idx.name,
+              Let(elt.name,
+                ArrayRef(array, idx),
+                SeqOp2(0,
+                  FastIndexedSeq(idx,
+                    Begin(FastIndexedSeq(
+                      SeqOp2(0, FastIndexedSeq(elt), pnnAggSig),
+                      SeqOp2(1, FastIndexedSeq(), countAggSig),
+                      SeqOp2(2, FastIndexedSeq(GetField(elt, "b")), sumAggSig)))),
+                  eltAggSig)))))),
+        WriteAggs(0, Ref("path", TString()), spec, FastIndexedSeq(lcAggSig)))))
 
-    val f2 = f(0)
+    val paths = Ref("paths", TArray(TString()))
+    val (_, readAndComb) = CompileWithAggregators2[Long, Unit](
+      Array(lcAggSig, lcAggSig),
+      "paths", PArray(PString()),
+      Begin(FastIndexedSeq(
+        ReadAggs(0, ArrayRef(paths, 0), spec, FastIndexedSeq(lcAggSig)),
+        ArrayFor(ArrayRange(1, ArrayLen(paths), 1),
+          idx.name,
+          Begin(FastIndexedSeq(
+            ReadAggs(1, ArrayRef(paths, idx), spec, FastIndexedSeq(lcAggSig)),
+            CombOp2(0, 1, lcAggSig)))))))
+
+    val (_, resultF) = CompileWithAggregators2[Long](
+      Array(lcAggSig, lcAggSig), ResultOp2(0, FastIndexedSeq(lcAggSig)))
+
+    Region.scoped { region =>
+      val pathOffs = ScalaToRegionValue(region, paths.typ, fileNames)
+      val f = initAndSeqF(0)
+      val f2 = readAndComb(0)
+      val resF = resultF(0)
+
+      partitioned.zipWithIndex.foreach { case (lit, i) =>
+        val voff = ScalaToRegionValue(region, streamType.virtualType, lit)
+        val poff = coerce[PArray](paths.pType).loadElement(region, pathOffs, i)
+
+        Region.scoped { aggRegion =>
+          f.newAggState(aggRegion)
+          f(region, voff, false, poff, false)
+        }
+      }
+
+      Region.scoped { aggRegion =>
+        f2.newAggState(aggRegion)
+        f2(region, pathOffs, false)
+        resF.setAggState(aggRegion, f2.getAggOffset())
+        val res = resF(region)
+
+        assert(SafeRow(resType, region, res) == Row(expected))
+      }
+    }
   }
 }
