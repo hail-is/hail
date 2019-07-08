@@ -524,6 +524,12 @@ class Job:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
                 await self.set_state('Cancelled')
 
+    @staticmethod
+    async def cancel_many(*ids):
+        for id in ids:
+            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
+            await self._delete_k8s_resources()
+
     async def cancel(self):
         self._cancelled = True
 
