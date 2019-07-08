@@ -828,13 +828,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
 
-    try {
-      return agg.TableMapIRNew(tv, newRow, ctx)
-    } catch {
-      case e: agg.UnsupportedExtraction =>
-        log.info(s"couldn't lower TableMapRows: $e")
-    }
-
     val gType = tv.globals.t
 
     var scanInitNeedsGlobals = false
