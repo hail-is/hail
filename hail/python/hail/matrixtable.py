@@ -4020,5 +4020,14 @@ class MatrixTable(ExprContainer):
              'entryField': entry_field,
              'blockSize': block_size}))
 
+    def _calculate_new_partitions(self, n_partitions):
+        """returns a set of range bounds that can be passed to write"""
+        mt = self.rows()
+        mt = mt.select()
+        return Env.backend().execute(TableToValueApply(
+            mt._tir,
+            {'name': 'TableCalculateNewPartitions',
+             'nPartitions': n_partitions}))
+
 
 matrix_table_type.set(MatrixTable)
