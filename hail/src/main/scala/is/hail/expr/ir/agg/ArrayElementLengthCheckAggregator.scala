@@ -91,7 +91,7 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
     container.scoped(regionOffset(eltIdx), statesOffset(eltIdx))(f)
 
   def update(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-      container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
+    container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
 
   def update(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     container.update(regionOffset(eltIdx), statesOffset(eltIdx))(f)

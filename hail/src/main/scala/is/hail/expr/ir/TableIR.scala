@@ -918,7 +918,6 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
-
     val gType = tv.globals.t
 
     var scanInitNeedsGlobals = false
