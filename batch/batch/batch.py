@@ -524,12 +524,6 @@ class Job:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
                 await self.set_state('Cancelled')
 
-    @staticmethod
-    async def cancel_many(*ids):
-        for id in ids:
-            await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
-            await self._delete_k8s_resources()
-
     async def cancel(self):
         self._cancelled = True
 
@@ -1004,10 +998,50 @@ async def _get_batch(batch_id, user):
 
 
 async def _cancel_batch(batch_id, user):
-    batch = await Batch.from_db(batch_id, user)
-    if not batch:
-        abort(404)
-    await batch.cancel()
+    async with db.pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.executemany(f'''
+    update jobs
+       set jobs.state = 'Cancelled'
+inner join batch on jobs.batch_id == batch.batch_id
+     where jobs.batch_id = %s
+       and jobs.user = %s
+       and batch.deleted = FALSE
+       and batch.cancelled = FALSE
+       and jobs.state not in ('Cancelled', 'Error', 'Failed', 'Success', 'Pending')
+       and jobs.always_run == FALSE
+;
+    update jobs
+       set state = 'Ready'
+inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
+                         and `jobs-parents`.job_id = jobs.job_id
+     where jobs.state = 'Pending'
+       and jobs.batch_id = %s
+       and jobs.user = %s
+       and batch.deleted = FALSE
+       and batch.cancelled = FALSE
+  group by jobs.job_id
+    having count(`jobs-parents`.state = 'Success') = count(*)
+        or (jobs.always_run = TRUE and
+            count(`jobs.parents`.state in ('Success', 'Failed', 'Cancelled')) = count(*))
+;
+    select jobs.*
+      from jobs
+     where jobs.state = 'Ready' or jobs.state = 'Cancelled'
+       and jobs.batch_id = %s and user = %s
+       and batch.deleted = FALSE
+       and batch.cancelled = FALSE
+;
+    update batch set cancelled = TRUE, closed = TRUE
+''', (batch_id, user, batch_id, user, batch_id, user))
+            actionable_jobs = await cursor.fetchall()
+            cancelled = [Job.from_record(job) for job in actionable_jobs if job['state'] == 'Cancelled']
+            create = [Job.from_record(job) for job in actionable_jobs if job['state'] == 'Ready']
+    for job in cancelled:
+        job.delete_k8s_resources()
+    for job in create:
+        job._create_pod()
+
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
