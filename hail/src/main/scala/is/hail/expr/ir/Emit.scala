@@ -1037,7 +1037,6 @@ private class Emit(
 
         val write = Code(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
-          Code._println(const("path: ").concat(pathString)),
           ob := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pathString)),
           coerce[Unit](Code(serialize: _*)),
           ob.invoke[Unit]("flush"),
@@ -1063,8 +1062,6 @@ private class Emit(
 
         val read = Code(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
-          Code._println(const("path: ").concat(pathString)),
-          Code._println(const(s"nAggSigs: ${ unserialize.length }")),
           ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
           coerce[Unit](Code(unserialize: _*)))
 
