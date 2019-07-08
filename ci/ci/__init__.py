@@ -1,3 +1,3 @@
-from .ci import run
+from .ci import run, dev_test_branch
 
-__all__ = ['run']
+__all__ = ['run', 'dev_test_branch']

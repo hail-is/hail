@@ -20,14 +20,15 @@ from .log import log
 from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, pretty_timestamp_age
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
+#with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+#    oauth_token = f.read().strip()
+oauth_token = None
 
 uvloop.install()
 
 watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES')))
+    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
 app = web.Application()
@@ -265,11 +266,15 @@ async def batch_callback_handler(request):
 async def dev_test_branch(request):
     # Need to make a repo
     params = request#await request.json()
-    repo = Repo(params.get('owner'), params.get('name'))
+    userdata = params['userdata']
+    repo_owner, repo_name = tuple(params['repo'].split('/'))
+    print(repo_owner)
+    print(repo_name)
+    repo = Repo(repo_owner, repo_name)
     # Need to make a branch
-    fq_branch = FQBranch(repo, params.get('name'))
+    fq_branch = FQBranch(repo, params.get('branch'))
     # Need to make an UnwatchedBranch
-    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata, namespace)
+    unwatched_branch = UnwatchedBranch(fq_branch, userdata)
     #Call deploy function and iterate from there.
 
 
@@ -291,8 +296,7 @@ async def update_loop(app):
             log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
-routes.static('/static', 'ci/static')
-app.add_routes(routes)
+
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
@@ -333,3 +337,5 @@ app.on_cleanup.append(on_cleanup)
 
 def run():
     web.run_app(app, host='0.0.0.0', port=5000)
+    routes.static('/static', 'ci/static')
+    app.add_routes(routes)
