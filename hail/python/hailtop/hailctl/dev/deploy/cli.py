@@ -9,7 +9,7 @@ def init_parser(parser):
 
 def main(args):
     # For now, let's find CI and just manually call the damn function. 
-    asyncio.run(ci.dev_test_branch({
+    result = asyncio.run(ci.dev_test_branch({
         'userdata': {
             'username': 'johnc1231'
         },
