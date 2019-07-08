@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -32,10 +32,13 @@ abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
   def table_type: TableType
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+
+  def rowsSpec(path: String): AbstractRVDSpec = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
   def rvdType(path: String): RVDType = {
-    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    val rows = rowsSpec(path)
     RVDType(rows.encodedType, rows.key)
   }
+  def indexed(path: String): Boolean = rowsSpec(path).indexed
 }
 
 case class TableSpec(

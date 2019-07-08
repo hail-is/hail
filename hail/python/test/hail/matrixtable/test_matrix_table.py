@@ -728,6 +728,38 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/globals')
         self.assertTrue(ds.globals_table()._same(t))
 
+    def test_indexed_read(self):
+        mt = hl.utils.range_matrix_table(2000, 100, 10)
+        f = new_temp_file(suffix='mt')
+        mt.write(f)
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ])
+        self.assertEqual(mt2.n_partitions(), 2)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+        mt2 = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
+            hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
+        ], _filter_intervals=True)
+        self.assertEqual(mt2.n_partitions(), 3)
+        self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
+
+    def test_indexed_read_vcf(self):
+        vcf = self.get_vds(10)
+        f = new_temp_file(suffix='mt')
+        vcf.write(f)
+        l1, l2, l3, l4 = hl.Locus('20', 10000000), hl.Locus('20', 11000000), hl.Locus('20', 13000000), hl.Locus('20', 14000000)
+        mt = hl.read_matrix_table(f, _intervals=[
+            hl.Interval(start=l1, end=l2),
+            hl.Interval(start=l3, end=l4),
+        ])
+        self.assertEqual(mt.n_partitions(), 2)
+        p = (vcf.locus >= l1) & (vcf.locus < l2)
+        q = (vcf.locus >= l3) & (vcf.locus < l4)
+        self.assertTrue(vcf.filter_rows(p | q)._same(mt))
+
     def test_codecs_matrix(self):
         from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()

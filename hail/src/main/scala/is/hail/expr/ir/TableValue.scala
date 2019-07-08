@@ -85,7 +85,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     fs.mkDir(globalsPath)
     AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.javaValue))
 
-    val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
+    val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)
 
     val referencesPath = path + "/references"
     fs.mkDir(referencesPath)

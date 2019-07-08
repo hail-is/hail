@@ -416,7 +416,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
 
     included = set(left_sample_counter.keys()).intersection(set(right_sample_counter.keys()))
 
-    info(f"concordance: including {included} shared samples "
+    info(f"concordance: including {len(included)} shared samples "
          f"({len(left_sample_counter)} total on left, {len(right_sample_counter)} total on right)")
 
     left = require_biallelic(left, 'concordance, left')

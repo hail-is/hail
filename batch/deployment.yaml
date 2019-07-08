@@ -10,7 +10,6 @@ metadata:
   labels:
     app: batch
     hail.is/sha: "{{ code.sha }}"
-    grafanak8sapp: "true"
 spec:
   selector:
     matchLabels:
@@ -21,6 +20,7 @@ spec:
       labels:
         app: batch
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
       serviceAccountName: batch
 {% if deploy %}
