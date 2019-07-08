@@ -848,14 +848,17 @@ class Batch:
         await db.batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
-        jobs = await self.get_jobs()
-        for j in jobs:
+        for j in await self.get_jobs():
             await j.cancel()
         log.info(f'batch {self.id} cancelled')
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
         self.closed = True
+
+        for job in await self.get_jobs():
+            if job._state == 'Ready':
+                await app['start_job_queue'].put(job)
 
     async def mark_deleted(self):
         await self.cancel()
@@ -962,24 +965,19 @@ async def create_jobs(request, userdata):
 
     jobs_builder = JobsBuilder(db)
     try:
-        jobs = []
         for job_params in jobs_parameters['jobs']:
-            job = create_job(jobs_builder, batch.id, userdata, job_params)
-            jobs.append(job)
+            create_job(jobs_builder, batch.id, userdata, job_params)
 
         success = await jobs_builder.commit()
         if not success:
             abort(400, f'insertion of jobs in db failed')
 
         log.info(f"created {len(jobs_parameters['jobs'])} jobs for batch {batch_id}")
-
-        for job in jobs:
-            if job._state == 'Ready':
-                await app['start_job_queue'].put(job)
     finally:
         await jobs_builder.close()
 
     return jsonify({})
+
 
 @routes.post('/api/v1alpha/batches/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
@@ -1012,7 +1010,8 @@ async def _cancel_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.cancel()
+    asyncio.ensure_future(batch.cancel())
+
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
@@ -1021,6 +1020,7 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     return jsonify(await _get_batch(batch_id, user))
+
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
@@ -1031,6 +1031,7 @@ async def cancel_batch(request, userdata):
     await _cancel_batch(batch_id, user)
     return jsonify({})
 
+
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @prom_async_time(REQUEST_TIME_PATCH_CLOSE_BATCH)
 @rest_authenticated_users_only
@@ -1040,8 +1041,9 @@ async def close_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.close()
+    asyncio.ensure_future(batch.close())
     return jsonify({})
+
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_DELETE_BATCH)
@@ -1049,12 +1051,12 @@ async def close_batch(request, userdata):
 async def delete_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.mark_deleted()
+    asyncio.ensure_future(batch.mark_deleted())
     return jsonify({})
+
 
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
@@ -1095,6 +1097,7 @@ async def ui_batches(request, userdata):
                                               context)
     response.set_cookie('_csrf', token, secure=True, httponly=True)
     return response
+
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
