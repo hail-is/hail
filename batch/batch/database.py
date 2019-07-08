@@ -41,7 +41,8 @@ class Database:
                                                password=self.password,
                                                charset=self.charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
-                                               autocommit=True)
+                                               autocommit=True,
+                                               echo=True)
 
 
 def make_where_statement(items):
