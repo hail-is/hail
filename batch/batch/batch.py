@@ -698,7 +698,7 @@ async def get_healthcheck(request):  # pylint: disable=W0613
     return jsonify({})
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
+@prom_async_time(REQUEST_TIME_GET_JOB)
 @rest_authenticated_users_only
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
