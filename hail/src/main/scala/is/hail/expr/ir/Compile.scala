@@ -217,10 +217,7 @@ object CompileWithAggregators2 {
 
     Emit(ir, fb, nSpecialArgs, Some(aggSigs))
 
-    val fos = new FileOutputStream(fb.name.replace('/', '-'))
-    val f = fb.resultWithIndex(Some(new PrintWriter(fos)))
-    fos.flush()
-    fos.close()
+    val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
     (ir.pType, f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
   }

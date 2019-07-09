@@ -168,7 +168,7 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.assign(r)
+        s.assign(r),
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),

@@ -18,6 +18,9 @@ abstract class RVAState {
     Code(region.isNull.mux(Code._empty, region.close()), r := other)
 
   def loadStateFrom(src: Code[Long]): Code[Unit]
+//  def loadStateFrom(region: Code[Region], src: Code[Long]): Code[Unit]
+//
+//  def storeStateInto(topRegion: Code[Region], rOffset: Code[Int]): Code[Long]
 
   def copyFrom(src: Code[Long]): Code[Unit]
 

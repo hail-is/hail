@@ -472,7 +472,7 @@ private class Emit(
         val xmv = mb.newLocal[Boolean]()
         val prettied = Pretty(x)
         val irString =
-          if (prettied.size > 100) prettied.take(1000) + " ..."
+          if (prettied.size > 100) prettied.take(100) + " ..."
           else prettied
         val setup = Code(
           codeA.setup,
