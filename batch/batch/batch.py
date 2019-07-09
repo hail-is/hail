@@ -1015,7 +1015,7 @@ async def _cancel_batch(batch_id, user):
 ''', (batch_id,))
             await cursor.execute(f'''
     update jobs
-inner join (    select jobs.id
+inner join (    select jobs.job_id
                   from jobs
             inner join {jobs_parents} on {jobs_parents}.batch_id = jobs.batch_id
                                      and {jobs_parents}.job_id = jobs.job_id
