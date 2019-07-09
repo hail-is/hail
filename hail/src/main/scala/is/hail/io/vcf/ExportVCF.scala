@@ -261,7 +261,7 @@ object ExportVCF {
         }
       } else {
         warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
-        null
+        PStruct.empty()
       }
 
     val rg = mv.referenceGenome
