@@ -18,7 +18,7 @@ object ArrayElementState {
 }
 
 case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], off: ClassFieldRef[Long], knownLength: Boolean) extends RVAState {
-  val container: StateContainer = StateContainer(nested, r)
+  val container: StateContainer = StateContainer(nested, region)
   private val arrayType: PArray = PArray(container.typ)
 
   private val nStates: Int = nested.length
@@ -26,8 +26,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
 
   val typ: PTuple = PTuple(FastIndexedSeq(container.typ, arrayType))
 
-  val lenRef: ClassFieldRef[Int] = mb.newField[Int]
-  val idx: ClassFieldRef[Int] = mb.newField[Int]
+  val lenRef: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_lenref")
+  val idx: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_idx")
 
   val srvb = new StagedRegionValueBuilder(er, typ)
 
@@ -154,11 +154,13 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
             Code.whileLoop(sab.arrayIdx < lenRef,
               scoped(sab.arrayIdx) { (i, s) =>
                 s.copyFrom(eltState(sab.arrayIdx, i))
-              }),
-            container.addState(sab),
-            sab.advance()))),
+              },
+              container.addState(sab),
+              sab.advance())))),
       off := srvb.end())
   }
+
+  override def close: Code[Unit] = Code(region.isNull.mux(Code._empty, Code(region.close(), r := Code._null)), container.closeNested)
 }
 
 class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggregator], knownLength: Boolean) extends StagedRegionValueAggregator {

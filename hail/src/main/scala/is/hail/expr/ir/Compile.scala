@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import java.io.{FileOutputStream, PrintWriter}
+
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
@@ -215,7 +217,10 @@ object CompileWithAggregators2 {
 
     Emit(ir, fb, nSpecialArgs, Some(aggSigs))
 
-    val f = fb.resultWithIndex()
+    val fos = new FileOutputStream(fb.name.replace('/', '-'))
+    val f = fb.resultWithIndex(Some(new PrintWriter(fos)))
+    fos.flush()
+    fos.close()
     codeCache += k -> CodeCacheValue(ir.pType, f)
     (ir.pType, f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
   }

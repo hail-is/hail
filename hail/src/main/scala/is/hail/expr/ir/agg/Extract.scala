@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
@@ -13,6 +13,22 @@ import is.hail.utils._
 import scala.language.{existentials, postfixOps}
 
 object TableMapIRNew {
+
+  def logRegions(header: String): Unit = {
+    val pool = RegionPool.get
+    val nFree = pool.numFreeRegions()
+    val nRegions = pool.numRegions()
+    val nBlocks = pool.numFreeBlocks()
+
+
+    log.info(
+      s"""Region count for $header
+         |    regions: $nRegions
+         |     blocks: $nBlocks
+         |       free: $nFree
+         |       used: ${ nRegions - nFree }""".stripMargin)
+  }
+
   def apply(tv: TableValue, newRow: IR, ctx: ExecuteContext): TableValue = {
     val typ = tv.typ
     val gType = tv.globals.t
@@ -47,6 +63,7 @@ object TableMapIRNew {
       extracted.aggs,
       "global", gType,
       Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
+
     val (_, deserializeFirstF) = ir.CompileWithAggregators2[Unit](
       aggSlots,
       extracted.deserializeSet(0, 0, spec))
@@ -64,6 +81,7 @@ object TableMapIRNew {
     val (_, combOpF) = ir.CompileWithAggregators2[Unit](
       extracted.aggs ++ extracted.aggs,
       Begin(
+        extracted.deserializeSet(0, 0, spec) +:
         extracted.deserializeSet(1, 1, spec) +:
           Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, extracted.aggs(i))) :+
           extracted.serializeSet(0, 0, spec)))
@@ -76,15 +94,20 @@ object TableMapIRNew {
     assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
+    logRegions("before init")
     val initAgg = Region.scoped { aggRegion =>
       val init = initF(0)
       init.newAggState(aggRegion)
       init(ctx.r, tv.globals.value.offset, false)
+      init.closeRegions()
+      logRegions("after init")
       init.getSerializedAgg(0)
     }
+    logRegions("after init and free")
 
     // 2. load in init op on each partition, seq op over partition, write out.
     val scanPartitionAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+      logRegions(s"executor--inside partition $i")
       val globalRegion = ctx.freshRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
@@ -102,32 +125,39 @@ object TableMapIRNew {
         seq(rv.region, globals, false, rv.offset, false)
         ctx.region.clear()
       }
-
+      logRegions(s"executor--inside partition $i after seq")
       write.setAggState(aggRegion, seq.getAggOffset())
       write(globalRegion)
+      write.closeRegions()
       Iterator.single(write.getSerializedAgg(0))
     }, HailContext.get.flags.get("max_leader_scans").toInt)
 
+
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = Region.scoped { aggRegion =>
-      val readInitF = deserializeFirstF(0)
-      val combOp = combOpF(0)
-      readInitF.newAggState(aggRegion)
-      readInitF.setSerializedAgg(0, initAgg)
-      readInitF(ctx.r)
+    logRegions(s"before comb op")
+    val combOp = combOpF(0)
 
-      combOp.setAggState(aggRegion, readInitF.getAggOffset())
-
-      scanPartitionAggs.scanLeft(initAgg) { case (_, current) =>
+    var i = 0
+    val partAggs = scanPartitionAggs.scanLeft(initAgg) { case (prev, current) =>
+      logRegions(s"comb op $i")
+      i += 1
+      Region.scoped { agg2 =>
+        combOp.newAggState(agg2)
+        combOp.setSerializedAgg(0, prev)
         combOp.setSerializedAgg(1, current)
         combOp(ctx.r)
-        combOp.getSerializedAgg(0)
+        val agg = combOp.getSerializedAgg(0)
+        combOp.closeRegions()
+        agg
       }
     }
+
+    logRegions(s"after comb op and free")
 
     // 4. load in partStarts, calculate newRow based on those results.
 
     val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[Byte], it: Iterator[RegionValue]) =>
+      logRegions(s"executor--inside partition $i before row")
       val globalRegion = ctx.freshRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
         globalsBc.value.readRegionValue(globalRegion)
@@ -150,6 +180,7 @@ object TableMapIRNew {
         seq(rv.region, globals, false, rv.offset, false)
         aggOff = seq.getAggOffset()
         rv.setOffset(off)
+//        logRegions(s"executor--inside partition $i after row")
         rv
       }
     }

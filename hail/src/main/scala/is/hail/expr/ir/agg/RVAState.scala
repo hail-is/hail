@@ -9,10 +9,13 @@ import is.hail.utils._
 
 abstract class RVAState {
   def mb: EmitMethodBuilder
-  def r: ClassFieldRef[Region]
+  protected def r: ClassFieldRef[Region]
   def off: ClassFieldRef[Long]
   def typ: PType
   def region: Code[Region] = r.load()
+
+  def assign(other: Code[Region]): Code[Unit] =
+    Code(region.isNull.mux(Code._empty, region.close()), r := other)
 
   def loadStateFrom(src: Code[Long]): Code[Unit]
 
@@ -22,9 +25,11 @@ abstract class RVAState {
 
   def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
 
+  def close: Code[Unit] = region.isNull.mux(Code._empty, Code(region.close(), r := Code._null))
+
   def er: EmitRegion = EmitRegion(mb, region)
   def using(definition: Code[Region])(f: Code[Unit]): Code[Unit] =
-    Code(r := definition, f, region.close())
+    Code(assign(definition), f, close)
 }
 
 case class TypedRVAState(typ: PType, mb: EmitMethodBuilder, r: ClassFieldRef[Region], off: ClassFieldRef[Long]) extends RVAState {
@@ -63,7 +68,7 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
   def loadRegions(rOffset: Code[Int]): Code[Unit] =
-    toCode((i, s) => s.r := topRegion.getParentReference(rOffset + i))
+    toCode((i, s) => s.assign(topRegion.getParentReference(rOffset + i)))
 
   def loadStateOffsets(stateOffset: Code[Long]): Code[Unit] =
     toCode((i, s) => typ.isFieldMissing(topRegion, stateOffset, i).mux(
@@ -71,14 +76,19 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
       s.loadStateFrom(loadStateAddress(stateOffset, i))))
 
   def storeRegions(rOffset: Code[Int]): Code[Unit] =
-    toCode((i, s) => topRegion.setParentReference(s.region, rOffset + i))
+    toCode((i, s) =>
+      s.region.isNull.mux(Code._empty,
+        Code(
+          topRegion.setParentReference(s.region, rOffset + i),
+          s.close)))
 
   def storeStateOffsets(statesOffset: Code[Long]): Code[Unit] =
     toCode((i, s) => topRegion.storeAddress(getStateOffset(statesOffset, i), s.off))
 
   def scoped(rOffset: Code[Int], f: Code[Unit]): Code[Unit] =
     Array.range(0, nStates).foldLeft[Code[Unit]](f)( (cont, i) =>
-      states(i).using(getRegion(rOffset, i))(cont))
+        states(i).using(getRegion(rOffset, i))(cont)
+      )
 
   def scoped(rOffset: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     scoped(rOffset, toCode(f))
@@ -101,4 +111,6 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
       Code(ssb.start(),
         toCode((_, s) => Code(ssb.addAddress(s.off), ssb.advance()))))
   }
+
+  def closeNested: Code[Unit] = toCode((_, s) => s.close)
 }

@@ -990,8 +990,7 @@ private class Emit(
         val rvAgg = agg.Extract.getAgg(aggSig)
 
         val setup = Code(
-          sc(i).region.close(),
-          sc(i).r := Code.newInstance[Region](),
+          sc(i).assign(Code.newInstance[Region]()),
           sc.setPresent(aggOff, i),
           rvAgg.initOp(sc(i), argVars))
 
@@ -1081,8 +1080,7 @@ private class Emit(
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => Code(
-            sc(i).region.close(),
-            sc(i).r := Code.newInstance[Region](),
+            sc(i).assign(Code.newInstance[Region]()),
             sc.setPresent(aggOff, i))): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
@@ -1108,8 +1106,7 @@ private class Emit(
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => Code(
-            sc(i).region.close(),
-            sc(i).r := Code.newInstance[Region](),
+            sc(i).assign(Code.newInstance[Region]()),
             sc.setPresent(aggOff, i))): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>

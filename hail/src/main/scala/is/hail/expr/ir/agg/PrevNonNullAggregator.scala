@@ -46,8 +46,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
       elt.m.mux(
         Code._empty,
         Code(
-          state.region.close(),
-          state.r := Code.newInstance[Region](),
+          state.assign(Code.newInstance[Region]()),
           state.off := state.region.allocate(stateType.alignment, stateType.byteSize),
           stateType.clearMissingBits(state.region, state.off),
           copyValue))

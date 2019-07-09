@@ -83,7 +83,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   def seqOne(s: Array[RVAState], a: Code[Long], i: Code[Int]): Code[Unit] = {
-    val r = s(0).r
+    val r = s(0).region
     Code(
       pnnAgg.seqOp(s(0), Array(rowVar(r, a, i))),
       countAgg.seqOp(s(1), Array()),
@@ -137,7 +137,7 @@ class Aggregators2Suite extends HailSuite {
     fb.emit(
       Code(r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).r := r.load().getParentReference(i),
+          Code(states(i).assign(r.load().getParentReference(i)),
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -168,7 +168,7 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.r := r,
+        s.assign(r)
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),
@@ -213,8 +213,8 @@ class Aggregators2Suite extends HailSuite {
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.r := Code.newInstance[Region](),
-          soff := PArray(streamType).loadElement(s.r, off, partitionIdx),
+          s.assign(Code.newInstance[Region]()),
+          soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
           ob.invoke[Unit]("flush"),
@@ -222,13 +222,13 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.r := Code.newInstance[Region](),
+        s.assign(Code.newInstance[Region]()),
         s.unserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.r := Code.newInstance[Region](),
+          s2.assign(Code.newInstance[Region]()),
           s2.unserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),
