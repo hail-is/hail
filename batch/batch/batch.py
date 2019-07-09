@@ -1000,7 +1000,8 @@ async def _get_batch(batch_id, user):
 async def _cancel_batch(batch_id, user):
     async with db.pool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('''
+            jobs_parents = '`' + db.jobs_parents.name '`'
+            await cursor.execute(f'''
     update jobs
 inner join batch on jobs.batch_id = batch.batch_id
        set jobs.state = 'Cancelled'
@@ -1015,17 +1016,17 @@ inner join batch on jobs.batch_id = batch.batch_id
     update jobs
 inner join (    select jobs.id
                   from jobs
-            inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
-                                     and `jobs-parents`.job_id = jobs.job_id
+            inner join {jobs_parents} on {jobs_parents}.batch_id = jobs.batch_id
+                                     and {jobs_parents}.job_id = jobs.job_id
                  where jobs.state = 'Pending'
                    and jobs.batch_id = %s
                    and batch.user = %s
                    and batch.deleted = FALSE
                    and batch.cancelled = FALSE
               group by jobs.job_id
-                having count(`jobs-parents`.state = 'Success') = count(*)
+                having count({jobs_parents}.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
-                        count(`jobs.parents`.state in ('Success', 'Failed', 'Cancelled')) = count(*))
+                        count(`jobs.parents`.state in ('Success', 'Error', 'Failed', 'Cancelled')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
        set state = 'Ready'
 ''', (batch_id, user))
