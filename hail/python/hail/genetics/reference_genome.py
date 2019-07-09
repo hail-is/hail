@@ -90,7 +90,7 @@ class ReferenceGenome(object):
                       _builtin=bool)
     def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[], _builtin=False):
         super(ReferenceGenome, self).__init__()
-        
+
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
@@ -109,6 +109,7 @@ class ReferenceGenome(object):
         self._lengths = lengths
         self._par_tuple = par
         self._par = [hl.Interval(hl.Locus(c, s, self), hl.Locus(c, e, self)) for (c, s, e) in par]
+        self._global_positions = None
 
         ReferenceGenome._references[name] = self
 
@@ -223,6 +224,18 @@ class ReferenceGenome(object):
             return self.lengths[contig]
         else:
             raise KeyError("Contig `{}' is not in reference genome.".format(contig))
+
+    @typecheck_method(contig=str)
+    def _contig_global_position(self, contig):
+        if self._global_positions is None:
+            gp = {}
+            lengths = self._lengths
+            x = 0
+            for c in self.contigs:
+                gp[c] = x
+                x += lengths[c]
+            self._global_positions = gp
+        return self._global_positions[contig]
 
     @classmethod
     @typecheck_method(path=str)
@@ -402,7 +415,7 @@ class ReferenceGenome(object):
         """
         par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
         Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
-        
+
         rg = ReferenceGenome._from_config(Env.backend().get_reference(name), _builtin=True)
         rg._has_sequence = True
         return rg
