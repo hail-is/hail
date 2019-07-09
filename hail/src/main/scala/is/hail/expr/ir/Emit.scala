@@ -1048,6 +1048,25 @@ private class Emit(
 
         EmitTriplet(write, false, Code._empty)
 
+      case SerializeAggs(start, sIdx, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val ob = mb.newField[OutputBuffer]
+        val baos = mb.newField[ByteArrayOutputStream]
+
+        val serialize = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(s => s.serialize(spec)(ob))
+
+        val write = Code(
+          baos := Code.newInstance[ByteArrayOutputStream](),
+          ob := spec.buildCodeOutputBuffer(baos),
+          coerce[Unit](Code(serialize: _*)),
+          ob.invoke[Unit]("flush"),
+          ob.invoke[Unit]("close"),
+          mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")))
+
+        EmitTriplet(write, false, Code._empty)
+
       case ReadAggs(start, path, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         val ib = mb.newField[InputBuffer]
@@ -1074,6 +1093,34 @@ private class Emit(
           init,
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
           ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
+          coerce[Unit](Code(unserialize: _*)))
+
+        EmitTriplet(read, false, Code._empty)
+
+      case DeserializeAggs(start, sIdx, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val ib = mb.newField[InputBuffer]
+        val bais = mb.newField[ByteArrayInputStream]
+
+        val deserializers = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(_.unserialize(spec))
+
+        val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
+          .map(i => Code(
+            sc(i).region.close(),
+            sc(i).r := Code.newInstance[Region](),
+            sc.setPresent(aggOff, i))): _*))
+
+        val unserialize = Array.tabulate(aggSigs.length) { j =>
+          deserializers(j)(ib)
+        }
+
+        val read = Code(
+          init,
+          ib := spec.buildCodeInputBuffer(
+            Code.newInstance[ByteArrayInputStream, Array[Byte]](
+              mb.fb.getSerializedAgg(sIdx))),
           coerce[Unit](Code(unserialize: _*)))
 
         EmitTriplet(read, false, Code._empty)

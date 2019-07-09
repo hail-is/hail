@@ -1602,6 +1602,8 @@ class IRSuite extends HailSuite {
       ResultOp2(0, FastSeq(collectSig)),
       ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
       WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
+      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
+      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),

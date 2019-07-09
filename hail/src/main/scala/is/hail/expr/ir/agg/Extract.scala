@@ -43,35 +43,41 @@ object TableMapIRNew {
     // 4. load in partStarts, calculate newRow based on those results.
 
     val path = Ref(genUID(), TString())
+    val path2 = Ref(genUID(), TString())
 
     // 1. init op on all aggs and write out to initPath
-    val initPath = HailContext.get.getTemporaryFile(prefix = Some("scan-init"))
-
-    val (_, initF) = ir.CompileWithAggregators2[Long, Long, Unit](
+    val (_, initF) = ir.CompileWithAggregators2[Long, Unit](
       extracted.aggs,
       "global", gType,
-      path.name, PString(),
-      Begin(FastIndexedSeq(extracted.init, extracted.writeSet(0, path, spec))))
+      Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
 
-    val pathOff = ctx.r.appendString(initPath)
-    val init = initF(0)
-    Region.scoped { aggRegion =>
-      init.newAggState(aggRegion)
-      init(ctx.r, tv.globals.value.offset, false, pathOff, false)
-    }
-
-    // 2. load in init op on each partition, seq op over partition, write out.
-    val _scanPath = HailContext.get.getTemporaryFile(prefix = Some("scan-partition"))
-
-    val (_, readF) = ir.CompileWithAggregators2[Long, Unit](
-      extracted.aggs,
-      path.name, PString(),
-      extracted.readSet(0, path, spec))
-
-    val (_, writeF) = ir.CompileWithAggregators2[Long, Unit](
+    val (_, writeOneF) = ir.CompileWithAggregators2[Long, Unit](
       extracted.aggs,
       path.name, PString(),
       extracted.writeSet(0, path, spec))
+
+    val init = initF(0)
+    val _resultPath = HailContext.get.getTemporaryFile(prefix = Some("scan-result"))
+    val initFile = _resultPath + "-%04d".format(0)
+
+    val initAgg = Region.scoped { aggRegion =>
+      init.newAggState(aggRegion)
+      init(ctx.r, tv.globals.value.offset, false)
+      val write = writeOneF(0)
+      write.setAggState(aggRegion, init.getAggOffset())
+      write(ctx.r, ctx.r.appendString(initFile), false)
+      init.getSerializedAgg(0)
+    }
+
+    // 2. load in init op on each partition, seq op over partition, write out.
+    val (_, deserializeOneF) = ir.CompileWithAggregators2[Unit](
+      extracted.aggs,
+      extracted.deserializeSet(0, 0, spec))
+
+    val (_, readOneF) = ir.CompileWithAggregators2[Long, Unit](
+      extracted.aggs,
+      path.name, PString(),
+      extracted.readSet(0, path, spec))
 
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](
       extracted.aggs,
@@ -79,30 +85,29 @@ object TableMapIRNew {
       "row", typ.rowType.physicalType,
       extracted.seqPerElt)
 
-    val scanPartitionPaths = tv.rvd.collectPerPartition { (i, ctx, it) =>
-      val globalRegion = ctx.freshRegion
+    val _scanPath = HailContext.get.getTemporaryFile(prefix = Some("scan-partition"))
+    val scanPartitionPaths = tv.rvd.collectPerPartition { (i, c, it) =>
+      val globalRegion = c.freshRegion
       val globals = if (scanSeqNeedsGlobals)
         globalsBc.value.readRegionValue(globalRegion)
       else
         0
 
-      val aggRegion = ctx.freshRegion
-
+      val aggRegion = c.freshRegion
       val resultFile = _scanPath + "-%04d".format(i)
-      val initFileOff = globalRegion.appendString(initPath)
       val resultFileOff = globalRegion.appendString(resultFile)
-
-      val init = readF(i)
-      val write = writeF(i)
+      val initF = deserializeOneF(i)
+      val write = writeOneF(i)
       val seq = eltSeqF(i)
-      init.newAggState(aggRegion)
+      initF.newAggState(aggRegion)
+      initF.setSerializedAgg(0, initAgg)
 
-      init(globalRegion, initFileOff, false)
-      seq.setAggState(aggRegion, init.getAggOffset())
+      initF(globalRegion)
+      seq.setAggState(aggRegion, initF.getAggOffset())
 
       it.foreach { rv =>
         seq(rv.region, globals, false, rv.offset, false)
-        ctx.region.clear()
+        c.region.clear()
       }
 
       write.setAggState(aggRegion, seq.getAggOffset())
@@ -111,12 +116,11 @@ object TableMapIRNew {
     }
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val (_, readF2) = ir.CompileWithAggregators2[Long, Unit](
-      extracted.aggs ++ extracted.aggs,
-      path.name, PString(),
-      extracted.readSet(0, path, spec))
 
-    val path2 = Ref(genUID(), TString())
+    val (_, deserializeFirstF) = ir.CompileWithAggregators2[Unit](
+      extracted.aggs ++ extracted.aggs,
+      extracted.deserializeSet(0, 0, spec))
+
     val (_, combOpF) = ir.CompileWithAggregators2[Long, Long, Unit](
       extracted.aggs ++ extracted.aggs,
       path.name, PString(), // next partition
@@ -126,19 +130,17 @@ object TableMapIRNew {
           Array.tabulate(nAggs)(i => CombOp2(i, nAggs + i, extracted.aggs(i))) :+
           extracted.writeSet(0, path2, spec)))
 
-    val resultPaths = Region.scoped { aggRegion =>
-      val read = readF2(0)
+    val resultFiles = Region.scoped { aggRegion =>
+      val readInitF = deserializeFirstF(0)
       val combOp = combOpF(0)
-      read.newAggState(aggRegion)
+      readInitF.newAggState(aggRegion)
+      readInitF.setSerializedAgg(0, initAgg)
+      readInitF(ctx.r)
 
-      var partPath = ctx.r.appendString(initPath)
+      combOp.setAggState(aggRegion, readInitF.getAggOffset())
 
-      read(ctx.r, partPath, false)
-      combOp.setAggState(aggRegion, read.getAggOffset())
-
-      val _resultPath = HailContext.get.getTemporaryFile(prefix = Some("scan-result"))
-      initPath +: Array.tabulate(scanPartitionPaths.length - 1) { i =>
-        partPath = ctx.r.appendString(scanPartitionPaths(i))
+      initFile +: Array.tabulate(scanPartitionPaths.length - 1) { i =>
+        val partPath = ctx.r.appendString(scanPartitionPaths(i))
         val destPath = _resultPath + "-%04d".format(i)
         val pathOff = ctx.r.appendString(destPath)
 
@@ -148,7 +150,6 @@ object TableMapIRNew {
     }
 
     // 4. load in partStarts, calculate newRow based on those results.
-
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](
       extracted.aggs,
       "global", gType,
@@ -165,11 +166,10 @@ object TableMapIRNew {
 
       val path = globalRegion.appendString(partitionAggs)
       val aggRegion = ctx.freshRegion
-      val read = readF(i)
+      val read = readOneF(i)
       val newRow = f(i)
       val seq = eltSeqF(i)
       read.newAggState(aggRegion)
-
       read(globalRegion, path, false)
       var aggOff = read.getAggOffset()
 
@@ -185,7 +185,7 @@ object TableMapIRNew {
     }
     tv.copy(
       typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
-      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), resultPaths, itF))
+      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), resultFiles, itF))
   }
 }
 
@@ -194,6 +194,12 @@ class UnsupportedExtraction(msg: String) extends Exception(msg)
 case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature]) {
   val typ: PTuple = PTuple(aggs.map(Extract.getPType))
   val nAggs: Int = aggs.length
+
+  def deserializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
+    DeserializeAggs(i * nAggs, i2, spec, aggs)
+
+  def serializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
+    SerializeAggs(i * nAggs, i2, spec, aggs)
 
   def readSet(i: Int, path: IR, spec: CodecSpec): IR =
     ReadAggs(i * nAggs, path, spec, aggs)

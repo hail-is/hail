@@ -841,6 +841,20 @@ object IRParser {
         val aggSigs = agg_signatures(it)
         val path = ir_value_expr(env)(it)
         WriteAggs(i, path, spec, aggSigs)
+      case "SerializeAggs" =>
+        val i = int32_literal(it)
+        val i2 = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        SerializeAggs(i, i2, spec, aggSigs)
+      case "DeserializeAggs" =>
+        val i = int32_literal(it)
+        val i2 = int32_literal(it)
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val aggSigs = agg_signatures(it)
+        DeserializeAggs(i, i2, spec, aggSigs)
       case "InitOp" =>
         val aggSig = agg_signature(it)
         val i = ir_value_expr(env)(it)

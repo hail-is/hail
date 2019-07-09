@@ -57,6 +57,12 @@ trait FunctionWithAggRegion {
   def setAggState(region: Region, offset: Long): Unit
 
   def newAggState(region: Region): Unit
+
+  def setNumSerialized(i: Int): Unit
+
+  def setSerializedAgg(i: Int, b: Array[Byte]): Unit
+
+  def getSerializedAgg(i: Int): Array[Byte]
 }
 
 trait FunctionWithLiterals {
@@ -231,6 +237,8 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.StateContainer = _
+  private[this] var _nSerialized: Int = 0
+  private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
   def addAggStates(aggSigs: Array[AggSignature]): (agg.StateContainer, Code[Long]) = {
     if (_aggSigs != null) {
@@ -242,14 +250,21 @@ class EmitFunctionBuilder[F >: Null](
     _aggRegion = newField[Region]
     _aggOff = newField[Long]
     _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(apply_method)).toArray, _aggRegion)
+    _aggSerialized = newField[Array[Array[Byte]]]
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])
     val setF = new EmitMethodBuilder(this, "setAggState", Array(typeInfo[Region], typeInfo[Long]), typeInfo[Unit])
     val getF = new EmitMethodBuilder(this, "getAggOffset", Array(), typeInfo[Long])
+    val setNSer = new EmitMethodBuilder(this, "setNumSerialized", Array(typeInfo[Int]), typeInfo[Unit])
+    val setSer = new EmitMethodBuilder(this, "setSerializedAgg", Array(typeInfo[Int], typeInfo[Array[Byte]]), typeInfo[Unit])
+    val getSer = new EmitMethodBuilder(this, "getSerializedAgg", Array(typeInfo[Int]), typeInfo[Array[Byte]])
 
     methods += newF
     methods += setF
     methods += getF
+    methods += setNSer
+    methods += setSer
+    methods += getSer
 
     newF.emit(
       Code(_aggRegion := setF.getArg[Region](1),
@@ -266,7 +281,25 @@ class EmitFunctionBuilder[F >: Null](
         _aggState.loadStateOffsets(_aggOff)))
 
     getF.emit(Code(_aggState.storeRegions(0), _aggState.storeStateOffsets(_aggOff), _aggOff))
+
+    setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getArg[Int](1)))
+
+    setSer.emit(_aggSerialized.load().update(setSer.getArg[Int](1), setSer.getArg[Array[Byte]](2)))
+
+    getSer.emit(_aggSerialized.load()(getSer.getArg[Int](1)))
     _aggState -> _aggOff
+  }
+
+  def getSerializedAgg(i: Int): Code[Array[Byte]] = {
+    if (_nSerialized <= i)
+      _nSerialized = i + 1
+    _aggSerialized.load()(i)
+  }
+
+  def setSerializedAgg(i: Int, b: Code[Array[Byte]]): Code[Unit] = {
+    if (_nSerialized <= i)
+      _nSerialized = i + 1
+    _aggSerialized.load().update(i, b)
   }
 
   def backend(): Code[BackendUtils] = {
@@ -483,6 +516,8 @@ class EmitFunctionBuilder[F >: Null](
     val n = name.replace("/",".")
     val localFS = _hfs
 
+    val nSerializedAggs = _nSerialized
+
     val useBackend = _backendField != null
     val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
@@ -509,6 +544,8 @@ class EmitFunctionBuilder[F >: Null](
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (hasLiterals)
             f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value, region)
+          if (nSerializedAggs != 0)
+            f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {
