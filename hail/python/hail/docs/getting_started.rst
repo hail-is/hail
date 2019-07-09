@@ -74,10 +74,10 @@ would like to build against.
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.4 cluster. For example, Google and Amazon offer
-the ability to rent Spark clusters on-demand, permitting the usage of many
-thousands of cores without an up-front capital investment,and providing a
-compelling solution to the elastic compute requirements of scientific research.
+Hail can run on any Spark 2.4 cluster. For example, Google and Amazon make it
+possible to rent Spark clusters with many thousands of cores on-demand,
+providing for the elastic compute requirements of scientific research without
+an up-front capital investment.
 
 For more about computing on the cloud, see :ref:`.hail_on_the_cloud`.
 
