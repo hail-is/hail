@@ -254,7 +254,7 @@ object ExportVCF {
     val tinfo =
       if (typ.rowType.hasField("info")) {
         typ.rowType.field("info").typ match {
-          case _: TStruct => mv.rvRowType.field("info").typ.asInstanceOf[PStruct]
+          case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
             PStruct.empty()
