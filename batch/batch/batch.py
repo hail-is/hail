@@ -1000,7 +1000,7 @@ async def _get_batch(batch_id, user):
 async def _cancel_batch(batch_id, user):
     async with db.pool.acquire() as conn:
         async with conn.cursor() as cursor:
-            jobs_parents = '`' + db.jobs_parents.name '`'
+            jobs_parents = '`' + db.jobs_parents.name + '`'
             await cursor.execute(f'''
     update jobs
 inner join batch on jobs.batch_id = batch.batch_id
