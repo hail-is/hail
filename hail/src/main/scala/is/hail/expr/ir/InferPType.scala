@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.Nat
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TTuple}
 import is.hail.utils._
@@ -19,7 +18,7 @@ import is.hail.utils._
 // TODO: behavior differences between IR Nodes (those that need .typ here and those that don't)
 // TODO: In cases where env is sent as is to child nodes, do we need copy? I believe no, as long as copy-on-write
 
-// TODO: for aggregators, we probably need to use not bindEval, but bindAgg?
+// TODO: aggregators: 1) use bindAgg/bindScan instead of bindEval? 2) proper passing of env, seems little needed
 object InferPType {
   def apply(ir: IR, env: BindingEnv[PType]): PType = {
     ir match {
@@ -58,9 +57,10 @@ object InferPType {
       case MakeStream(_, t) => PType.canonical(t)
       case MakeNDArray(data, shape, _) => {
         data.inferSetPType(env)
+        shape.inferSetPType(env)
 
         // TODO: Is this wrong?
-        val nElem = shape.typ.asInstanceOf[TTuple].size
+        val nElem = shape.pType.asInstanceOf[PTuple].size
 
         // TODO: requiredeness?
         PNDArray(coerce[PArray](data.pType).elementType, nElem)
@@ -74,7 +74,9 @@ object InferPType {
       case _: InitOp => PVoid
       case _: SeqOp => PVoid
       case _: Begin => PVoid
-      case Die(_, t) =>
+      // FIXME in IR suggests Die should give type any, fix this once that is fixed
+      // but in test, TFloat64() is used, which will fit
+      case Die(_, t) => PType.canonical(t)
       case If(cond, cnsq, altr) => {
         cond.inferSetPType(env)
         cnsq.inferSetPType(env)
@@ -415,6 +417,7 @@ object InferPType {
         query.pType
       }
       case MatrixAggregate(child, query) => {
+        // TODO: is child env needed
         query.inferSetPType(env)
         query.pType
       }
