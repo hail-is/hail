@@ -89,7 +89,6 @@ $$
 
 CREATE PROCEDURE propagate_cancelled (IN batch_id INT)
 BEGIN
-$$
 
 declare first int default true;
 
