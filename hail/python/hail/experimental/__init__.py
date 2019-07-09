@@ -47,7 +47,6 @@ __all__ = ['ld_score',
            'spread',
            'encode',
            'DB',
-           'decode']
            'decode',
            'compile_comparison_binary',
            'compiled_compare']
