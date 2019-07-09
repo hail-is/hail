@@ -1019,12 +1019,14 @@ inner join (    select jobs.job_id
                   from jobs
             inner join {jobs_parents} on {jobs_parents}.batch_id = jobs.batch_id
                                      and {jobs_parents}.job_id = jobs.job_id
+            inner join jobs as parents on {jobs_parents}.batch_id = parents.batch_id
+                                      and {jobs_parents}.parent_id = parents.job_id
                  where jobs.state in ('Pending', 'Cancelled')
                    and jobs.batch_id = %s
               group by jobs.job_id
-                having count({jobs_parents}.state = 'Success') = count(*)
+                having count(parents.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
-                        count({jobs_parents}.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
+                        count(parents.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
        set state = (case jobs.state when 'Pending' then 'Ready' else 'CancelledDone' end)
 ''', (batch_id,))
