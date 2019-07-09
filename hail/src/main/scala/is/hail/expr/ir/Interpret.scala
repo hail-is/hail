@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.methods._
@@ -717,7 +717,7 @@ object Interpret {
           else true
         }
       case ir: AbstractApplyNode[_] =>
-        val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
+        val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).asInstanceOf[PTuple]
         val f = functionMemo.getOrElseUpdate(ir, {
           val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
             GetTupleElement(Ref("in", argTuple.virtualType), i)
@@ -776,20 +776,20 @@ object Interpret {
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
+        val value = child.execute(ctx)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
-          "global", child.typ.globalType.physicalType,
-          "row", child.typ.rowType.physicalType,
+          "global", value.globals.t,
+          "global", value.globals.t,
+          "row", value.rvd.rowPType,
           MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
+          "global", value.globals.t,
           "AGGR", aggResultType,
           postAggIR)
 
-        val value = child.execute(ctx)
         val globalsBc = value.globals.broadcast
 
         val globalsOffset = value.globals.value.offset
