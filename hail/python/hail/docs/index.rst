@@ -22,6 +22,7 @@ Contents
     Reference (Python API) <api>
     Overview <overview/index>
     Datasets <datasets>
+    Annotation Database <annotation_databaseUI>
     How-To Guides <guides>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
