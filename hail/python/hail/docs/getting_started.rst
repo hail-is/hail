@@ -75,19 +75,11 @@ Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hail can run on any Spark 2.4 cluster. For example, Google and Amazon offer
-optimized Spark performance and exceptional scalability to thousands of cores
-without the overhead of installing and managing an on-premesis cluster.
+the ability to rent Spark clusters on-demand, permitting the usage of many
+thousands of cores without an up-front capital investment,and providing a
+compelling solution to the elastic compute requirements of scientific research.
 
-On `Google Dataproc <https://cloud.google.com/dataproc/>`_,
-we provide pre-built JARs and a Python package
-`cloudtools <https://github.com/Nealelab/cloudtools>`_
-to simplify running Hail, whether through an interactive Jupyter notebook or by
-submitting Python scripts.
-
-On `Amazon EMR <https://aws.amazon.com/emr/details/spark/>`_, we recommend using the Hail
-`cloudformation <https://github.com/hms-dbmi/hail-on-AWS-spot-instances>`_ tool
-developed by Carlos De Niz in the
-`Avillach Lab <https://avillach-lab.hms.harvard.edu/>`_ at Harvard Medical School.
+For more about computing on the cloud, see :ref:`hail_on_the_cloud`.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
