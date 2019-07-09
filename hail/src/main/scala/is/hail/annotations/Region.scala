@@ -327,5 +327,19 @@ class RegionPool private() extends NativeBase() {
   @native def numFreeRegions(): Int
   @native def numFreeBlocks(): Int
 
+  def logStats(context: String): Unit = {
+    val pool = RegionPool.get
+    val nFree = pool.numFreeRegions()
+    val nRegions = pool.numRegions()
+    val nBlocks = pool.numFreeBlocks()
+
+    log.info(
+      s"""Region count for $context
+         |    regions: $nRegions
+         |     blocks: $nBlocks
+         |       free: $nFree
+         |       used: ${ nRegions - nFree }""".stripMargin)
+  }
+
 
 }

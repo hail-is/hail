@@ -14,13 +14,7 @@ abstract class RVAState {
   def typ: PType
   def region: Code[Region] = r.load()
 
-  def assign(other: Code[Region]): Code[Unit] =
-    Code(region.isNull.mux(Code._empty, region.close()), r := other)
-
   def loadStateFrom(src: Code[Long]): Code[Unit]
-//  def loadStateFrom(region: Code[Region], src: Code[Long]): Code[Unit]
-//
-//  def storeStateInto(topRegion: Code[Region], rOffset: Code[Int]): Code[Long]
 
   def copyFrom(src: Code[Long]): Code[Unit]
 
@@ -28,11 +22,11 @@ abstract class RVAState {
 
   def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
 
+  def assign(other: Code[Region]): Code[Unit] = Code(region.isNull.mux(Code._empty, region.close()), r := other)
+
   def close: Code[Unit] = region.isNull.mux(Code._empty, Code(region.close(), r := Code._null))
 
   def er: EmitRegion = EmitRegion(mb, region)
-  def using(definition: Code[Region])(f: Code[Unit]): Code[Unit] =
-    Code(assign(definition), f, close)
 }
 
 case class TypedRVAState(typ: PType, mb: EmitMethodBuilder, r: ClassFieldRef[Region], off: ClassFieldRef[Long]) extends RVAState {
@@ -70,50 +64,33 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   def toCode(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
-  def loadRegions(rOffset: Code[Int]): Code[Unit] =
-    toCode((i, s) => s.assign(topRegion.getParentReference(rOffset + i)))
-
-  def loadStateOffsets(stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => typ.isFieldMissing(topRegion, stateOffset, i).mux(
-      Code._empty,
-      s.loadStateFrom(loadStateAddress(stateOffset, i))))
-
-  def storeRegions(rOffset: Code[Int]): Code[Unit] =
-    toCode((i, s) =>
-      s.region.isNull.mux(Code._empty,
-        Code(
-          topRegion.setParentReference(s.region, rOffset + i),
-          s.close)))
-
-  def storeStateOffsets(statesOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => topRegion.storeAddress(getStateOffset(statesOffset, i), s.off))
-
-  def scoped(rOffset: Code[Int], f: Code[Unit]): Code[Unit] =
-    Array.range(0, nStates).foldLeft[Code[Unit]](f)( (cont, i) =>
-        states(i).using(getRegion(rOffset, i))(cont)
-      )
-
-  def scoped(rOffset: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    scoped(rOffset, toCode(f))
-
-  def scoped(rOffset: Code[Int], statesOffset: Code[Long], f: Code[Unit]): Code[Unit] =
-    scoped(rOffset, Code(loadStateOffsets(statesOffset), f))
-
-  def scoped(rOffset: Code[Int], statesOffset: Code[Long])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    scoped(rOffset, statesOffset, toCode(f))
-
-  def update(rOffset: Code[Int], statesOffset: Code[Long], f: Code[Unit]): Code[Unit] =
-    scoped(rOffset, statesOffset, Code(f, storeRegions(rOffset), storeStateOffsets(statesOffset)))
-
-  def update(rOffset: Code[Int], statesOffset: Code[Long])(f: (Int, RVAState) => Code[Unit]): Code[Unit] = {
-    update(rOffset, statesOffset, toCode(f))
+  def loadOneIfMissing(stateOffset: Code[Long], idx: Int): Code[Unit] = {
+    states(idx).region.isNull.mux(
+      Code(
+        typ.isFieldMissing(topRegion, stateOffset, idx).mux(Code._empty,
+          states(idx).loadStateFrom(loadStateAddress(stateOffset, idx))),
+        states(idx).assign(getRegion(0, idx))),
+      Code._empty)
   }
+
+  def loadRegions(rOffset: Code[Int]): Code[Unit] =
+    toCode((i, s) => s.assign(getRegion(rOffset, i)))
+
+  def load(rOffset: Code[Int], stateOffset: Code[Long]): Code[Unit] =
+    Code(loadRegions(rOffset),
+      toCode((i, s) => typ.isFieldMissing(topRegion, stateOffset, i).mux(
+        Code._empty,
+        s.loadStateFrom(loadStateAddress(stateOffset, i)))))
+
+  def store(rOffset: Code[Int], statesOffset: Code[Long]): Code[Unit] =
+    toCode((i, s) => Code(s.region.isNull.mux(Code._empty,
+      Code(topRegion.setParentReference(s.region, rOffset + i),
+        s.close)),
+      topRegion.storeAddress(getStateOffset(statesOffset, i), s.off)))
 
   def addState(srvb: StagedRegionValueBuilder): Code[Unit] = {
     srvb.addBaseStruct(typ, ssb =>
       Code(ssb.start(),
         toCode((_, s) => Code(ssb.addAddress(s.off), ssb.advance()))))
   }
-
-  def closeNested: Code[Unit] = toCode((_, s) => s.close)
 }

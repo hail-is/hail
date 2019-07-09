@@ -43,8 +43,7 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
   private def eltState(eltIdx: Code[Int], stateIdx: Int): Code[Long] = container.loadStateAddress(statesOffset(eltIdx), stateIdx)
 
   def loadStateFrom(src: Code[Long]): Code[Unit] =
-  Code(
-    off := src,
+  Code(off := src,
     lenRef := typ.isFieldMissing(region, off, 1).mux(-1,
       arrayType.loadLength(region, typ.loadField(region, off, 1))))
 
@@ -55,8 +54,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
       region.setNumParents((lenRef + 1) * nStates),
       srvb2.start(lenRef),
       Code.whileLoop(srvb2.arrayIdx < lenRef,
-        container.scoped(regionOffset(srvb2.arrayIdx)){ (i, s) =>
-          s.copyFrom(initStateAddress(i)) },
+        container.loadRegions(regionOffset(srvb2.arrayIdx)),
+        container.toCode((i, s) => s.copyFrom(initStateAddress(i))),
         container.addState(srvb2),
         srvb2.advance()),
       typ.setFieldPresent(region, off, 1),
@@ -75,7 +74,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
       val c = Code(
         region.setNumParents(nStates),
         srvb.start(),
-        container.scoped(0)((i, _) => initOp(i)),
+        container.loadRegions(0),
+        container.toCode((i, _) => initOp(i)),
         container.addState(srvb),
         srvb.advance())
     if (knownLength)
@@ -84,28 +84,26 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
       Code(c, srvb.setMissing(), off := srvb.end())
   }
 
-  def scoped(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-    container.scoped(regionOffset(eltIdx), statesOffset(eltIdx), f)
+  def loadInit: Code[Unit] =
+    container.load(0, initStatesOffset)
 
-  def scoped(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    container.scoped(regionOffset(eltIdx), statesOffset(eltIdx))(f)
+  def load(eltIdx: Code[Int]): Code[Unit] =
+    container.load(regionOffset(eltIdx), statesOffset(eltIdx))
 
-  def update(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-    container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
-
-  def update(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    container.update(regionOffset(eltIdx), statesOffset(eltIdx))(f)
+  def store(eltIdx: Code[Int]): Code[Unit] =
+    container.store(regionOffset(eltIdx), statesOffset(eltIdx))
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec));
     { ob: Code[OutputBuffer] =>
-      val serialize = coerce[Unit](Code(serializers.map(_(ob)): _*))
       Code(
-        container.scoped(0, initStatesOffset, serialize),
+        loadInit,
+        container.toCode((i, _) => serializers(i)(ob)),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
-          scoped(idx, serialize),
+          load(idx),
+          container.toCode((i, _) => serializers(i)(ob)),
           idx := idx + 1))
     }
   }
@@ -116,7 +114,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
         Code(
           region.setNumParents(nStates),
           srvb.start(),
-          container.scoped(0)((i, _) => deserializers(i)(ib)),
+          container.loadRegions(0),
+          container.toCode((i, _) => deserializers(i)(ib)),
           container.addState(srvb),
           srvb.advance(),
           lenRef := ib.readInt(),
@@ -128,7 +127,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
                 Code(
                   sab.start(lenRef),
                   Code.whileLoop(sab.arrayIdx < lenRef,
-                    container.scoped(regionOffset(sab.arrayIdx))((i, _) => deserializers(i)(ib)),
+                    container.loadRegions(regionOffset(sab.arrayIdx)),
+                    container.toCode((i, _) => deserializers(i)(ib)),
                     container.addState(sab),
                     sab.advance()))))),
           off := srvb.end())
@@ -143,7 +143,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
         Code(lenRef := arrayType.loadLength(region, typ.loadField(region, off, 1)),
           region.setNumParents((lenRef + 1) * nStates))),
       srvb.start(),
-      container.scoped(0, initStatesOffset)((i, s) => s.copyFrom(initStateOffset(i))),
+      container.loadRegions(0),
+      container.toCode((i, s) => s.copyFrom(initStateOffset(i))),
       container.addState(srvb),
       srvb.advance(),
       (lenRef < 0).mux(
@@ -152,7 +153,8 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
           Code(
             sab.start(lenRef),
             Code.whileLoop(sab.arrayIdx < lenRef,
-              scoped(sab.arrayIdx) { (i, s) =>
+              container.loadRegions(regionOffset(sab.arrayIdx)),
+              container.toCode { (i, s) =>
                 s.copyFrom(eltState(sab.arrayIdx, i))
               },
               container.addState(sab),
@@ -160,7 +162,9 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
       off := srvb.end())
   }
 
-  override def close: Code[Unit] = Code(region.isNull.mux(Code._empty, Code(region.close(), r := Code._null)), container.closeNested)
+  override def close: Code[Unit] = Code(
+    region.isNull.mux(Code._empty, Code(region.close(), r := Code._null)),
+    container.toCode((_, s) => s.close))
 }
 
 class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggregator], knownLength: Boolean) extends StagedRegionValueAggregator {
@@ -214,9 +218,11 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
         state.checkLength(other.lenRef)),
       state.idx := 0,
       Code.whileLoop(state.idx < state.lenRef,
-        other.scoped(state.idx,
-          state.update(state.idx)( (i, s) =>
-            nestedAggs(i).combOp(s, other.nested(i)))),
+        other.load(state.idx),
+        state.load(state.idx),
+        state.container.toCode( (i, s) =>
+          nestedAggs(i).combOp(s, other.nested(i))),
+        state.store(state.idx),
         state.idx := state.idx + 1))
   }
 
@@ -230,7 +236,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
             sab.addBaseStruct(resultEltType, { ssb =>
               Code(
                 ssb.start(),
-                state.scoped(sab.arrayIdx) { (i, s) =>
+                state.load(sab.arrayIdx),
+                state.container.toCode { (i, s) =>
                   Code(nestedAggs(i).result(s, ssb), ssb.advance())
                 })
             }),
@@ -265,7 +272,10 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedRegionValueAggregator
           eltIdxV := eltIdx.v[Int],
           (eltIdxV > state.lenRef || eltIdxV < 0).mux(
             Code._fatal("element idx out of bounds"),
-            state.update(eltIdxV, seqOps.setup)))))
+            Code(
+              state.load(eltIdxV),
+              seqOps.setup,
+              state.store(eltIdxV))))))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =

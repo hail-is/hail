@@ -922,7 +922,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     try {
       if (HailContext.getFlag("newaggs") == null)
         throw new agg.UnsupportedExtraction("flag is not enabled")
-      return agg.TableMapIRNew(tv, newRow, ctx)
+      return agg.TableMapIRNew(tv, newRow)
     } catch {
       case e: agg.UnsupportedExtraction =>
         log.info(s"couldn't lower TableMapRows: $e")
