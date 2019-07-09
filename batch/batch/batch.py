@@ -998,17 +998,18 @@ async def _get_batch(batch_id, user):
 
 
 async def _cancel_batch(batch_id, user):
+    batch = await Batch.from_db(batch_id, user)
+    if not batch:
+        abort(404)
+    if batch._cancelled or batch.deleted:
+        return
     async with db.pool.acquire() as conn:
         async with conn.cursor() as cursor:
             jobs_parents = '`' + db.jobs_parents.name + '`'
             await cursor.execute(f'''
     update jobs
-inner join batch on jobs.batch_id = batch.id
        set jobs.state = 'Cancelled'
      where jobs.batch_id = %s
-       and batch.user = %s
-       and batch.deleted = FALSE
-       and batch.cancelled = FALSE
        and jobs.state not in ('Cancelled', 'Error', 'Failed', 'Success', 'Pending')
        and jobs.always_run = FALSE
 ''', (batch_id, user))
@@ -1020,9 +1021,6 @@ inner join (    select jobs.id
                                      and {jobs_parents}.job_id = jobs.job_id
                  where jobs.state = 'Pending'
                    and jobs.batch_id = %s
-                   and batch.user = %s
-                   and batch.deleted = FALSE
-                   and batch.cancelled = FALSE
               group by jobs.job_id
                 having count({jobs_parents}.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
@@ -1039,13 +1037,8 @@ update batch
             await cursor.execute('''
     select jobs.*
       from jobs
-inner join batch on jobs.batch_id = batch.id
      where (jobs.state = 'Ready' or jobs.state = 'Cancelled')
        and jobs.batch_id = %s
-       and batch.user = %s
-       and batch.deleted = FALSE
-       and batch.cancelled = FALSE
-;
 ''', (batch_id, user))
             actionable_jobs = await cursor.fetchall()
     for record in actionable_jobs:
