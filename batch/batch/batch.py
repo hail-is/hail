@@ -1005,7 +1005,7 @@ async def _cancel_batch(batch_id, user):
 inner join batch on jobs.batch_id = batch.batch_id
        set jobs.state = 'Cancelled'
      where jobs.batch_id = %s
-       and jobs.user = %s
+       and batch.user = %s
        and batch.deleted = FALSE
        and batch.cancelled = FALSE
        and jobs.state not in ('Cancelled', 'Error', 'Failed', 'Success', 'Pending')
@@ -1019,7 +1019,7 @@ inner join (    select jobs.id
                                      and `jobs-parents`.job_id = jobs.job_id
                  where jobs.state = 'Pending'
                    and jobs.batch_id = %s
-                   and jobs.user = %s
+                   and batch.user = %s
                    and batch.deleted = FALSE
                    and batch.cancelled = FALSE
               group by jobs.job_id
@@ -1031,12 +1031,16 @@ inner join (    select jobs.id
 ''', (batch_id, user))
             await cursor.execute('''
 update batch set cancelled = TRUE, closed = TRUE
-''')
+ where batch.batch_id = %s
+   and batch.user = %s
+''', (batch_id, user))
             await cursor.execute('''
     select jobs.*
       from jobs
-     where jobs.state = 'Ready' or jobs.state = 'Cancelled'
-       and jobs.batch_id = %s and user = %s
+inner join batch on jobs.batch_id = batch.batch_id
+     where (jobs.state = 'Ready' or jobs.state = 'Cancelled')
+       and jobs.batch_id = %s
+       and batch.user = %s
        and batch.deleted = FALSE
        and batch.cancelled = FALSE
 ;
