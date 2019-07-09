@@ -1026,7 +1026,7 @@ inner join (    select jobs.job_id
                     or (jobs.always_run = TRUE and
                         count({jobs_parents}.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
-       set state = (case jobs.state when 'Pending' then 'Ready' else 'CancelledDone')
+       set state = (case jobs.state when 'Pending' then 'Ready' else 'CancelledDone' end case)
 ''', (batch_id,))
             await cursor.execute('''
 update batch
@@ -1036,7 +1036,7 @@ update batch
             await cursor.execute('''
     select jobs.*
       from jobs
-     where (jobs.state = 'Ready' or jobs.state = 'Cancelled' or jobs.state = 'CancelledDone')
+     where jobs.state in ('Ready', 'Cancelled', 'CancelledDone')
        and jobs.batch_id = %s
 ''', (batch_id,))
             actionable_jobs = await cursor.fetchall()
