@@ -1,5 +1,5 @@
 import argparse
-import json
+
 from .compare import compare
 
 
@@ -11,7 +11,7 @@ def main(args_):
                         help='First benchmarking run.')
     parser.add_argument('run2',
                         type=str,
-                        help='First benchmarking run.')
+                        help='Second benchmarking run.')
 
     args = parser.parse_args(args_)
 
