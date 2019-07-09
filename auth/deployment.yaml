@@ -1,0 +1,84 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: auth
+  labels:
+    app: auth
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: auth
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: auth
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - auth
+              topologyKey: "kubernetes.io/hostname"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      containers:
+       - name: auth
+         image: "{{ auth_image.image }}"
+         resources:
+           requests:
+             memory: "250M"
+             cpu: "100m"
+           limits:
+             memory: "1G"
+             cpu: "1"
+         volumeMounts:
+          - name: auth-oauth2-client-secret
+            mountPath: /auth-oauth2-client-secret
+            readOnly: true
+         ports:
+          - containerPort: 5000
+      volumes:
+       - name: auth-oauth2-client-secret
+         secret:
+           optional: false
+           secretName: auth-oauth2-client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+   - port: 80
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
