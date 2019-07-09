@@ -1018,7 +1018,7 @@ call propagate_cancelled(%s)
 ''', (batch_id,))
             await cursor.execute('''
 update batch
-   set cancelled = TRUE, closed = TRUE
+   set cancelled = true, closed = true
  where batch.id = %s
 ''', (batch_id,))
             await cursor.execute('''
