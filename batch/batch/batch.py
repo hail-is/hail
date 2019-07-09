@@ -1015,7 +1015,7 @@ async def _cancel_batch(batch_id, user):
 ''', (batch_id,))
             await cursor.execute(f'''
     update jobs
-inner join (    select jobs.job_id
+inner join (    select jobs.job_id, jobs.batch_id
                   from jobs
             inner join {jobs_parents} on {jobs_parents}.batch_id = jobs.batch_id
                                      and {jobs_parents}.job_id = jobs.job_id
@@ -1023,7 +1023,7 @@ inner join (    select jobs.job_id
                                       and {jobs_parents}.parent_id = parents.job_id
                  where jobs.state in ('Pending', 'Cancelled')
                    and jobs.batch_id = %s
-              group by jobs.job_id
+              group by jobs.batch_id, jobs.job_id, jobs.always_run
                 having count(parents.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
                         count(parents.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
