@@ -44,6 +44,12 @@ spec:
           - name: auth-oauth2-client-secret
             mountPath: /auth-oauth2-client-secret
             readOnly: true
+          - name: aiohttp-session-secret-key
+            mountPath: /aiohttp-session-secret-key
+            readOnly: true
+          - name: sql-users-users-user-config
+            mountPath: /sql-users-users-user-config
+            readOnly: true
          ports:
           - containerPort: 5000
       volumes:
@@ -51,6 +57,14 @@ spec:
          secret:
            optional: false
            secretName: auth-oauth2-client-secret
+       - name: aiohttp-session-secret-key
+         secret:
+           optional: false
+           secretName: aiohttp-session-secret-key
+       - name: sql-users-users-user-config
+         secret:
+           optional: false
+           secretName: sql-users-users-user-config
 ---
 apiVersion: v1
 kind: Service
