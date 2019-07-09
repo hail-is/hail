@@ -26,28 +26,15 @@ spec:
       priorityClassName: production
 {% endif %}
       containers:
-      - name: notebook2
-        image: "{{ notebook2_image.image }}"
-        env:
-        - name: HAIL_NOTEBOOK2_WORKER_IMAGE
-          value: "{{ hail_jupyter_image.image }}"
-        ports:
-        - containerPort: 5000
-        volumeMounts:
-          - mountPath: /notebook-secrets
-            readOnly: true
-            name: notebook-secrets
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
-            readOnly: true
-      volumes:
-        - name: notebook-secrets
-          secret:
-            secretName: notebook-secrets
-        - name: jwt-secret-key
-          secret:
-            optional: false
-            secretName: jwt-secret-key
+       - name: notebook2
+         image: "{{ notebook2_image.image }}"
+         env:
+          - name: HAIL_AUTH_URL
+            value: "http://auth.{{ default_ns.name }}"
+          - name: HAIL_NOTEBOOK2_WORKER_IMAGE
+            value: "{{ hail_jupyter_image.image }}"
+         ports:
+          - containerPort: 5000
 ---
 apiVersion: v1
 kind: Service

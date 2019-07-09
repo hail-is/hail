@@ -7,24 +7,46 @@ from aiohttp import web
 from kubernetes_asyncio import client, config
 import logging
 
-from hailtop import gear
-from hailtop.gear.auth import web_authenticated_developers_only
+from hailtop.gear import configure_logging, get_deploy_config
 
 uvloop.install()
 
-gear.configure_logging()
+configure_logging()
 log = logging.getLogger('router-resolver')
 
 app = web.Application()
+
 routes = web.RouteTableDef()
 
 
 @routes.get('/auth/{namespace}')
-@web_authenticated_developers_only
-async def auth(request, userdata):
+async def auth(request):
+    deploy_config = get_deploy_config()
     app = request.app
     k8s_client = app['k8s_client']
     namespace = request.match_info['namespace']
+
+    headers = {}
+    cookies = {}
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        headers['Authorization'] = request.headers['X-Hail-Internal-Authorization']
+    elif 'Authorization' in request.headers:
+        headers['Authorization'] = request.headers['Authorization']
+    elif 'session' in request.cookies:
+        cookies['session'] = request.cookies['session']
+    else:
+        raise web.HTTPUnauthorized()
+
+    try:
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.get(deploy_config.url('auth', '/api/v1alpha/userinfo'),
+                                   headers=headers, cookies=cookies) as resp:
+                userdata = await resp.json()
+    except Exception:
+        log.exception('getting userinfo')
+        raise web.HTTPUnauthorized()
+
     try:
         router = await k8s_client.read_namespaced_service('router', namespace)
     except client.rest.ApiException as err:

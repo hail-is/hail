@@ -61,6 +61,9 @@ spec:
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
+	 env:
+          - name: HAIL_LOCATION
+            value: k8s
          resources:
            requests:
              memory: "250M"
@@ -68,17 +71,8 @@ spec:
            limits:
              memory: "1G"
              cpu: "1"
-         volumeMounts:
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
-            readOnly: true
          ports:
           - containerPort: 5000
-      volumes:
-       - name: jwt-secret-key
-         secret:
-           optional: false
-           secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service

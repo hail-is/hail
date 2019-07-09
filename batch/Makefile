@@ -28,7 +28,7 @@ install:
 	pip install -U ./
 
 flake8-stmp: $(PY_FILES)
-	$(PYTHON) -m flake8 batch
+	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	touch $@
 
 pylint-stmp: $(PY_FILES)

@@ -5,12 +5,16 @@ import unittest
 from hailtop.batch_client.aioclient import BatchClient
 
 
+def async_to_blocking(coro):
+    return asyncio.get_event_loop().run_until_complete(coro)
+
+
 class Test(unittest.TestCase):
     def setUp(self):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = async_to_blocking(BatchClient(session, url=os.environ.get('BATCH_URL')))
 
     def tearDown(self):
         loop = asyncio.get_event_loop()
@@ -30,5 +34,4 @@ class Test(unittest.TestCase):
 
             self.assertTrue(await j.is_complete())
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(f())
+        async_to_blocking(f())

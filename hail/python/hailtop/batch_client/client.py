@@ -135,12 +135,11 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, session=None, url=None, token_file=None, token=None, headers=None):
+    def __init__(self, session=None, headers=None):
         if session is None:
             session = aiohttp.ClientSession(raise_for_status=True,
                                             timeout=aiohttp.ClientTimeout(total=60))
-        self._async_client = aioclient.BatchClient(session, url=url, token_file=token_file,
-                                                   token=token, headers=headers)
+        self._async_client = async_to_blocking(aioclient.BatchClient(session, headers=headers))
 
     @property
     def bucket(self):

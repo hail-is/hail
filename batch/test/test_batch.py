@@ -354,34 +354,3 @@ class Test(unittest.TestCase):
                 assert False, e
         finally:
             bc.close()
-
-    def test_ui_batches(self):
-        with open(os.environ['HAIL_TOKEN_FILE']) as f:
-            token = f.read()
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-    def test_ui_batch_and_job_log(self):
-        b = self.client.create_batch()
-        j = b.create_job('alpine', ['true'])
-        b = b.submit()
-        status = j.wait()
-
-        with open(os.environ['HAIL_TOKEN_FILE']) as f:
-            token = f.read()
-
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{b.id}',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-        # just check successful response
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)
-
-        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/pod_status',
-                         cookies={'user': token})
-        assert (r.status_code >= 200) and (r.status_code < 300)

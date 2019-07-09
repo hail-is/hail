@@ -1,0 +1,42 @@
+import time
+import secrets
+import base64
+
+from .hailjwt import get_jwtclient
+
+
+async def create_user(dbpool, spec):
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                '''
+INSERT INTO user_data (username, user_id, gsa_email, bucket_name, gsa_key_secret_name, jwt_secret_name,
+    service_account)
+VALUES (%s, %s, %s, %s, %s, %s, %s)
+''',
+                (spec['username'], spec['user_id'], spec['gsa_email'], spec['bucket_name'], spec['gsa_key_secret_name'], spec['jwt_secret_name'],
+                 spec.get('service_account')))
+
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * FROM user_data WHERE user_id = %s', (spec['user_id'],))
+            return await cursor.fetchone()
+
+
+async def create_session(dbpool, user_id):
+    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
+                                 # 2592000s = 30d
+                                 (session_id, 'web', user_id, 2592000))
+    return session_id
+
+
+def create_session_token(session_id):
+    jwtclient = get_jwtclient()
+    now = time.time()
+    return jwtclient.encode({
+        'iat': now,
+        'exp': now + 30 * 86400,
+        'sub': session_id
+    })

@@ -10,6 +10,7 @@ import jwt
 import hail as hl
 from hail.utils import FatalError
 from hail.utils.java import Env, info, scala_object
+from hailtop.gear import setup_aiohttp_session
 from hailtop.gear.auth import authenticated_users_only
 
 uvloop.install()
@@ -18,6 +19,8 @@ master = os.environ.get('HAIL_APISERVER_SPARK_MASTER')
 hl.init(master=master, min_block_size=0)
 
 app = web.Application()
+setup_aiohttp_session(app)
+
 routes = web.RouteTableDef()
 
 
