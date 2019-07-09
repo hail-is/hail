@@ -1,2 +1,2 @@
 
-complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
+complete_states = ('Cancelled', 'CancelledDone', 'Error', 'Failed', 'Success')

@@ -286,7 +286,7 @@ class Job:
             return logs
         if self._state in ('Ready', 'Error', 'Failed', 'Success'):
             return logs
-        assert self._state in ('Pending', 'Cancelled')
+        assert self._state in ('Pending', 'Cancelled', 'CancelledDone')
         return None
 
     async def _read_pod_statuses(self):
@@ -305,7 +305,7 @@ class Job:
             return pod_statuses
         if self._state in ('Ready', 'Error', 'Failed', 'Success'):
             return pod_statuses
-        assert self._state in ('Pending', 'Cancelled')
+        assert self._state in ('Pending', 'Cancelled', 'CancelledDone')
         return None
 
     async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
@@ -1010,7 +1010,7 @@ async def _cancel_batch(batch_id, user):
     update jobs
        set jobs.state = 'Cancelled'
      where jobs.batch_id = %s
-       and jobs.state not in ('Cancelled', 'Error', 'Failed', 'Success', 'Pending')
+       and jobs.state not in ('Cancelled', 'CancelledDone', 'Error', 'Failed', 'Success', 'Pending')
        and jobs.always_run = FALSE
 ''', (batch_id,))
             await cursor.execute(f'''
@@ -1019,14 +1019,14 @@ inner join (    select jobs.job_id
                   from jobs
             inner join {jobs_parents} on {jobs_parents}.batch_id = jobs.batch_id
                                      and {jobs_parents}.job_id = jobs.job_id
-                 where jobs.state = 'Pending'
+                 where jobs.state in ('Pending', 'Cancelled')
                    and jobs.batch_id = %s
               group by jobs.job_id
                 having count({jobs_parents}.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
-                        count(`{jobs_parents}`.state in ('Success', 'Error', 'Failed', 'Cancelled')) = count(*))
+                        count(`{jobs_parents}`.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
-       set state = 'Ready'
+       set state = (case jobs.state when 'Pending' then 'Ready' else 'CancelledDone')
 ''', (batch_id,))
             await cursor.execute('''
 update batch
@@ -1036,13 +1036,13 @@ update batch
             await cursor.execute('''
     select jobs.*
       from jobs
-     where (jobs.state = 'Ready' or jobs.state = 'Cancelled')
+     where (jobs.state = 'Ready' or jobs.state = 'Cancelled' or jobs.state = 'CancelledDone')
        and jobs.batch_id = %s
 ''', (batch_id,))
             actionable_jobs = await cursor.fetchall()
     for record in actionable_jobs:
         job = Job.from_record(record)
-        if record['state'] == 'Cancelled':
+        if record['state'] in ('Cancelled', 'CancelledDone'):
             await job._delete_k8s_resources()
         else:
             assert record['state'] == 'Ready'
