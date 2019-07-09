@@ -1001,7 +1001,7 @@ async def _cancel_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    if batch._cancelled or batch.deleted:
+    if batch.cancelled or batch.deleted:
         return
     async with db.pool.acquire() as conn:
         async with conn.cursor() as cursor:
