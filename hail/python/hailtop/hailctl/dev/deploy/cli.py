@@ -5,6 +5,7 @@ import ci
 def init_parser(parser):
     parser.add_argument('repo', type=str)
     parser.add_argument('branch', type=str)
+    parser.add_argument('namespace', type=str)
     parser.add_argument('profile', type=str, choices=['batch_test'])
 
 def main(args):

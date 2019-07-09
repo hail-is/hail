@@ -795,8 +795,10 @@ class UnwatchedBranch(Code):
             'user': self.user
         }
 
-    async def _deploy(self, batch_client):
+    async def deploy(self, batch_client, profile=None):
         assert not self.deploy_batch
+
+        print(profile)
 
         deploy_batch = None
         try:
@@ -806,9 +808,13 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev')
+                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
+            
+            print(config.steps)
+            return
+
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),

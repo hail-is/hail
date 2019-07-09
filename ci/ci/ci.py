@@ -17,7 +17,7 @@ from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.gear.auth import web_authenticated_developers_only, new_csrf_token, check_csrf_token
 
 from .log import log
-from .constants import BUCKET
+from .constants import BUCKET, profiles
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, pretty_timestamp_age
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -265,32 +265,29 @@ async def batch_callback_handler(request):
 @routes.post('/api/v1alpha/dev_test_branch/{branch_name}')
 async def dev_test_branch(request):
     # Need to make a repo
-    params = request#await request.json()
+    params = request
     userdata = params['userdata']
     repo_owner, repo_name = tuple(params['repo'].split('/'))
-    print(repo_owner)
-    print(repo_name)
     repo = Repo(repo_owner, repo_name)
-    # Need to make a branch
     fq_branch = FQBranch(repo, params.get('branch'))
-    # Need to make an UnwatchedBranch
     unwatched_branch = UnwatchedBranch(fq_branch, userdata)
-    #Call deploy function and iterate from there.
-    print(unwatched_branch.short_str())
+    profile = params['profile']
 
-    #For now, need a session:
     sess = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=60))
-    #For now, need a Github client
+
     gh = gh_aiohttp.GitHubAPI(sess, 'ci', oauth_token=oauth_token)
     request_string = f'/repos/{repo_owner}/{repo_name}/git/refs/heads/{fq_branch.name}'
-    print(request_string)
     branch_gh_json = await gh.getitem(request_string)
 
     print(branch_gh_json)
 
     unwatched_branch.sha = branch_gh_json['object']['sha']
+
+    batch_client = BatchClient(sess, url="https://batch.hail.is")
+    
+    await unwatched_branch.deploy(batch_client, profiles[profile])
 
     await sess.close()
 

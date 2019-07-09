@@ -64,15 +64,17 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope):
+    def __init__(self, code, config_str, scope, profile=None):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
-            step = Step.from_json(step_params)
-            self.steps.append(step)
-            name_step[step.name] = step
+            
+            if profile is not None and step_params.json['name'] in profile:
+                step = Step.from_json(step_params)
+                self.steps.append(step)
+                name_step[step.name] = step
 
     def build(self, batch, code, scope):
         assert scope in ('deploy', 'test', 'dev')
