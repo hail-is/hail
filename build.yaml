@@ -296,7 +296,7 @@ steps:
  - kind: buildImage
    name: scheduler_image
    dockerFile: scheduler/Dockerfile
-   contextPath: scheduler
+   contextPath: .
    publishAs: scheduler
    dependsOn:
     - base_image

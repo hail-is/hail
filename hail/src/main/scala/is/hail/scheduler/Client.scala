@@ -17,7 +17,7 @@ object ClientMessage {
   val ACKTASKRESULT = 7
 }
 
-class SubmitterThread(host: String, token: Array[Byte], q: LinkedBlockingQueue[Option[DArray[_]]]) extends Runnable {
+class SubmitterThread(host: String, token: Token, q: LinkedBlockingQueue[Option[(Token, DArray[_])]]) extends Runnable {
   private var socket: DataSocket = _
 
   private def connect(): DataSocket = {
@@ -50,9 +50,11 @@ class SubmitterThread(host: String, token: Array[Byte], q: LinkedBlockingQueue[O
     }
   }
 
-  def submit(da: DArray[_]): Unit = {
+  def submit(taskID: Token, da: DArray[_]): Unit = {
     withConnection { s =>
+      log.info(s"SubmitterThread.submit: submitting task with ${ da.nTasks } tasks")
       s.out.writeInt(ClientMessage.SUBMIT)
+      writeByteArray(taskID, s.out)
       val n = da.nTasks
       s.out.writeInt(n)
       s.out.flush()
@@ -68,16 +70,20 @@ class SubmitterThread(host: String, token: Array[Byte], q: LinkedBlockingQueue[O
       }
       s.out.flush()
 
+      log.info(s"SubmitterThread.submit: finished submitting task")
       val ack = s.in.readInt()
       assert(ack == 0)
+      val returnToken = readByteArray(s.in)
+      assert(returnToken sameElements taskID)
+      log.info(s"SubmitterThread.submit: task was acknowledged by the scheduler.")
     }
   }
 
   def run(): Unit = {
     while (true) {
       q.take() match {
-        case Some(da) =>
-          retry(() => submit(da))
+        case Some((taskID, da)) =>
+          retry(() => submit(taskID, da))
         case None =>
           return
       }
@@ -86,10 +92,8 @@ class SubmitterThread(host: String, token: Array[Byte], q: LinkedBlockingQueue[O
 }
 
 class SchedulerAppClient(host: String) {
-  private val token = new Array[Byte](16)
-  Random.nextBytes(token)
-
-  private val q = new LinkedBlockingQueue[Option[DArray[_]]]()
+  private val token = newToken()
+  private val q = new LinkedBlockingQueue[Option[(Token, DArray[_])]]()
 
   private val submitter = new SubmitterThread(host, token, q)
   private val st = new Thread(submitter)
@@ -102,6 +106,12 @@ class SchedulerAppClient(host: String) {
   var nComplete: Int = 0
   var callback: (Int, Any)  => Unit = _
   var callbackExc: Exception = _
+
+  private def newToken(): Token = {
+    val t = new Array[Byte](16)
+    Random.nextBytes(t)
+    t
+  }
 
   private def connect(): DataSocket = {
     var s = socket
@@ -133,8 +143,9 @@ class SchedulerAppClient(host: String) {
     }
   }
 
-  private def sendAckTask(s: DataSocket, index: Int): Unit = {
+  private def sendAckTask(s: DataSocket, index: Int, taskID: Token): Unit = {
     s.out.writeInt(ClientMessage.ACKTASKRESULT)
+    writeByteArray(taskID, s.out)
     s.out.writeInt(index)
     s.out.flush()
   }
@@ -145,11 +156,13 @@ class SchedulerAppClient(host: String) {
     callbackExc = null
   }
 
-  private def receive(): Unit = {
+  private def receive(taskID: Token): Unit = {
     withConnection { s =>
       while (nComplete < nTasks) {
         val msg = s.in.readInt()
         assert(msg == ClientMessage.APPTASKRESULT)
+        val taskToken = readByteArray(s.in)
+        assert(taskID sameElements taskToken)
 
         val index = s.in.readInt()
         val res = readObject[Any](s.in)
@@ -173,14 +186,16 @@ class SchedulerAppClient(host: String) {
               nComplete += 1
             }
             log.info(s"SchedulerAppClient.receive: tasks completed: $nComplete / $nTasks.")
-            sendAckTask(s, index)
+            sendAckTask(s, index, taskID)
         }
       }
     }
   }
 
   def submit[T](da: DArray[T], cb: (Int, T) => Unit): Unit = synchronized {
-    q.put(Some(da))
+    val taskID = newToken()
+    log.info(s"SchedulerAppClient.submit: submitting task with ${ da.nTasks } tasks")
+    q.put(Some(taskID -> da))
 
     assert(callback == null)
     nTasks = da.nTasks
@@ -188,7 +203,8 @@ class SchedulerAppClient(host: String) {
     callback = (i: Int, x: Any) => cb(i, x.asInstanceOf[T])
     receivedTasks = mutable.BitSet(nTasks)
 
-    retry(() => receive())
+    log.info(s"SchedulerAppClient.submit: finished submitting task with ${ da.nTasks } tasks")
+    retry(() => receive(taskID))
     val ce = callbackExc
     clear()
 

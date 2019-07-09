@@ -1,4 +1,4 @@
-.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag hailjwt
+.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag gear
 
 PROJECT = $(shell gcloud config get-value project)
 IMAGE_SHORT_NAMES = $(shell ls -1 images)
@@ -36,10 +36,10 @@ $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 notebook-worker-images: $(PUSHED)
 	cat $^ > $@ && test $(APISERVER_JUPYTER_IMAGE) && echo $(APISERVER_JUPYTER_IMAGE) >> $@
 
-hailjwt:
-	cp -rf ../hailjwt ./
+gear:
+	cp -rf ../gear ./
 
-build: $(BUILT) notebook-worker-images hailjwt
+build: $(BUILT) notebook-worker-images gear
 ifeq ($(CI_BUILD),true)
 	-docker pull gcr.io/${PROJECT}/notebook2:latest
 	docker build . -t notebook2 --cache-from=gcr.io/${PROJECT}/notebook2:latest

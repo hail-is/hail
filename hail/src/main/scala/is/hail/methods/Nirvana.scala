@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
@@ -357,7 +357,7 @@ object Nirvana {
     w(sb.result())
   }
 
-  def annotate(tv: TableValue, config: String, blockSize: Int): TableValue = {
+  def annotate(ctx: ExecuteContext, tv: TableValue, config: String, blockSize: Int): TableValue = {
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
@@ -476,7 +476,7 @@ object Nirvana {
 
       TableValue(
         TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
-        BroadcastRow(Row(), TStruct(), tv.globals.backend),
+        BroadcastRow.empty(ctx),
         nirvanaRVD
       )
   }
@@ -491,7 +491,7 @@ case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTable
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(tv: TableValue): TableValue = {
-    Nirvana.annotate(tv, config, blockSize)
+  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
+    Nirvana.annotate(ctx, tv, config, blockSize)
   }
 }

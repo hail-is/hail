@@ -1,11 +1,13 @@
 FROM {{ base_image.image }}
 
-COPY notebook2/requirements.txt /notebook/
 COPY notebook2/notebook/ /notebook/
-COPY hailjwt/ /notebook/hailjwt/
+
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-cache-dir /hailtop \
+  && rm -rf /hailtop
 
 WORKDIR /notebook
-RUN pip3 install -r requirements.txt
 
 EXPOSE 5000
 

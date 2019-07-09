@@ -131,10 +131,6 @@ trait Py4jUtils {
     error(msg)
   }
 
-  def escapePyString(s: String): String = StringEscapeUtils.escapeString(s)
-
-  def escapeIdentifier(s: String): String = prettyIdentifier(s)
-
   def fileExists(hc: HailContext, path: String): Boolean = hc.sFS.exists(path) && hc.sFS.isFile(path)
 
   def dirExists(hc: HailContext, path: String): Boolean = hc.sFS.exists(path) && hc.sFS.isDir(path)

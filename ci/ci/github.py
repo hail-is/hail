@@ -376,7 +376,11 @@ mkdir -p {shq(repo_dir)}
             min_batch = None
             failed = None
             for b in batches:
-                s = await b.status()
+                try:
+                    s = await b.status()
+                except Exception as err:
+                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                    raise
                 if s['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
@@ -678,7 +682,8 @@ class WatchedBranch(Code):
             if (pr.review_state == 'approved' and
                     (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
-                if not merge_candidate or pri > merge_candidate_pri:
+                is_authorized = await pr.authorized(dbpool)
+                if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
         if merge_candidate:

@@ -72,9 +72,8 @@ class PruneSuite extends HailSuite {
       fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
   }
 
-  lazy val tab = TableLiteral(new Table(hc,
-    TableKeyBy(
-      TableParallelize(
+  lazy val tab = TableLiteral(TableKeyBy(
+    TableParallelize(
       Literal(
         TStruct(
           "rows" -> TArray(TStruct("1" -> TString(),
@@ -85,12 +84,11 @@ class PruneSuite extends HailSuite {
           "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None),
-      FastIndexedSeq("3"),
-      false)
-  ).value)
+    FastIndexedSeq("3"),
+    false).execute(ctx), ctx)
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
-    def apply(tr: TableRead): TableValue = ???
+    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 
@@ -104,11 +102,10 @@ class PruneSuite extends HailSuite {
     FastIndexedSeq("rk"),
     TStruct("rk" -> TInt32(), "r2" -> TStruct("x" -> TInt32()), "r3" -> TArray(TStruct("rr" -> TInt32()))),
     TStruct("e1" -> TFloat64(), "e2" -> TFloat64()))
-  val mat = MatrixLiteral(MatrixValue(
-    mType,
-    BroadcastRow(Row(1, 1.0), mType.globalType, hc.backend),
-    BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), hc.backend),
-    RVD.empty(sc, mType.canonicalRVDType)))
+  val mat = MatrixLiteral(mType,
+    RVD.empty(sc, mType.canonicalTableType.canonicalRVDType),
+    Row(1, 1.0),
+    FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))))
 
   val mr = MatrixRead(mat.typ, false, false, new MatrixReader {
     override def columnCount: Option[Int] = None
@@ -433,7 +430,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), ctx)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkMemo(mart, subsetMatrixTable(mart.typ, "va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -919,7 +916,7 @@ class PruneSuite extends HailSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat), ctx), ctx)
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", product=false)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {

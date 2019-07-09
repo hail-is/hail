@@ -7,7 +7,8 @@ import is.hail.utils.{ExecutionTimer, FastIndexedSeq, FastSeq, Timings}
 import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
-  def apply[T](ir0: IR,
+  def apply[T](ctx: ExecuteContext,
+    ir0: IR,
     env: Env[(Any, Type)] = Env(),
     args: IndexedSeq[(Any, Type)] = FastIndexedSeq(),
     optimize: Boolean = true
@@ -29,11 +30,11 @@ object CompileAndEvaluate {
 
     // void is not really supported by IR utilities
     if (ir.typ == TVoid) {
-      val res = timer.time(Interpret[T](ir, env, args, None, optimize = false), "interpret")
+      val res = timer.time(Interpret[T](ctx, ir, env, args, None, optimize = false), "interpret")
       return (res, timer.timings)
     }
 
-    val (evalIR, ncValue, ncType, ncVar) = timer.time(InterpretNonCompilable(ir), "interpret non-compilable")
+    val (evalIR, ncValue, ncType, ncVar) = timer.time(InterpretNonCompilable(ctx, ir), "interpret non-compilable")
     ir = evalIR
 
     val argsInVar = genUID()

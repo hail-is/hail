@@ -4,7 +4,7 @@ import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
@@ -24,7 +24,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val hc = HailContext.get
     val sc = hc.sc
 
@@ -111,12 +111,12 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }.toFastIndexedSeq
 
     val g1 = f1(mv.globals.value, eigenvalues.toFastIndexedSeq)
-    val globalScores = mv.colValues.value.zipWithIndex.map { case (cv, i) =>
+    val globalScores = mv.colValues.safeJavaValue.zipWithIndex.map { case (cv, i) =>
       f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
     }
     val newGlobal = f2(g1, globalScores)
     
     TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
-      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], hc.backend), rvd)
+      BroadcastRow(ctx, newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct]), rvd)
   }
 }

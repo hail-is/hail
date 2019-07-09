@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, Interpret, LowerMatrixIR, MatrixValue}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -221,7 +221,12 @@ object ExportVCF {
 
   def apply(mt: MatrixTable, path: String, append: Option[String] = None,
     exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    ExportVCF(mt.value, path, append, exportType, metadata)
+    ExecuteContext.scoped { ctx =>
+
+      ExportVCF(Interpret(mt.lit, ctx, optimize = false)
+        .toMatrixValue(mt.colKey),
+        path, append, exportType, metadata)
+    }
   }
 
   def apply(mv: MatrixValue, path: String, append: Option[String],
@@ -232,11 +237,7 @@ object ExportVCF {
 
     val typ = mv.typ
 
-    val tg = typ.entryType match {
-      case t: TStruct => t.physicalType
-      case t =>
-        fatal(s"export_vcf requires g to have type TStruct, found $t")
-    }
+    val tg = mv.entryPType
 
     checkFormatSignature(tg.virtualType)
 
@@ -253,7 +254,7 @@ object ExportVCF {
     val tinfo =
       if (typ.rowType.hasField("info")) {
         typ.rowType.field("info").typ match {
-          case t: TStruct => t.asInstanceOf[TStruct].physicalType
+          case _: TStruct => mv.rvRowPType.field("info").typ.asInstanceOf[PStruct]
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
             PStruct.empty()
@@ -363,7 +364,9 @@ object ExportVCF {
       }
     }
     val filtersType = TSet(TString())
-    val filtersPType = filtersType.physicalType
+    val filtersPType = if (typ.rowType.hasField("filters"))
+      mv.rvRowPType.field("filters").typ.asInstanceOf[PSet]
+    else null
 
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString()))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))

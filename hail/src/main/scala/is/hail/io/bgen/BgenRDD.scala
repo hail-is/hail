@@ -3,9 +3,10 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
 import is.hail.backend.BroadcastValue
+import is.hail.expr.ir.PruneDeadFields
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
-import is.hail.expr.types.virtual.{TStruct, Type}
+import is.hail.expr.types.physical.{PArray, PCall, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
+import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
@@ -18,53 +19,42 @@ import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContex
 
 import scala.language.reflectiveCalls
 
-sealed trait EntriesSetting
-case object NoEntries extends EntriesSetting
-final case class EntriesWithFields (
-  gt: Boolean,
-  gp: Boolean,
-  dosage: Boolean
-) extends EntriesSetting
-
-sealed case class RowFields (
-  varid: Boolean,
-  rsid: Boolean,
-  offset: Boolean,
-  fileIdx: Boolean
-)
 
 case class BgenSettings(
   nSamples: Int,
-  entries: EntriesSetting,
-  dropCols: Boolean,
-  rowFields: RowFields,
+  requestedType: TableType,
   rgBc: Option[BroadcastValue[ReferenceGenome]],
   indexAnnotationType: Type
 ) {
-  val (includeGT, includeGP, includeDosage) = entries match {
-    case NoEntries => (false, false, false)
-    case EntriesWithFields(gt, gp, dosage) => (gt, gp, dosage)
-  }
+  require(PruneDeadFields.isSupertype(requestedType, MatrixBGENReader.fullMatrixType(rg).canonicalTableType))
 
-  val matrixType: MatrixType = MatrixBGENReader.getMatrixType(
-    rgBc.map(_.value),
-    rowFields.rsid,
-    rowFields.varid,
-    rowFields.offset,
-    rowFields.fileIdx,
-    includeGT,
-    includeGP,
-    includeDosage
-  )
+  val entryType: Option[TStruct] = requestedType.rowType
+    .fieldOption(MatrixType.entriesIdentifier)
+    .map(f => f.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-  val typ: TStruct = entries match {
-    case NoEntries =>
-      matrixType.rowType
-    case _: EntriesWithFields =>
-      matrixType.canonicalRVDType.rowType.virtualType
-  }
+  val rowPType: PStruct = PStruct(
+    Array(
+      "locus" -> PLocus.schemaFromRG(rg),
+      "alleles" -> PArray(PString()),
+      "rsid" -> PString(),
+      "varid" -> PString(),
+      "offset" -> PInt64(),
+      "file_idx" -> PInt32(),
+      MatrixType.entriesIdentifier -> PArray(PStruct(
+        Array(
+          "GT" -> PCall(),
+          "GP" -> PArray(PFloat64Required, required = true),
+          "dosage" -> PFloat64Required
+        ).filter { case (name, _) => entryType.exists(t => t.hasField(name))
+        }: _*
+      )))
+      .filter { case (name, _) => requestedType.rowType.hasField(name) }: _*)
 
-  def pType: PStruct = typ.physicalType
+  assert(rowPType.virtualType == requestedType.rowType)
+
+  def hasField(name: String): Boolean = requestedType.rowType.hasField(name)
+
+  def hasEntryField(name: String): Boolean = entryType.exists(t => t.hasField(name))
 
   def rg: Option[ReferenceGenome] = rgBc.map(_.value)
 }

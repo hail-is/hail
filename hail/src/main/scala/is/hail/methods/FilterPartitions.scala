@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, TableToTableFunction}
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
 
@@ -10,7 +10,7 @@ case class TableFilterPartitions(parts: Seq[Int], keep: Boolean) extends TableTo
 
   override def typ(childType: TableType): TableType = childType
 
-  override def execute(tv: TableValue): TableValue = {
+  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
     val newRVD = if (keep)
       tv.rvd.subsetPartitions(parts.toArray)
     else {
@@ -26,7 +26,7 @@ case class MatrixFilterPartitions(parts: Seq[Int], keep: Boolean) extends Matrix
 
   override def typ(childType: MatrixType): MatrixType = childType
 
-  override def execute(mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
+  override def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue = throw new UnsupportedOperationException
 
   override def lower(): Option[TableToTableFunction] = Some(TableFilterPartitions(parts, keep))
 }

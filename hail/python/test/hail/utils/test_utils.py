@@ -2,6 +2,7 @@ import unittest
 
 import hail as hl
 from hail.utils import *
+from hail.utils.misc import escape_str, escape_id
 from hail.utils.java import Env
 from hail.utils.linkedlist import LinkedList
 from ..helpers import *
@@ -179,3 +180,17 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(len(set(a)), 10)
         self.assertEqual(a, b)
+
+    def test_escape_string(self):
+        self.assertEqual(escape_str("\""), "\\\"")
+        self.assertEqual(escape_str("cat"), "cat")
+        self.assertEqual(escape_str("my name is 名谦"), "my name is \\u540D\\u8C26")
+        self.assertEqual(escape_str('"', backticked=True), '"')
+        self.assertEqual(escape_str(chr(200)), '\\u00C8')
+        self.assertEqual(escape_str(chr(500)), '\\u01F4')
+
+    def test_escape_id(self):
+        self.assertEqual(escape_id("`"), "`\\``")
+        self.assertEqual(escape_id("cat"), "cat")
+        self.assertEqual(escape_id("abc123"), "abc123")
+        self.assertEqual(escape_id("123abc"), "`123abc`")

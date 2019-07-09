@@ -1,7 +1,8 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.expr.types.virtual.TStruct
+import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TLocus, TString, TStruct}
 import is.hail.io.CodecSpec
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
@@ -58,14 +59,18 @@ object IndexBgen {
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
-      NoEntries,
-      dropCols = true,
-      RowFields(false, false, true, true),
+      TableType(rowType = TStruct(
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "alleles" -> TArray(TString()),
+        "offset" -> TInt64(),
+        "file_idx" -> TInt32()),
+        key = Array("locus", "alleles"),
+        globalType = TStruct()),
       referenceGenome.map(_.broadcast),
       annotationType
     )
 
-    val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
+    val typ = RVDType(settings.rowPType, Array("file_idx", "locus", "alleles"))
 
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(
@@ -91,7 +96,7 @@ object IndexBgen {
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
-    val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
+    val rangeBounds = bgenFilePaths.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
@@ -102,7 +107,7 @@ object IndexBgen {
     RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
       .toRows
-      .foreachPartition({ it =>
+      .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
 
         using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
@@ -113,6 +118,6 @@ object IndexBgen {
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")
-      })
+      }
   }
 }

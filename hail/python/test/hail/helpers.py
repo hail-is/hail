@@ -18,8 +18,8 @@ def startTestHailContext():
 def stopTestHailContext():
     pass
 
-_test_dir = os.environ['HAIL_TEST_RESOURCES_DIR']
-_doctest_dir = os.environ['HAIL_DOCTEST_DATA_DIR']
+_test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR', '../src/test/resources')
+_doctest_dir = os.environ.get('HAIL_DOCTEST_DATA_DIR', 'hail/docs/data')
 
 
 def resource(filename):

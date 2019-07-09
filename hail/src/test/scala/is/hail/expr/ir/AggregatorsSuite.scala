@@ -305,12 +305,20 @@ class AggregatorsSuite extends HailSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TArray(hailType[T])))
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(hailType[T]))
     val aggregable = a.map(Row(_))
+
+    val tp = TableParallelize(MakeStruct(FastSeq(
+      ("rows", Literal(TArray(TStruct("foo" -> TArray(hailType[T]))), a.map(Row(_)))),
+      ("global", MakeStruct(FastSeq())))))
+
     assertEvalsTo(
-      ApplyAggOp(FastSeq(), None, FastSeq(Ref("a", TArray(hailType[T]))), aggSig),
+      TableAggregate(
+        tp,
+        AggArrayPerElement(GetField(Ref("row", tp.typ.rowType), "foo"), "elt", "_",
+          ApplyAggOp(FastSeq(), None, FastSeq(Ref("elt", hailType[T])), aggSig), None, isScan = false)),
       (aggregable, TStruct("a" -> TArray(hailType[T]))),
-      expected)
+      expected)(ExecStrategy.interpretOnly)
   }
 
   @Test
@@ -383,35 +391,6 @@ class AggregatorsSuite extends HailSuite {
         FastSeq(1L, 33L),
         FastSeq(42L, 3L)),
       FastSeq(43L, 36L)
-    )
-
-  private[this] def assertRequiredArraySumEvalsTo[T: HailRep](
-    a: IndexedSeq[Seq[T]],
-    expected: Seq[T]
-  ): Unit = {
-    val typ = TArray(hailType[T].setRequired(true))
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(typ))
-    val aggregable = a.map(Row(_))
-    assertEvalsTo(
-      ApplyAggOp(FastSeq(), None, FastSeq(Ref("a", typ)), aggSig),
-      (aggregable, TStruct("a" -> typ)),
-      expected)
-  }
-
-  @Test def arraySumInt64Required(): Unit =
-    assertRequiredArraySumEvalsTo(
-      FastIndexedSeq(
-        FastSeq(1L, 33L),
-        FastSeq(42L, 3L)),
-      FastSeq(43L, 36L)
-    )
-
-  @Test def arraySumFloat64Required(): Unit =
-    assertRequiredArraySumEvalsTo(
-      FastIndexedSeq(
-        FastSeq(1D, 33D),
-        FastSeq(42D, 3D)),
-      FastSeq(43D, 36D)
     )
 
   private[this] def assertTakeByEvalsTo(aggType: Type, keyType: Type, n: Int, a: IndexedSeq[Row], expected: IndexedSeq[Any]) {

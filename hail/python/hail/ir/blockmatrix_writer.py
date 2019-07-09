@@ -2,7 +2,7 @@ import abc
 import json
 
 from ..typecheck import *
-from ..utils.java import escape_str
+from ..utils.misc import escape_str
 
 
 class BlockMatrixWriter(object):

@@ -27,6 +27,8 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     PContainer.loadLength(region, aoff)
 
+  def nMissingBytes(region: Code[Region], aoff: Code[Long]): Code[Long] = (loadLength(region, aoff).toL + 7L) >>> 3
+
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
       UnsafeUtils.roundUpAlignment(4, elementType.alignment)

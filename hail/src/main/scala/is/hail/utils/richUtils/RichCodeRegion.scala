@@ -164,7 +164,36 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   ): Code[Long] =
     region.invoke[Region, Long, Int, Int, Long]("appendStringSlice", fromRegion, fromOff, start, n)
 
-  def clear(): Code[Unit] = {
-    region.invoke[Unit]("clear")
+  def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
+
+  def refreshRegion(): Code[Unit] = { region.invoke[Unit]("refreshRegion") }
+
+
+  def reference(other: Code[Region]): Code[Unit] = {
+    region.invoke[Region, Unit]("reference", other)
+  }
+
+  def setNumParents(n: Code[Int]): Code[Unit] = {
+    region.invoke[Int, Unit]("setNumParents", n)
+  }
+
+  def setParentReference(r: Code[Region], i: Code[Int]): Code[Unit] = {
+    region.invoke[Region, Int, Unit]("setParentReference", r, i)
+  }
+
+  def setFromDependentRegion(base: Code[Region], i: Code[Int]): Code[Unit] = {
+    region.invoke[Region, Int, Unit]("setFromDependentRegion", base, i)
+  }
+
+  def getParentReference(i: Code[Int]): Code[Region] = {
+    region.invoke[Int, Region]("getParentReference", i)
+  }
+
+  def clearParentReference(i: Code[Int]): Code[Unit] = {
+    region.invoke[Int, Unit]("clearParentReference", i)
+  }
+
+  def close(): Code[Unit] = {
+    region.invoke[Unit]("close")
   }
 }

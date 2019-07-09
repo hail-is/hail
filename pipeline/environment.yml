@@ -1,8 +1,0 @@
-name: hail-pipeline
-dependencies:
-- python=3.6
-- pip
-- pip:
-  - pylint
-  - flake8
-  - pytest

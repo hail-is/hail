@@ -161,18 +161,6 @@ def jiterable_to_list(it):
         return None
 
 
-def dump_json(obj):
-    return f'"{escape_str(json.dumps(obj))}"'
-
-
-def escape_str(s):
-    return Env.jutils().escapePyString(s)
-
-
-def parsable_strings(strs):
-    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
-    return f"({strs})"
-
 
 _parsable_str = re.compile(r'[\w_]+')
 
@@ -186,13 +174,6 @@ def escape_parsable(s):
 
 def unescape_parsable(s):
     return bytes(s.replace('\\`', '`'), 'utf-8').decode('unicode_escape')
-
-
-def escape_id(s):
-    if re.fullmatch(r'[_a-zA-Z]\w*', s):
-        return s
-    else:
-        return Env.jutils().escapeIdentifier(s)
 
 
 def jarray_to_list(a):

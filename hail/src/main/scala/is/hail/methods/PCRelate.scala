@@ -8,7 +8,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
-import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDContext
@@ -55,15 +55,17 @@ object PCRelate {
     blockSize: Int,
     minKinship: Double,
     statistics: PCRelate.StatisticSubset): TableIR = {
-    
-    val scoresLocal = Interpret(scores).asInstanceOf[IndexedSeq[Row]].toArray
-    assert(scoresLocal.length == blockedG.nCols)
-    
-    val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
-    
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    TableLiteral(TableValue(sig, keys, toRowRdd(result, blockSize, minKinship, statistics)))
+    ExecuteContext.scoped { ctx =>
+      val scoresLocal = Interpret[IndexedSeq[Row]](ctx, scores).toArray
+      assert(scoresLocal.length == blockedG.nCols)
+
+      val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
+
+      val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
+
+      TableLiteral(TableValue(ctx, sig, keys, toRowRdd(result, blockSize, minKinship, statistics)), ctx)
+    }
   }
 
   private[methods] def apply(hc: HailContext,
@@ -179,7 +181,7 @@ object PCRelate {
   // now only used in tests
   private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.numCols
-    val localRowPType = vds.value.rvRowPType
+    val localRowPType = vds.rvRowPType
     val partStarts = vds.partitionStarts()
     val partStartsBc = vds.hc.backend.broadcast(partStarts)
     val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>

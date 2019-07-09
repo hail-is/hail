@@ -161,6 +161,80 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
+@typecheck(mt=MatrixTable,
+           output=str,
+           gp=nullable(expr_array(expr_float64)),
+           varid=nullable(expr_str),
+           rsid=nullable(expr_str),
+           parallel=nullable(str))
+def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None):
+    """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
+    bits of per probability.  Also writes SAMPLE file.
+
+    Parameters
+    ----------
+    mt : :class:`.MatrixTable`
+        Input matrix table.
+    output : :obj:`str`
+        Root for output BGEN and SAMPLE files.
+    gp : :class:`.ArrayExpression` of type :py:data:`.tfloat64`, optional
+        Expression for genotype probabilities.  If ``None``, entry
+        field `GP` is used if it exists and is of type
+        :py:data:`.tarray` with element type :py:data:`.tfloat64`.
+    varid : :class:`.StringExpression`, optional
+        Expression for the variant ID. If ``None``, the row field
+        `varid` is used if defined and is of type :py:data:`.tstr`.
+        The default and missing value is
+        ``hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':')``
+    rsid : :class:`.StringExpression`, optional
+        Expression for the rsID. If ``None``, the row field `rsid` is
+        used if defined and is of type :py:data:`.tstr`.  The default
+        and missing value is ``"."``.
+    parallel : :obj:`str`, optional
+        If ``None``, write a single BGEN file.  If
+        ``'header_per_shard'``, write a collection of BGEN files (one
+        per partition), each with its own header.  If
+        ``'separate_header'``, write a file for each partition,
+        without header, and a header file for the combined dataset.
+    """
+    require_row_key_variant(mt, 'export_bgen')
+    require_col_key_str(mt, 'export_bgen')
+
+    if gp is None:
+        if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
+            entry_exprs = {'GP': mt.GP}
+        else:
+            entry_exprs = {}
+    else:
+        entry_exprs = {'GP': gp}
+
+    if varid is None:
+        if 'varid' in mt.row and mt.varid.dtype == tstr:
+            varid = mt.varid
+
+    if rsid is None:
+        if 'rsid' in mt.row and mt.rsid.dtype == tstr:
+            rsid = mt.rsid
+
+    l = mt.locus
+    a = mt.alleles
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+                 'rsid': expr_or_else(rsid, ".")}
+
+    for exprs, axis in [(gen_exprs, mt._row_indices),
+                        (entry_exprs, mt._entry_indices)]:
+        for name, expr in exprs.items():
+            analyze('export_gen/{}'.format(name), expr, axis)
+
+    mt = mt._select_all(col_exprs={},
+                        row_exprs=gen_exprs,
+                        entry_exprs=entry_exprs)
+
+    Env.backend().execute(MatrixWrite(mt._mir, MatrixBGENWriter(
+        output,
+        Env.hail().utils.ExportType.getExportType(parallel))))
+
+
 @typecheck(dataset=MatrixTable,
            output=str,
            call=nullable(expr_call),
@@ -175,6 +249,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
 def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
                  mat_id=None, is_female=None, pheno=None, varid=None,
                  cm_position=None):
+
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
@@ -1710,9 +1785,12 @@ def import_plink(bed, bim, fam,
 
 
 @typecheck(path=str,
+           _intervals=nullable(sequenceof(anytype)),
+           _filter_intervals=bool,
            _drop_cols=bool,
            _drop_rows=bool)
-def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
+def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
+                      _drop_rows=False) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -1724,7 +1802,8 @@ def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(MatrixRead(MatrixNativeReader(path), _drop_cols, _drop_rows))
+    return MatrixTable(MatrixRead(MatrixNativeReader(path, _intervals, _filter_intervals),
+                       _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
@@ -1955,7 +2034,7 @@ def import_vcf(path,
 
 
 @typecheck(path=sequenceof(str),
-           partitions=str,
+           partitions=expr_any,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
@@ -1984,39 +2063,24 @@ def import_vcfs(path,
                 _external_header=None) -> List[MatrixTable]:
     """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
-    The arguments to this function are almost identical to :func:`.import_vcf`,
-    the only difference is the `partitions` argument, which is used to divide
-    and filter the vcfs. It must be a JSON string that will deserialize to an
-    Array of Intervals of Locus structs. A partition will be created for every
-    element of the array. Loci that fall outside of any interval will not be
-    imported. For example:
+    The arguments to this function are almost identical to
+    :func:`.import_vcf`, the only difference is the `partitions`
+    argument, which is used to divide and filter the vcfs.  It must be
+    an expression or literal of type `array<interval<struct{locus:locus<RG>}>>`.  A
+    partition will be created for every element of the array. Loci
+    that fall outside of any interval will not be imported. For
+    example:
 
     .. code-block:: text
-        [
-          {
-            "start": {
-              "locus": {
-                "contig": "chr22",
-                "position": 1
-              }
-            },
-            "end": {
-              "locus": {
-                "contig": "chr22",
-                "position": 5332423
-              }
-            },
-            "includeStart": true,
-            "includeEnd": true
-          }
-        ]
+        [hl.Interval(hl.Locus("chr22", 1), hl.Locus("chr22", 5332423), includes_end=True)]
 
-    The `includeStart` and `includeEnd` keys must be `true`. The `contig` fields must
-    be the same.
+    The `include_start` and `include_end` keys must be `True`. The
+    `contig` fields must be the same.
 
     One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
     :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
     rather than `locus, alleles`.
+
     """
 
     rg = reference_genome.name if reference_genome else None
@@ -2024,6 +2088,11 @@ def import_vcfs(path,
     global _cached_importvcfs
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
+
+    if partitions is not None:
+        partitions, partitions_type = hl.utils._dumps_partitions(partitions, hl.tstruct(locus=hl.tlocus(rg), alleles=hl.tarray(hl.tstr)))
+    else:
+        partitions_type = None
 
     vector_ref_s = _cached_importvcfs.pyApply(
         wrap_to_list(path),
@@ -2035,16 +2104,16 @@ def import_vcfs(path,
         skip_invalid_loci,
         force_bgz,
         force,
-        partitions,
+        partitions, partitions_type._parsable_string(),
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None,
         _external_sample_ids,
         _external_header)
-    tmp = json.loads(vector_ref_s)
-    jir_vref = JIRVectorReference(tmp['vector_ir_id'],
-                                  tmp['length'],
-                                  hl.tmatrix._from_json(tmp['type']))
+    vector_ref = json.loads(vector_ref_s)
+    jir_vref = JIRVectorReference(vector_ref['vector_ir_id'],
+                                  vector_ref['length'],
+                                  hl.tmatrix._from_json(vector_ref['type']))
 
     return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
 
@@ -2107,8 +2176,10 @@ def index_bgen(path,
     Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
-@typecheck(path=str)
-def read_table(path) -> Table:
+@typecheck(path=str,
+           _intervals=nullable(sequenceof(anytype)),
+           _filter_intervals=bool)
+def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -2120,7 +2191,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    tr = TableNativeReader(path)
+    tr = TableNativeReader(path, _intervals, _filter_intervals)
     return Table(TableRead(tr, False))
 
 

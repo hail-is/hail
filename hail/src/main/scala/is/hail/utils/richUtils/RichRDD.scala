@@ -116,7 +116,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
 
       def compute(split: Partition, context: TaskContext): Iterator[T] =
         r.compute(split.asInstanceOf[SubsetRDDPartition].parentPartition, context)
-      
+
       @transient override val partitioner: Option[Partitioner] = newPartitioner
     }
   }
@@ -126,11 +126,11 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     newNPartitions: Int,
     newPIPartition: Int => Iterator[T],
     newPartitioner: Option[Partitioner] = None)(implicit ct: ClassTag[T]): RDD[T] = {
-    
+
     require(oldToNewPI.length == r.partitions.length)
     require(oldToNewPI.forall(pi => pi >= 0 && pi < newNPartitions))
     require(oldToNewPI.areDistinct())
-    
+
     val parentPartitions = r.partitions
     val newToOldPI = oldToNewPI.zipWithIndex.toMap
 
@@ -168,6 +168,8 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
   ): (Array[String], Array[Long]) =
     ContextRDD.weaken[RVDContext](r).writePartitions(
       path,
+      null,
       stageLocally,
-      (_, it, os) => write(it, os))
+      (_, _) => null,
+      (_, it, os, _) => write(it, os))
 }
