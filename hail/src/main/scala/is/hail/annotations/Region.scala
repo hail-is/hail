@@ -72,12 +72,12 @@ final class Region private (empty: Boolean) extends NativeBase() {
   final def refreshRegion(): Unit = nativeRefreshRegion()
 
   def setNumParents(n: Int): Unit = {
-    assert(nativeGetNumParents() >= 0 && nativeGetNumParents() <= n, s"Can't shrink number of dependent regions")
+    assert(nativeGetNumParents() >= 0 && nativeGetNumParents() <= n)
     nativeSetNumParents(n)
   }
 
   def setParentReference(r: Region, i: Int): Unit = {
-    assert(i < nativeGetNumParents(), s"$i is larger than ${ nativeGetNumParents() }")
+    assert(i < nativeGetNumParents())
     nativeSetParentReference(r, i)
   }
 
