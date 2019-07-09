@@ -23,7 +23,7 @@ object IndexReaderBuilder {
   }
 
   def apply(settings: BgenSettings): (FS, String, Int) => IndexReader =
-    IndexReaderBuilder(settings.matrixType.rowKeyStruct, settings.indexAnnotationType)
+    IndexReaderBuilder(settings.requestedType.keyType, settings.indexAnnotationType)
 
   def apply(keyType: Type, annotationType: Type): (FS, String, Int) => IndexReader = {
     val (leafDecoder, internalDecoder) = IndexReader.buildDecoders(keyType, annotationType)
