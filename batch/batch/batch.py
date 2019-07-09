@@ -1013,7 +1013,7 @@ async def _cancel_batch(batch_id, user):
        and jobs.state not in ('Cancelled', 'Error', 'Failed', 'Success', 'Pending')
        and jobs.always_run = FALSE
 ''', (batch_id,))
-            await cursor.execute('''
+            await cursor.execute(f'''
     update jobs
 inner join (    select jobs.id
                   from jobs
