@@ -1013,9 +1013,26 @@ async def _cancel_batch(batch_id, user):
        and jobs.state not in ('Cancelled', 'CancelledDone', 'Error', 'Failed', 'Success')
        and jobs.always_run = FALSE
 ''', (batch_id,))
-            await cursor.execute(f'''
-call propagate_cancelled(%s)
+            while True:
+                await cursor.execute(f'''
+    update jobs
+inner join (    select jobs.job_id, jobs.batch_id
+                  from jobs
+            inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
+                                     and `jobs-parents`.job_id = jobs.job_id
+            inner join jobs as parents on `jobs-parents`.batch_id = parents.batch_id
+                                      and `jobs-parents`.parent_id = parents.job_id
+                 where jobs.state = 'Cancelled'
+                   and jobs.batch_id = batch_id
+              group by jobs.batch_id, jobs.job_id, jobs.always_run
+                having count(parents.state = 'Success') = count(*)
+                    or (jobs.always_run = true and
+                        count(parents.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
+           ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
+       set state = (case jobs.always_run when true then 'Ready' else 'CancelledDone' end);
 ''', (batch_id,))
+                if cursor.rowcount == 0:
+                    break
             await cursor.execute('''
 update batch
    set cancelled = true, closed = true

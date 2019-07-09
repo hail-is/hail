@@ -86,36 +86,3 @@ CREATE TRIGGER trigger_jobs_update AFTER UPDATE ON jobs
         END IF;
     END;
 $$
-
-CREATE PROCEDURE propagate_cancelled (IN batch_id INT)
-BEGIN
-
-declare first int default true;
-
-while first or row_count() > 0 do
-    set first = FALSE;
-    update jobs
-inner join (    select jobs.job_id, jobs.batch_id
-                  from jobs
-            inner join `jobs-parents` on `jobs-parents`.batch_id = jobs.batch_id
-                                     and `jobs-parents`.job_id = jobs.job_id
-            inner join jobs as parents on `jobs-parents`.batch_id = parents.batch_id
-                                      and `jobs-parents`.parent_id = parents.job_id
-                 where jobs.state = 'Cancelled'
-                   and jobs.batch_id = batch_id
-              group by jobs.batch_id, jobs.job_id, jobs.always_run
-                having count(parents.state = 'Success') = count(*)
-                    or (jobs.always_run = true and
-                        count(parents.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
-           ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
-       set state = (case jobs.always_run when true then 'Ready' else 'CancelledDone' end);
-end while;
-
-END;
-
-$$
-
-DELIMITER ;
-
-GRANT EXECUTE ON PROCEDURE propagate_cancelled TO ''@'%';
-flush privileges;
