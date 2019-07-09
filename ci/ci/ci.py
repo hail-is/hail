@@ -216,18 +216,29 @@ async def invalidate_and_retest(request):
     post = await request.post()
     branch_id = post['watched_branch'].strip()
     pr_number = post['pull_request_number'].strip()
+
+    identifier = f'{branch_id}, PR {pr_number}'
     found = False
+    problem = None
     for wb in watched_branches:
         if wb.short_str() == branch_id:
             pr = wb.prs.get(pr_number)
             if pr is not None:
                 found = True
-                pr.batch = None
-                pr._heal(app, batch_client, dbpool, on_deck=False)
+                if hasattr(pr.batch, 'id'):
+                    pr.batch.delete()
+                    pr.batch = None
+                    pr._heal(app, batch_client, dbpool, on_deck=False)
+                    break
+                else:
+                    problem = 'no batch exists'
     if found:
-        log.info(f'initiated retest for {branch_id}, PR {pr_number}')
+        if problem:
+            log.warn(f'{identifier}: problem: {problem}')
+        else:
+            log.info(f'{branch_id}, PR {pr_number}')
     else:
-        log.warn(f'could not retest {branch_id}, PR {pr_number}: no such PR')
+        log.warn(f'{identifier}: no such PR')
     raise web.HTTPFound('/')
 
 
