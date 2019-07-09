@@ -10,8 +10,8 @@ class DB:
     @staticmethod
     def annotation_dataset_urls():
         if DB._annotation_dataset_urls is None:
-            with open('/Users/bfranco/hail_datasets/hail-datasets/annotation_db.json') as f:
-                j = json.loads(f.read())
+            r = requests.get("http://storage.googleapis.com/hail-datasets/datasets.json")
+            j = r.json()
             
             DB._annotation_dataset_urls = {(x["name"], x["reference_genome"]): (x["path"], x["gene_key"]) for x in j}
         
@@ -52,4 +52,4 @@ class DB:
             else:
                 t = hl.read_table(url)
                 mt = mt.annotate_rows(**{name:t[mt.row_key]})
-    return mt
+        return mt
