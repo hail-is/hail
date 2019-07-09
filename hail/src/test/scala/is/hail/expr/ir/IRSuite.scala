@@ -1518,6 +1518,9 @@ class IRSuite extends HailSuite {
 
     val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
+    val callStatsSig2 = AggSignature2(CallStats(), Seq(TInt32()), Seq(TCall()), None)
+    val collectSig2 = AggSignature2(CallStats(), Seq(), Seq(TInt32()), None)
+
     val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
@@ -1598,14 +1601,14 @@ class IRSuite extends HailSuite {
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
-      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig),
-      SeqOp2(0, FastIndexedSeq(i), collectSig),
-      CombOp2(0, 1, collectSig),
-      ResultOp2(0, FastSeq(collectSig)),
-      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
-      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
-      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
-      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
+      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig2),
+      SeqOp2(0, FastIndexedSeq(i), collectSig2),
+      CombOp2(0, 1, collectSig2),
+      ResultOp2(0, FastSeq(collectSig2)),
+      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
+      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
+      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
+      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),

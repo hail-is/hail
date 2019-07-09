@@ -69,13 +69,27 @@ object Pretty {
       sb += ')'
     }
 
-    def prettyAggSeq(sigs: Seq[AggSignature], depth: Int) {
+    def prettyAggSignature2(aggSig: AggSignature2, depth: Int): String = {
+      sb.append(" " * depth)
+      sb += '('
+      sb.append(prettyClass(aggSig.op))
+      sb += ' '
+      sb.append(aggSig.initOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
+      sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
+      if (aggSig.nested.isEmpty)
+        sb.append(" None")
+      else
+        aggSig.nested.foreach(prettyAggSeq(_, depth + 2))
+      sb += ')'
+      sb.result()
+    }
+
+    def prettyAggSeq(sigs: Seq[AggSignature2], depth: Int) {
       sb.append(" " * depth)
       sb += '('
       sigs.foreach { x =>
         sb += '\n'
-        sb.append(" " * (depth + 2))
-        sb.append(prettyAggSignature(x))
+        prettyAggSignature2(x, depth + 2)
       }
       sb += ')'
     }
@@ -145,14 +159,14 @@ object Pretty {
           sb += ' '
           sb.append(i)
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyAggSignature2(aggSig, depth + 2))
           sb += '\n'
           prettySeq(args, depth + 2)
         case SeqOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyAggSignature2(aggSig, depth + 2))
           sb += '\n'
           prettySeq(args, depth + 2)
         case CombOp2(i1, i2, aggSig) =>
@@ -161,7 +175,7 @@ object Pretty {
           sb += ' '
           sb.append(i2)
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyAggSignature2(aggSig, depth + 2))
         case ResultOp2(i, aggSigs) =>
           sb += ' '
           sb.append(i)

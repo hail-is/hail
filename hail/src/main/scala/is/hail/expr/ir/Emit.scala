@@ -25,7 +25,7 @@ object Emit {
     emit(ir, fb, Env.empty, nSpecialArguments, None)
   }
 
-  def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, aggs: Option[Array[AggSignature]] = None) {
+  def apply(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int, aggs: Option[Array[AggSignature2]] = None) {
     val triplet = emit(ir, fb, Env.empty, nSpecialArguments, aggs)
     typeToTypeInfo(ir.typ) match {
       case ti: TypeInfo[t] =>
@@ -40,7 +40,7 @@ object Emit {
     fb: EmitFunctionBuilder[_],
     env: E,
     nSpecialArguments: Int,
-    aggs: Option[Array[AggSignature]]): EmitTriplet = {
+    aggs: Option[Array[AggSignature2]]): EmitTriplet = {
     TypeCheck(ir)
     val container = aggs.map { a =>
       val (c, off) = fb.addAggStates(a)
@@ -56,17 +56,14 @@ object Emit {
   }
 }
 
-case class AggContainer(aggs: Array[AggSignature], container: agg.StateContainer, off: Code[Long]) {
+case class AggContainer(aggs: Array[AggSignature2], container: agg.StateContainer, off: Code[Long]) {
   def nested(i: Int): Option[AggContainer] = {
-    aggs(i).op match {
-      case AggElements2(sigs) =>
-        val state = container(i).asInstanceOf[agg.ArrayElementState]
-        Some(AggContainer(sigs.toArray, state.container, state.off))
-      case AggElementsLengthCheck2(sigs, _) =>
-        val state = container(i).asInstanceOf[agg.ArrayElementState]
-        Some(AggContainer(sigs.toArray, state.container, state.off))
-      case op =>
-        None
+    aggs(i).nested.map { n =>
+      aggs(i).op match {
+        case AggElements() | AggElementsLengthCheck() =>
+          val state = container(i).asInstanceOf[agg.ArrayElementState]
+          AggContainer(n.toArray, state.container, state.off)
+      }
     }
   }
 }

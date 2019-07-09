@@ -261,7 +261,7 @@ object TypeCheck {
         assert(args.map(_.typ) == aggSig.seqOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
       case x@InitOp2(_, args, aggSig) =>
-        assert(args.map(_.typ) == aggSig.constructorArgs ++ aggSig.initOpArgs.getOrElse(FastIndexedSeq()))
+        assert(args.map(_.typ) == aggSig.initOpArgs)
       case x@SeqOp2(_, args, aggSig) =>
         assert(args.map(_.typ) == aggSig.seqOpArgs)
       case _: CombOp2 =>
