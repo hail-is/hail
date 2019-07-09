@@ -42,12 +42,12 @@ def stage_one(paths, sample_names, tmp_path, json, header, out_path):
         out_paths.extend(tmp)
     return out_paths
 
-def run_combiner(samples, json, out_file, tmp_path, header, overwrite=True):
+def run_combiner(samples, ints, out_file, tmp_path, header, overwrite=True):
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
     sample_names, paths = [list(x) for x in zip(*samples)]
     sample_names = [[n] for n in sample_names]
     assert len(paths) == len(samples)
-    out_paths = stage_one(paths, sample_names, tmp_path, json, header, out_file)
+    out_paths = stage_one(paths, sample_names, tmp_path, ints, header, out_file)
     if not out_paths:
         return
     tmp_path += f'{uuid.uuid4()}/'
@@ -77,13 +77,14 @@ def main():
                                        '(must be filesystem local)', required=True)
     parser.add_argument('--header', help='external header, must be cloud based', required=True)
     args = parser.parse_args()
-    with open(args.json) as j:
-        json = j.read()
-    with open(args.sample_map) as m:
-        samples = [l.strip().split('\t') for l in m]
     hl.init(default_reference=DEFAULT_REF,
             log='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
-    run_combiner(samples, json, args.out_file, args.tmp_path, args.header, overwrite=True)
+    with open(args.json) as j:
+        ty = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus(reference_genome='GRCh38'))))
+        ints = ty._from_json(j.read())
+    with open(args.sample_map) as m:
+        samples = [l.strip().split('\t') for l in m]
+    run_combiner(samples, ints, args.out_file, args.tmp_path, args.header, overwrite=True)
 
 
 if __name__ == '__main__':
