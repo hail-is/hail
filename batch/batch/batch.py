@@ -1024,7 +1024,7 @@ inner join (    select jobs.job_id
               group by jobs.job_id
                 having count({jobs_parents}.state = 'Success') = count(*)
                     or (jobs.always_run = TRUE and
-                        count(`jobs.parents`.state in ('Success', 'Error', 'Failed', 'Cancelled')) = count(*))
+                        count(`{jobs_parents}`.state in ('Success', 'Error', 'Failed', 'Cancelled')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
        set state = 'Ready'
 ''', (batch_id,))
