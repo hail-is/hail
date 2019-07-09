@@ -93,7 +93,7 @@ def test_cancel_tail(client):
         status = node.status()
         assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
-    assert tail.status()['state'] == 'Cancelled'
+    assert tail.status()['state'] == 'CancelledDone'
 
 
 def test_cancel_left_after_tail(client):
