@@ -377,22 +377,21 @@ mkdir -p {shq(repo_dir)}
             failed = None
             for b in batches:
                 try:
-                    s = await b.status()
+                    status = await b.status()
                 except Exception as err:
                     log.info(f'failed to get the status for batch {b.id} due to error: {err}')
                     raise
-                if s['state'] != 'cancelled':
+                if status['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
 
-                    if s['state'] == 'failure':
+                    if status['state'] == 'failure':
                         failed = True
                     elif failed is None:
                         failed = False
             self.batch = min_batch
             self.source_sha_failed = failed
-
-        if self.batch:
+        else:
             try:
                 status = await self.batch.status()
             except aiohttp.client_exceptions.ClientResponseError as exc:
