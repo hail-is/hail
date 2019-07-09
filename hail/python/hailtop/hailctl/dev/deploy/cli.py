@@ -16,5 +16,6 @@ def main(args):
         },
         'repo': args.repo,
         'branch': args.branch,
-        'profile': args.profile
+        'profile': args.profile,
+        'namespace': args.namespace
     }))

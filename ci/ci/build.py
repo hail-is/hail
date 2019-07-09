@@ -64,13 +64,19 @@ class StepParameters:
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, profile=None):
+    def __init__(self, code, config_str, scope, profile=None, namespace_override=None):
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
-            
+
+
+            #TODO This is a bad method
+            if namespace_override is not None and 'namespaceName' in step_params.json:
+                step_params.json['namespaceName'] = namespace_override
+                print(step_params.json)
+
             if profile is not None and step_params.json['name'] in profile:
                 step = Step.from_json(step_params)
                 self.steps.append(step)
@@ -81,9 +87,11 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
+                print("BUILDING {}".format(step.name))
                 step.build(batch, code, scope)
 
         if scope == 'dev':
+            print("DEV RETURNING")
             return
 
         parents = set()
@@ -459,7 +467,7 @@ class CreateNamespaceStep(Step):
         elif params.scope == 'test':
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
         elif params.scope == 'dev':
-            self._name = None 
+            self._name = namespace_name
         else:
             raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
 

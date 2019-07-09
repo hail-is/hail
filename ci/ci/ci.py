@@ -270,7 +270,8 @@ async def dev_test_branch(request):
     repo_owner, repo_name = tuple(params['repo'].split('/'))
     repo = Repo(repo_owner, repo_name)
     fq_branch = FQBranch(repo, params.get('branch'))
-    unwatched_branch = UnwatchedBranch(fq_branch, userdata)
+    namespace = params['namespace']
+    unwatched_branch = UnwatchedBranch(fq_branch, userdata, namespace)
     profile = params['profile']
 
     sess = aiohttp.ClientSession(
@@ -280,8 +281,6 @@ async def dev_test_branch(request):
     gh = gh_aiohttp.GitHubAPI(sess, 'ci', oauth_token=oauth_token)
     request_string = f'/repos/{repo_owner}/{repo_name}/git/refs/heads/{fq_branch.name}'
     branch_gh_json = await gh.getitem(request_string)
-
-    print(branch_gh_json)
 
     unwatched_branch.sha = branch_gh_json['object']['sha']
 
