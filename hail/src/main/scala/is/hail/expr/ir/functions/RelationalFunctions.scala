@@ -116,6 +116,7 @@ object RelationalFunctions {
     classOf[WindowByLocus],
     classOf[TableFilterPartitions],
     classOf[MatrixFilterPartitions],
+    classOf[TableCalculateNewPartitions],
     classOf[ForceCountTable],
     classOf[ForceCountMatrixTable],
     classOf[NPartitionsTable],
