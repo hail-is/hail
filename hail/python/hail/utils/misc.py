@@ -543,7 +543,7 @@ def _dumps_partitions(partitions, row_key_type):
     parts_type = partitions.dtype
     if not (isinstance(parts_type, hl.tarray) and
             isinstance(parts_type.element_type, hl.tinterval)):
-        raise ValueError(f'partitions type invalid: {part_type} must be array of intervals')
+        raise ValueError(f'partitions type invalid: {parts_type} must be array of intervals')
 
     point_type = parts_type.element_type.point_type
 
