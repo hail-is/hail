@@ -79,7 +79,7 @@ possible to rent Spark clusters with many thousands of cores on-demand,
 providing for the elastic compute requirements of scientific research without
 an up-front capital investment.
 
-For more about computing on the cloud, see :ref:`.hail_on_the_cloud`.
+For more about computing on the cloud, see `Hail on the cloud <hail_on_the_cloud.html>`_.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
