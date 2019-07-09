@@ -6,7 +6,7 @@ import com.fasterxml.jackson.core.JsonParseException
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -110,7 +110,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
     TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
   }
 
-  override def execute(tv: TableValue): TableValue = {
+  override def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
     assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
@@ -247,7 +247,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
-      BroadcastRow(globalValue, globalType, HailContext.backend),
+      BroadcastRow(ctx, globalValue, globalType),
       vepRVD)
   }
 }

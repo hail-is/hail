@@ -5,7 +5,7 @@ import java.util
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._
@@ -280,7 +280,11 @@ object LocalLDPrune {
     callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
   ): Table = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-    new Table(HailContext.get, TableLiteral(pruner.execute(mt.value)))
+
+    ExecuteContext.scoped { ctx =>
+      new Table(HailContext.get,
+        TableLiteral(pruner.execute(ctx, Interpret(mt.lit, ctx, optimize = false).toMatrixValue(mt.colKey)), ctx))
+    }
   }
 }
 
@@ -296,7 +300,7 @@ case class LocalLDPrune(
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
@@ -362,7 +366,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(), sitesOnly)
+    TableValue(tableType, BroadcastRow.empty(ctx), sitesOnly)
   }
 }
 

@@ -5,10 +5,10 @@ import aiohttp
 import re
 from flask import Response
 
-import hailjwt as hj
+import hailtop.gear.auth as hj
 
-from batch.client import BatchClient, Job
-import batch.aioclient as aioclient
+from hailtop.batch_client.client import BatchClient, Job
+import hailtop.batch_client.aioclient as aioclient
 from .serverthread import ServerThread
 
 
@@ -53,9 +53,8 @@ def test_missing_parent_is_400(client):
         fake_job = Job.from_async_job(fake_job)
         batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[fake_job])
         batch.submit()
-    except aiohttp.ClientResponseError as err:
-        assert err.status == 400
-        assert re.search('.*invalid parent_id: no job with id.*', err.message)
+    except ValueError as err:
+        assert re.search('parents with invalid job ids', str(err))
         return
     assert False
 
@@ -89,7 +88,7 @@ def test_cancel_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 3
+    assert batch_status_job_counter(status, 'Success') == 3, status
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -111,7 +110,7 @@ def test_cancel_left_after_tail(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 2
+    assert batch_status_job_counter(status, 'Success') == 2, status
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -139,7 +138,7 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left, right])
         batch = batch.submit()
-        batch.wait()
+        batch_status = batch.wait()
 
         i = 0
         while len(output) != 4:
@@ -150,11 +149,11 @@ def test_callback(client):
 
         assert len(output) == 4, output
         assert all([job_result['state'] == 'Success' and job_result['exit_code']['main'] == 0
-                    for job_result in output])
-        assert output[0]['job_id'] == head.job_id
+                    for job_result in output]), (output, batch_status)
+        assert output[0]['job_id'] == head.job_id, (output, batch_status)
         middle_ids = (output[1]['job_id'], output[2]['job_id'])
-        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id))
-        assert output[3]['job_id'] == tail.job_id
+        assert middle_ids in ((left.job_id, right.job_id), (right.job_id, left.job_id)), (output, batch_status)
+        assert output[3]['job_id'] == tail.job_id, (output, batch_status)
     finally:
         if server:
             server.shutdown()
@@ -168,7 +167,7 @@ def test_no_parents_allowed_in_other_batches(client):
     try:
         b2.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
     except ValueError as err:
-        assert re.search('found parents from another batch', str(err))
+        assert re.search('parents from another batch', str(err))
         return
     assert False
 
@@ -186,7 +185,7 @@ def test_input_dependency(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n'
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_input_dependency_directory(client):
@@ -202,7 +201,7 @@ def test_input_dependency_directory(client):
     batch.submit()
     tail.wait()
     assert head.status()['exit_code']['main'] == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.log()
+    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
 
 
 def test_always_run_cancel(client):
@@ -221,13 +220,13 @@ def test_always_run_cancel(client):
     right.wait()
     batch.cancel()
     status = batch.wait()
-    assert batch_status_job_counter(status, 'Success') == 3
-    assert batch_status_job_counter(status, 'Cancelled') == 1
+    assert batch_status_job_counter(status, 'Success') == 3, status
+    assert batch_status_job_counter(status, 'Cancelled') == 1, status
 
     for node in [head, right, tail]:
         status = node.status()
-        assert status['state'] == 'Success'
-        assert status['exit_code']['main'] == 0
+        assert status['state'] == 'Success', status
+        assert status['exit_code']['main'] == 0, status
 
 
 def test_always_run_error(client):
@@ -244,5 +243,5 @@ def test_always_run_error(client):
 
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
-        assert status['state'] == state
-        assert status['exit_code']['main'] == ec
+        assert status['state'] == state, status
+        assert status['exit_code']['main'] == ec, status

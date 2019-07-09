@@ -60,7 +60,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def includesEnd: Boolean = right.sign > 0
 
-  private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
+  private def ext(pord: ExtendedOrdering): IntervalEndpointOrdering = pord.intervalEndpointOrdering
 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).compare(left, p) < 0 && ext(pord).compare(right, p) > 0

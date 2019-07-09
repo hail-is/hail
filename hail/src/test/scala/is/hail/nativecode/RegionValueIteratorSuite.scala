@@ -98,7 +98,7 @@ class RegionValueIteratorSuite extends HailSuite {
 
     val encMod = PackEncoder.buildModule(t.physicalType, spec)
     val tub = new TranslationUnitBuilder()
-    val decClass = PackDecoder(t.physicalType, t.physicalType, spec, tub)
+    val decClass = PackDecoder(t.physicalType, t.physicalType, "InputStream", spec, tub)
     tub.include("hail/PartitionIterators.h")
     tub.include("hail/ObjectArray.h")
     val makeItF = tub.buildFunction("make_iterator", Array("NativeStatus *"->"st", "long" -> "reg", "long" -> "obj"), "NativeObjPtr")

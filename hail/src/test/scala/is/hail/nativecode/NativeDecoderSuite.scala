@@ -82,7 +82,7 @@ class NativeDecoderSuite extends HailSuite {
            |auto jis = h->at(0);
            |
            |auto is = std::make_shared<InputStream>(up, jis);
-           |${ spec.nativeInputBufferType } leb_buf {is};
+           |${ spec.nativeInputBufferType("InputStream") } leb_buf {is};
            |
            |leb_buf.skip_boolean();
            |if (leb_buf.read_boolean() != true) { return 0; }

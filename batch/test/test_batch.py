@@ -1,10 +1,10 @@
-
+import random
+import math
 import collections
-import batch
+from hailtop.batch_client.client import BatchClient
 import json
 import os
 import pkg_resources
-import re
 import secrets
 import time
 import unittest
@@ -12,9 +12,22 @@ import aiohttp
 from flask import Flask, Response, request
 import requests
 
-import hailjwt as hj
+import hailtop.gear.auth as hj
 
 from .serverthread import ServerThread
+
+
+def poll_until(p, max_polls=None):
+    i = 0
+    while True and (max_polls is None or i < max_polls):
+        x = p()
+        if x:
+            return x
+        # max 4.5s
+        j = random.randrange(math.floor(1.1 ** min(i, 40)))
+        time.sleep(0.100 * j)
+        i = i + 1
+    raise ValueError(f'poll_until: exceeded max polls: {i} {max_polls}')
 
 
 class Test(unittest.TestCase):
@@ -22,7 +35,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
 
     def tearDown(self):
         self.client.close()
@@ -37,6 +50,7 @@ class Test(unittest.TestCase):
         self.assertEqual(status['exit_code']['main'], 0)
 
         self.assertEqual(j.log(), {'main': 'test\n'})
+        j.pod_status()
 
         self.assertTrue(j.is_complete())
 
@@ -66,6 +80,8 @@ class Test(unittest.TestCase):
         with self.assertRaises(ValueError):
             j.log()
         with self.assertRaises(ValueError):
+            j.pod_status()
+        with self.assertRaises(ValueError):
             j.wait()
 
         builder.submit()
@@ -85,7 +101,7 @@ class Test(unittest.TestCase):
         def assert_batch_ids(expected, complete=None, success=None, attributes=None):
             batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
             # list_batches returns all batches for all prev run tests
-            actual = set([batch.id for batch in batches]).intersection({b1.id, b2.id})
+            actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
             self.assertEqual(actual, expected)
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
@@ -152,13 +168,13 @@ class Test(unittest.TestCase):
         b = b.submit()
 
         status = j.status()
-        self.assertTrue(status['state'] in ('Ready', 'Running'))
+        assert status['state'] in ('Ready', 'Running'), status
 
         b.cancel()
 
-        status = j.status()
-        self.assertTrue(status['state'], 'Cancelled')
-        self.assertTrue('log' not in status)
+        status = j.wait()
+        assert status['state'] == 'Cancelled', status
+        assert 'log' not in status, status
 
         # cancelled job has no log
         try:
@@ -261,7 +277,7 @@ class Test(unittest.TestCase):
             b = b.submit()
             j.wait()
 
-            batch.poll_until(lambda: 'status' in d)
+            poll_until(lambda: 'status' in d)
             status = d['status']
             self.assertEqual(status['state'], 'Success')
             self.assertEqual(status['attributes'], {'foo': 'bar'})
@@ -286,10 +302,13 @@ class Test(unittest.TestCase):
         endpoints = [
             (requests.get, '/api/v1alpha/batches/0/jobs/0'),
             (requests.get, '/api/v1alpha/batches/0/jobs/0/log'),
+            (requests.get, '/api/v1alpha/batches/0/jobs/0/pod_status'),
             (requests.get, '/api/v1alpha/batches'),
             (requests.post, '/api/v1alpha/batches/create'),
+            (requests.post, '/api/v1alpha/batches/0/jobs/create'),
             (requests.get, '/api/v1alpha/batches/0'),
             (requests.delete, '/api/v1alpha/batches/0'),
+            (requests.patch, '/api/v1alpha/batches/0/close'),
             (requests.get, '/batches'),
             (requests.get, '/batches/0'),
             (requests.get, '/batches/0/jobs/0/log')]
@@ -307,7 +326,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        bc = batch.client.BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
+        bc = BatchClient(session, url=os.environ.get('BATCH_URL'), token=token)
         try:
             b = bc.create_batch()
             j = b.create_job('alpine', ['false'])
@@ -345,5 +364,9 @@ class Test(unittest.TestCase):
 
         # just check successful response
         r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/log',
+                         cookies={'user': token})
+        assert (r.status_code >= 200) and (r.status_code < 300)
+
+        r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/pod_status',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)

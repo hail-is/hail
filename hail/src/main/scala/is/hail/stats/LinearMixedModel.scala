@@ -3,7 +3,7 @@ package is.hail.stats
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
@@ -35,7 +35,9 @@ object LinearMixedModel {
   private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
 
   def toTableIR(rvd: RVD): TableIR = {
-    TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, HailContext.backend), rvd))
+    ExecuteContext.scoped { ctx =>
+      TableLiteral(TableValue(tableType, BroadcastRow.empty(ctx), rvd), ctx)
+    }
   }
 }
 

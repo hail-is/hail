@@ -1,3 +1,4 @@
+import datetime
 import secrets
 from shlex import quote as shq
 import json
@@ -5,6 +6,7 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
+import humanize
 from .log import log
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .environment import SELF_HOSTNAME
@@ -12,6 +14,17 @@ from .utils import check_shell, check_shell_output
 from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
+
+
+def timestamp_age(t):
+    if t is None:
+        return None
+    tz_delta = datetime.datetime.now() - t
+    return tz_delta
+
+
+def pretty_timestamp_age(t):
+    return humanize.naturaltime(timestamp_age(t))
 
 
 class Repo:
@@ -137,11 +150,24 @@ class PR(Code):
         self.source_sha_failed = None
 
         # error, success, failure
-        self.build_state = None
+        self._build_state = None
+        self._build_state_timestamp = None
 
         # don't need to set github_changed because we are refreshing github
         self.target_branch.batch_changed = True
         self.target_branch.state_changed = True
+
+    @property
+    def build_state(self):
+        return self._build_state
+
+    @build_state.setter
+    def build_state(self, new_state):
+        self._build_state_timestamp = datetime.datetime.now()
+        self._build_state = new_state
+
+    def pretty_status_age(self):
+        return pretty_timestamp_age(self._build_state_timestamp)
 
     async def authorized(self, dbpool):
         if self.author in AUTHORIZED_USERS:
@@ -350,7 +376,11 @@ mkdir -p {shq(repo_dir)}
             min_batch = None
             failed = None
             for b in batches:
-                s = await b.status()
+                try:
+                    s = await b.status()
+                except Exception as err:
+                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                    raise
                 if s['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
@@ -363,7 +393,15 @@ mkdir -p {shq(repo_dir)}
             self.source_sha_failed = failed
 
         if self.batch:
-            status = await self.batch.status()
+            try:
+                status = await self.batch.status()
+            except aiohttp.client_exceptions.ClientResponseError as exc:
+                if exc.status == 404:
+                    log.info(f'batch {self.batch.id} was deleted by someone')
+                    self.batch = None
+                    self.build_state = None
+                    return
+                raise exc
             if status['complete']:
                 if status['state'] == 'success':
                     self.build_state = 'success'
@@ -440,7 +478,8 @@ class WatchedBranch(Code):
 
         # success, failure, pending
         self.deploy_batch = None
-        self.deploy_state = None
+        self._deploy_state = None
+        self._deploy_state_timestamp = None
 
         self.updating = False
         self.github_changed = True
@@ -449,6 +488,17 @@ class WatchedBranch(Code):
 
         self.statuses = {}
         self.n_running_batches = None
+
+    @property
+    def deploy_state(self):
+        return self._deploy_state
+
+    @deploy_state.setter
+    def deploy_state(self, new_state):
+        self._deploy_state = new_state
+
+    def pretty_status_age(self):
+        return pretty_timestamp_age(self._deploy_state_timestamp)
 
     def short_str(self):
         return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
@@ -632,7 +682,8 @@ class WatchedBranch(Code):
             if (pr.review_state == 'approved' and
                     (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
-                if not merge_candidate or pri > merge_candidate_pri:
+                is_authorized = await pr.authorized(dbpool)
+                if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
         if merge_candidate:

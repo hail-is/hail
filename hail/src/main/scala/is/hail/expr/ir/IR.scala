@@ -290,6 +290,20 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+
+final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+
+//final case class WriteAggs(path: IR, spec: CodecSpec) extends IR
+//final case class ReadAggs(path: IR, spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+//
+//final case class CombAggs(paths: IndexedSeq[IR], spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: Seq[String]) extends IR

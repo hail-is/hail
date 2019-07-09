@@ -271,22 +271,18 @@ class VCFTests(unittest.TestCase):
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
-                    {'start': {'locus': {'contig': '20', 'position': 1}},
-                     'end': {'locus': {'contig': '20', 'position': 13509135}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
-                     'end': {'locus': {'contig': '20', 'position': 16493533}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': '20', 'position': 16493534}},
-                     'end': {'locus': {'contig': '20', 'position': 20000000}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
-        parts_str = json.dumps(parts)
+            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 1)),
+                        end=hl.Struct(locus=hl.Locus('20', 13509135)),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
+                        end=hl.Struct(locus=hl.Locus('20', 16493533)),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 16493534)),
+                        end=hl.Struct(locus=hl.Locus('20', 20000000)),
+                        includes_end=True)
+        ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        vcf2 = hl.import_vcfs([path], parts)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
 
@@ -308,14 +304,12 @@ class VCFTests(unittest.TestCase):
     def test_import_vcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
-                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
-                     'end': {'locus': {'contig': '20', 'position': 16493533}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
-        parts_str = json.dumps(parts)
+            hl.Interval(start=hl.Struct(locus=hl.Locus('20', 13509136)),
+                        end=hl.Struct(locus=hl.Locus('20', 16493533)),
+                        includes_end=True)
+        ]
         vcf1 = hl.import_vcf(path).key_rows_by('locus')
-        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        vcf2 = hl.import_vcfs([path], parts)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
         self.assertTrue(vcf2._same(filter1))
@@ -340,23 +334,19 @@ class VCFTests(unittest.TestCase):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
-                    {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 18708366}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': 'chr20', 'position': 18708367}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 19776611}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': 'chr20', 'position': 19776612}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 21144633}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
+                        includes_end=True)
+        ]
         int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
         int1 = hl.parse_locus_interval('[chr20:18708367-19776611]', reference_genome='GRCh38')
-        parts_str = json.dumps(parts)
-        hg00096, hg00268 = hl.import_vcfs(paths, parts_str, reference_genome='GRCh38')
+        hg00096, hg00268 = hl.import_vcfs(paths, parts, reference_genome='GRCh38')
         filt096 = hl.filter_intervals(hg00096, [int0])
         filt268 = hl.filter_intervals(hg00268, [int1])
         self.assertEqual(1, filt096.n_partitions())
@@ -371,25 +361,21 @@ class VCFTests(unittest.TestCase):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
         parts = [
-                    {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 18708366}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': 'chr20', 'position': 18708367}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 19776611}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': 'chr20', 'position': 19776612}},
-                     'end':   {'locus': {'contig': 'chr20', 'position': 21144633}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
-        parts_str = json.dumps(parts)
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 17821257, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 18708366, reference_genome='GRCh38')),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 18708367, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 19776611, reference_genome='GRCh38')),
+                        includes_end=True),
+            hl.Interval(start=hl.Struct(locus=hl.Locus('chr20', 19776612, reference_genome='GRCh38')),
+                        end=hl.Struct(locus=hl.Locus('chr20', 21144633, reference_genome='GRCh38')),
+                        includes_end=True)
+        ]
         vcfs = [transform_one(mt.annotate_rows(info=mt.info.annotate(
             MQ_DP=hl.null(hl.tint32),
             VarDP=hl.null(hl.tint32),
             QUALapprox=hl.null(hl.tint32))))
-                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38',
+                for mt in hl.import_vcfs(paths, parts, reference_genome='GRCh38',
                                          array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())
@@ -1087,6 +1073,50 @@ class BGENTests(unittest.TestCase):
             index_file = new_temp_file()
             index_file_map = {bgen_file: index_file}
             hl.index_bgen(bgen_file, index_file_map=index_file_map)
+
+    def test_export_bgen(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'))
+        tmp = new_temp_file()
+        hl.export_bgen(bgen, tmp)
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
+
+    def test_export_bgen_parallel(self):
+        bgen = hl.import_bgen(resource('example.8bits.bgen'),
+                              entry_fields=['GP'],
+                              sample_file=resource('example.sample'),
+                              n_partitions=3)
+        # tmp = new_temp_file()
+        tmp = '/tmp/foo'
+        hl.export_bgen(bgen, tmp, parallel='header_per_shard')
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GP'],
+                               sample_file=tmp + '.sample')
+        assert bgen._same(bgen2)
+
+    def test_export_bgen_from_vcf(self):
+        mt = hl.import_vcf(resource('sample.vcf'))
+
+        tmp = new_temp_file()
+        hl.export_bgen(mt, tmp,
+                       gp=hl.or_missing(
+                           hl.is_defined(mt.GT),
+                           hl.map(lambda i: hl.cond(mt.GT.unphased_diploid_gt_index() == i, 1.0, 0.0),
+                                  hl.range(0, hl.triangle(hl.len(mt.alleles))))))
+        hl.index_bgen(tmp + '.bgen')
+        bgen2 = hl.import_bgen(tmp + '.bgen',
+                               entry_fields=['GT'],
+                               sample_file=tmp + '.sample')
+        mt = mt.select_entries('GT').select_rows().select_cols()
+        bgen2 = bgen2.unfilter_entries().select_rows() # drop varid, rsid
+        assert bgen2._same(mt)
+
 
 class GENTests(unittest.TestCase):
     def test_import_gen(self):

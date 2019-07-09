@@ -8,6 +8,7 @@ import org.apache.commons.math3.special.Gamma
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.asm4s
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
 
 object MathFunctions extends RegistryFunctions {
@@ -180,9 +181,9 @@ object MathFunctions extends RegistryFunctions {
 
     registerWrappedScalaFunction("entropy", TString(), TFloat64())(thisClass, "irentropy")
 
-    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (r, a, b, c, d) =>
+    registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (r, (at, a), (bt, b), (ct, c), (dt, d)) =>
       val res = r.mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(r, fetStruct.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, PType.canonical(fetStruct))
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
@@ -198,9 +199,9 @@ object MathFunctions extends RegistryFunctions {
       )
     }
     
-    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (r, a, b, c, d) =>
+    registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (r, (at, a), (bt, b), (ct, c), (dt, d))  =>
       val res = r.mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(r, chisqStruct.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, PType.canonical(chisqStruct))
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
@@ -212,9 +213,9 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (r, a, b, c, d, min_cell_count) =>
+    registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (r, (at, a), (bt, b), (ct, c), (dt, d), (mccT, min_cell_count)) =>
       val res = r.mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(r, chisqStruct.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, PType.canonical(chisqStruct))
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
@@ -226,9 +227,9 @@ object MathFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (r, nHomRef, nHet, nHomVar) =>
+    registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (r, (nhrT, nHomRef), (nhT, nHet), (nhvT, nHomVar)) =>
       val res = r.mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(r, hweStruct.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, PType.canonical(hweStruct))
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),

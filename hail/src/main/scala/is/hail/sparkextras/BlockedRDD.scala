@@ -9,26 +9,24 @@ import scala.reflect.ClassTag
 
 case class BlockedRDDPartition(@transient rdd: RDD[_],
   index: Int,
-  start: Int,
-  end: Int) extends Partition {
-  require(start <= end)
+  first: Int,
+  last: Int) extends Partition {
+  require(first <= last)
 
-  val parentPartitions = range.map(rdd.partitions).toArray
+  val parentPartitions: Array[Partition] = range.map(rdd.partitions).toArray
 
-  def range: Range = start to end
+  def range: Range = first to last
 }
 
 class BlockedRDD[T](@transient var prev: RDD[T],
-  @transient val newPartEnd: Array[Int])(implicit tct: ClassTag[T]) extends RDD[T](prev.sparkContext, Nil) {
+  @transient val partFirst: Array[Int],
+  @transient val partLast: Array[Int]
+)(implicit tct: ClassTag[T]) extends RDD[T](prev.sparkContext, Nil) {
+  assert(partFirst.length == partLast.length)
 
   override def getPartitions: Array[Partition] = {
-    newPartEnd.zipWithIndex.map { case (end, i) =>
-      val start = if (i == 0)
-        0
-      else
-        newPartEnd(i - 1) + 1
-      BlockedRDDPartition(prev, i, start, end)
-    }
+    Array.tabulate[Partition](partFirst.length)(i =>
+      BlockedRDDPartition(prev, i, partFirst(i), partLast(i)))
   }
 
   override def compute(split: Partition, context: TaskContext): Iterator[T] = {

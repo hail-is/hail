@@ -1,5 +1,19 @@
 # Change Log
 
+## 0.2.16
+
+Released 2019-06-19
+
+### `hailctl`
+
+- (hail#6357) Accommodated Google Dataproc bug causing cluster creation failures. 
+ 
+### Bug fixes
+
+- (hail#6378) Fixed problem in how `entry_float_type` was being handled in `import_vcf`.
+
+-----
+
 ## 0.2.15
 
 Released 2019-06-14

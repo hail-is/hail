@@ -2,6 +2,12 @@
   <head>
     <title>Scheduler</title>
   </head>
+  <style>
+    * {
+      font-family: sans-serif;
+      padding-right: 15px;
+    }
+  </style>
   <body>
     <h1>Executors</h1>
     {% if executors %}
@@ -33,7 +39,10 @@
     <table>
       <thead>
         <tr>
+          <th align="right">client</th>
           <th align="right">id</th>
+          <th align="right">start_time</th>
+          <th align="right">end_time</th>
           <th align="right">n_tasks</th>
           <th align="right">n_submitted</th>
           <th align="right">n_complete</th>
@@ -43,7 +52,10 @@
       <tbody>
 	{% for j in jobs %}
         <tr>
+          <td align="right">{{ j['client'] }}</td>
           <td align="right">{{ j['id'] }}</td>
+          <td align="right">{{ j['start_time'] }}</td>
+          <td align="right">{{ j['end_time'] }}</td>
           <td align="right">{{ j['n_tasks'] }}</td>
           <td align="right">{{ j['n_submitted'] }}</td>
           <td align="right">{{ j['n_complete'] }}</td>

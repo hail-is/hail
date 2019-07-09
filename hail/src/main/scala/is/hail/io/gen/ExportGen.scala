@@ -17,7 +17,7 @@ object ExportGen {
     val fs = hc.sFS
 
     fs.writeTable(path + ".sample",
-      "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.value.map { a =>
+      "ID_1 ID_2 missing\n0 0 0" +: mv.colValues.javaValue.map { a =>
         val r = a.asInstanceOf[Row]
         assert(r.length == 3)
 

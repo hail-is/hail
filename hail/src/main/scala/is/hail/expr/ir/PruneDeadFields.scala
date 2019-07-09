@@ -248,7 +248,7 @@ object PruneDeadFields {
     memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
-      case TableLiteral(_) =>
+      case TableLiteral(_, _, _) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
@@ -552,7 +552,7 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _) =>
-      case MatrixLiteral(_) =>
+      case MatrixLiteral(_, _) =>
       case MatrixChooseCols(child, _) =>
         memoizeMatrixIR(child, unify(child.typ, requestedType), memo)
       case MatrixCollectColsByKey(child) =>

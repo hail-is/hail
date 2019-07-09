@@ -224,7 +224,7 @@ class BlockMatrix(object):
         if self._cached_jbm is not None:
             return self._cached_jbm
         else:
-            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).pyExecute()
             return self._cached_jbm
 
     @classmethod
@@ -2233,8 +2233,7 @@ class BlockMatrix(object):
         The performance of the second stage depends critically on the number
         of master cores and the NumPy / SciPy configuration, viewable
         with ``np.show_config()``. For Intel machines, we recommend installing
-        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
-        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda.
 
         Consequently, the optimal value of `complexity_bound` is highly
         configuration-dependent.

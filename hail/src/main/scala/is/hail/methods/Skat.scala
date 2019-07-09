@@ -12,7 +12,7 @@ import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 import is.hail.HailContext
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
 import is.hail.rvd.RVDType
@@ -183,7 +183,7 @@ case class Skat(
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
 
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
@@ -315,7 +315,7 @@ case class Skat(
 
     val tableType = typ(mv.typ)
 
-    TableValue(tableType, BroadcastRow.empty(), skatRdd)
+    TableValue(tableType, BroadcastRow.empty(ctx), skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,

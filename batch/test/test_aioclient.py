@@ -2,7 +2,7 @@ import os
 import asyncio
 import aiohttp
 import unittest
-import batch
+from hailtop.batch_client.aioclient import BatchClient
 
 
 class Test(unittest.TestCase):
@@ -10,7 +10,7 @@ class Test(unittest.TestCase):
         session = aiohttp.ClientSession(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60))
-        self.client = batch.aioclient.BatchClient(session, url=os.environ.get('BATCH_URL'))
+        self.client = BatchClient(session, url=os.environ.get('BATCH_URL'))
 
     def tearDown(self):
         loop = asyncio.get_event_loop()

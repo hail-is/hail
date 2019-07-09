@@ -1,9 +1,9 @@
 FROM {{ base_image.image }}
 
-COPY hailjwt/setup.py /hailjwt/
-COPY hailjwt/hailjwt /hailjwt/hailjwt/
-RUN pip3 install --no-cache-dir /hailjwt && \
-  rm -rf /hailjwt
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN python3 -m pip install --no-cache-dir /hailtop \
+  && rm -rf /hailtop
 
 COPY batch/setup.py batch/MANIFEST.in /batch/
 COPY batch/batch /batch/batch/
@@ -12,4 +12,4 @@ RUN pip3 install --no-cache-dir /batch && \
 
 EXPOSE 5000
 
-CMD ["python3", "-c", "import batch.server; batch.server.serve()"]
+CMD ["python3", "-m", "batch"]

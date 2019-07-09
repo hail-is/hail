@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ukbb-rg
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ukbb-rg-static
+  namespace: ukbb-rg
+  labels:
+    name: ukbb-rg-static
+spec:
+  serviceName: "ukbb-rg-static"
+  selector:
+    matchLabels:
+      app: ukbb-rg-static
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ukbb-rg-static
+    spec:
+      containers:
+       - name: ukbb-rg-static
+         image: gcr.io/hail-vdc/ukbb-rg-static
+         imagePullPolicy: Always
+         resources:
+           requests:
+             memory: "3.75G"
+             cpu: "1"
+         ports:
+          - containerPort: 80
+            protocol: TCP
+         volumeMounts:
+          - mountPath: "/ukbb-rg-static"
+            name: ukbb-rg-static-storage
+  volumeClaimTemplates:
+    - metadata:
+        name: ukbb-rg-static-storage
+        namespace: ukbb-rg-static
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ukbb-rg-browser
+  namespace: ukbb-rg
+  labels:
+    name: ukbb-rg-browser
+spec:
+  serviceName: "ukbb-rg-browser"
+  selector:
+    matchLabels:
+      app: ukbb-rg-browser
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ukbb-rg-browser
+    spec:
+      containers:
+       - name: ukbb-rg-browser
+         image: gcr.io/hail-vdc/ukbb-rg-browser
+         imagePullPolicy: Always
+         resources:
+           requests:
+             memory: "3.75G"
+             cpu: "1"
+         ports:
+          - containerPort: 3838
+            protocol: TCP
+         volumeMounts:
+          - mountPath: "/ukbb-rg-browser"
+            name: ukbb-rg-browser-storage
+  volumeClaimTemplates:
+    - metadata:
+        name: ukbb-rg-browser-storage
+        namespace: ukbb-rg-browser
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ukbb-rg-static
+  namespace: ukbb-rg
+  labels:
+    app: ukbb-rg-static
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: ukbb-rg-static
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ukbb-rg-browser
+  namespace: ukbb-rg
+  labels:
+    app: ukbb-rg-browser
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 3838
+  selector:
+    app: ukbb-rg-browser

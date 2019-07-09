@@ -1,0 +1,25 @@
+FROM ubuntu:18.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+  apt-get -y install \
+    tzdata \
+    r-base \
+    wget \
+    gdebi-core && \
+  rm -rf /var/lib/apt/lists/*
+
+RUN R -e "install.packages(c('shiny', 'rmarkdown', 'data.table', 'formattable', 'dplyr', 'DT', 'shinyWidgets', 'shinyjs'), repos='http://cran.rstudio.com/', Ncpus=4)"
+
+RUN wget -nv -O shiny-server-1.5.9.923-amd64.deb https://download3.rstudio.org/ubuntu-14.04/x86_64/shiny-server-1.5.9.923-amd64.deb && \
+ gdebi -n shiny-server-1.5.9.923-amd64.deb && \
+ rm -f shiny-server-1.5.9.923-amd64.deb && \
+ rm -r /srv/shiny-server/index.html /srv/shiny-server/sample-apps
+
+COPY shiny-server.conf /etc/shiny-server/shiny-server.conf
+COPY app/app.R /srv/shiny-server/rg_browser/
+COPY app/www/rainbowvis.js /srv/shiny-server/static/
+
+EXPOSE 3838
+
+CMD ["shiny-server"]

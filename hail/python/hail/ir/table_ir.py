@@ -3,7 +3,8 @@ import json
 import hail as hl
 from hail.expr.types import dtype
 from hail.ir.base_ir import *
-from hail.utils.java import Env, escape_str, escape_id, parsable_strings, dump_json
+from hail.utils.java import Env
+from hail.utils.misc import escape_str, parsable_strings, dump_json, escape_id
 
 
 class MatrixRowsTable(TableIR):

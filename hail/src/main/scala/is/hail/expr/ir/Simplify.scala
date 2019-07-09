@@ -254,6 +254,34 @@ object Simplify {
 
     case InsertFields(struct, Seq(), _) => struct
 
+    case Let(x, InsertFields(parentRef: Ref, insFields, ord1), InsertFields(Ref(x2, _), fields, ord2)) if x2 == x && {
+      val insFieldSet = insFields.map(_._1).toSet
+
+      def allRefsCanBePassedThrough(ir1: IR, newBindingEnv: BindingEnv[Type]): Boolean = ir1 match {
+        case GetField(Ref(`x`, _), fd) if !insFieldSet.contains(fd) => true
+        case Ref(`x`, _) => newBindingEnv.eval.lookupOption(x).isDefined
+        case _: TableAggregate => true
+        case _: MatrixAggregate => true
+        case _ => ir1.children
+          .iterator
+          .zipWithIndex
+          .forall {
+            case (child: IR, idx) =>
+              allRefsCanBePassedThrough(child, ChildBindings(ir1, idx, newBindingEnv))
+            case _ => true
+          }
+      }
+
+      val baseEnv = BindingEnv(Env.empty[Type], Some(Env.empty[Type]), Some(Env.empty[Type]))
+      fields.forall { case (_, ir) =>
+        allRefsCanBePassedThrough(ir, baseEnv)
+      }
+    } =>
+      val e = Env[IR]((x, parentRef))
+      Subst(
+        InsertFields(InsertFields(parentRef, insFields, ord1), fields, ord2),
+        BindingEnv(e, Some(e), Some(e)))
+
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
 
@@ -543,7 +571,7 @@ object Simplify {
     // push down filter intervals nodes
     case TableFilterIntervals(TableFilter(child, pred), intervals, keep) =>
       TableFilter(TableFilterIntervals(child, intervals, keep), pred)
-    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) =>
+    case TableFilterIntervals(TableMapRows(child, newRow), intervals, keep) if !ContainsScan(newRow) =>
       TableMapRows(TableFilterIntervals(child, intervals, keep), newRow)
     case TableFilterIntervals(TableMapGlobals(child, newRow), intervals, keep) =>
       TableMapGlobals(TableFilterIntervals(child, intervals, keep), newRow)

@@ -30,27 +30,69 @@ class InputStream {
     ~InputStream();
 };
 
+class ByteArrayInputStream {
+  private:
+    char * bytes;
+    long cursor;
+    long size;
+  public:
+    ByteArrayInputStream() = delete;
+    ByteArrayInputStream(ByteArrayInputStream &is) = delete;
+    ByteArrayInputStream(char *bytes, long size) :
+      bytes{bytes}, cursor{0}, size{size} {}
+
+    int read(char *dest, int n) {
+      auto count = std::min(static_cast<long>(n), size - cursor);
+      std::memcpy(dest, bytes + cursor, count);
+      cursor += count;
+      return count;
+    }
+
+    long skip(long n) {
+      auto diff = std::min(size - cursor, n);
+      cursor += diff;
+      return diff;
+    }
+
+    void close() {
+      return;
+    }
+
+    ~ByteArrayInputStream() = default;
+};
+
+template <typename IS>
 class StreamInputBlockBuffer {
   private:
-    std::shared_ptr<InputStream> input_stream_;
+    std::shared_ptr<IS> input_stream_;
     char len_buf_[4];
 
   public:
     StreamInputBlockBuffer() = delete;
     StreamInputBlockBuffer(StreamInputBlockBuffer &buf) = delete;
-    StreamInputBlockBuffer(std::shared_ptr<InputStream> is);
-    int read_block(char * buf);
+    StreamInputBlockBuffer(std::shared_ptr<IS> is) :
+      input_stream_(is) { }
+
+    int read_block(char * buf) {
+      auto r = input_stream_->read(len_buf_, 4);
+      if (r == -1) {
+        return -1;
+      }
+      int len = load_int(len_buf_);
+      return input_stream_->read(buf, len);
+    }
 };
 
+template <typename IS>
 class StreamInputBuffer {
   private:
-    std::shared_ptr<InputStream> is_;
+    std::shared_ptr<IS> is_;
     char buf_[8];
 
   public:
     StreamInputBuffer() = delete;
     StreamInputBuffer(StreamInputBuffer &buf) = delete;
-    StreamInputBuffer(std::shared_ptr<InputStream> is) : is_(is) {}
+    StreamInputBuffer(std::shared_ptr<IS> is) : is_(is) {}
 
     char read_byte() {
       is_->read(buf_, 1);
@@ -91,7 +133,7 @@ class StreamInputBuffer {
     bool read_boolean() { return read_byte() != 0; };
 };
 
-template <int BUFSIZE, typename InputBlockBuffer>
+template <int BUFSIZE, typename InputBlockBuffer, typename IS>
 class LZ4InputBlockBuffer {
   private:
     InputBlockBuffer block_buf_;
@@ -99,14 +141,14 @@ class LZ4InputBlockBuffer {
   public:
     LZ4InputBlockBuffer() = delete;
     LZ4InputBlockBuffer(LZ4InputBlockBuffer &buf) = delete;
-    LZ4InputBlockBuffer(std::shared_ptr<InputStream> is) :
+    LZ4InputBlockBuffer(std::shared_ptr<IS> is) :
       block_buf_(is) { }
 
     int read_block(char * buf);
 };
 
-template <int BUFSIZE, typename InputBlockBuffer>
-int LZ4InputBlockBuffer<BUFSIZE, InputBlockBuffer>::read_block(char * buf) {
+template <int BUFSIZE, typename InputBlockBuffer, typename IS>
+int LZ4InputBlockBuffer<BUFSIZE, InputBlockBuffer, IS>::read_block(char * buf) {
   int n_read = block_buf_.read_block(block_);
   if (n_read == -1) {
     return -1;
@@ -116,7 +158,7 @@ int LZ4InputBlockBuffer<BUFSIZE, InputBlockBuffer>::read_block(char * buf) {
   return decomp_len;
 };
 
-template <int BLOCKSIZE, typename InputBlockBuffer>
+template <int BLOCKSIZE, typename InputBlockBuffer, typename IS>
 class BlockingInputBuffer {
   private:
     InputBlockBuffer block_buf_;
@@ -138,7 +180,7 @@ class BlockingInputBuffer {
   public:
     BlockingInputBuffer() = delete;
     BlockingInputBuffer(BlockingInputBuffer &buf) = delete;
-    BlockingInputBuffer(std::shared_ptr<InputStream> is) :
+    BlockingInputBuffer(std::shared_ptr<IS> is) :
       block_buf_(is) { }
 
     char read_byte() {
@@ -207,7 +249,7 @@ class BlockingInputBuffer {
     bool read_boolean() { return read_byte() != 0; };
 };
 
-template <typename InputBuffer>
+template <typename InputBuffer, typename IS>
 class LEB128InputBuffer {
   private:
     InputBuffer buf_;
@@ -215,7 +257,7 @@ class LEB128InputBuffer {
   public:
     LEB128InputBuffer() = delete;
     LEB128InputBuffer(LEB128InputBuffer &buf) = delete;
-    LEB128InputBuffer(std::shared_ptr<InputStream> is) :
+    LEB128InputBuffer(std::shared_ptr<IS> is) :
       buf_(is) { }
 
     char read_byte() { return buf_.read_byte(); }

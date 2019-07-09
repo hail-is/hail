@@ -56,6 +56,7 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: sum
 .. autofunction:: array_sum
 .. autofunction:: mean
+.. autofunction:: approx_quantiles
 .. autofunction:: stats
 .. autofunction:: product
 .. autofunction:: fraction
@@ -71,3 +72,4 @@ The ``aggregators`` module is exposed as ``hl.agg``, e.g. ``hl.agg.sum``.
 .. autofunction:: group_by
 .. autofunction:: array_agg
 .. autofunction:: downsample
+.. autofunction:: approx_cdf
