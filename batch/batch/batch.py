@@ -474,7 +474,7 @@ class Job:
     @property
     def full_id(self):
         task_name = self._current_task.name if self._current_task else None
-        return (self.batch_id, self.job_id, task_name)
+        return self.batch_id, self.job_id, task_name
 
     async def refresh_parents_and_maybe_create(self):
         for record in await db.jobs.get_parents(*self.id):
@@ -818,6 +818,14 @@ class Batch:
                       userdata=userdata, user=user, state='running',
                       complete=False, deleted=False, cancelled=False,
                       closed=False)
+
+        if attributes is not None:
+            items = [{'batch_id': id, 'key': k, 'value': v} for k, v in attributes.items()]
+            success = await db.batch_attributes.new_records(items)
+            if not success:
+                await batch.delete()
+                return
+
         return batch
 
     def __init__(self, id, attributes, callback, userdata, user,
@@ -901,28 +909,28 @@ class Batch:
 
 
 async def _get_batches_list(params, user):
-    batches = [Batch.from_record(record)
-               for record in await db.batch.get_records_where({'user': user, 'deleted': False})]
+    complete = params.get('complete')
+    if complete:
+        complete = complete == '1'
+    success = params.get('success')
+    if success:
+        success = success == '1'
+    attributes = {}
+    for k, v in params.items():
+        if k == 'complete' or k == 'success':  # params does not support deletion
+            continue
+        if not k.startswith('a:'):
+            abort(400, f'unknown query parameter {k}')
+        attributes[k[2:]] = v
 
-    for name, value in params.items():
-        if name == 'complete':
-            if value not in ('0', '1'):
-                abort(400, f'invalid complete value, expected 0 or 1, got {value}')
-            c = value == '1'
-            batches = [batch for batch in batches if batch.is_complete() == c]
-        elif name == 'success':
-            if value not in ('0', '1'):
-                abort(400, f'invalid success value, expected 0 or 1, got {value}')
-            s = value == '1'
-            batches = [batch for batch in batches if batch.is_successful() == s]
-        else:
-            if not name.startswith('a:'):
-                abort(400, f'unknown query parameter {name}')
-            k = name[2:]
-            batches = [batch for batch in batches
-                       if batch.attributes and k in batch.attributes and batch.attributes[k] == value]
+    records = await db.batch.find_records(user=user,
+                                          complete=complete,
+                                          success=success,
+                                          deleted=False,
+                                          attributes=attributes)
 
-    return [await batch.to_dict(include_jobs=False) for batch in batches]
+    return [await Batch.from_record(batch).to_dict(include_jobs=False)
+            for batch in records]
 
 
 @routes.get('/api/v1alpha/batches')
@@ -987,6 +995,8 @@ async def create_batch(request, userdata):
         attributes=parameters.get('attributes'),
         callback=parameters.get('callback'),
         userdata=userdata)
+    if batch is None:
+        abort(400, f'creation of batch in db failed')
 
     return jsonify(await batch.to_dict(include_jobs=False))
 
