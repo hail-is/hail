@@ -364,50 +364,45 @@ mkdir -p {shq(repo_dir)}
             assert self.batch
             return
 
-        if self.batch is None:
-            # find the latest non-cancelled batch for source
-            attrs = {
-                'test': '1',
-                'target_branch': self.target_branch.branch.short_str(),
-                'source_sha': self.source_sha
-            }
-            batches = await batch_client.list_batches(attributes=attrs)
+        self.batch = None
+        # find the latest non-cancelled batch for source
+        attrs = {
+            'test': '1',
+            'target_branch': self.target_branch.branch.short_str(),
+            'source_sha': self.source_sha
+        }
+        batches = await batch_client.list_batches(attributes=attrs)
 
-            min_batch = None
-            failed = None
-            for b in batches:
-                try:
-                    status = await b.status()
-                except Exception as err:
-                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
-                    raise
-                if status['state'] != 'cancelled':
-                    if min_batch is None or b.id > min_batch.id:
-                        min_batch = b
-
-                    if status['state'] == 'failure':
-                        failed = True
-                    elif failed is None:
-                        failed = False
-            self.batch = min_batch
-            self.source_sha_failed = failed
-        else:
+        min_batch = None
+        failed = None
+        build_state = None
+        state_changed = False
+        for b in batches:
             try:
-                status = await self.batch.status()
-            except aiohttp.client_exceptions.ClientResponseError as exc:
-                if exc.status == 404:
-                    log.info(f'batch {self.batch.id} was deleted by someone')
-                    self.batch = None
-                    self.build_state = None
-                    return
-                raise exc
-            if status['complete']:
-                if status['state'] == 'success':
-                    self.build_state = 'success'
-                else:
-                    self.build_state = 'failure'
-                    self.source_sha_failed = True
-                self.target_branch.state_changed = True
+                status = await b.status()
+            except Exception as err:
+                log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                raise
+            if status['state'] != 'cancelled':
+                if min_batch is None or b.id > min_batch.id:
+                    min_batch = b
+
+                if status['complete']:
+                    if status['state'] == 'success':
+                        build_state = 'success'
+                        failed = False
+                    else:
+                        build_state = 'failure'
+                        failed = True
+                    state_changed = True
+                elif status['state'] == 'failure':
+                    failed = True
+                elif failed is None:
+                    failed = False
+        self.batch = min_batch
+        self.source_sha_failed = failed
+        self.build_state = build_state
+        self.target_branch.state_changed = self.target_branch.state_changed or state_changed
 
     async def _heal(self, batch_client, dbpool, on_deck):
         # can't merge target if we don't know what it is
