@@ -90,10 +90,10 @@ $$
 CREATE PROCEDURE propagate_cancelled (IN batch_id INT)
 BEGIN
 
-declare changed int default 1;
+declare first int default TRUE;
 
-while changed > 0 do
-    set changed = (
+while first or ROW_COUNT() > 0 do
+    set first = FALSE;
     update jobs
 inner join (    select jobs.job_id, jobs.batch_id
                   from jobs
@@ -108,9 +108,8 @@ inner join (    select jobs.job_id, jobs.batch_id
                     or (jobs.always_run = TRUE and
                         count(parents.state in ('Success', 'Error', 'Failed', 'CancelledDone')) = count(*))
            ) as jobs2 on jobs2.job_id = jobs.job_id and jobs2.batch_id = jobs.batch_id
-       set state = (case jobs.always_run when TRUE then 'Ready' else 'CancelledDone' end)
-);
-end while
+       set state = (case jobs.always_run when TRUE then 'Ready' else 'CancelledDone' end);
+end while;
 
 END;
 
