@@ -10,24 +10,27 @@ import is.hail.utils.FastIndexedSeq
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  private var _ptype: PType = null
+  private var _pType: PType = null
   private var _typ: Type = null
 
-  def pType: PType = {
-    if (_ptype == null)
-      _ptype = PType.canonical(typ)
-    _ptype
+  def pType = {
+    if(_pType == null) {
+      throw new RuntimeException(s"IR.pType: accessed before inferSetPType called")
+    }
+
+    _pType
   }
 
-  def pTypeInferred: PType = {
-    if (_ptype == null)
-      try {
-        _ptype = InferPType(this)
-      } catch {
-        case e: Throwable => throw new RuntimeException(s"pType: inference failure: \n${ Pretty(this) }", e)
-      }
+  def inferSetPType(env: BindingEnv[PType]): Unit = {
+    if (_pType != null) {
+      return
+    }
 
-    _ptype
+    try {
+      _pType = InferPType(this, env)
+    } catch {
+      case e: Throwable => throw new RuntimeException(s"IR.inferSetPType: failed to infer physical type: \n${ Pretty(this) }", e)
+    }
   }
 
   def typ: Type = {
@@ -35,7 +38,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"type: inference failure: \n${ Pretty(this) }", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure: \n${ Pretty(this) }", e)
       }
     _typ
   }
@@ -51,8 +54,8 @@ sealed trait IR extends BaseIR {
     val cp = super.deepCopy()
     if (_typ != null)
       cp._typ = _typ
-    if (_ptype != null)
-      cp._ptype = _ptype
+    if (_pType != null)
+      cp._pType = _pType
     cp
   }
 

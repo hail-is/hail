@@ -273,4 +273,8 @@ abstract class PType extends BaseType with Serializable {
       case t =>
         t.setRequired(false)
     }
+
+  def unify(concrete: PType): Boolean = {
+    this.isOfType(concrete)
+  }
 }
