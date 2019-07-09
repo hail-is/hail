@@ -1036,8 +1036,9 @@ update batch
  where batch.id = %s
 ''', (batch_id,))
             await cursor.execute('''
-    select jobs.*
+    select jobs.*, batch.*
       from jobs
+inner join batch on jobs.batch_id = batch.id
      where jobs.state in ('Ready', 'Cancelled', 'CancelledDone')
        and jobs.batch_id = %s
 ''', (batch_id,))
