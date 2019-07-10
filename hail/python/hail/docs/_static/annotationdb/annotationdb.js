@@ -4,7 +4,7 @@ $("#checkAll").click(function(){
 });
 
 //Get and append JSON information to Table
-$.getJSON("https://api.myjson.com/bins/15rygf",
+$.getJSON("https://storage.cloud.google.com/hail-common/annotationdb/1/annotation_db.json",
                 function (data) {
                     var tr = data.report
                     for (var i = 0; i < data.length; i++) {
