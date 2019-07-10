@@ -50,6 +50,7 @@ steps:
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -     
      python3 -c "
      import jwt
      with open('secret-key', 'rb') as f:
