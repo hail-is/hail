@@ -264,7 +264,6 @@ async def batch_callback_handler(request):
 
 @routes.post('/api/v1alpha/dev_test_branch/{branch_name}')
 async def dev_test_branch(request):
-    # Need to make a repo
     params = request
     userdata = params['userdata']
     repo_owner, repo_name = tuple(params['repo'].split('/'))
