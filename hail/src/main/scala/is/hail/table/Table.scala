@@ -184,31 +184,6 @@ object Table {
     }
   }
 
-  def apply(
-    hc: HailContext,
-    rdd: RDD[Row],
-    signature: PStruct,
-    key: IndexedSeq[String]
-  ): Table = apply(hc, ContextRDD.weaken[RVDContext](rdd), signature, key, TStruct.empty(), Annotation.empty, false)
-
-  def apply(
-    hc: HailContext,
-    crdd: ContextRDD[RVDContext, Row],
-    signature: PStruct,
-    key: IndexedSeq[String],
-    globalSignature: TStruct,
-    globals: Annotation,
-    isSorted: Boolean
-  ): Table = {
-    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
-    new Table(hc, TableLiteral(
-      TableValue(
-        TableType(signature.virtualType, FastIndexedSeq(), globalSignature),
-        BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.backend),
-        RVD.unkeyed(signature, crdd2)))
-    ).keyBy(key, isSorted)
-  }
-
   def sameWithinTolerance(t: Type, l: Array[Row], r: Array[Row], tolerance: Double, absolute: Boolean): Boolean = {
     val used = new Array[Boolean](r.length)
     var i = 0

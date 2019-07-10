@@ -20,22 +20,6 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def apply(rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
-    Interpret(
-      TableKeyBy(TableLiteral(TableValue(TableType(rowType.virtualType, FastIndexedSeq(), TStruct.empty()),
-        BroadcastRow.empty(),
-        RVD.unkeyed(rowType, rdd))),
-        key))
-  }
-
-  def apply(rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
-    Interpret(
-      TableKeyBy(TableLiteral(TableValue(TableType(rowType, FastIndexedSeq(), TStruct.empty()),
-        BroadcastRow.empty(),
-        RVD.unkeyed(rowType.physicalType, rdd))),
-        key))
-  }
-
   def apply(ctx: ExecuteContext, rowType: PStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     val tt = TableType(rowType.virtualType, key, TStruct.empty())
     TableValue(tt,
