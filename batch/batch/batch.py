@@ -844,21 +844,26 @@ class Batch:
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
+    async def _cancel_jobs(self):
+        for j in await self.get_jobs():
+            await j.cancel()
+
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
-        for j in await self.get_jobs():
-            await j.cancel()
+        asyncio.ensure_future(self._cancel_jobs())
         log.info(f'batch {self.id} cancelled')
+
+    async def _close_jobs(self):
+        for j in await self.get_jobs():
+            if j._state == 'Ready':
+                await app['start_job_queue'].put(j)
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
         self.closed = True
-
-        for job in await self.get_jobs():
-            if job._state == 'Ready':
-                await app['start_job_queue'].put(job)
+        asyncio.ensure_future(self._close_jobs())
 
     async def mark_deleted(self):
         await self.cancel()
@@ -1010,7 +1015,7 @@ async def _cancel_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    asyncio.ensure_future(batch.cancel())
+    await batch.cancel()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
@@ -1041,7 +1046,7 @@ async def close_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    asyncio.ensure_future(batch.close())
+    await batch.close()
     return jsonify({})
 
 
@@ -1054,7 +1059,7 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    asyncio.ensure_future(batch.mark_deleted())
+    await batch.mark_deleted()
     return jsonify({})
 
 
