@@ -94,7 +94,7 @@ class BuildConfiguration:
             step_yaml = "foo"
             command = ['kubectl', 'create', 'configmap', '-n', code.namespace,
             f'--from-literal=steps={step_yaml}']
-            batch.create_job('ububtu:18.04',
+            batch.create_job('ubuntu:18.04',
                              command=command,
                              attributes={'name': 'create-build-history'},
                              parents=parents)
