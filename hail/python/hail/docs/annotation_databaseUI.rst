@@ -16,7 +16,7 @@ Annotation Database
     <div class="search row">
     <div class="col-xs-6">
     <span>Type in annotation:</span>
-    <input type="text" id='searchInput' onkeyup="searchTable()" name="keyword" class="form-control input-sm" placeholder="Enter Annotation....">
+    <input type="text" id='searchInput' onkeyup="filterTable()" name="keyword" class="form-control input-sm" placeholder="Enter Annotation....">
     </div>
     </div>
     </div>
