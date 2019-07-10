@@ -1322,8 +1322,8 @@ app.router.add_get("/metrics", server_stats)
 async def on_startup(app):
     pool = concurrent.futures.ThreadPoolExecutor()
     app['blocking_pool'] = pool
-    app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
-    app['log_store'] = LogStore(pool, INSTANCE_ID, log)
+    app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
+    app['log_store'] = LogStore(pool, INSTANCE_ID)
     app['start_job_queue'] = asyncio.Queue()
 
     asyncio.ensure_future(polling_event_loop())

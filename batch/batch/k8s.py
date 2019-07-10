@@ -1,14 +1,17 @@
 import kubernetes as kube
+import logging
 
 from .blocking_to_async import blocking_to_async
 
 
+log = logging.getLogger('batch.k8s')
+
+
 class K8s:
-    def __init__(self, blocking_pool, timeout, namespace, k8s_api, log):
+    def __init__(self, blocking_pool, timeout, namespace, k8s_api):
         self.blocking_pool = blocking_pool
         self.timeout = timeout
         self.namespace = namespace
-        self.log = log
         self._delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
         self._delete_pvc = self._wrap_k8s_delete(k8s_api.delete_namespaced_persistent_volume_claim)
         self._create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
@@ -75,7 +78,7 @@ class K8s:
         async def wrapped(*args, **kwargs):
             _, err = await k8s_fun(*args, **kwargs)
             if err is None or err.status == 404:
-                self.log.debug(f'ignore already deleted {fun.__name__}(*{args}, **{kwargs})')
+                log.debug(f'ignore already deleted {fun.__name__}(*{args}, **{kwargs})')
                 return None
             return err
         wrapped.__name__ = fun.__name__
