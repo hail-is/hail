@@ -505,3 +505,31 @@ class BatchAttributesTable(Table):
 
     async def get_batches(self, key, value):
         return await self._query('batch_id', key=key, value=value)
+
+
+class JobsAttributesTable(Table):
+    jobs_attribute_fields = {'batch_id', 'job_id', 'key', 'value'}
+
+    def __init__(self, db):
+        super().__init__(db, 'jobs-attributes')
+        self._jobs_attributes_sql = self.new_record_template(*JobsAttributesTable.jobs_attribute_fields)
+
+    async def new_records(self, items):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if len(items) > 0:
+                    await executemany_with_retry(cursor, self._jobs_attributes_sql, items)
+                    n_inserted = cursor.rowcount
+                    if n_inserted != len(items):
+                        log.info(f'inserted {n_inserted} jobs attributes, but expected {len(items)}')
+                        return False
+                return True
+
+    async def _query(self, *select, **where):
+        return await super().get_records(where, select_fields=select)
+
+    async def get_attributes(self, batch_id, job_id):
+        return await self._query('key', 'value', batch_id=batch_id, job_id=job_id)
+
+    async def get_jobs(self, key, value):
+        return await self._query('batch_id', 'job_id', key=key, value=value)
