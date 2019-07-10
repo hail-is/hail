@@ -17,15 +17,12 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
-  def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
-
   def rvRowPType(locusType: PType, allelesType: PType): PStruct = PStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> PArray(PInt64Required), "nSamples" -> PInt32Required, "mean" -> PFloat64(), "centered_length_rec" -> PFloat64())
 }
 
-class BitPackedVectorView(rvRowPType: PStruct) {
-  val vView = new RegionValueVariant(rvRowPType)
+class BitPackedVectorView(rvRowType: PStruct) {
+  val vView = new RegionValueVariant(rvRowType)
 
   // All types are required!
   private var m: Region = _
@@ -39,12 +36,12 @@ class BitPackedVectorView(rvRowPType: PStruct) {
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
-    bpvOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("bpv"))
+    bpvOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("bpv"))
     bpvLength = bpvPType.loadLength(m, bpvOffset)
     bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
-    nSamplesOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("nSamples"))
-    meanOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("mean"))
-    centeredLengthRecOffset = rvRowPType.loadField(m, offset, rvRowPType.fieldIdx("centered_length_rec"))
+    nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
+    meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
+    centeredLengthRecOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_rec"))
 
     vView.setRegion(m, offset)
   }
@@ -359,7 +356,7 @@ case class LocalLDPrune(
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.rowType.physicalType )
+        rvb.start(tableType.canonicalPType)
         rvb.startStruct()
         rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
