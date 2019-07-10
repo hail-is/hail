@@ -24,7 +24,7 @@ import kubernetes as kube
 import jwt
 
 from table import Table
-from hailtop.gear.auth import JWTClient, get_domain
+from hailtop.gear.auth import JWTClient
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -513,6 +513,11 @@ def wait_websocket(ws):
             log.info(f'HEAD on jupyter timed out for pod_uuid : {pod_uuid}')
 
     ws.send("1")
+
+
+def get_domain(host):
+    parts = host.split('.')
+    return f"{parts[-2]}.{parts[-1]}"
 
 
 @app.route('/auth0-callback')

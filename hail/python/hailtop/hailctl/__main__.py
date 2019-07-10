@@ -16,6 +16,9 @@ def print_help():
     subs.add_parser('dataproc',
                     help='Manage Google Dataproc clusters configured for Hail.',
                     description='Manage Google Dataproc clusters configured for Hail.')
+    subs.add_parser('auth',
+                    help='Manage Hail credentials.',
+                    description='Manage Hail credentials.')
     subs.add_parser('dev',
                     help='Manage Hail development utilities.',
                     description='Manage Hail development utilities.')
@@ -88,6 +91,9 @@ def main():
             print_version()
         elif module == 'dataproc':
             from hailtop.hailctl.dataproc import cli
+            cli.main(args)
+        elif module == 'auth':
+            from hailtop.hailctl.auth import cli
             cli.main(args)
         elif module == 'dev':
             from hailtop.hailctl.dev import cli

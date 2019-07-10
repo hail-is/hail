@@ -41,30 +41,47 @@ class JWTClient:
                 .decode('ascii'))
 
 
-def get_domain(host):
-    parts = host.split('.')
-    return f"{parts[-2]}.{parts[-1]}"
-
-
 jwtclient = None
 
 
-def authenticated_users_only(token_getter):
+def get_jwtclient():
+    global jwtclient
+    
+    if not jwtclient:
+        with open('/jwt-secret-key/secret-key', 'rb') as f:
+            jwtclient = JWTClient(f.read())
+    return jwtclient
+
+
+async def get_web_session_id(request):
+    session = await aiohttp_session.get_session(request)
+    if not session:
+        return None
+    return session.get('session_id')
+
+
+async def get_rest_session_id(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+    if not auth_header.startswith('Bearer '):
+        return None
+    encoded_token = auth_header[7:]
+    payload = get_jwtclient().decode(encoded_token)
+    return payload.get('session_id')
+
+
+def authenticated_users_only(get_session_id):
     def wrap(fun):
-        global jwtclient
-
-        if not jwtclient:
-            with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
-                                     '/jwt-secret-key/secret-key'), 'rb') as f:
-                jwtclient = JWTClient(f.read())
-
         @wraps(fun)
-        def wrapped(request, *args, **kwargs):
-            encoded_token = token_getter(request)
-            if encoded_token is not None:
+        async def wrapped(request, *args, **kwargs):
+            session_id = await get_session_id(request)
+            if session_id:
                 try:
-                    userdata = jwtclient.decode(encoded_token)
-                    return fun(request, userdata, *args, **kwargs)
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get('https://auth.hail.is/api/v1alpha/session/{session_id}') as resp:
+                            userdata = await resp.json()
+                            return await fun(request, userdata, *args, **kwargs)
                 except jwt.exceptions.InvalidTokenError as exc:
                     log.info(f'could not decode token: {exc}')
             raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
@@ -72,40 +89,20 @@ def authenticated_users_only(token_getter):
     return wrap
 
 
-def authenticated_developers_only(token_getter):
+def authenticated_developers_only(get_session_id):
     def wrap(fun):
-        @authenticated_users_only(token_getter)
+        @authenticated_users_only(get_session_id)
         @wraps(fun)
-        def wrapped(request, userdata, *args, **kwargs):
+        async def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] is 1:
-                return fun(request, *args, **kwargs)
+                return await fun(request, *args, **kwargs)
             raise web.HTTPNotFound()
         return wrapped
     return wrap
 
 
-def parse_header(request):
-    auth_header = request.headers.get('Authorization')
-    if auth_header is not None and auth_header.startswith('Bearer '):
-        return auth_header[7:]
-    return auth_header
+rest_authenticated_users_only = authenticated_users_only(get_rest_session_id)
+rest_authenticated_developers_only = authenticated_developers_only(get_rest_session_id)
 
-
-def rest_authenticated_users_only(fun):
-    token_getter = lambda request: parse_header(request)
-    return authenticated_users_only(token_getter)(fun)
-
-
-def rest_authenticated_developers_only(fun):
-    token_getter = lambda request: parse_header(request)
-    return authenticated_developers_only(token_getter)(fun)
-
-
-def web_authenticated_users_only(fun):
-    token_getter = lambda request: request.cookies.get('user')
-    return authenticated_users_only(token_getter)(fun)
-
-
-def web_authenticated_developers_only(fun):
-    token_getter = lambda request: request.cookies.get('user')
-    return authenticated_developers_only(token_getter)(fun)
+web_authenticated_users_only = authenticated_users_only(get_web_session_id)
+web_authenticated_developers_only = authenticated_developers_only(get_web_session_id)

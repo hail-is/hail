@@ -50,6 +50,9 @@ spec:
           - name: sql-users-users-user-config
             mountPath: /sql-users-users-user-config
             readOnly: true
+          - name: jwt-secret-key
+            mountPath: /jwt-secret-key
+            readOnly: true
          ports:
           - containerPort: 5000
       volumes:
@@ -65,6 +68,10 @@ spec:
          secret:
            optional: false
            secretName: sql-users-users-user-config
+       - name: jwt-secret-key
+         secret:
+           optional: false
+           secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service

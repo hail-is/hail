@@ -17,7 +17,8 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
-from hailtop.gear import configure_logging
+from hailtop.gear import configure_logging, setup_aiohttp_session
+from hailtop.gear.auth import get_jwtclient
 
 log = logging.getLogger('auth')
 
@@ -33,10 +34,12 @@ SCOPES = [
 ]
 
 
-def get_flow(state=None):
+def get_flow(state=None, redirect_uri=None):
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
       CLIENT_SECRET, scopes=SCOPES, state=state)
-    flow.redirect_uri = 'https://auth.hail.is/oauth2callback'
+    if not redirect_uri:
+        redirect_uri = 'https://auth.hail.is/oauth2callback'
+    flow.redirect_uri = redirect_uri
     return flow
 
 
@@ -77,10 +80,10 @@ async def callback(request):
     authorization_response = re.sub('^http://', 'https://', str(request.url))
 
     try:
-        # FIXME switch to code
-        flow.fetch_token(authorization_response=authorization_response)
+        flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-          flow.credentials.id_token, google.auth.transport.requests.Request())
+            flow.credentials.id_token, google.auth.transport.requests.Request())
+        log.info(f'token {token}')
         id = token['sub']
     except Exception as e:
       log.exception('oauth2 callback: could not fetch and verify token')
@@ -89,30 +92,31 @@ async def callback(request):
     dbpool = request.app['dbpool']
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('SELECT * from users.user_data where id = %s;', f'google-oauth2|{id}')
-            users = cursor.fetchall()
+            await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
+            users = await cursor.fetchall()
+            log.info(f'users {len(users)} {users}')
 
     if len(users) != 1:
-      raise unauth
+        raise unauth
     user = users[0]
 
-    session_id = secrets.token_bytes(32)
+    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id) VALUES (%s, %s, %s);',
-                                 session_id, 'web', user['id'])
+                                 (session_id, 'web', user['id']))
 
     del session['state']
     next = session.pop('next', 'https://notebook2.hail.is')
-    session['session_id'] = base64.urlsafe_b64decode(session_id)
+    session['session_id'] = session_id
     return aiohttp.web.HTTPFound(next)
 
 
 @routes.post('/logout')
 async def logout():
     session = await aiohttp_session.get_session(request)
-    session_id = session.pop('sesssion_id', None)
+    session_id = session.pop('session_id', None)
     if session_id:
         dbpool = request.app['dbpool']
         async with dbpool.acquire() as conn:
@@ -124,21 +128,84 @@ async def logout():
     # FIXME
     return web.Response(status=200)
 
+@routes.get('/api/v1alpha/login')
+async def api_login(request):
+    callback_port = request.query['callback_port']
 
-@routes.post('/log')
-async def log():
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        CLIENT_SECRET, scopes=SCOPES)
+    flow.redirect_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
+    authorization_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true')
+
+    return web.json_response({
+        'authorization_url': authorization_url,
+        'state': state
+    })
+
+@routes.get('/api/v1alpha/oauth2callback')
+async def api_callback(request):
+    unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+
+    state = request.query['state']
+    code = request.query['code']
+    callback_port = request.query['callback_port']
+
+    try:
+        flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+            CLIENT_SECRET, scopes=SCOPES)
+        flow.redirect_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
+        flow.fetch_token(code=request.query['code'])
+        token = google.oauth2.id_token.verify_oauth2_token(
+            flow.credentials.id_token, google.auth.transport.requests.Request())
+        id = token['sub']
+    except Exception as e:
+      log.exception('oauth2 callback: could not fetch and verify token')
+      raise unauth
+
+    dbpool = request.app['dbpool']
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
+            users = await cursor.fetchall()
+            log.info(f'users {len(users)} {users}')
+
+    if len(users) != 1:
+        raise unauth
+    user = users[0]
+
+    session_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii')
+
+    async with dbpool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id) VALUES (%s, %s, %s);',
+                                 (session_id, 'web', user['id']))
+
+    token = get_jwtclient().encode({
+        'session_id': session_id
+    })
+
+    return web.json_response({
+        'token': token,
+        'username': user['username']
+    })
+
+
+@routes.get('/log')
+async def get_log(request):
     session = await aiohttp_session.get_session(request)
     log.info(f'log: aiohttp_session {session}')
 
     session_id = session.get('session_id')
     if session_id:
-      dbpool = request.app['dbpool']
-      async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-          await cursor.execute('SELECT * from users.sessions where session_id = %s;', session_id)
-          sessions = cursor.fetchall()
-          log.info(f'log: sessions {sessions}')
-
+        dbpool = request.app['dbpool']
+        async with dbpool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute('SELECT * from users.sessions where session_id = %s;', session_id)
+                sessions = cursor.fetchall()
+                log.info(f'log: sessions {sessions}')
+                
     return web.Response(status=200)
 
 
@@ -164,13 +231,7 @@ async def on_cleanup(app):
 def run():
     configure_logging()
     app = web.Application()
-    with open('/aiohttp-session-secret-key/aiohttp-session-secret-key', 'rb') as f:
-      fernet_key = f.read()
-    secret_key = base64.urlsafe_b64decode(fernet_key)
-    aiohttp_session.setup(app, aiohttp_session.cookie_storage.EncryptedCookieStorage(
-      secret_key,
-      cookie_name='session',
-      max_age=30 * 24 * 60 * 60))
+    setup_aiohttp_session(app)
     app.add_routes(routes)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
