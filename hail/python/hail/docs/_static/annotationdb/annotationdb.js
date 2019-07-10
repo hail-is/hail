@@ -69,6 +69,3 @@ function updateTextArea() {
 $('input[type=checkbox]').change(function () {
     updateTextArea();
 });
-
-
- 
