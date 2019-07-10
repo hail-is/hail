@@ -84,6 +84,7 @@ steps:
    serviceAccount: ci-agent
    scopes:
     - test
+    - dev
    dependsOn:
     - default_ns
     - batch_pods_ns
@@ -469,6 +470,9 @@ steps:
      valueFrom: default_ns.name
    dependsOn:
     - default_ns
+   scopes:
+    - deploy
+    - test
  - kind: buildImage
    name: create_batch_tables_image
    dockerFile: batch/Dockerfile.create-tables

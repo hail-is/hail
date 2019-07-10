@@ -771,7 +771,7 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, userdata, namespace=None):
+    def __init__(self, branch, userdata, namespace):
         self.branch = branch
         self.userdata = userdata
         self.user = userdata['username']
@@ -807,7 +807,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps, namespace_override=self.namespace)
+                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
