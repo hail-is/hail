@@ -176,7 +176,7 @@ class Job:
                'OUTPUT_DIRECTORY': self.directory,
                'COPY_OUTPUT_CMD': copy(self.output_files),
                'BATCH_USE_KUBE_CONFIG': os.environ.get('BATCH_USE_KUBE_CONFIG')}
-        env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env]
+        env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env.items()]
         env.append(kube.client.V1EnvVar(name='POD_NAME', value_from='metadata.name'))
 
         cleanup_container = kube.client.V1Container(
