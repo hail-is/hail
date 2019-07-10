@@ -116,7 +116,7 @@ def test_cancel_left_after_tail(client):
         assert status['state'] == 'Success'
         assert status['exit_code']['main'] == 0
     for node in [left, tail]:
-        assert node.status()['state'] == 'Cancelled'
+        assert node.status()['state'] == 'CancelledDone'
 
 
 def test_callback(client):
