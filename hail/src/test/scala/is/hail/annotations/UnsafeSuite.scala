@@ -428,6 +428,16 @@ class UnsafeSuite extends HailSuite {
     assertUsesRegions(-1) { region.clearParentReference(4) }
   }
 
+  @Test def testRegionSizes() {
+    using(Region.small) { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
+    }
+
+    using(Region.small) { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+    }
+  }
+
   // Tests for Region serialization have been removed since an off-heap Region
   // contains absolute addresses and can't be serialized/deserialized without 
   // knowing the RegionValue Type.

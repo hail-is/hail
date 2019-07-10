@@ -138,12 +138,15 @@ object Region {
 //    within-Region references to/from absolute addresses.
 
 final class Region private (empty: Boolean) extends NativeBase() {
-  def this() { this(false) }
-  @native def nativeCtor(p: RegionPool): Unit
+  def this(blockSize: Int = 64 * 1024) {
+    this(false)
+    nativeCtor(RegionPool.get, blockSize)
+  }
+  @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
   @native def initEmpty(): Unit
   @native def nativeClearRegion(): Unit
 
-  if (empty) initEmpty() else nativeCtor(RegionPool.get)
+  if (empty) initEmpty()
   
   def this(b: Region) {
     this()
