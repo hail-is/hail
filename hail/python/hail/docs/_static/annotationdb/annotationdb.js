@@ -6,16 +6,14 @@ $("#checkAll").click(function(){
 });
 
 //Get and append JSON information to Table
-$.getJSON("https://api.myjson.com/bins/1fn7f7",
+$.getJSON("https://api.myjson.com/bins/15rygf",
                 function (data) {
                     var tr = data.report
                     for (var i = 0; i < data.length; i++) {
                         tr = $('<tr/>');
                         tr.append("<td><input type='checkbox' class='checkboxadd' value='"+data[i].name+"' onClick='updateTextArea()'/>&nbsp;</td>")
                         tr.append("<td>" + data[i].name + "</td>");
-                        tr.append("<td>" + data[i].version + "</td>");
-                        tr.append("<td>" + data[i].n_rows + "</td>");
-                        tr.append("<td>" + data[i].n_cols + "</td>");
+                        tr.append("<td>" + data[i].description + "\n<a href='"+ data[i].url + "'>" +data[i].url+ "</a></td>");
                         $('.table1').append(tr);
                     }
                 });
