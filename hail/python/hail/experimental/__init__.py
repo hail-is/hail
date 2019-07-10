@@ -50,4 +50,3 @@ __all__ = ['ld_score',
            'decode',
            'compile_comparison_binary',
            'compiled_compare']
-
