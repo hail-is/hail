@@ -1,12 +1,14 @@
-//CheckAll functionality for UI
 $("#checkAll").click(function(){
     $('input:checkbox').not(this).prop('checked', this.checked);
 });
 
-//Get and append JSON information to Table
-$.getJSON("https://storage.cloud.google.com/hail-common/annotationdb/1/annotation_db.json",
-                function (data) {
-                    var tr = data.report
+$.ajax({
+        type: 'GET',
+        url: 'https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f1%2fannotation_db.json?alt=media',
+        dataType: 'json',
+        success: function (data) {
+             console.log(data);
+             var tr = data.report
                     for (var i = 0; i < data.length; i++) {
                         tr = $('<tr/>');
                         tr.append("<td><input type='checkbox' class='checkboxadd' value='"+data[i].name+"' onClick='updateTextArea()'/>&nbsp;</td>")
@@ -14,7 +16,9 @@ $.getJSON("https://storage.cloud.google.com/hail-common/annotationdb/1/annotatio
                         tr.append("<td>" + data[i].description + "\n<a href='"+ data[i].url + "'>" +data[i].url+ "</a></td>");
                         $('.table1').append(tr);
                     }
-                });
+        }
+    });
+
 
 function filterTable() {
     var input, filter, found, table, tr, td, i, j;
@@ -65,3 +69,6 @@ function updateTextArea() {
 $('input[type=checkbox]').change(function () {
     updateTextArea();
 });
+
+
+ 
