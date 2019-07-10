@@ -957,7 +957,25 @@ async def _get_batches_list(params, user):
 async def _get_jobs_list(params, user):
     complete = params.get('complete')
     if complete:
-        pass
+        complete = complete == '1'
+    success = params.get('success')
+    if success:
+        success = success == '1'
+    attributes = {}
+    for k, v in params.items():
+        if k == 'complete' or k == 'success':  # params does not support deletion
+            continue
+        if not k.startswith('a:'):
+            abort(400, f'unknown query parameter {k}')
+        attributes[k[2:]] = v
+
+    records = await db.jobs.find_records(user=user,
+                                         complete=complete,
+                                         success=success,
+                                         deleted=False,
+                                         attributes=attributes)
+
+    return [Job.from_record(record).to_dict() for record in records]
 
 
 @routes.get('/api/v1alpha/batches')

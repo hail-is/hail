@@ -5,6 +5,8 @@ import aiomysql
 import pymysql
 from asyncinit import asyncinit
 
+from .globals import complete_states
+
 log = logging.getLogger('batch.database')
 
 MAX_RETRIES = 2
@@ -416,20 +418,20 @@ class JobsTable(Table):
             else:
                 wheres.append("not batch.deleted")
         if complete is not None:
-            condition = "batch.closed and batch.n_completed = batch.n_jobs"
+            condition = f"jobs.state in {complete_states}"
             if complete:
                 wheres.append(condition)
             else:
                 wheres.append(f"not ({condition})")
         if success is not None:
-            condition = "batch.closed and batch.n_succeeded = batch.n_jobs"
+            condition = "jobs.state = 'Success'"
             if success:
                 wheres.append(condition)
             else:
                 wheres.append(f"not ({condition})")
         if attributes:
-            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.batch_id')
-            groups.append("batch.id")
+            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on jobs.batch_id = attr.batch_id and jobs.job_id = attr.job_id')
+            groups.append("jobs.batch_id, jobs.job_id")
             for k, v in attributes.items():
                 values.append(k)
                 values.append(v)
