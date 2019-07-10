@@ -178,9 +178,8 @@ class Job:
 
         env = {'INSTANCE_ID': INSTANCE_ID,
                'OUTPUT_DIRECTORY': self.directory,
-               'COPY_OUTPUT_CMD': copy(self.output_files)}
-        if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-            env['BATCH_USE_KUBE_CONFIG'] = True
+               'COPY_OUTPUT_CMD': copy(self.output_files),
+               'BATCH_USE_KUBE_CONFIG': 'BATCH_USE_KUBE_CONFIG' in os.environ}
         env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env.items()]
         env.append(kube.client.V1EnvVar(name='POD_NAME',
                                         value_from=kube.client.V1EnvVarSource(
