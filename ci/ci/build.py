@@ -745,10 +745,14 @@ class CreateDatabaseStep(Step):
             self._name = database_name
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
-        else:
+        elif params.scope == 'test':
             self._name = f'{params.code.short_str()}-{database_name}-{self.token}'
             self.admin_username = generate_token()
             self.user_username = generate_token()
+        elif params.scope == 'dev':
+            self._name = params.code.namespace
+            self.admin_username = f'{self._name}-admin'
+            self.user_username = f'{self._name}-user'
 
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
@@ -776,6 +780,8 @@ class CreateDatabaseStep(Step):
         }
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
+        if scope == 'dev':
+            return
         script = f'''
 set -e
 echo date
@@ -863,7 +869,7 @@ echo done.
                                     parents=self.deps_parents())
 
     def cleanup(self, batch, scope, sink):
-        if scope == 'deploy':
+        if scope in ['deploy', 'dev']:
             return
 
         script = f'''
