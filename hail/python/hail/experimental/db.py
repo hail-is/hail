@@ -10,7 +10,7 @@ class DB:
     @staticmethod
     def annotation_dataset_urls():
         if DB._annotation_dataset_urls is None:
-            r = requests.get("http://storage.googleapis.com/hail-datasets/datasets.json")
+            r = requests.get("https://storage.cloud.google.com/hail-common/annotationdb/1/annotation_db.json")
             j = r.json()
             
             DB._annotation_dataset_urls = {(x["name"], x["reference_genome"]): (x["path"], x["gene_key"]) for x in j}
@@ -18,22 +18,24 @@ class DB:
         return DB._annotation_dataset_urls
     
     def annotate_rows_db(self,mt,*names):
-        """
+            """
             Examples
             --------
-            Annotates rows based on keyword implementation of annotation name. The user can type in multiple annotation names when attaching to their datasets.
+            Annotates rows based on keyword implementation of annotation name. 
+            The user can type in multiple annotation names when attaching to their datasets.
             
             >>> import hail as hl
             >>> annotate_rows_db(mt,'DANN','CADD', '...', name='something_else')
             >>> db = hl.annotation_database(config)
             
-            
-            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')  # adds the vep, CADD, and gnomAD annotations to mt
+            # adds the vep, CADD, and gnomAD annotations to mt
+            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')  
             ...
             
             Parameters
             ----------
-            names: keyword argument of the annotation. Can include multiple annotations at one time.
+            names: Keyword argument of the annotation. 
+            Can include multiple annotations at one time.
             
             Returns
             -------
