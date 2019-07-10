@@ -430,7 +430,7 @@ class JobsTable(Table):
             for k, v in attributes.items():
                 values.append(k)
                 values.append(v)
-                havings.append(f"sum(attr.`key` = %s and attr.value = %s) = 1")
+                havings.append(f"sum(attr.`key` = %s and attr.`value` = %s) = 1")
         if joins:
             sql += " " + " ".join(joins)
         if wheres:
