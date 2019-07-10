@@ -37,8 +37,8 @@ profiles = {
         'create_batch_tables_image',
         'create_batch_tables',
         'create_batch_tables2',
-        # 'deploy_batch',
-        # 'deploy_batch_pods',
+        'deploy_batch',
+        'deploy_batch_pods',
         # 'deploy_batch_test'
     ]
 }
