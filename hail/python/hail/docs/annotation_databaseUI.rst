@@ -47,9 +47,7 @@ Annotation Database
     <tr id="tableHeader">
     <th><input id="checkAll" name="addall" type="checkbox" ></th>
     <th>name</th>
-    <th>version</th>
-    <th>n_rows</th>
-    <th>n_cols</th>
+    <th>description</th>
     </tr>
     </table>
     </div>
