@@ -184,7 +184,7 @@ if __name__ == '__main__':
     try:
         asyncio.ensure_future(kube_event_loop(pool))
         asyncio.ensure_future(refresh_k8s_pods())
-        k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
+        k8s = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
         loop.run_forever()
     finally:
         loop.close()
