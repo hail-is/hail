@@ -572,7 +572,7 @@ class Job:
 
             new_state = 'Error'
         else:
-            pod_outputs = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
+            pod_outputs, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
 
             if pod_outputs is None:
                 setup_container = pod.status.init_container_statuses[0]
