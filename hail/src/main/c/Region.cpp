@@ -101,7 +101,7 @@ RegionPtr RegionPool::get_region(size_t block_size) {
   }
   Region * region = std::move(free_regions_.back());
   region->set_block_size(block_size);
-  region->current_block_ = std::move(get_block(block_size));
+  region->current_block_ = get_block(block_size);
   free_regions_.pop_back();
   return RegionPtr(region);
 }
