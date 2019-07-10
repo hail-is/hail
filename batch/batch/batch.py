@@ -572,9 +572,9 @@ class Job:
 
             new_state = 'Error'
         else:
-            pod_outputs, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
+            pod_results, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
 
-            if pod_outputs is None:
+            if pod_results is None:
                 setup_container = pod.status.init_container_statuses[0]
                 assert setup_container.name == 'setup'
                 setup_terminated = setup_container.state.terminated
@@ -613,11 +613,11 @@ class Job:
                     log.info(f'rescheduling job {self.id} -- cleanup container failed')
                     await self.mark_unscheduled()
             else:
-                pod_outputs = json.loads(pod_outputs)
+                pod_results = json.loads(pod_results)
 
                 READ_POD_LOG_FAILURES.inc()
-                exit_codes = pod_outputs['exit_codes']
-                durations = pod_outputs['durations']
+                exit_codes = pod_results['exit_codes']
+                durations = pod_results['durations']
 
                 if all([ec == 0 for ec in self.exit_codes]):
                     new_state = 'Success'
