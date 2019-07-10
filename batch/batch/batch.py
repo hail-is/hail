@@ -53,6 +53,10 @@ REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET
 REQUEST_TIME_GET_LOGS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/log', verb="GET")
 REQUEST_TIME_GET_POD_STATUS_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id/pod_status', verb="GET")
 
+POD_EVICTIONS = pc.Counter('batch_pod_evictions', 'Count of batch pod evictions')
+PVC_CREATION_FAILURES = pc.Counter('batch_pvc_creation_failures', 'Count of batch pvc creation failures')
+READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
+
 uvloop.install()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
@@ -165,6 +169,7 @@ class Job:
             if err.status == 409:
                 return True
             log.info(f'persistent volume claim cannot be created for job {self.full_id} with the following error: {err}')
+            PVC_CREATION_FAILURES.inc()
             if err.status == 403:
                 await self.mark_complete(None, failed=True, failure_reason=str(err))
             return False
@@ -581,6 +586,7 @@ class Job:
                     log.info(f'no logs for {pod.metadata.name}, but log already exists in db, not rescheduling pod')
                     return
 
+                READ_POD_LOG_FAILURES.inc()
                 traceback.print_tb(err.__traceback__)
                 log.info(f'no logs for {pod.metadata.name} due to previous error, rescheduling pod '
                          f'Error: {err}')
@@ -1138,6 +1144,7 @@ async def batch_id(request, userdata):
 async def update_job_with_pod(job, pod):
     log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
+        POD_EVICTIONS.inc()
         log.info(f'job {job.full_id} mark unscheduled')
         await job.mark_unscheduled()
     elif (pod
