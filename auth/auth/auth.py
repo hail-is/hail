@@ -17,7 +17,7 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 
-from hailtop.gear import configure_logging, setup_aiohttp_session
+from hailtop.gear import configure_logging, setup_aiohttp_session, get_rest_session_id
 from hailtop.gear.auth import get_jwtclient
 
 log = logging.getLogger('auth')
@@ -129,7 +129,7 @@ async def logout():
     return web.Response(status=200)
 
 @routes.get('/api/v1alpha/login')
-async def api_login(request):
+async def rest_login(request):
     callback_port = request.query['callback_port']
 
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
@@ -145,7 +145,7 @@ async def api_login(request):
     })
 
 @routes.get('/api/v1alpha/oauth2callback')
-async def api_callback(request):
+async def rest_callback(request):
     unauth = web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
 
     state = request.query['state']
@@ -192,20 +192,15 @@ async def api_callback(request):
     })
 
 
-@routes.get('/log')
-async def get_log(request):
-    session = await aiohttp_session.get_session(request)
-    log.info(f'log: aiohttp_session {session}')
-
-    session_id = session.get('session_id')
+@routes.post('/api/v1alpha/logout')
+async def rest_logout(request):
+    session_id = await get_rest_session_id(request)
     if session_id:
         dbpool = request.app['dbpool']
         async with dbpool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute('SELECT * from users.sessions where session_id = %s;', session_id)
-                sessions = cursor.fetchall()
-                log.info(f'log: sessions {sessions}')
-                
+                await cursor.execute('DELETE FROM user.sessions WHERE session_id = %s;', session_id)
+
     return web.Response(status=200)
 
 

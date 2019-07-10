@@ -17,7 +17,8 @@ async def callback(request):
     q = request.app['q']
     code = request.query['code']
     await q.put(code)
-    return web.Response(status=200)
+    # FIXME redirect a nice page like auth.hail.is/hailctl/authenciated with link to more information
+    return web.Response(text='hailctl is now authenticated.')
 
 
 async def start_server():
@@ -51,6 +52,7 @@ async def auth_flow(session):
     authorization_url = resp['authorization_url']
     state = resp['state']
 
+    # FIXME use webbrowser module
     print(f'''
 To log into Hail using Google, in your browser, visit:
 
@@ -79,7 +81,6 @@ To log into Hail using Google, in your browser, visit:
 
     with open(token_file, 'w') as f:
         f.write(token)
-        print(f'Wrote token file: {token_file}.')
     os.chmod(token_file, 0o600)
 
     print(f'Logged in as {username}.')
