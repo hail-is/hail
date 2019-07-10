@@ -461,7 +461,7 @@ class CreateNamespaceStep(Step):
         elif params.scope == 'test':
             self._name = f'{params.code.short_str()}-{namespace_name}-{self.token}'
         elif params.scope == 'dev':
-            self._name = f'{params.code.namespace}-{namespace_name}'
+            self._name = params.code.namespace
         else:
             raise ValueError(f"{params.scope} is not a valid scope for creating namespace")
 
@@ -493,8 +493,8 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        # if scope == 'dev':
-        #     return
+        if scope == 'dev':
+            return
 
         # FIXME label
         config = f'''\
@@ -753,7 +753,7 @@ class CreateDatabaseStep(Step):
             self._name = params.code.namespace
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
-
+        
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
