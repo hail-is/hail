@@ -755,7 +755,8 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
     assert(t2 == rvdType.rowType)
 
     val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
-      val f = makeF(i)
+      val partRegion = ctx.freshRegion
+      val f = makeF(i, partRegion)
       val region = ctx.region
       val rv3 = RegionValue(region)
       new Iterator[RegionValue] {
@@ -952,12 +953,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         null
 
     if (scanAggs.nonEmpty) {
-      scanInitOps(0)(ctx.r, scanAggs, tv.globals.value.offset, false)
+      scanInitOps(0, ctx.r)(ctx.r, scanAggs, tv.globals.value.offset, false)
 
       val scannedAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
         val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(ctx.freshRegion) else 0L
 
-        val scanSeqOpF = scanSeqOps(i)
+        val scanSeqOpF = scanSeqOps(i, ctx.r)
         it.foreach { rv =>
           scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
           ctx.region.clear()
@@ -994,14 +995,15 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             _.readObject().asInstanceOf[Array[RegionValueAggregator]])
         }
         val rvb = new RegionValueBuilder()
+        val globalRegion = ctx.freshRegion
         val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(ctx.freshRegion)
+          globalsBc.value.readRegionValue(globalRegion)
         else
           0
 
         val rv2 = RegionValue()
-        val newRow = f(i)
-        val scanSeqOpF = scanSeqOps(i)
+        val newRow = f(i, globalRegion)
+        val scanSeqOpF = scanSeqOps(i, globalRegion)
         it.map { rv =>
           rvb.set(rv.region)
           rvb.start(scanResultType)
@@ -1025,13 +1027,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
     } else {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+        val globalRegion = ctx.freshRegion
         val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(ctx.freshRegion)
+          globalsBc.value.readRegionValue(globalRegion)
         else
           0
 
         val rv2 = RegionValue()
-        val newRow = f(i)
+        val newRow = f(i, globalRegion)
         it.map { rv =>
           rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, 0, false))
           rv2
@@ -1071,7 +1074,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
     rvb.start(ncPType)
     rvb.addAnnotation(ncType, ncValue)
     val ncOffset = rvb.end()
-    val resultOff = f(0)(ctx.r,
+    val resultOff = f(0, ctx.r)(ctx.r,
       tv.globals.value.offset, false,
       ncOffset, ncValue == null
     )
@@ -1137,9 +1140,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       prev.globals,
       prev.rvd.boundary.mapPartitionsWithIndex(rvdType, { (i, ctx, it) =>
         val region2 = ctx.region
+        val globalRegion = ctx.freshRegion
         val rv2 = RegionValue(region2)
-        val lenF = l(i)
-        val rowF = f(i)
+        val lenF = l(i, globalRegion)
+        val rowF = f(i, globalRegion)
         it.flatMap { rv =>
           val len = lenF(rv.region, rv.offset, false)
           new Iterator[RegionValue] {
@@ -1270,7 +1274,7 @@ case class TableKeyByAndAggregate(
       "global", child.typ.globalType.physicalType,
       postAggIR)
 
-    val init = makeInit(0)
+    val init = makeInit(0, ctx.r)
     val globalsOffset = prev.globals.value.offset
     init(ctx.r, rvAggs, globalsOffset, false)
 
@@ -1303,20 +1307,18 @@ case class TableKeyByAndAggregate(
     val rdd = prev.rvd
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
-        val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshRegion
-
         val globals = globalsBc.value.readRegionValue(partRegion)
 
         val makeKey = {
-          val f = makeKeyF(i)
+          val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
             SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {
-          val f = makeSeq(i)
+          val f = makeSeq(i, partRegion)
           (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
             f(rv.region, rvAggs, globals, false, rv.offset, false)
           }
@@ -1334,8 +1336,9 @@ case class TableKeyByAndAggregate(
         val region = ctx.region
 
         val rvb = new RegionValueBuilder()
-        val globals = globalsBc.value.readRegionValue(ctx.freshRegion)
-        val annotate = makeAnnotate(i)
+        val partRegion = ctx.freshRegion
+        val globals = globalsBc.value.readRegionValue(partRegion)
+        val annotate = makeAnnotate(i, partRegion)
 
         val rv = RegionValue(region)
         it.map { case (key, aggs) =>
@@ -1433,9 +1436,9 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
         val partGlobalsOff = globalsBc.value.readRegionValue(partRegion)
 
-        val initialize = makeInit(i)
-        val sequence = makeSeq(i)
-        val annotate = makeAnnotate(i)
+        val initialize = makeInit(i, partRegion)
+        val sequence = makeSeq(i, partRegion)
+        val annotate = makeAnnotate(i, partRegion)
 
         new Iterator[RegionValue] {
           var isEnd = false

@@ -49,17 +49,17 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
 
-  def filterWithPartitionOp[P](partitionOp: Int => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, RegionValue)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.freshRegion
-        (partitionOp(partitionIdx), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
+        (partitionOp(partitionIdx, globalRegion), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))
   }
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
-    filterWithPartitionOp(_ => ())((_, rv1, rv2) => p(rv1, rv2))
+    filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
