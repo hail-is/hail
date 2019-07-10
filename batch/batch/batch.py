@@ -313,8 +313,9 @@ class Job:
             return {k: v for k, v in await future_logs}
         elif self._state in ('Error', 'Failed', 'Success'):
             return await _read_log_from_gcs()
-        assert self._state in ('Ready', 'Pending', 'Cancelled')
-        return None
+        else:
+            assert self._state in ('Ready', 'Pending', 'Cancelled')
+            return None
 
     async def _read_pod_statuses(self):
         async def _read_pod_status_from_gcs():
@@ -327,8 +328,6 @@ class Job:
                 return None
             return json.loads(pod_status)
 
-        if self.is_complete():
-
         if self._state == 'Running':
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
@@ -336,6 +335,8 @@ class Job:
                 log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
             return pod_status
+        elif self._state in ('Error', 'Failed', 'Success'):
+            return await _read_pod_status_from_gcs()
         else:
             assert self._state in ('Pending', 'Ready')
             return None
