@@ -1,5 +1,3 @@
-
-
 //CheckAll functionality for UI
 $("#checkAll").click(function(){
     $('input:checkbox').not(this).prop('checked', this.checked);
@@ -18,8 +16,7 @@ $.getJSON("https://api.myjson.com/bins/15rygf",
                     }
                 });
 
-//Allows filtering of table
-function searchTable() {
+function filterTable() {
     var input, filter, found, table, tr, td, i, j;
     input = document.getElementById("searchInput");
     filter = input.value.toUpperCase();
@@ -41,7 +38,6 @@ function searchTable() {
     }
 }
 
-//Allows copying of information within textArea
 function copy() {
   let textarea = document.getElementById("result");
   textarea.select();
@@ -49,7 +45,6 @@ function copy() {
 }
 
 
-//Updates textArea information
 function updateTextArea() {
     var text = "db = hl.experimental.DB()\nmt = db.annotate_rows_db(mt,";
     var isFirst = true;
@@ -70,8 +65,3 @@ function updateTextArea() {
 $('input[type=checkbox]').change(function () {
     updateTextArea();
 });
-
-
-
-        
-
