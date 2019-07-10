@@ -396,8 +396,8 @@ class Job:
         user = userdata['username']
         token = uuid.uuid4().hex[:6]
 
-        exit_codes = None
-        durations = None
+        exit_codes = [None for _ in tasks]
+        durations = [None for _ in tasks]
         directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
         pod_spec = v1.api_client.sanitize_for_serialization(pod_spec)
 
@@ -539,12 +539,16 @@ class Job:
                 return
 
         new_state = None
+        exit_codes = [None for _ in tasks]
+        durations = [None for _ in tasks]
+        container_logs = {t: None for t in tasks}
 
         if failed:
             if failure_reason is not None:
+                container_logs['setup'] = failure_reason
                 uri, err = await app['log_store'].write_gs_file(self.directory,
                                                                 LogStore.log_file_name,
-                                                                failure_reason)
+                                                                json.dumps(container_logs))
                 if err is not None:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'job {self.id} will have a missing log due to {err}')
@@ -559,23 +563,17 @@ class Job:
                     log.info(f'job {self.id} will have a missing pod status due to {err}')
 
             new_state = 'Error'
-            exit_codes = None
-            durations = None
         else:
             pod_outputs = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
 
             if pod_outputs is None:
-                exit_codes = {t: None for t in tasks}
-                durations = {t: None for t in tasks}
-                container_logs = {t: None for t in tasks}
-
                 setup_container = pod.status.init_container_statuses[0]
                 assert setup_container.name == 'setup'
                 setup_terminated = setup_container.state.terminated
 
                 if setup_terminated.exit_code != 0:
                     if setup_terminated.finished_at is not None and setup_terminated.started_at is not None:
-                        durations['setup'] = (setup_terminated.finished_at - setup_terminated.started_at).total_seconds()
+                        durations[0] = (setup_terminated.finished_at - setup_terminated.started_at).total_seconds()
                     else:
                         log.warning(f'setup container terminated but has no timing information. {setup_container.to_str()}')
 
@@ -584,7 +582,7 @@ class Job:
                         await self.mark_unscheduled()
 
                     container_logs['setup'] = container_log
-                    exit_codes['setup'] = setup_terminated.exit_code
+                    exit_codes[0] = setup_terminated.exit_code
 
                     await app['log_store'].write_gs_file(self.directory,
                                                          LogStore.log_file_name,
@@ -600,8 +598,6 @@ class Job:
                                                              pod_status)
 
                     new_state = 'Failed'
-                    durations = json.dumps(durations)
-                    exit_codes = json.dumps(exit_codes)
                 else:
                     # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
                     cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
@@ -615,7 +611,7 @@ class Job:
                 exit_codes = pod_outputs['exit_codes']
                 durations = pod_outputs['durations']
 
-                if all([ec == 0 for ec in exit_codes]):
+                if all([ec == 0 for ec in self.exit_codes]):
                     new_state = 'Success'
                 else:
                     new_state = 'Failed'
@@ -623,8 +619,8 @@ class Job:
         assert new_state is not None
         n_updated = await db.jobs.update_record(*self.id,
                                                 compare_items={'state': self._state},
-                                                durations=durations,
-                                                exit_codes=exit_codes,
+                                                durations=json.dumps(durations),
+                                                exit_codes=json.dumps(exit_codes),
                                                 state=new_state)
 
         if n_updated == 0:
