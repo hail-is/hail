@@ -161,14 +161,18 @@ class JobsBuilder:
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
+    jobs_attribute_fields = {'batch_id', 'job_id', 'key', 'value'}
+
     def __init__(self, db):
         self._db = db
         self._is_open = True
         self._jobs = []
         self._jobs_parents = []
+        self._jobs_attributes = []
 
         self._jobs_sql = self._db.jobs.new_record_template(*JobsBuilder.jobs_fields)
         self._jobs_parents_sql = self._db.jobs_parents.new_record_template(*JobsBuilder.jobs_parents_fields)
+        self._jobs_attributes_sql = self._db.jobs_attributes
 
     async def close(self):
         self._is_open = False
@@ -182,6 +186,11 @@ class JobsBuilder:
         assert self._is_open
         assert set(items) == JobsBuilder.jobs_parents_fields, set(items)
         self._jobs_parents.append(dict(items))
+        
+    def create_job_attribute(self, **items):
+        assert self._is_open
+        assert set(items) == JobsBuilder.jobs_attribute_fields, set(items)
+        self._jobs_attributes.append(dict(items))
 
     async def commit(self):
         assert self._is_open
@@ -200,6 +209,14 @@ class JobsBuilder:
                     if n_jobs_parents_inserted != len(self._jobs_parents):
                         log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
                         return False
+
+                if len(self._jobs_attributes) > 0:
+                    await executemany_with_retry(cursor, self._jobs_attributes_sql, self._jobs_attributes)
+                    n_jobs_attributes_inserted = cursor.rowcount
+                    if n_jobs_attributes_inserted != len(self._jobs_attributes):
+                        log.info(f'inserted {n_jobs_attributes_inserted} jobs attributes, but expected {len(self._jobs_attributes)}')
+                        return False
+
                 return True
 
 
@@ -211,6 +228,7 @@ class BatchDatabase(Database):
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
         self.batch_attributes = BatchAttributesTable(self)
+        self.jobs_attributes = JobsAttributesTable(self)
 
 
 class JobsTable(Table):
@@ -508,22 +526,8 @@ class BatchAttributesTable(Table):
 
 
 class JobsAttributesTable(Table):
-    jobs_attribute_fields = {'batch_id', 'job_id', 'key', 'value'}
-
     def __init__(self, db):
         super().__init__(db, 'jobs-attributes')
-        self._jobs_attributes_sql = self.new_record_template(*JobsAttributesTable.jobs_attribute_fields)
-
-    async def new_records(self, items):
-        async with self._db.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                if len(items) > 0:
-                    await executemany_with_retry(cursor, self._jobs_attributes_sql, items)
-                    n_inserted = cursor.rowcount
-                    if n_inserted != len(items):
-                        log.info(f'inserted {n_inserted} jobs attributes, but expected {len(items)}')
-                        return False
-                return True
 
     async def _query(self, *select, **where):
         return await super().get_records(where, select_fields=select)

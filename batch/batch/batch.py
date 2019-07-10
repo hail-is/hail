@@ -444,6 +444,14 @@ class Job:
                 job_id=job_id,
                 parent_id=parent)
 
+        if attributes is not None:
+            for k, v in attributes.items():
+                jobs_builder.create_job_attribute(
+                    batch_id=batch_id,
+                    job_id=job_id,
+                    key=k,
+                    value=v)
+
         job = Job(batch_id=batch_id, job_id=job_id, attributes=attributes, callback=callback,
                   userdata=userdata, user=user, always_run=always_run,
                   exit_codes=exit_codes, duration=duration, tasks=tasks,
