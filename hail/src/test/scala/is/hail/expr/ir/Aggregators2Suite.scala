@@ -70,24 +70,23 @@ class Aggregators2Suite extends HailSuite {
       Row(Row("c", 4), 6L, 8L),
       Row(Row("f", 5), 6L, 10L))
 
-  def rowVar(r: Code[Region], a: Code[Long], i: Code[Int]): RVAVariable =
+  def rowVar(a: Code[Long], i: Code[Int]): RVAVariable =
     RVAVariable(EmitTriplet(Code._empty,
-      arrayType.isElementMissing(r, a, i),
-      arrayType.loadElement(r, a, i)), rowType)
+      arrayType.isElementMissing(a, i),
+      arrayType.loadElement(a, i)), rowType)
 
-  def bVar(r: Code[Region], a: Code[Long], i: Code[Int]): RVAVariable = {
-    val RVAVariable(row, _) = rowVar(r, a, i)
+  def bVar(a: Code[Long], i: Code[Int]): RVAVariable = {
+    val RVAVariable(row, _) = rowVar(a, i)
     RVAVariable(EmitTriplet(row.setup,
-      row.m || rowType.isFieldMissing(r, row.value[Long], 1),
-      r.loadLong(rowType.loadField(r, row.value[Long], 1))), PInt64())
+      row.m || rowType.isFieldMissing(row.value[Long], 1),
+      Region.loadLong(rowType.loadField(row.value[Long], 1))), PInt64())
   }
 
-  def seqOne(s: Array[RVAState], a: Code[Long], i: Code[Int]): Code[Unit] = {
-    val r = s(0).region
+  def seqOne(s: Array[AggregatorState], a: Code[Long], i: Code[Int]): Code[Unit] = {
     Code(
-      pnnAgg.seqOp(s(0), Array(rowVar(r, a, i))),
+      pnnAgg.seqOp(s(0), Array(rowVar(a, i))),
       countAgg.seqOp(s(1), Array()),
-      sumAgg.seqOp(s(2), Array(bVar(r, a, i))))
+      sumAgg.seqOp(s(2), Array(bVar(a, i))))
   }
 
   def initAndSeq(s: ArrayElementState, off: Code[Long]): Code[Unit] = {
@@ -128,7 +127,7 @@ class Aggregators2Suite extends HailSuite {
     val off = fb.apply_method.getArg[Long](2)
 
     val resType = PTuple(aggs.map(_.resultType))
-    val states: Array[RVAState] = aggs.map(_.createState(fb.apply_method))
+    val states: Array[AggregatorState] = aggs.map(_.createState(fb.apply_method))
     val srvb = new StagedRegionValueBuilder(EmitRegion.default(fb.apply_method), resType)
 
     val aidx = fb.newField[Int]
@@ -137,7 +136,7 @@ class Aggregators2Suite extends HailSuite {
     fb.emit(
       Code(r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).assign(r.load().getParentReference(i)),
+          Code(states(i).loadRegion(r.load().getParentReference(i)),
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -168,7 +167,7 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.assign(r),
+        s.loadRegion(r),
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),
@@ -213,7 +212,7 @@ class Aggregators2Suite extends HailSuite {
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.assign(Code.newInstance[Region]()),
+          s.loadRegion(Code.newInstance[Region]()),
           soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
@@ -222,13 +221,13 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.assign(Code.newInstance[Region]()),
+        s.loadRegion(Code.newInstance[Region]()),
         s.unserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.assign(Code.newInstance[Region]()),
+          s2.loadRegion(Code.newInstance[Region]()),
           s2.unserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),

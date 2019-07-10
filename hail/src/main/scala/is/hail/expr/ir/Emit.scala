@@ -990,8 +990,7 @@ private class Emit(
 
         val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         void(
-          sc(i).assign(Code.newInstance[Region]()),
-          sc.setPresent(aggOff, i),
+          sc(i).loadRegion(Code.newInstance[Region]()),
           rvAgg.initOp(sc(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
@@ -1031,7 +1030,7 @@ private class Emit(
         present(Code(
           srvb.start(),
           addFields,
-          sc.toCode((_, s) => s.close),
+          sc.store(0, aggOff),
           srvb.offset))
 
       case WriteAggs(start, path, spec, aggSigs) =>
@@ -1055,7 +1054,7 @@ private class Emit(
           coerce[Unit](Code(serialize: _*)),
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
-          sc.toCode((_, s) => s.close))
+          sc.store(0, aggOff))
 
       case SerializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1076,7 +1075,7 @@ private class Emit(
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
           mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
-          sc.toCode((_, s) => s.close))
+          sc.store(0, aggOff))
 
       case ReadAggs(start, path, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1091,9 +1090,7 @@ private class Emit(
           .map(_.unserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => Code(
-            sc(i).assign(Code.newInstance[Region]()),
-            sc.setPresent(aggOff, i))): _*))
+          .map(i => sc(i).loadRegion(Code.newInstance[Region]())): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
@@ -1115,9 +1112,7 @@ private class Emit(
           .map(_.unserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => Code(
-            sc(i).assign(Code.newInstance[Region]()),
-            sc.setPresent(aggOff, i))): _*))
+          .map(i => sc(i).loadRegion(Code.newInstance[Region]())): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
