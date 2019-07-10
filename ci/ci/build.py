@@ -71,7 +71,7 @@ class BuildConfiguration:
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
 
-            if profile is not None and step_params.json['name'] in profile:
+            if profile is None or step_params.json['name'] in profile:
                 step = Step.from_json(step_params)
                 self.steps.append(step)
                 name_step[step.name] = step
@@ -85,7 +85,6 @@ class BuildConfiguration:
                 step.build(batch, code, scope)
 
         if scope == 'dev':
-            print("DEV RETURNING")
             return
 
         parents = set()
