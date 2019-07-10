@@ -78,11 +78,39 @@ div.panel .panel-body p:last-child {
   padding-top: 12px;
   padding-bottom: 12px;
   text-align: left;
-  background-color: #4390bc;
-  color: white;
+  background-color: #f5f5f5;
+  color: black;
+}
+
+.table>tbody>tr>td, .table>tbody>tr>th, .table>tfoot>tr>td, .table>tfoot>tr>th, .table>thead>tr>td, .table>thead>tr>th {
+    padding: 8px;
+    line-height: 1.42857143;
+    vertical-align: top;
+    border-top: 1px solid #ddd;
+    width: auto;
 }
 
 #table1 td, #table1 th{
+  display: table-cell;
   border: 1px solid #ddd;
   padding: 8px;
+  width: auto;
+}
+
+body {
+    font-family: "Helvetica Neue";
+    font-size: 14px;
+    line-height: 1.42857143;
+}
+
+table{
+    border-spacing: 0;
+    border-collapse: collapse;
+    resize: none;
+    table-layout:fixed;
+}
+
+textarea {
+  resize: none;
+  font-size: 14px;
 }
