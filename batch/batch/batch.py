@@ -173,7 +173,7 @@ class Job:
         """
 
         env = {'INSTANCE_ID': INSTANCE_ID,
-               'OUTPUT_DIRECTORY': app['log_store'].gs_job_output_directory(*self.id, self.token),
+               'OUTPUT_DIRECTORY': self.directory,
                'COPY_OUTPUT_CMD': copy(self.output_files),
                'BATCH_USE_KUBE_CONFIG': os.environ.get('BATCH_USE_KUBE_CONFIG')}
         env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env]
@@ -398,7 +398,7 @@ class Job:
 
         exit_codes = None
         durations = None
-        directory = app['log_store'].gs_job_output_directory()
+        directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
         pod_spec = v1.api_client.sanitize_for_serialization(pod_spec)
 
         jobs_builder.create_job(
