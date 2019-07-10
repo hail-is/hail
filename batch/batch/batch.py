@@ -179,7 +179,10 @@ class Job:
                'COPY_OUTPUT_CMD': copy(self.output_files),
                'BATCH_USE_KUBE_CONFIG': os.environ.get('BATCH_USE_KUBE_CONFIG')}
         env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env.items()]
-        env.append(kube.client.V1EnvVar(name='POD_NAME', value_from='metadata.name'))
+        env.append(kube.client.V1EnvVar(name='POD_NAME',
+                                        value_from=kube.client.V1EnvVarSource(
+                                            field_ref=kube.client.V1ObjectFieldSelector(
+                                                field_path='metadata.name'))))
 
         cleanup_container = kube.client.V1Container(
             image=BATCH_IMAGE,
@@ -228,7 +231,6 @@ class Job:
                 mount_path='/io',
                 name=self._pvc_name))
 
-        log.info(self._pod_spec)
         pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
         pod_spec.containers.append(cleanup_container)
         pod_spec.init_containers = [setup_container]
@@ -402,7 +404,6 @@ class Job:
         durations = [None for _ in tasks]
         directory = app['log_store'].gs_job_output_directory(batch_id, job_id, token)
         pod_spec = v1.api_client.sanitize_for_serialization(pod_spec)
-        log.info(pod_spec)
 
         jobs_builder.create_job(
             batch_id=batch_id,
