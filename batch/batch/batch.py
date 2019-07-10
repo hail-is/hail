@@ -1178,10 +1178,10 @@ async def update_job_with_pod(job, pod):
         POD_EVICTIONS.inc()
         log.info(f'job {job.id} mark unscheduled -- pod is missing or was evicted')
         await job.mark_unscheduled()
-    elif pod and pod.phase in ('Succeeded', 'Failed'):
+    elif pod and pod.status and pod.status.phase in ('Succeeded', 'Failed'):
         log.info(f'job {job.id} mark complete')
         await job.mark_complete(pod)
-    elif pod and pod.phase == 'Unknown':
+    elif pod and pod.status and pod.status.phase == 'Unknown':
         log.info(f'job {job.id} mark unscheduled -- pod phase is unknown')
         await job.mark_unscheduled()
 
