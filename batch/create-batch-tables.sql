@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `pod_spec` TEXT(65535),
   `exit_codes` TEXT(65535),
   `durations` TEXT(65535),
+  `input_files` TEXT(65535),
+  `output_files` TEXT(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;

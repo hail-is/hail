@@ -450,7 +450,7 @@ class Job:
 
         name = f'batch-{batch_id}-job-{job_id}-{token}'
         self._pod_name = name
-        self._pvc_name = name if self.input_files or self.output_files or self._pvc_size else None
+        self._pvc_name = name if self.input_files or self.output_files or pvc_size else None
         self._pvc_size = pvc_size
         self._state = state
         self._cancelled = cancelled
