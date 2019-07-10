@@ -524,11 +524,9 @@ roleRef:
   apiGroup: ""
 '''
 
-        if scope == 'dev':
-            return
-
-        # FIXME label
-        config = config + f'''\
+        if scope in ['deploy', 'test']:
+            # FIXME label
+            config = config + f'''\
 apiVersion: v1
 kind: Namespace
 metadata:
