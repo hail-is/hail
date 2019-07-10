@@ -88,6 +88,7 @@ db = BatchDatabase.create_synchronous('/batch-user-secret/sql-config.json')
 
 tasks = ('setup', 'main', 'cleanup')
 
+
 def abort(code, reason=None):
     if code == 400:
         raise web.HTTPBadRequest(reason=reason)
@@ -146,12 +147,14 @@ class Job:
         log.info(f'created pvc name: {self._pvc_name} for job {self.id}')
         return True
 
-    def _setup_container(self, success_file):
+    def _setup_container(self):
+        success_file = f'{self.directory}{LogStore.results_file_name}'
+        authorize = 'set -ex; gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData'
+
         sh_expression = f"""
         set -ex
-        if [ -e {success_file} ]; then
-            exit 1
-        fi
+        {authorize}
+        gsutil -q stat {success_file} && exit 1
         rm -rf /io/*
         {copy(self.input_files)}
          """
@@ -165,11 +168,10 @@ class Job:
 
         return setup_container
 
-    def _cleanup_container(self, success_file):
+    def _cleanup_container(self):
         sh_expression = f"""
         set -ex
         python3 sidecar.py
-        touch {success_file}
         """
 
         env = {'INSTANCE_ID': INSTANCE_ID,
@@ -195,9 +197,8 @@ class Job:
     async def _create_pod(self):
         assert self.userdata is not None
 
-        success_file = '/io/__BATCH_SUCCESS__'  # FIXME: /io doesn't always exist
-        setup_container = self._setup_container(success_file)
-        cleanup_container = self._cleanup_container(success_file)
+        setup_container = self._setup_container()
+        cleanup_container = self._cleanup_container()
 
         volumes = [
             kube.client.V1Volume(
