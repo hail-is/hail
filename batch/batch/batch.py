@@ -149,11 +149,10 @@ class Job:
 
     def _setup_container(self):
         success_file = f'{self.directory}{LogStore.results_file_name}'
-        authorize = 'set -ex; gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData'
 
         sh_expression = f"""
         set -ex
-        {authorize}
+        gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData
         gsutil -q stat {success_file} && exit 1
         rm -rf /io/*
         {copy(self.input_files)}
@@ -164,7 +163,10 @@ class Job:
             name='setup',
             command=['/bin/sh', '-c', sh_expression],
             resources=kube.client.V1ResourceRequirements(
-                requests={'cpu': '500m'}))
+                requests={'cpu': '500m'}),
+            volume_mounts=[kube.client.V1VolumeMount(
+                mount_path='/batch-gsa-key',
+                name='batch-gsa-key')])
 
         return setup_container
 
@@ -456,7 +458,7 @@ class Job:
 
         name = f'batch-{batch_id}-job-{job_id}-{token}'
         self._pod_name = name
-        self._pvc_name = name if self.input_files or self.output_files or pvc_size else None
+        self._pvc_name = name if pvc_size else None
         self._pvc_size = pvc_size
         self._state = state
         self._cancelled = cancelled
@@ -691,7 +693,9 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
     parent_ids = parameters.get('parent_ids', [])
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
-    pvc_size = parameters.get('pvc_size', POD_VOLUME_SIZE)
+    pvc_size = parameters.get('pvc_size')
+    if pvc_size is None and (input_files or output_files):
+        pvc_size = POD_VOLUME_SIZE
     always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
