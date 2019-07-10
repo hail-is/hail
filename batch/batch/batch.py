@@ -230,7 +230,7 @@ class Job:
 
         log.info(self._pod_spec)
         pod_spec = v1.api_client._ApiClient__deserialize(self._pod_spec, kube.client.V1PodSpec)
-        pod_spec.containers.extend(cleanup_container)
+        pod_spec.containers.append(cleanup_container)
         pod_spec.init_containers = [setup_container]
 
         if pod_spec.volumes is None:
