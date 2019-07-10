@@ -44,6 +44,7 @@ REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', 
 REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
 REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
 REQUEST_TIME_POST_GET_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb='GET')
+REQUEST_TIME_POST_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb='GET')
 REQUEST_TIME_PATCH_CANCEL_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/cancel', verb="PATCH")
 REQUEST_TIME_PATCH_CLOSE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/close', verb="PATCH")
 REQUEST_TIME_DELETE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb="DELETE")
@@ -954,7 +955,7 @@ async def _get_batches_list(params, user):
             for batch in records]
 
 
-async def _get_jobs_list(params, user):
+async def _get_jobs_list(batch_id, user, params):
     complete = params.get('complete')
     if complete:
         complete = complete == '1'
@@ -969,7 +970,8 @@ async def _get_jobs_list(params, user):
             abort(400, f'unknown query parameter {k}')
         attributes[k[2:]] = v
 
-    records = await db.jobs.find_records(user=user,
+    records = await db.jobs.find_records(batch_id=batch_id,
+                                         user=user,
                                          complete=complete,
                                          success=success,
                                          deleted=False,
@@ -1062,6 +1064,15 @@ async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
     return jsonify(await _get_batch(batch_id, user))
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs')
+@prom_async_time(REQUEST_TIME_POST_GET_JOBS)
+@rest_authenticated_users_only
+async def get_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    return jsonify(await _get_jobs_list(batch_id, user, params))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')

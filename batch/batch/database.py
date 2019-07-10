@@ -399,7 +399,7 @@ class JobsTable(Table):
                 await cursor.execute(sql, (batch_id, parent_id))
                 return await cursor.fetchall()
 
-    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
+    async def find_records(self, batch_id, user, complete=None, success=None, deleted=None, attributes=None):
         batch_name = self._db.batch.name
         fields = ', '.join(self._select_fields())
         sql = f"SELECT {fields} from `{self.name}` as jobs " \
@@ -410,8 +410,8 @@ class JobsTable(Table):
         havings = []
         groups = []
 
-        values.append(user)
-        wheres.append("batch.user = %s")
+        values.extend([user, batch_id])
+        wheres.append("batch.user = %s and jobs.batch_id = %s")
         if deleted is not None:
             if deleted:
                 wheres.append("batch.deleted")
