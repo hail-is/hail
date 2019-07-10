@@ -320,8 +320,9 @@ object IBD {
       val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
       val sampleIds = input.stringSampleIds
 
-    TableLiteral(TableValue(ibdPType, FastIndexedSeq("i", "j"),
-      computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
+      TableLiteral(TableValue(ctx, ibdPType, FastIndexedSeq("i", "j"),
+        computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)), ctx)
+    }
   }
 
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
