@@ -397,6 +397,57 @@ class JobsTable(Table):
                 await cursor.execute(sql, (batch_id, parent_id))
                 return await cursor.fetchall()
 
+    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
+        sql = f"select jobs.* from `{self.name}` as jobs INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id"
+        values = []
+        joins = []
+        wheres = []
+        havings = []
+        groups = []
+
+        values.append(user)
+        wheres.append("batch.user = %s")
+        if deleted is not None:
+            if deleted:
+                wheres.append("batch.deleted")
+            else:
+                wheres.append("not batch.deleted")
+        if complete is not None:
+            condition = "batch.closed and batch.n_completed = batch.n_jobs"
+            if complete:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if success is not None:
+            condition = "batch.closed and batch.n_succeeded = batch.n_jobs"
+            if success:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if attributes:
+            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.batch_id')
+            groups.append("batch.id")
+            for k, v in attributes.items():
+                values.append(k)
+                values.append(v)
+                havings.append(f"sum(attr.`key` = %s and attr.value = %s) = 1")
+        if joins:
+            sql += " " + " ".join(joins)
+        if wheres:
+            sql += " where " + " and ".join(wheres)
+        if groups:
+            sql += " group by " + ", ".join(groups)
+        if havings:
+            sql += " having " + " and ".join(havings)
+        try:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, values)
+                    return await cursor.fetchall()
+        except Exception as err:
+            log.error(f'error encountered while executing: {sql} {values}')
+            raise err
+
 
 class JobsParentsTable(Table):
     def __init__(self, db):

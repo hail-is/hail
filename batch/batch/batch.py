@@ -954,6 +954,12 @@ async def _get_batches_list(params, user):
             for batch in records]
 
 
+async def _get_jobs_list(params, user):
+    complete = params.get('complete')
+    if complete:
+        pass
+
+
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
 @rest_authenticated_users_only
