@@ -84,7 +84,6 @@ steps:
    serviceAccount: ci-agent
    scopes:
     - test
-    - dev
    dependsOn:
     - default_ns
     - batch_pods_ns
