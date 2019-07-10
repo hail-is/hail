@@ -27,7 +27,7 @@ gear.configure_logging()
 log = logging.getLogger('batch-sidecar')
 
 
-if os.environ.get('BATCH_USE_KUBE_CONFIG', False):
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
     kube.config.load_incluster_config()
