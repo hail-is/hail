@@ -493,24 +493,12 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        if scope == 'dev':
-            return
-
-        # FIXME label
-        config = f'''\
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {self._name}
-  labels:
-    for: test
-'''
-
+        #Account stuff
+        config = ""
         if self.admin_service_account:
             admin_service_account_name = self.admin_service_account['name']
             admin_service_account_namespace = self.admin_service_account['namespace']
             config = config + f'''\
----
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -534,6 +522,19 @@ roleRef:
   kind: Role
   name: {self.namespace_name}-admin
   apiGroup: ""
+'''
+
+        if scope == 'dev':
+            return
+
+        # FIXME label
+        config = config + f'''\
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {self._name}
+  labels:
+    for: test
 '''
 
         if self.public:
