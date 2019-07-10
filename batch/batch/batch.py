@@ -413,7 +413,9 @@ class Job:
             pod_spec=json.dumps(pod_spec),
             input_files=json.dumps(input_files),
             output_files=json.dumps(output_files),
-            directory=directory)
+            directory=directory,
+            exit_codes=json.dumps(exit_codes),
+            durations=json.dumps(durations))
 
         for parent in parent_ids:
             jobs_builder.create_job_parent(

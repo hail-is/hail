@@ -158,7 +158,8 @@ class JobsBuilder:
     jobs_fields = {'batch_id', 'job_id', 'state', 'pvc_size',
                    'callback', 'attributes', 'always_run',
                    'token', 'pod_spec', 'input_files',
-                   'output_files', 'directory'}
+                   'output_files', 'directory', 'exit_codes',
+                   'durations'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
