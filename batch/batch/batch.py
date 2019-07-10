@@ -355,7 +355,7 @@ class Job:
         if record is not None:
             attributes = json.loads(record['attributes'])
             userdata = json.loads(record['userdata'])
-            pod_spec = v1.api_client.sanitize_for_serialization(record['pod_spec'])
+            pod_spec = json.loads(record['pod_spec'])
             input_files = json.loads(record['input_files'])
             output_files = json.loads(record['output_files'])
             exit_codes = json.loads(record['exit_codes'])
