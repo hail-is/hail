@@ -398,7 +398,10 @@ class JobsTable(Table):
                 return await cursor.fetchall()
 
     async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
-        sql = f"select jobs.* from `{self.name}` as jobs INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id"
+        batch_name = self._db.batch.name
+        fields = ', '.join(self._select_fields())
+        sql = f"SELECT {fields} from `{self.name}` as jobs " \
+            f"INNER JOIN `{batch_name}` ON jobs.batch_id = `{batch_name}`.id"
         values = []
         joins = []
         wheres = []
