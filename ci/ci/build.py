@@ -84,13 +84,21 @@ class BuildConfiguration:
                 print("BUILDING {}".format(step.name))
                 step.build(batch, code, scope)
 
-        if scope == 'dev':
-            return
-
         parents = set()
         for step in self.steps:
             parents.update(step.wrapped_job())
         parents = list(parents)
+
+        if scope == 'dev':
+            #Take notes
+            step_yaml = "foo"
+            command = ['kubectl', 'create', 'configmap', '-n', code.namespace,
+            f'--from-literal=steps={step_yaml}']
+            batch.create_job('ububtu:18.04',
+                             command=command,
+                             attributes={'name': 'create-build-history'},
+                             parents=parents)
+            return
 
         sink = batch.create_job('ubuntu:18.04',
                                 command=['/bin/true'],
