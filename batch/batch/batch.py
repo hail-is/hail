@@ -173,7 +173,7 @@ class Job:
     def _cleanup_container(self):
         sh_expression = f"""
         set -ex
-        python3 /batch/batch/sidecar.py
+        python3 -m batch.sidecar
         """
 
         env = {'INSTANCE_ID': INSTANCE_ID,
