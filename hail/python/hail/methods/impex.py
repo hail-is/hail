@@ -2071,6 +2071,8 @@ def import_vcfs(path,
     that fall outside of any interval will not be imported. For
     example:
 
+    .. include:: ../_templates/experimental.rst
+
     .. code-block:: text
         [hl.Interval(hl.Locus("chr22", 1), hl.Locus("chr22", 5332423), includes_end=True)]
 
@@ -2080,7 +2082,6 @@ def import_vcfs(path,
     One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
     :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
     rather than `locus, alleles`.
-
     """
 
     rg = reference_genome.name if reference_genome else None
