@@ -11,7 +11,7 @@ def init_parser(parser):
 def main(args):
     # For now, let's find CI and just manually call the damn function.
     async with aiohttp.ClientSession() as session:
-        session.post('https://batch.hail.is/apiserver, json={
+        session.post('https://batch.hail.is/api/v1alpha/dev_test_branch/'', json={
             'userdata': {
                 'username': 'johnc1231'
             },
@@ -21,12 +21,3 @@ def main(args):
             'namespace': args.namespace
         })
 
-    # asyncio.run(ci.dev_test_branch({
-    #     'userdata': {
-    #         'username': 'johnc1231'
-    #     },
-    #     'repo': args.repo,
-    #     'branch': args.branch,
-    #     'profile': args.profile,
-    #     'namespace': args.namespace
-    # }))
