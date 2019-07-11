@@ -1,16 +1,25 @@
 package is.hail.annotations
 
+import is.hail.asm4s
 import is.hail.asm4s.{Code, coerce}
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.nativecode._
 
 object Region {
+  val regular: Int = 64 * 1024
+  val small: Int = 8 * 1024
+  val tiny: Int = 1024
+
   def apply(sizeHint: Long = 128): Region = new Region()
 
   def scoped[T](f: Region => T): T =
     using(Region())(f)
 
+  def smallScoped[T](f: Region => T): T = using(new Region(8 * 1024))(f)
+
+  def tinyScoped[T](f: Region => T): T = using(new Region(1024))(f)
+  
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
   def loadLong(addr: Long): Long = Memory.loadLong(addr)
   def loadFloat(addr: Long): Float = Memory.loadFloat(addr)
@@ -171,7 +180,7 @@ final class Region private (empty: Boolean) extends NativeBase() {
   @native def nativeGetNumParents(): Int
   @native def nativeSetNumParents(n: Int): Unit
   @native def nativeSetParentReference(r2: Region, i: Int): Unit
-  @native def nativeGetParentReferenceInto(r2: Region, i: Int): Region
+  @native def nativeGetParentReferenceInto(r2: Region, i: Int, blockSize: Int): Region
   @native def nativeClearParentReference(i: Int): Unit
 
   final def align(a: Long) = nativeAlign(a)
@@ -199,15 +208,10 @@ final class Region private (empty: Boolean) extends NativeBase() {
     nativeSetParentReference(r, i)
   }
 
-  def setFromDependentRegion(base: Region, i: Int): Unit = {
-    assert(i < nativeGetNumParents())
-    base.nativeGetParentReferenceInto(this, i)
-  }
-
-  def getParentReference(i: Int): Region = {
+  def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < nativeGetNumParents())
     val r = new Region(empty = true)
-    nativeGetParentReferenceInto(r, i)
+    nativeGetParentReferenceInto(r, i, blockSize)
     r
   }
 
@@ -427,6 +431,16 @@ class RegionPool private() extends NativeBase() {
          |       free: $nFree
          |       used: ${ nRegions - nFree }""".stripMargin)
   }
+}
 
+object RegionUtils {
+  def printBytes(off: Long, n: Int, header: String): String = {
+    Region.loadBytes(off, n).zipWithIndex
+      .grouped(16)
+      .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
+      .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
+  }
 
+  def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
+    Code.invokeScalaObject[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
 }

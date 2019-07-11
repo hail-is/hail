@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, RegionPool, RegionValue}
+import is.hail.annotations.{Region, RegionPool, RegionUtils, RegionValue}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
@@ -101,7 +101,6 @@ object TableMapIRNew {
       init.setSerializedAgg(0, initAgg)
       init(globalRegion)
       seq.setAggState(aggRegion, init.getAggOffset())
-
       it.foreach { rv =>
         seq(rv.region, globals, false, rv.offset, false)
         ctx.region.clear()

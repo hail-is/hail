@@ -13,24 +13,6 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-object TUtils {
-  def printBytes(region: Region, off: Long, n: Int, header: String = null): String = {
-    region.loadBytes(off, n).zipWithIndex
-      .grouped(16)
-      .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
-      .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
-  }
-
-  def printBytes(region: Code[Region], off: Code[Long], n: Int): Code[String] =
-    Code.invokeScalaObject[Region, Long, Int, String, String](TUtils.getClass, "printBytes", region, off, n, "")
-
-  def printRow(region: Region, off: Long): String =
-    SafeRow(TStruct("a" -> TString(), "b" -> TInt32()).physicalType, region, off).toString
-
-  def printRow(region: Code[Region], off: Code[Long]): Code[String] =
-    Code.invokeScalaObject[Region, Long, String](TUtils.getClass, "printRow", region, off)
-}
-
 class Aggregators2Suite extends HailSuite {
 
   val rowType = PStruct("a" -> PString(), "b" -> PInt64())
@@ -136,7 +118,7 @@ class Aggregators2Suite extends HailSuite {
     fb.emit(
       Code(r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).loadRegion(r.load().getParentReference(i)),
+          Code(states(i).loadRegion(r.load().getParentReference(i, states(i).regionSize)),
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -212,7 +194,7 @@ class Aggregators2Suite extends HailSuite {
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.loadRegion(Code.newInstance[Region]()),
+          s.newRegion,
           soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
@@ -221,13 +203,13 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.loadRegion(Code.newInstance[Region]()),
+        s.newRegion,
         s.unserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.loadRegion(Code.newInstance[Region]()),
+          s2.newRegion,
           s2.unserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),

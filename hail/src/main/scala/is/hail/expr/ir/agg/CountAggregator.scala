@@ -18,7 +18,7 @@ object CountAggregator extends StagedRegionValueAggregator {
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
-    v.storeAny(0L)
+    Code(v.storeAny(0L), state._loaded := true)
   }
 
   def seqOp(state: State, seq: Array[RVAVariable], dummy: Boolean): Code[Unit] = {

@@ -30,7 +30,7 @@ class SumAggregator(typ: PType) extends StagedRegionValueAggregator {
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
-    v.storeAny(zero)
+    Code(v.storeAny(zero), state._loaded := true)
   }
 
   def seqOp(state: State, seq: Array[RVAVariable], dummy: Boolean): Code[Unit] = {

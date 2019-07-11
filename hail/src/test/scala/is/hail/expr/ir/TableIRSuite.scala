@@ -124,6 +124,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testScanCountBehavesLikeIndex() {
+    hc.flags.set("newaggs", "1")
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
     val oldRow = Ref("row", t.typ.rowType)
@@ -131,6 +132,50 @@ class TableIRSuite extends HailSuite {
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
     val expected = Array.tabulate(20)(i => Row(i, i.toLong)).toFastIndexedSeq
+    println(Pretty(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True())))
+
+    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
+  }
+
+  @Test def testScanCountBehavesLikeIndex2() {
+    hc.flags.set("newaggs", "1")
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val t = rangeKT
+    val oldRow = Ref("row", t.typ.rowType)
+
+    val pnn = AggSignature(PrevNonnull(), FastSeq.empty, None, FastSeq(oldRow.typ))
+
+    val newRow = InsertFields(oldRow,
+      Seq("idx2" ->
+        ApplyScanOp(FastIndexedSeq.empty, None, FastIndexedSeq(oldRow), pnn)))
+    val newTable = TableMapRows(t, newRow)
+    val expected = Array.tabulate(20)(i =>
+      Row(i,
+        if (i == 0) null else Row(i - 1))).toFastIndexedSeq
+    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
+  }
+
+  @Test def testScanCountBehavesLikeIndex3() {
+    hc.flags.set("newaggs", "1")
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val rt = rangeKT
+    val rtRow = Ref("row", rt.typ.rowType)
+    val t = TableMapRows(rangeKT, InsertFields(rtRow, FastIndexedSeq("foo" -> MakeArray(FastIndexedSeq(rtRow, rtRow, rtRow), TArray(rtRow.typ)))))
+
+    val oldRow = Ref("row", t.typ.rowType)
+
+    val pnn = AggSignature(PrevNonnull(), FastSeq.empty, None, FastSeq(rtRow.typ))
+
+    val newRow = InsertFields(oldRow,
+      Seq("idx2" -> AggArrayPerElement(
+        GetField(oldRow, "foo"),
+        "elt", "i",
+        ApplyScanOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("elt", rtRow.typ)), pnn), None, true)))
+    val newTable = TableMapRows(t, newRow)
+    val expected = Array.tabulate(20)(i =>
+      Row(i,
+        FastIndexedSeq(Row(i), Row(i), Row(i)),
+        if (i == 0) null else FastIndexedSeq(Row(i - 1), Row(i - 1), Row(i - 1)))).toFastIndexedSeq
     assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
   }
 

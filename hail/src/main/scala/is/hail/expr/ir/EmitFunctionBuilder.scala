@@ -273,7 +273,8 @@ class EmitFunctionBuilder[F >: Null](
         _aggState.loadRegions(0)))
 
     setF.emit(
-      Code(_aggRegion := setF.getArg[Region](1),
+      Code(
+        _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
         _aggOff := setF.getArg[Long](2),
         _aggState.load(0, _aggOff)))

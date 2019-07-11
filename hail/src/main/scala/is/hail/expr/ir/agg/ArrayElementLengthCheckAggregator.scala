@@ -1,12 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-
 import is.hail.asm4s.coerce
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
@@ -21,6 +20,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
+  override val regionSize: Int = Region.small
 
   val typ: PTuple = PTuple(FastIndexedSeq(container.typ, arrayType))
 
@@ -43,7 +43,9 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
   override def loadState(src: Code[Long]): Code[Unit] = Code(
     super.loadState(src),
-    lenRef := arrayType.loadLength(region, typ.loadField(region, off, 1)))
+    off.ceq(0L).mux(Code._empty,
+      lenRef := typ.isFieldMissing(off, 1).mux(-1,
+        arrayType.loadLength(region, typ.loadField(region, off, 1)))))
 
   def initLength(len: Code[Int]): Code[Unit] = {
     val srvb2 = new StagedRegionValueBuilder(er, arrayType)

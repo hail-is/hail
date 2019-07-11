@@ -1,6 +1,7 @@
 #include "hail/RegionPool.h"
 #include "hail/NativePtr.h"
 #include "hail/Upcalls.h"
+#include "hail/Utils.h"
 #include <memory>
 #include <vector>
 #include <utility>
@@ -70,8 +71,8 @@ void Region::set_parent_reference(RegionPtr region, int i) {
 
 RegionPtr Region::get_parent_reference(int i) { return parents_[i]; }
 
-RegionPtr Region::new_parent_reference(int i) {
-  auto r = get_region();
+RegionPtr Region::new_parent_reference(int i, size_t block_size) {
+  auto r = get_region(block_size);
   parents_[i] = r;
   return r;
 }
@@ -79,7 +80,6 @@ RegionPtr Region::new_parent_reference(int i) {
 void Region::clear_parent_reference(int i) {
   parents_[i] = nullptr;
 }
-
 std::unique_ptr<char[]> RegionPool::get_block(size_t size) {
   auto free_blocks = get_block_pool(size);
   if (free_blocks->empty()) {
@@ -182,7 +182,7 @@ REGIONMETHOD(void, Region, clearButKeepMem)(
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  r->region_->clear();
+  r->region_ = r->region_->get_region(r->region_->get_block_size());
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(
@@ -271,13 +271,19 @@ REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
   JNIEnv* env,
   jobject thisJ,
   jobject otherJ,
-  jint i
+  jint i,
+  jint blockSizeJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
   auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  auto block_size = (size_t) blockSizeJ;
   r2->region_ = r->region_->get_parent_reference((int) i);
   if (r2->region_.get() == nullptr) {
-    r2->region_ = r->region_->new_parent_reference((int) i);
+    r2->region_ = r->region_->new_parent_reference((int) i, block_size);
+  } else {
+    if (r2->region_->get_block_size() != block_size) {
+      throw new FatalError("blocksizes are wrong!");
+    }
   }
 }
 

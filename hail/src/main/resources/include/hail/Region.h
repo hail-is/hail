@@ -100,7 +100,7 @@ class Region {
     void set_num_parents(int n);
     void set_parent_reference(SharedPtr region, int i);
     SharedPtr get_parent_reference(int i);
-    SharedPtr new_parent_reference(int i);
+    SharedPtr new_parent_reference(int i, size_t block_size);
     void clear_parent_reference(int i);
 };
 

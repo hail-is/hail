@@ -990,7 +990,7 @@ private class Emit(
 
         val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         void(
-          sc(i).loadRegion(Code.newInstance[Region]()),
+          sc(i).newRegion,
           rvAgg.initOp(sc(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
@@ -1090,7 +1090,7 @@ private class Emit(
           .map(_.unserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => sc(i).loadRegion(Code.newInstance[Region]())): _*))
+          .map(i => sc(i).newRegion): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
@@ -1112,7 +1112,7 @@ private class Emit(
           .map(_.unserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
-          .map(i => sc(i).loadRegion(Code.newInstance[Region]())): _*))
+          .map(i => sc(i).newRegion): _*))
 
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
