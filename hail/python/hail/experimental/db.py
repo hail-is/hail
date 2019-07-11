@@ -10,7 +10,7 @@ class DB:
     @staticmethod
     def annotation_dataset_urls():
         if DB._annotation_dataset_urls is None:
-            r = requests.get("https://storage.cloud.google.com/hail-common/annotationdb/1/annotation_db.json")
+            r = requests.get("https://www.googleapis.com/storage/v1/b/hail-common/o/annotationdb%2f1%2fannotation_db.json?alt=media")
             j = r.json()
             
             DB._annotation_dataset_urls = {(x["name"], x["reference_genome"]): (x["path"], x["gene_key"]) for x in j}
