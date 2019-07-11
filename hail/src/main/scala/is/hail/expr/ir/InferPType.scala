@@ -38,18 +38,20 @@ object InferPType {
       case NA(t) => PType.canonical(t)
       case IsNA(_) => PBoolean()
       case Coalesce(values) => {
-        values.head.inferSetPType(env)
-        values.head.pType
+        val vit = values.iterator
+        val head = values.iterator.next()
+        head.inferSetPType(env)
+
+        while(vit.hasNext) {
+          val value = vit.next()
+          value.inferSetPType(env)
+
+          assert(head.pType == value.pType)
+        }
       }
-      case Ref(name, t) => {
-        // TODO: Look up the name in the environment, or take the type as canonical?
-        // For now stay with canonical, as simpler
-        PType.canonical(t)
-      }
-      case RelationalRef(_, t) => PType.canonical(t)
-      case RelationalLet(_, _, body) => {
-        body.inferSetPType(env)
-        body.pType
+      // TODO: Why is there a type (var _type) on Ref? Cache to avoid lookup? if so seems area for bugs
+      case Ref(name, _) => {
+        env.eval.lookup(name)
       }
       case In(_, t) => PType.canonical(t)
       // TODO: need to descend into args?
@@ -142,19 +144,17 @@ object InferPType {
         // TODO: This calls setRequired on the virtual types
         PType.canonical(a.implementation.returnType.subst())
       }
-
       case _: Uniroot => PFloat64()
+      // TODO: check that i.pType isOfType is correct (for ArrayRef, ArraySort)
       case ArrayRef(a, i) => {
         a.inferSetPType(env)
         i.inferSetPType(env)
-        // Again, not sure what equality check here is...reference?
         assert(i.pType isOfType PInt32() )
         coerce[PStreamable](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
       }
       case ArraySort(a, _, _, compare) => {
         a.inferSetPType(env)
         compare.inferSetPType(env)
-        // Again, not sure what equality check here is...reference?
         assert(compare.pType.isOfType(PBoolean()))
         val et = coerce[PStreamable](a.pType).elementType
         PArray(et, a.pType.required)
