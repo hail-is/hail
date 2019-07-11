@@ -807,8 +807,9 @@ object Interpret {
           }
 
           value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
-            val globalsOffset = globalsBc.value.readRegionValue(ctx.freshRegion)
-            val seqOpsFunction = seqOps(i, ctx.r)
+            val partRegion =  ctx.freshRegion
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+            val seqOpsFunction = seqOps(i, partRegion)
             (globalsOffset, seqOpsFunction)
           })({ case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)

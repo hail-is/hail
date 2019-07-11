@@ -956,9 +956,10 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       scanInitOps(0, ctx.r)(ctx.r, scanAggs, tv.globals.value.offset, false)
 
       val scannedAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(ctx.freshRegion) else 0L
+        val partRegion = ctx.freshRegion
+        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(partRegion) else 0L
 
-        val scanSeqOpF = scanSeqOps(i, ctx.r)
+        val scanSeqOpF = scanSeqOps(i, partRegion)
         it.foreach { rv =>
           scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
           ctx.region.clear()
