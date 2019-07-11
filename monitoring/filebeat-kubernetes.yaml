@@ -15,7 +15,9 @@ data:
         # Reload inputs configs as they change:
         reload.enabled: false
       modules:
-        path: ${path.config}/modules.d/*.yml
+      - module: kibana
+      - module: elasticsearch
+      - module: system
         # Reload module configs as they change:
         reload.enabled: false
 
