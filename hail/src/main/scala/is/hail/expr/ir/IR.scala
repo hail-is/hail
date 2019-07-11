@@ -120,12 +120,12 @@ object If {
       cnsq match {
         case NA(_) => If(cond, NA(altr.typ), altr)
         case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
-        case Literal(_, value) => If(cond, Literal(altr.typ, value), altr)
+        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
         case _ =>
           altr match {
             case NA(_) => If(cond, cnsq, NA(cnsq.typ))
             case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
-            case Literal(_, value) => If(cond, cnsq, Literal(cnsq.typ, value))
+            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
             case _ =>
               val t = unifyType.getOrElse(cnsq.typ.deepOptional())
               If(cond,
