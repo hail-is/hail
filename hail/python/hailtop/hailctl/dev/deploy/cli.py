@@ -9,13 +9,24 @@ def init_parser(parser):
     parser.add_argument('profile', type=str, choices=['batch_test'])
 
 def main(args):
-    # For now, let's find CI and just manually call the damn function. 
-    result = asyncio.run(ci.dev_test_branch({
-        'userdata': {
-            'username': 'johnc1231'
-        },
-        'repo': args.repo,
-        'branch': args.branch,
-        'profile': args.profile,
-        'namespace': args.namespace
-    }))
+    # For now, let's find CI and just manually call the damn function.
+    async with aiohttp.ClientSession() as session:
+        session.post('https://batch.hail.is/apiserver, json={
+            'userdata': {
+                'username': 'johnc1231'
+            },
+            'repo': args.repo,
+            'branch': args.branch,
+            'profile': args.profile,
+            'namespace': args.namespace
+        })
+
+    # asyncio.run(ci.dev_test_branch({
+    #     'userdata': {
+    #         'username': 'johnc1231'
+    #     },
+    #     'repo': args.repo,
+    #     'branch': args.branch,
+    #     'profile': args.profile,
+    #     'namespace': args.namespace
+    # }))
