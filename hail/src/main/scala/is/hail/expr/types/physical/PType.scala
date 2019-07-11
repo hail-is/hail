@@ -4,7 +4,8 @@ import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual._
-import is.hail.expr.types.{BaseType, EncodedType}
+import is.hail.expr.types.encoded.EType
+import is.hail.expr.types.BaseType
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -143,8 +144,6 @@ object PType {
       case PVoid => PVoid
     }
   }
-
-  def canonical(t: EncodedType): PType = canonical(t.virtualType)
 }
 
 abstract class PType extends BaseType with Serializable {
