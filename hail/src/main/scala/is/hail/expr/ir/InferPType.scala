@@ -223,12 +223,21 @@ object InferPType {
 
         coerce[PStreamable](a.pType).copyStreamable(zero.pType)
       }
-      case ArrayAgg(_, _, query) => {
-        query.inferSetPType(env)
+      case ArrayAgg(a, name, query) => {
+        a.inferSetPType(env)
+        // TODO: figure out use of bindAgg vs bindEval
+        // In PruneDeadFields, sometimes scan and agg are flatteneed into eval, ex:
+        //        unifyEnvs(
+        //          BindingEnv(eval = concatEnvs(Array(queryEnv.eval.delete(name), queryEnv.scanOrEmpty.delete(name)))),
+        //          aEnv)
+        // That seems reasonable, to allow us to look up env in only .eval
+        query.inferSetPType(env.bindAgg(name, a.pType))
         query.pType
       }
-      case ArrayAggScan(_, _, query) => {
-        query.inferSetPType(env)
+      case ArrayAggScan(a, name, query) => {
+        a.inferSetPType(env)
+        // TODO: figure out use of bindScan vs bindEval
+        query.inferSetPType(env.bindScan(name, a.pType))
         PArray(query.pType)
       }
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
@@ -318,7 +327,11 @@ object InferPType {
         PNDArray(lTyp.elementType, PNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
       }
       case NDArrayWrite(_, _) => PVoid
-      case AggFilter(_, aggIR, _) => {
+      case AggFilter(cond, aggIR, isScan) => {
+        cond.inferSetPType(env)
+        // TODO: Does AggFilter need cond env? If so under what name do we bind it
+        // I can imagine a case where the operation taken matters quite a lot
+        // example: we are subtracting a series of numbers, and know our largest number is < 2^31
         aggIR.inferSetPType(env)
         aggIR.pType
       }
@@ -340,22 +353,48 @@ object InferPType {
         aggBody.pType
       }
       case AggGroupBy(key, aggIR, isScan) => {
+        // TODO: Check that aggIR doesn't need key pType; don't think so, Parser doesn't bind key env to aggIR
         key.inferSetPType(env)
         aggIR.inferSetPType(env)
 
         PDict(key.pType, aggIR.pType)
       }
-      case AggArrayPerElement(a, _, _, aggBody, _, _) => {
-        // TODO: Case "AggArrayPerElement" in Parser shows that aggBody already has its env from a,
-        // but that this is given as type
-        aggBody.inferSetPType(env)
+      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => {
+        a.inferSetPType(env)
+
+        knownLength match {
+          case Some(lengthIR) => lengthIR.inferSetPType(env)
+        }
+        // TODO: If we statically know the length, I would like to use that during inference
+        val boundEnv =
+          if (isScan)
+            env.bindScan(elementName -> a.pType)
+          else
+            env.bindScan(elementName -> a.pType)
+        aggBody.inferSetPType(boundEnv)
         PArray(aggBody.pType)
       }
-      case ApplyAggOp(_, _, _, aggSig) => {
+      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) => {
+        constructorArgs.foreach(_.inferSetPType(env))
+
+        initOpArgs match {
+          case Some(opArgs) => opArgs.foreach(_.inferSetPType(env))
+        }
+
+        seqOpArgs.foreach(_.inferSetPType(env))
+
         // TODO: Something else?
         PType.canonical(AggOp.getType(aggSig))
       }
-      case ApplyScanOp(_, _, _, aggSig) => {
+      case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) => {
+        constructorArgs.foreach(_.inferSetPType(env))
+
+        initOpArgs match {
+          case Some(opArgs) => opArgs.foreach(_.inferSetPType(env))
+        }
+
+        seqOpArgs.foreach(_.inferSetPType(env))
+
         // TODO: Something else?
         PType.canonical(AggOp.getType(aggSig))
       }
@@ -408,9 +447,11 @@ object InferPType {
         val fd = t.types(idx)
         fd.setRequired(t.required && fd.required)
       }
-      case CollectDistributedArray(_, _, _, _, body) => {
-        // TODO: Need env from other members?
-        body.inferSetPType(env)
+      case CollectDistributedArray(contexts, globals, contextsName, globalsName, body) => {
+        contexts.inferSetPType(env)
+        globals.inferSetPType(env)
+
+        body.inferSetPType(env.bindEval(contextsName -> contexts.pType, globalsName -> globals.pType))
         PArray(body.pType)
       }
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
