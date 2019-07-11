@@ -2,6 +2,7 @@ package is.hail.variant
 
 import java.io.FileNotFoundException
 
+import is.hail.annotations.Region
 import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
@@ -166,8 +167,10 @@ class ReferenceGenomeSuite extends HailSuite {
     val rgfield = fb.newLazyField(grch38.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getArg[String](1)))
 
-    val f = fb.resultWithIndex()(0)
-    assert(f("X") == grch38.isValidContig("X"))
+    Region.scoped { r =>
+      val f = fb.resultWithIndex()(0, r)
+      assert(f("X") == grch38.isValidContig("X"))
+    }
   }
 
   @Test def testSerializeWithFastaOnFB() {
@@ -183,8 +186,10 @@ class ReferenceGenomeSuite extends HailSuite {
     val rgfield = fb.newLazyField(rg.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Int, Int, Int, String]("getSequence", fb.getArg[String](1), fb.getArg[Int](2), fb.getArg[Int](3), fb.getArg[Int](4)))
 
-    val f = fb.resultWithIndex()(0)
-    assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
+    Region.scoped { r =>
+      val f = fb.resultWithIndex()(0, r)
+      assert(f("a", 25, 0, 5) == rg.getSequence("a", 25, 0, 5))
+    }
   }
 
   @Test def testSerializeWithLiftoverOnFB() {
@@ -197,8 +202,10 @@ class ReferenceGenomeSuite extends HailSuite {
     val rgfield = fb.newLazyField(grch37.codeSetup(fb))
     fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
 
-    val f = fb.resultWithIndex()(0)
-    assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))
-    grch37.removeLiftover("GRCh38")
+    Region.scoped { r =>
+      val f = fb.resultWithIndex()(0, r)
+      assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))
+      grch37.removeLiftover("GRCh38")
+    }
   }
 }

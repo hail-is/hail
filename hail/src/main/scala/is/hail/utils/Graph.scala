@@ -79,7 +79,7 @@ object Graph {
           rvb.endTuple()
           val rOffset = rvb.end()
 
-          val resultOffset = f(0)(region, lOffset, false, rOffset, false)
+          val resultOffset = f(0, region)(region, lOffset, false, rOffset, false)
           SafeRow(t.asInstanceOf[PBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
         }
       }

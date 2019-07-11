@@ -284,8 +284,8 @@ object TestUtils {
           // aggregate
           i = 0
           rvAggs.foreach(_.clear())
-          initOps(0)(region, rvAggs, argsOff, false)
-          var seqOpF = seqOps(0)
+          initOps(0, region)(region, rvAggs, argsOff, false)
+          var seqOpF = seqOps(0, region)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -299,8 +299,8 @@ object TestUtils {
 
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
-          initOps(0)(region, rvAggs2, argsOff, false)
-          seqOpF = seqOps(1)
+          initOps(0, region)(region, rvAggs2, argsOff, false)
+          seqOpF = seqOps(1, region)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -325,7 +325,7 @@ object TestUtils {
           rvb.endTuple()
           val aggResultsOff = rvb.end()
 
-          val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
+          val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
 
@@ -347,7 +347,7 @@ object TestUtils {
           rvb.endTuple()
           val argsOff = rvb.end()
 
-          val resultOff = f(0)(region, argsOff, false)
+          val resultOff = f(0, region)(region, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
     }
