@@ -1,3 +1,3 @@
-from .ci import run, dev_test_branch
+from .ci import run
 
 __all__ = ['run']
