@@ -1,9 +1,7 @@
 
-# Scientific Output from the Hail Community  
+# Hail-Powered Science
 
-The following is a sample of research results that have used Hail as some part of the
-scientific pipeline.  If you would like your work added to this list, please
-[edit the page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md). Please adhere to the formatting conventions used on this page. We will review the pull request and incorporate any additions.  
+The following is an incomplete list of scientific work enabled by Hail. We welcome you to add additional examples by [editing the page directly]((https://github.com/hail-is/hail/edit/master/hail/www/references.md)), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.  
 
 ## 2019
 
