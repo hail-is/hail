@@ -9,13 +9,17 @@ $.ajax({
         success: function (data) {
              console.log(data);
              var tr = data.report
+             var mySet = new Set();
                     for (var i = 0; i < data.length; i++) {
+                    if(!mySet.has(data[i].name)){
+                        mySet.add(data[i].name);
                         tr = $('<tr/>');
                         tr.append("<td><input type='checkbox' class='checkboxadd' value='"+data[i].name+"' onClick='updateTextArea()'/>&nbsp;</td>")
                         tr.append("<td>" + data[i].name + "</td>");
                         tr.append("<td>" + data[i].description + "\n<a href='"+ data[i].url + "'>" +data[i].url+ "</a></td>");
                         $('.table1').append(tr);
-                    }
+                     }
+                }
         }
     });
 
