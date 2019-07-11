@@ -9,6 +9,7 @@ steps:
     - gcr-pull-key
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
+    - auth-oauth2-client-secret
  - kind: deploy
    name: deploy_batch_sa
    namespace:
@@ -106,7 +107,8 @@ steps:
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
    serviceAccount: ci-agent
    secrets:
-    - name: sql-users-users-admin-config
+    - name:
+        valueFrom: users_database.admin_secret_name
       mountPath: /sql-users-users-admin-config
    scopes:
     - test
@@ -467,6 +469,7 @@ steps:
     - deploy
    dependsOn:
     - default_ns
+    - users_database
     - auth_image
  - kind: createDatabase
    name: ci_database
