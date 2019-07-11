@@ -61,6 +61,9 @@ spec:
       containers:
        - name: router-resolver
          image: "{{ router_resolver_image.image }}"
+	 env:
+          - name: HAIL_DEFAULT_NAMESPACE
+            value: "{{ default_ns.name }}"
          resources:
            requests:
              memory: "250M"
@@ -69,16 +72,16 @@ spec:
              memory: "1G"
              cpu: "1"
          volumeMounts:
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
+          - name: session-secret-keys
+            mountPath: /session-secret-keys
             readOnly: true
          ports:
           - containerPort: 5000
       volumes:
-       - name: jwt-secret-key
+       - name: session-secret-keys
          secret:
            optional: false
-           secretName: jwt-secret-key
+           secretName: session-secret-keys
 ---
 apiVersion: v1
 kind: Service

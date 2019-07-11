@@ -23,17 +23,14 @@ uvloop.install()
 
 routes = web.RouteTableDef()
 
-CLIENT_SECRET = '/auth-oauth2-client-secret/client_secret.json'
-SCOPES = [
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'openid'
-]
-
-
 def get_flow(redirect_uri, state=None):
+    scopes = [
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email',
+        'openid'
+    ]
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        CLIENT_SECRET, scopes=SCOPES, state=state)
+        '/auth-oauth2-client-secret/client_secret.json', scopes=scopes, state=state)
     flow.redirect_uri = redirect_uri
     return flow
 
@@ -77,7 +74,6 @@ async def callback(request):
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
             flow.credentials.id_token, google.auth.transport.requests.Request())
-        log.info(f'token {token}')
         id = token['sub']
     except Exception:
         log.exception('oauth2 callback: could not fetch and verify token')
@@ -88,7 +84,6 @@ async def callback(request):
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
             users = await cursor.fetchall()
-            log.info(f'users {len(users)} {users}')
 
     if len(users) != 1:
         raise unauth
@@ -162,7 +157,6 @@ async def rest_callback(request):
         async with conn.cursor() as cursor:
             await cursor.execute('SELECT * from users.user_data where user_id = %s;', f'google-oauth2|{id}')
             users = await cursor.fetchall()
-            log.info(f'users {len(users)} {users}')
 
     if len(users) != 1:
         raise unauth
@@ -172,7 +166,7 @@ async def rest_callback(request):
 
     async with dbpool.acquire() as conn:
         async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id) VALUES (%s, %s, %s, %s);',
+            await cursor.execute('INSERT INTO users.sessions (session_id, kind, user_id, max_age_secs) VALUES (%s, %s, %s, %s);',
                                  # 2592000s = 30d
                                  (session_id, 'web', user['id'], 2592000))
 

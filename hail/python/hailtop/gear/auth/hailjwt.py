@@ -5,10 +5,9 @@ from functools import wraps
 from aiohttp import web
 import jwt
 
-from gear.utils import unimplemented
-
 log = logging.getLogger('gear.auth')
 
+DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
 class JWTClient:
     __ALGORITHM = 'HS256'
@@ -51,7 +50,7 @@ def get_jwtclient():
     global jwtclient
     
     if not jwtclient:
-        with open('/jwt-secret-key/secret-key', 'rb') as f:
+        with open('/session-secret-keys/jwt-secret-key', 'rb') as f:
             jwtclient = JWTClient(f.read())
     return jwtclient
 
@@ -75,7 +74,8 @@ class Authentication(abc.ABC):
             if session_id:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get('https://auth.hail.is/api/v1alpha/userinfo',
+                        # FIXME parameterize default namespace for testing
+                        async with session.get('http://auth.{DEFAULT_NAMESPACE}.svc.cluster.local/api/v1alpha/userinfo',
                                                headers={'Authentication': f'token {session_id}'}) as resp:
                             userdata = await resp.json()
                 except Exception as e:

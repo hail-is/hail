@@ -44,14 +44,11 @@ spec:
           - name: auth-oauth2-client-secret
             mountPath: /auth-oauth2-client-secret
             readOnly: true
-          - name: aiohttp-session-secret-key
-            mountPath: /aiohttp-session-secret-key
+          - name: session-secret-keys
+            mountPath: /session-secret-keys
             readOnly: true
           - name: sql-users-users-user-config
             mountPath: /sql-users-users-user-config
-            readOnly: true
-          - name: jwt-secret-key
-            mountPath: /jwt-secret-key
             readOnly: true
          ports:
           - containerPort: 5000
@@ -60,18 +57,14 @@ spec:
          secret:
            optional: false
            secretName: auth-oauth2-client-secret
-       - name: aiohttp-session-secret-key
+       - name: session-secret-keys
          secret:
            optional: false
-           secretName: aiohttp-session-secret-key
+           secretName: session-secret-keys
        - name: sql-users-users-user-config
          secret:
            optional: false
            secretName: sql-users-users-user-config
-       - name: jwt-secret-key
-         secret:
-           optional: false
-           secretName: jwt-secret-key
 ---
 apiVersion: v1
 kind: Service

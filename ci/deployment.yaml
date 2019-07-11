@@ -27,31 +27,31 @@ spec:
               memory: "1G"
               cpu: "1"
           env:
-            - name: HAIL_CI_OAUTH_TOKEN
-              value: /secrets/oauth-token/oauth-token
+           - name: HAIL_DEFAULT_NAMESPACE
+             value: "{{ default_ns.name }}"
+           - name: HAIL_CI_OAUTH_TOKEN
+             value: /secrets/oauth-token/oauth-token
 {% if deploy %}
-            - name: HAIL_WATCHED_BRANCHES
-              value: '[["hail-is/hail:master",true]]'
+           - name: HAIL_WATCHED_BRANCHES
+             value: '[["hail-is/hail:master",true]]'
 {% else %}
-            - name: HAIL_WATCHED_BRANCHES
-              value: '[]'
+           - name: HAIL_WATCHED_BRANCHES
+             value: '[]'
 {% endif %}
-            - name: BATCH_SERVER_URL
-              value: http://batch.{{ default_ns.name }}
-            - name: HAIL_GCP_PROJECT
-              value: "{{ global.project }}"
-            - name: HAIL_CI_UTILS_IMAGE
-              value: "{{ ci_utils_image.image }}"
-            - name: HAIL_IP
-              value: "{{ global.ip }}"
-            - name: HAIL_DOMAIN
-              value: "{{ global.domain }}"
-            - name: HAIL_TOKEN_FILE
-              value: '/ci-jwt/jwt'
-            - name: HAIL_SELF_HOSTNAME
-              value: ci
-            - name: HAIL_JWT_SECRET_KEY_FILE
-              value: /jwt-secret-key/secret-key
+           - name: BATCH_SERVER_URL
+             value: http://batch.{{ default_ns.name }}
+           - name: HAIL_GCP_PROJECT
+             value: "{{ global.project }}"
+           - name: HAIL_CI_UTILS_IMAGE
+             value: "{{ ci_utils_image.image }}"
+           - name: HAIL_IP
+             value: "{{ global.ip }}"
+           - name: HAIL_DOMAIN
+             value: "{{ global.domain }}"
+           - name: HAIL_TOKEN_FILE
+             value: '/ci-jwt/jwt'
+           - name: HAIL_SELF_HOSTNAME
+             value: ci
           ports:
             - containerPort: 5000
           volumeMounts:
@@ -64,8 +64,8 @@ spec:
            - mountPath: /ci-jwt
              name: ci-jwt
              readOnly: true
-           - mountPath: /jwt-secret-key
-             name: jwt-secret-key
+           - mountPath: /session-secret-keys
+             name: session-secret-keys
              readOnly: true
           livenessProbe:
             httpGet:
@@ -90,10 +90,10 @@ spec:
        - name: ci-jwt
          secret:
            secretName: ci-jwt
-       - name: jwt-secret-key
+       - name: session-secret-keys
          secret:
            optional: false
-           secretName: jwt-secret-key
+           secretName: session-secret-keys
 ---
 apiVersion: v1
 kind: Service

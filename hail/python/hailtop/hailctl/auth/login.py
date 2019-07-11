@@ -53,9 +53,8 @@ async def auth_flow(session):
     authorization_url = resp['authorization_url']
     state = resp['state']
 
-    
     print(f'''
-Visit this URL to log into Hail with Google:
+Visit the following URL to log into Hail with Google:
 
     {authorization_url}
 
