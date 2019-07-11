@@ -6,5 +6,5 @@ def setup_aiohttp_session(app):
         aiohttp_session.setup(app, aiohttp_session.cookie_storage.EncryptedCookieStorage(
             f.read(),
             cookie_name='session',
-            # 30d
-            max_age=30 * 24 * 60 * 60))
+            # 2592000s = 30d
+            max_age=2592000))

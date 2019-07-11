@@ -1,8 +1,11 @@
+import abc
 import os
 import logging
 from functools import wraps
 from aiohttp import web
 import jwt
+
+from gear.utils import unimplemented
 
 log = logging.getLogger('gear.auth')
 
@@ -53,56 +56,77 @@ def get_jwtclient():
     return jwtclient
 
 
-async def get_web_session_id(request):
-    session = await aiohttp_session.get_session(request)
-    if not session:
-        return None
-    return session.get('session_id')
+class Authentication(abc.ABC):
+    @staticmethod
+    @abc.abstractmethod
+    def get_session_id(request):
+        ...
 
+    @staticmethod
+    @abc.abstractmethod
+    def unauthorized():
+        ...
 
-async def get_rest_session_id(request):
-    auth_header = request.headers.get('Authorization')
-    if not auth_header:
-        return None
-    if not auth_header.startswith('Bearer '):
-        return None
-    encoded_token = auth_header[7:]
-    payload = get_jwtclient().decode(encoded_token)
-    return payload.get('session_id')
-
-
-def authenticated_users_only(get_session_id):
-    def wrap(fun):
+    @staticmethod
+    def authenticated_users_only(fun):
         @wraps(fun)
         async def wrapped(request, *args, **kwargs):
-            session_id = await get_session_id(request)
+            session_id = get_session_id(request)
             if session_id:
                 try:
                     async with aiohttp.ClientSession() as session:
-                        async with session.get('https://auth.hail.is/api/v1alpha/session/{session_id}') as resp:
+                        async with session.get('https://auth.hail.is/api/v1alpha/userinfo',
+                                               headers={'Authentication': f'token {session_id}'}) as resp:
                             userdata = await resp.json()
-                            return await fun(request, userdata, *args, **kwargs)
-                except jwt.exceptions.InvalidTokenError as exc:
-                    log.info(f'could not decode token: {exc}')
-            raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+                except Exception as e:
+                    log.exception('getting userinfo')
+                    raise unauthorized()
+                return fun(request, userdata, *args, **kwargs)
+            else:
+                raise unauthorized()
         return wrapped
-    return wrap
 
-
-def authenticated_developers_only(get_session_id):
-    def wrap(fun):
-        @authenticated_users_only(get_session_id)
+    @staticmethod
+    def authenticated_developers_only(fun):
+        @auth_users_only
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
             if ('developer' in userdata) and userdata['developer'] is 1:
                 return await fun(request, *args, **kwargs)
-            raise web.HTTPNotFound()
+            unauthorized()
         return wrapped
-    return wrap
 
 
-rest_authenticated_users_only = authenticated_users_only(get_rest_session_id)
-rest_authenticated_developers_only = authenticated_developers_only(get_rest_session_id)
+class RESTAuthentication(Authentication):
+    def get_session_id(request):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return None
+        if not auth_header.startswith('Bearer '):
+            return None
+        encoded_token = auth_header[7:]
+        payload = get_jwtclient().decode(encoded_token)
+        return payload.get('sub')
 
-web_authenticated_users_only = authenticated_users_only(get_web_session_id)
-web_authenticated_developers_only = authenticated_developers_only(get_web_session_id)
+    def rest_unauthorized():
+        raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
+
+
+rest_get_session_id = RESTAuthentication.get_session_id
+rest_authenticated_users_only = RESTAuthentication.authenticated_users_only
+rest_authenticated_developers_only = RESTAuthentication.authenticated_developers_only
+
+
+class WebAuthentication(Authentication):
+    async def get_session_id(request):
+        session = await aiohttp_session.get_session(request)
+        if not session:
+            return None
+        return session.get('session_id')
+
+    def web_unauthorized():
+        raise web.HTTPUnauthorized()
+
+
+web_authenticated_users_only = WebAuthentication.authenticated_users_only
+web_authenticated_developers_only = WebAuthentication.authenticated_developers_only

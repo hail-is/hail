@@ -1,6 +1,7 @@
 import os
 import socket
 import asyncio
+import webbrowser
 import aiohttp
 from aiohttp import web
 
@@ -52,12 +53,15 @@ async def auth_flow(session):
     authorization_url = resp['authorization_url']
     state = resp['state']
 
-    # FIXME use webbrowser module
+    
     print(f'''
-To log into Hail using Google, in your browser, visit:
+Visit this URL to log into Hail with Google:
 
     {authorization_url}
+
+Opening is your browsers.
 ''')
+    webbrowser.open(authorization_url)
 
     code = await runner.app['q'].get()
     await runner.cleanup()

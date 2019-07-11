@@ -23,6 +23,8 @@ CREATE TABLE `sessions` (
   `session_id` varchar(255) NOT NULL,
   `kind` varchar(255) NOT NULL,
   `user_id` int(11) NOT NULL,
+  `max_age_secs` BIGINT DEFAULT NULL,
+  `created` TIMESTAMP DEFAULT NOW(),
   PRIMARY KEY (`session_id`),
   FOREIGN KEY (`user_id`) REFERENCES user_data(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
