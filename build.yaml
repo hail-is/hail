@@ -71,7 +71,7 @@ steps:
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
-     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete ci-jwt
+     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret ci-jwt
      kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./jwt
      # test
      # test-gsa-key exists
