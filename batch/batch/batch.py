@@ -1182,7 +1182,7 @@ async def kube_event_loop():
                 HAIL_POD_NAMESPACE,
                 label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
             async for event in DeblockedIterator(stream):
-                log.info(f'received event', event=event)
+                log.info(f'received event {event}')
                 await pod_changed(event['object'])
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'k8s event stream failed due to: {exc}')
