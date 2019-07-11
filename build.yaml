@@ -115,6 +115,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - users_database
     - base_image
  - kind: buildImage
    name: hail_build_image
