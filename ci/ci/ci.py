@@ -329,7 +329,6 @@ async def on_startup(app):
 
     asyncio.ensure_future(update_loop(app))
 
-app.on_startup.append(on_startup)
 
 
 async def on_cleanup(app):
@@ -340,10 +339,11 @@ async def on_cleanup(app):
     dbpool.close()
     await dbpool.wait_closed()
 
-app.on_cleanup.append(on_cleanup)
 
 
 def run():
-    web.run_app(app, host='0.0.0.0', port=5000)
-    routes.static('/static', 'ci/static')
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
     app.add_routes(routes)
+    routes.static('/static', 'ci/static')
+    web.run_app(app, host='0.0.0.0', port=5000)
