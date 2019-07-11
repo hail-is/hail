@@ -51,24 +51,23 @@ jwtclient = None
 
 def authenticated_users_only(token_getter):
     def wrap(fun):
-        # global jwtclient
+        global jwtclient
 
-        # if not jwtclient:
-        #     with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
-        #                              '/jwt-secret-key/secret-key'), 'rb') as f:
-        #         jwtclient = JWTClient(f.read())
+        if not jwtclient:
+            with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE',
+                                     '/jwt-secret-key/secret-key'), 'rb') as f:
+                jwtclient = JWTClient(f.read())
 
-        # @wraps(fun)
-        # def wrapped(request, *args, **kwargs):
-        #     encoded_token = token_getter(request)
-        #     if encoded_token is not None:
-        #         try:
-        #             userdata = jwtclient.decode(encoded_token)
-        #             return fun(request, userdata, *args, **kwargs)
-        #         except jwt.exceptions.InvalidTokenError as exc:
-        #             log.info(f'could not decode token: {exc}')
-        #     raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
-        wrapped = lambda x: x
+        @wraps(fun)
+        def wrapped(request, *args, **kwargs):
+            encoded_token = token_getter(request)
+            if encoded_token is not None:
+                try:
+                    userdata = jwtclient.decode(encoded_token)
+                    return fun(request, userdata, *args, **kwargs)
+                except jwt.exceptions.InvalidTokenError as exc:
+                    log.info(f'could not decode token: {exc}')
+            raise web.HTTPUnauthorized(headers={'WWW-Authenticate': 'Bearer'})
         return wrapped
     return wrap
 
