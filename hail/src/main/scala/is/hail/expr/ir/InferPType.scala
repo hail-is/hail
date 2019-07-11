@@ -408,34 +408,6 @@ object InferPType {
         val fd = t.types(idx)
         fd.setRequired(t.required && fd.required)
       }
-      case TableCount(_) => {
-        PInt64()
-      }
-      case TableAggregate(child, query) => {
-        // TODO: is this env sufficient? Does child need to be inferred?
-        query.inferSetPType(env)
-        query.pType
-      }
-      case MatrixAggregate(child, query) => {
-        // TODO: is child env needed
-        query.inferSetPType(env)
-        query.pType
-      }
-      case _: TableWrite => PVoid
-      case _: TableMultiWrite => PVoid
-      case _: MatrixWrite => PVoid
-      case _: MatrixMultiWrite => PVoid
-      case _: BlockMatrixWrite => PVoid
-      case _: BlockMatrixMultiWrite => PVoid
-      // TODO: Was previously told all rowType use is probably wrong, fix this....
-      // TODO: This is probably wrong, but TableIR doesn't infer types in a similar way to IR
-      // TODO: Should we infer physical type in TableIR?
-      case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
-      // TODO: Again seems wrong, however can't rely on .physicalType
-      case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
-      case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
-      case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
-      case BlockMatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case CollectDistributedArray(_, _, _, _, body) => {
         // TODO: Need env from other members?
         body.inferSetPType(env)
