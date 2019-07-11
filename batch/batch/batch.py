@@ -774,7 +774,7 @@ class Batch:
             else:
                 state = 'running'
 
-            complete = record['closed'] and (state == 'cancelled' or record['n_completed'] == record['n_jobs'])
+            complete = record['closed'] and record['n_completed'] == record['n_jobs']
 
             return Batch(id=record['id'],
                          attributes=attributes,
