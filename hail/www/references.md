@@ -3,7 +3,7 @@
 
 The following is a sample of research results that have used Hail as some part of the
 scientific pipeline.  If you would like your work added to this list, please
-reach out to the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
+[edit the page directly](https://github.com/hail-is/hail/edit/master/hail/www/references.md). Please adhere to the formatting conventions used on this page. We will review the pull request and incorporate any additions.  
 
 ## 2019
 
