@@ -82,13 +82,6 @@ div.panel .panel-body p:last-child {
   color: black;
 }
 
-.table>tbody>tr>td, .table>tbody>tr>th, .table>tfoot>tr>td, .table>tfoot>tr>th, .table>thead>tr>td, .table>thead>tr>th {
-    padding: 8px;
-    line-height: 1.42857143;
-    vertical-align: top;
-    border-top: 1px solid #ddd;
-    width: auto;
-}
 
 #table1 td, #table1 th{
   display: table-cell;
@@ -108,6 +101,11 @@ table{
     border-collapse: collapse;
     resize: none;
     table-layout:fixed;
+    display: block;
+    height: 770px;
+    width: 747px;
+    overflow-y: auto;
+
 }
 
 textarea {
