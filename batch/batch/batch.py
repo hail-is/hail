@@ -767,7 +767,7 @@ class Batch:
 
             if record['n_failed'] > 0:
                 state = 'failure'
-            elif record['n_cancelled'] > 0:
+            elif record['cancelled']:
                 state = 'cancelled'
             elif record['closed'] and record['n_succeeded'] == record['n_jobs']:
                 state = 'success'
