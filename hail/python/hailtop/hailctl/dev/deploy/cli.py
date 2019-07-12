@@ -1,6 +1,5 @@
-import aiohttp
 import asyncio
-import ci
+import aiohttp
 
 def init_parser(parser):
     parser.add_argument('repo', type=str)
@@ -9,8 +8,11 @@ def init_parser(parser):
     parser.add_argument('profile', type=str, choices=['batch_test'])
 
 def main(args):
+    asyncio.run(submit(args))
+
+async def submit(args):
     async with aiohttp.ClientSession() as session:
-        session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json={
+        data = {
             'userdata': {
                 'username': 'johnc1231'
             },
@@ -18,5 +20,6 @@ def main(args):
             'branch': args.branch,
             'profile': args.profile,
             'namespace': args.namespace
-        })
-
+        }
+        async with session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json=data) as resp:
+            print(await resp.text())
