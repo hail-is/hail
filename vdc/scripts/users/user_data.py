@@ -345,7 +345,6 @@ def email_to_username(email):
 
 
 def create_user_db(kube_namespace, username):
-    # Create secrets
     data = {
         'db_name': username,
         'admin_role': f"{username}-admin",
@@ -436,7 +435,6 @@ def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
 
 
 def delete_all_idempotent(user_id, google_project, kube_namespace):
-
     existing = table.get(user_id)
 
     if existing is None:
