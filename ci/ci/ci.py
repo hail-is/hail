@@ -267,14 +267,13 @@ async def batch_callback_handler(request):
 async def dev_test_branch(request):
     params = request.json()
     userdata = params['userdata']
-    repo_owner, repo_name = tuple(params['repo'].split('/'))
-    repo = Repo(repo_owner, repo_name)
+    repo = Repo.from_short_str(params['repo'])
     fq_branch = FQBranch(repo, params.get('branch'))
     namespace = params['namespace']
     profile = params['profile']
 
     gh = app['github_client']
-    request_string = f'/repos/{repo_owner}/{repo_name}/git/refs/heads/{fq_branch.name}'
+    request_string = f'/repos/{repo.owner}/{repo.name}/git/refs/heads/{fq_branch.name}'
     branch_gh_json = await gh.getitem(request_string)
     sha = branch_gh_json['object']['sha']
 
