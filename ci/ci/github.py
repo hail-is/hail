@@ -811,10 +811,6 @@ mkdir -p {shq(repo_dir)}
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
-            #Think: For every step, need to know if it had a yaml config to tear down.
-            #So much harder than dropping the namespace. Sigh. 
-            #
-
             deploy_batch = batch_client.create_batch(
                 attributes={
                     'token': secrets.token_hex(16),
