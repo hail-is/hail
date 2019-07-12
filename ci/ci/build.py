@@ -492,12 +492,6 @@ metadata:
   name: {self._name}
   labels:
     for: test
-'''
-
-        if self.admin_service_account:
-            admin_service_account_name = self.admin_service_account['name']
-            admin_service_account_namespace = self.admin_service_account['namespace']
-            config = config + f'''\
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -508,6 +502,31 @@ rules:
 - apiGroups: [""]
   resources: ["*"]
   verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: admin-{self.namespace_name}-admin-binding
+  namespace: {self._name}
+subjects:
+- kind: ServiceAccount
+  name: admin
+  namespace: {self._name}
+roleRef:
+  kind: Role
+  name: {self.namespace_name}-admin
+  apiGroup: ""
+'''
+
+        if self.admin_service_account:
+            admin_service_account_name = self.admin_service_account['name']
+            admin_service_account_namespace = self.admin_service_account['namespace']
+            config = config + f'''\
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
