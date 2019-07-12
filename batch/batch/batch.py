@@ -232,14 +232,14 @@ class Job:
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.full_id}')
-                self.set_state('Running')
+                await self.set_state('Running')
                 return
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
             return
 
-        self.set_state('Running')
+        await self.set_state('Running')
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
@@ -513,12 +513,12 @@ class Job:
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
         if self._state == 'Pending' and not incomplete_parent_ids:
+            await self.set_state('Ready')
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
                     (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.full_id},'
                          f' creating pod')
-                await self.set_state('Ready')
                 await self._create_pod()
             else:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
@@ -527,10 +527,7 @@ class Job:
     async def cancel(self):
         self._cancelled = True
 
-        if self.is_complete() or self._state == 'Pending':
-            return
-
-        if not self.always_run:
+        if not self.always_run and job._state in ('Ready', 'Running'):
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
 
@@ -541,9 +538,10 @@ class Job:
         return self._state == 'Success'
 
     async def mark_unscheduled(self):
-        await self._delete_pod()
-        if not self._cancelled or self.always_run:
-            await self.set_state('Ready')
+        if self._status == 'Running':
+            self.set_state('Ready')
+
+        if self._state == 'Ready' and (not self._cancelled or self.always_run):
             await self._create_pod()
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
@@ -1137,13 +1135,33 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
+    log.info(f'update job {job.full_id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
+
+    if job._state == 'Pending':
+        if pod:
+            log.error('job {job.full_id} has pod {pod.metadata.name}, ignoring')
+        return
+
+    if pod and (not job or job.is_complete()):
+        err = await app['k8s'].delete_pod(name=pod.metadata.name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'failed to delete pod {pod.metadata.name} for job {job.full_id if job else "None"} due to {err}, ignoring')
+        return
+
+    if job and job._cancelled and not self.always_run and job._state in ('Ready', 'Running'):
+        await job.set_state('Cancelled')
+        await self._delete_k8s_resources()
+        return
+
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         log.info(f'job {job.full_id} mark unscheduled')
         await job.mark_unscheduled()
-    elif (pod
-          and pod.status
-          and pod.status.container_statuses):
+        return
+
+    if (pod
+            and pod.status
+            and pod.status.container_statuses):
         assert len(pod.status.container_statuses) == 1
         container_status = pod.status.container_statuses[0]
         assert container_status.name in ['input', 'main', 'output']
@@ -1171,8 +1189,7 @@ class DeblockedIterator:
 
 async def pod_changed(pod):
     job = await Job.from_k8s_labels(pod)
-    if job and not job.is_complete():
-        await update_job_with_pod(job, pod)
+    await update_job_with_pod(job, pod)
 
 
 async def kube_event_loop():
@@ -1209,8 +1226,7 @@ async def refresh_k8s_pods():
         seen_pods.add(pod_name)
 
         job = await Job.from_k8s_labels(pod)
-        if job and not job.is_complete():
-            await update_job_with_pod(job, pod)
+        await update_job_with_pod(job, pod)
 
     log.info('restarting ready and running jobs with pods not seen in k8s')
 
