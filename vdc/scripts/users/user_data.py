@@ -12,6 +12,9 @@ from globals import v1, kube_client, gcloud_service
 from utils import get_secret_bin
 from hailjwt import JWTClient
 
+with open('./instance.cloudsql', 'r') as f:
+    sql_instance = f.read()
+    sql_db_name = sql_instance.split(":")[-1]
 
 SECRET_KEY = get_secret_bin('jwt-secret-key', 'default', 'secret-key')
 jwtclient = JWTClient(SECRET_KEY)
@@ -358,8 +361,8 @@ def create_user_db(kube_namespace, username):
                                      "port": 3306,
                                      "user": data['admin_role'],
                                      "password": data['admin_pass'],
-                                     "instance": "db-gh0um",
-                                     "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                     "instance": sql_db_name,
+                                     "connection_name": sql_instance,
                                      "db": data['db_name']
                                  }),
                                  'sql-config.cnf':
@@ -377,8 +380,8 @@ def create_user_db(kube_namespace, username):
                                      "port": 3306,
                                      "user": data['user_role'],
                                      "password": data['user_pass'],
-                                     "instance": "db-gh0um",
-                                     "connection_name": "hail-vdc:us-central1:db-gh0um",
+                                     "instance": sql_db_name,
+                                     "connection_name": sql_instance,
                                      "db": data['db_name']
                                  }),
                                  'sql-config.cnf':
