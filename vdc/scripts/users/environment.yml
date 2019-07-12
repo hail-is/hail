@@ -10,6 +10,5 @@ dependencies:
       - google-api-python-client==1.*
       - google-cloud-storage==1.*
       - PyMySQL==0.9.*
-      - shortuuid==0.5.*
       - aiohttp==3.5.*
       - ../../../hailjwt

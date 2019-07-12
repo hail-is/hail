@@ -1,5 +1,3 @@
-import shortuuid
-
 import google
 from google.cloud import storage
 from googleapiclient.errors import HttpError
@@ -14,16 +12,11 @@ from globals import v1, kube_client, gcloud_service
 from utils import get_secret_bin
 from hailjwt import JWTClient
 
-shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
 SECRET_KEY = get_secret_bin('jwt-secret-key', 'default', 'secret-key')
 jwtclient = JWTClient(SECRET_KEY)
 
 table = Table()
-
-
-def create_service_id(username):
-    return f'{username}-{shortuuid.uuid()[0:5]}'
 
 
 def create_google_service_account(username, google_project):
