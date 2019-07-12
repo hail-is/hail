@@ -408,7 +408,7 @@ class RunImageStep(Step):
         volumes = []
         if self.secrets:
             for secret in self.secrets:
-                name = expand_value_from(secret['name'])
+                name = expand_value_from(secret['name'], self.input_config(code, deploy))
                 mount_path = secret['mountPath']
                 volumes.append({
                     'volume': {
@@ -491,11 +491,7 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        config = ""
-        if self.admin_service_account:
-            admin_service_account_name = self.admin_service_account['name']
-            admin_service_account_namespace = self.admin_service_account['namespace']
-            config = config + f'''\
+        config = f'''\
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -505,6 +501,31 @@ rules:
 - apiGroups: [""]
   resources: ["*"]
   verbs: ["*"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: admin-{self.namespace_name}-admin-binding
+  namespace: {self._name}
+subjects:
+- kind: ServiceAccount
+  name: admin
+  namespace: {self._name}
+roleRef:
+  kind: Role
+  name: {self.namespace_name}-admin
+  apiGroup: ""
+'''
+
+        if self.admin_service_account:
+            admin_service_account_name = self.admin_service_account['name']
+            admin_service_account_namespace = self.admin_service_account['namespace']
+            config = config + f'''\
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

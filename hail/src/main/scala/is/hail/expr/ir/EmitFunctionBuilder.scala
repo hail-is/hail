@@ -60,7 +60,7 @@ trait FunctionWithAggRegion {
 }
 
 trait FunctionWithLiterals {
-  def addLiterals(lit: Array[Byte]): Unit
+  def addLiterals(lit: Array[Byte], r: Region): Unit
 }
 
 trait FunctionWithSeededRandomness {
@@ -178,17 +178,11 @@ class EmitFunctionBuilder[F >: Null](
   private[this] val literalsMap: mutable.Map[(Type, Any), ClassFieldRef[_]] =
     mutable.Map[(Type, Any), ClassFieldRef[_]]()
   private[this] lazy val encLitField: ClassFieldRef[Array[Byte]] = newField[Array[Byte]]
-  private[this] lazy val litDecoded: ClassFieldRef[Boolean] = newField[Boolean]
-  private[this] lazy val decodeLiterals: EmitMethodBuilder = newMethod[Region, Unit]
 
   def addLiteral(v: Any, t: Type, region: Code[Region]): Code[_] = {
     assert(v != null)
     val f = literalsMap.getOrElseUpdate(t -> v, newField("literal")(typeToTypeInfo(t)))
-    Code(
-      litDecoded.mux(
-        Code._empty,
-        decodeLiterals.invoke(region)),
-      f.load())
+    f.load()
   }
 
   private[this] def encodeLiterals(): Array[Byte] = {
@@ -198,19 +192,19 @@ class EmitFunctionBuilder[F >: Null](
 
     val dec = spec.buildEmitDecoderF[Long](litType, litType, this)
     cn.interfaces.asInstanceOf[java.util.List[String]].add(typeInfo[FunctionWithLiterals].iname)
-    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]]), typeInfo[Unit])
-    mb2.emit(encLitField := mb2.getArg[Array[Byte]](1))
-    methods.append(mb2)
-
-    val off = decodeLiterals.newLocal[Long]
+    val mb2 = new EmitMethodBuilder(this, "addLiterals", Array(typeInfo[Array[Byte]], typeInfo[Region]), typeInfo[Unit])
+    val off = mb2.newLocal[Long]
     val storeFields = literals.zipWithIndex.map { case (((_, _), f), i) =>
-      f.storeAny(decodeLiterals.getArg[Region](1).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
+      f.storeAny(mb2.getArg[Region](2).load().loadIRIntermediate(litType.types(i))(litType.fieldOffset(off, i)))
     }
 
-    decodeLiterals.emit(Code(
-      off := dec(decodeLiterals.getArg[Region](1),
+    mb2.emit(Code(
+      encLitField := mb2.getArg[Array[Byte]](1),
+      off := dec(mb2.getArg[Region](2).load(),
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encLitField))),
-      Code(storeFields: _*)))
+      Code(storeFields: _*)
+    ))
+    methods.append(mb2)
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(litType, litType)(baos)
@@ -230,7 +224,7 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _hfs: FS = _
   private[this] var _hfield: ClassFieldRef[FS] = _
 
-  private[this] var _mods: ArrayBuilder[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
   private[this] var _aggSigs: Array[AggSignature] = _
@@ -281,7 +275,7 @@ class EmitFunctionBuilder[F >: Null](
     _backendField
   }
 
-  def addModule(name: String, mod: Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
@@ -467,12 +461,14 @@ class EmitFunctionBuilder[F >: Null](
     rng
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None): Int => F = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => F = {
     makeRNGs()
     val childClasses = children.result().map(f => (f.name.replace("/","."), f.classAsBytes(print)))
 
     val hasLiterals: Boolean = literalsMap.nonEmpty
     val literals: Array[Byte] = if (hasLiterals) encodeLiterals() else Array()
+
+    val literalsBc = HailContext.get.backend.broadcast(literals)
 
     val bytes = classAsBytes(print)
     val n = name.replace("/",".")
@@ -484,10 +480,10 @@ class EmitFunctionBuilder[F >: Null](
     assert(TaskContext.get() == null,
       "FunctionBuilder emission should happen on master, but happened on worker")
 
-    new ((Int) => F) with java.io.Serializable {
+    new ((Int, Region) => F) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(idx: Int): F = {
+      def apply(idx: Int, region: Region): F = {
         try {
           if (theClass == null) {
             this.synchronized {
@@ -503,7 +499,7 @@ class EmitFunctionBuilder[F >: Null](
           if (useBackend)
             f.asInstanceOf[FunctionWithBackend].setBackend(backend)
           if (hasLiterals)
-            f.asInstanceOf[FunctionWithLiterals].addLiterals(literals)
+            f.asInstanceOf[FunctionWithLiterals].addLiterals(literalsBc.value, region)
           f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
           f
         } catch {

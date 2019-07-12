@@ -4,13 +4,13 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
 
-class BackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])]) {
+class BackendUtils(mods: Array[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])]) {
 
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
 
-  private[this] val loadedModules: Map[String, Int => F] = mods.toMap
+  private[this] val loadedModules: Map[String, (Int, Region) => F] = mods.toMap
 
-  def getModule(id: String): Int => F = loadedModules(id)
+  def getModule(id: String): (Int, Region) => F = loadedModules(id)
 
   def collectDArray(modID: String, contexts: Array[Array[Byte]], globals: Array[Byte]): Array[Array[Byte]] = {
     if (contexts.isEmpty)
@@ -23,7 +23,7 @@ class BackendUtils(mods: Array[(String, Int => AsmFunction3[Region, Array[Byte],
     backend.parallelizeAndComputeWithIndex(contexts) { (ctx, i) =>
       val gs = globalsBC.value
       Region.scoped { region =>
-        val res = f(i)(region, ctx, gs)
+        val res = f(i, region)(region, ctx, gs)
         res
       }
     }

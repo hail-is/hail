@@ -21,7 +21,8 @@ AUTHORIZED_USERS = {
     'daniel-goldstein',
     'ahiduchick',
     'GreatBrando',
-    'johnc1231'
+    'johnc1231',
+    'iitalics'
 }   
 
 profiles = {

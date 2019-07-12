@@ -97,7 +97,7 @@ object CompileAndEvaluate {
         rvb.addAnnotation(envType, envValue)
         val envOffset = rvb.end()
 
-        val resultOff = f(0)(region,
+        val resultOff = f(0, region)(region,
           ncOffset, ncValue == null,
           argsInOffset, argsInValue == null,
           envOffset, envValue == null)
