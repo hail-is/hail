@@ -287,7 +287,7 @@ class Job:
                          f'due to {err}; will still try to load other tasks')
                 logs[self._current_task.name] = None
 
-        assert self._state in ('Running', 'Error', 'Failed', 'Success'):
+        assert self._state in ('Running', 'Error', 'Failed', 'Success')
         return logs
 
     async def _read_pod_statuses(self):
