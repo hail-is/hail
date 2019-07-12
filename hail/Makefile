@@ -125,10 +125,11 @@ install-hailctl: install upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
-	for FILE in `ls python/cluster-tests`; do \
+	for FILE in $(cluster_test_files); do \
 	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || exit 1; done || exit
 
 .PHONY: init-scripts
