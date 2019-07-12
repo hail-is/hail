@@ -539,7 +539,7 @@ class Job:
 
     async def mark_unscheduled(self):
         if self._status == 'Running':
-            self.set_state('Ready')
+            await self.set_state('Ready')
 
         if self._state == 'Ready' and (not self._cancelled or self.always_run):
             await self._create_pod()
