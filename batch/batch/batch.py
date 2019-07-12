@@ -275,8 +275,7 @@ class Job:
                      f'with the following error: {err}')
             return
 
-
-        async def _delete_pvc(self):
+    async def _delete_pvc(self):
         if self._pvc_name is None:
             return
 
