@@ -28,7 +28,7 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder, JobsTable
 from .k8s import K8s
-from .globals import complete_states
+from .globals import states, complete_states, valid_state_transitions
 from .queue import scale_queue_consumers
 
 from . import schemas
@@ -143,6 +143,10 @@ class JobTask:  # pylint: disable=R0903
                 'pod_spec_dict': self.pod_spec_dict}
 
 
+class JobStateWriteFailure(Exception):
+    pass
+
+
 class Job:
     async def _create_pvc(self):
         pvc, err = await app['k8s'].create_pvc(
@@ -176,6 +180,8 @@ class Job:
     async def _create_pod(self):
         assert self._current_task is not None
         assert self.userdata is not None
+        assert self._state in states
+        assert self._state == 'Pending'
 
         volumes = [
             kube.client.V1Volume(
@@ -226,18 +232,14 @@ class Job:
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.full_id}')
-                n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
-                if n_updated == 0:
-                    log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
+                self.set_state('Running')
                 return
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
             return
 
-        n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
-        if n_updated == 0:
-            log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
+        self.set_state('Running')
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
@@ -325,24 +327,22 @@ class Job:
                                                      state=new_state)
         if n_updated == 0:
             log.info(f'could not update job {self.id} due to db not matching expected state and task_idx')
-            return False
+            raise JobStateWriteFailure()
 
-        self.exit_codes[self._task_idx] = exit_code
-        self.pod_statuses[self._task_idx] = pod_status
-        self.log_uris[self._task_idx] = uri
-        
         if self._state != new_state:
             log.info('job {} changed state: {} -> {}'.format(
                 self.full_id,
                 self._state,
                 new_state))
 
+        self.exit_codes[self._task_idx] = exit_code
+        self.pod_statuses[self._task_idx] = pod_status
+        self.log_uris[self._task_idx] = uri
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
         self._state = new_state
 
         await self._delete_pod()
-        return True
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -488,7 +488,7 @@ class Job:
             if n_updated == 0:
                 log.warning(f'changing the state from {self._state} -> {new_state} '
                             f'for job {self.full_id} failed due to the expected state not in db')
-                return
+                raise JobStateWriteFailure()
 
             log.info('job {} changed state: {} -> {}'.format(
                 self.full_id,
@@ -599,9 +599,10 @@ class Job:
         else:
             new_state = 'Failed'
 
-        success = await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
-        if not success:
-            log.warning(f'ignoring failed mark job task complete for job {self.full_id}')
+        try:
+            await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
+        except Exception as e:
+            log.exception(f'ignoring failed mark job task complete for job {self.full_id}')
             return
 
         if exit_code == 0:
