@@ -312,7 +312,7 @@ class Job:
 
     async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
         assert self._state == 'Running'
-        assert new_state in valid_state_transitions[self._state]
+        assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
 
         uri = None
         if pod_log is not None:
@@ -486,7 +486,7 @@ class Job:
             await self.parent_new_state(parent_job._state, *parent_job.id)
 
     async def set_state(self, new_state):
-        assert new_state in valid_state_transitions[self._state]
+        assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
         if self._state != new_state:
             n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
             if n_updated == 0:
