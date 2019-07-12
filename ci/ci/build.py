@@ -81,7 +81,6 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                print("BUILDING {}".format(step.name))
                 step.build(batch, code, scope)
 
         parents = set()
