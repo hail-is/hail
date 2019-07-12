@@ -6,7 +6,7 @@ complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 valid_state_transitions = {
     'Pending': {'Ready', 'Cancelled'},
     'Ready': {'Pending', 'Running', 'Error'},
-    'Running': set(completed_states),
+    'Running': set(complete_states),
     'Cancelled': set(),
     'Error': set(),
     'Failed': set(),
