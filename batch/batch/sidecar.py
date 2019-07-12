@@ -145,11 +145,10 @@ async def kube_event_loop(pool):
                 label_selector=f'app=batch-job,hail.is/batch-instance={batch_instance}')
             async for event in DeblockedIterator(pool, stream):
                 type = event['type']
-                object = event['object']
-                kind = event['object']['kind']
-                name = event['object']['metadata']['name']
-                log.info(f'event {type} for {kind} named {name}')
-                await pod_changed(object)
+                pod = event['object']
+                name = pod.metadata.name
+                log.info(f'event {type} named {name}')
+                await pod_changed(pod)
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'k8s event stream failed due to: {exc}')
         await asyncio.sleep(5)
