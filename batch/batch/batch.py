@@ -29,9 +29,16 @@ from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder, JobsTable
 from .k8s import K8s
 from .globals import complete_states
-from .queue import scale_queue_consumers
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
+    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 
 from . import schemas
+
+
+async def scale_queue_consumers(queue, f, n=1):
+    for _ in range(n):
+        asyncio.ensure_future(f(queue))
+
 
 gear.configure_logging()
 log = logging.getLogger('batch')
@@ -58,13 +65,6 @@ PVC_CREATION_FAILURES = pc.Counter('batch_pvc_creation_failures', 'Count of batc
 READ_POD_LOG_FAILURES = pc.Counter('batch_read_pod_log_failures', 'Count of batch read_pod_log failures')
 
 uvloop.install()
-
-KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
-HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
-POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
-INSTANCE_ID = os.environ.get('HAIL_INSTANCE_ID', uuid.uuid4().hex)
-BATCH_IMAGE = os.environ.get('BATCH_IMAGE', 'gcr.io/hail-vdc/batch:latest')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')

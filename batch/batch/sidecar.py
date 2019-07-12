@@ -11,7 +11,7 @@ import traceback
 
 from hailtop import gear
 
-from .batch import REFRESH_INTERVAL_IN_SECONDS, HAIL_POD_NAMESPACE, KUBERNETES_TIMEOUT_IN_SECONDS
+from .batch_configuration import REFRESH_INTERVAL_IN_SECONDS, HAIL_POD_NAMESPACE, KUBERNETES_TIMEOUT_IN_SECONDS
 from .blocking_to_async import blocking_to_async
 from .k8s import K8s
 from .log_store import LogStore
@@ -144,7 +144,12 @@ async def kube_event_loop(pool):
                 field_selector=f'metadata.name={pod_name}',
                 label_selector=f'app=batch-job,hail.is/batch-instance={batch_instance}')
             async for event in DeblockedIterator(pool, stream):
-                await pod_changed(event['object'])
+                type = event['type']
+                object = event['object']
+                kind = event['object']['kind']
+                name = event['object']['metadata']['name']
+                log.info(f'event {type} for {kind} named {name}')
+                await pod_changed(object)
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'k8s event stream failed due to: {exc}')
         await asyncio.sleep(5)
@@ -161,7 +166,9 @@ async def refresh_k8s_pods():
             log.info(f'could not refresh pods due to {err}, will try again later')
             return
 
-        for pod in pods:
+        for pod in pods.items:
+            name = pod['metadata']['name']
+            log.info(f'refreshing from pod {name}')
             await pod_changed(pod)
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
