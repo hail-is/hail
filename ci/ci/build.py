@@ -491,7 +491,18 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        config = f'''\
+        config = ""
+        if scope in ['deploy', 'test']:
+            # FIXME label
+            config = config + f'''\
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {self._name}
+  labels:
+    for: test
+'''
+        config = config + f'''\
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -542,16 +553,7 @@ roleRef:
   apiGroup: ""
 '''
 
-        if scope in ['deploy', 'test']:
-            # FIXME label
-            config = config + f'''\
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {self._name}
-  labels:
-    for: test
-'''
+
 
         if self.public:
             config = config + '''\
