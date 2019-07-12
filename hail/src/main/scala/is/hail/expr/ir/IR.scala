@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq}
+import is.hail.utils.{ExportType, FastIndexedSeq, log}
 
 import scala.language.existentials
 
@@ -117,10 +117,22 @@ object If {
     if (cnsq.typ == altr.typ)
       If(cond, cnsq, altr)
     else {
-      val t = unifyType.getOrElse(cnsq.typ.deepOptional())
-      If(cond,
-        PruneDeadFields.upcast(cnsq, t),
-        PruneDeadFields.upcast(altr, t))
+      cnsq match {
+        case NA(_) => If(cond, NA(altr.typ), altr)
+        case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
+        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
+        case _ =>
+          altr match {
+            case NA(_) => If(cond, cnsq, NA(cnsq.typ))
+            case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
+            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
+            case _ =>
+              val t = unifyType.getOrElse(cnsq.typ.deepOptional())
+              If(cond,
+                PruneDeadFields.upcast(cnsq, t),
+                PruneDeadFields.upcast(altr, t))
+          }
+      }
     }
   }
 }

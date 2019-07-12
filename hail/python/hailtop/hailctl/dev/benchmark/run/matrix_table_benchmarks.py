@@ -47,6 +47,15 @@ def matrix_table_rows_is_transition():
     ht = hl.read_matrix_table(resource('profile.mt')).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
 
+@benchmark
+def matrix_table_filter_entries():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.filter_entries((mt.GQ > 8) & (mt.DP > 2))._force_count_rows()
+
+@benchmark
+def matrix_table_filter_entries_unfilter():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    mt.filter_entries((mt.GQ > 8) & (mt.DP > 2)).unfilter_entries()._force_count_rows()
 
 def many_aggs(mt):
     aggs = [
