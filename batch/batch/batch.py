@@ -311,6 +311,9 @@ class Job:
         return None
 
     async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
+        assert self._state == 'Running'
+        assert new_state in valid_state_transitions[self._state]
+
         uri = None
         if pod_log is not None:
             uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, pod_log)
@@ -342,7 +345,7 @@ class Job:
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
         self._state = new_state
 
-        await self._delete_pod()
+        await self._delete_k8s_resources()
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -483,6 +486,7 @@ class Job:
             await self.parent_new_state(parent_job._state, *parent_job.id)
 
     async def set_state(self, new_state):
+        assert new_state in valid_state_transitions[self._state]
         if self._state != new_state:
             n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
             if n_updated == 0:
