@@ -28,7 +28,7 @@ from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder, JobsTable
 from .k8s import K8s
-from .globals import complete_states
+from .globals import states, complete_states, valid_state_transitions
 from .queue import scale_queue_consumers
 
 from . import schemas
@@ -147,6 +147,10 @@ class JobTask:  # pylint: disable=R0903
                 'pod_spec_dict': self.pod_spec_dict}
 
 
+class JobStateWriteFailure(Exception):
+    pass
+
+
 class Job:
     async def _create_pvc(self):
         pvc, err = await app['k8s'].create_pvc(
@@ -181,6 +185,8 @@ class Job:
     async def _create_pod(self):
         assert self._current_task is not None
         assert self.userdata is not None
+        assert self._state in states
+        assert self._state == 'Running'
 
         volumes = [
             kube.client.V1Volume(
@@ -231,18 +237,11 @@ class Job:
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.full_id}')
-                n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
-                if n_updated == 0:
-                    log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
                 return
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
             return
-
-        n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state='Running')
-        if n_updated == 0:
-            log.warning(f'changing the state for job {self.full_id} failed due to the expected state {self._state} not in db')
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
@@ -265,6 +264,9 @@ class Job:
         await self._delete_pod()
 
     async def _read_logs(self):
+        if self._state in ('Pending', 'Cancelled'):
+            return None
+
         async def _read_log(jt, idx):
             log_uri = self.log_uris[idx]
             if log_uri is None:
@@ -288,13 +290,15 @@ class Job:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'ignoring: could not read log for {self.full_id} '
                          f'due to {err}; will still try to load other tasks')
-            return logs
-        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
-            return logs
-        assert self._state in ('Pending', 'Cancelled')
-        return None
+                logs[self._current_task.name] = None
+
+        assert self._state in ('Running', 'Error', 'Failed', 'Success')
+        return logs
 
     async def _read_pod_statuses(self):
+        if self._state in ('Pending', 'Cancelled'):
+            return None
+
         pod_statuses = {jt.name: self.pod_statuses[idx] for idx, jt in enumerate(self._tasks)
                         if idx < self._task_idx}
 
@@ -308,12 +312,14 @@ class Job:
                     log.info(f'ignoring: could not get pod status for {self.full_id} '
                              f'due to {err}; will still try to load other tasks')
             return pod_statuses
-        if self._state in ('Ready', 'Error', 'Failed', 'Success'):
-            return pod_statuses
-        assert self._state in ('Pending', 'Cancelled')
-        return None
+
+        assert self._state in ('Running', 'Error', 'Failed', 'Success')
+        return pod_statuses
 
     async def _mark_job_task_complete(self, task_name, pod_log, exit_code, new_state, pod_status):
+        assert self._state == 'Running'
+        assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
+
         uri = None
         if pod_log is not None:
             uri, err = await app['log_store'].write_gs_log_file(*self.id, task_name, pod_log)
@@ -330,24 +336,22 @@ class Job:
                                                      state=new_state)
         if n_updated == 0:
             log.info(f'could not update job {self.id} due to db not matching expected state and task_idx')
-            return False
+            raise JobStateWriteFailure()
 
-        self.exit_codes[self._task_idx] = exit_code
-        self.pod_statuses[self._task_idx] = pod_status
-        self.log_uris[self._task_idx] = uri
-        
         if self._state != new_state:
             log.info('job {} changed state: {} -> {}'.format(
                 self.full_id,
                 self._state,
                 new_state))
 
+        self.exit_codes[self._task_idx] = exit_code
+        self.pod_statuses[self._task_idx] = pod_status
+        self.log_uris[self._task_idx] = uri
         self._task_idx += 1
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
         self._state = new_state
 
         await self._delete_pod()
-        return True
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
@@ -488,12 +492,13 @@ class Job:
             await self.parent_new_state(parent_job._state, *parent_job.id)
 
     async def set_state(self, new_state):
+        assert new_state in valid_state_transitions[self._state], f'{self._state} -> {new_state}'
         if self._state != new_state:
             n_updated = await db.jobs.update_record(*self.id, compare_items={'state': self._state}, state=new_state)
             if n_updated == 0:
                 log.warning(f'changing the state from {self._state} -> {new_state} '
                             f'for job {self.full_id} failed due to the expected state not in db')
-                return
+                raise JobStateWriteFailure()
 
             log.info('job {} changed state: {} -> {}'.format(
                 self.full_id,
@@ -518,12 +523,12 @@ class Job:
     async def create_if_ready(self):
         incomplete_parent_ids = await db.jobs.get_incomplete_parents(*self.id)
         if self._state == 'Pending' and not incomplete_parent_ids:
+            await self.set_state('Running')
             parents = [Job.from_record(record) for record in await db.jobs.get_parents(*self.id)]
             if (self.always_run or
                     (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.full_id},'
                          f' creating pod')
-                await self.set_state('Ready')
                 await self._create_pod()
             else:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
@@ -532,10 +537,7 @@ class Job:
     async def cancel(self):
         self._cancelled = True
 
-        if self.is_complete() or self._state == 'Pending':
-            return
-
-        if not self.always_run:
+        if not self.always_run and self._state == 'Running':
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
 
@@ -547,8 +549,7 @@ class Job:
 
     async def mark_unscheduled(self):
         await self._delete_pod()
-        if not self._cancelled or self.always_run:
-            await self.set_state('Ready')
+        if self._state == 'Running' and (not self._cancelled or self.always_run):
             await self._create_pod()
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
@@ -597,7 +598,7 @@ class Job:
 
         if exit_code == 0:
             if has_next_task:
-                new_state = 'Ready'
+                new_state = 'Running'
             else:
                 new_state = 'Success'
         elif exit_code == 999:
@@ -605,9 +606,10 @@ class Job:
         else:
             new_state = 'Failed'
 
-        success = await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
-        if not success:
-            log.warning(f'ignoring failed mark job task complete for job {self.full_id}')
+        try:
+            await self._mark_job_task_complete(task_name, pod_log, exit_code, new_state, pod_status)
+        except Exception as e:
+            log.exception(f'ignoring failed mark job task complete for job {self.full_id}')
             return
 
         if exit_code == 0:
@@ -682,7 +684,7 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
 
-    state = 'Ready' if len(parent_ids) == 0 else 'Pending'
+    state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
     job = Job.create_job(
         jobs_builder,
@@ -863,7 +865,7 @@ class Batch:
 
     async def _close_jobs(self):
         for j in await self.get_jobs():
-            if j._state == 'Ready':
+            if j._state == 'Running':
                 await app['start_job_queue'].put(j)
 
     async def close(self):
@@ -1142,14 +1144,34 @@ async def batch_id(request, userdata):
 
 
 async def update_job_with_pod(job, pod):
-    log.info(f'update job {job.full_id} with pod {pod.metadata.name if pod else "None"}')
+    log.info(f'update job {job.full_id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
+
+    if job and job._state == 'Pending':
+        if pod:
+            log.error('job {job.full_id} has pod {pod.metadata.name}, ignoring')
+        return
+
+    if pod and (not job or job.is_complete()):
+        err = await app['k8s'].delete_pod(name=pod.metadata.name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'failed to delete pod {pod.metadata.name} for job {job.full_id if job else "None"} due to {err}, ignoring')
+        return
+
+    if job and job._cancelled and not job.always_run and job._state == 'Running':
+        await job.set_state('Cancelled')
+        await job._delete_k8s_resources()
+        return
+
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         POD_EVICTIONS.inc()
         log.info(f'job {job.full_id} mark unscheduled')
         await job.mark_unscheduled()
-    elif (pod
-          and pod.status
-          and pod.status.container_statuses):
+        return
+
+    if (pod
+            and pod.status
+            and pod.status.container_statuses):
         assert len(pod.status.container_statuses) == 1
         container_status = pod.status.container_statuses[0]
         assert container_status.name in ['input', 'main', 'output']
@@ -1177,8 +1199,7 @@ class DeblockedIterator:
 
 async def pod_changed(pod):
     job = await Job.from_k8s_labels(pod)
-    if job and not job.is_complete():
-        await update_job_with_pod(job, pod)
+    await update_job_with_pod(job, pod)
 
 
 async def kube_event_loop():
@@ -1199,7 +1220,7 @@ async def kube_event_loop():
 async def refresh_k8s_pods():
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
-    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': ['Ready', 'Running']})]
+    pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
     pods, err = await app['k8s'].list_pods(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
@@ -1216,8 +1237,7 @@ async def refresh_k8s_pods():
         seen_pods.add(pod_name)
 
         job = await Job.from_k8s_labels(pod)
-        if job and not job.is_complete():
-            await update_job_with_pod(job, pod)
+        await update_job_with_pod(job, pod)
 
     log.info('restarting ready and running jobs with pods not seen in k8s')
 
@@ -1250,7 +1270,7 @@ async def refresh_k8s_pvc():
 async def start_job(queue):
     while True:
         job = await queue.get()
-        if job._state == 'Ready':
+        if job._state == 'Running':
             try:
                 await job._create_pod()
             except Exception as exc:  # pylint: disable=W0703
