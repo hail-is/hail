@@ -531,7 +531,7 @@ class Job:
     async def cancel(self):
         self._cancelled = True
 
-        if not self.always_run and job._state in ('Ready', 'Running'):
+        if not self.always_run and self._state in ('Ready', 'Running'):
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
 
