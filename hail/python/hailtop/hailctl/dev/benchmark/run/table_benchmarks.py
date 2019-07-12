@@ -141,6 +141,12 @@ def write_range_table_p10():
         ht.write(path.join(tmpdir, 'tmp.ht'))
 
 @benchmark
+def read_with_index_p50k():
+    intervals = [hl.Interval(start=i, end=i + 200) for i in range(0, 10_000_000, 200)]
+    ht = hl.read_table(resource('table_10M_par_10.ht'), _intervals=intervals)
+    ht._force_count()
+
+@benchmark
 def union_p100_p100():
     ht1 = hl.read_table(resource('table_10M_par_100.ht'))
     ht2 = hl.read_table(resource('table_10M_par_100.ht'))
