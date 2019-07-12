@@ -345,7 +345,7 @@ class Job:
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
         self._state = new_state
 
-        await self._delete_k8s_pod()
+        await self._delete_pod()
 
     async def _delete_logs(self):
         for idx, jt in enumerate(self._tasks):
