@@ -1153,9 +1153,9 @@ async def update_job_with_pod(job, pod):
             log.info(f'failed to delete pod {pod.metadata.name} for job {job.full_id if job else "None"} due to {err}, ignoring')
         return
 
-    if job and job._cancelled and not self.always_run and job._state in ('Ready', 'Running'):
+    if job and job._cancelled and not job.always_run and job._state in ('Ready', 'Running'):
         await job.set_state('Cancelled')
-        await self._delete_k8s_resources()
+        await job._delete_k8s_resources()
         return
 
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
