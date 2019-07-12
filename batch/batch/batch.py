@@ -1141,7 +1141,7 @@ async def batch_id(request, userdata):
 async def update_job_with_pod(job, pod):
     log.info(f'update job {job.full_id if job else "None"} with pod {pod.metadata.name if pod else "None"}')
 
-    if job._state == 'Pending':
+    if job and job._state == 'Pending':
         if pod:
             log.error('job {job.full_id} has pod {pod.metadata.name}, ignoring')
         return
