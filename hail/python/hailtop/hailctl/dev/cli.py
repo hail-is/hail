@@ -27,6 +27,8 @@ def main(args):
         if module == 'benchmark':
             from .benchmark import cli
             cli.main(args)
+        elif module == '-h' or module == '--help' or module == 'help':
+            print_help()
         else:
             sys.stderr.write(f"ERROR: no such module: {module!r}")
             print_help()
