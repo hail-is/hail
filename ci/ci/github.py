@@ -822,10 +822,6 @@ mkdir -p {shq(repo_dir)}
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
             await deploy_batch.wait()
-        except concurrent.futures.CancelledError:
-            raise
-        except Exception as e:  # pylint: disable=broad-except
-            raise e
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
