@@ -181,7 +181,7 @@ class Job:
         assert self._current_task is not None
         assert self.userdata is not None
         assert self._state in states
-        assert self._state == 'Pending'
+        assert self._state == 'Ready'
 
         volumes = [
             kube.client.V1Volume(
