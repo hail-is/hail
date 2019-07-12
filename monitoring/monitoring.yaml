@@ -530,7 +530,7 @@ spec:
       accessModes: ["ReadWriteOnce"]
       resources:
         requests:
-          storage: 20Gi
+          storage: 30Gi
 ---
 apiVersion: v1
 kind: Service
@@ -570,6 +570,8 @@ spec:
       containers:
         - name: kibana
           image: docker.elastic.co/kibana/kibana:7.2.0
+          securityContext:
+            runAsUser: 1000
           resources:
             limits:
               cpu: 1000m
