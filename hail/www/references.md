@@ -57,7 +57,9 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Zekavat, Seyedeh M., et al. "Deep coverage whole genome sequences and plasma lipoprotein (a) in individuals of European and African ancestries." *Nature Communications* 9.1 (2018): 2606. https://www.nature.com/articles/s41467-018-04668-w
 
-* Farhan, Sali MK, et al. "Enrichment of rare protein truncating variants in amyotrophic lateral sclerosis patients." bioRxiv (2018): 307835. https://www.biorxiv.org/content/10.1101/307835v2
+* Natarajan, Pradeep, et al. "Deep-coverage whole genome sequences and blood lipids among 16,324 individuals." *Nature Communications* 9.1 (2018): 3391. https://www.nature.com/articles/s41467-018-04668-w
+
+* Farhan, Sali MK, et al. "Enrichment of rare protein truncating variants in amyotrophic lateral sclerosis patients." *bioRxiv* (2018): 307835. https://www.biorxiv.org/content/10.1101/307835v2
 
 * Ganna, Andrea, et al. "Quantifying the impact of rare and ultra-rare coding variation across the phenotypic spectrum." *The American Journal of Human Genetics* 102.6 (2018): 1204-1211. https://www.ncbi.nlm.nih.gov/pmc/articles/PMC5992130/
 
