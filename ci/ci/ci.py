@@ -271,15 +271,14 @@ async def dev_test_branch(request):
     repo = Repo(repo_owner, repo_name)
     fq_branch = FQBranch(repo, params.get('branch'))
     namespace = params['namespace']
-    unwatched_branch = UnwatchedBranch(fq_branch, userdata, namespace)
     profile = params['profile']
 
     gh = app['github_client']
     request_string = f'/repos/{repo_owner}/{repo_name}/git/refs/heads/{fq_branch.name}'
     branch_gh_json = await gh.getitem(request_string)
+    sha = branch_gh_json['object']['sha']
 
-    #FIXME hacky way to update the sha.
-    unwatched_branch.sha = branch_gh_json['object']['sha']
+    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata, namespace)
 
     batch_client = app['batch_client']
 

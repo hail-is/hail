@@ -771,12 +771,12 @@ git checkout {shq(self.sha)}
 
 
 class UnwatchedBranch(Code):
-    def __init__(self, branch, userdata, namespace):
+    def __init__(self, branch, sha, userdata, namespace):
         self.branch = branch
         self.userdata = userdata
         self.user = userdata['username']
         self.namespace = namespace
-        self.sha = None
+        self.sha = sha
 
         self.deploy_batch = None
 

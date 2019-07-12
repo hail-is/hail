@@ -492,7 +492,6 @@ class CreateNamespaceStep(Step):
         return conf
 
     def build(self, batch, code, scope):  # pylint: disable=unused-argument
-        #Account stuff
         config = ""
         if self.admin_service_account:
             admin_service_account_name = self.admin_service_account['name']
