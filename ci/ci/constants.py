@@ -1,3 +1,4 @@
+
 import os
 import hailtop.gear.auth as hj
 
@@ -23,5 +24,5 @@ AUTHORIZED_USERS = {
     'ahiduchick',
     'GreatBrando',
     'johnc1231',
-    'gsarma'
+    'iitalics'
 }
