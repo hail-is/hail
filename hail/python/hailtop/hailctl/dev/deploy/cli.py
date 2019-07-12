@@ -9,9 +9,8 @@ def init_parser(parser):
     parser.add_argument('profile', type=str, choices=['batch_test'])
 
 def main(args):
-    # For now, let's find CI and just manually call the damn function.
     async with aiohttp.ClientSession() as session:
-        session.post('https://batch.hail.is/api/v1alpha/dev_test_branch/'', json={
+        session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json={
             'userdata': {
                 'username': 'johnc1231'
             },

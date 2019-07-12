@@ -40,7 +40,6 @@ def main(args):
             cli.main(extra_args)
         elif module == 'deploy':
             from .deploy import cli
-            print(args)
             args, pass_through_args = p.parse_known_args(args=args)
             cli.main(args)
         else:
