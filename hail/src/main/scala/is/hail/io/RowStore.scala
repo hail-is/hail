@@ -994,7 +994,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     off = end
     readBlock()
     off = (offset & 0xFFFF).asInstanceOf[Int]
-    assert(off < end)
+    assert(off <= end)
   }
 
   def readByte(): Byte = {
