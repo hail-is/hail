@@ -694,7 +694,11 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
   private val buf: Array[Byte] = new Array[Byte](blockSize)
   private var off: Int = 0
 
-  def indexOffset(): Long = (out.getPos() << 16) | off
+  def indexOffset(): Long = {
+    if (off == blockSize)
+      writeBlock()
+    (out.getPos() << 16) | off
+  }
 
   private def writeBlock() {
     out.writeBlock(buf, off)
