@@ -22,6 +22,8 @@ apt-get install -y --allow-unauthenticated docker-ce
 
 # Get VEP cache and LOFTEE data
 gsutil cp gs://hail-common/vep/vep/vep95-GRCh38-loftee-gcloud.json /vep_data/vep95-GRCh38-gcloud.json
+ln -s /vep_data/vep95-GRCh38-gcloud.json /vep_data/vep-gcloud.json
+
 gsutil -m cp -r gs://hail-common/vep/vep/loftee-beta/${ASSEMBLY}/* /vep_data/ &
 gsutil -m cp -r gs://hail-common/vep/vep/Plugins /vep_data &
 gsutil -m cp -r gs://hail-common/vep/vep/homo_sapiens/95_${ASSEMBLY} /vep_data/homo_sapiens/ &
