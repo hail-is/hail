@@ -27,10 +27,15 @@ gear.configure_logging()
 log = logging.getLogger('batch-sidecar')
 
 
-if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-    kube.config.load_kube_config()
-else:
-    kube.config.load_incluster_config()
+# if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+#     kube.config.load_kube_config()
+# else:
+#     kube.config.load_incluster_config()
+kube.config.incluster_config.InClusterConfigLoader(
+    token_filename='/batch-output-pod-token/token',
+    cert_filename=kube.config.incluster_config.SERVICE_CERT_FILENAME
+).load_and_set()
+
 v1 = kube.client.CoreV1Api()
 
 
@@ -139,10 +144,9 @@ async def kube_event_loop(pool):
     while True:
         try:
             stream = kube.watch.Watch().stream(
-                v1.list_namespaced_pod,
-                HAIL_POD_NAMESPACE,
-                field_selector=f'metadata.name={pod_name}',
-                label_selector=f'app=batch-job,hail.is/batch-instance={batch_instance}')
+                v1.read_namespaced_pod,
+                namespace=HAIL_POD_NAMESPACE,
+                name=pod_name)
             async for event in DeblockedIterator(pool, stream):
                 type = event['type']
                 pod = event['object']
@@ -157,9 +161,9 @@ async def kube_event_loop(pool):
 async def refresh_k8s_pods():
     await asyncio.sleep(1)
     while True:
-        pods, err = await k8s.list_pods(
-            field_selector=f'metadata.name={pod_name}',
-            label_selector=f'app=batch-job,hail.is/batch-instance={batch_instance}')
+        pods, err = await k8s.read_pod(
+            namespace=HAIL_POD_NAMESPACE,
+            name=pod_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
             log.info(f'could not refresh pods due to {err}, will try again later')

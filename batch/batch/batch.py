@@ -168,9 +168,13 @@ class Job:
             command=['/bin/sh', '-c', sh_expression],
             resources=kube.client.V1ResourceRequirements(
                 requests={'cpu': '500m'}),
-            volume_mounts=[kube.client.V1VolumeMount(
-                mount_path='/batch-gsa-key',
-                name='batch-gsa-key')])
+            volume_mounts=[
+                kube.client.V1VolumeMount(
+                    mount_path='/batch-gsa-key',
+                    name='batch-gsa-key'),
+                kube.client.V1VolumeMount(
+                    mount_path='/batch-output-pod-token',
+                    name='batch-output-pod-token')])
 
         return setup_container
 
@@ -220,7 +224,13 @@ class Job:
             kube.client.V1Volume(
                 secret=kube.client.V1SecretVolumeSource(
                     secret_name='batch-gsa-key'),
-                name='batch-gsa-key')]
+                name='batch-gsa-key'),
+            kube.client.V1Volume(
+                projected=kube.client.V1ProjectedVolumeSource(
+                    sources=[kube.client.V1VolumeProjection(
+                        kube.client.V1ServiceAccountTokenProjection(
+                            path='token'))]),
+                name='batch-output-pod-token')]
 
         volume_mounts = [
             kube.client.V1VolumeMount(
