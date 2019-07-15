@@ -82,7 +82,7 @@ def main(args_):
     if args.tests:
         run_list(args.tests, config)
     if args.pattern:
-        run_pattern(args, config)
+        run_pattern(args.pattern, config)
     if not args.pattern and not args.tests:
         run_all(config)
 

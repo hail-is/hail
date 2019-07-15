@@ -12,10 +12,11 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
   val initOpTypes: Array[PType] = Array()
   val seqOpTypes: Array[PType] = Array(typ)
 
-  val stateType: PTuple = PTuple(FastIndexedSeq(typ))
+  val stateType: PTuple = PTuple(FastIndexedSeq(typ.setRequired(false)))
   val resultType: PType = typ
 
-  def createState(mb: EmitMethodBuilder): State = TypedRVAState(PTuple(FastIndexedSeq(typ)), mb, mb.newField[Region], mb.newField[Long])
+  def createState(mb: EmitMethodBuilder): State =
+    TypedRVAState(stateType, mb, mb.newField[Region], mb.newField[Long])
 
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
@@ -40,12 +41,17 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
           StagedRegionValueBuilder.deepCopy(state.er, elt.t, v, stateType.fieldOffset(state.off, 0)))
     }
 
-    elt.m.mux(Code._empty, Code(
-      state.region.refreshRegion(),
-      state.off := state.region.allocate(stateType.alignment, stateType.byteSize),
-      stateType.clearMissingBits(state.region, state.off),
+    Code(
       elt.setup,
-      copyValue))
+      elt.m.mux(
+        Code._empty,
+        Code(
+          state.region.close(),
+          state.r := Code.newInstance[Region](),
+          state.off := state.region.allocate(stateType.alignment, stateType.byteSize),
+          stateType.clearMissingBits(state.region, state.off),
+          copyValue))
+    )
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {

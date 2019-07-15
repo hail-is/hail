@@ -894,15 +894,12 @@ class Batch:
     async def get_jobs(self):
         return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
 
-    async def _cancel_jobs(self):
-        for j in await self.get_jobs():
-            await j.cancel()
-
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
         self.cancelled = True
         self.closed = True
-        asyncio.ensure_future(self._cancel_jobs())
+        for j in await self.get_jobs():
+            await j.cancel()
         log.info(f'batch {self.id} cancelled')
 
     async def _close_jobs(self):
@@ -1065,7 +1062,7 @@ async def _cancel_batch(batch_id, user):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.cancel()
+    asyncio.ensure_future(batch.cancel())
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
@@ -1109,7 +1106,7 @@ async def delete_batch(request, userdata):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    await batch.mark_deleted()
+    asyncio.ensure_future(batch.mark_deleted())
     return jsonify({})
 
 

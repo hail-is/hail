@@ -26,6 +26,10 @@ class JWTClient:
                 f'found secret key with {len(secret_key)} bytes, but secret '
                 f'key must have at least 32 bytes (i.e. 256 bits)')
 
+    @staticmethod
+    def find_userdata(token_file=None):
+        return JWTClient.unsafe_decode(find_token(token_file)) 
+
     def __init__(self, secret_key):
         assert isinstance(secret_key, bytes)
         JWTClient._verify_key_preqrequisites(secret_key)
@@ -44,6 +48,17 @@ class JWTClient:
 def get_domain(host):
     parts = host.split('.')
     return f"{parts[-2]}.{parts[-1]}"
+
+def find_token(token_file=None):
+    token_file = (token_file or
+                  os.environ.get('HAIL_TOKEN_FILE') or
+                  os.path.expanduser('~/.hail/token'))
+    if not os.path.exists(token_file):
+        raise ValueError(
+            f'Cannot create a client without a token. No file was '
+            f'found at {token_file}')
+    with open(token_file) as f:
+        return f.read()
 
 
 jwtclient = None

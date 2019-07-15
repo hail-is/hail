@@ -252,14 +252,19 @@ class EmitFunctionBuilder[F >: Null](
     methods += getF
 
     newF.emit(
-      Code(_aggRegion := newF.getArg[Region](1),
-      _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize)))
+      Code(_aggRegion := setF.getArg[Region](1),
+        _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
+        _aggState.loadRegions(0)))
 
     setF.emit(
       Code(_aggRegion := setF.getArg[Region](1),
-        _aggOff := setF.getArg[Long](2)))
+        _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggOff := setF.getArg[Long](2),
+        _aggState.loadRegions(0),
+        _aggState.loadStateOffsets(_aggOff)))
 
-    getF.emit(_aggOff)
+    getF.emit(Code(_aggState.storeRegions(0), _aggState.storeStateOffsets(_aggOff), _aggOff))
     _aggState -> _aggOff
   }
 
@@ -294,8 +299,11 @@ class EmitFunctionBuilder[F >: Null](
     _hfield.load()
   }
 
-   def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
+  def getUnsafeReader(path: Code[String], checkCodec: Code[Boolean]): Code[InputStream] =
      getFS.invoke[String, Boolean, InputStream]("unsafeReader", path, checkCodec)
+
+  def getUnsafeWriter(path: Code[String]): Code[OutputStream] =
+    getFS.invoke[String, OutputStream]("unsafeWriter", path)
 
   def getPType(t: PType): Code[PType] = {
     val references = ReferenceGenome.getReferences(t.virtualType).toArray

@@ -280,7 +280,7 @@ case class IndexedRVDSpec(
 
   override def encodedType: PStruct = rvdType.rowType
 
-  def partitioner: RVDPartitioner = {
+  val partitioner: RVDPartitioner = {
     val rangeBoundsType = TArray(TInterval(rvdType.kType.virtualType))
     new RVDPartitioner(rvdType.kType.virtualType,
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
