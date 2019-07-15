@@ -14,6 +14,8 @@ abstract class RVAState {
   def typ: PType
   def region: Code[Region] = r.load()
 
+  def loadStateFrom(src: Code[Long]): Code[Unit]
+
   def copyFrom(src: Code[Long]): Code[Unit]
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit]
@@ -26,6 +28,8 @@ abstract class RVAState {
 }
 
 case class TypedRVAState(typ: PType, mb: EmitMethodBuilder, r: ClassFieldRef[Region], off: ClassFieldRef[Long]) extends RVAState {
+  def loadStateFrom(src: Code[Long]): Code[Unit] = off := src
+
   def copyFrom(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(er, typ, src)
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
@@ -55,8 +59,17 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   def toCode(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
+  def loadRegions(rOffset: Code[Int]): Code[Unit] =
+    toCode((i, s) => s.r := topRegion.getParentReference(rOffset + i))
+
   def loadStateOffsets(stateOffset: Code[Long]): Code[Unit] =
-    toCode((i, s) => s.off := loadStateAddress(stateOffset, i))
+    toCode((i, s) => s.loadStateFrom(loadStateAddress(stateOffset, i)))
+
+  def storeRegions(rOffset: Code[Int]): Code[Unit] =
+    toCode((i, s) => topRegion.setParentReference(s.region, rOffset + i))
+
+  def storeStateOffsets(statesOffset: Code[Long]): Code[Unit] =
+    toCode((i, s) => topRegion.storeAddress(getStateOffset(statesOffset, i), s.off))
 
   def scoped(rOffset: Code[Int], f: Code[Unit]): Code[Unit] =
     Array.range(0, nStates).foldLeft[Code[Unit]](f)( (cont, i) =>
@@ -71,30 +84,11 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   def scoped(rOffset: Code[Int], statesOffset: Code[Long])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
     scoped(rOffset, statesOffset, toCode(f))
 
-  def update(rOffset: Code[Int], statesOffset: Code[Long], f: Code[Unit]): Code[Unit] = {
-    val updaters = toCode((i, s) => Code(
-        topRegion.setParentReference(s.region, rOffset + i),
-        topRegion.storeAddress(getStateOffset(statesOffset, i), s.off)))
-
-    scoped(rOffset, statesOffset, Code(f, updaters))
-  }
+  def update(rOffset: Code[Int], statesOffset: Code[Long], f: Code[Unit]): Code[Unit] =
+    scoped(rOffset, statesOffset, Code(f, storeRegions(rOffset), storeStateOffsets(statesOffset)))
 
   def update(rOffset: Code[Int], statesOffset: Code[Long])(f: (Int, RVAState) => Code[Unit]): Code[Unit] = {
     update(rOffset, statesOffset, toCode(f))
-  }
-
-  def refreshOne(rOffset: Code[Int], i: Int): Code[Unit] = {
-    states(i).using(Code.newInstance[Region]()) {topRegion.setParentReference(states(i).region, rOffset + i)}
-  }
-
-  def updateOne(rOffset: Code[Int], statesOffset: Code[Long], i: Int, f: Code[Unit]): Code[Unit] = {
-    val s = states(i)
-    s.using(getRegion(rOffset, i)) {Code(
-      s.off := loadStateAddress(statesOffset, i),
-      f,
-      topRegion.setParentReference(s.region, rOffset + i),
-      topRegion.storeAddress(getStateOffset(statesOffset, i), s.off))
-    }
   }
 
   def addState(srvb: StagedRegionValueBuilder): Code[Unit] = {

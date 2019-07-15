@@ -11,7 +11,6 @@ import scala.language.{existentials, postfixOps}
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-
 case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature]) {
   val typ: PTuple = PTuple(aggs.map(Extract.getPType))
   val nAggs: Int = aggs.length
@@ -28,6 +27,19 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 }
 
 object Extract {
+
+  def compatible(sig1: AggSignature, sig2: AggSignature): Boolean = (sig1.op, sig2.op) match {
+    case (AggElements2(nestedAggs1), AggElements2(nestedAggs2)) =>
+      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
+    case (AggElementsLengthCheck2(nestedAggs1, _), AggElements2(nestedAggs2)) =>
+      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
+    case (AggElements2(nestedAggs1), AggElementsLengthCheck2(nestedAggs2, _)) =>
+      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
+    case (AggElementsLengthCheck2(nestedAggs1, _), AggElementsLengthCheck2(nestedAggs2, _)) =>
+      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
+    case _ => sig1 == sig2
+  }
+
   def getAgg(aggSig: AggSignature): StagedRegionValueAggregator = aggSig match {
     case AggSignature(Sum(), _, _, Seq(t)) =>
       new SumAggregator(t.physicalType)
