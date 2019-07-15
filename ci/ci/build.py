@@ -517,6 +517,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: admin
+  namespace: {self._name}
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
