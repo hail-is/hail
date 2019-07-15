@@ -388,15 +388,7 @@ class BatchClient:
         self.url = url
         self._session = session
         if token is None:
-            token_file = (token_file or
-                          os.environ.get('HAIL_TOKEN_FILE') or
-                          os.path.expanduser('~/.hail/token'))
-            if not os.path.exists(token_file):
-                raise ValueError(
-                    f'Cannot create a client without a token. No file was '
-                    f'found at {token_file}')
-            with open(token_file) as f:
-                token = f.read()
+            token = hj.find_token(token_file)
         userdata = hj.JWTClient.unsafe_decode(token)
         assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]

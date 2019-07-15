@@ -210,6 +210,7 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
+        self.batch_attributes = BatchAttributesTable(self)
 
 
 class JobsTable(Table):
@@ -306,7 +307,7 @@ class JobsTable(Table):
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
                           WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
 
-                await cursor.execute(sql, (('Pending', 'Ready', 'Running'), batch_id, job_id))
+                await cursor.execute(sql, (('Pending', 'Running'), batch_id, job_id))
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
 
@@ -409,6 +410,57 @@ class BatchTable(Table):
     async def get_records_where(self, condition):
         return await super().get_records(condition)
 
+    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
+        sql = f"select batch.* from `{self.name}` as batch"
+        values = []
+        joins = []
+        wheres = []
+        havings = []
+        groups = []
+
+        values.append(user)
+        wheres.append("batch.user = %s")
+        if deleted is not None:
+            if deleted:
+                wheres.append("batch.deleted")
+            else:
+                wheres.append("not batch.deleted")
+        if complete is not None:
+            condition = "batch.closed and batch.n_completed = batch.n_jobs"
+            if complete:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if success is not None:
+            condition = "batch.closed and batch.n_succeeded = batch.n_jobs"
+            if success:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if attributes:
+            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.batch_id')
+            groups.append("batch.id")
+            for k, v in attributes.items():
+                values.append(k)
+                values.append(v)
+                havings.append(f"sum(attr.`key` = %s and attr.value = %s) = 1")
+        if joins:
+            sql += " " + " ".join(joins)
+        if wheres:
+            sql += " where " + " and ".join(wheres)
+        if groups:
+            sql += " group by " + ", ".join(groups)
+        if havings:
+            sql += " having " + " and ".join(havings)
+        try:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, values)
+                    return await cursor.fetchall()
+        except Exception as err:
+            log.error(f'error encountered while executing: {sql} {values}')
+            raise err
+
     async def has_record(self, id):
         return await super().has_record({'id': id})
 
@@ -425,3 +477,31 @@ class BatchTable(Table):
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
+
+
+class BatchAttributesTable(Table):
+    batch_attribute_fields = {'batch_id', 'key', 'value'}
+
+    def __init__(self, db):
+        super().__init__(db, 'batch-attributes')
+        self._batch_attributes_sql = self.new_record_template(*BatchAttributesTable.batch_attribute_fields)
+
+    async def new_records(self, items):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if len(items) > 0:
+                    await executemany_with_retry(cursor, self._batch_attributes_sql, items)
+                    n_inserted = cursor.rowcount
+                    if n_inserted != len(items):
+                        log.info(f'inserted {n_inserted} batch attributes, but expected {len(items)}')
+                        return False
+                return True
+
+    async def _query(self, *select, **where):
+        return await super().get_records(where, select_fields=select)
+
+    async def get_attributes(self, batch_id):
+        return await self._query('key', 'value', batch_id=batch_id)
+
+    async def get_batches(self, key, value):
+        return await self._query('batch_id', key=key, value=value)

@@ -1,7 +1,8 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.expr.types.virtual.TStruct
+import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TLocus, TString, TStruct}
 import is.hail.io.CodecSpec
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
@@ -58,14 +59,18 @@ object IndexBgen {
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
-      NoEntries,
-      dropCols = true,
-      RowFields(false, false, true, true),
+      TableType(rowType = TStruct(
+        "locus" -> TLocus.schemaFromRG(referenceGenome),
+        "alleles" -> TArray(TString()),
+        "offset" -> TInt64(),
+        "file_idx" -> TInt32()),
+        key = Array("locus", "alleles"),
+        globalType = TStruct()),
       referenceGenome.map(_.broadcast),
       annotationType
     )
 
-    val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
+    val typ = RVDType(settings.rowPType, Array("file_idx", "locus", "alleles"))
 
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(

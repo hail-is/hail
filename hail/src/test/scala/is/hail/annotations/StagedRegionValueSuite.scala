@@ -474,7 +474,7 @@ class StagedRegionValueSuite extends HailSuite {
               EmitRegion.default(fb.apply_method),
               t.physicalType,
               fb.getArg[Long](2).load()))
-          val copyF = fb.resultWithIndex()(0)
+          val copyF = fb.resultWithIndex()(0, region)
           val newOff = copyF(region, src)
 
 

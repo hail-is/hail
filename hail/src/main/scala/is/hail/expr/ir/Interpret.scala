@@ -6,7 +6,7 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
 import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.methods._
@@ -717,17 +717,17 @@ object Interpret {
           else true
         }
       case ir: AbstractApplyNode[_] =>
-        val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
-        val f = functionMemo.getOrElseUpdate(ir, {
-          val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple.virtualType), i)
-          }.toFastIndexedSeq
-          val wrappedIR = Copy(ir, wrappedArgs)
-
-          val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)), optimize = false)
-          makeFunction(0)
-        })
+        val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).asInstanceOf[PTuple]
         Region.scoped { region =>
+          val f = functionMemo.getOrElseUpdate(ir, {
+            val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
+              GetTupleElement(Ref("in", argTuple.virtualType), i)
+            }.toFastIndexedSeq
+            val wrappedIR = Copy(ir, wrappedArgs)
+
+            val (_, makeFunction) = Compile[Long, Long]("in", argTuple, MakeTuple(List(wrappedIR)), optimize = false)
+            makeFunction(0, region)
+          })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
           rvb.start(argTuple)
@@ -776,20 +776,20 @@ object Interpret {
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
+        val value = child.execute(ctx)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
-          "global", child.typ.globalType.physicalType,
-          "row", child.typ.rowType.physicalType,
+          "global", value.globals.t,
+          "global", value.globals.t,
+          "row", value.rvd.rowPType,
           MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
+          "global", value.globals.t,
           "AGGR", aggResultType,
           postAggIR)
 
-        val value = child.execute(ctx)
         val globalsBc = value.globals.broadcast
 
         val globalsOffset = value.globals.value.offset
@@ -799,7 +799,7 @@ object Interpret {
           val rvb: RegionValueBuilder = new RegionValueBuilder()
           rvb.set(ctx.r)
 
-          initOps(0)(ctx.r, rvAggs, globalsOffset, false)
+          initOps(0, ctx.r)(ctx.r, rvAggs, globalsOffset, false)
 
           val combOp = { (rvAggs1: Array[RegionValueAggregator], rvAggs2: Array[RegionValueAggregator]) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
@@ -807,8 +807,9 @@ object Interpret {
           }
 
           value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
-            val globalsOffset = globalsBc.value.readRegionValue(ctx.freshRegion)
-            val seqOpsFunction = seqOps(i)
+            val partRegion =  ctx.freshRegion
+            val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+            val seqOpsFunction = seqOps(i, partRegion)
             (globalsOffset, seqOpsFunction)
           })({ case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
@@ -825,7 +826,7 @@ object Interpret {
         rvb.endTuple()
         val aggResultsOffset = rvb.end()
 
-        val resultOffset = f(0)(ctx.r, globalsOffset, false, aggResultsOffset, false)
+        val resultOffset = f(0, ctx.r)(ctx.r, globalsOffset, false, aggResultsOffset, false)
 
         SafeRow(coerce[PTuple](t), ctx.r, resultOffset).get(0)
       case x: ReadPartition =>

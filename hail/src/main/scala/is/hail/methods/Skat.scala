@@ -325,7 +325,7 @@ case class Skat(
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = mv.rvRowType.physicalType
+    val fullRowType = mv.rvRowPType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ

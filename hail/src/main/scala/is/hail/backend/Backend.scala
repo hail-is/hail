@@ -36,10 +36,10 @@ abstract class Backend {
       ir.typ match {
         case TVoid =>
           val (_, f) = timer.time(Compile[Unit](ir), "JVM compile")
-          timer.time(f(0)(region), "Runtime")
+          timer.time(f(0, region)(region), "Runtime")
         case _ =>
           val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "JVM compile")
-          timer.time(SafeRow(pt, region, f(0)(region)).get(0), "Runtime")
+          timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
       }
     }
 
@@ -107,7 +107,7 @@ abstract class Backend {
 
     Region.scoped { region =>
       val (pt: PTuple, f) = Compile[Long](MakeTuple(FastSeq(ir)))
-      (pt.parsableString(), codec.encode(pt, region, f(0)(region)))
+      (pt.parsableString(), codec.encode(pt, region, f(0, region)(region)))
     }
   }
 

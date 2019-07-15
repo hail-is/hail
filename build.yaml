@@ -47,6 +47,7 @@ steps:
      with open('secret-key', 'wb') as f:
        f.write(secret_key)
      "
+     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret jwt-secret-key
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
@@ -58,6 +59,7 @@ steps:
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
+     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret batch-jwt
      kubectl -n {{ default_ns.name }} create secret generic batch-jwt --from-file=./jwt
      # ci
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "ci-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
@@ -69,6 +71,7 @@ steps:
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
+     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret ci-jwt
      kubectl -n {{ default_ns.name }} create secret generic ci-jwt --from-file=./jwt
      # test
      # test-gsa-key exists
@@ -80,10 +83,12 @@ steps:
      with open('jwt', 'w') as f:
        f.write(jwt.encode(payload, secret_key).decode('utf-8'))
      "
+     kubectl -n {{ default_ns.name }} --ignore-not-found=true delete secret test-jwt
      kubectl -n {{ batch_pods_ns.name }} create secret generic test-jwt --from-file=./jwt
    serviceAccount: ci-agent
    scopes:
     - test
+    - dev
    dependsOn:
     - default_ns
     - batch_pods_ns

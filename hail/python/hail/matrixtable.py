@@ -1743,7 +1743,7 @@ class MatrixTable(ExprContainer):
         entry_ir = hl.cond(
             hl.is_defined(self.entry),
             self.entry,
-            hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
+            hl.literal(hl.Struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()})))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
 
     @typecheck_method(row_field=str, col_field=str)
@@ -4019,6 +4019,15 @@ class MatrixTable(ExprContainer):
              'overwrite': overwrite,
              'entryField': entry_field,
              'blockSize': block_size}))
+
+    def _calculate_new_partitions(self, n_partitions):
+        """returns a set of range bounds that can be passed to write"""
+        mt = self.rows()
+        mt = mt.select()
+        return Env.backend().execute(TableToValueApply(
+            mt._tir,
+            {'name': 'TableCalculateNewPartitions',
+             'nPartitions': n_partitions}))
 
 
 matrix_table_type.set(MatrixTable)

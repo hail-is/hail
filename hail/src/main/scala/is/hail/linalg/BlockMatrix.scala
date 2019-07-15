@@ -10,7 +10,7 @@ import is.hail.annotations._
 import is.hail.expr.Parser
 import is.hail.expr.ir.{CompileAndEvaluate, ExecuteContext, IR, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
+import is.hail.expr.types.physical.{PArray, PFloat64, PFloat64Optional, PInt64, PInt64Optional, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -1245,7 +1245,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def entriesTable(ctx: ExecuteContext): TableValue = {
-    val rowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    val rowType = PStruct("i" -> PInt64Optional, "j" -> PInt64Optional, "entry" -> PFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
@@ -1257,7 +1257,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       block.activeIterator
         .map { case ((i, j), entry) =>
-          rvb.start(rowType.physicalType)
+          rvb.start(rowType)
           rvb.startStruct()
           rvb.addLong(rowOffset + i)
           rvb.addLong(colOffset + j)

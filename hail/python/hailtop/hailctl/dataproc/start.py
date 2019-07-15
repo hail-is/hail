@@ -184,6 +184,8 @@ def main(args, pass_through_args):
     if args.max_age:
         cmd.append('--max-age={}'.format(args.max_age))
 
+    cmd.extend(pass_through_args)
+
     # print underlying gcloud command
     print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
 

@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, FunctionBuilder, _}
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion}
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
@@ -182,15 +183,41 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     }
   }
 
-  def addBoolean(v: Code[Boolean]): Code[Unit] = region.storeByte(currentOffset, v.toI.toB)
+  def checkType(knownType: Type): Unit = {
+    val current = ftype match {
+      case t: PArray => t.elementType.virtualType
+      case t: PBaseStruct =>
+        t.types(staticIdx).virtualType
+      case t => t.virtualType
+    }
+    if (!current.isOfType(knownType))
+      throw new RuntimeException(s"bad SRVB addition: expected $current, tried to add $knownType")
+  }
 
-  def addInt(v: Code[Int]): Code[Unit] = region.storeInt(currentOffset, v)
+  def addBoolean(v: Code[Boolean]): Code[Unit] = {
+    checkType(TBoolean())
+    region.storeByte(currentOffset, v.toI.toB)
+  }
 
-  def addLong(v: Code[Long]): Code[Unit] = region.storeLong(currentOffset, v)
+  def addInt(v: Code[Int]): Code[Unit] = {
+    checkType(TInt32())
+    region.storeInt(currentOffset, v)
+  }
 
-  def addFloat(v: Code[Float]): Code[Unit] = region.storeFloat(currentOffset, v)
+  def addLong(v: Code[Long]): Code[Unit] = {
+    checkType(TInt64())
+    region.storeLong(currentOffset, v)
+  }
 
-  def addDouble(v: Code[Double]): Code[Unit] = region.storeDouble(currentOffset, v)
+  def addFloat(v: Code[Float]): Code[Unit] = {
+    checkType(TFloat32())
+    region.storeFloat(currentOffset, v)
+  }
+
+  def addDouble(v: Code[Double]): Code[Unit] = {
+    checkType(TFloat64())
+    region.storeDouble(currentOffset, v)
+  }
 
   def allocateBinary(n: Code[Int]): Code[Long] = {
     val boff = mb.newField[Long]

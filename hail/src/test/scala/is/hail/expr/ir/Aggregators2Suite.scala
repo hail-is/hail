@@ -153,7 +153,7 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val offset = ScalaToRegionValue(region, arrayType.virtualType, firstCol)
-      val res = aggf(0)(region, offset)
+      val res = aggf(0, region)(region, offset)
       assert(SafeRow(resType, region, res) == expected(0))
     }
   }
@@ -178,7 +178,7 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val offset = ScalaToRegionValue(region, streamType.virtualType, value)
-      val res = aggf(0)(region, offset)
+      val res = aggf(0, region)(region, offset)
       assert(SafeRow(resType, region, res) == Row(expected))
     }
   }
@@ -240,7 +240,7 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val offset = ScalaToRegionValue(region, TArray(streamType.virtualType), partitioned)
-      val res = aggf(0)(region, offset)
+      val res = aggf(0, region)(region, offset)
       assert(SafeRow(resType, region, res) == Row(expected))
     }
   }
