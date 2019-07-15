@@ -114,7 +114,7 @@
         "x": 7,
         "y": 0
       },
-      "id": 4,
+      "id": 30,
       "legend": {
         "avg": false,
         "current": false,
@@ -139,25 +139,17 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "avg(http_request_duration_microseconds{quantile=\"0.99\"})",
+          "expr": "histogram_quantile(0.99, sum(rate(apiserver_request_latencies_bucket{verb!=\"WATCH\", verb!=\"CONNECT\"}[5m])) \nby (le)) / 1e+06",
           "format": "time_series",
           "intervalFactor": 1,
-          "legendFormat": "mean",
           "refId": "A"
-        },
-        {
-          "expr": "max(http_request_duration_microseconds{quantile=\"0.99\"})",
-          "format": "time_series",
-          "intervalFactor": 1,
-          "legendFormat": "max",
-          "refId": "B"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Request Latency",
+      "title": "Kubernetes apiserver request latency",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -173,11 +165,11 @@
       },
       "yaxes": [
         {
-          "format": "µs",
+          "format": "short",
           "label": null,
           "logBase": 1,
           "max": null,
-          "min": "0",
+          "min": null,
           "show": true
         },
         {
@@ -916,6 +908,66 @@
       }
     },
     {
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 13,
+        "y": 15
+      },
+      "id": 32,
+      "links": [],
+      "options": {
+        "fieldOptions": {
+          "calcs": [
+            "last"
+          ],
+          "defaults": {
+            "max": 100,
+            "min": 0,
+            "title": "",
+            "unit": "percent"
+          },
+          "mappings": [],
+          "override": {},
+          "thresholds": [
+            {
+              "color": "green",
+              "index": 0,
+              "value": null
+            },
+            {
+              "color": "#EAB839",
+              "index": 1,
+              "value": 75
+            },
+            {
+              "color": "red",
+              "index": 2,
+              "value": 90
+            }
+          ],
+          "values": false
+        },
+        "orientation": "auto",
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "6.2.1",
+      "targets": [
+        {
+          "expr": "kubelet_volume_stats_available_bytes{persistentvolumeclaim=\"prometheus-storage-prometheus-0\"} / kubelet_volume_stats_capacity_bytes{persistentvolumeclaim=\"prometheus-storage-prometheus-0\"} * 100",
+          "format": "table",
+          "instant": false,
+          "intervalFactor": 1,
+          "refId": "A"
+        }
+      ],
+      "timeFrom": null,
+      "timeShift": null,
+      "title": "Prometheus Disk Capacity",
+      "type": "gauge"
+    },
+    {
       "aliasColors": {},
       "bars": false,
       "dashLength": 10,
@@ -1039,5 +1091,5 @@
   "timezone": "",
   "title": "Cluster",
   "uid": "fTL6coMWz",
-  "version": 49
+  "version": 52
 }
