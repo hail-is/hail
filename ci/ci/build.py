@@ -553,8 +553,6 @@ roleRef:
   apiGroup: ""
 '''
 
-
-
         if self.public:
             config = config + '''\
 ---
