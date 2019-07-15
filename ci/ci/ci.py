@@ -264,7 +264,7 @@ async def batch_callback_handler(request):
 @routes.post('/api/v1alpha/dev_test_branch/')
 @rest_authenticated_developers_only
 async def dev_test_branch(request):
-    params = request.json()
+    params = await request.json()
     userdata = params['userdata']
     repo = Repo.from_short_str(params['repo'])
     fq_branch = FQBranch(repo, params.get('branch'))
