@@ -408,7 +408,7 @@ class RunImageStep(Step):
         volumes = []
         if self.secrets:
             for secret in self.secrets:
-                name = expand_value_from(secret['name'], self.input_config(code, deploy))
+                name = expand_value_from(secret['name'], self.input_config(code, scope))
                 mount_path = secret['mountPath']
                 volumes.append({
                     'volume': {
@@ -501,6 +501,7 @@ metadata:
   name: {self._name}
   labels:
     for: test
+---
 '''
         config = config + f'''\
 kind: Role
