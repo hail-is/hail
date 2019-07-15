@@ -3,8 +3,10 @@ package is.hail.methods
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir._
+import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types.physical.{PFloat64, PInt64, PString, PStruct}
-import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
+import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
@@ -304,28 +306,16 @@ object IBD {
     bounded: Boolean = true,
     min: Option[Double] = None,
     max: Option[Double] = None): TableIR = {
-    min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
-    max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
-
     ExecuteContext.scoped { ctx =>
-      val input = Interpret(inputIR, ctx, optimize = true).toMatrixValue(inputIR.typ.colKey)
-      input.requireUniqueSamples("ibd")
-
-      min.liftedZip(max).foreach { case (min, max) =>
-        if (min > max) {
-          fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
-        }
-      }
-
-      val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
-      val sampleIds = input.stringSampleIds
-
-      TableLiteral(TableValue(ctx, ibdPType, FastIndexedSeq("i", "j"),
-        computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)), ctx)
+      val ibd = IBD(mafFieldName, bounded, min, max)
+      val mv = Interpret(inputIR, ctx, optimize = true).toMatrixValue(inputIR.typ.colKey)
+      val tv = ibd.execute(ctx, mv)
+      TableLiteral(tv, ctx)
     }
   }
 
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
+  private val ibdKey = FastIndexedSeq("i", "j")
 
   def toKeyTable(hc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
@@ -370,5 +360,33 @@ object IBD {
       }
       maf
     }
+  }
+}
+
+case class IBD(
+  mafFieldName: Option[String] = None,
+  bounded: Boolean = true,
+  min: Option[Double] = None,
+  max: Option[Double] = None) extends MatrixToTableFunction {
+
+  min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
+  max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
+
+  min.liftedZip(max).foreach { case (min, max) =>
+    if (min > max) {
+      fatal(s"minimum must be less than or equal to maximum: ${ min }, ${ max }")
+    }
+  }
+
+  def preservesPartitionCounts: Boolean = false
+
+  def typ(childType: MatrixType): TableType =
+    TableType(IBD.ibdPType.virtualType, IBD.ibdKey, TStruct.empty())
+
+  def execute(ctx: ExecuteContext, input: MatrixValue): TableValue = {
+    input.requireUniqueSamples("ibd")
+    val computeMaf = mafFieldName.map(IBD.generateComputeMaf(input, _))
+    val crdd = IBD.computeIBDMatrix(input, computeMaf, min, max, input.stringSampleIds, bounded)
+    TableValue(ctx, IBD.ibdPType, IBD.ibdKey, crdd)
   }
 }
