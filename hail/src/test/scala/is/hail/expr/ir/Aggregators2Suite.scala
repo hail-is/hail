@@ -252,12 +252,10 @@ class Aggregators2Suite extends HailSuite {
 
     val spec = CodecSpec.defaultUncompressed
     val partitioned = value.grouped(3).toFastIndexedSeq
-    val fileNames = Array.tabulate(partitioned.length)(_ => tmpDir.createTempFile()).toFastIndexedSeq
 
-    val (_, initAndSeqF) = CompileWithAggregators2[Long, Long, Unit](
+    val (_, initAndSeqF) = CompileWithAggregators2[Long, Unit](
       Array(lcAggSig),
       "stream", streamType,
-      "path", PString(),
       Begin(FastIndexedSeq(
         InitOp2(0, FastIndexedSeq(), lcAggSig),
         ArrayFor(Ref("stream", streamType.virtualType),
@@ -276,43 +274,46 @@ class Aggregators2Suite extends HailSuite {
                       SeqOp2(1, FastIndexedSeq(), countAggSig),
                       SeqOp2(2, FastIndexedSeq(GetField(elt, "b")), sumAggSig)))),
                   eltAggSig)))))),
-        WriteAggs(0, Ref("path", TString()), spec, FastIndexedSeq(lcAggSig)))))
-
-    val paths = Ref("paths", TArray(TString()))
-    val (_, readAndComb) = CompileWithAggregators2[Long, Unit](
-      Array(lcAggSig, lcAggSig),
-      "paths", PArray(PString()),
-      Begin(FastIndexedSeq(
-        ReadAggs(0, ArrayRef(paths, 0), spec, FastIndexedSeq(lcAggSig)),
-        ArrayFor(ArrayRange(1, ArrayLen(paths), 1),
-          idx.name,
-          Begin(FastIndexedSeq(
-            ReadAggs(1, ArrayRef(paths, idx), spec, FastIndexedSeq(lcAggSig)),
-            CombOp2(0, 1, lcAggSig)))))))
+        SerializeAggs(0, 0, spec, FastIndexedSeq(lcAggSig)))))
 
     val (_, resultF) = CompileWithAggregators2[Long](
       Array(lcAggSig, lcAggSig), ResultOp2(0, FastIndexedSeq(lcAggSig)))
 
-    Region.scoped { region =>
-      val pathOffs = ScalaToRegionValue(region, paths.typ, fileNames)
+    val aggs = Region.scoped { region =>
       val f = initAndSeqF(0, region)
-      val f2 = readAndComb(0, region)
-      val resF = resultF(0, region)
 
-      partitioned.zipWithIndex.foreach { case (lit, i) =>
+      partitioned.map { case lit =>
         val voff = ScalaToRegionValue(region, streamType.virtualType, lit)
-        val poff = coerce[PArray](paths.pType).loadElement(region, pathOffs, i)
 
         Region.scoped { aggRegion =>
           f.newAggState(aggRegion)
-          f(region, voff, false, poff, false)
+          f(region, voff, false)
+          f.getSerializedAgg(0)
         }
       }
+    }
+
+    val (_, deserializeAndComb) = CompileWithAggregators2[Unit](
+      Array(lcAggSig, lcAggSig),
+      Begin(
+        DeserializeAggs(0, 0, spec, FastIndexedSeq(lcAggSig)) +:
+          Array.range(1, aggs.length).flatMap { i =>
+            FastIndexedSeq(
+              DeserializeAggs(1, i, spec, FastIndexedSeq(lcAggSig)),
+              CombOp2(0, 1, lcAggSig))
+          }))
+
+    Region.scoped { region =>
+      val comb = deserializeAndComb(0, region)
+      val resF = resultF(0, region)
 
       Region.scoped { aggRegion =>
-        f2.newAggState(aggRegion)
-        f2(region, pathOffs, false)
-        resF.setAggState(aggRegion, f2.getAggOffset())
+        comb.newAggState(aggRegion)
+        aggs.zipWithIndex.foreach { case (agg, i) =>
+          comb.setSerializedAgg(i, agg)
+        }
+        comb(region)
+        resF.setAggState(aggRegion, comb.getAggOffset())
         val res = resF(region)
 
         assert(SafeRow(resType, region, res) == Row(expected))

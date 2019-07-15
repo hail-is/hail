@@ -270,6 +270,8 @@ object TypeCheck {
         assert(path.typ isOfType TString())
       case x@WriteAggs(_, path, _, _) =>
         assert(path.typ isOfType TString())
+      case _: SerializeAggs =>
+      case _: DeserializeAggs =>
       case x@Begin(xs) =>
         xs.foreach { x =>
           assert(x.typ == TVoid)
