@@ -282,6 +282,8 @@ async def dev_test_branch(request):
 
     await unwatched_branch.deploy(batch_client, profiles[profile])
 
+    return web.Response(status=200)
+
 
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
