@@ -32,13 +32,17 @@ data:
     #          - /var/log/containers/*${data.kubernetes.container.id}.log
 
     processors:
+      - decode_json_fields:
+            fields: ["message"]
+            process_array: false
+            max_depth: 1
+            target: "json-message"
+            overwrite_keys: false
       - add_cloud_metadata:
 
-    cloud.id: ${ELASTIC_CLOUD_ID}
-    cloud.auth: ${ELASTIC_CLOUD_AUTH}
-
     output.elasticsearch:
-      hosts: ['${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}']
+      hosts: ["http://elasticsearch:9200"]
+      #hosts: ['${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}']
       username: ${ELASTICSEARCH_USERNAME}
       password: ${ELASTICSEARCH_PASSWORD}
 ---
@@ -74,9 +78,9 @@ spec:
         - name: ELASTICSEARCH_PASSWORD
           value: changeme
         - name: ELASTIC_CLOUD_ID
-          value:
+          value: elastic
         - name: ELASTIC_CLOUD_AUTH
-          value:
+          value: changeme
         - name: NODE_NAME
           valueFrom:
             fieldRef:
