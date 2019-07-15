@@ -22,7 +22,6 @@ from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
-oauth_token=None
 
 uvloop.install()
 
