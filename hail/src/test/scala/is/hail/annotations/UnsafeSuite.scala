@@ -352,12 +352,12 @@ class UnsafeSuite extends HailSuite {
     case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
       def allocateRegion(): Counts =
         if (freeRegions == 0)
-          copy(regions = regions + 1)
-        else copy(freeRegions = freeRegions - 1)
+          copy(regions = regions + 1, freeBlocks = math.max(freeBlocks - 1, 0))
+        else copy(freeRegions = freeRegions - 1, freeBlocks = math.max(freeBlocks - 1, 0))
 
       def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
         if (freeRegions == 0)
-          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks)
+          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks + nDependentRegions + 1)
         else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
     }
     def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
@@ -407,20 +407,20 @@ class UnsafeSuite extends HailSuite {
     val region = Region()
     region.setNumParents(5)
 
-    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.small) }) { r =>
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.SMALL) }) { r =>
       offset(r)
     }
 
-    val off2 = Region.scoped { r =>
+    val off2 = Region.tinyScoped { r =>
       region.setParentReference(r, 2)
       offset(r)
     }
 
-    using(region.getParentReference(2, Region.tiny)) { r =>
+    using(region.getParentReference(2, Region.TINY)) { r =>
       assert(offset(r) == off2)
     }
 
-    using(region.getParentReference(4, Region.small)) { r =>
+    using(region.getParentReference(4, Region.SMALL)) { r =>
       assert(offset(r) == off4)
     }
 

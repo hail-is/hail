@@ -137,7 +137,7 @@ class Aggregators2Suite extends HailSuite {
     fb.emit(
       Code(r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).r := r.load().getParentReference(i, Region.regular),
+          Code(states(i).r := r.load().getParentReference(i, Region.REGULAR),
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
