@@ -85,7 +85,7 @@ case class MatrixValue(
   def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
 
   private def writeCols(fs: FS, path: String, codecSpec: CodecSpec) {
-    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", typ.colType.physicalType, codecSpec, colValues.javaValue)
+    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", colValues.t.elementType.asInstanceOf[PStruct], codecSpec, colValues.javaValue)
 
     val colsSpec = TableSpec(
       FileFormat.version.rep,
@@ -101,9 +101,9 @@ case class MatrixValue(
   }
 
   private def writeGlobals(fs: FS, path: String, codecSpec: CodecSpec) {
-    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", typ.globalType.physicalType, codecSpec, Array(globals.javaValue))
+    val partitionCounts = AbstractRVDSpec.writeSingle(fs, path + "/rows", globals.t, codecSpec, Array(globals.javaValue))
 
-    AbstractRVDSpec.writeSingle(fs, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
+    AbstractRVDSpec.writeSingle(fs, path + "/globals", PStruct.empty(), codecSpec, Array[Annotation](Row()))
 
     val globalsSpec = TableSpec(
       FileFormat.version.rep,
