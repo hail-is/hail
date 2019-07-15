@@ -11,9 +11,8 @@ import is.hail.variant.Genotype
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32()) { case (r, (t, pl: Code[Long])) =>
+    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32(), null) { case (r, rt, (tPL: PArray, pl: Code[Long])) =>
       val region = r.region
-      val tPL = PArray(tv("N").t.physicalType)
       val m = r.mb.newLocal[Int]("m")
       val m2 = r.mb.newLocal[Int]("m2")
       val len = r.mb.newLocal[Int]("len")
@@ -40,7 +39,7 @@ object GenotypeFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("dosage", TArray(tv("N", "float64")), TFloat64()) { case (r, (pArray: PArray, gpOff: Code[Long])) =>
+    registerCode("dosage", TArray(tv("N", "float64")), TFloat64(), null) { case (r, rt, (pArray: PArray, gpOff: Code[Long])) =>
       val gp = r.mb.newLocal[Long]
       val region = r.region
       val len = pArray.loadLength(region, gp)
@@ -55,7 +54,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
     // FIXME: remove when SkatSuite is moved to Python
     // the pl_dosage function in Python is implemented in Python
-    registerCode("plDosage", TArray(tv("N", "int32")), TFloat64()) { case (r, (pArray: PArray, plOff: Code[Long])) =>
+    registerCode("plDosage", TArray(tv("N", "int32")), TFloat64(), null) { case (r, rt, (pArray: PArray, plOff: Code[Long])) =>
       val pl = r.mb.newLocal[Long]
       val region = r.region
       val len = pArray.loadLength(region, pl)

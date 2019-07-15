@@ -19,8 +19,8 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerLocusCode(methodName: String): Unit = {
-    registerCode(methodName, tv("T", "locus"), TBoolean()) {
-      case (r: EmitRegion, (locusT: PLocus, locus: Code[Long])) =>
+    registerCode(methodName, tv("T", "locus"), TBoolean(), null) {
+      case (r: EmitRegion, rt, (locusT: PLocus, locus: Code[Long])) =>
         val locusObject = getLocus(r, locus, locusT)
         val rg = locusT.rg.asInstanceOf[ReferenceGenome]
 
@@ -30,13 +30,14 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerCode("contig", tv("T", "locus"), TString()) {
-      case (r, (locusT: PLocus, locus: Code[Long])) =>
+    registerCode("contig", tv("T", "locus"), TString(),
+      (x: PType) => x.asInstanceOf[PLocus].fundamentalType.asInstanceOf[PStruct].field("contig").typ) {
+      case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.contig(r.region, locus)
     }
 
-    registerCode("position", tv("T", "locus"), TInt32()) {
-      case (r, (locusT: PLocus, locus: Code[Long])) =>
+    registerCode("position", tv("T", "locus"), TInt32(), null) {
+      case (r, rt, (locusT: PLocus, locus: Code[Long])) =>
         locusT.position(r.region, locus)
     }
 
@@ -48,8 +49,8 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar")
     registerLocusCode("inYPar")
 
-    registerCode("min_rep", tv("T", "locus"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString()))) {
-      case (r, (locusT: PLocus, lOff), (allelesT, aOff)) =>
+    registerCode("min_rep", tv("T", "locus"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString())), null) {
+      case (r, rt: PStruct, (locusT: PLocus, lOff), (allelesT, aOff)) =>
         val returnTuple = r.mb.newLocal[(Locus, IndexedSeq[String])]
         val locus = getLocus(r, lOff, locusT)
         val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(r, allelesT)(aOff).asInstanceOf[Code[AnyRef]])
@@ -58,9 +59,9 @@ object LocusFunctions extends RegistryFunctions {
         val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
         val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
 
-        val newLocusT = PLocus(locusT.rg)
-        val newAllelesT = PArray(PString())
-        val srvb = new StagedRegionValueBuilder(r, PTuple(FastIndexedSeq(newLocusT, newAllelesT)))
+        val newLocusT = rt.field("locus").typ
+        val newAllelesT = rt.field("alleles").typ.asInstanceOf[PArray]
+        val srvb = new StagedRegionValueBuilder(r, rt)
         Code(
           returnTuple := tuple,
           srvb.start(),
@@ -82,12 +83,11 @@ object LocusFunctions extends RegistryFunctions {
           srvb.offset)
     }
 
-    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64())), TFloat64(), TTuple(TArray(TInt32()), TArray(TInt32()))) {
-      case (r: EmitRegion, (groupedT: PArray, coords: Code[Long]), (radiusT: PFloat64, radius: Code[Double])) =>
+    registerCode("locus_windows_per_contig", TArray(TArray(TFloat64())), TFloat64(), TTuple(TArray(TInt32()), TArray(TInt32())), null) {
+      case (r: EmitRegion, rt: PTuple, (groupedT: PArray, coords: Code[Long]), (radiusT: PFloat64, radius: Code[Double])) =>
         val region: Code[Region] = r.region
 
         val coordT = types.coerce[PArray](groupedT.elementType)
-        val rt = PTuple(FastIndexedSeq(PArray(PInt64()), PArray(PInt64())))
 
         val ncontigs = r.mb.newLocal[Int]("ncontigs")
         val totalLen = r.mb.newLocal[Int]("l")
