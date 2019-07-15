@@ -71,14 +71,20 @@ abstract class PContainer extends PIterable {
   def isElementDefined(region: Region, aoff: Long, i: Int): Boolean =
     elementType.required || !region.loadBit(aoff + 4, i)
 
-  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
-    !isElementDefined(region, aoff, i)
+  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    !isElementDefined(aoff, i)
 
-  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  def isElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    isElementMissing(aoff, i)
+
+  def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementType.required)
       true
     else
-      !region.loadBit(aoff + 4, i.toL)
+      !Region.loadBit(aoff + 4L, i.toL)
+
+  def isElementDefined(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+    isElementDefined(aoff, i)
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
@@ -118,19 +124,19 @@ abstract class PContainer extends PIterable {
     }
   }
 
-  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
-    val off = elementOffset(aoff, length, i)
+  def loadElement(region: Region, aoff: Long, i: Int): Long =
+    loadElement(region, aoff, region.loadInt(aoff), i)
+
+  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] = {
+    val off = elementOffset(aoff, Region.loadInt(aoff), i)
     elementType.fundamentalType match {
-      case _: PArray | _: PBinary => region.loadAddress(off)
+      case _: PArray | _: PBinary => Region.loadAddress(off)
       case _ => off
     }
   }
 
-  def loadElement(region: Region, aoff: Long, i: Int): Long =
-    loadElement(region, aoff, region.loadInt(aoff), i)
-
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
-    loadElement(region, aoff, region.loadInt(aoff), i)
+    loadElement(aoff, i)
 
   def allocate(region: Region, length: Int): Long = {
     region.allocate(contentsAlignment, contentsByteSize(length))

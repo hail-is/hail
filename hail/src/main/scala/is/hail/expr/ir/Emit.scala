@@ -985,30 +985,34 @@ private class Emit(
 
       case InitOp2(i, args, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
-        assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
+        assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val setup = rvAgg.initOp(sc(i), argVars)
-
-        EmitTriplet(setup, false, Code._empty)
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
+        void(
+          sc(i).newState,
+          rvAgg.initOp(sc(i), argVars))
 
       case SeqOp2(i, args, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
         val rvAgg = agg.Extract.getAgg(aggSig)
-        EmitTriplet(rvAgg.seqOp(sc(i), argVars),
-          false, Code._empty)
+
+        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
+        void(
+          sc.loadOneIfMissing(aggOff, i),
+          rvAgg.seqOp(sc(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         assert(agg.Extract.compatible(aggs(i1), aggSig), s"${ aggs(i1) } vs $aggSig")
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
-        val comb = rvAgg.combOp(sc(i1), sc(i2))
 
-        EmitTriplet(comb, false, Code._empty)
+        void(
+          sc.loadOneIfMissing(aggOff, i1),
+          sc.loadOneIfMissing(aggOff, i2),
+          rvAgg.combOp(sc(i1), sc(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1016,12 +1020,18 @@ private class Emit(
         val addFields = coerce[Unit](Code(Array.tabulate(aggSigs.length) { j =>
           val idx = start + j
           assert(aggSigs(j) == aggs(idx))
-          val s = sc(idx)
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
-          Code(rvAgg.result(s, srvb), srvb.advance())
+          Code(
+            sc.loadOneIfMissing(aggOff, idx),
+            rvAgg.result(sc(idx), srvb),
+            srvb.advance())
         }: _*))
 
-        EmitTriplet(Code._empty, false, Code(srvb.start(), addFields, srvb.offset))
+        present(Code(
+          srvb.start(),
+          addFields,
+          sc.store(0, aggOff),
+          srvb.offset))
 
       case WriteAggs(start, path, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1031,18 +1041,20 @@ private class Emit(
         val pathString = Code.invokeScalaObject[Region, Long, String](
           PString.getClass, "loadString", region, p.value[Long])
 
-        val serialize = sc.states
-          .slice(start, start + aggSigs.length)
-          .map(s => s.serialize(spec)(ob))
+        val serialize = Array.range(start, start + aggSigs.length)
+          .map { idx =>
+            Code(
+              sc.loadOneIfMissing(aggOff, idx),
+              sc(idx).serialize(spec)(ob))
+          }
 
-        val write = Code(
+        void(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
           ob := spec.buildCodeOutputBuffer(mb.fb.getUnsafeWriter(pathString)),
           coerce[Unit](Code(serialize: _*)),
           ob.invoke[Unit]("flush"),
-          ob.invoke[Unit]("close"))
-
-        EmitTriplet(write, false, Code._empty)
+          ob.invoke[Unit]("close"),
+          sc.store(0, aggOff))
 
       case ReadAggs(start, path, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1056,55 +1068,62 @@ private class Emit(
           .slice(start, start + aggSigs.length)
           .map(_.unserialize(spec))
 
+        val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
+          .map(i => sc(i).newState): _*))
+
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
         }
 
-        val read = Code(
+        void(
+          init,
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
           ib := spec.buildCodeInputBuffer(mb.fb.getUnsafeReader(pathString, true)),
           coerce[Unit](Code(unserialize: _*)))
 
-        EmitTriplet(read, false, Code._empty)
-
-      case SerializeAggs(start, serializedIdx, spec, aggSigs) =>
+      case SerializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
         val ob = mb.newField[OutputBuffer]
         val baos = mb.newField[ByteArrayOutputStream]
 
-        val serialize = sc.states
-          .slice(start, start + aggSigs.length)
-          .map(s => s.serialize(spec)(ob))
+        val serialize = Array.range(start, start + aggSigs.length)
+          .map { idx =>
+            Code(
+              sc.loadOneIfMissing(aggOff, idx),
+              sc(idx).serialize(spec)(ob))
+          }
 
-        val write = Code(
+        void(
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
           coerce[Unit](Code(serialize: _*)),
           ob.invoke[Unit]("flush"),
           ob.invoke[Unit]("close"),
-          mb.fb.setSerializedAgg(serializedIdx, baos.invoke[Array[Byte]]("toByteArray")))
+          mb.fb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray")),
+          sc.store(0, aggOff))
 
-        EmitTriplet(write, false, Code._empty)
-
-      case DeserializeAggs(start, serializedIdx, spec, aggSigs) =>
+      case DeserializeAggs(start, sIdx, spec, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
-        val bais = mb.newField[ByteArrayInputStream]
         val ib = mb.newField[InputBuffer]
+        val bais = mb.newField[ByteArrayInputStream]
 
         val deserializers = sc.states
           .slice(start, start + aggSigs.length)
           .map(_.unserialize(spec))
 
+        val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
+          .map(i => sc(i).newState): _*))
+
         val unserialize = Array.tabulate(aggSigs.length) { j =>
           deserializers(j)(ib)
         }
 
-        val read = Code(
-          bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](mb.fb.getSerializedAgg(serializedIdx)),
-          ib := spec.buildCodeInputBuffer(bais),
+        void(
+          init,
+          ib := spec.buildCodeInputBuffer(
+            Code.newInstance[ByteArrayInputStream, Array[Byte]](
+              mb.fb.getSerializedAgg(sIdx))),
           coerce[Unit](Code(unserialize: _*)))
-
-        EmitTriplet(read, false, Code._empty)
 
       case Begin(xs) =>
         EmitTriplet(
@@ -1855,6 +1874,8 @@ private class Emit(
 
   private def present(x: Code[_]): EmitTriplet =
     EmitTriplet(Code._empty, const(false), x)
+
+  private def void(x: Code[Unit]*): EmitTriplet = EmitTriplet(coerce[Unit](Code(x: _*)), false, Code._empty)
 
   private def strict(value: Code[_], args: EmitTriplet*): EmitTriplet = {
     EmitTriplet(
