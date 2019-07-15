@@ -284,7 +284,6 @@ async def dev_test_branch(request):
 
     return web.Response(status=200)
 
-
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
     await asyncio.shield(batch_callback_handler(request))
