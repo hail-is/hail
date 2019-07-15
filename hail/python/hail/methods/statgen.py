@@ -113,7 +113,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
         'bounded': bounded,
         'min': min,
         'max': max,
-    })).persist()
+    }))
 
 
 @typecheck(call=expr_call,
