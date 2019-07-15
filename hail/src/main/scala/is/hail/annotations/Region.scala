@@ -7,15 +7,17 @@ import is.hail.utils._
 import is.hail.nativecode._
 
 object Region {
-  val regular: Int = 64 * 1024
-  val small: Int = 8 * 1024
-  val tiny: Int = 256
+  type Size = Int
+  val REGULAR: Size = 64 * 1024
+  val SMALL: Size = 8 * 1024
+  val TINY: Size = 1024
+  val TINIER: Size = 256
 
-  def apply(blockSize: Int = regular): Region = new Region(blockSize)
+  def apply(): Region = new Region(REGULAR)
 
   def scoped[T](f: Region => T): T = using(Region())(f)
-  def smallScoped[T](f: Region => T): T = using(Region(small))(f)
-  def tinyScoped[T](f: Region => T): T = using(Region(tiny))(f)
+  def smallScoped[T](f: Region => T): T = using(new Region(SMALL))(f)
+  def tinyScoped[T](f: Region => T): T = using(new Region(TINY))(f)
 
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
   def loadLong(addr: Long): Long = Memory.loadLong(addr)
@@ -139,8 +141,8 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region(blockSize: Int) extends NativeBase() {
-  def this() { this(Region.regular) }
+final class Region private (blockSize: Region.Size) extends NativeBase() {
+  def this() { this(Region.REGULAR) }
   @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
   @native def nativeClearRegion(): Unit
 
