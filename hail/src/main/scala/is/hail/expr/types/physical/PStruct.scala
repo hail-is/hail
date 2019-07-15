@@ -270,5 +270,4 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
     PStruct(ab.result(), required)
   }
-
 }
