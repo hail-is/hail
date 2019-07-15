@@ -25,8 +25,12 @@ abstract class EType extends Serializable {
   def required: Boolean
 
   def fundamentalType: EType = this
+
+  def toPType(): PType
 }
 
 case object EVoid extends EType {
   override val required = true
+
+  def toPType(): PType = PVoid
 }
