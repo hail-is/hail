@@ -11,7 +11,7 @@ object Region {
   val small: Int = 8 * 1024
   val tiny: Int = 256
 
-  def apply(blockSize: Int = regular): Region = new Region(blockSize, empty = false)
+  def apply(blockSize: Int = regular): Region = new Region(blockSize)
 
   def scoped[T](f: Region => T): T = using(Region())(f)
   def smallScoped[T](f: Region => T): T = using(Region(small))(f)
@@ -139,12 +139,12 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region private (blockSize: Int, empty: Boolean) extends NativeBase() {
-  @native def nativeCtor(p: RegionPool): Unit
-  @native def initEmpty(): Unit
+final class Region(blockSize: Int) extends NativeBase() {
+  def this() { this(Region.regular) }
+  @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
   @native def nativeClearRegion(): Unit
 
-  if (empty) initEmpty() else nativeCtor(RegionPool.get)
+  nativeCtor(RegionPool.get, blockSize)
   
   def this(b: Region) {
     this()
@@ -210,7 +210,7 @@ final class Region private (blockSize: Int, empty: Boolean) extends NativeBase()
 
   def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < nativeGetNumParents())
-    val r = new Region(blockSize, empty = true)
+    val r = new Region(blockSize)
     nativeGetParentReferenceInto(r, i, blockSize)
     r
   }
