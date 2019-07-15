@@ -1,6 +1,7 @@
 #include "hail/RegionPool.h"
 #include "hail/NativePtr.h"
 #include "hail/Upcalls.h"
+#include "hail/Utils.h"
 #include <memory>
 #include <vector>
 #include <utility>
@@ -20,14 +21,16 @@ void RegionPtr::clear() {
   }
 }
 
-Region::Region(RegionPool * pool) :
+Region::Region(RegionPool * pool, size_t block_size) :
 pool_(pool),
+block_size_(block_size),
+block_threshold_((block_size < BLOCK_THRESHOLD) ? block_size : BLOCK_THRESHOLD),
 block_offset_(0),
-current_block_(pool->get_block()) { }
+current_block_(pool->get_block(block_size)) { }
 
 char * Region::allocate_new_block(size_t n) {
   used_blocks_.push_back(std::move(current_block_));
-  current_block_ = pool_->get_block();
+  current_block_ = pool_->get_block(block_size_);
   block_offset_ = n;
   return current_block_.get();
 }
@@ -39,14 +42,16 @@ char * Region::allocate_big_chunk(size_t n) {
 
 void Region::clear() {
   block_offset_ = 0;
-  std::move(std::begin(used_blocks_), std::end(used_blocks_), std::back_inserter(pool_->free_blocks_));
+  std::move(std::begin(used_blocks_), std::end(used_blocks_), std::back_inserter(*pool_->get_block_pool(block_size_)));
   used_blocks_.clear();
   big_chunks_.clear();
   parents_.clear();
+  pool_->get_block_pool(block_size_)->push_back(std::move(current_block_));
+  current_block_ = nullptr;
 }
 
-RegionPtr Region::get_region() {
-  return pool_->get_region();
+RegionPtr Region::get_region(size_t block_size) {
+  return pool_->get_region(block_size);
 }
 
 void Region::add_reference_to(RegionPtr region) {
@@ -67,8 +72,8 @@ void Region::set_parent_reference(RegionPtr region, int i) {
 
 RegionPtr Region::get_parent_reference(int i) { return parents_[i]; }
 
-RegionPtr Region::new_parent_reference(int i) {
-  auto r = get_region();
+RegionPtr Region::new_parent_reference(int i, size_t block_size) {
+  auto r = get_region(block_size);
   parents_[i] = r;
   return r;
 }
@@ -76,26 +81,28 @@ RegionPtr Region::new_parent_reference(int i) {
 void Region::clear_parent_reference(int i) {
   parents_[i] = nullptr;
 }
-
-std::unique_ptr<char[]> RegionPool::get_block() {
-  if (free_blocks_.empty()) {
-    return std::make_unique<char[]>(REGION_BLOCK_SIZE);
+std::unique_ptr<char[]> RegionPool::get_block(size_t size) {
+  auto free_blocks = get_block_pool(size);
+  if (free_blocks->empty()) {
+    return std::make_unique<char[]>(size);
   }
-  std::unique_ptr<char[]> block = std::move(free_blocks_.back());
-  free_blocks_.pop_back();
+  std::unique_ptr<char[]> block = std::move(free_blocks->back());
+  free_blocks->pop_back();
   return block;
 }
 
-RegionPtr RegionPool::new_region() {
-  regions_.emplace_back(new Region(this));
+RegionPtr RegionPool::new_region(size_t block_size) {
+  regions_.emplace_back(new Region(this, block_size));
   return RegionPtr(regions_.back().get());
 }
 
-RegionPtr RegionPool::get_region() {
+RegionPtr RegionPool::get_region(size_t block_size) {
   if (free_regions_.empty()) {
-    return new_region();
+    return new_region(block_size);
   }
   Region * region = std::move(free_regions_.back());
+  region->set_block_size(block_size);
+  region->current_block_ = get_block(block_size);
   free_regions_.pop_back();
   return RegionPtr(region);
 }
@@ -109,8 +116,8 @@ void ScalaRegionPool::own(RegionPool &&pool) {
   }
 }
 
-ScalaRegion::ScalaRegion(ScalaRegionPool * pool) :
-region_(pool->pool_.get_region()) { }
+ScalaRegion::ScalaRegion(ScalaRegionPool * pool, size_t block_size) :
+region_(pool->pool_.get_region(block_size)) { }
 
 ScalaRegion::ScalaRegion(std::nullptr_t) :
 region_(nullptr) { }
@@ -154,18 +161,12 @@ REGIONMETHOD(jint, RegionPool, numFreeBlocks)(
 REGIONMETHOD(void, Region, nativeCtor)(
   JNIEnv* env,
   jobject thisJ,
-  jobject poolJ
+  jobject poolJ,
+  jint blockSizeJ
 ) {
   auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, poolJ));
-  NativeObjPtr ptr = std::make_shared<ScalaRegion>(pool);
-  init_NativePtr(env, thisJ, &ptr);
-}
-
-REGIONMETHOD(void, Region, initEmpty)(
-  JNIEnv* env,
-  jobject thisJ
-) {
-  NativeObjPtr ptr = std::make_shared<ScalaRegion>(nullptr);
+  size_t block_size = (size_t) blockSizeJ;
+  NativeObjPtr ptr = std::make_shared<ScalaRegion>(pool, block_size);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -174,7 +175,7 @@ REGIONMETHOD(void, Region, clearButKeepMem)(
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  r->region_->clear();
+  r->region_ = r->region_->get_region(r->region_->get_block_size());
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(
@@ -223,12 +224,29 @@ REGIONMETHOD(void, Region, nativeRefreshRegion)(
   r->region_ = r->region_->get_region();
 }
 
-REGIONMETHOD(void, Region, nativeClearRegion)(
+REGIONMETHOD(void, Region, nativeCloseRegion)(
   JNIEnv* env,
   jobject thisJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
   r->region_ = nullptr;
+}
+
+REGIONMETHOD(jboolean, Region, nativeIsValidRegion)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jboolean) (r->region_ == nullptr) ? 0 : 1;
+}
+
+REGIONMETHOD(void, Region, nativeGetNewRegion)(
+  JNIEnv* env,
+  jobject thisJ,
+  jint blockSizeJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  r->region_ = r->region_->get_region((size_t) blockSizeJ);
 }
 
 REGIONMETHOD(jint, Region, nativeGetNumParents)(
@@ -263,13 +281,19 @@ REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
   JNIEnv* env,
   jobject thisJ,
   jobject otherJ,
-  jint i
+  jint i,
+  jint blockSizeJ
 ) {
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
   auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  auto block_size = (size_t) blockSizeJ;
   r2->region_ = r->region_->get_parent_reference((int) i);
   if (r2->region_.get() == nullptr) {
-    r2->region_ = r->region_->new_parent_reference((int) i);
+    r2->region_ = r->region_->new_parent_reference((int) i, block_size);
+  } else {
+    if (r2->region_->get_block_size() != block_size) {
+      throw new FatalError("blocksizes are wrong!");
+    }
   }
 }
 
@@ -281,5 +305,47 @@ REGIONMETHOD(void, Region, nativeClearParentReference)(
   auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
   r->region_->clear_parent_reference((int) i);
 }
+
+REGIONMETHOD(jint, Region, nativeGetBlockSize)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jint) r->region_->get_block_size();
+}
+
+REGIONMETHOD(jint, Region, nativeGetNumChunks)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jint) r->region_->get_num_chunks();
+}
+
+REGIONMETHOD(jint, Region, nativeGetNumUsedBlocks)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jint) r->region_->get_num_used_blocks();
+}
+
+
+REGIONMETHOD(jint, Region, nativeGetCurrentOffset)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jint) r->region_->get_current_offset();
+}
+
+REGIONMETHOD(jlong, Region, nativeGetBlockAddress)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  return (jlong) r->region_->get_block_address();
+}
+
 
 }

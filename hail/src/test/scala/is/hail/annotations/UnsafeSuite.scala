@@ -407,7 +407,7 @@ class UnsafeSuite extends HailSuite {
     val region = Region()
     region.setNumParents(5)
 
-    val off4 = using(assertUsesRegions(1) { region.getParentReference(4) }) { r =>
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.small) }) { r =>
       offset(r)
     }
 
@@ -416,16 +416,26 @@ class UnsafeSuite extends HailSuite {
       offset(r)
     }
 
-    using(region.getParentReference(2)) { r =>
+    using(region.getParentReference(2, Region.tiny)) { r =>
       assert(offset(r) == off2)
     }
 
-    using(region.getParentReference(4)) { r =>
+    using(region.getParentReference(4, Region.small)) { r =>
       assert(offset(r) == off4)
     }
 
     assertUsesRegions(-1) { region.clearParentReference(2) }
     assertUsesRegions(-1) { region.clearParentReference(4) }
+  }
+
+  @Test def testRegionSizes() {
+    Region.smallScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
+    }
+
+    Region.tinyScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+    }
   }
 
   // Tests for Region serialization have been removed since an off-heap Region

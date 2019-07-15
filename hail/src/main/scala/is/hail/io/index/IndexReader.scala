@@ -104,7 +104,7 @@ class IndexReader(fs: FS,
   private val leafDecoder = leafDecoderBuilder(is)
   private val internalDecoder = internalDecoderBuilder(is)
 
-  private val region = new Region()
+  private val region = Region()
   private val rv = RegionValue(region)
 
   private var cacheHits = 0L
