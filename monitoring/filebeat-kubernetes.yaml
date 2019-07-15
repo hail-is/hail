@@ -32,10 +32,8 @@ data:
           max_depth: 1
           target: "json-message"
           overwrite_keys: false
-      - add_cloud_metadata:
+      - add_cloud_metadata: ~
 
-    cloud.id: ${ELASTIC_CLOUD_ID}
-    cloud.auth: ${ELASTIC_CLOUD_AUTH}
 
     output.elasticsearch:
       hosts: ["http://elasticsearch:9200"]
