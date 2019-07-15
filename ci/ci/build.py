@@ -501,6 +501,7 @@ metadata:
   name: {self._name}
   labels:
     for: test
+---
 '''
         config = config + f'''\
 kind: Role
