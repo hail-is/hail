@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 
 def init_parser(parser):
+    parser.add_argument('github_username', type=str)
     parser.add_argument('repo', type=str)
     parser.add_argument('branch', type=str)
     parser.add_argument('namespace', type=str)
@@ -14,7 +15,7 @@ async def submit(args):
     async with aiohttp.ClientSession() as session:
         data = {
             'userdata': {
-                'username': 'johnc1231'
+                'username': args.github_username
             },
             'repo': args.repo,
             'branch': args.branch,

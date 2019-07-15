@@ -303,7 +303,6 @@ async def update_loop(app):
         await asyncio.sleep(300)
 
 
-
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
 
