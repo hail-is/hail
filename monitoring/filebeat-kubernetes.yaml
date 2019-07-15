@@ -30,7 +30,7 @@ data:
           fields: ["message"]
           process_array: false
           max_depth: 1
-          target: ""
+          target: "json-message"
           overwrite_keys: false
       - add_cloud_metadata:
 
