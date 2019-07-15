@@ -11,8 +11,9 @@ namespace hail {
 #define BLOCK_SIZE_1 64*1024
 #define BLOCK_SIZE_2 8*1024
 #define BLOCK_SIZE_3 1024
+#define BLOCK_SIZE_4 256
 
-#define BLOCK_THRESHOLD_RATIO 16
+#define BLOCK_THRESHOLD 4 * 1024
 
 struct ScalaRegionPool;
 class RegionPool;
@@ -44,6 +45,9 @@ class Region {
           clear();
           return *this;
         }
+        bool operator==(std::nullptr_t) noexcept {
+          return region_ == nullptr;
+        }
         Region * get() { return region_; }
         Region & operator*() { return *region_; }
         Region * operator->() { return region_; }
@@ -53,6 +57,7 @@ class Region {
     RegionPool * pool_;
     int references_ {0};
     size_t block_size_;
+    size_t block_threshold_;
     size_t block_offset_;
     std::unique_ptr<char[]> current_block_;
     std::vector<std::unique_ptr<char[]>> used_blocks_{};
@@ -65,8 +70,10 @@ class Region {
     Region(Region &pool) = delete;
     Region(Region &&pool) = delete;
     Region& operator=(Region pool) = delete;
-    void set_block_size(size_t block_size) { block_size_ = block_size; }
-    size_t get_block_size() { return block_size_; }
+    void set_block_size(size_t block_size) {
+      block_size_ = block_size;
+      block_threshold_ = (block_size < BLOCK_THRESHOLD) ? block_size : BLOCK_THRESHOLD;
+    }
     void clear();
     void align(size_t a) {
       block_offset_ = (block_offset_ + a-1) & ~(a-1);
@@ -78,7 +85,7 @@ class Region {
         block_offset_ += n;
         return p;
       } else {
-        return (n <= block_size_ / BLOCK_THRESHOLD_RATIO) ? allocate_new_block(n) : allocate_big_chunk(n);
+        return (n <= block_threshold_) ? allocate_new_block(n) : allocate_big_chunk(n);
       }
     }
 
@@ -89,7 +96,7 @@ class Region {
         block_offset_ = aligned_off + n;
         return p;
       } else {
-        return (n <= block_size_ / BLOCK_THRESHOLD_RATIO) ? allocate_new_block(n) : allocate_big_chunk(n);
+        return (n <= block_threshold_) ? allocate_new_block(n) : allocate_big_chunk(n);
       }
     }
     SharedPtr get_region(size_t block_size);
@@ -102,6 +109,12 @@ class Region {
     SharedPtr get_parent_reference(int i);
     SharedPtr new_parent_reference(int i, size_t block_size);
     void clear_parent_reference(int i);
+
+    size_t get_block_size() { return block_size_; }
+    int get_num_chunks() { return big_chunks_.size(); }
+    int get_num_used_blocks() { return used_blocks_.size(); }
+    int get_current_offset() { return block_offset_; }
+    long get_block_address() { return reinterpret_cast<long>(current_block_.get()); }
 };
 
 using RegionPtr = Region::SharedPtr;

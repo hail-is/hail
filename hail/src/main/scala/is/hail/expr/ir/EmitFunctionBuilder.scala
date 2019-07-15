@@ -267,8 +267,9 @@ class EmitFunctionBuilder[F >: Null](
     methods += getSer
 
     newF.emit(
-      Code(_aggRegion := setF.getArg[Region](1),
+      Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
         _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
         _aggState.loadRegions(0)))
 
@@ -276,6 +277,7 @@ class EmitFunctionBuilder[F >: Null](
       Code(
         _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
         _aggOff := setF.getArg[Long](2),
         _aggState.load(0, _aggOff)))
 

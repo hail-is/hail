@@ -947,7 +947,7 @@ class HailFeatureFlags {
     mutable.Map[String, String](
       "cpp" -> null,
       "lower" -> null,
-      "newaggs" -> null,
+      "newaggs" -> "1",
       "max_leader_scans" -> "1000"
     )
 

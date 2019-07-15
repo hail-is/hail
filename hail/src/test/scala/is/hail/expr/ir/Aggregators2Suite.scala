@@ -3,14 +3,16 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.methods.ForceCountTable
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 class Aggregators2Suite extends HailSuite {
@@ -118,7 +120,7 @@ class Aggregators2Suite extends HailSuite {
     fb.emit(
       Code(r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).loadRegion(r.load().getParentReference(i, states(i).regionSize)),
+          Code(states(i).loadRegion(reg => reg.setFromParentReference(r, i, states(i).regionSize)),
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -149,7 +151,7 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.loadRegion(r),
+//        s.loadRegion(reg => reg.r),
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),
@@ -194,7 +196,7 @@ class Aggregators2Suite extends HailSuite {
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.newRegion,
+          s.newState,
           soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
@@ -203,13 +205,13 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.newRegion,
+        s.newState,
         s.unserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.newRegion,
+          s2.newState,
           s2.unserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),
@@ -297,6 +299,52 @@ class Aggregators2Suite extends HailSuite {
         val res = resF(region)
 
         assert(SafeRow(resType, region, res) == Row(expected))
+      }
+    }
+  }
+
+  @Test def testScan() {
+    printf("%10s    |    %3s    |    %3s \n", "size", "new", "old")
+//    for (size <- Array(10, 200, 1000, 5000)) {
+//      for (small <- Array(true, false)) {
+    for (size <- Array(5000)) {
+      for (small <- Array(false)) {
+        if (true) {
+          val path = s"/Users/wang/data/gnomad/$size-single-partition${if (small) "-small" else ""}.mt"
+
+          val t = CastMatrixToTable(MatrixIR.read(hc, path, dropCols = false, dropRows = false, None), "__entries", "__cols")
+          val oldRow = Ref("row", t.typ.rowType)
+          val entries = GetField(oldRow, "__entries")
+          val eType = coerce[TArray](entries.typ).elementType
+          val entry = Ref("entry", eType)
+          val aggSig = AggSignature(PrevNonnull(), Seq(), None, Seq(eType))
+
+          val newEntries = AggArrayPerElement(
+            entries, entry.name, "idx",
+            ApplyScanOp(FastSeq(), None, FastSeq(
+              If(IsNA(GetField(entry, "END")),
+                NA(entry.typ), entry)), aggSig),
+            None, isScan = true)
+          val dense = TableMapRows(t, InsertFields(oldRow, FastIndexedSeq("__entries" -> newEntries)))
+
+          val r = if (small) 25000 else 500000
+          printf("%4d x %6d ", size, r)
+//          for (newaggs <- Array(true, false)) {
+          for (newaggs <- Array(true)) {
+            hc.flags.set("newaggs", if (newaggs) "1" else null)
+            Region.scoped { region =>
+              val start = System.nanoTime()
+              val count = Interpret[Long](ExecuteContext(region),
+                TableToValueApply(dense, ForceCountTable()))
+              val end = System.nanoTime()
+              assert(count == r)
+              val secondsDiff = (end - start).toDouble / 1000000000.0
+              val minutesDiff = math.floor(secondsDiff / 60.0).toInt
+              printf("| %2dm %05.2f ", minutesDiff, secondsDiff - (minutesDiff * 60.0))
+            }
+          }
+          printf("\n")
+        }
       }
     }
   }

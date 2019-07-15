@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, RegionPool, RegionUtils, RegionValue}
+import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
@@ -61,7 +61,7 @@ object TableMapIRNew {
       aggSlots,
       "global", gType,
       "row", typ.rowType.physicalType,
-      extracted.seqPerElt)
+      extracted.eltOp())
 
     val (_, combOpF) = ir.CompileWithAggregators2[Unit](
       aggSlots,
@@ -93,21 +93,23 @@ object TableMapIRNew {
       val globalRegion = ctx.freshRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
-      val aggRegion = ctx.freshRegion
-      val init = deserializeFirstF(i)
-      val seq = eltSeqF(i)
-      val write = serializeFirstF(i)
-      init.newAggState(aggRegion)
-      init.setSerializedAgg(0, initAgg)
-      init(globalRegion)
-      seq.setAggState(aggRegion, init.getAggOffset())
-      it.foreach { rv =>
-        seq(rv.region, globals, false, rv.offset, false)
-        ctx.region.clear()
+      Region.smallScoped { aggRegion =>
+        val init = deserializeFirstF(i)
+        val seq = eltSeqF(i)
+        val write = serializeFirstF(i)
+        init.newAggState(aggRegion)
+        init.setSerializedAgg(0, initAgg)
+        init(globalRegion)
+        seq.setAggState(aggRegion, init.getAggOffset())
+        it.foreach { rv =>
+          seq(rv.region, globals, false, rv.offset, false)
+          ctx.region.clear()
+        }
+        write.setAggState(aggRegion, seq.getAggOffset())
+        write(globalRegion)
+        Iterator.single(write.getSerializedAgg(0))
+
       }
-      write.setAggState(aggRegion, seq.getAggOffset())
-      write(globalRegion)
-      Iterator.single(write.getSerializedAgg(0))
     }, HailContext.get.flags.get("max_leader_scans").toInt)
 
 
@@ -178,7 +180,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   def writeSet(i: Int, path: IR, spec: CodecSpec): IR =
     WriteAggs(i * nAggs, path, spec, aggs)
 
-  def eltOp: IR = seqPerElt
+  def eltOp(optimize: Boolean = true): IR = if (optimize) Optimize(seqPerElt) else seqPerElt
 
   def results: IR = ResultOp2(0, aggs)
 }

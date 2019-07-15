@@ -9,7 +9,7 @@ import is.hail.nativecode._
 object Region {
   val regular: Int = 64 * 1024
   val small: Int = 8 * 1024
-  val tiny: Int = 1024
+  val tiny: Int = 256
 
   def apply(sizeHint: Long = 128): Region = new Region()
 
@@ -146,16 +146,28 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region private (empty: Boolean) extends NativeBase() {
-  def this(blockSize: Int = 64 * 1024) {
-    this(false)
-    nativeCtor(RegionPool.get, blockSize)
-  }
+final class Region(blockSize: Int = 64 * 1024) extends NativeBase() {
   @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
-  @native def initEmpty(): Unit
-  @native def nativeClearRegion(): Unit
+  nativeCtor(RegionPool.get, blockSize)
 
-  if (empty) initEmpty()
+  @native def nativeCloseRegion(): Unit
+  @native def nativeIsValidRegion(): Boolean
+  @native def nativeGetNewRegion(blockSize: Int): Unit
+
+  private var _isValid: Boolean = true
+  private var _numParents: Int = 0
+  final def closeButKeepContainer(): Unit = {
+    nativeCloseRegion()
+    _isValid = false
+  }
+
+  final def getNewRegion(blockSize: Int): Unit = {
+    nativeGetNewRegion(blockSize)
+    _isValid = true
+    _numParents = 0
+  }
+
+  final def isValid(): Boolean = _isValid
   
   def this(b: Region) {
     this()
@@ -180,43 +192,52 @@ final class Region private (empty: Boolean) extends NativeBase() {
   @native def nativeGetNumParents(): Int
   @native def nativeSetNumParents(n: Int): Unit
   @native def nativeSetParentReference(r2: Region, i: Int): Unit
-  @native def nativeGetParentReferenceInto(r2: Region, i: Int, blockSize: Int): Region
+  @native def nativeGetParentReferenceInto(r2: Region, i: Int, blockSize: Int): Unit
   @native def nativeClearParentReference(i: Int): Unit
+
+  @native def nativeGetBlockSize(): Int
+  @native def nativeGetNumChunks(): Int
+  @native def nativeGetNumUsedBlocks(): Int
+  @native def nativeGetCurrentOffset(): Int
+  @native def nativeGetBlockAddress(): Long
 
   final def align(a: Long) = nativeAlign(a)
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
   final def allocate(n: Long): Long = nativeAllocate(n)
 
-  // FIXME: using nativeGetNumParents for now because we're not using `reference` in Scala
-//  private var explicitParents: Int = 0
-
+  // FIXME: `reference` can't be used with explicitly setting number of parents
   final def reference(other: Region): Unit = {
-//    assert(explicitParents <= 0, s"can't use 'reference' if you're explicitly setting Region dependencies")
-//    explicitParents = -1
     nativeReference(other)
   }
 
   final def refreshRegion(): Unit = nativeRefreshRegion()
 
   def setNumParents(n: Int): Unit = {
-    assert(nativeGetNumParents() >= 0 && nativeGetNumParents() <= n)
+    assert(_numParents >= 0 && _numParents <= n)
     nativeSetNumParents(n)
+    _numParents = n
   }
 
   def setParentReference(r: Region, i: Int): Unit = {
-    assert(i < nativeGetNumParents())
+    assert(i < _numParents)
     nativeSetParentReference(r, i)
   }
 
+  def setFromParentReference(src: Region, i: Int, blockSize: Int): Unit = {
+    src.nativeGetParentReferenceInto(this, i, blockSize)
+    _isValid = true
+    _numParents = nativeGetNumParents()
+  }
+
   def getParentReference(i: Int, blockSize: Int): Region = {
-    assert(i < nativeGetNumParents())
-    val r = new Region(empty = true)
+    assert(i < _numParents)
+    val r = new Region()
     nativeGetParentReferenceInto(r, i, blockSize)
     r
   }
 
   def clearParentReference(i: Int): Unit = {
-    assert(i < nativeGetNumParents())
+    assert(i < _numParents)
     nativeClearParentReference(i)
   }
   
@@ -260,20 +281,6 @@ final class Region private (empty: Boolean) extends NativeBase() {
     storeBytes(addr+4, v)
     addr
   }
-  
-  final def appendBinarySlice(
-    fromRegion: Region,
-    fromOff: Long,
-    start: Int,
-    len: Int
-  ): Long = {
-    assert(len >= 0)
-    val grain = if (PBinary.contentAlignment < 4) 4 else PBinary.contentAlignment
-    val addr = allocate(grain, grain+len) + (grain-4)
-    storeInt(addr, len)
-    copyFrom(fromRegion, PBinary.bytesOffset(fromOff) + start, addr+4, len)
-    addr
-  }
 
   // Use of appendXXX methods is deprecated now that Region uses absolute
   // addresses and non-contiguous memory allocation.  You can't assume any
@@ -281,19 +288,6 @@ final class Region private (empty: Boolean) extends NativeBase() {
   // and to make it even more confusing, there may be long sequences of 
   // ascending addresses (within a buffer) followed by an arbitrary jump
   // to an address in a different buffer.
-  
-  final def appendArrayInt(v: Array[Int]): Long = {
-    val len: Int = v.length
-    val addr = allocate(4, 4*(1+len))
-    storeInt(addr, len)
-    val data = addr+4
-    var idx = 0
-    while (idx < len) {
-      storeInt(data + 4 * idx, v(idx))
-      idx += 1
-    }
-    addr
-  }
   
   final def appendInt(v: Int): Long = {
     val a = allocate(4, 4)
@@ -303,11 +297,6 @@ final class Region private (empty: Boolean) extends NativeBase() {
   final def appendLong(v: Long): Long = {
     val a = allocate(8, 8)
     Memory.storeLong(a, v)
-    a
-  }
-  final def appendFloat(v: Float): Long = {
-    val a = allocate(4, 4)
-    Memory.storeFloat(a, v)
     a
   }
   final def appendDouble(v: Double): Long = {
@@ -322,9 +311,6 @@ final class Region private (empty: Boolean) extends NativeBase() {
   }
   final def appendString(v: String): Long =
     appendBinary(v.getBytes)
-  
-  final def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
-    appendBinarySlice(fromRegion, fromOff, start, n)
 
   def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
@@ -424,7 +410,7 @@ class RegionPool private() extends NativeBase() {
     val nRegions = pool.numRegions()
     val nBlocks = pool.numFreeBlocks()
 
-    log.info(
+    info(
       s"""Region count for $context
          |    regions: $nRegions
          |     blocks: $nBlocks
@@ -443,4 +429,27 @@ object RegionUtils {
 
   def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
     Code.invokeScalaObject[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
+
+  def logRegionStats(header: String, region: Region): Unit = {
+    val size = region.nativeGetBlockSize()
+    val nUsed = region.nativeGetNumUsedBlocks()
+    val off = region.nativeGetCurrentOffset()
+    val numChunks = region.nativeGetNumChunks()
+    val addr = "%016x".format(region.nativeGetBlockAddress())
+
+    val nParents = region.nativeGetNumParents()
+
+    info(
+      s"""
+         |$header:
+         |  block size: $size
+         | blocks used: $nUsed
+         | current off: $off
+         |  big chunks: $numChunks
+         |  block addr: $addr
+         |    children: $nParents
+       """.stripMargin)
+  }
+
+  def logRegionStats(header: String, region: Code[Region]): Code[Unit] = Code.invokeScalaObject[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
 }

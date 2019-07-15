@@ -22,6 +22,7 @@ class RegionPool {
     std::vector<std::unique_ptr<char[]>> free_blocks_1_{};
     std::vector<std::unique_ptr<char[]>> free_blocks_2_{};
     std::vector<std::unique_ptr<char[]>> free_blocks_3_{};
+    std::vector<std::unique_ptr<char[]>> free_blocks_4_{};
     RegionPool() = default;
     RegionPool(RegionPool &p) = delete;
     RegionPool(RegionPool &&p) = delete;
@@ -29,14 +30,12 @@ class RegionPool {
     Region::SharedPtr get_region(size_t block_size);
 
     std::vector<std::unique_ptr<char[]>> * get_block_pool(size_t size) {
-      if (size == BLOCK_SIZE_1) {
-        return &free_blocks_1_;
-      } else {
-        if (size == BLOCK_SIZE_2) {
-          return &free_blocks_2_;
-        } else {
-          return &free_blocks_3_;
-        }
+      switch(size) {
+        case BLOCK_SIZE_1: return &free_blocks_1_;
+        case BLOCK_SIZE_2: return &free_blocks_2_;
+        case BLOCK_SIZE_3: return &free_blocks_3_;
+        case BLOCK_SIZE_4: return &free_blocks_4_;
+        default: return &free_blocks_1_;
       }
     }
 
@@ -46,7 +45,11 @@ class RegionPool {
     //tracking methods:
     size_t num_regions() { return regions_.size(); }
     size_t num_free_regions() { return free_regions_.size(); }
-    size_t num_free_blocks() { return free_blocks_1_.size() + free_blocks_2_.size() + free_blocks_3_.size(); }
+    size_t num_free_blocks() {
+      return free_blocks_1_.size() +
+        free_blocks_2_.size() +
+        free_blocks_3_.size() +
+        free_blocks_4_.size(); }
 };
 
 struct ScalaRegionPool : public NativeObj {

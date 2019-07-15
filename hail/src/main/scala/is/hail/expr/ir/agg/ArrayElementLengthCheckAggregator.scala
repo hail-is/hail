@@ -13,10 +13,10 @@ import is.hail.asm4s.coerce
 
 object ArrayElementState {
   def create(mb: EmitMethodBuilder, aggs: Array[StagedRegionValueAggregator], knownLength: Boolean): ArrayElementState =
-    ArrayElementState(mb, aggs.map(_.createState(mb)), mb.newField[Region], mb.newField[Long], knownLength)
+    ArrayElementState(mb, aggs.map(_.createState(mb)), knownLength)
 }
 
-case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState], r: ClassFieldRef[Region], off: ClassFieldRef[Long], knownLength: Boolean) extends PointerBasedRVAState {
+case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState], knownLength: Boolean) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
@@ -39,7 +39,11 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
   override def storeRegion(topRegion: Code[Region], rIdx: Code[Int]): Code[Unit] = Code(
     super.storeRegion(topRegion, rIdx),
-    container.toCode((i, s) => s.loadRegion(Code._null)))
+    container.toCode((i, s) => s.loadRegion(r => r.closeButKeepContainer())))
+
+  override def createState: Code[Unit] = Code(
+    super.createState,
+    container.toCode((i, s) => s.createState))
 
   override def loadState(src: Code[Long]): Code[Unit] = Code(
     super.loadState(src),
@@ -86,6 +90,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
   def loadInit: Code[Unit] =
     container.load(0, initStatesOffset)
+
 
   def load(eltIdx: Code[Int]): Code[Unit] =
     container.load(regionOffset(eltIdx), statesOffset(eltIdx))

@@ -22,16 +22,16 @@ trait AggregatorState {
 
   def isLoaded: Code[Boolean]
 
-  def loadRegion(other: Code[Region]): Code[Unit]
+  def createState: Code[Unit]
+  def newState: Code[Unit]
 
-  def newRegion: Code[Unit] = loadRegion(Code.newInstance[Region, Int](regionSize))
-
+  def loadRegion(f: Code[Region] => Code[Unit]): Code[Unit]
   def loadState(src: Code[Long]): Code[Unit]
+  def load(f: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
+    Code(loadRegion(f), loadState(src))
 
   def storeRegion(topRegion: Code[Region], rIdx: Code[Int]): Code[Unit]
-
   def storeState(off: Code[Long]): Code[Unit]
-
   def store(topRegion: Code[Region], rIdx: Code[Int], off: Code[Long]): Code[Unit] =
     Code(storeState(off), storeRegion(topRegion, rIdx))
 
@@ -42,28 +42,29 @@ trait AggregatorState {
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit]
 
   def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
-
-  def load(region: Code[Region], src: Code[Long]): Code[Unit] =
-    Code(loadRegion(region), loadState(src))
 }
 
 trait PointerBasedRVAState extends AggregatorState {
-  protected def r: ClassFieldRef[Region]
-  def off: ClassFieldRef[Long]
+  private val r: ClassFieldRef[Region] = mb.newField[Region]
+  val off: ClassFieldRef[Long] = mb.newField[Long]
   val storageType: PType = PInt64(true)
   val region: Code[Region] = r.load()
   val er: EmitRegion = EmitRegion(mb, region)
 
   override val regionSize: Int = Region.tiny
 
-  def isLoaded: Code[Boolean] = !region.isNull
+  def isLoaded: Code[Boolean] = region.isValid()
 
-  def loadRegion(other: Code[Region]): Code[Unit] = Code(region.isNull.mux(Code._empty, region.close()), r := other)
+  def loadRegion(f: Code[Region] => Code[Unit]): Code[Unit] = Code(region.isValid().mux(Code._empty, region.closeButKeepContainer()), f(r))
+
+  def newState: Code[Unit] = Code(region.isValid().mux(Code._empty, region.closeButKeepContainer()), region.getNewRegion(regionSize))
+
+  def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.closeButKeepContainer()), Code._empty)
 
   def loadState(src: Code[Long]): Code[Unit] = off := Region.loadAddress(src)
 
   def storeRegion(topRegion: Code[Region], rIdx: Code[Int]): Code[Unit] =
-    region.isNull.mux(Code._empty, Code(topRegion.setParentReference(region, rIdx), region.close(), r := Code._null))
+    region.isValid().mux(Code(topRegion.setParentReference(region, rIdx), region.closeButKeepContainer()), Code._empty)
 
   def storeState(dest: Code[Long]): Code[Unit] = Region.storeAddress(dest, off)
 
@@ -74,7 +75,7 @@ trait PointerBasedRVAState extends AggregatorState {
   def copyFromAddress(src: Code[Long]): Code[Unit]
 }
 
-case class TypedRVAState(valueType: PType, mb: EmitMethodBuilder, r: ClassFieldRef[Region], off: ClassFieldRef[Long]) extends PointerBasedRVAState {
+case class TypedRVAState(valueType: PType, mb: EmitMethodBuilder) extends PointerBasedRVAState {
   def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(er, valueType, src)
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
@@ -107,7 +108,9 @@ case class PrimitiveRVAState(types: Array[PType], mb: EmitMethodBuilder) extends
 
   def isLoaded: Code[Boolean] = _loaded
 
-  def loadRegion(other: Code[Region]): Code[Unit] = Code._empty
+  def loadRegion(f: Code[Region] => Code[Unit]): Code[Unit] = Code._empty
+  def newState: Code[Unit] = Code._empty
+  def createState: Code[Unit] = Code._empty
 
   def loadState(src: Code[Long]): Code[Unit] = Code(
     foreachField {
@@ -172,7 +175,8 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
   val typ: PTuple = PTuple(states.map { s => s.storageType }, required = true)
 
   def apply(i: Int): AggregatorState = states(i)
-  def getRegion(rOffset: Code[Int], i: Int): Code[Region] = topRegion.getParentReference(rOffset + i, states(i).regionSize)
+  def getRegion(rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
+    r.setFromParentReference(topRegion, rOffset + i, states(i).regionSize) }
   def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
 
   def setAllMissing(off: Code[Long]): Code[Unit] = toCode((i, _) =>
@@ -184,6 +188,9 @@ case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region
   def loadOneIfMissing(stateOffset: Code[Long], idx: Int): Code[Unit] =
     states(idx).isLoaded.mux(Code._empty,
       states(idx).load(getRegion(0, idx), getStateOffset(stateOffset, idx)))
+
+  def createStates: Code[Unit] =
+    toCode((i, s) => s.createState)
 
   def loadRegions(rOffset: Code[Int]): Code[Unit] =
     toCode((i, s) => s.loadRegion(getRegion(rOffset, i)))
