@@ -245,7 +245,7 @@ object CompileWithAggregators2 {
 
   def apply[R: TypeInfo : ClassTag](
     aggSigs: Array[AggSignature],
-    body: IR): (PType, Int => AsmFunction1[Region, R] with FunctionWithAggRegion) = {
+    body: IR): (PType, (Int, Region) => AsmFunction1[Region, R] with FunctionWithAggRegion) = {
 
     apply[AsmFunction1[Region, R], R](aggSigs, FastSeq[(String, PType, ClassTag[_])](), body, 1, optimize = true)
   }

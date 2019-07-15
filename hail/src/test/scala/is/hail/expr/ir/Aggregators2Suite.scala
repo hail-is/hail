@@ -295,9 +295,9 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val pathOffs = ScalaToRegionValue(region, paths.typ, fileNames)
-      val f = initAndSeqF(0)
-      val f2 = readAndComb(0)
-      val resF = resultF(0)
+      val f = initAndSeqF(0, region)
+      val f2 = readAndComb(0, region)
+      val resF = resultF(0, region)
 
       partitioned.zipWithIndex.foreach { case (lit, i) =>
         val voff = ScalaToRegionValue(region, streamType.virtualType, lit)
