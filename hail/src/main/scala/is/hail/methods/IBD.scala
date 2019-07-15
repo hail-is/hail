@@ -301,19 +301,6 @@ object IBD {
       }
   }
 
-  def pyApply(inputIR: MatrixIR,
-    mafFieldName: Option[String] = None,
-    bounded: Boolean = true,
-    min: Option[Double] = None,
-    max: Option[Double] = None): TableIR = {
-    ExecuteContext.scoped { ctx =>
-      val ibd = IBD(mafFieldName, bounded, min, max)
-      val mv = Interpret(inputIR, ctx, optimize = true).toMatrixValue(inputIR.typ.colKey)
-      val tv = ibd.execute(ctx, mv)
-      TableLiteral(tv, ctx)
-    }
-  }
-
   private val ibdPType = PStruct(("i", PString()), ("j", PString())) ++ ExtendedIBDInfo.pType
   private val ibdKey = FastIndexedSeq("i", "j")
 
