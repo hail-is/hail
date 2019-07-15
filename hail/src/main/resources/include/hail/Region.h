@@ -5,6 +5,7 @@
 #include <vector>
 #include "hail/NativeStatus.h"
 #include "hail/NativeObj.h"
+#include "hail/Utils.h"
 
 namespace hail {
 
@@ -71,8 +72,12 @@ class Region {
     Region(Region &&pool) = delete;
     Region& operator=(Region pool) = delete;
     void set_block_size(size_t block_size) {
-      block_size_ = block_size;
-      block_threshold_ = (block_size < BLOCK_THRESHOLD) ? block_size : BLOCK_THRESHOLD;
+      if (current_block_ == nullptr) {
+        block_size_ = block_size;
+        block_threshold_ = (block_size < BLOCK_THRESHOLD) ? block_size : BLOCK_THRESHOLD;
+      } else {
+        throw new FatalError("tried to set blocksize on non-empty region");
+      }
     }
     void clear();
     void align(size_t a) {
