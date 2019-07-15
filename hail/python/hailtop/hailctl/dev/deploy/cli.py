@@ -1,6 +1,8 @@
 import asyncio
 import aiohttp
 
+from hailtop.gear.auth.hailjwt import find_token
+
 def init_parser(parser):
     parser.add_argument('github_username', type=str)
     parser.add_argument('repo', type=str)
@@ -12,7 +14,9 @@ def main(args):
     asyncio.run(submit(args))
 
 async def submit(args):
-    async with aiohttp.ClientSession() as session:
+    token = find_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    async with aiohttp.ClientSession(headers=headers) as session:
         data = {
             'userdata': {
                 'username': args.github_username
