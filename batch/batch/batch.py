@@ -171,10 +171,7 @@ class Job:
             volume_mounts=[
                 kube.client.V1VolumeMount(
                     mount_path='/batch-gsa-key',
-                    name='batch-gsa-key'),
-                kube.client.V1VolumeMount(
-                    mount_path='/batch-output-pod-token',
-                    name='batch-output-pod-token')])
+                    name='batch-gsa-key')])
 
         return setup_container
 
@@ -204,7 +201,10 @@ class Job:
                 requests={'cpu': '500m'}),
             volume_mounts=[kube.client.V1VolumeMount(
                 mount_path='/batch-gsa-key',
-                name='batch-gsa-key')])
+                name='batch-gsa-key'),
+                kube.client.V1VolumeMount(
+                    mount_path='/batch-output-pod-token',
+                    name='batch-output-pod-token')])
 
         return cleanup_container
 
