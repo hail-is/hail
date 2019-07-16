@@ -83,7 +83,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.javaValue))
+    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, codecSpec, Array(globals.javaValue))
 
     val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)
 
@@ -123,7 +123,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
     }
 
-    val localSignature = typ.rowType.physicalType
+    val localSignature = rvd.rowPType
     val localTypes = fields.map(_.typ)
 
     val localDelim = delimiter
