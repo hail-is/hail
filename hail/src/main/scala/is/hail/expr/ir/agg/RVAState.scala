@@ -52,7 +52,7 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
   val typ: PTuple = StateContainer.typ(nStates)
 
   def apply(i: Int): RVAState = states(i)
-  def getRegion(rOffset: Code[Int], i: Int): Code[Region] = topRegion.getParentReference(rOffset + i)
+  def getRegion(rOffset: Code[Int], i: Int): Code[Region] = topRegion.getParentReference(rOffset + i, Region.REGULAR)
   def getStateOffset(off: Code[Long], i: Int): Code[Long] = typ.loadField(topRegion, off, i)
   def loadStateAddress(off: Code[Long], i: Int): Code[Long] = topRegion.loadAddress(getStateOffset(off, i))
 
@@ -60,7 +60,7 @@ case class StateContainer(states: Array[RVAState], topRegion: Code[Region]) {
     coerce[Unit](Code(Array.tabulate(nStates)(i => f(i, states(i))): _*))
 
   def loadRegions(rOffset: Code[Int]): Code[Unit] =
-    toCode((i, s) => s.r := topRegion.getParentReference(rOffset + i))
+    toCode((i, s) => s.r := topRegion.getParentReference(rOffset + i, Region.REGULAR))
 
   def loadStateOffsets(stateOffset: Code[Long]): Code[Unit] =
     toCode((i, s) => s.loadStateFrom(loadStateAddress(stateOffset, i)))

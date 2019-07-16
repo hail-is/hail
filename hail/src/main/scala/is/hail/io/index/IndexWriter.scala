@@ -71,7 +71,7 @@ class IndexWriter(
   require(branchingFactor > 1)
 
   private var elementIdx = 0L
-  private val region = new Region()
+  private val region = Region()
   private val rvb = new RegionValueBuilder(region)
 
   private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
