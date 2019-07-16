@@ -428,7 +428,7 @@ private class Emit(
         val v = emit(x)
         strict(UnaryOp.emit(op, x.typ, v.v), v)
       case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb)
+        val f = op.codeOrdering(mb, l.pType, r.pType)
         val codeL = emit(l)
         val codeR = emit(r)
         if (op.strict) {
