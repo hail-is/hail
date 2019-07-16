@@ -366,6 +366,8 @@ class UnsafeSuite extends HailSuite {
     def assertAfterEquals(c: => Counts): Unit = {
       before = after
       after = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+      println(s"before: $before")
+      println(s"after: $after")
       assert(after == c)
     }
 
