@@ -350,48 +350,42 @@ class UnsafeSuite extends HailSuite {
     val pool = RegionPool.get
 
     case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
-      def allocateRegion(): Counts =
-        if (freeRegions == 0)
-          copy(regions = regions + 1, freeBlocks = math.max(freeBlocks - 1, 0))
-        else copy(freeRegions = freeRegions - 1, freeBlocks = math.max(freeBlocks - 1, 0))
+      def allocate(n: Int): Counts =
+        copy(
+          regions = regions + math.max(0, n - freeRegions),
+          freeRegions = math.max(0, freeRegions - n),
+          freeBlocks = math.max(0, freeBlocks - n))
 
-      def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
-        if (freeRegions == 0)
-          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks + nDependentRegions + 1)
-        else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
+      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
+        copy(freeRegions = freeRegions + nRegions, freeBlocks = freeBlocks + nRegions + nExtraBlocks)
     }
-    def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
 
-    var counts = getCurrentCounts
+    var before: Counts = null
+    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
 
-    val region = Region()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+    def assertAfterEquals(c: => Counts): Unit = {
+      before = after
+      after = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+      assert(after == c)
+    }
 
-    val region2 = Region()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+    Region.scoped { region =>
+      assertAfterEquals(before.allocate(1))
 
-    region.reference(region2)
-    region2.refreshRegion()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+      Region.scoped { region2 =>
+        assertAfterEquals(before.allocate(1))
+        region.reference(region2)
+      }
+      assertAfterEquals(before)
+    }
+    assertAfterEquals(before.free(2))
 
-    region.refreshRegion()
-    assert(getCurrentCounts == counts.refreshRegion(1))
-
-    val region3 = Region()
-    region3.reference(region)
-    region3.reference(region2)
-
-    counts = getCurrentCounts
-    region.refreshRegion()
-    region2.refreshRegion()
-    assert(getCurrentCounts == counts.allocateRegion().allocateRegion())
-
-    counts = getCurrentCounts
-    region3.refreshRegion()
-    assert(getCurrentCounts == counts.refreshRegion(2))
+    Region.scoped { region =>
+      Region.scoped { region2 => region.reference(region2) }
+      Region.scoped { region2 => region.reference(region2) }
+      assertAfterEquals(before.allocate(3))
+    }
+    assertAfterEquals(before.free(3))
   }
 
   @Test def testRegionReferences() {
