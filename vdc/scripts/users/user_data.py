@@ -7,10 +7,13 @@ import re
 import sys
 import secrets
 import json
+import shortuuid
 
 from globals import v1, kube_client, gcloud_service
 from utils import get_secret_bin
 from hailjwt import JWTClient
+
+shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
 with open('./instance.cloudsql', 'r') as f:
     sql_instance = f.read()

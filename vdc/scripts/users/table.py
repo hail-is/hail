@@ -71,8 +71,10 @@ class Table:
 
         cnx.close()
 
-    def insert(self, username, email, user_id, namespace_name, gsa_email, ksa_name, bucket_name,
-               gsa_key_secret_name, jwt_secret_name, developer=False, service_account=False):
+    def insert(self, username, email, user_id, namespace_name, gsa_email,
+               ksa_name, bucket_name, gsa_key_secret_name, jwt_secret_name,
+               sql_admin_secret, sql_user_secret, developer=False,
+               service_account=False):
         with self.cnx.cursor() as cursor:
             cursor.execute(
                 """
@@ -87,9 +89,13 @@ class Table:
                         ksa_name,
                         bucket_name,
                         gsa_key_secret_name,
-                        jwt_secret_name
+                        jwt_secret_name,
+                        sql_admin_secret,
+                        sql_user_secret
                     )
                     VALUES (    
+                        %s,
+                        %s,
                         %s,
                         %s,
                         %s,
@@ -114,6 +120,8 @@ class Table:
                     bucket_name,
                     gsa_key_secret_name,
                     jwt_secret_name,
+                    sql_admin_secret,
+                    sql_user_secret
                 ))
             self.cnx.commit()
 
