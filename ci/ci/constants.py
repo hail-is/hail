@@ -1,4 +1,3 @@
-import os
 import hailtop.gear.auth as hj
 
 GITHUB_CLONE_URL = 'https://github.com/'
