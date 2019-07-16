@@ -57,7 +57,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
     stateType.isFieldMissing(other.region, other.off, 0).mux(
       Code._empty,
       Code(
-        state.region.refreshRegion(),
+        state.newState,
         state.off := StagedRegionValueBuilder.deepCopy(other.er, stateType, other.off)))
   }
 

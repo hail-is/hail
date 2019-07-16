@@ -502,7 +502,7 @@ private class Emit(
           region.loadIRIntermediate(typ)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(PContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
+        strict(PContainer.loadLength(coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val atyp = coerce[PIterable](x.pType)

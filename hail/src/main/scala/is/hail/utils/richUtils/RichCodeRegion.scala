@@ -203,6 +203,8 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def isValid(): Code[Boolean] = region.invoke[Boolean]("isValid")
 
+  def invalidate(): Code[Unit] = region.invoke[Unit]("invalidate")
+
   def closeButKeepContainer(): Code[Unit] = region.invoke[Unit]("closeButKeepContainer")
   def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
 }

@@ -152,6 +152,8 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   private var _isValid: Boolean = true
   private var _numParents: Int = 0
 
+  def invalidate(): Unit = _isValid = false
+
   def closeButKeepContainer(): Unit = {
     nativeCloseRegion()
     _isValid = false
