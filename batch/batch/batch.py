@@ -238,7 +238,7 @@ class Job:
                             downward_api=kube.client.V1DownwardAPIProjection(
                                 items=kube.client.V1DownwardAPIVolumeFile(
                                     path="namespace",
-                                    field_ref=kube.client.V1ObjectSelector(
+                                    field_ref=kube.client.V1ObjectFieldSelector(
                                         field_path="metadata.namespace"))))]),
                 name='batch-output-pod-token')]
 
