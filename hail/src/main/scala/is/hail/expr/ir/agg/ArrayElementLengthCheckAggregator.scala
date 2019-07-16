@@ -11,11 +11,6 @@ import is.hail.asm4s.coerce
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-object ArrayElementState {
-  def create(mb: EmitMethodBuilder, aggs: Array[StagedRegionValueAggregator], knownLength: Boolean): ArrayElementState =
-    ArrayElementState(mb, aggs.map(_.createState(mb)), knownLength)
-}
-
 case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState], knownLength: Boolean) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
@@ -113,8 +108,8 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
     }
   }
 
-  def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    val deserializers = nested.map(_.unserialize(codec));
+  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+    val deserializers = nested.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
         Code(
           region.setNumParents(nStates),
@@ -180,7 +175,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType))
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(mb: EmitMethodBuilder): State = ArrayElementState.create(mb, nestedAggs, knownLength)
+  def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)), knownLength)
 
   // inits all things
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {

@@ -41,7 +41,7 @@ trait AggregatorState {
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit]
 
-  def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
+  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit]
 }
 
 trait PointerBasedRVAState extends AggregatorState {
@@ -83,7 +83,7 @@ case class TypedRVAState(valueType: PType, mb: EmitMethodBuilder) extends Pointe
     ob: Code[OutputBuffer] => enc(region, off, ob)
   }
 
-  def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
     val dec = codec.buildEmitDecoderF[Long](valueType, valueType, mb.fb)
     ib: Code[InputBuffer] => off := dec(region, ib)
   }
@@ -157,7 +157,7 @@ case class PrimitiveRVAState(types: Array[PType], mb: EmitMethodBuilder) extends
       }, _loaded := false)
   }
 
-  def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
     ib: Code[InputBuffer] => Code(
       foreachField {
         case (_, (None, v, t)) =>

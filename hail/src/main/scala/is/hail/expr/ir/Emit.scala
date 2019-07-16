@@ -1066,7 +1066,7 @@ private class Emit(
 
         val deserializers = sc.states
           .slice(start, start + aggSigs.length)
-          .map(_.unserialize(spec))
+          .map(_.deserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => sc(i).newState): _*))
@@ -1109,7 +1109,7 @@ private class Emit(
 
         val deserializers = sc.states
           .slice(start, start + aggSigs.length)
-          .map(_.unserialize(spec))
+          .map(_.deserialize(spec))
 
         val init = coerce[Unit](Code(Array.range(start, start + aggSigs.length)
           .map(i => sc(i).newState): _*))
