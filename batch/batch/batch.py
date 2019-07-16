@@ -168,10 +168,9 @@ class Job:
             command=['/bin/sh', '-c', sh_expression],
             resources=kube.client.V1ResourceRequirements(
                 requests={'cpu': '500m'}),
-            volume_mounts=[
-                kube.client.V1VolumeMount(
-                    mount_path='/batch-gsa-key',
-                    name='batch-gsa-key')])
+            volume_mounts=[kube.client.V1VolumeMount(
+                mount_path='/batch-gsa-key',
+                name='batch-gsa-key')])
 
         return setup_container
 
@@ -199,9 +198,10 @@ class Job:
             env=env,
             resources=kube.client.V1ResourceRequirements(
                 requests={'cpu': '500m'}),
-            volume_mounts=[kube.client.V1VolumeMount(
-                mount_path='/batch-gsa-key',
-                name='batch-gsa-key'),
+            volume_mounts=[
+                kube.client.V1VolumeMount(
+                    mount_path='/batch-gsa-key',
+                    name='batch-gsa-key'),
                 kube.client.V1VolumeMount(
                     mount_path='/batch-output-pod-token',
                     name='batch-output-pod-token')])
@@ -228,7 +228,7 @@ class Job:
             kube.client.V1Volume(
                 projected=kube.client.V1ProjectedVolumeSource(
                     sources=[kube.client.V1VolumeProjection(
-                        kube.client.V1ServiceAccountTokenProjection(
+                        service_account_token=kube.client.V1ServiceAccountTokenProjection(
                             path='token'))]),
                 name='batch-output-pod-token')]
 
@@ -725,6 +725,9 @@ def create_job(jobs_builder, batch_id, userdata, parameters):  # pylint: disable
     if not pod_spec.tolerations:
         pod_spec.tolerations = []
     pod_spec.tolerations.append(kube.client.V1Toleration(key='preemptible', value='true'))
+
+    pod_spec.automount_service_account_token = False
+    pod_spec.service_account = "batch-output-pod"
 
     state = 'Running' if len(parent_ids) == 0 else 'Pending'
 
