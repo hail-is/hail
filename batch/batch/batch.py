@@ -628,6 +628,7 @@ class Job:
                     # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
                     cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
                     assert cleanup_container.state.terminated.exit_code != 0
+                    log.info(f'ERROR: cleanup container failed: {cleanup_container}')
                     # log.info(f'rescheduling job {self.id} -- cleanup container failed')
                     # await self.mark_unscheduled()
                     return
