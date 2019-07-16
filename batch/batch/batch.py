@@ -227,9 +227,19 @@ class Job:
                 name='batch-gsa-key'),
             kube.client.V1Volume(
                 projected=kube.client.V1ProjectedVolumeSource(
-                    sources=[kube.client.V1VolumeProjection(
-                        service_account_token=kube.client.V1ServiceAccountTokenProjection(
-                            path='token'))]),
+                    sources=[
+                        kube.client.V1VolumeProjection(
+                            service_account_token=kube.client.V1ServiceAccountTokenProjection(
+                                path='token')),
+                        kube.client.V1ConfigMapProjection(
+                            name="kube-cacrt",
+                            items=[kube.client.V1KeyToPath(key="ca.crt", path="ca.crt")]),
+                        kube.client.V1VolumeProjection(
+                            downward_api=kube.client.V1DownwardAPIProjection(
+                                items=kube.client.V1DownwardAPIVolumeFile(
+                                    path="namespace",
+                                    field_ref=kube.client.V1ObjectSelector(
+                                        field_path="metadata.namespace"))))]),
                 name='batch-output-pod-token')]
 
         volume_mounts = [
