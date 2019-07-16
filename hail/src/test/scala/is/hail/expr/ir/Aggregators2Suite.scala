@@ -9,6 +9,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.methods.ForceCountTable
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -121,7 +122,7 @@ class Aggregators2Suite extends HailSuite {
         Code(Array.tabulate(aggs.length) { i =>
           Code(
             states(i).createState,
-            states(i).loadRegion(reg => reg.setFromParentReference(r, i, states(i).regionSize)),
+            states(i).newState,
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -152,9 +153,9 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.createState,
         r.load().setNumParents(1),
-        s.loadRegion(region => region.setFromParentReference(r, 0, s.regionSize)),
+        s.createState,
+        s.newState,
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),
@@ -196,14 +197,14 @@ class Aggregators2Suite extends HailSuite {
         r.load().setNumParents(2),
         s.createState,
         s2.createState,
-        s.loadRegion(region => region.setFromParentReference(r, 0, s.regionSize)),
+        s.newState,
         nPart := PArray(streamType).loadLength(r, off),
         partitionIdx := 0,
         serialized := Code.newArray[Array[Byte]](nPart),
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.loadRegion(region => region.getNewRegion(s.regionSize)),
+          s.newState,
           soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
@@ -212,13 +213,13 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.loadRegion(region => region.setFromParentReference(r, 0, s.regionSize)),
+        s.newState,
         s.deserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.loadRegion(region => region.setFromParentReference(r, 1, s2.regionSize)),
+          s2.newState,
           s2.deserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),
