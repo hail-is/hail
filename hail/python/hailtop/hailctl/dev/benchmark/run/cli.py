@@ -80,7 +80,7 @@ def main(args_):
 
     config = RunConfig(args.n_iter, handler, args.verbose)
     if args.tests:
-        run_list(args.tests, config)
+        run_list(args.tests.split(','), config)
     if args.pattern:
         run_pattern(args.pattern, config)
     if not args.pattern and not args.tests:

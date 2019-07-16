@@ -2,6 +2,8 @@ import json
 import os
 import sys
 
+import numpy as np
+
 
 def load_file(path):
     if path.endswith('.json'):
@@ -45,18 +47,23 @@ def compare(run1, run2):
 
     comparison = []
     for name in overlap:
-        run1_med = data1[name]['median']
-        run2_med = data2[name]['median']
+        d1 = data1[name]
+        d2 = data2[name]
+        if d1.get('failed') or d2.get('failed'):
+            continue
+        run1_med = d1['median']
+        run2_med = d2['median']
         comparison.append((name, run1_med, run2_med))
 
-    comparison = sorted(comparison, key=lambda x: magnitude(x[1], x[2]), reverse=True)
+    comparison = sorted(comparison, key=lambda x: x[2] / x[1], reverse=True)
 
     longest_name = max(len(name) for name, _, _ in comparison)
 
-    comp_sum = 0
+    comps = []
     for name, r1, r2 in comparison:
-        comp_sum += r2 / r1
-        print(f'{name:>{longest_name}}   {fmt_diff(r2 / r1)}   {fmt_time(r1, 7)}   {fmt_time(r2, 7)}')
+        comps.append(r2 / r1)
+        print(f'{name:>{longest_name}}   {fmt_diff(r2 / r1):>8}   {fmt_time(r1, 7):>7}   {fmt_time(r2, 7):>7}')
 
-    print('-------------')
-    print(f'Total: {fmt_diff(comp_sum / len(comparison))}')
+    print('----------------')
+    print(f'Average: {fmt_diff(np.mean(comps))}')
+    print(f'Median:  {fmt_diff(np.median(comps))}')

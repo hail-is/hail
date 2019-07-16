@@ -98,16 +98,24 @@ def initialize(args):
     hl.utils.range_table(1)._force_count()
 
 
-def _run(benchmark: Benchmark, config: RunConfig):
+def _run(benchmark: Benchmark, config: RunConfig, context):
     if config.verbose:
-        print(f'Running {benchmark.name}...', file=sys.stderr)
+        print(f'{context}Running {benchmark.name}...', file=sys.stderr)
     times = []
     for i in range(config.n_iter):
-        time = timeit.Timer(lambda: benchmark.run()).timeit(1)
-        times.append(time)
-        if config.verbose:
-            print(f'    run {i + 1}: {time:.2f}', file=sys.stderr)
+        try:
+            time = timeit.Timer(lambda: benchmark.run()).timeit(1)
+            times.append(time)
+            if config.verbose:
+                print(f'    run {i + 1}: {time:.2f}', file=sys.stderr)
+        except Exception as e:
+            if config.verbose:
+                print(f'    run ${i + 1}: Caught exception: {e}')
+            config.handler({'name': benchmark.name,
+                            'failed': True})
+            return
     config.handler({'name': benchmark.name,
+                    'failed': False,
                     'mean': np.mean(times),
                     'median': np.median(times),
                     'stdev': np.std(times),
@@ -116,26 +124,26 @@ def _run(benchmark: Benchmark, config: RunConfig):
 
 def run_all(config: RunConfig):
     _ensure_initialized()
-    for name, benchmark in _registry.items():
-        _run(benchmark, config)
+    run_list(list(_registry), config)
 
 
 def run_pattern(pattern, config: RunConfig):
     _ensure_initialized()
-    test_run = False
-    for name, benchmark in _registry.items():
+    to_run = []
+    for name in _registry:
         if pattern in name:
-            test_run = True
-            _run(benchmark, config)
-    if not test_run:
+            to_run.append(name)
+    if not to_run:
         raise ValueError(f'pattern {pattern!r} matched no benchmarks')
+    run_list(to_run, config)
 
 
 def run_list(tests, config: RunConfig):
     _ensure_initialized()
 
-    for name in tests.split(','):
+    n_tests = len(tests)
+    for i, name in enumerate(tests):
         if name not in _registry:
             raise ValueError(f'test {name!r} not found')
         else:
-            _run(_registry[name], config)
+            _run(_registry[name], config, f'[{i+1}/{n_tests}] ')
