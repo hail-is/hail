@@ -231,9 +231,10 @@ class Job:
                         kube.client.V1VolumeProjection(
                             service_account_token=kube.client.V1ServiceAccountTokenProjection(
                                 path='token')),
-                        kube.client.V1ConfigMapProjection(
-                            name="kube-cacrt",
-                            items=[kube.client.V1KeyToPath(key="ca.crt", path="ca.crt")]),
+                        kube.client.V1VolumeProjection(
+                            config_map=kube.client.V1ConfigMapProjection(
+                                name="kube-cacrt",
+                                items=[kube.client.V1KeyToPath(key="ca.crt", path="ca.crt")])),
                         kube.client.V1VolumeProjection(
                             downward_api=kube.client.V1DownwardAPIProjection(
                                 items=[kube.client.V1DownwardAPIVolumeFile(
@@ -628,7 +629,10 @@ class Job:
                     # cleanup sidecar container must have failed (error in copying outputs doesn't cause a non-zero exit code)
                     cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
                     assert cleanup_container.state.terminated.exit_code != 0
-                    log.info(f'ERROR: cleanup container failed: {cleanup_container}')
+                    container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='cleanup')
+                    if err:
+                        container_log = 'no log due to {err}'
+                    log.info(f'ERROR: cleanup container failed: {cleanup_container}, log: {container_log}')
                     # log.info(f'rescheduling job {self.id} -- cleanup container failed')
                     # await self.mark_unscheduled()
                     return
