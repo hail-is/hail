@@ -148,10 +148,11 @@ object TableMapIRNew {
 
       it.map { rv =>
         newRow.setAggState(aggRegion, aggOff)
-        rv.setOffset(newRow(rv.region, globals, false, rv.offset, false))
+        val off = newRow(rv.region, globals, false, rv.offset, false)
         seq.setAggState(aggRegion, newRow.getAggOffset())
         seq(rv.region, globals, false, rv.offset, false)
         aggOff = seq.getAggOffset()
+        rv.setOffset(off)
         rv
       }
     }
