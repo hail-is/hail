@@ -310,11 +310,8 @@ final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) ext
 
 final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
 final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-
-//final case class WriteAggs(path: IR, spec: CodecSpec) extends IR
-//final case class ReadAggs(path: IR, spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
-//
-//final case class CombAggs(paths: IndexedSeq[IR], spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR

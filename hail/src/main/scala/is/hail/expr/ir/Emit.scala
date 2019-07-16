@@ -1067,6 +1067,45 @@ private class Emit(
 
         EmitTriplet(read, false, Code._empty)
 
+      case SerializeAggs(start, serializedIdx, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val ob = mb.newField[OutputBuffer]
+        val baos = mb.newField[ByteArrayOutputStream]
+
+        val serialize = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(s => s.serialize(spec)(ob))
+
+        val write = Code(
+          baos := Code.newInstance[ByteArrayOutputStream](),
+          ob := spec.buildCodeOutputBuffer(baos),
+          coerce[Unit](Code(serialize: _*)),
+          ob.invoke[Unit]("flush"),
+          ob.invoke[Unit]("close"),
+          mb.fb.setSerializedAgg(serializedIdx, baos.invoke[Array[Byte]]("toByteArray")))
+
+        EmitTriplet(write, false, Code._empty)
+
+      case DeserializeAggs(start, serializedIdx, spec, aggSigs) =>
+        val AggContainer(aggs, sc, aggOff) = container.get
+        val bais = mb.newField[ByteArrayInputStream]
+        val ib = mb.newField[InputBuffer]
+
+        val deserializers = sc.states
+          .slice(start, start + aggSigs.length)
+          .map(_.unserialize(spec))
+
+        val unserialize = Array.tabulate(aggSigs.length) { j =>
+          deserializers(j)(ib)
+        }
+
+        val read = Code(
+          bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](mb.fb.getSerializedAgg(serializedIdx)),
+          ib := spec.buildCodeInputBuffer(bais),
+          coerce[Unit](Code(unserialize: _*)))
+
+        EmitTriplet(read, false, Code._empty)
+
       case Begin(xs) =>
         EmitTriplet(
           wrapToMethod(xs) { case (_, t, code) =>
