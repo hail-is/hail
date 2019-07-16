@@ -27,6 +27,7 @@ lazy val root = (project in file(".")).
     ),
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
+      "-Xno-patmat-analysis",
       "-Xlint:_",
       "-deprecation",
       "-unchecked",
