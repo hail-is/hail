@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBaseStruct, PInt32, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
@@ -17,14 +17,14 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
-import java.io.{ ObjectInputStream, ObjectOutputStream }
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{Formats, ShortTypeHints, CustomSerializer, JObject}
-import org.json4s.JsonAST.{JArray, JInt, JNull, JString, JField, JNothing}
+import org.json4s.{CustomSerializer, Formats, JObject, ShortTypeHints}
+import org.json4s.JsonAST.{JArray, JField, JInt, JNothing, JNull, JString}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods
-
 
 import scala.reflect.ClassTag
 
@@ -324,7 +324,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized ${ rows.length } rows")
 
-    val rowTyp = typ.rowType.physicalType
+    val rowTyp = PType.canonical(typ.rowType).asInstanceOf[PStruct]
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowTyp, rvd))
@@ -384,14 +384,14 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct.empty())
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val localRowType = typ.rowType
+    val localRowType = PType.canonical(typ.rowType).asInstanceOf[PStruct]
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val hc = HailContext.get
     TableValue(typ,
       BroadcastRow.empty(ctx),
       new RVD(
-        RVDType(typ.rowType.physicalType, Array("idx")),
+        RVDType(localRowType, Array("idx")),
         new RVDPartitioner(Array("idx"), typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -407,7 +407,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                rvb.start(localRowType.physicalType)
+                rvb.start(localRowType)
                 rvb.startStruct()
                 rvb.addInt(j)
                 rvb.endStruct()
@@ -437,8 +437,8 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
-      "row", child.typ.rowType.physicalType,
-      "global", child.typ.globalType.physicalType,
+      "row", tv.rvd.rowPType,
+      "global", tv.globals.t,
       pred)
     assert(rTyp.virtualType == TBoolean())
 
@@ -650,8 +650,7 @@ case class TableIntervalJoin(
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
-  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(rightType.physicalType, List(root))
-  val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
+  val typ: TableType = left.typ.copy(rowType = left.typ.rowType.appendKey(root, rightType))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
@@ -661,6 +660,10 @@ case class TableIntervalJoin(
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val leftValue = left.execute(ctx)
     val rightValue = right.execute(ctx)
+
+    val rightValuePType = rightValue.rvd.typ.valueType
+    val rightPType = if (product) PArray(rightValuePType) else rightValuePType
+    val (newRowPType, ins) = leftValue.rvd.rowPType.unsafeStructInsert(rightPType, List(root))
 
     val rightRVDType = rightValue.rvd.typ
 
@@ -928,7 +931,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", gType,
       "global", gType,
-      "row", tv.typ.rowType.physicalType,
+      "row", tv.rvd.rowPType,
       CompileWithAggregators.liftScan(newRow), "SCANR", { (nAggs: Int, initOp: IR) =>
         scanInitNeedsGlobals |= Mentions(initOp, "global")
         initOp
@@ -938,8 +941,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       })
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
-      "global", child.typ.globalType.physicalType,
-      "row", child.typ.rowType.physicalType,
+      "global", tv.globals.t,
+      "row", tv.rvd.rowPType,
       "SCANR", scanResultType,
       postScanIR)
     assert(rTyp.virtualType == typ.rowType)
@@ -1263,16 +1266,16 @@ case class TableKeyByAndAggregate(
     val prev = child.execute(ctx)
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", child.typ.globalType.physicalType,
-      "global", child.typ.globalType.physicalType,
-      "row", child.typ.rowType.physicalType,
+      "global", prev.globals.t,
+      "global", prev.globals.t,
+      "row", prev.rvd.rowPType,
       expr, "AGGR",
       (nAggs, initializeIR) => initializeIR,
       (nAggs, sequenceIR) => sequenceIR)
 
     val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
       "AGGR", aggResultType,
-      "global", child.typ.globalType.physicalType,
+      "global", prev.globals.t,
       postAggIR)
 
     val init = makeInit(0, ctx.r)
