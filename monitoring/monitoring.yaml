@@ -605,7 +605,7 @@ metadata:
   name: filebeat-config
   namespace: monitoring
   labels:
-    k8s-app: filebeat
+    app: filebeat
 data:
   filebeat.yml: |-
     filebeat.inputs:
@@ -629,8 +629,7 @@ data:
       - add_cloud_metadata:
 
     output.elasticsearch:
-      hosts: ["http://elasticsearch:9200"]
-      #hosts: ['${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}']
+      hosts: ['${ELASTICSEARCH_HOST:elasticsearch}:${ELASTICSEARCH_PORT:9200}']
       username: ${ELASTICSEARCH_USERNAME}
       password: ${ELASTICSEARCH_PASSWORD}
 ---
@@ -640,12 +639,12 @@ metadata:
   name: filebeat
   namespace: monitoring
   labels:
-    k8s-app: filebeat
+    app: filebeat
 spec:
   template:
     metadata:
       labels:
-        k8s-app: filebeat
+        app: filebeat
     spec:
       serviceAccountName: filebeat
       terminationGracePeriodSeconds: 30
@@ -729,7 +728,7 @@ kind: ClusterRole
 metadata:
   name: filebeat
   labels:
-    k8s-app: filebeat
+    app: filebeat
 rules:
 - apiGroups: [""]
   resources:
@@ -746,4 +745,4 @@ metadata:
   name: filebeat
   namespace: monitoring
   labels:
-    k8s-app: filebeat
+    app: filebeat
