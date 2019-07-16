@@ -144,7 +144,8 @@ async def kube_event_loop(pool):
     while True:
         try:
             stream = kube.watch.Watch().stream(
-                v1.read_namespaced_pod,
+                v1.list_namespaced_pod,
+                field_selector=f'metadata.name={pod_name}',
                 namespace=HAIL_POD_NAMESPACE,
                 name=pod_name)
             async for event in DeblockedIterator(pool, stream):
@@ -161,7 +162,7 @@ async def kube_event_loop(pool):
 async def refresh_k8s_pods():
     await asyncio.sleep(1)
     while True:
-        pods, err = await k8s.read_pod(
+        pods, err = await k8s.get_pod(
             namespace=HAIL_POD_NAMESPACE,
             name=pod_name)
         if err is not None:
