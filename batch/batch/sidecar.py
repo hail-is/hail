@@ -146,8 +146,7 @@ async def kube_event_loop(pool):
             stream = kube.watch.Watch().stream(
                 v1.list_namespaced_pod,
                 field_selector=f'metadata.name={pod_name}',
-                namespace=HAIL_POD_NAMESPACE,
-                name=pod_name)
+                namespace=HAIL_POD_NAMESPACE)
             async for event in DeblockedIterator(pool, stream):
                 type = event['type']
                 pod = event['object']
