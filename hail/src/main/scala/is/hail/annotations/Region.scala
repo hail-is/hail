@@ -146,26 +146,38 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
   nativeCtor(RegionPool.get, blockSize)
 
-  @native def nativeCloseRegion(): Unit
-  @native def nativeIsValidRegion(): Boolean
-  @native def nativeGetNewRegion(blockSize: Int): Unit
+  @native def nativeGetNewRegion(addr: Long, poolAddr: Long, blockSize: Int): Unit
+
+  @native def clearButKeepMem(addr: Long): Unit
+  @native def nativeAlign(addr: Long, alignment: Long): Unit
+  @native def nativeAlignAllocate(addr: Long, alignment: Long, n: Long): Long
+  @native def nativeAllocate(addr: Long, n: Long): Long
+  @native def nativeReference(addr: Long, r2Addr: Long): Unit
+
+  @native def nativeGetNumParents(addr: Long): Int
+  @native def nativeSetNumParents(addr: Long, n: Int): Unit
+  @native def nativeSetParentReference(thisAddr: Long, refAddr: Long, i: Int): Unit
+  @native def nativeGetParentReferenceInto(srcAddr: Long, destAddr: Long, i: Int, blockSize: Int): Unit
+  @native def nativeClearParentReference(addr: Long, i: Int): Unit
+
+  @native def nativeGetBlockSize(): Int
+  @native def nativeGetNumChunks(): Int
+  @native def nativeGetNumUsedBlocks(): Int
+  @native def nativeGetCurrentOffset(): Int
+  @native def nativeGetBlockAddress(): Long
+
+
   private var _isValid: Boolean = true
   private var _numParents: Int = 0
 
-  def invalidate(): Unit = _isValid = false
-
-  def closeButKeepContainer(): Unit = {
-    nativeCloseRegion()
-    _isValid = false
-  }
-
   def getNewRegion(blockSize: Int): Unit = {
-    nativeGetNewRegion(blockSize)
+    nativeGetNewRegion(this.addrA, RegionPool.get.getAddr, blockSize)
     _isValid = true
     _numParents = 0
   }
 
-  def isValid(): Boolean = _isValid
+  def isValid: Boolean = _isValid
+  def invalidate(): Unit = _isValid = false
   
   def this(b: Region) {
     this()
@@ -178,65 +190,47 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   final def copyAssign(b: Region) = super.copyAssign(b)
   final def moveAssign(b: Region) = super.moveAssign(b)
   
-  @native def clearButKeepMem(): Unit
-  final def clear(): Unit = clearButKeepMem()
-  
-  @native def nativeAlign(alignment: Long): Unit
-  @native def nativeAlignAllocate(alignment: Long, n: Long): Long
-  @native def nativeAllocate(n: Long): Long
-  @native def nativeReference(r2: Region): Unit
-  @native def nativeRefreshRegion(): Unit
 
-  @native def nativeGetNumParents(): Int
-  @native def nativeSetNumParents(n: Int): Unit
-  @native def nativeSetParentReference(r2: Region, i: Int): Unit
-  @native def nativeGetParentReferenceInto(r2: Region, i: Int, blockSize: Int): Unit
-  @native def nativeClearParentReference(i: Int): Unit
+  final def clear(): Unit = clearButKeepMem(this.addrA)
 
-  @native def nativeGetBlockSize(): Int
-  @native def nativeGetNumChunks(): Int
-  @native def nativeGetNumUsedBlocks(): Int
-  @native def nativeGetCurrentOffset(): Int
-  @native def nativeGetBlockAddress(): Long
-
-  final def align(a: Long) = nativeAlign(a)
-  final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
-  final def allocate(n: Long): Long = nativeAllocate(n)
+  final def align(a: Long) = nativeAlign(this.addrA, a)
+  final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(this.addrA, a, n)
+  final def allocate(n: Long): Long = nativeAllocate(this.addrA, n)
 
   // FIXME: `reference` can't be used with explicitly setting number of parents
   final def reference(other: Region): Unit = {
-    nativeReference(other)
+    nativeReference(this.addrA, other.addrA)
   }
 
-  final def refreshRegion(): Unit = nativeRefreshRegion()
+  def numParents(): Int = _numParents
 
   def setNumParents(n: Int): Unit = {
     assert(_numParents >= 0 && _numParents <= n)
-    nativeSetNumParents(n)
+    nativeSetNumParents(this.addrA, n)
     _numParents = n
   }
 
   def setParentReference(r: Region, i: Int): Unit = {
     assert(i < _numParents)
-    nativeSetParentReference(r, i)
+    nativeSetParentReference(this.addrA, r.addrA, i)
   }
 
   def setFromParentReference(src: Region, i: Int, blockSize: Int): Unit = {
-    src.nativeGetParentReferenceInto(this, i, blockSize)
+    src.nativeGetParentReferenceInto(src.addrA, this.addrA, i, blockSize)
     _isValid = true
-    _numParents = nativeGetNumParents()
+    _numParents = nativeGetNumParents(this.addrA)
   }
 
   def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < _numParents)
     val r = new Region(blockSize)
-    nativeGetParentReferenceInto(r, i, blockSize)
+    nativeGetParentReferenceInto(this.addrA, r.addrA, i, blockSize)
     r
   }
 
   def clearParentReference(i: Int): Unit = {
     assert(i < _numParents)
-    nativeClearParentReference(i)
+    nativeClearParentReference(this.addrA, i)
   }
   
   final def loadInt(addr: Long): Int = Region.loadInt(addr)
@@ -402,6 +396,8 @@ class RegionPool private() extends NativeBase() {
   @native def numFreeRegions(): Int
   @native def numFreeBlocks(): Int
 
+  private[annotations] def getAddr: Long = this.addrA
+
   def logStats(context: String): Unit = {
     val pool = RegionPool.get
     val nFree = pool.numFreeRegions()
@@ -435,7 +431,7 @@ object RegionUtils {
     val numChunks = region.nativeGetNumChunks()
     val addr = "%016x".format(region.nativeGetBlockAddress())
 
-    val nParents = region.nativeGetNumParents()
+    val nParents = region.numParents()
 
     info(
       s"""
