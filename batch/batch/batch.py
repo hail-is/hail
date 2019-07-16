@@ -236,10 +236,10 @@ class Job:
                             items=[kube.client.V1KeyToPath(key="ca.crt", path="ca.crt")]),
                         kube.client.V1VolumeProjection(
                             downward_api=kube.client.V1DownwardAPIProjection(
-                                items=kube.client.V1DownwardAPIVolumeFile(
+                                items=[kube.client.V1DownwardAPIVolumeFile(
                                     path="namespace",
                                     field_ref=kube.client.V1ObjectFieldSelector(
-                                        field_path="metadata.namespace"))))]),
+                                        field_path="metadata.namespace"))]))]),
                 name='batch-output-pod-token')]
 
         volume_mounts = [
