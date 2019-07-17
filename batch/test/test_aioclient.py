@@ -22,12 +22,12 @@ class Test(unittest.TestCase):
             j = b.create_job('alpine', ['echo', 'test'])
             await b.submit()
             status = await j.wait()
-            self.assertTrue('attributes' not in status, (status, j.log()))
-            self.assertEqual(status['state'], 'Success', (status, j.log()))
-            self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
+            self.assertTrue('attributes' not in status, (status, await j.log()))
+            self.assertEqual(status['state'], 'Success', (status, await j.log()))
+            self.assertEqual(status['exit_code']['main'], 0, (status, await j.log()))
 
             self.assertEqual(await j.log(), {'main': 'test\n'})
-
+p
             self.assertTrue(await j.is_complete())
 
         loop = asyncio.get_event_loop()
