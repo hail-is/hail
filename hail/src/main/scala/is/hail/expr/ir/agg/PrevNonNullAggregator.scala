@@ -16,7 +16,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
   val resultType: PType = typ
 
   def createState(mb: EmitMethodBuilder): State =
-    TypedRVAState(stateType, mb, mb.newField[Region], mb.newField[Long])
+    TypedRVAState(stateType, mb)
 
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
@@ -46,8 +46,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
       elt.m.mux(
         Code._empty,
         Code(
-          state.region.close(),
-          state.r := Code.newInstance[Region](),
+          state.newState,
           state.off := state.region.allocate(stateType.alignment, stateType.byteSize),
           stateType.clearMissingBits(state.region, state.off),
           copyValue))
@@ -58,7 +57,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedRegionValueAggregator {
     stateType.isFieldMissing(other.region, other.off, 0).mux(
       Code._empty,
       Code(
-        state.region.refreshRegion(),
+        state.newState,
         state.off := StagedRegionValueBuilder.deepCopy(other.er, stateType, other.off)))
   }
 

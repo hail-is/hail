@@ -349,23 +349,21 @@ class UnsafeSuite extends HailSuite {
   @Test def testRegionAllocation() {
     val pool = RegionPool.get
 
-    case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
+    case class Counts(regions: Int, freeRegions: Int) {
       def allocate(n: Int): Counts =
-        copy(
-          regions = regions + math.max(0, n - freeRegions),
-          freeRegions = math.max(0, freeRegions - n),
-          freeBlocks = math.max(0, freeBlocks - n))
+        copy(regions = regions + math.max(0, n - freeRegions),
+          freeRegions = math.max(0, freeRegions - n))
 
       def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
-        copy(freeRegions = freeRegions + nRegions, freeBlocks = freeBlocks + nRegions + nExtraBlocks)
+        copy(freeRegions = freeRegions + nRegions)
     }
 
     var before: Counts = null
-    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
 
     def assertAfterEquals(c: => Counts): Unit = {
       before = after
-      after = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+      after = Counts(pool.numRegions(), pool.numFreeRegions())
       assert(after == c)
     }
 

@@ -12,7 +12,7 @@ case class RVAVariable(triplet: EmitTriplet, t: PType) {
 }
 
 abstract class StagedRegionValueAggregator {
-  type State <: RVAState
+  type State <: AggregatorState
   def eltArgIdx: Int = 0
 
   def initOpTypes: Array[PType]
@@ -30,8 +30,8 @@ abstract class StagedRegionValueAggregator {
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit]
 
-  def initOp(state: RVAState, init: Array[RVAVariable]): Code[Unit] = initOp(state.asInstanceOf[State], init, dummy = true)
-  def seqOp(state: RVAState, seq: Array[RVAVariable]): Code[Unit] = seqOp(state.asInstanceOf[State], seq, dummy = true)
-  def combOp(state: RVAState, other: RVAState): Code[Unit] = combOp(state.asInstanceOf[State], other.asInstanceOf[State], dummy = true)
-  def result(state: RVAState, srvb: StagedRegionValueBuilder): Code[Unit] = result(state.asInstanceOf[State], srvb, dummy = true)
+  def initOp(state: AggregatorState, init: Array[RVAVariable]): Code[Unit] = initOp(state.asInstanceOf[State], init, dummy = true)
+  def seqOp(state: AggregatorState, seq: Array[RVAVariable]): Code[Unit] = seqOp(state.asInstanceOf[State], seq, dummy = true)
+  def combOp(state: AggregatorState, other: AggregatorState): Code[Unit] = combOp(state.asInstanceOf[State], other.asInstanceOf[State], dummy = true)
+  def result(state: AggregatorState, srvb: StagedRegionValueBuilder): Code[Unit] = result(state.asInstanceOf[State], srvb, dummy = true)
 }

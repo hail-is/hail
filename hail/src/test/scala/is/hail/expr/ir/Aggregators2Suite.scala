@@ -3,33 +3,16 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailSuite
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.methods.ForceCountTable
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
-
-object TUtils {
-  def printBytes(region: Region, off: Long, n: Int, header: String = null): String = {
-    region.loadBytes(off, n).zipWithIndex
-      .grouped(16)
-      .map(bs => bs.map { case (b, _) => "%02x".format(b) }.mkString("  %016x: ".format(off + bs(0)._2), " ", ""))
-      .mkString(if (header != null) s"$header\n" else "\n", "\n", "")
-  }
-
-  def printBytes(region: Code[Region], off: Code[Long], n: Int): Code[String] =
-    Code.invokeScalaObject[Region, Long, Int, String, String](TUtils.getClass, "printBytes", region, off, n, "")
-
-  def printRow(region: Region, off: Long): String =
-    SafeRow(TStruct("a" -> TString(), "b" -> TInt32()).physicalType, region, off).toString
-
-  def printRow(region: Code[Region], off: Code[Long]): Code[String] =
-    Code.invokeScalaObject[Region, Long, String](TUtils.getClass, "printRow", region, off)
-}
 
 class Aggregators2Suite extends HailSuite {
 
@@ -70,24 +53,23 @@ class Aggregators2Suite extends HailSuite {
       Row(Row("c", 4), 6L, 8L),
       Row(Row("f", 5), 6L, 10L))
 
-  def rowVar(r: Code[Region], a: Code[Long], i: Code[Int]): RVAVariable =
+  def rowVar(a: Code[Long], i: Code[Int]): RVAVariable =
     RVAVariable(EmitTriplet(Code._empty,
-      arrayType.isElementMissing(r, a, i),
-      arrayType.loadElement(r, a, i)), rowType)
+      arrayType.isElementMissing(a, i),
+      arrayType.loadElement(a, i)), rowType)
 
-  def bVar(r: Code[Region], a: Code[Long], i: Code[Int]): RVAVariable = {
-    val RVAVariable(row, _) = rowVar(r, a, i)
+  def bVar(a: Code[Long], i: Code[Int]): RVAVariable = {
+    val RVAVariable(row, _) = rowVar(a, i)
     RVAVariable(EmitTriplet(row.setup,
-      row.m || rowType.isFieldMissing(r, row.value[Long], 1),
-      r.loadLong(rowType.loadField(r, row.value[Long], 1))), PInt64())
+      row.m || rowType.isFieldMissing(row.value[Long], 1),
+      Region.loadLong(rowType.loadField(row.value[Long], 1))), PInt64())
   }
 
-  def seqOne(s: Array[RVAState], a: Code[Long], i: Code[Int]): Code[Unit] = {
-    val r = s(0).r
+  def seqOne(s: Array[AggregatorState], a: Code[Long], i: Code[Int]): Code[Unit] = {
     Code(
-      pnnAgg.seqOp(s(0), Array(rowVar(r, a, i))),
+      pnnAgg.seqOp(s(0), Array(rowVar(a, i))),
       countAgg.seqOp(s(1), Array()),
-      sumAgg.seqOp(s(2), Array(bVar(r, a, i))))
+      sumAgg.seqOp(s(2), Array(bVar(a, i))))
   }
 
   def initAndSeq(s: ArrayElementState, off: Code[Long]): Code[Unit] = {
@@ -128,16 +110,19 @@ class Aggregators2Suite extends HailSuite {
     val off = fb.apply_method.getArg[Long](2)
 
     val resType = PTuple(aggs.map(_.resultType))
-    val states: Array[RVAState] = aggs.map(_.createState(fb.apply_method))
+    val states: Array[AggregatorState] = aggs.map(_.createState(fb.apply_method))
     val srvb = new StagedRegionValueBuilder(EmitRegion.default(fb.apply_method), resType)
 
     val aidx = fb.newField[Int]
     val alen = fb.newField[Int]
 
     fb.emit(
-      Code(r.load().setNumParents(aggs.length),
+      Code(
+        r.load().setNumParents(aggs.length),
         Code(Array.tabulate(aggs.length) { i =>
-          Code(states(i).r := r.load().getParentReference(i, Region.REGULAR),
+          Code(
+            states(i).createState,
+            states(i).newState,
             aggs(i).initOp(states(i), Array()))
         }: _*),
         aidx := 0,
@@ -168,7 +153,9 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
-        s.r := r,
+        r.load().setNumParents(1),
+        s.createState,
+        s.newState,
         initAndSeq(s, off),
         srvb.start(),
         lcAgg.result(s, srvb),
@@ -207,14 +194,18 @@ class Aggregators2Suite extends HailSuite {
 
     fb.emit(
       Code(
+        r.load().setNumParents(2),
+        s.createState,
+        s2.createState,
+        s.newState,
         nPart := PArray(streamType).loadLength(r, off),
         partitionIdx := 0,
         serialized := Code.newArray[Array[Byte]](nPart),
         Code.whileLoop(partitionIdx < nPart,
           baos := Code.newInstance[ByteArrayOutputStream](),
           ob := spec.buildCodeOutputBuffer(baos),
-          s.r := Code.newInstance[Region](),
-          soff := PArray(streamType).loadElement(s.r, off, partitionIdx),
+          s.newState,
+          soff := PArray(streamType).loadElement(s.region, off, partitionIdx),
           initAndSeq(s, soff),
           s.serialize(spec)(ob),
           ob.invoke[Unit]("flush"),
@@ -222,14 +213,14 @@ class Aggregators2Suite extends HailSuite {
           partitionIdx := partitionIdx + 1),
         bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(0)),
         ib := spec.buildCodeInputBuffer(bais),
-        s.r := Code.newInstance[Region](),
-        s.unserialize(spec)(ib),
+        s.newState,
+        s.deserialize(spec)(ib),
         partitionIdx := 1,
         Code.whileLoop(partitionIdx < nPart,
           bais := Code.newInstance[ByteArrayInputStream, Array[Byte]](serialized.load()(partitionIdx)),
           ib := spec.buildCodeInputBuffer(bais),
-          s2.r := Code.newInstance[Region](),
-          s2.unserialize(spec)(ib),
+          s2.newState,
+          s2.deserialize(spec)(ib),
           lcAgg.combOp(s, s2),
           partitionIdx := partitionIdx + 1),
         srvb.start(),
