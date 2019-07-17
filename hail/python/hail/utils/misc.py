@@ -3,18 +3,20 @@ import datetime
 import difflib
 import shutil
 import tempfile
-from collections import defaultdict, Counter, OrderedDict
+from collections import defaultdict, Counter
 from random import Random
 import json
 import re
+from urllib.parse import urlparse
+from io import StringIO
+
+import numpy as np
 
 import hail
 import hail as hl
 from hail.typecheck import enumeration, typecheck, nullable
 from hail.utils.java import Env, joption, error
-from io import StringIO
 
-import numpy as np
 
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
@@ -137,7 +139,7 @@ def get_env_or_default(maybe, envvar, default):
 
 
 def uri_path(uri):
-    return Env.jutils().uriPath(uri)
+    return urlparse(uri).path
 
 
 def local_path_uri(path):
