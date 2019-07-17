@@ -9,6 +9,7 @@ class K8s:
         self.timeout = timeout
         self.namespace = namespace
         self.log = log
+
         self._delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
         self._delete_pvc = self._wrap_k8s_delete(k8s_api.delete_namespaced_persistent_volume_claim)
         self._create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
@@ -65,7 +66,7 @@ class K8s:
                                                 **kwargs),
                         None)
             except kube.client.rest.ApiException as err:
-                return (None, err)
+                return None, err
         wrapped.__name__ = fun.__name__
         return wrapped
 

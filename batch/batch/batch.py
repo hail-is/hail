@@ -242,10 +242,14 @@ class Job:
         if err is not None:
             if err.status == 409:
                 log.info(f'pod already exists for job {self.full_id}')
+                app['pod_capacity'].release()
+                log.info(f'released semaphore from job {self.full_id}')
                 return
             traceback.print_tb(err.__traceback__)
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
+            app['pod_capacity'].release()
+            log.info(f'released semaphore from job {self.full_id}')
             return
 
     async def _delete_pvc(self):
@@ -256,7 +260,7 @@ class Job:
         err = await app['k8s'].delete_pvc(self._pvc_name)
         if err is not None:
             traceback.print_tb(err.__traceback__)
-            log.info(f'ignoring: could not delete {self._pvc_name} due to {err}')
+            log.info(f'ignoring: could not delete pvc {self._pvc_name} due to {err}')
 
     async def _delete_pod(self):
         err = await app['k8s'].delete_pod(name=self._pod_name)
@@ -264,7 +268,6 @@ class Job:
             traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.full_id} due to {err}')
             return
-        log.info(f'releasing semaphore from job {self.full_id}')
         app['pod_capacity'].release()
         log.info(f'released semaphore from job {self.full_id}')
 
@@ -1154,7 +1157,7 @@ async def update_job_with_pod(job, pod):
 
     if job and job._state == 'Pending':
         if pod:
-            log.error('job {job.full_id} has pod {pod.metadata.name}, ignoring')
+            log.error(f'job {job.full_id} has pod {pod.metadata.name}, ignoring')
         return
 
     if pod and (not job or job.is_complete()):
@@ -1231,6 +1234,8 @@ async def refresh_k8s_pods():
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
 
+    throttler_locked = app['pod_capacity'].locked()
+
     pods, err = await app['k8s'].list_pods(
         label_selector=f'app=batch-job,hail.is/batch-instance={INSTANCE_ID}')
     if err is not None:
@@ -1248,8 +1253,12 @@ async def refresh_k8s_pods():
         job = await Job.from_k8s_labels(pod)
         await update_job_with_pod(job, pod)
 
-    log.info('restarting ready and running jobs with pods not seen in k8s')
+    if throttler_locked:
+        log.info('throttler was locked when listing pods; '
+                 'cannot restart running jobs with pods not seen in k8s')
+        return
 
+    log.info('restarting running jobs with pods not seen in k8s')
     for job in pod_jobs:
         if job._pod_name not in seen_pods:
             log.info(f'restarting job {job.full_id}')
