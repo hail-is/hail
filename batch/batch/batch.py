@@ -1234,9 +1234,7 @@ async def refresh_k8s_pods():
         log.info(f'could not refresh pods due to {err}, will try again later')
         return
 
-    n_pods = len(pods.items)
-    app['pod_capacity'] = asyncio.Semaphore(max(0, MAX_PODS - n_pods))
-    log.info(f'k8s had {n_pods} pods')
+    log.info(f'k8s had {len(pods.items)} pods')
 
     seen_pods = set()
     for pod in pods.items:
