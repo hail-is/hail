@@ -696,7 +696,7 @@ class Job:
             if batch is not None:
                 await batch.mark_job_complete(self)
 
-        await app['gcs'].delete_file(self.directory, LogStore.results_file_name)
+        await app['log_store'].delete_gs_file(self.directory, LogStore.results_file_name)
 
     def to_dict(self):
         result = {
