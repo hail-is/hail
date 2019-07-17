@@ -45,6 +45,7 @@ async def submit(args):
             'profile': profiles[args.profile],
             'namespace': args.namespace
         }
+        print(f"Submitting: {data}")
         async with session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json=data) as resp:
             if (resp.status == 200):
                 text = await resp.text()

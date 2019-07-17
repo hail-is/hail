@@ -68,6 +68,10 @@ class BuildConfiguration:
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
+        
+        if profile:
+            log.info(f"Constructing build configuration with following profile: {profile}")
+        
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
 
