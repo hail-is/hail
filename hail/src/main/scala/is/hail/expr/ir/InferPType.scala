@@ -48,6 +48,8 @@ object InferPType {
 
           assert(head.pType == value.pType)
         }
+
+        head.pType
       }
       // TODO: Why is there a type (var _type) on Ref? Cache to avoid lookup? if so seems area for bugs
       case Ref(name, _) => {
