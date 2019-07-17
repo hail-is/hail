@@ -370,3 +370,9 @@ class Test(unittest.TestCase):
         r = requests.get(f'{os.environ.get("BATCH_URL")}/batches/{j.batch_id}/jobs/{j.job_id}/pod_status',
                          cookies={'user': token})
         assert (r.status_code >= 200) and (r.status_code < 300)
+
+    def test_max_pods(self):
+        b = self.client.create_batch()
+        for i in range(20):
+            b.create_job('alpine', ['sleep', '30'])
+        b = b.submit()
