@@ -188,7 +188,7 @@ class JobsBuilder:
         assert self._is_open
         assert set(items) == JobsBuilder.jobs_parents_fields, set(items)
         self._jobs_parents.append(dict(items))
-        
+
     def create_job_attribute(self, **items):
         assert self._is_open
         assert set(items) == JobsBuilder.jobs_attribute_fields, set(items)
