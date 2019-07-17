@@ -94,11 +94,11 @@ spec:
          secret:
            optional: false
            secretName: jwt-secret-key
-       tolerations:
-       - key: "preemptible"
-         operator: "Equal"
-         value: "true"
-         effect: "NoSchedule"
+     tolerations:
+     - key: "preemptible"
+       operator: "Equal"
+       value: "true"
+       effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service
