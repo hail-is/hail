@@ -647,7 +647,7 @@ class Job:
                 exit_codes = pod_results['exit_codes']
                 durations = pod_results['durations']
 
-                if all([ec == 0 for ec in self.exit_codes]):
+                if all([ec == 0 for ec in exit_codes]):
                     new_state = 'Success'
                 else:
                     new_state = 'Failed'
