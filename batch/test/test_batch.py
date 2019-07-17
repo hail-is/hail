@@ -49,7 +49,7 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Success', (status, j.log()))
         self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
-        self.assertEqual(j.log(), {'main': 'test\n'}, status)
+        self.assertEqual(j.log()['main'], 'test\n', status)
         j.pod_status()
 
         self.assertTrue(j.is_complete())
@@ -294,7 +294,7 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Failed')
         self.assertEqual(status['exit_code']['main'], 127)
 
-        self.assertEqual(j.log(), {'main': 'test\n'})
+        self.assertEqual(j.log()['main'], 'test\n')
 
         self.assertTrue(j.is_complete())
 

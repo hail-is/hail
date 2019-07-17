@@ -643,9 +643,17 @@ class Job:
             else:
                 pod_results = json.loads(pod_results)
 
-                READ_POD_LOG_FAILURES.inc()
                 exit_codes = pod_results['exit_codes']
                 durations = pod_results['durations']
+
+                if pod is not None:
+                    pod_status = pod.status.to_str()
+                    err = await app['log_store'].write_gs_file(self.directory,
+                                                               LogStore.pod_status_file_name,
+                                                               pod_status)
+                    if err is not None:
+                        traceback.print_tb(err.__traceback__)
+                        log.info(f'job {self.id} will have a missing pod status due to {err}')
 
                 if all([ec == 0 for ec in exit_codes]):
                     new_state = 'Success'
