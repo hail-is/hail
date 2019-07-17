@@ -2,9 +2,9 @@
 ci.@domain@
 notebook.@domain@
 notebook2.@domain@
-app.@domain@
 scorecard.@domain@
-upload.@domain@
 www.@domain@
 batch.@domain@
 internal.@domain@
+auth.@domain@
+ukbb-rg.@domain@

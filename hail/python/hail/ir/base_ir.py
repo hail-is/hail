@@ -68,6 +68,9 @@ class BaseIR(Renderable):
         """
         return True
 
+    def __hash__(self):
+        return 31 + hash(str(self))
+
 
 class IR(BaseIR):
     def __init__(self, *children):

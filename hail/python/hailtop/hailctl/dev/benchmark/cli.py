@@ -1,32 +1,43 @@
+import sys
+
 import argparse
 
-from . import initialize, run_all, run_single
+
+def print_help():
+    main_parser = argparse.ArgumentParser(
+        prog='hailctl dev benchmark',
+        description='Run and analyze Hail benchmarks.')
+    subparsers = main_parser.add_subparsers()
+
+    subparsers.add_parser(
+        'run',
+        help='Run Hail benchmarks locally.',
+        description='Run Hail benchmarks locally.')
+
+    subparsers.add_parser(
+        'compare',
+        help='Compare Hail benchmarks.',
+        description='Run Hail benchmarks.')
+
+    main_parser.print_help()
 
 
-def main(args_):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--tests', '-t',
-                        type=str,
-                        required=False,
-                        help='Run specific comma-delimited tests instead of running all tests.')
-    parser.add_argument('--cores', '-c',
-                        type=int,
-                        default=1,
-                        help='Number of cores to use.')
-    parser.add_argument("--n-iter", "-n",
-                        type=int,
-                        default=3,
-                        help='Number of iterations for each test.')
-    parser.add_argument("--log", "-l",
-                        type=str,
-                        help='Log file path')
-
-    args = parser.parse_args(args_)
-
-    initialize(args.cores, args.log, args.n_iter)
-    if args.tests:
-        for test in args.tests.split(','):
-            run_single(test)
+def main(args):
+    if not args:
+        print_help()
+        sys.exit(0)
     else:
-        run_all()
+        module = args[0]
+        args = args[1:]
+        if module == 'run':
+            from .run import cli
+            cli.main(args)
+        elif module == 'compare':
+            from .compare import cli
+            cli.main(args)
+        elif module == '-h' or module == '--help' or module == 'help':
+            print_help()
+        else:
+            sys.stderr.write(f"ERROR: no such module: {module!r}")
+            print_help()
+            sys.exit(1)

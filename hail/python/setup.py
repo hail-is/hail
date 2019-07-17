@@ -39,4 +39,6 @@ setup(
     entry_points={
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest"]
 )

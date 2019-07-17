@@ -1,0 +1,23 @@
+<html lang="en">
+  <head>
+    <title>Batch {{ batch_id }}, Job {{ job_id }} Pod Statuses</title>
+  </head>
+  <body>
+    <h1>Batch {{ batch_id }}, Job {{ job_id }} Pod Statuses</h1>
+
+    {% if 'input' in pod_status %}
+    <h2>Input</h2>
+    <pre>{{ pod_status['input'] }}</pre>
+    {% endif %}
+
+    {% if 'main' in pod_status %}
+    <h2>Main</h2>
+    <pre>{{ pod_status['main'] }}</pre>
+    {% endif %}
+
+    {% if 'output' in pod_status %}
+    <h2>Output</h2>
+    <pre>{{ pod_status['output'] }}</pre>
+    {% endif %}
+  </body>
+</html>

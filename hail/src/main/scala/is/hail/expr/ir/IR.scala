@@ -5,24 +5,32 @@ import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.{ExportType, FastIndexedSeq, log}
 
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
+  private var _pType2: PType = null
   private var _pType: PType = null
   private var _typ: Type = null
 
   def pType = {
-    assert(_pType != null)
+    if (_pType == null)
+      _pType = PType.canonical(typ)
 
     _pType
   }
 
-  def inferSetPType(env: Env[PType]): Unit = {
-    assert(_pType == null)
+  def pType2 = {
+    assert(_pType2 != null)
 
-    _pType = InferPType(this, env)
+    _pType2
+  }
+
+  def inferSetPType(env: Env[PType]): Unit = {
+    assert(_pType2 == null)
+
+    _pType2 = InferPType(this, env)
   }
 
   def typ: Type = {
@@ -122,10 +130,22 @@ object If {
     if (cnsq.typ == altr.typ)
       If(cond, cnsq, altr)
     else {
-      val t = unifyType.getOrElse(cnsq.typ.deepOptional())
-      If(cond,
-        PruneDeadFields.upcast(cnsq, t),
-        PruneDeadFields.upcast(altr, t))
+      cnsq match {
+        case NA(_) => If(cond, NA(altr.typ), altr)
+        case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
+        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
+        case _ =>
+          altr match {
+            case NA(_) => If(cond, cnsq, NA(cnsq.typ))
+            case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
+            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
+            case _ =>
+              val t = unifyType.getOrElse(cnsq.typ.deepOptional())
+              If(cond,
+                PruneDeadFields.upcast(cnsq, t),
+                PruneDeadFields.upcast(altr, t))
+          }
+      }
     }
   }
 }
@@ -295,6 +315,17 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+
+final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
+
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: Seq[String]) extends IR

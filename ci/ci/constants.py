@@ -1,11 +1,9 @@
-import os
 import hailtop.gear.auth as hj
 
 GITHUB_CLONE_URL = 'https://github.com/'
 
-with open(os.environ['HAIL_TOKEN_FILE']) as f:
-    userdata = hj.JWTClient.unsafe_decode(f.read())
-    BUCKET = f'gs://{userdata["bucket_name"]}'
+userdata = hj.JWTClient.find_userdata()
+BUCKET = f'gs://{userdata["bucket_name"]}'
 
 AUTHORIZED_USERS = {
     'danking',
@@ -22,5 +20,6 @@ AUTHORIZED_USERS = {
     'daniel-goldstein',
     'ahiduchick',
     'GreatBrando',
-    'johnc1231'
+    'johnc1231',
+    'iitalics'
 }

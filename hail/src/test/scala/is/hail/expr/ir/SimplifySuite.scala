@@ -5,7 +5,7 @@ import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, SortField}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -86,5 +86,18 @@ class SimplifySuite extends HailSuite {
     ir = TableMapRows(ir, InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32()), Set(1)))))
     ir = TableExplode(ir, FastIndexedSeq("foo"))
     assertEvalsTo(TableCount(ir), 1L)
+  }
+
+  @Test def testNestedInsertsSimplify() {
+    val r = Ref("row", TStruct(("x", TInt32())))
+    val r2 = Ref("row2", TStruct(("x", TInt32()), ("y", TFloat64())))
+
+    val ir1 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "x").toD))))
+    val ir2 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(r2, FastSeq(("z", GetField(r2, "y").toI))))
+    val ir3 = Let("row2", InsertFields(r, FastSeq(("y", F64(0.0)))), InsertFields(Ref("something_else", TStruct()), FastSeq(("z", GetField(r2, "y").toI))))
+
+    assert(Simplify(ir1) == InsertFields(r, FastSeq(("y", F64(0)), ("z", GetField(r, "x").toD))))
+    assert(Simplify(ir2) == ir2)
+    assert(Simplify(ir3) == ir3)
   }
 }

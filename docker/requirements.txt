@@ -20,12 +20,15 @@ kubernetes-asyncio==9.1.0
 libsass==0.19.2
 nest_asyncio==1.0.0
 parsimonious==0.8.1
+prometheus_async==19.2.0
+prometheus_client==0.7.1
 PyGithub==1.43.7
 pylint==2.3.1
 PyMySQL==0.9.3
 pytest==4.6.3
 python-json-logger==0.1.11
 requests==2.22.0
+tabulate==0.8.3
 urllib3==1.24.3
 uvloop==0.12.2
 Werkzeug==0.15.4

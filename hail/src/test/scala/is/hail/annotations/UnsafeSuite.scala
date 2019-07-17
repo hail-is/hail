@@ -7,6 +7,7 @@ import is.hail.check._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.io._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -349,48 +350,86 @@ class UnsafeSuite extends HailSuite {
     val pool = RegionPool.get
 
     case class Counts(regions: Int, freeRegions: Int, freeBlocks: Int) {
-      def allocateRegion(): Counts =
-        if (freeRegions == 0)
-          copy(regions = regions + 1)
-        else copy(freeRegions = freeRegions - 1)
+      def allocate(n: Int): Counts =
+        copy(
+          regions = regions + math.max(0, n - freeRegions),
+          freeRegions = math.max(0, freeRegions - n),
+          freeBlocks = math.max(0, freeBlocks - n))
 
-      def refreshRegion(nDependentRegions: Int = 0, nBlocks: Int = 0): Counts =
-        if (freeRegions == 0)
-          Counts(regions + 1, nDependentRegions + 1, freeBlocks - nBlocks)
-        else Counts(regions, freeRegions + nDependentRegions, freeBlocks - nBlocks)
+      def free(nRegions: Int, nExtraBlocks: Int = 0): Counts =
+        copy(freeRegions = freeRegions + nRegions, freeBlocks = freeBlocks + nRegions + nExtraBlocks)
     }
-    def getCurrentCounts: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
 
-    var counts = getCurrentCounts
+    var before: Counts = null
+    var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+
+    def assertAfterEquals(c: => Counts): Unit = {
+      before = after
+      after = Counts(pool.numRegions(), pool.numFreeRegions(), pool.numFreeBlocks())
+      assert(after == c)
+    }
+
+    Region.scoped { region =>
+      assertAfterEquals(before.allocate(1))
+
+      Region.scoped { region2 =>
+        assertAfterEquals(before.allocate(1))
+        region.reference(region2)
+      }
+      assertAfterEquals(before)
+    }
+    assertAfterEquals(before.free(2))
+
+    Region.scoped { region =>
+      Region.scoped { region2 => region.reference(region2) }
+      Region.scoped { region2 => region.reference(region2) }
+      assertAfterEquals(before.allocate(3))
+    }
+    assertAfterEquals(before.free(3))
+  }
+
+  @Test def testRegionReferences() {
+    def offset(region: Region) = region.allocate(0)
+    def numUsed(): Int = RegionPool.get.numRegions() - RegionPool.get.numFreeRegions()
+    def assertUsesRegions[T](n: Int)(f: => T): T = {
+      val usedRegionCount = numUsed()
+      val res = f
+      assert(usedRegionCount == numUsed() - n)
+      res
+    }
 
     val region = Region()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+    region.setNumParents(5)
 
-    val region2 = Region()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+    val off4 = using(assertUsesRegions(1) { region.getParentReference(4, Region.SMALL) }) { r =>
+      offset(r)
+    }
 
-    region.reference(region2)
-    region2.refreshRegion()
-    assert(getCurrentCounts == counts.allocateRegion())
-    counts = getCurrentCounts
+    val off2 = Region.tinyScoped { r =>
+      region.setParentReference(r, 2)
+      offset(r)
+    }
 
-    region.refreshRegion()
-    assert(getCurrentCounts == counts.refreshRegion(1))
+    using(region.getParentReference(2, Region.TINY)) { r =>
+      assert(offset(r) == off2)
+    }
 
-    val region3 = Region()
-    region3.reference(region)
-    region3.reference(region2)
+    using(region.getParentReference(4, Region.SMALL)) { r =>
+      assert(offset(r) == off4)
+    }
 
-    counts = getCurrentCounts
-    region.refreshRegion()
-    region2.refreshRegion()
-    assert(getCurrentCounts == counts.allocateRegion().allocateRegion())
+    assertUsesRegions(-1) { region.clearParentReference(2) }
+    assertUsesRegions(-1) { region.clearParentReference(4) }
+  }
 
-    counts = getCurrentCounts
-    region3.refreshRegion()
-    assert(getCurrentCounts == counts.refreshRegion(2))
+  @Test def testRegionSizes() {
+    Region.smallScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 500) }
+    }
+
+    Region.tinyScoped { region =>
+      Array.range(0, 30).foreach { _ => region.allocate(1, 60) }
+    }
   }
 
   // Tests for Region serialization have been removed since an off-heap Region

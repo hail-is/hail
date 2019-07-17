@@ -320,7 +320,7 @@ mkdir -p {shq(repo_dir)}
             self.sha = sha_out.decode('utf-8').strip()
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), deploy=False)
+                config = BuildConfiguration(self, f.read(), scope='test')
 
             log.info(f'creating test batch for {self.number}')
             batch = batch_client.create_batch(
@@ -333,7 +333,7 @@ mkdir -p {shq(repo_dir)}
                     'target_sha': self.target_branch.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
-            config.build(batch, self, deploy=False)
+            config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
@@ -376,7 +376,11 @@ mkdir -p {shq(repo_dir)}
             min_batch = None
             failed = None
             for b in batches:
-                s = await b.status()
+                try:
+                    s = await b.status()
+                except Exception as err:
+                    log.info(f'failed to get the status for batch {b.id} due to error: {err}')
+                    raise
                 if s['state'] != 'cancelled':
                     if min_batch is None or b.id > min_batch.id:
                         min_batch = b
@@ -678,7 +682,8 @@ class WatchedBranch(Code):
             if (pr.review_state == 'approved' and
                     (pr.build_state == 'success' or not pr.source_sha_failed)):
                 pri = pr.merge_priority()
-                if not merge_candidate or pri > merge_candidate_pri:
+                is_authorized = await pr.authorized(dbpool)
+                if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
                     merge_candidate = pr
                     merge_candidate_pri = pri
         if merge_candidate:
@@ -718,7 +723,7 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), deploy=True)
+                config = BuildConfiguration(self, f.read(), scope='deploy')
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -729,7 +734,7 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha
                 },
                 callback=f'http://{SELF_HOSTNAME}/api/v1alpha/batch_callback')
-            config.build(deploy_batch, self, deploy=True)
+            config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
@@ -744,6 +749,79 @@ mkdir -p {shq(repo_dir)}
                     'sha': self.sha
                 })
             self.deploy_state = 'checkout_failure'
+        finally:
+            if deploy_batch and not self.deploy_batch:
+                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
+                await deploy_batch.cancel()
+
+    def checkout_script(self):
+        return f'''
+if [ ! -d .git ]; then
+  time git clone {shq(self.branch.repo.url)} .
+
+  git config user.email ci@hail.is
+  git config user.name ci
+else
+  git reset --merge
+  time git fetch -q origin
+fi
+
+git checkout {shq(self.sha)}
+'''
+
+
+class UnwatchedBranch(Code):
+    def __init__(self, branch, sha, userdata, namespace):
+        self.branch = branch
+        self.userdata = userdata
+        self.user = userdata['username']
+        self.namespace = namespace
+        self.sha = sha
+
+        self.deploy_batch = None
+
+    def short_str(self):
+        return f'br-{self.branch.repo.owner}-{self.branch.repo.name}-{self.branch.name}'
+
+    def repo_dir(self):
+        return f'repos/{self.branch.repo.short_str()}'
+
+    def config(self):
+        return {
+            'checkout_script': self.checkout_script(),
+            'branch': self.branch.name,
+            'repo': self.branch.repo.short_str(),
+            'repo_url': self.branch.repo.url,
+            'sha': self.sha,
+            'user': self.user
+        }
+
+    async def deploy(self, batch_client, profile_steps=None):
+        assert not self.deploy_batch
+
+        deploy_batch = None
+        try:
+            repo_dir = self.repo_dir()
+            await check_shell(f'''
+mkdir -p {shq(repo_dir)}
+(cd {shq(repo_dir)}; {self.checkout_script()})
+''')
+            with open(f'{repo_dir}/build.yaml', 'r') as f:
+                config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
+
+            log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
+
+            deploy_batch = batch_client.create_batch(
+                attributes={
+                    'token': secrets.token_hex(16),
+                    'target_branch': self.branch.short_str(),
+                    'sha': self.sha,
+                    'user': self.user
+                })
+            config.build(deploy_batch, self, scope='dev')
+            deploy_batch = await deploy_batch.submit()
+            self.deploy_batch = deploy_batch
+            await deploy_batch.wait()
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')

@@ -2,9 +2,12 @@ import json
 import logging
 import asyncio
 import aiomysql
+import pymysql
 from asyncinit import asyncinit
 
 log = logging.getLogger('batch.database')
+
+MAX_RETRIES = 2
 
 
 def run_synchronous(coro):
@@ -63,6 +66,31 @@ def make_where_statement(items):
     return template, values
 
 
+async def _retry(cursor, f):
+    n_attempts = 0
+    err = None
+    while n_attempts < MAX_RETRIES:
+        n_attempts += 1
+        try:
+            result = await f(cursor)
+            return result
+        except pymysql.err.OperationalError as err:
+            code, _ = err.args
+            if code != 1213:
+                raise err
+            log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
+            await asyncio.sleep(0.5)
+    raise err
+
+
+async def execute_with_retry(cursor, sql, items):
+    await _retry(cursor, lambda c: c.execute(sql, items))
+
+
+async def executemany_with_retry(cursor, sql, items):
+    await _retry(cursor, lambda c: c.executemany(sql, items))
+
+
 class Table:  # pylint: disable=R0903
     def __init__(self, db, name):
         self.name = name
@@ -78,7 +106,7 @@ class Table:  # pylint: disable=R0903
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 sql = self.new_record_template(*items)
-                await cursor.execute(sql, items)
+                await execute_with_retry(cursor, sql, items)
                 return cursor.lastrowid  # This returns 0 unless an autoincrement field is in the table
 
     async def update_record(self, where_items, set_items):
@@ -89,7 +117,9 @@ class Table:  # pylint: disable=R0903
                     set_template = ", ".join([f'`{k.replace("`", "``")}` = %s' for k, v in set_items.items()])
                     set_values = set_items.values()
                     sql = f"UPDATE `{self.name}` SET {set_template} WHERE {where_template}"
-                    await cursor.execute(sql, (*set_values, *where_values))
+                    result = await execute_with_retry(cursor, sql, (*set_values, *where_values))
+                    return result
+        return 0
 
     async def get_records(self, where_items, select_fields=None):
         assert select_fields is None or len(select_fields) != 0
@@ -124,83 +154,53 @@ class Table:  # pylint: disable=R0903
                 await cursor.execute(sql, tuple(where_values))
 
 
-class BatchBuilder:
-    jobs_fields = {'batch_id', 'job_id', 'state', 'pod_name',
-                   'pvc_name', 'pvc_size', 'callback', 'attributes',
-                   'tasks', 'task_idx', 'always_run', 'duration'}
+class JobsBuilder:
+    jobs_fields = {'batch_id', 'job_id', 'state', 'pvc_size',
+                   'callback', 'attributes', 'tasks', 'task_idx',
+                   'always_run', 'duration', 'token'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
-    def __init__(self, batch_db, n_jobs):
-        self._db = batch_db
-        self._conn = None
-        self._batch_id = None
+    def __init__(self, db):
+        self._db = db
         self._is_open = True
         self._jobs = []
         self._jobs_parents = []
 
-        self._jobs_sql = self._db.jobs.new_record_template(*BatchBuilder.jobs_fields)
-        self._jobs_parents_sql = self._db.jobs_parents.new_record_template(*BatchBuilder.jobs_parents_fields)
-
-        self.n_jobs = n_jobs
+        self._jobs_sql = self._db.jobs.new_record_template(*JobsBuilder.jobs_fields)
+        self._jobs_parents_sql = self._db.jobs_parents.new_record_template(*JobsBuilder.jobs_parents_fields)
 
     async def close(self):
-        if self._conn is not None:
-            await self._conn.autocommit(True)
-            self._db.pool.release(self._conn)
-            self._conn = None
         self._is_open = False
-
-    async def create_batch(self, **items):
-        assert self._is_open
-        if self._batch_id is not None:
-            raise ValueError("cannot create batch more than once")
-
-        self._conn = await self._db.pool.acquire()
-        await self._conn.autocommit(False)
-        await self._conn.begin()
-
-        sql = self._db.batch.new_record_template(*items)
-        async with self._conn.cursor() as cursor:
-            await cursor.execute(sql, dict(items))
-            self._batch_id = cursor.lastrowid
-        return self._batch_id
 
     def create_job(self, **items):
         assert self._is_open
-        assert set(items) == BatchBuilder.jobs_fields, set(items)
+        assert set(items) == JobsBuilder.jobs_fields, set(items)
         self._jobs.append(dict(items))
 
     def create_job_parent(self, **items):
         assert self._is_open
-        assert set(items) == BatchBuilder.jobs_parents_fields, set(items)
+        assert set(items) == JobsBuilder.jobs_parents_fields, set(items)
         self._jobs_parents.append(dict(items))
 
     async def commit(self):
         assert self._is_open
-        assert len(self._jobs) == self.n_jobs
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if len(self._jobs) > 0:
+                    await executemany_with_retry(cursor, self._jobs_sql, self._jobs)
+                    n_jobs_inserted = cursor.rowcount
+                    if n_jobs_inserted != len(self._jobs):
+                        log.info(f'inserted {n_jobs_inserted} jobs, but expected {len(self._jobs)} jobs')
+                        return False
 
-        async with self._conn.cursor() as cursor:
-            if self.n_jobs > 0:
-                await cursor.executemany(self._jobs_sql, self._jobs)
-                n_jobs_inserted = cursor.rowcount
-                if n_jobs_inserted != self.n_jobs:
-                    log.info(f'inserted {n_jobs_inserted} jobs, but expected {self.n_jobs} jobs')
-                    return False
-
-            if len(self._jobs_parents) > 0:
-                await cursor.executemany(self._jobs_parents_sql, self._jobs_parents)
-                n_jobs_parents_inserted = cursor.rowcount
-                if n_jobs_parents_inserted != len(self._jobs_parents):
-                    log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
-                    return False
-
-        try:
-            await self._conn.commit()
-            return True
-        except:  # pylint: disable=bare-except
-            log.exception(f'committing to database failed')
-            return False
+                if len(self._jobs_parents) > 0:
+                    await executemany_with_retry(cursor, self._jobs_parents_sql, self._jobs_parents)
+                    n_jobs_parents_inserted = cursor.rowcount
+                    if n_jobs_parents_inserted != len(self._jobs_parents):
+                        log.info(f'inserted {n_jobs_parents_inserted} jobs parents, but expected {len(self._jobs_parents)}')
+                        return False
+                return True
 
 
 class BatchDatabase(Database):
@@ -210,6 +210,7 @@ class BatchDatabase(Database):
         self.jobs = JobsTable(self)
         self.jobs_parents = JobsParentsTable(self)
         self.batch = BatchTable(self)
+        self.batch_attributes = BatchAttributesTable(self)
 
 
 class JobsTable(Table):
@@ -220,6 +221,10 @@ class JobsTable(Table):
     exit_code_mapping = {'input': 'input_exit_code',
                          'main': 'main_exit_code',
                          'output': 'output_exit_code'}
+
+    pod_status_mapping = {'input': 'input_pod_status',
+                          'main': 'main_pod_status',
+                          'output': 'output_pod_status'}
 
     batch_view_fields = {'cancelled', 'user', 'userdata'}
 
@@ -242,9 +247,12 @@ class JobsTable(Table):
     def __init__(self, db):
         super().__init__(db, 'jobs')
 
-    async def update_record(self, batch_id, job_id, **items):
+    async def update_record(self, batch_id, job_id, compare_items=None, **items):
         assert not set(items).intersection(JobsTable.batch_view_fields)
-        await super().update_record({'batch_id': batch_id, 'job_id': job_id}, items)
+        where_items = {'batch_id': batch_id, 'job_id': job_id}
+        if compare_items is not None:
+            where_items.update(compare_items)
+        return await super().update_record(where_items, items)
 
     async def get_all_records(self):
         async with self._db.pool.acquire() as conn:
@@ -299,20 +307,9 @@ class JobsTable(Table):
                           ON `{self.name}`.batch_id = `{jobs_parents_name}`.batch_id AND `{self.name}`.job_id = `{jobs_parents_name}`.parent_id
                           WHERE `{self.name}`.state IN %s AND `{jobs_parents_name}`.batch_id = %s AND `{jobs_parents_name}`.job_id = %s"""
 
-                await cursor.execute(sql, (('Pending', 'Ready', 'Running'), batch_id, job_id))
+                await cursor.execute(sql, (('Pending', 'Running'), batch_id, job_id))
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
-
-    async def get_record_by_pod(self, pod):
-        records = await self.get_records_where({'pod_name': pod})
-        if len(records) == 0:  # pylint: disable=R1705
-            return None
-        elif len(records) == 1:
-            return records[0]
-        else:
-            jobs_w_pod = [str((record['batch_id'], record['job_id'])) for record in records]
-            raise Exception("'jobs' table error. Cannot have the same pod in more than one record.\n"
-                            f"Found the following jobs matching pod name '{pod}':\n" + ",".join(jobs_w_pod))
 
     async def get_records_by_batch(self, batch_id):
         return await self.get_records_where({'batch_id': batch_id})
@@ -329,11 +326,14 @@ class JobsTable(Table):
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
 
-    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code, **items):
-        await self.update_record(batch_id, job_id,
-                                 **{JobsTable.log_uri_mapping[task_name]: uri,
-                                    JobsTable.exit_code_mapping[task_name]: exit_code},
-                                 **items)
+    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code,
+                                 pod_status, compare_items=None, **items):
+        return await self.update_record(batch_id, job_id,
+                                        compare_items=compare_items,
+                                        **{JobsTable.log_uri_mapping[task_name]: uri,
+                                           JobsTable.exit_code_mapping[task_name]: exit_code,
+                                           JobsTable.pod_status_mapping[task_name]: pod_status},
+                                        **items)
 
     async def get_log_uri(self, batch_id, job_id, task_name):
         uri_field = JobsTable.log_uri_mapping[task_name]
@@ -343,9 +343,13 @@ class JobsTable(Table):
             return records[0][uri_field]
         return None
 
-    @staticmethod
-    def exit_code_field(task_name):
-        return JobsTable.exit_code_mapping[task_name]
+    async def get_pod_status(self, batch_id, job_id, task_name):
+        pod_status_field = JobsTable.pod_status_mapping[task_name]
+        records = await self.get_records(batch_id, job_id, fields=[pod_status_field])
+        if records:
+            assert len(records) == 1
+            return records[0][pod_status_field]
+        return None
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:
@@ -391,8 +395,11 @@ class BatchTable(Table):
     def __init__(self, db):
         super().__init__(db, 'batch')
 
-    async def update_record(self, id, **items):
-        await super().update_record({'id': id}, items)
+    async def update_record(self, id, compare_items=None, **items):
+        where_items = {'id': id}
+        if compare_items is not None:
+            where_items.update(compare_items)
+        return await super().update_record(where_items, items)
 
     async def get_all_records(self):
         return await super().get_all_records()
@@ -402,6 +409,57 @@ class BatchTable(Table):
 
     async def get_records_where(self, condition):
         return await super().get_records(condition)
+
+    async def find_records(self, user, complete=None, success=None, deleted=None, attributes=None):
+        sql = f"select batch.* from `{self.name}` as batch"
+        values = []
+        joins = []
+        wheres = []
+        havings = []
+        groups = []
+
+        values.append(user)
+        wheres.append("batch.user = %s")
+        if deleted is not None:
+            if deleted:
+                wheres.append("batch.deleted")
+            else:
+                wheres.append("not batch.deleted")
+        if complete is not None:
+            condition = "batch.closed and batch.n_completed = batch.n_jobs"
+            if complete:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if success is not None:
+            condition = "batch.closed and batch.n_succeeded = batch.n_jobs"
+            if success:
+                wheres.append(condition)
+            else:
+                wheres.append(f"not ({condition})")
+        if attributes:
+            joins.append(f'inner join `{self._db.batch_attributes.name}` as attr on batch.id = attr.batch_id')
+            groups.append("batch.id")
+            for k, v in attributes.items():
+                values.append(k)
+                values.append(v)
+                havings.append(f"sum(attr.`key` = %s and attr.value = %s) = 1")
+        if joins:
+            sql += " " + " ".join(joins)
+        if wheres:
+            sql += " where " + " and ".join(wheres)
+        if groups:
+            sql += " group by " + ", ".join(groups)
+        if havings:
+            sql += " having " + " and ".join(havings)
+        try:
+            async with self._db.pool.acquire() as conn:
+                async with conn.cursor() as cursor:
+                    await cursor.execute(sql, values)
+                    return await cursor.fetchall()
+        except Exception as err:
+            log.error(f'error encountered while executing: {sql} {values}')
+            raise err
 
     async def has_record(self, id):
         return await super().has_record({'id': id})
@@ -419,3 +477,31 @@ class BatchTable(Table):
 
     async def get_undeleted_records(self, ids, user):
         return await super().get_records({'id': ids, 'user': user, 'deleted': False})
+
+
+class BatchAttributesTable(Table):
+    batch_attribute_fields = {'batch_id', 'key', 'value'}
+
+    def __init__(self, db):
+        super().__init__(db, 'batch-attributes')
+        self._batch_attributes_sql = self.new_record_template(*BatchAttributesTable.batch_attribute_fields)
+
+    async def new_records(self, items):
+        async with self._db.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if len(items) > 0:
+                    await executemany_with_retry(cursor, self._batch_attributes_sql, items)
+                    n_inserted = cursor.rowcount
+                    if n_inserted != len(items):
+                        log.info(f'inserted {n_inserted} batch attributes, but expected {len(items)}')
+                        return False
+                return True
+
+    async def _query(self, *select, **where):
+        return await super().get_records(where, select_fields=select)
+
+    async def get_attributes(self, batch_id):
+        return await self._query('key', 'value', batch_id=batch_id)
+
+    async def get_batches(self, key, value):
+        return await self._query('batch_id', key=key, value=value)

@@ -2,17 +2,17 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.expr.ir
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, LowerMatrixIR, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IRParser, IRParserEnvironment, Interpret, MatrixHybridReader, Pretty, TableIR, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io._
+import is.hail.io.fs.{FS, FileStatus}
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
+import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.io.fs.{FS, FileStatus}
 import org.apache.spark.Partition
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
@@ -296,38 +296,25 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
 )
 
 object MatrixBGENReader {
-  def getMatrixType(
-    rg: Option[ReferenceGenome],
-    includeRsid: Boolean = true,
-    includeVarid: Boolean = true,
-    includeOffset: Boolean = true,
-    includeFileIdx: Boolean = true,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = true
-  ): MatrixType = {
-    val typedRowFields = Array(
-      (true, "locus" -> TLocus.schemaFromRG(rg)),
-      (true, "alleles" -> TArray(TString())),
-      (includeRsid, "rsid" -> TString()),
-      (includeVarid, "varid" -> TString()),
-      (includeOffset, "offset" -> TInt64()),
-      (includeFileIdx, "file_idx" -> TInt32()))
-      .withFilter(_._1).map(_._2)
-
-    val typedEntryFields: Array[(String, Type)] = Array(
-      (includeGT, "GT" -> TCall()),
-      (includeGP, "GP" -> +TArray(+TFloat64())),
-      (includeDosage, "dosage" -> +TFloat64()))
-      .withFilter(_._1).map(_._2)
-
+  def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty(),
-      colKey = Array("s"),
       colType = TStruct("s" -> TString()),
-      rowType = TStruct(typedRowFields: _*),
+      colKey = Array("s"),
+      rowType = TStruct(
+        "locus" -> TLocus.schemaFromRG(rg),
+        "alleles" -> TArray(TString()),
+        "rsid" -> TString(),
+        "varid" -> TString(),
+        "offset" -> TInt64(),
+        "file_idx" -> TInt32()),
       rowKey = Array("locus", "alleles"),
-      entryType = TStruct(typedEntryFields: _*))
+      entryType = TStruct(
+        "GT" -> TCall(),
+        "GP" -> TArray(TFloat64Required, required = true),
+        "dosage" -> TFloat64Required
+      )
+    )
   }
 }
 
@@ -379,7 +366,7 @@ case class MatrixBGENReader(
 
   private val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 
-  val fullMatrixType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
+  val fullMatrixType: MatrixType = MatrixBGENReader.fullMatrixType(referenceGenome)
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
@@ -396,7 +383,9 @@ case class MatrixBGENReader(
       assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      val rvd = Interpret(ir.TableDistinct(variantsTableIR)).rvd
+      val rvd = ExecuteContext.scoped { ctx =>
+        Interpret(ir.TableDistinct(variantsTableIR), ctx).rvd
+      }
 
       val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
         .toRows(rowType.physicalType)
@@ -413,34 +402,16 @@ case class MatrixBGENReader(
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     require(files.nonEmpty)
 
     val requestedType = tr.typ
-    val requestedRowType = requestedType.rowType
-
-    val (requestedEntryType, dropCols): (TStruct, Boolean) = requestedRowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
-      case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct] -> false
-      case None => TStruct() -> true
-    }
-
-
-    val includeGT = requestedEntryType.hasField("GT")
-    val includeGP = requestedEntryType.hasField("GP")
-    val includeDosage = requestedEntryType.hasField("dosage")
-
-    val includeLid = requestedRowType.hasField("varid")
-    val includeRsid = requestedRowType.hasField("rsid")
-    val includeOffset = requestedRowType.hasField("offset")
-    val includeFileIdx = requestedRowType.hasField("file_idx")
 
     assert(requestedType.keyType == indexKeyType)
 
     val settings = BgenSettings(
       nSamples,
-      EntriesWithFields(includeGT, includeGP, includeDosage),
-      dropCols,
-      RowFields(includeLid, includeRsid, includeOffset, includeFileIdx),
+      requestedType,
       referenceGenome.map(_.broadcast),
       indexAnnotationType)
 
@@ -451,7 +422,7 @@ case class MatrixBGENReader(
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 
-    val globalValue = makeGlobalValue(requestedType, sampleIds.map(Row(_)))
+    val globalValue = makeGlobalValue(ctx, requestedType, sampleIds.map(Row(_)))
 
     TableValue(tr.typ, globalValue, rvd)
   }

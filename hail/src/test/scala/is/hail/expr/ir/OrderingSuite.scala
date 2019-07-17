@@ -27,7 +27,7 @@ class OrderingSuite extends HailSuite {
     inner + 1
   }
 
-  def getStagedOrderingFunction[T: TypeInfo](t: Type, comp: String): AsmFunction3[Region, Long, Long, T] = {
+  def getStagedOrderingFunction[T: TypeInfo](t: Type, comp: String, r: Region): AsmFunction3[Region, Long, Long, T] = {
     val fb = EmitFunctionBuilder[Region, Long, Long, T]
     val stagedOrdering = t.physicalType.codeOrdering(fb.apply_method)
     val cregion: Code[Region] = fb.getArg[Region](1)
@@ -41,7 +41,7 @@ class OrderingSuite extends HailSuite {
       case "gt" => fb.emit(stagedOrdering.gt(cregion, (const(false), cv1), cregion, (const(false), cv2)))
       case "gteq" => fb.emit(stagedOrdering.gteq(cregion, (const(false), cv1), cregion, (const(false), cv2)))
     }
-    fb.resultWithIndex()(0)
+    fb.resultWithIndex()(0, r)
   }
 
   def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
@@ -74,34 +74,34 @@ class OrderingSuite extends HailSuite {
         val v2 = rvb.end()
 
         val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
-        val fcompare = getStagedOrderingFunction[Int](t, "compare")
+        val fcompare = getStagedOrderingFunction[Int](t, "compare", region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
         assert(result == compare, s"compare expected: $compare vs $result")
 
 
         val equiv = t.ordering.equiv(a1, a2)
-        val fequiv = getStagedOrderingFunction[Boolean](t, "equiv")
+        val fequiv = getStagedOrderingFunction[Boolean](t, "equiv", region)
 
         assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
         val lt = t.ordering.lt(a1, a2)
-        val flt = getStagedOrderingFunction[Boolean](t, "lt")
+        val flt = getStagedOrderingFunction[Boolean](t, "lt", region)
 
         assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
         val lteq = t.ordering.lteq(a1, a2)
-        val flteq = getStagedOrderingFunction[Boolean](t, "lteq")
+        val flteq = getStagedOrderingFunction[Boolean](t, "lteq", region)
 
         assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
         val gt = t.ordering.gt(a1, a2)
-        val fgt = getStagedOrderingFunction[Boolean](t, "gt")
+        val fgt = getStagedOrderingFunction[Boolean](t, "gt", region)
 
         assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
         val gteq = t.ordering.gteq(a1, a2)
-        val fgteq = getStagedOrderingFunction[Boolean](t, "gteq")
+        val fgteq = getStagedOrderingFunction[Boolean](t, "gteq", region)
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
@@ -250,7 +250,7 @@ class OrderingSuite extends HailSuite {
 
         val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
 
-        val f = fb.resultWithIndex()(0)
+        val f = fb.resultWithIndex()(0, region)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -292,7 +292,7 @@ class OrderingSuite extends HailSuite {
 
         val asArray = SafeIndexedSeq(PArray(pDict.elementType), region, soff)
 
-        val f = fb.resultWithIndex()(0)
+        val f = fb.resultWithIndex()(0, region)
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {

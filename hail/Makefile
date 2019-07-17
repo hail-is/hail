@@ -9,7 +9,8 @@ DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 URL := $(shell git config --get remote.origin.url)
 SPARK_VERSION := 2.4.0
-HAIL_PIP_VERSION := 0.2.16
+HAIL_PIP_VERSION := 0.2.18
+PARALLELISM := 2
 
 HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
@@ -54,6 +55,23 @@ python/hailtop/hail_pip_version: python/hail/hail_pip_version
 jars: build-info
 	./gradlew shadowTestJar shadowJar
 
+python/README.md: ../README.md
+	cp ../README.md python/
+
+python/hail/hail-all-spark.jar: shadowJar
+	cp build/libs/hail-all-spark.jar python/hail/
+
+.PHONY: install-editable
+install-editable: build-info init-scripts
+install-editable: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(PIP) install -e
+
+.PHONY: pytest
+pytest: build-info shadowJar init-scripts
+pytest: python/README.md python/hail/hail-all-spark.jar
+	cd python && $(HAIL_PYTHON3) setup.py pytest \
+    --addopts '-v -n $(PARALLELISM) --dist=loadscope --noconftest --color=no -r a --html=build/reports/pytest.html --self-contained-html $(PYTEST_ARGS)'
+
 .PHONY: wheel
 wheel: build-info shadowJar init-scripts
 	rm -rf build/deploy
@@ -73,8 +91,10 @@ wheel: build-info shadowJar init-scripts
 ifndef DEPLOY_PROD
 DEV_CLARIFIER := $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
+UPLOAD_RETENTION =
 else
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
@@ -96,6 +116,7 @@ python/hailtop/hailctl/deploy.yaml:
 upload-artifacts: wheel
 	gsutil -m cp -r $(resources) $(wheel_path) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
+	$(UPLOAD_RETENTION)
 
 .PHONY: install
 install: wheel
@@ -107,10 +128,11 @@ install-hailctl: install upload-artifacts
 
 
 cluster_name := cluster-$(shell whoami)-$(shell echo $$RANDOM)
+cluster_test_files := $(wildcard python/cluster-tests/*.py)
 .PHONY: test-dataproc
 test-dataproc: install-hailctl
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
-	for FILE in `ls python/cluster-tests`; do \
+	for FILE in $(cluster_test_files); do \
 	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || exit 1; done || exit
 
 .PHONY: init-scripts
@@ -167,3 +189,5 @@ install-deps:
 clean:
 	./gradlew clean
 	rm -rf build/deploy
+	rm -rf python/hail/hail-all-spark.jar
+	rm -rf python/README.md

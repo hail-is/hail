@@ -105,12 +105,15 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.pyApply(
-        Env.spark_backend('ibd')._to_java_ir(require_biallelic(dataset, 'ibd')._mir),
-        joption('__maf' if maf is not None else None),
-        bounded,
-        joption(min),
-        joption(max)))
+    dataset = require_biallelic(dataset, 'ibd')
+
+    return Table(MatrixToTableApply(dataset._mir, {
+        'name': 'IBD',
+        'mafFieldName': '__maf' if maf is not None else None,
+        'bounded': bounded,
+        'min': min,
+        'max': max,
+    }))
 
 
 @typecheck(call=expr_call,
@@ -1321,6 +1324,43 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
     }
 
     return Table(MatrixToTableApply(mt._mir, config))
+
+
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def lambda_gc(p_value, approximate=True):
+    """
+    Compute genomic inflation factor (lambda GC) from an Expression of p-values.
+
+    .. include:: ../_templates/experimental.rst
+
+    Parameters
+    ----------
+    p_value : :class:`.NumericExpression`
+        Row-indexed numeric expression of p-values.
+    approximate : :obj:`bool`
+        If False, computes exact lambda GC (slower and uses more memory).
+
+    Returns
+    -------
+    :obj:`float`
+        Genomic inflation factor (lambda genomic control).
+    """
+    check_row_indexed('lambda_gc', p_value)
+    t = table_source(p_value)
+    med_chisq = _lambda_gc_agg(p_value, approximate)
+    return t.aggregate(med_chisq)
+
+
+@typecheck(p_value=expr_numeric,
+           approximate=bool)
+def _lambda_gc_agg(p_value, approximate=True):
+    chisq = hl.qchisqtail(p_value, 1)
+    if approximate:
+        med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
+    else:
+        med_chisq = hl.median(hl.agg.collect(chisq))
+    return med_chisq / hl.qchisqtail(0.5, 1)
 
 
 @typecheck(call_expr=expr_call,

@@ -6,7 +6,7 @@ import is.hail.expr.ir.IRParser
 import is.hail.io.CodecSpec
 import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, IR, MakeTuple, Pretty}
+import is.hail.expr.ir.{Compilable, Compile, CompileAndEvaluate, ExecuteContext, IR, MakeTuple, Pretty}
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual.TVoid
 import is.hail.utils._
@@ -36,10 +36,10 @@ abstract class Backend {
       ir.typ match {
         case TVoid =>
           val (_, f) = timer.time(Compile[Unit](ir), "JVM compile")
-          timer.time(f(0)(region), "Runtime")
+          timer.time(f(0, region)(region), "Runtime")
         case _ =>
           val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "JVM compile")
-          timer.time(SafeRow(pt, region, f(0)(region)).get(0), "Runtime")
+          timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
       }
     }
 
@@ -83,7 +83,7 @@ abstract class Backend {
         cxxLowerAndExecute(ir, optimize)
     } catch {
       case (_: cxx.CXXUnsupportedOperation | _: LowererUnsupportedOperation) =>
-        CompileAndEvaluate(ir, optimize = optimize)
+        ExecuteContext.scoped(ctx => CompileAndEvaluate(ctx, ir, optimize = optimize))
     }
   }
 
@@ -97,7 +97,7 @@ abstract class Backend {
   }
 
   def encode(ir0: IR, codecString: String): (String, Array[Byte]) = {
-    val codec = CodecSpec.fromString(codecString)
+    val codec = CodecSpec.fromShortString(codecString)
     val ir = lower(ir0, None, false)
 
     if (!Compilable(ir))
@@ -107,7 +107,7 @@ abstract class Backend {
 
     Region.scoped { region =>
       val (pt: PTuple, f) = Compile[Long](MakeTuple(FastSeq(ir)))
-      (pt.parsableString(), codec.encode(pt, region, f(0)(region)))
+      (pt.parsableString(), codec.encode(pt, region, f(0, region)(region)))
     }
   }
 
@@ -116,7 +116,7 @@ abstract class Backend {
     bytes: Array[Byte],
     codecString: String
   ): String = Region.scoped { region =>
-    val codec = CodecSpec.fromString(codecString)
+    val codec = CodecSpec.fromShortString(codecString)
     val pt = IRParser.parsePType(ptypeString).asInstanceOf[PTuple]
     JsonMethods.compact(
       JSONAnnotationImpex.exportAnnotation(
@@ -126,6 +126,10 @@ abstract class Backend {
           codec.decode(pt, bytes, region)).get(0),
         pt.fields(0).typ.virtualType))
   }
+
+  def compileComparisonBinary(op: String, codecName: String, l: String, r: String): Array[Byte] =
+    cxx.Compile.compileComparison(
+      op, CodecSpec.fromShortString(codecName), IRParser.parsePType(l), IRParser.parsePType(r))
 
   def asSpark(): SparkBackend = fatal("SparkBackend needed for this operation.")
 }

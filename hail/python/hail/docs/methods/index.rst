@@ -65,6 +65,7 @@ Methods
     realized_relationship_matrix
     sample_qc
     skat
+    lambda_gc
     split_multi
     split_multi_hts
     transmission_disequilibrium_test

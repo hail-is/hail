@@ -695,7 +695,7 @@ def array_sum(expr) -> ArrayExpression:
     -------
     :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
-    return _agg_func('Sum', [expr], expr.dtype)
+    return array_agg(hl.agg.sum, expr)
 
 
 @typecheck(expr=expr_float64)
@@ -1515,7 +1515,7 @@ def group_by(group, agg_expr) -> DictExpression:
 def _prev_nonnull(expr) -> ArrayExpression:
     wrap = expr.dtype in {tint32, tint64, tfloat32, tfloat64, tbool, tcall}
     if wrap:
-        expr = hl.tuple([expr])
+        expr = hl.or_missing(hl.is_defined(expr), hl.tuple([expr]))
     r = _agg_func('PrevNonnull', [expr], expr.dtype, [])
     if wrap:
         r = r[0]

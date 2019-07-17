@@ -13,3 +13,4 @@ pyspark>=2.4,<2.4.2
 python-json-logger==0.1.11
 requests>=2.21.0,<2.21.1
 scipy>1.2,<1.4
+tabulate==0.8.3

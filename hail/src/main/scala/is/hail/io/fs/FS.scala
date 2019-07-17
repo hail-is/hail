@@ -6,7 +6,7 @@ import java.util
 import is.hail.utils.{TextInputFilterAndReplace, WithContext}
 import net.jpountz.lz4.LZ4Compressor
 import com.esotericsoftware.kryo.io.{Input, Output}
-import org.apache.hadoop.fs.FSDataInputStream
+import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
 
 trait FileSystem {
   def open: FSDataInputStream
@@ -108,6 +108,10 @@ trait FS extends Serializable{
   def readFile[T](filename: String)(f: (InputStream) => T): T
 
   def writeFile[T](filename: String)(f: (OutputStream) => T): T
+
+  def readFileNoCompression[T](filename: String)(f: (FSDataInputStream) => T): T
+
+  def writeFileNoCompression[T](filename: String)(f: (FSDataOutputStream) => T): T
 
   def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T
 

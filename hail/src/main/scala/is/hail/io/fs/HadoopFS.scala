@@ -10,8 +10,8 @@ import is.hail.io.compress.BGzipCodec
 import is.hail.utils.{Context, TextInputFilterAndReplace, WithContext, readableBytes}
 import net.jpountz.lz4.{LZ4BlockOutputStream, LZ4Compressor}
 import org.apache.hadoop
-import org.apache.hadoop.fs.FSDataInputStream
-import org.apache.hadoop.io.IOUtils.copyBytes
+import org.apache.hadoop.fs.{ FSDataInputStream, FSDataOutputStream }
+import org.apache.hadoop.io.IOUtils._
 import org.apache.hadoop.io.compress.CompressionCodecFactory
 
 import scala.io.Source
@@ -90,11 +90,16 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val os = fs.create(hPath)
     val codecFactory = new CompressionCodecFactory(conf.value)
     val codec = codecFactory.getCodec(hPath)
-
     if (codec != null)
       codec.createOutputStream(os)
     else
       os
+  }
+
+  private def createNoCompression(filename: String): FSDataOutputStream = {
+    val fs = _fileSystem(filename)
+    val hPath = new hadoop.fs.Path(filename)
+    return fs.create(hPath)
   }
 
   def open(filename: String, checkCodec: Boolean = true): InputStream = {
@@ -119,6 +124,20 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
         is
     } else
       is
+  }
+
+  private def openNoCompression(filename: String): FSDataInputStream = {
+    val fs = _fileSystem(filename)
+    val hPath = new hadoop.fs.Path(filename)
+    try {
+      fs.open(hPath)
+    } catch {
+      case e: FileNotFoundException =>
+        if (isDir(filename))
+          throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
+        else
+          throw e
+    }
   }
 
   def getProperty(name: String): String = {
@@ -383,6 +402,12 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   def writeFile[T](filename: String)(f: (OutputStream) => T): T =
     using(create(filename))(f)
+
+  def readFileNoCompression[T](filename: String)(f: (FSDataInputStream) => T): T =
+    using(openNoCompression(filename))(f)
+
+  def writeFileNoCompression[T](filename: String)(f: (FSDataOutputStream) => T): T =
+    using(createNoCompression(filename))(f)
 
   def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
     readFile[T](filename) {

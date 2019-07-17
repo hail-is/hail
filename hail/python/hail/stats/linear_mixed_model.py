@@ -898,8 +898,7 @@ class LinearMixedModel(object):
         The performance of eigendecomposition depends critically on the
         number of master cores and the NumPy / SciPy configuration, viewable
         with ``np.show_config()``. For Intel machines, we recommend installing
-        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
-        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+        the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda.
 
         `k` must be positive semi-definite; symmetry is not checked as only the
         lower triangle is used.

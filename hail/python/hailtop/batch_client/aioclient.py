@@ -2,14 +2,13 @@ import os
 import math
 import time
 import random
-import aiohttp
 
 import hailtop.gear.auth as hj
 
 from .globals import complete_states
 
 
-job_array_size = 1
+job_array_size = 20
 
 
 def filter_params(complete, success, attributes):
@@ -100,6 +99,9 @@ class Job:
     async def log(self):
         return await self._job.log()
 
+    async def pod_status(self):
+        return await self._job.pod_status()
+
 
 class UnsubmittedJob:
     def _submit(self, batch):
@@ -144,6 +146,9 @@ class UnsubmittedJob:
     async def log(self):
         raise ValueError("cannot get the log of an unsubmitted job")
 
+    async def pod_status(self):
+        raise ValueError("cannot get the pod status of an unsubmitted job")
+
 
 class SubmittedJob:
     def __init__(self, batch, job_id, attributes=None, parent_ids=None, _status=None):
@@ -186,6 +191,9 @@ class SubmittedJob:
 
     async def log(self):
         return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/log')
+
+    async def pod_status(self):
+        return await self._batch._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/pod_status')
 
 
 class Batch:
@@ -339,30 +347,29 @@ class BatchBuilder:
             raise ValueError("cannot submit an already submitted batch")
         self._submitted = True
 
-        with aiohttp.MultipartWriter('batch') as mpwriter:
-            batch_doc = {'n_jobs': len(self._job_docs)}
-            if self.attributes:
-                batch_doc['attributes'] = self.attributes
-            if self.callback:
-                batch_doc['callback'] = self.callback
-            mpwriter.append_json(batch_doc)
+        batch_doc = {}
+        if self.attributes:
+            batch_doc['attributes'] = self.attributes
+        if self.callback:
+            batch_doc['callback'] = self.callback
 
-            docs = []
-            n = 0
-            for jdoc in self._job_docs:
-                n += 1
-                docs.append(jdoc)
-                if n == job_array_size:
-                    mpwriter.append_json({'jobs': docs})
-                    n = 0
-                    docs = []
-
-            if docs:
-                mpwriter.append_json({'jobs': docs})
-
-            b = await self._client._post_data('/api/v1alpha/batches/create', data=mpwriter)
-
+        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
         batch = Batch(self._client, b['id'], b.get('attributes'))
+
+        docs = []
+        n = 0
+        for jdoc in self._job_docs:
+            n += 1
+            docs.append(jdoc)
+            if n == job_array_size:
+                await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+                n = 0
+                docs = []
+
+        if docs:
+            await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+
+        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -381,15 +388,7 @@ class BatchClient:
         self.url = url
         self._session = session
         if token is None:
-            token_file = (token_file or
-                          os.environ.get('HAIL_TOKEN_FILE') or
-                          os.path.expanduser('~/.hail/token'))
-            if not os.path.exists(token_file):
-                raise ValueError(
-                    f'Cannot create a client without a token. No file was '
-                    f'found at {token_file}')
-            with open(token_file) as f:
-                token = f.read()
+            token = hj.find_token(token_file)
         userdata = hj.JWTClient.unsafe_decode(token)
         assert "bucket_name" in userdata
         self.bucket = userdata["bucket_name"]
@@ -403,11 +402,6 @@ class BatchClient:
     async def _get(self, path, params=None):
         response = await self._session.get(
             self.url + path, params=params, cookies=self._cookies, headers=self._headers)
-        return await response.json()
-
-    async def _post_data(self, path, data=None):
-        response = await self._session.post(
-            self.url + path, data=data, cookies=self._cookies, headers=self._headers)
         return await response.json()
 
     async def _post(self, path, json=None):

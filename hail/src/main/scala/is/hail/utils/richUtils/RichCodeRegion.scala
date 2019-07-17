@@ -164,7 +164,45 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   ): Code[Long] =
     region.invoke[Region, Long, Int, Int, Long]("appendStringSlice", fromRegion, fromOff, start, n)
 
-  def clear(): Code[Unit] = {
-    region.invoke[Unit]("clear")
+  def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
+
+  def refreshRegion(): Code[Unit] = { region.invoke[Unit]("refreshRegion") }
+
+
+  def reference(other: Code[Region]): Code[Unit] = {
+    region.invoke[Region, Unit]("reference", other)
   }
+
+  def setNumParents(n: Code[Int]): Code[Unit] = {
+    region.invoke[Int, Unit]("setNumParents", n)
+  }
+
+  def setParentReference(r: Code[Region], i: Code[Int]): Code[Unit] = {
+    region.invoke[Region, Int, Unit]("setParentReference", r, i)
+  }
+
+  def getParentReference(i: Code[Int], size: Int): Code[Region] = {
+    region.invoke[Int, Int, Region]("getParentReference", i, size)
+  }
+
+  def setFromParentReference(src: Code[Region], i: Code[Int], blockSize: Code[Int]): Code[Unit] = {
+    region.invoke[Region, Int, Int, Unit]("setFromParentReference", src, i, blockSize)
+  }
+
+  def clearParentReference(i: Code[Int]): Code[Unit] = {
+    region.invoke[Int, Unit]("clearParentReference", i)
+  }
+
+  def close(): Code[Unit] = {
+    region.invoke[Unit]("close")
+  }
+
+  def isClosed(): Code[Boolean] = {
+    region.invoke[Boolean]("isClosed")
+  }
+
+  def isValid(): Code[Boolean] = region.invoke[Boolean]("isValid")
+
+  def closeButKeepContainer(): Code[Unit] = region.invoke[Unit]("closeButKeepContainer")
+  def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
 }

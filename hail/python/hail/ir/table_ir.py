@@ -563,6 +563,18 @@ class MatrixToTableApply(TableIR):
                            scores=hl.tarray(child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64)))),
                 child_typ.row_key_type._insert_field('loadings', dtype('array<float64>')),
                 child_typ.row_key)
+        elif name == 'IBD':
+            ibd_info_type = hl.tstruct(Z0=hl.tfloat64, Z1=hl.tfloat64, Z2=hl.tfloat64, PI_HAT=hl.tfloat64)
+            ibd_type = hl.tstruct(i=hl.tstr,
+                                  j=hl.tstr,
+                                  ibd=ibd_info_type,
+                                  ibs0=hl.tint64,
+                                  ibs1=hl.tint64,
+                                  ibs2=hl.tint64)
+            self._type = hl.ttable(
+                hl.tstruct(),
+                ibd_type,
+                ['i', 'j'])
         else:
             assert name == 'LocalLDPrune', name
             self._type = hl.ttable(

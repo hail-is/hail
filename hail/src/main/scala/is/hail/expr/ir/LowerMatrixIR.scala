@@ -496,7 +496,7 @@ object LowerMatrixIR {
               }
             ).dropFields(keyMap))
 
-      case MatrixLiteral(value) => TableLiteral(value.toTableValue)
+      case MatrixLiteral(_, tl) => tl
     }
 
     if (!mir.typ.isCompatibleWith(lowered.typ))

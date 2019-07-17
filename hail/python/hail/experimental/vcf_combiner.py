@@ -153,7 +153,7 @@ def combine(ts):
 
 def combine_gvcfs(mts):
     """merges vcfs using multi way join"""
-    ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
+    ts = hl.Table.multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     return unlocalize(combined)
 
