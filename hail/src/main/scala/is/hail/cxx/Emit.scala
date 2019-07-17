@@ -1154,14 +1154,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.MakeStream(args, t) =>
+      case x@ir.MakeStream(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
             val m = fb.variable("argm", "bool")
-            val v = fb.variable("argv", typeToCXXType(t.elementType.physicalType))
+            val v = fb.variable("argv", typeToCXXType(x.pType.asInstanceOf[PStream].elementType))
             val cont = f(m.toString, v.toString)
 
             triplets.foreach { argt =>
