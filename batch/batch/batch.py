@@ -1039,7 +1039,7 @@ async def get_batch(request, userdata):
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    _cancel_batch(batch_id, user)
+    await _cancel_batch(batch_id, user)
     return jsonify({})
 
 
