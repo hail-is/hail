@@ -234,7 +234,9 @@ class Job:
                         }),
             spec=pod_spec)
 
+        log.info(f'acquiring semaphore from job {self.full_id}')
         await app['pod_capacity'].acquire()
+        log.info(f'acquired semaphore from job {self.full_id}')
 
         pod, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
@@ -262,7 +264,9 @@ class Job:
             traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.full_id} due to {err}')
             return
+        log.info(f'releasing semaphore from job {self.full_id}')
         app['pod_capacity'].release()
+        log.info(f'released semaphore from job {self.full_id}')
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
