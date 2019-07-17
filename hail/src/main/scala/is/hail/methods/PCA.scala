@@ -47,9 +47,10 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
 
     def collectRowKeys(): Array[Annotation] = {
       val rowKeyIdx = mv.typ.rowKeyFieldIdx
+      val rowKeyTypes = mv.typ.rowKeyStruct.types
 
-      mv.rvd.toRows.map[Any] { r =>
-        Row.fromSeq(rowKeyIdx.map(r.get))
+      mv.rvd.toUnsafeRows.map[Any] { r =>
+        Row.fromSeq(rowKeyIdx.map(i => Annotation.copy(rowKeyTypes(i), r(i))))
       }
         .collect()
     }
