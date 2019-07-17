@@ -14,23 +14,15 @@ sealed trait IR extends BaseIR {
   private var _typ: Type = null
 
   def pType = {
-    if(_pType == null) {
-      throw new RuntimeException(s"IR.pType: accessed before inferSetPType called")
-    }
+    assert(_pType != null)
 
     _pType
   }
 
-  def inferSetPType(env: BindingEnv[PType]): Unit = {
-    if (_pType != null) {
-      return
-    }
+  def inferSetPType(env: Env[PType]): Unit = {
+    assert(_pType == null)
 
-    try {
-      _pType = InferPType(this, env)
-    } catch {
-      case e: Throwable => throw new RuntimeException(s"IR.inferSetPType: failed to infer physical type: \n${ Pretty(this) }", e)
-    }
+    _pType = InferPType(this, env)
   }
 
   def typ: Type = {

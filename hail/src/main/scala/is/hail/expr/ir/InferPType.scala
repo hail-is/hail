@@ -20,7 +20,7 @@ import is.hail.utils._
 
 // TODO: aggregators: 1) use bindAgg/bindScan instead of bindEval? 2) proper passing of env, seems little needed
 object InferPType {
-  def apply(ir: IR, env: BindingEnv[PType]): PType = {
+  def apply(ir: IR, env: Env[PType]): PType = {
     ir match {
       case I32(_) => PInt32()
       case I64(_) => PInt64()
@@ -53,7 +53,7 @@ object InferPType {
       }
       // TODO: Why is there a type (var _type) on Ref? Cache to avoid lookup? if so seems area for bugs
       case Ref(name, _) => {
-        env.eval.lookup(name)
+        env.lookup(name)
       }
       case In(_, t) => PType.canonical(t)
       // TODO: need to descend into args?
@@ -69,7 +69,6 @@ object InferPType {
         // TODO: requiredeness?
         PNDArray(coerce[PArray](data.pType).elementType, nElem)
       }
-
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())
       case _: StreamRange => PStream(PInt32())
@@ -97,12 +96,7 @@ object InferPType {
       }
       case Let(name, value, body) => {
         value.inferSetPType(env)
-        body.inferSetPType(env.bindEval(name, value.pType))
-        body.pType
-      }
-      case AggLet(name, value, body, _) => {
-        value.inferSetPType(env)
-        body.inferSetPType(env.bindEval(name, value.pType))
+        body.inferSetPType(env.bind(name, value.pType))
         body.pType
       }
       case ApplyBinaryPrimOp(op, l, r) => {
@@ -128,7 +122,6 @@ object InferPType {
           case _ => PBoolean(l.pType.required && r.pType.required)
         }
       }
-
       case a: ApplyIR => {
         a.explicitNode.inferSetPType(env)
         a.pType
@@ -191,11 +184,10 @@ object InferPType {
         // infer array side of tree fully
         a.inferSetPType(env)
         // push do the element side, applies to each element
-        body.inferSetPType(env.bindEval(name, a.pType))
+        body.inferSetPType(env.bind(name, a.pType))
         // TODO: why setRequired false?
         coerce[PStreamable](a.pType).copyStreamable(body.pType.setRequired(false))
       }
-
       case ArrayFilter(a, name, cond) => {
         a.inferSetPType(env)
         a.pType
@@ -203,14 +195,14 @@ object InferPType {
       // TODO: Check the env.bindEval needs name, a
       case ArrayFlatMap(a, name, body) => {
         a.inferSetPType(env)
-        body.inferSetPType(env.bindEval(name, a.pType))
+        body.inferSetPType(env.bind(name, a.pType))
         coerce[PStreamable](a.pType).copyStreamable(coerce[PIterable](body.pType).elementType)
       }
       case ArrayFold(a, zero, accumName, valueName, body) => {
         a.inferSetPType(env)
         zero.inferSetPType(env)
 
-        body.inferSetPType(env.bindEval(accumName -> zero.pType, valueName -> a.pType))
+        body.inferSetPType(env.bind(accumName -> zero.pType, valueName -> a.pType))
 
         assert(body.pType == zero.pType)
         zero.pType
@@ -219,28 +211,11 @@ object InferPType {
         a.inferSetPType(env)
         zero.inferSetPType(env)
 
-        body.inferSetPType(env.bindEval(accumName -> zero.pType, valueName -> a.pType))
+        body.inferSetPType(env.bind(accumName -> zero.pType, valueName -> a.pType))
 
         assert(body.pType == zero.pType)
 
         coerce[PStreamable](a.pType).copyStreamable(zero.pType)
-      }
-      case ArrayAgg(a, name, query) => {
-        a.inferSetPType(env)
-        // TODO: figure out use of bindAgg vs bindEval
-        // In PruneDeadFields, sometimes scan and agg are flatteneed into eval, ex:
-        //        unifyEnvs(
-        //          BindingEnv(eval = concatEnvs(Array(queryEnv.eval.delete(name), queryEnv.scanOrEmpty.delete(name)))),
-        //          aEnv)
-        // That seems reasonable, to allow us to look up env in only .eval
-        query.inferSetPType(env.bindAgg(name, a.pType))
-        query.pType
-      }
-      case ArrayAggScan(a, name, query) => {
-        a.inferSetPType(env)
-        // TODO: figure out use of bindScan vs bindEval
-        query.inferSetPType(env.bindScan(name, a.pType))
-        PArray(query.pType)
       }
       case ArrayLeftJoinDistinct(lIR, rIR, lName, rName, compare, join) => {
         lIR.inferSetPType(env)
@@ -250,7 +225,7 @@ object InferPType {
 
         // TODO: Does left / right need same type? seems yes
         // TODO: if so, join can depend on only on left
-        join.inferSetPType(env.bindEval(lName, lIR.pType))
+        join.inferSetPType(env.bind(lName, lIR.pType))
 
 
         // TODO: Not sure why InferType used copyStreamable here
@@ -268,7 +243,7 @@ object InferPType {
       }
       case NDArrayMap(nd, name, body) => {
         nd.inferSetPType(env)
-        body.inferSetPType(env.bindEval(name, nd.pType))
+        body.inferSetPType(env.bind(name, nd.pType))
 
         PNDArray(body.pType, coerce[PNDArray](nd.pType).nDims, nd.pType.required)
       }
@@ -285,17 +260,11 @@ object InferPType {
 
         PNDArray(coerce[PNDArray](nd.pType).elementType, indexExpr.length, nd.pType.required)
       }
-      case NDArrayAgg(nd, axes) => {
-        nd.inferSetPType(env)
-
-        val childType = coerce[PNDArray](nd.pType)
-        PNDArray(childType.elementType, childType.nDims - axes.length, childType.required)
-      }
       case NDArrayRef(nd, idxs) => {
         nd.inferSetPType(env)
 
         // TODO: Need to bind? How will this be used concretely?
-        val boundEnv = env.bindEval("nd", nd.pType)
+        val boundEnv = env.bind("nd", nd.pType)
 
         // TODO: PInt64 seems unnecessary for nearly all arrays in variant space, stop asserting
         var allRequired = true
@@ -329,77 +298,6 @@ object InferPType {
         PNDArray(lTyp.elementType, PNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
       }
       case NDArrayWrite(_, _) => PVoid
-      case AggFilter(cond, aggIR, isScan) => {
-        cond.inferSetPType(env)
-        // TODO: Does AggFilter need cond env? If so under what name do we bind it
-        // I can imagine a case where the operation taken matters quite a lot
-        // example: we are subtracting a series of numbers, and know our largest number is < 2^31
-        aggIR.inferSetPType(env)
-        aggIR.pType
-      }
-      case AggExplode(array, name, aggBody, isScan) => {
-        array.inferSetPType(env)
-
-        // TODO: how is this concretely different from bindEval?
-        // TODO: Needed? We currently do a much simpler type check in TypeCheck, no env
-        // also, what's the benefit of bindScan/agg over bindEval for type inference?
-        // or should this be a BindingEnv?
-        val boundEnv =
-          if (isScan)
-            env.bindScan(name, array.pType)
-          else
-            env.bindAgg(name, array.pType)
-
-        aggBody.inferSetPType(boundEnv)
-
-        aggBody.pType
-      }
-      case AggGroupBy(key, aggIR, isScan) => {
-        // TODO: Check that aggIR doesn't need key pType; don't think so, Parser doesn't bind key env to aggIR
-        key.inferSetPType(env)
-        aggIR.inferSetPType(env)
-
-        PDict(key.pType, aggIR.pType)
-      }
-      case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => {
-        a.inferSetPType(env)
-
-        knownLength match {
-          case Some(lengthIR) => lengthIR.inferSetPType(env)
-        }
-        // TODO: If we statically know the length, I would like to use that during inference
-        val boundEnv =
-          if (isScan)
-            env.bindScan(elementName -> a.pType)
-          else
-            env.bindScan(elementName -> a.pType)
-        aggBody.inferSetPType(boundEnv)
-        PArray(aggBody.pType)
-      }
-      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) => {
-        constructorArgs.foreach(_.inferSetPType(env))
-
-        initOpArgs match {
-          case Some(opArgs) => opArgs.foreach(_.inferSetPType(env))
-        }
-
-        seqOpArgs.foreach(_.inferSetPType(env))
-
-        // TODO: Something else?
-        PType.canonical(AggOp.getType(aggSig))
-      }
-      case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) => {
-        constructorArgs.foreach(_.inferSetPType(env))
-
-        initOpArgs match {
-          case Some(opArgs) => opArgs.foreach(_.inferSetPType(env))
-        }
-
-        seqOpArgs.foreach(_.inferSetPType(env))
-
-        // TODO: Something else?
-        PType.canonical(AggOp.getType(aggSig))
-      }
       case MakeStruct(fields) => {
         PStruct(fields.map {
           case (name, a) => {
@@ -453,7 +351,7 @@ object InferPType {
         contexts.inferSetPType(env)
         globals.inferSetPType(env)
 
-        body.inferSetPType(env.bindEval(contextsName -> contexts.pType, globalsName -> globals.pType))
+        body.inferSetPType(env.bind(contextsName -> contexts.pType, globalsName -> globals.pType))
         PArray(body.pType)
       }
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
