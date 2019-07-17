@@ -17,7 +17,7 @@ from hailtop.batch_client.aioclient import BatchClient, Job
 from hailtop.gear.auth import web_authenticated_developers_only, rest_authenticated_developers_only, new_csrf_token, check_csrf_token
 
 from .log import log
-from .constants import BUCKET, profiles
+from .constants import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -280,7 +280,7 @@ async def dev_test_branch(request):
 
     batch_client = app['batch_client']
 
-    await unwatched_branch.deploy(batch_client, profiles[profile])
+    await unwatched_branch.deploy(batch_client, profile)
 
     return web.Response(status=200)
 
