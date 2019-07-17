@@ -282,7 +282,7 @@ abstract class RegistryFunctions {
   }
 
   def registerScalaFunction(mname: String, argTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)(cls: Class[_], method: String) {
-    registerCode(mname, argTypes.toArray, rType, pt) { case (r, rt, args) =>
+    registerCode(mname, argTypes, rType, pt) { case (r, rt, args) =>
       val cts = argTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeScalaObject(cls, method, cts, args.map(_._2))(TypeToIRIntermediateClassTag(rType))
     }
