@@ -46,4 +46,8 @@ async def submit(args):
             'namespace': args.namespace
         }
         async with session.post('https://ci.hail.is/api/v1alpha/dev_test_branch/', json=data) as resp:
-            print(await resp.text())
+            if (resp.status == 200):
+                text = await resp.text()
+                print(f"Created batch {text}")
+            else:
+                print(f"Error: Returned status code {resp.status}")
