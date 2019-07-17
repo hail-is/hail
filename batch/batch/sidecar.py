@@ -60,7 +60,16 @@ def upload_to_gcs(file_name, output):
 
 async def process_container(pod, container_name):
     status = container_statuses(pod)[container_name]
-    ec = status.state.terminated.exit_code
+
+    if status.state is None:
+        log.error(f'trying to process a container status without a state: {status}')
+        return {'exit_code': None, 'log': None, 'duration': None}
+    if status.state.terminated is None:
+        log.error(f'trying to process a non-terminated container: {status}')
+        return {'exit_code': None, 'log': None, 'duration': None}
+
+    state_terminated = status.state.terminated
+    ec = state_terminated.exit_code
 
     pod_log, err = await k8s.read_pod_log(pod_name, container=container_name)
     if err:
@@ -68,8 +77,8 @@ async def process_container(pod, container_name):
         log.info(f'no logs for {pod_name} due to previous error '
                  f'Error: {err}')
 
-    if status.terminated.finished_at is not None and status.terminated.started_at is not None:
-        duration = (status.terminated.finished_at - status.terminated.started_at).total_seconds()
+    if state_terminated.finished_at is not None and state_terminated.started_at is not None:
+        duration = (state_terminated.finished_at - state_terminated.started_at).total_seconds()
     else:
         log.warning(f'{container_name} container is terminated but has no timing information. {status}')
         duration = None
