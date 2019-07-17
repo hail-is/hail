@@ -45,11 +45,11 @@ class Test(unittest.TestCase):
         j = builder.create_job('alpine', ['echo', 'test'])
         builder.submit()
         status = j.wait()
-        self.assertTrue('attributes' not in status)
-        self.assertEqual(status['state'], 'Success')
-        self.assertEqual(status['exit_code']['main'], 0)
+        self.assertTrue('attributes' not in status, (status, j.log()))
+        self.assertEqual(status['state'], 'Success', (status, j.log()))
+        self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
-        self.assertEqual(j.log(), {'main': 'test\n'})
+        self.assertEqual(j.log(), {'main': 'test\n'}, status)
         j.pod_status()
 
         self.assertTrue(j.is_complete())
