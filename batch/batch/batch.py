@@ -63,7 +63,7 @@ REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 INSTANCE_ID = os.environ.get('HAIL_INSTANCE_ID', uuid.uuid4().hex)
-MAX_PODS = os.environ.get('MAX_PODS', 10)  # 30,000
+MAX_PODS = os.environ.get('MAX_PODS', 1)  # 30,000
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
@@ -234,6 +234,8 @@ class Job:
                         }),
             spec=pod_spec)
 
+        await app['pod_capacity'].acquire()
+
         pod, err = await app['k8s'].create_pod(body=pod_template)
         if err is not None:
             if err.status == 409:
@@ -243,8 +245,6 @@ class Job:
             log.info(f'pod creation failed for job {self.full_id} '
                      f'with the following error: {err}')
             return
-
-        await app['pod_capacity'].acquire()
 
     async def _delete_pvc(self):
         if self._pvc_name is None:
