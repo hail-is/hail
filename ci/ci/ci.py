@@ -282,7 +282,7 @@ async def dev_test_branch(request):
 
     batch_id = await unwatched_branch.deploy(batch_client, profile)
 
-    if batch_id:
+    if batch_id is not None:
         return web.Response(status=200, text=str(batch_id))
     else:
         return web.Response(status=503)
