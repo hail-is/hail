@@ -7,6 +7,7 @@ profiles = {
     "batch_test": [
         'default_ns',
         'deploy_batch_sa',
+        'deploy_batch_output_sa',
         'batch_pods_ns',
         'base_image',
         'create_accounts',
