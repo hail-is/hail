@@ -32,6 +32,12 @@ spec:
           - mountPath: /secrets
             readOnly: true
             name: scorecard-github-access-token
+        readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
       volumes:
         - name: scorecard-github-access-token
           secret:

@@ -185,6 +185,24 @@ object Pretty {
           prettyAggSeq(aggSigs, depth + 2)
           sb += '\n'
           pretty(path, depth + 2)
+        case SerializeAggs(i, i2, spec, aggSigs) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(i2)
+          sb += ' '
+          sb.append(prettyStringLiteral(spec.toString))
+          sb += '\n'
+          prettyAggSeq(aggSigs, depth + 2)
+        case DeserializeAggs(i, i2, spec, aggSigs) =>
+          sb += ' '
+          sb.append(i)
+          sb += ' '
+          sb.append(i2)
+          sb += ' '
+          sb.append(prettyStringLiteral(spec.toString))
+          sb += '\n'
+          prettyAggSeq(aggSigs, depth + 2)
         case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)

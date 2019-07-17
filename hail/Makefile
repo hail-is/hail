@@ -91,8 +91,10 @@ wheel: build-info shadowJar init-scripts
 ifndef DEPLOY_PROD
 DEV_CLARIFIER := $(shell whoami)-dev/
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
+UPLOAD_RETENTION =
 else
 CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
@@ -114,6 +116,7 @@ python/hailtop/hailctl/deploy.yaml:
 upload-artifacts: wheel
 	gsutil -m cp -r $(resources) $(wheel_path) $(cloud_base)
 	gsutil -m acl set -r public-read $(cloud_base)
+	$(UPLOAD_RETENTION)
 
 .PHONY: install
 install: wheel

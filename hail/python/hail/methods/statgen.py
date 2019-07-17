@@ -105,12 +105,15 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.pyApply(
-        Env.spark_backend('ibd')._to_java_ir(require_biallelic(dataset, 'ibd')._mir),
-        joption('__maf' if maf is not None else None),
-        bounded,
-        joption(min),
-        joption(max)))
+    dataset = require_biallelic(dataset, 'ibd')
+
+    return Table(MatrixToTableApply(dataset._mir, {
+        'name': 'IBD',
+        'mafFieldName': '__maf' if maf is not None else None,
+        'bounded': bounded,
+        'min': min,
+        'max': max,
+    }))
 
 
 @typecheck(call=expr_call,

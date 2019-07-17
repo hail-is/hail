@@ -7,10 +7,17 @@ import is.hail.utils._
 import is.hail.nativecode._
 
 object Region {
-  def apply(sizeHint: Long = 128): Region = new Region()
+  type Size = Int
+  val REGULAR: Size = 64 * 1024
+  val SMALL: Size = 8 * 1024
+  val TINY: Size = 1024
+  val TINIER: Size = 256
 
-  def scoped[T](f: Region => T): T =
-    using(Region())(f)
+  def apply(): Region = new Region(REGULAR)
+
+  def scoped[T](f: Region => T): T = using(Region())(f)
+  def smallScoped[T](f: Region => T): T = using(new Region(SMALL))(f)
+  def tinyScoped[T](f: Region => T): T = using(new Region(TINY))(f)
 
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
   def loadLong(addr: Long): Long = Memory.loadLong(addr)
@@ -134,13 +141,12 @@ object Region {
 //    those operations have to know the RegionValue's Type to convert
 //    within-Region references to/from absolute addresses.
 
-final class Region private (empty: Boolean) extends NativeBase() {
-  def this() { this(false) }
-  @native def nativeCtor(p: RegionPool): Unit
-  @native def initEmpty(): Unit
+final class Region private (blockSize: Region.Size) extends NativeBase() {
+  def this() { this(Region.REGULAR) }
+  @native def nativeCtor(p: RegionPool, blockSize: Int): Unit
   @native def nativeClearRegion(): Unit
 
-  if (empty) initEmpty() else nativeCtor(RegionPool.get)
+  nativeCtor(RegionPool.get, blockSize)
   
   def this(b: Region) {
     this()
@@ -165,8 +171,14 @@ final class Region private (empty: Boolean) extends NativeBase() {
   @native def nativeGetNumParents(): Int
   @native def nativeSetNumParents(n: Int): Unit
   @native def nativeSetParentReference(r2: Region, i: Int): Unit
-  @native def nativeGetParentReferenceInto(r2: Region, i: Int): Region
+  @native def nativeGetParentReferenceInto(r2: Region, i: Int, blockSize: Int): Unit
   @native def nativeClearParentReference(i: Int): Unit
+
+  @native def nativeGetBlockSize(): Int
+  @native def nativeGetNumChunks(): Int
+  @native def nativeGetNumUsedBlocks(): Int
+  @native def nativeGetCurrentOffset(): Int
+  @native def nativeGetBlockAddress(): Long
 
   final def align(a: Long) = nativeAlign(a)
   final def allocate(a: Long, n: Long): Long = nativeAlignAllocate(a, n)
@@ -193,15 +205,15 @@ final class Region private (empty: Boolean) extends NativeBase() {
     nativeSetParentReference(r, i)
   }
 
-  def setFromDependentRegion(base: Region, i: Int): Unit = {
+  def setFromDependentRegion(base: Region, i: Int, blockSize: Int): Unit = {
     assert(i < nativeGetNumParents())
-    base.nativeGetParentReferenceInto(this, i)
+    base.nativeGetParentReferenceInto(this, i, blockSize)
   }
 
-  def getParentReference(i: Int): Region = {
+  def getParentReference(i: Int, blockSize: Int): Region = {
     assert(i < nativeGetNumParents())
-    val r = new Region(empty = true)
-    nativeGetParentReferenceInto(r, i)
+    val r = new Region(blockSize)
+    nativeGetParentReferenceInto(r, i, blockSize)
     r
   }
 
@@ -257,7 +269,7 @@ final class Region private (empty: Boolean) extends NativeBase() {
   // and to make it even more confusing, there may be long sequences of 
   // ascending addresses (within a buffer) followed by an arbitrary jump
   // to an address in a different buffer.
-  
+
   final def appendInt(v: Int): Long = {
     val a = allocate(4, 4)
     Memory.storeInt(a, v)
@@ -398,4 +410,28 @@ object RegionUtils {
 
   def printBytes(off: Code[Long], n: Int, header: String): Code[String] =
     Code.invokeScalaObject[Long, Int, String, String](RegionUtils.getClass, "printBytes", off, n, asm4s.const(header))
+
+  def logRegionStats(header: String, region: Region): Unit = {
+    val size = region.nativeGetBlockSize()
+    val nUsed = region.nativeGetNumUsedBlocks()
+    val off = region.nativeGetCurrentOffset()
+    val numChunks = region.nativeGetNumChunks()
+    val addr = "%016x".format(region.nativeGetBlockAddress())
+
+    val nParents = region.nativeGetNumParents()
+
+    info(
+      s"""
+         |$header:
+         |  block size: $size
+         | blocks used: $nUsed
+         | current off: $off
+         |  big chunks: $numChunks
+         |  block addr: $addr
+         |    children: $nParents
+       """.stripMargin)
+  }
+
+  def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
+    Code.invokeScalaObject[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
 }

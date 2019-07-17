@@ -189,6 +189,8 @@ object Copy {
       case ReadAggs(startIdx, _, spec, aggSigs) =>
         assert(newChildren.length == 1)
         ReadAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
+      case x: SerializeAggs => x
+      case x: DeserializeAggs => x
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
