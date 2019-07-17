@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.CodeOrdering
-import is.hail.asm4s.Code
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
-import is.hail.utils.lift
 
 object ComparisonOp {
 
@@ -56,8 +54,9 @@ sealed trait ComparisonOp[ReturnType] {
   def t2: Type
   def op: CodeOrdering.Op
   val strict: Boolean = true
-  def codeOrdering(mb: EmitMethodBuilder): CodeOrdering.F[ReturnType] = {
-    mb.getCodeOrdering[ReturnType](t1.physicalType, t2.physicalType, op)
+  def codeOrdering(mb: EmitMethodBuilder, t1p: PType, t2p: PType): CodeOrdering.F[ReturnType] = {
+    ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
+    mb.getCodeOrdering[ReturnType](t1p, t2p, op)
   }
 }
 
