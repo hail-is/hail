@@ -67,7 +67,7 @@ def delete_kube_namespace(namespace):
 
 
 def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
-                          kube_namespace):
+                          kube_namespace, batch_namespace):
     key = gcloud_service.projects().serviceAccounts().keys().create(
         name=f'projects/{google_project}/serviceAccounts/{gsa_email}', body={}
     ).execute()
@@ -75,6 +75,15 @@ def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
     key['privateKeyData'] = b64decode(key['privateKeyData']).decode("utf-8")
 
     create_namespaced_secret(kube_namespace,
+                             secret_name=gsa_key_name,
+                             string_data=key,
+                             labels={
+                                 "type": "user"
+                             }, annotations={
+                                 "gsa_email": gsa_email
+                             })
+
+    create_namespaced_secret(batch_namespace,
                              secret_name=gsa_key_name,
                              string_data=key,
                              labels={
@@ -214,7 +223,8 @@ def delete_bucket(bucket_name):
     return storage.Client().get_bucket(bucket_name).delete(force=True)
 
 
-def create_all(user_id, username, google_project, kube_namespace, email=None,
+def create_all(user_id, username, google_project, kube_namespace,
+               batch_namespace, email=None,
                service_account=False, developer=False):
 
     if not service_account and not email:
@@ -277,13 +287,13 @@ def create_all(user_id, username, google_project, kube_namespace, email=None,
 
     gsa_key_secret_name = f"{username}-gsa-key"
     store_gsa_key_in_kube(gsa_key_secret_name, out['gsa_email'],
-                          google_project, kube_namespace)
+                          google_project, kube_namespace, batch_namespace)
     out['gsa_key_secret_name'] = gsa_key_secret_name
 
     return out
 
 
-def delete_all(user_obj, google_project, kube_namespace):
+def delete_all(user_obj, google_project, kube_namespace, batch_namespace):
     modified = 0
 
     try:
@@ -301,6 +311,7 @@ def delete_all(user_obj, google_project, kube_namespace):
 
     try:
         delete_kube_secret(user_obj['gsa_key_secret_name'], kube_namespace)
+        delete_kube_secret(user_obj['gsa_key_secret_name'], batch_namespace)
         delete_kube_secret(user_obj['jwt_secret_name'], kube_namespace)
         modified += 1
     except kube_client.rest.ApiException as e:
@@ -433,13 +444,14 @@ def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
         return existing
 
 
-def delete_all_idempotent(user_id, google_project, kube_namespace):
+def delete_all_idempotent(user_id, google_project,
+                          kube_namespace, batch_namespace):
     existing = table.get(user_id)
 
     if existing is None:
         return 404
 
-    delete_all(existing, google_project, kube_namespace)
+    delete_all(existing, google_project, kube_namespace, batch_namespace)
     table.delete(user_id)
 
 
@@ -463,6 +475,7 @@ if __name__ == "__main__":
             req = {
                 'user_id': user['user_id'],
                 'kube_namespace': user['kube_namespace'],
+                'batch_namespace': user['batch_namepsace'],
                 'google_project': user['google_project'],
             }
 
