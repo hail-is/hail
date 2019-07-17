@@ -1,6 +1,5 @@
 import asyncio
 import concurrent
-import time
 import logging
 import os
 import threading
@@ -706,7 +705,8 @@ class Job:
             'state': self._state
         }
         if self.is_complete():
-            result['exit_code'] = self.exit_codes
+            result['exit_code'] = {
+                k: v for k, v in zip(['input', 'main', 'output'], self.exit_codes)}
             result['duration'] = self.durations
 
         if self.attributes:
