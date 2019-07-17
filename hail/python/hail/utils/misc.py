@@ -552,9 +552,9 @@ def _dumps_partitions(partitions, row_key_type):
         partitions = hl.map(lambda x: hl.interval(
             start=hl.struct(**{f1: x.start}),
             end=hl.struct(**{f1: x.end}),
-            includes_start=True,
-            includes_end=False),
-                            partitions)
+            includes_start=x.includes_start,
+            includes_end=x.includes_end),
+            partitions)
     else:
         if not isinstance(point_type, hl.tstruct):
             raise ValueError(f'partitions has wrong type: {point_type} must be struct or type of first row key field')
