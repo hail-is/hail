@@ -75,6 +75,11 @@ class RVD(
     map(rv => SafeRow(localRowType.physicalType, rv.region, rv.offset))
   }
 
+  def toUnsafeRows: RDD[UnsafeRow] = {
+    val localRowPType = rowPType
+    map(rv => new UnsafeRow(localRowPType, rv.region, rv.offset))
+  }
+
   def stabilize(codec: CodecSpec = RVD.memoryCodec): RDD[Array[Byte]] = {
     val enc = codec.buildEncoder(rowPType)
     crdd.mapPartitions(_.map(_.toBytes(enc))).clearingRun
