@@ -22,9 +22,9 @@ class Test(unittest.TestCase):
             j = b.create_job('alpine', ['echo', 'test'])
             await b.submit()
             status = await j.wait()
-            self.assertTrue('attributes' not in status)
-            self.assertEqual(status['state'], 'Success')
-            self.assertEqual(status['exit_code']['main'], 0)
+            self.assertTrue('attributes' not in status, (status, j.log()))
+            self.assertEqual(status['state'], 'Success', (status, j.log()))
+            self.assertEqual(status['exit_code']['main'], 0, (status, j.log()))
 
             self.assertEqual(await j.log(), {'main': 'test\n'})
 
