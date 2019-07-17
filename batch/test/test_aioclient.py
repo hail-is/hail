@@ -27,7 +27,7 @@ class Test(unittest.TestCase):
             self.assertEqual(status['exit_code']['main'], 0, (status, await j.log()))
 
             self.assertEqual(await j.log(), {'main': 'test\n'})
-p
+
             self.assertTrue(await j.is_complete())
 
         loop = asyncio.get_event_loop()
