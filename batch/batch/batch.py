@@ -182,7 +182,10 @@ class Job:
 
         env = {'INSTANCE_ID': INSTANCE_ID,
                'OUTPUT_DIRECTORY': self.directory,
-               'COPY_OUTPUT_CMD': copy(self.output_files)}
+               'COPY_OUTPUT_CMD': copy(self.output_files),
+               'HAIL_POD_NAMESPACE': HAIL_POD_NAMESPACE,
+               'KUBERNETES_TIMEOUT_IN_SECONDS': KUBERNETES_TIMEOUT_IN_SECONDS,
+               'REFRESH_INTERVAL_IN_SECONDS': REFRESH_INTERVAL_IN_SECONDS}
         if 'BATCH_USE_KUBE_CONFIG' in os.environ:
             env['BATCH_USE_KUBE_CONFIG'] = True
         env = [kube.client.V1EnvVar(name=name, value=value) for name, value in env.items()]
