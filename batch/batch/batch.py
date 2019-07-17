@@ -1,6 +1,5 @@
 import asyncio
 import concurrent
-import time
 import logging
 import os
 import threading
@@ -64,12 +63,14 @@ REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 
 HAIL_POD_NAMESPACE = os.environ.get('HAIL_POD_NAMESPACE', 'batch-pods')
 POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 INSTANCE_ID = os.environ.get('HAIL_INSTANCE_ID', uuid.uuid4().hex)
+MAX_PODS = os.environ.get('MAX_PODS', 10)  # 30,000
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
+log.info(f'MAX_PODS = {MAX_PODS}')
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -243,6 +244,8 @@ class Job:
                      f'with the following error: {err}')
             return
 
+        await app['pod_capacity'].acquire()
+
     async def _delete_pvc(self):
         if self._pvc_name is None:
             return
@@ -258,6 +261,8 @@ class Job:
         if err is not None:
             traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.full_id} due to {err}')
+            return
+        app['pod_capacity'].release()
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
@@ -1229,7 +1234,9 @@ async def refresh_k8s_pods():
         log.info(f'could not refresh pods due to {err}, will try again later')
         return
 
-    log.info(f'k8s had {len(pods.items)} pods')
+    n_pods = len(pods.items)
+    app['pod_capacity'] = asyncio.Semaphore(max(0, MAX_PODS - n_pods))
+    log.info(f'k8s had {n_pods} pods')
 
     seen_pods = set()
     for pod in pods.items:
@@ -1321,6 +1328,7 @@ async def on_startup(app):
     app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1, log)
     app['log_store'] = LogStore(pool, INSTANCE_ID, log)
     app['start_job_queue'] = asyncio.Queue()
+    app['pod_capacity'] = asyncio.Semaphore(MAX_PODS)
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
