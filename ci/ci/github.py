@@ -821,7 +821,7 @@ mkdir -p {shq(repo_dir)}
             config.build(deploy_batch, self, scope='dev')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
-            await deploy_batch.wait()
+            return await deploy_batch.id()
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
