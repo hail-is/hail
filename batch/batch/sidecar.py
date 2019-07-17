@@ -108,6 +108,7 @@ async def process_pod(pod, failed=False, failure_reason=None):
     if main['exit_code'] == 0 and copy_output_cmd is not None:
         try:
             pod_log = sp.check_output(copy_output_cmd, shell=True, stderr=sp.STDOUT)
+            pod_log = pod_log.decode('ascii')
             ec = 0
         except sp.CalledProcessError as e:
             pod_log = str(e) + '\n' + e.output
