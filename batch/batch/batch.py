@@ -6,6 +6,7 @@ import threading
 import traceback
 import json
 import uuid
+from datetime import datetime
 from shlex import quote as shq
 
 import jinja2
@@ -32,6 +33,17 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 
 from . import schemas
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, datetime):
+            return o.isoformat()
+
+        return json.JSONEncoder.default(self, o)
+
+
+JSON_ENCODER = DateTimeEncoder()
 
 
 async def scale_queue_consumers(queue, f, n=1):
@@ -585,7 +597,7 @@ class Job:
                     log.info(f'job {self.id} will have a missing log due to {err}')
 
             if pod is not None:
-                pod_status = json.dumps(pod.status.to_dict())
+                pod_status = JSON_ENCODER.dumps(pod.status.to_dict())
                 err = await app['log_store'].write_gs_file(self.directory,
                                                            LogStore.pod_status_file_name,
                                                            pod_status)
@@ -647,7 +659,7 @@ class Job:
                 durations = pod_results['durations']
 
                 if pod is not None:
-                    pod_status = json.dumps(pod.status.to_dict())
+                    pod_status = JSON_ENCODER.dumps(pod.status.to_dict())
                     err = await app['log_store'].write_gs_file(self.directory,
                                                                LogStore.pod_status_file_name,
                                                                pod_status)
