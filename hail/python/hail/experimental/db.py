@@ -25,12 +25,8 @@ class DB:
             Annotates rows based on keyword implementation of annotation name.
             The user can type in multiple annotation names when attaching to their datasets.
             
-            >>> import hail as hl
-            >>> annotate_rows_db(mt,'DANN','CADD', '...', name='something_else')
-            >>> db = hl.annotation_database(config)
-            
-            # adds the vep, CADD, and gnomAD annotations to mt
-            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')
+            >>> db = hl.experimental.DB()
+            >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics')
             ...
             
             Parameters
