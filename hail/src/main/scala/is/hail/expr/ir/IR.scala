@@ -28,7 +28,7 @@ sealed trait IR extends BaseIR {
   }
 
   def inferSetPType(env: Env[PType]): Unit = {
-    assert(_pType2 == null)
+    assert(_pType2 == null, "pType2 must be set exactly once")
 
     _pType2 = InferPType(this, env)
   }
@@ -56,6 +56,8 @@ sealed trait IR extends BaseIR {
       cp._typ = _typ
     if (_pType != null)
       cp._pType = _pType
+    if (_pType2 != null)
+      cp._pType2 = _pType2
     cp
   }
 

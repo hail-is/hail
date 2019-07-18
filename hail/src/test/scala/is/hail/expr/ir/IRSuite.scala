@@ -80,7 +80,8 @@ class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
-    assert(InferPType(node, env) == expected)
+    node.inferSetPType(env)
+    assert(node.pType2 == expected)
   }
 
   @Test def testI32() {
@@ -236,7 +237,8 @@ class IRSuite extends HailSuite {
     assert(node.values.forall(ir => ir.pType == PInt32()))
 
     node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt64())))
-    interceptAssertion("Values in Coalesce must all be of the same type")(InferPType(node, Env.empty))
+    node.inferSetPType(Env.empty)
+    interceptAssertion("Values in Coalesce must all be of the same type")(node)
   }
 
   val i32na = NA(TInt32())
@@ -269,6 +271,64 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L)
     assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L))
     assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i64na), null)
+  }
+
+  @Test def testApplyUnaryPrimOpInferPType() {
+    var i32na = NA(TInt32())
+    var i64na = NA(TInt64())
+    var f32na = NA(TFloat32())
+    var f64na = NA(TFloat64())
+    var bna = NA(TBoolean())
+
+    var node = ApplyUnaryPrimOp(Negate(), I32(5))
+    assertPType(node, PInt32())
+    node = ApplyUnaryPrimOp(Negate(), i32na)
+    // TODO: this feels like there should be a NULL/missing type, or at least a missing flag on the PType
+    assertPType(node, PInt32())
+
+    // i32na is already inferred which breaks inference of the new ApplyUnaryPrimOp node
+    node = ApplyUnaryPrimOp(Negate(), i32na)
+    interceptAssertion("pType2 must be set exactly once")(node.inferSetPType(Env.empty))
+
+    node = ApplyUnaryPrimOp(Negate(), I64(5))
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(Negate(), i64na)
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(Negate(), F32(5))
+    assertPType(node, PFloat32())
+
+    node = ApplyUnaryPrimOp(Negate(), f32na)
+    assertPType(node, PFloat32())
+
+    node = ApplyUnaryPrimOp(Negate(), F64(5))
+    assertPType(node, PFloat64())
+
+    node = ApplyUnaryPrimOp(Negate(), f64na)
+    assertPType(node, PFloat64())
+
+    node = ApplyUnaryPrimOp(Bang(), False())
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(Bang(), True())
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(Bang(), bna)
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef))
+    assertPType(node, PInt32())
+
+    node = ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L))
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L))
+    assertPType(node, PInt64())
+
+    i64na = NA(TInt64())
+    node = ApplyUnaryPrimOp(BitNot(), i64na)
+    assertPType(node, PInt64())
   }
 
   @Test def testApplyBinaryPrimOpAdd() {
