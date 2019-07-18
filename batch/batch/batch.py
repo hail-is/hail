@@ -545,7 +545,7 @@ class Job:
                     (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.full_id},'
                          f' creating pod')
-                await self._create_pod()
+                asyncio.ensure_future(self._create_pod())  # await
             else:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.full_id}')
                 await self.set_state('Cancelled')
@@ -566,7 +566,8 @@ class Job:
     async def mark_unscheduled(self):
         await self._delete_pod()
         if self._state == 'Running' and (not self._cancelled or self.always_run):
-            await self._create_pod()
+            # await self._create_pod()
+            asyncio.ensure_future(self._create_pod())
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
@@ -631,7 +632,7 @@ class Job:
         if exit_code == 0:
             if has_next_task:
                 log.info(f'starting next job task {self.full_id}')
-                await self._create_pod()
+                asyncio.ensure_future(self._create_pod())
                 return
 
         await self._delete_pvc()
@@ -1297,7 +1298,7 @@ async def start_job(queue):
         job = await queue.get()
         if job._state == 'Running':
             try:
-                await job._create_pod()
+                asyncio.ensure_future(job._create_pod())  ## FIXME
             except Exception as exc:  # pylint: disable=W0703
                 log.exception(f'Could not create pod for job {job.full_id} due to exception: {exc}')
         queue.task_done()
