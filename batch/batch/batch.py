@@ -265,9 +265,13 @@ class Job:
     async def _delete_pod(self):
         err = await app['k8s'].delete_pod(name=self._pod_name)
         if err is not None:
+            if err.status == 404:
+                log.info(f'pod does not exist for job {self.full_id}, ignoring deletion failure')
+                return
             traceback.print_tb(err.__traceback__)
             log.info(f'ignoring pod deletion failure for job {self.full_id} due to {err}')
             return
+        
         app['pod_capacity'].release()
         log.info(f'released semaphore from job {self.full_id}')
 

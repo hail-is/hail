@@ -10,7 +10,8 @@ class K8s:
         self.namespace = namespace
         self.log = log
 
-        self._delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
+        # self._delete_pod = self._wrap_k8s_delete(k8s_api.delete_namespaced_pod)
+        self._delete_pod = self._wrap_k8s(k8s_api.delete_namespaced_pod)
         self._delete_pvc = self._wrap_k8s_delete(k8s_api.delete_namespaced_persistent_volume_claim)
         self._create_pod = self._wrap_k8s(k8s_api.create_namespaced_pod)
         self._create_pvc = self._wrap_k8s(k8s_api.create_namespaced_persistent_volume_claim)
