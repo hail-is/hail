@@ -1240,7 +1240,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix = {
-    new BlockMatrix(new BlockMatrixFilterRDD(densify(), keepRows, keepCols),
+    new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
   }
 
