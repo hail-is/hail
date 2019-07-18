@@ -11,7 +11,7 @@ import is.hail.asm4s.coerce
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState], knownLength: Boolean) extends PointerBasedRVAState {
+case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
@@ -67,19 +67,16 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
-    val check =
-      lenRef.ceq(len).mux(Code._empty,
-        Code._fatal("mismatched lengths in ArrayElementsAggregator"))
-
-    if (knownLength) check else (lenRef < 0).mux(initLength(len), check)
+    lenRef.ceq(len).mux(Code._empty,
+      Code._fatal("mismatched lengths in ArrayElementsAggregator"))
   }
 
-  def init(initOp: Array[Code[Unit]], initLen: Boolean = !knownLength): Code[Unit] = {
+  def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
       Code(
         region.setNumParents(nStates),
         off := region.allocate(typ.alignment, typ.byteSize),
         container.newStates,
-        container.toCode((i, _) => initOp(i)),
+        initOp,
         container.store(0, initStatesOffset),
         if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
   }
@@ -112,7 +109,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
     val deserializers = nested.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
         Code(
-          init(deserializers.map(_(ib)), initLen = false),
+          init(container.toCode((i, _) => deserializers(i)(ib)), initLen = false),
           lenRef := ib.readInt(),
           (lenRef < 0).mux(
             typ.setFieldMissing(off, 1),
@@ -127,12 +124,11 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
     Code(
       srcOff := src,
-      init(Array.tabulate(nStates)(i =>
-        nested(i).copyFrom(container.getStateOffset(initOffset, i)))),
-        lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-        (lenRef < 0).mux(
-          typ.setFieldMissing(off, 1),
-          seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i)))))
+      init(container.toCode((i, s) => s.copyFrom(container.getStateOffset(initOffset, i))), initLen = false),
+      lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
+      (lenRef < 0).mux(
+        typ.setFieldMissing(off, 1),
+        seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i)))))
   }
 }
 
@@ -148,25 +144,18 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType))
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)), knownLength)
+  def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)))
 
   // inits all things
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
     var i = if (knownLength) 1 else 0
-    val initOps = Array.tabulate(nStates) { sIdx =>
-      val agg = nestedAggs(sIdx)
-      val vars = init.slice(i, i + agg.initOpTypes.length)
-      i += agg.initOpTypes.length
-      agg.initOp(state.nested(sIdx), vars)
-    }
-
     if (knownLength) {
-      val len = init.head
-      assert(len.t isOfType PInt32())
-      Code(state.init(initOps), len.setup,
+      val Array(RVAVariable(len, PInt32(_)), RVAVariable(inits, PVoid)) = init
+      Code(state.init(inits.setup, initLen = false), len.setup,
         state.initLength(len.m.mux(Code._fatal("Array length can't be missing"), len.v[Int])))
     } else {
-      Code(state.init(initOps), state.lenRef := -1)
+      val Array(RVAVariable(inits, PVoid)) = init
+      state.init(inits.setup, initLen = true)
     }
   }
 
@@ -175,15 +164,24 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
     val Array(len) = seq
     assert(len.t isOfType PInt32())
 
-    Code(len.setup, len.m.mux(Code._empty, state.checkLength(len.v[Int])))
+    var check = state.checkLength(len.v[Int])
+    if (!knownLength)
+      check = (state.lenRef < 0).mux(state.initLength(len.v[Int]), check)
+    Code(len.setup,
+      len.m.mux(Code._empty,
+        check))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
+    var check = state.checkLength(other.lenRef)
+    if (!knownLength)
+      check = (state.lenRef < 0).mux(state.initLength(other.lenRef), check)
+
     state.seq((other.lenRef < 0).mux(
       (state.lenRef < 0).mux(
         Code._empty,
         other.initLength(state.lenRef)),
-      state.checkLength(other.lenRef)),
+      check),
       Code(other.load(state.idx), state.load(state.idx)),
       (i, s) => nestedAggs(i).combOp(s, other.nested(i)))
   }
