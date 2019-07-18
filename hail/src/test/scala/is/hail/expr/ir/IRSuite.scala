@@ -277,10 +277,10 @@ class IRSuite extends HailSuite {
 
   @Test def testApplyUnaryPrimOpInferPType() {
     val i32na = NA(TInt32())
-    val i64na = NA(TInt64())
-    val f32na = NA(TFloat32())
-    val f64na = NA(TFloat64())
-    val bna = NA(TBoolean())
+    def i64na = NA(TInt64())
+    def f32na = NA(TFloat32())
+    def f64na = NA(TFloat64())
+    def bna = NA(TBoolean())
 
     var node = ApplyUnaryPrimOp(Negate(), I32(5))
     assertPType(node, PInt32())
@@ -288,7 +288,6 @@ class IRSuite extends HailSuite {
     // TODO: this feels like there should be a NULL/missing type, or at least a missing flag on the PType
     assertPType(node, PInt32())
 
-    // i32na is already inferred which breaks inference of the new ApplyUnaryPrimOp node
     node = ApplyUnaryPrimOp(Negate(), i32na)
     interceptAssertion("pType2 must be set exactly once")(node.inferSetPType(Env.empty))
 
@@ -328,7 +327,7 @@ class IRSuite extends HailSuite {
     node = ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L))
     assertPType(node, PInt64())
 
-    node = ApplyUnaryPrimOp(BitNot(), NA(TInt64()))
+    node = ApplyUnaryPrimOp(BitNot(), i64na)
     assertPType(node, PInt64())
   }
 
