@@ -130,15 +130,13 @@ object InferPType {
         a.explicitNode.inferSetPType(env)
         a.explicitNode.pType2
       }
-//      case a: AbstractApplyNode[_] => {
-//        val argTypes = a.args.map( ir => {
-//          ir.inferSetPType(env)
-//          ir.pType2
-//        })
-//        a.implementation.unify(argTypes)
-//        // TODO: This calls setRequired on the virtual types
-//        PType.canonical(a.implementation.returnType.subst())
-//      }
+      case a: AbstractApplyNode[_] => {
+        val args = a.args.map( ir => {
+          ir.inferSetPType(env)
+          ir
+        })
+        a.implementation.returnPType(args.map(_.pType2))
+      }
       case _: Uniroot => PFloat64()
       // TODO: check that i.pType2 isOfType is correct (for ArrayRef, ArraySort)
       case ArrayRef(a, i) => {
