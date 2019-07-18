@@ -2029,7 +2029,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
 
         left = split_rows(make_array(lambda locus: locus == ds['locus']), False)
         moved = split_rows(make_array(lambda locus: locus != ds['locus']), True)
-    return left.union(moved) if is_table else left.union_rows(moved)
+    return left.union(moved) if is_table else left.union_rows(moved, _check_cols=False)
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
@@ -2983,7 +2983,7 @@ def filter_alleles(mt: MatrixTable,
 
     right = mt.filter_rows((mt.locus != mt.__new_locus) | (mt.alleles != mt.__new_alleles))
     right = right.key_rows_by(locus=right.__new_locus, alleles=right.__new_alleles)
-    return left.union_rows(right).drop('__allele_inclusion', '__new_locus', '__new_alleles')
+    return left.union_rows(right, _check_cols=False).drop('__allele_inclusion', '__new_locus', '__new_alleles')
 
 
 @typecheck(mt=MatrixTable, f=anytype, subset=bool)

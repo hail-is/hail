@@ -1,66 +1,69 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-
 import is.hail.asm4s.coerce
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-object ArrayElementState {
-  def create(mb: EmitMethodBuilder, aggs: Array[StagedRegionValueAggregator], knownLength: Boolean): ArrayElementState =
-    ArrayElementState(aggs.map(_.createState(mb)), mb.newField[Region], mb.newField[Long], knownLength)
-}
-
-case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], off: ClassFieldRef[Long], knownLength: Boolean) extends RVAState {
-  val container: StateContainer = StateContainer(nested, r)
-  private val arrayType: PArray = PArray(container.typ)
-
+case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorState], knownLength: Boolean) extends PointerBasedRVAState {
+  val container: StateContainer = StateContainer(nested, region)
+  val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
-  val mb: EmitMethodBuilder = nested.head.mb
+  override val regionSize: Int = Region.SMALL
 
   val typ: PTuple = PTuple(FastIndexedSeq(container.typ, arrayType))
 
-  val lenRef: ClassFieldRef[Int] = mb.newField[Int]
-  val idx: ClassFieldRef[Int] = mb.newField[Int]
-
-  val srvb = new StagedRegionValueBuilder(er, typ)
+  val lenRef: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_lenref")
+  val idx: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_idx")
+  private val aoff: ClassFieldRef[Long] = mb.newField[Long]("arrayrva_aoff")
 
   private def regionOffset(eltIdx: Code[Int]): Code[Int] = (eltIdx + 1) * nStates
-  private def regionFromIdx(eltIdx: Code[Int], stateIdx: Int): Code[Region] = container.getRegion(regionOffset(eltIdx), stateIdx)
 
   private val initStatesOffset = typ.loadField(region, off, 0)
   private def initStateOffset(idx: Int): Code[Long] = container.getStateOffset(initStatesOffset, idx)
-  private def initStateAddress(idx: Int): Code[Long] = container.loadStateAddress(initStatesOffset, idx)
 
   private def statesOffset(eltIdx: Code[Int]): Code[Long] = arrayType.loadElement(region, typ.loadField(region, off, 1), eltIdx)
-  private def stateAddressOffset(eltIdx: Code[Int], stateIdx: Int): Code[Long] = container.getStateOffset(statesOffset(eltIdx), stateIdx)
-  private def eltState(eltIdx: Code[Int], stateIdx: Int): Code[Long] = container.loadStateAddress(statesOffset(eltIdx), stateIdx)
 
-  def loadStateFrom(src: Code[Long]): Code[Unit] =
-  Code(
-    off := src,
-    lenRef := typ.isFieldMissing(region, off, 1).mux(-1,
-      arrayType.loadLength(region, typ.loadField(region, off, 1))))
+  override def createState: Code[Unit] = Code(
+    super.createState,
+    container.toCode((_, s) => s.createState))
+
+  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = {
+    Code(super.load(regionLoader, src),
+      off.ceq(0L).mux(Code._empty,
+        lenRef := typ.isFieldMissing(off, 1).mux(-1,
+          arrayType.loadLength(region, typ.loadField(region, off, 1)))))
+  }
+
+  private val initArray: Code[Unit] =
+    Code(
+      region.setNumParents((lenRef + 1) * nStates),
+      aoff := region.allocate(arrayType.contentsAlignment, arrayType.contentsByteSize(lenRef)),
+      region.storeAddress(typ.fieldOffset(off, 1), aoff),
+      arrayType.initialize(aoff, lenRef, idx),
+      typ.setFieldPresent(region, off, 1))
+
+  def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+    Code(
+      init,
+      idx := 0,
+      Code.whileLoop(idx < lenRef,
+        initPerElt,
+        container.toCode(seqOp),
+        store(idx),
+        idx := idx + 1))
+
+  def seq(seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
+    seq(initArray, container.newStates, seqOp)
 
   def initLength(len: Code[Int]): Code[Unit] = {
-    val srvb2 = new StagedRegionValueBuilder(er, arrayType)
-    Code(
-      lenRef := len,
-      region.setNumParents((lenRef + 1) * nStates),
-      srvb2.start(lenRef),
-      Code.whileLoop(srvb2.arrayIdx < lenRef,
-        container.scoped(regionOffset(srvb2.arrayIdx)){ (i, s) =>
-          s.copyFrom(initStateAddress(i)) },
-        container.addState(srvb2),
-        srvb2.advance()),
-      typ.setFieldPresent(region, off, 1),
-      region.storeAddress(typ.fieldOffset(off, 1), srvb2.end()))
+    Code(lenRef := len, seq((i, s) => s.copyFrom(initStateOffset(i))))
   }
 
   def checkLength(len: Code[Int]): Code[Unit] = {
@@ -71,95 +74,65 @@ case class ArrayElementState(nested: Array[RVAState], r: ClassFieldRef[Region], 
     if (knownLength) check else (lenRef < 0).mux(initLength(len), check)
   }
 
-  def init(initOp: Array[Code[Unit]]): Code[Unit] = {
-      val c = Code(
+  def init(initOp: Array[Code[Unit]], initLen: Boolean = !knownLength): Code[Unit] = {
+      Code(
         region.setNumParents(nStates),
-        srvb.start(),
-        container.scoped(0)((i, _) => initOp(i)),
-        container.addState(srvb),
-        srvb.advance())
-    if (knownLength)
-      Code(c, off := srvb.end())
-    else
-      Code(c, srvb.setMissing(), off := srvb.end())
+        off := region.allocate(typ.alignment, typ.byteSize),
+        container.newStates,
+        container.toCode((i, _) => initOp(i)),
+        container.store(0, initStatesOffset),
+        if (initLen) typ.setFieldMissing(off, 1) else Code._empty)
   }
 
-  def scoped(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-    container.scoped(regionOffset(eltIdx), statesOffset(eltIdx), f)
+  def loadInit: Code[Unit] =
+    container.load(0, initStatesOffset)
 
-  def scoped(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    container.scoped(regionOffset(eltIdx), statesOffset(eltIdx))(f)
+  def load(eltIdx: Code[Int]): Code[Unit] =
+    container.load(regionOffset(eltIdx), statesOffset(eltIdx))
 
-  def update(eltIdx: Code[Int], f: Code[Unit]): Code[Unit] =
-    container.update(regionOffset(eltIdx), statesOffset(eltIdx), f)
-
-  def update(eltIdx: Code[Int])(f: (Int, RVAState) => Code[Unit]): Code[Unit] =
-    container.update(regionOffset(eltIdx), statesOffset(eltIdx))(f)
+  def store(eltIdx: Code[Int]): Code[Unit] =
+    container.store(regionOffset(eltIdx), statesOffset(eltIdx))
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
     val serializers = nested.map(_.serialize(codec));
     { ob: Code[OutputBuffer] =>
-      val serialize = coerce[Unit](Code(serializers.map(_(ob)): _*))
       Code(
-        container.scoped(0, initStatesOffset, serialize),
+        loadInit,
+        container.toCode((i, _) => serializers(i)(ob)),
         ob.writeInt(lenRef),
         idx := 0,
         Code.whileLoop(idx < lenRef,
-          scoped(idx, serialize),
-          idx := idx + 1),
-        region.close(),
-        r := Code._null)
+          load(idx),
+          container.toCode((i, _) => serializers(i)(ob)),
+          idx := idx + 1))
     }
   }
 
-  def unserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    val deserializers = nested.map(_.unserialize(codec));
+  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+    val deserializers = nested.map(_.deserialize(codec));
     { ib: Code[InputBuffer] =>
         Code(
-          region.setNumParents(nStates),
-          srvb.start(),
-          container.scoped(0)((i, _) => deserializers(i)(ib)),
-          container.addState(srvb),
-          srvb.advance(),
+          init(deserializers.map(_(ib)), initLen = false),
           lenRef := ib.readInt(),
           (lenRef < 0).mux(
-            srvb.setMissing(),
-            Code(
-              region.setNumParents((lenRef + 1) * nStates),
-              srvb.addArray(arrayType, sab =>
-                Code(
-                  sab.start(lenRef),
-                  Code.whileLoop(sab.arrayIdx < lenRef,
-                    container.scoped(regionOffset(sab.arrayIdx))((i, _) => deserializers(i)(ib)),
-                    container.addState(sab),
-                    sab.advance()))))),
-          off := srvb.end())
+            typ.setFieldMissing(off, 1),
+            seq((i, _) => deserializers(i)(ib))))
     }
   }
 
-  def copyFrom(src: Code[Long]): Code[Unit] = {
+  def copyFromAddress(src: Code[Long]): Code[Unit] = {
+    val srcOff = mb.newField[Long]
+    val initOffset = typ.loadField(srcOff, 0)
+    val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
+
     Code(
-      off := src,
-      typ.isFieldMissing(region, off, 1).mux(
-        Code(lenRef := -1, region.setNumParents(nStates)),
-        Code(lenRef := arrayType.loadLength(region, typ.loadField(region, off, 1)),
-          region.setNumParents((lenRef + 1) * nStates))),
-      srvb.start(),
-      container.scoped(0, initStatesOffset)((i, s) => s.copyFrom(initStateOffset(i))),
-      container.addState(srvb),
-      srvb.advance(),
-      (lenRef < 0).mux(
-        srvb.setMissing(),
-        srvb.addArray(arrayType, sab =>
-          Code(
-            sab.start(lenRef),
-            Code.whileLoop(sab.arrayIdx < lenRef,
-              scoped(sab.arrayIdx) { (i, s) =>
-                s.copyFrom(eltState(sab.arrayIdx, i))
-              }),
-            container.addState(sab),
-            sab.advance()))),
-      off := srvb.end())
+      srcOff := src,
+      init(Array.tabulate(nStates)(i =>
+        nested(i).copyFrom(container.getStateOffset(initOffset, i)))),
+        lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
+        (lenRef < 0).mux(
+          typ.setFieldMissing(off, 1),
+          seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i)))))
   }
 }
 
@@ -175,7 +148,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
   val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType))
   val resultType: PArray = PArray(resultEltType)
 
-  def createState(mb: EmitMethodBuilder): State = ArrayElementState.create(mb, nestedAggs, knownLength)
+  def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)), knownLength)
 
   // inits all things
   def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
@@ -206,34 +179,33 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedRegionValueAggre
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    Code(
-      (other.lenRef < 0).mux(
-        (state.lenRef < 0).mux(
-          Code._empty,
-          other.initLength(state.lenRef)),
-        state.checkLength(other.lenRef)),
-      state.idx := 0,
-      Code.whileLoop(state.idx < state.lenRef,
-        other.scoped(state.idx,
-          state.update(state.idx)( (i, s) =>
-            nestedAggs(i).combOp(s, other.nested(i)))),
-        state.idx := state.idx + 1))
+    state.seq((other.lenRef < 0).mux(
+      (state.lenRef < 0).mux(
+        Code._empty,
+        other.initLength(state.lenRef)),
+      state.checkLength(other.lenRef)),
+      Code(other.load(state.idx), state.load(state.idx)),
+      (i, s) => nestedAggs(i).combOp(s, other.nested(i)))
   }
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] =
-    srvb.addArray(resultType, { sab =>
-      Code(
-        sab.start(state.lenRef),
-        Code.whileLoop(sab.arrayIdx < state.lenRef,
-          sab.addBaseStruct(resultEltType, { ssb =>
-            Code(
-              ssb.start(),
-              state.scoped(sab.arrayIdx) { (i, s) =>
-                Code(nestedAggs(i).result(s, ssb), ssb.advance())
-              })
-          }),
-          sab.advance()))
-    })
+    (state.lenRef < 0).mux(
+      srvb.setMissing(),
+      srvb.addArray(resultType, { sab =>
+        Code(
+          sab.start(state.lenRef),
+          Code.whileLoop(sab.arrayIdx < state.lenRef,
+            sab.addBaseStruct(resultEltType, { ssb =>
+              Code(
+                ssb.start(),
+                state.load(sab.arrayIdx),
+                state.container.toCode { (i, s) =>
+                  Code(nestedAggs(i).result(s, ssb), ssb.advance())
+                })
+            }),
+            sab.advance()))
+      })
+    )
 }
 
 class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedRegionValueAggregator]) extends StagedRegionValueAggregator {
@@ -262,7 +234,10 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedRegionValueAggregator
           eltIdxV := eltIdx.v[Int],
           (eltIdxV > state.lenRef || eltIdxV < 0).mux(
             Code._fatal("element idx out of bounds"),
-            state.update(eltIdxV, seqOps.setup)))))
+            Code(
+              state.load(eltIdxV),
+              seqOps.setup,
+              state.store(eltIdxV))))))
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] =

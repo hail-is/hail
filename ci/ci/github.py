@@ -274,6 +274,8 @@ class PR(Code):
                 data=data)
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
+        except aiohttp.client_exceptions.ClientResponseError as e:
+            log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
@@ -806,6 +808,7 @@ class UnwatchedBranch(Code):
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 ''')
+            log.info(f'User {self.user} requested these steps for dev deploy: {profile_steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='dev', profile=profile_steps)
 
@@ -821,7 +824,7 @@ mkdir -p {shq(repo_dir)}
             config.build(deploy_batch, self, scope='dev')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
-            await deploy_batch.wait()
+            return deploy_batch.id
         finally:
             if deploy_batch and not self.deploy_batch:
                 log.info(f'cancelling partial deploy batch {deploy_batch.id}')
