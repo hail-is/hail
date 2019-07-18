@@ -201,7 +201,7 @@ object Extract {
     case _ => sig1 == sig2
   }
 
-  def getAgg(aggSig: AggSignature2): StagedRegionValueAggregator = aggSig match {
+  def getAgg(aggSig: AggSignature2): StagedAggregator = aggSig match {
     case AggSignature2(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
     case AggSignature2(Count(), _, _, _) =>

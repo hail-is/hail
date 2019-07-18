@@ -28,7 +28,7 @@ class Aggregators2Suite extends HailSuite {
   val sumAgg = agg.Extract.getAgg(sumAggSig)
 
   val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
-  val aggs: Array[StagedRegionValueAggregator] = Array(pnnAgg, countAgg, sumAgg)
+  val aggs: Array[StagedAggregator] = Array(pnnAgg, countAgg, sumAgg)
 
 
   val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](), FastSeq[Type](TInt32()), Some(aggSigs))
