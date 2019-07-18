@@ -597,7 +597,7 @@ class Job:
                     log.info(f'job {self.id} will have a missing log due to {err}')
 
             if pod is not None:
-                pod_status = JSON_ENCODER.dumps(pod.status.to_dict())
+                pod_status = JSON_ENCODER.encode(pod.status.to_dict())
                 err = await app['log_store'].write_gs_file(self.directory,
                                                            LogStore.pod_status_file_name,
                                                            pod_status)
@@ -659,7 +659,7 @@ class Job:
                 durations = pod_results['durations']
 
                 if pod is not None:
-                    pod_status = JSON_ENCODER.dumps(pod.status.to_dict())
+                    pod_status = JSON_ENCODER.encode(pod.status.to_dict())
                     err = await app['log_store'].write_gs_file(self.directory,
                                                                LogStore.pod_status_file_name,
                                                                pod_status)
