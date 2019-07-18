@@ -280,9 +280,12 @@ async def dev_test_branch(request):
 
     batch_client = app['batch_client']
 
-    await unwatched_branch.deploy(batch_client, profile)
+    batch_id = await unwatched_branch.deploy(batch_client, profile)
 
-    return web.Response(status=200)
+    if batch_id is not None:
+        return web.Response(status=200, text=str(batch_id))
+    else:
+        return web.Response(status=503)
 
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
