@@ -1,7 +1,26 @@
 .. _Annotation Database:
 
+
+===================
 Annotation Database
 ===================
+
+This database contains a curated collection of variant annotations in an accessible and Hail-friendly format, for use in Hail analysis pipelines. 
+
+To incorporate these annotations in your own Hail analysis pipeline, select which annotations you would like to query from the table below and then copy-and-paste the Hail generated code into your own analysis script.
+
+--------------
+
+Database Query
+--------------
+
+Select annotations by clicking on the checkboxes in the table, and the appropriate Hail command will be generated
+in the panel below. 
+
+In addition, a search bar is provided if looking for a specific annotation within our curated collection.
+
+Use the "Copy to clipboard" button to copy the generated Hail code, and paste the command into your
+own Hail script.
 
 .. raw:: html   
     <div class="jumbotron" sytle="margin-bottom:0px; color:white;">
@@ -20,11 +39,11 @@ Annotation Database
     </div>
     </div>
     </div>
-    </div>
+    </div> 
     <div class="panel panel-default">
     <div class="panel-heading" style="font-weight:bold">Database Query
     <div class="btn-group pull-right">
-    <a href="#" class="btn btn-default btn-sm" onclick="copy()" style="height: 25px; font-weight:24">Copy to Clipboard</a>
+    <button class="btn btn-default btn-sm" onclick="copy()" style="height: 25px; font-weight:24">Copy to Clipboard</button>
     </div>
     </div>
     <div class="panel-body">
@@ -40,7 +59,6 @@ Annotation Database
     </div>
     </div>
     </div>
-    
     <div class="row" style="margin-top:10px"></div>
     <table id='table1' class="table1 table table-bordered display select" >
     <div id="header"  class="text-center"></div>
@@ -48,6 +66,7 @@ Annotation Database
     <th><input id="checkAll" name="addall" type="checkbox" ></th>
     <th>name</th>
     <th>description</th>
+    <th>version</th>
     </tr>
     </table>
     </div>
