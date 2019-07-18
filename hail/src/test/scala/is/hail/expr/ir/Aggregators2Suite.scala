@@ -53,16 +53,16 @@ class Aggregators2Suite extends HailSuite {
       Row(Row("c", 4), 6L, 8L),
       Row(Row("f", 5), 6L, 10L))
 
-  def rowVar(a: Code[Long], i: Code[Int]): RVAVariable =
-    RVAVariable(EmitTriplet(Code._empty,
+  def rowVar(a: Code[Long], i: Code[Int]): EmitTriplet =
+    EmitTriplet(Code._empty,
       arrayType.isElementMissing(a, i),
-      arrayType.loadElement(a, i)), rowType)
+      arrayType.loadElement(a, i))
 
-  def bVar(a: Code[Long], i: Code[Int]): RVAVariable = {
-    val RVAVariable(row, _) = rowVar(a, i)
-    RVAVariable(EmitTriplet(row.setup,
+  def bVar(a: Code[Long], i: Code[Int]): EmitTriplet = {
+    val row = rowVar(a, i)
+    EmitTriplet(row.setup,
       row.m || rowType.isFieldMissing(row.value[Long], 1),
-      Region.loadLong(rowType.loadField(row.value[Long], 1))), PInt64())
+      Region.loadLong(rowType.loadField(row.value[Long], 1)))
   }
 
   def seqOne(s: Array[AggregatorState], a: Code[Long], i: Code[Int]): Code[Unit] = {
@@ -82,10 +82,10 @@ class Aggregators2Suite extends HailSuite {
     val a = s.mb.newField[Long]
     val r = s.region
 
-    val lenVar = RVAVariable(EmitTriplet(Code._empty, false, alen), PInt32())
-    val idxVar = RVAVariable(EmitTriplet(Code._empty, false, aidx), PInt32())
+    val lenVar = EmitTriplet(Code._empty, false, alen)
+    val idxVar = EmitTriplet(Code._empty, false, aidx)
 
-    val eltSeqOp = RVAVariable(EmitTriplet(seqOne(s.nested, a, aidx), false, Code._empty), PVoid)
+    val eltSeqOp = EmitTriplet(seqOne(s.nested, a, aidx), false, Code._empty)
 
     Code(
       lcAgg.initOp(s, Array()),

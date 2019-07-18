@@ -33,7 +33,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
       case _: PFloat64 => state.region.storeDouble(stateType.fieldOffset(state.off, 0), elt.value[Double])
       case _ =>
         val v = state.mb.newField[Long]
-        Code(v := elt.v[Long],
+        Code(v := elt.value[Long],
           StagedRegionValueBuilder.deepCopy(state.er, typ, v, stateType.fieldOffset(state.off, 0)))
     }
 

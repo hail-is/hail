@@ -159,7 +159,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
     var check = state.checkLength(len.value[Int])
     if (!knownLength)
-      check = (state.lenRef < 0).mux(state.initLength(len.v[Int]), check)
+      check = (state.lenRef < 0).mux(state.initLength(len.value[Int]), check)
     Code(len.setup, len.m.mux(Code._empty, check))
   }
 
