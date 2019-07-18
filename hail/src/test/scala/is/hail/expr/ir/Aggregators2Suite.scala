@@ -31,7 +31,7 @@ class Aggregators2Suite extends HailSuite {
   val aggs: Array[StagedAggregator] = Array(pnnAgg, countAgg, sumAgg)
 
 
-  val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](), FastSeq[Type](TInt32()), Some(aggSigs))
+  val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](TVoid), FastSeq[Type](TInt32()), Some(aggSigs))
   val lcAgg: ArrayElementLengthCheckAggregator = agg.Extract.getAgg(lcAggSig).asInstanceOf[ArrayElementLengthCheckAggregator]
   val eltAggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq[Type](TInt32(), TVoid), Some(aggSigs))
   val eltAgg: ArrayElementwiseOpAggregator = agg.Extract.getAgg(eltAggSig).asInstanceOf[ArrayElementwiseOpAggregator]
@@ -88,7 +88,11 @@ class Aggregators2Suite extends HailSuite {
     val eltSeqOp = EmitTriplet(seqOne(s.nested, a, aidx), false, Code._empty)
 
     Code(
-      lcAgg.initOp(s, Array()),
+      lcAgg.initOp(s, Array(EmitTriplet(Code(
+        pnnAgg.initOp(s.nested(0), Array()),
+        countAgg.initOp(s.nested(1), Array()),
+        sumAgg.initOp(s.nested(2), Array())
+      ), false, Code._empty))),
       streamIdx := 0,
       streamLen := streamType.loadLength(r, off),
       Code.whileLoop(streamIdx < streamLen,
@@ -248,7 +252,11 @@ class Aggregators2Suite extends HailSuite {
       Array(lcAggSig),
       "stream", streamType,
       Begin(FastIndexedSeq(
-        InitOp2(0, FastIndexedSeq(), lcAggSig),
+        InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+          InitOp2(0, FastIndexedSeq(), pnnAggSig),
+          InitOp2(1, FastIndexedSeq(), countAggSig),
+          InitOp2(2, FastIndexedSeq(), sumAggSig)
+        ))), lcAggSig),
         ArrayFor(Ref("stream", streamType.virtualType),
           array.name,
           Begin(FastIndexedSeq(

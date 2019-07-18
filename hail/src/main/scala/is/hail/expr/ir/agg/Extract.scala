@@ -207,7 +207,7 @@ object Extract {
     case AggSignature2(Count(), _, _, _) =>
       CountAggregator
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
-      val knownLength = nestedAggs.flatMap(_.initOpArgs).length == initOpArgs.length - 1
+      val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
     case AggSignature2(AggElements(), _, _, Some(nestedAggs)) =>
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)

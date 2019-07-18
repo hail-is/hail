@@ -68,7 +68,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 
   def checkLength(len: Code[Int]): Code[Unit] = {
     lenRef.ceq(len).mux(Code._empty,
-      Code._fatal("mismatched lengths in ArrayElementsAggregator"))
+      Code._fatal("mismatched lengths in ArrayElementsAggregator "))
   }
 
   def init(initOp: Code[Unit], initLen: Boolean): Code[Unit] = {
@@ -142,21 +142,19 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
 
   // inits all things
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
-    var i = if (knownLength) 1 else 0
     if (knownLength) {
       val Array(len, inits) = init
       Code(state.init(inits.setup, initLen = false), len.setup,
         state.initLength(len.m.mux(Code._fatal("Array length can't be missing"), len.value[Int])))
     } else {
       val Array(inits) = init
-      state.init(inits.setup, initLen = true)
+      Code(state.init(inits.setup, initLen = true), state.lenRef := -1)
     }
   }
 
   //does a length check on arrays
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(len) = seq
-
     var check = state.checkLength(len.value[Int])
     if (!knownLength)
       check = (state.lenRef < 0).mux(state.initLength(len.value[Int]), check)
