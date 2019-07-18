@@ -6,7 +6,6 @@ import threading
 import traceback
 import json
 import uuid
-from datetime import datetime
 from shlex import quote as shq
 
 import jinja2
@@ -27,23 +26,13 @@ from hailtop.gear.auth import rest_authenticated_users_only, web_authenticated_u
 from .blocking_to_async import blocking_to_async
 from .log_store import LogStore
 from .database import BatchDatabase, JobsBuilder, JobsTable
+from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
     HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
 
 from . import schemas
-
-
-class DateTimeEncoder(json.JSONEncoder):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-
-        return json.JSONEncoder.default(self, o)
-
-
-JSON_ENCODER = DateTimeEncoder()
 
 
 async def scale_queue_consumers(queue, f, n=1):
@@ -192,7 +181,10 @@ class Job:
         """
 
         env = {'INSTANCE_ID': INSTANCE_ID,
-               'OUTPUT_DIRECTORY': self.directory,
+               'BATCH_ID': self.batch_id,
+               'JOB_ID': self.job_id,
+               'TOKEN': self.token,
+               'BATCH_BUCKET_NAME': app['log_store'].batch_bucket_name,
                'COPY_OUTPUT_CMD': copy(self.output_files),
                'HAIL_POD_NAMESPACE': HAIL_POD_NAMESPACE,
                'KUBERNETES_TIMEOUT_IN_SECONDS': str(KUBERNETES_TIMEOUT_IN_SECONDS),
@@ -378,7 +370,7 @@ class Job:
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-                log.info(f'ignoring: could not get pod status for {self.id} '
+               log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
             return pod_status
         else:

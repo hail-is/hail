@@ -14,6 +14,7 @@ from hailtop import gear
 from .batch_configuration import REFRESH_INTERVAL_IN_SECONDS, HAIL_POD_NAMESPACE
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS
 from .blocking_to_async import blocking_to_async
+from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .log_store import LogStore
 
@@ -21,7 +22,10 @@ from .log_store import LogStore
 pod_name = os.environ['POD_NAME']
 batch_instance = os.environ['INSTANCE_ID']
 copy_output_cmd = os.environ.get('COPY_OUTPUT_CMD')
-gs_directory = os.environ['OUTPUT_DIRECTORY']
+batch_id = os.environ['BATCH_ID']
+job_id = os.environ['JOB_ID']
+token = os.environ['TOKEN']
+batch_bucket_name = os.environ['BATCH_BUCKET_NAME']
 
 gear.configure_logging()
 log = logging.getLogger('batch-sidecar')
@@ -29,26 +33,16 @@ log = logging.getLogger('batch-sidecar')
 kube.config.load_incluster_config()
 v1 = kube.client.CoreV1Api()
 
+log_store = LogStore(concurrent.futures.ThreadPoolExecutor(),
+                     instance_id=batch_instance,
+                     batch_bucket_name=batch_bucket_name)
+directory = log_store.gs_job_output_directory(batch_id, job_id, token)
+
 
 def container_statuses(pod):
     statuses = {status.name: status for status in pod.status.init_container_statuses}
     statuses.update({status.name: status for status in pod.status.container_statuses})
     return statuses
-
-
-def upload_to_gcs(file_name, output):
-    f = open(file_name, 'w')
-    f.write(output)
-    f.close()
-
-    authorize = ('set -ex; '
-                 'gcloud -q auth activate-service-account '
-                 '--key-file=/batch-gsa-key/privateKeyData')
-    cmd = f'{authorize} && gsutil cp {file_name} {gs_directory}'
-    rc = sp.call(cmd, shell=True)
-    if rc != 0:
-        log.error(f'could not copy {file_name} to gcs')
-        sys.exit(1)
 
 
 async def process_container(pod, container_name):
@@ -111,7 +105,10 @@ async def process_pod(pod, failed=False, failure_reason=None):
 
     pod_status, err = await k8s.read_pod_status(pod_name, pretty=True)
     if err is None:
-        upload_to_gcs(LogStore.pod_status_file_name, pod_status)
+        log_store.write_gs_file(
+            directory,
+            LogStore.pod_status_file_name,
+            JSON_ENCODER.encode(pod_status.to_dict()))
 
     cleanup = {'exit_code': ec,
                'log': pod_log,
@@ -119,12 +116,17 @@ async def process_pod(pod, failed=False, failure_reason=None):
 
     exit_codes = [result['exit_code'] for result in (setup, main, cleanup)]
     durations = [result['duration'] for result in (setup, main, cleanup)]
-    upload_to_gcs(LogStore.results_file_name, json.dumps({'exit_codes': exit_codes,
-                                                          'durations': durations}))
+    log_store.write_gs_file(
+        directory,
+        LogStore.results_file_name,
+        json.dumps({'exit_codes': exit_codes, 'durations': durations}))
 
-    upload_to_gcs(LogStore.log_file_name, json.dumps({'setup': setup['log'],
-                                                      'main': main['log'],
-                                                      'cleanup': cleanup['log']}))
+    log_store.write_gs_file(
+        directory,
+        LogStore.log_file_name,
+        json.dumps({'setup': setup['log'],
+                    'main': main['log'],
+                    'cleanup': cleanup['log']}))
 
     sys.exit(0)
 
