@@ -89,6 +89,8 @@ def start_pod(jupyter_token, image):
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
     )
     pod_spec = kube.client.V1PodSpec(
+        security_context=kube.client.V1SecurityContext(
+            run_as_user=1000),
         containers=[
             kube.client.V1Container(
                 command=[
@@ -310,4 +312,3 @@ if __name__ == '__main__':
     from geventwebsocket.handler import WebSocketHandler
     server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-
