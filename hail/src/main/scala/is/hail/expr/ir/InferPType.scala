@@ -128,7 +128,7 @@ object InferPType {
       }
       case a: ApplyIR => {
         a.explicitNode.inferSetPType(env)
-        a.pType2
+        a.explicitNode.pType2
       }
       // TODO: this seems wrong:
       // 1) it may have subtle bugs, .implementation calls ir.typ, which is not pre-filled
