@@ -39,14 +39,13 @@ object InferPType {
       case IsNA(_) => PBoolean()
       case Coalesce(values) => {
         val vit = values.iterator
-        val head = values.iterator.next()
+        val head = vit.next()
         head.inferSetPType(env)
 
         while(vit.hasNext) {
           val value = vit.next()
           value.inferSetPType(env)
-
-          assert(head.pType == value.pType)
+          assert(head.pType == value.pType, "Values in Coalesce must all be of the same type")
         }
 
         head.pType

@@ -191,16 +191,17 @@ class IRSuite extends HailSuite {
     val expected = PArray(PStruct("foo" -> PInt32()))
 
     assertPType(node, expected)
-
   }
 
   @Test def testNA() {
     assertEvalsTo(NA(TInt32()), null)
   }
 
-  @Test def testIsNA() {
-    assertEvalsTo(IsNA(NA(TInt32())), true)
-    assertEvalsTo(IsNA(I32(5)), false)
+  @Test def testNAInferPType() {
+    assertPType(NA(TInt32()), PInt32())
+
+    assertPType(IsNA(NA(TInt32())), PBoolean())
+    assertPType(IsNA(I32(5)), PBoolean())
   }
 
   @Test def testCoalesce() {
@@ -211,6 +212,31 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
+  }
+
+  @Test def testCoalesceInferPType() {
+    var node = Coalesce(FastSeq(In(0, TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), In(0, TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(In(0, TInt32()), NA(TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1)))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt64())))
+    interceptAssertion("Values in Coalesce must all be of the same type")(InferPType(node, Env.empty))
   }
 
   val i32na = NA(TInt32())
