@@ -277,6 +277,7 @@ class Job:
         log.info(f'released semaphore from job {self.full_id}')
 
     async def _delete_k8s_resources(self):
+        log.info(f'deleting k8s resources for {self.full_id}')
         await self._delete_pvc()
         await self._delete_pod()
 
@@ -368,6 +369,7 @@ class Job:
         self._current_task = self._tasks[self._task_idx] if self._task_idx < len(self._tasks) else None
         self._state = new_state
 
+        log.info(f'deleting pod from finished job task for {self.full_id}')
         await self._delete_pod()
 
     async def _delete_logs(self):
@@ -552,9 +554,11 @@ class Job:
                 await self.set_state('Cancelled')
 
     async def cancel(self):
+
         self._cancelled = True
 
         if not self.always_run and self._state == 'Running':
+            log.info(f'cancelling job {self.full_id}')
             await self.set_state('Cancelled')  # must call before deleting resources to prevent race conditions
             await self._delete_k8s_resources()
 
@@ -565,6 +569,7 @@ class Job:
         return self._state == 'Success'
 
     async def mark_unscheduled(self):
+        log.info(f'mark unscheduled {self.full_id}')
         await self._delete_pod()
         if self._state == 'Running' and (not self._cancelled or self.always_run):
             # await self._create_pod()
@@ -1167,6 +1172,7 @@ async def update_job_with_pod(job, pod):
         return
 
     if pod and (not job or job.is_complete()):
+        log.info(f'deleting k8s resources because the job does not exist or is complete')
         await job._delete_k8s_resources()
         # _, err = await app['k8s'].delete_pod(name=pod.metadata.name)
         # if err is not None:
@@ -1175,6 +1181,7 @@ async def update_job_with_pod(job, pod):
         return
 
     if job and job._cancelled and not job.always_run and job._state == 'Running':
+        log.info(f'deleting k8s resources because the job needs to be cancelled')
         await job.set_state('Cancelled')
         await job._delete_k8s_resources()
         return
