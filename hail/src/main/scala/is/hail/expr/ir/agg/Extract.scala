@@ -39,9 +39,9 @@ object TableMapIRNew {
     val aggSlots = extracted.aggs ++ extracted.aggs
 
     // Order of operations:
-    // 1. init op on all aggs and write out.
-    // 2. load in init op on each partition, seq op over partition, write out.
-    // 3. load in partition aggregations, comb op as necessary, write back out.
+    // 1. init op on all aggs and serialize to byte array.
+    // 2. load in init op on each partition, seq op over partition, serialize.
+    // 3. load in partition aggregations, comb op as necessary, serialize.
     // 4. load in partStarts, calculate newRow based on those results.
 
     val (_, initF) = ir.CompileWithAggregators2[Long, Unit](
