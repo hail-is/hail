@@ -159,14 +159,14 @@ object Pretty {
           sb += ' '
           sb.append(i)
           sb += ' '
-          sb.append(prettyAggSignature2(aggSig, depth + 2))
+          prettyAggSignature2(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case SeqOp2(i, args, aggSig) =>
           sb += ' '
           sb.append(i)
           sb += ' '
-          sb.append(prettyAggSignature2(aggSig, depth + 2))
+          prettyAggSignature2(aggSig, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
         case CombOp2(i1, i2, aggSig) =>
@@ -175,7 +175,7 @@ object Pretty {
           sb += ' '
           sb.append(i2)
           sb += ' '
-          sb.append(prettyAggSignature2(aggSig, depth + 2))
+          prettyAggSignature2(aggSig, depth + 2)
         case ResultOp2(i, aggSigs) =>
           sb += ' '
           sb.append(i)
