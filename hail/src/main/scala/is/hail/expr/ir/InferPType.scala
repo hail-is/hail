@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TTuple, TVoid}
+import is.hail.expr.types.virtual.{TArray, TNDArray, TTuple, TVoid}
 import is.hail.utils._
 
 // Env contains all of the symbols values to reference
@@ -130,14 +130,10 @@ object InferPType {
         a.explicitNode.inferSetPType(env)
         a.explicitNode.pType2
       }
-      // TODO: this seems wrong:
-      // 1) it may have subtle bugs, .implementation calls ir.typ, which is not pre-filled
-      // 2) .subst sets requiredness on virtualTypes
-      // 3) pType inference isn't really used to any effect here
 //      case a: AbstractApplyNode[_] => {
 //        val argTypes = a.args.map( ir => {
 //          ir.inferSetPType(env)
-//          ir.pType2.virtualType
+//          ir.pType2
 //        })
 //        a.implementation.unify(argTypes)
 //        // TODO: This calls setRequired on the virtual types
@@ -315,7 +311,7 @@ object InferPType {
         r.inferSetPType(env)
         val lTyp = coerce[PNDArray](l.pType2)
         val rTyp = coerce[PNDArray](r.pType2)
-        PNDArray(lTyp.elementType, PNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
+        PNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), lTyp.required && rTyp.required)
       }
       case NDArrayWrite(_, _) => PVoid
       case MakeStruct(fields) => {

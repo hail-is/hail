@@ -41,7 +41,6 @@ object Compile {
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
     val e = Env.fromSeq[PType](args.map { case (name, pType, _) => name -> pType })
-    println(e)
     ir.inferSetPType(e)
 
     val env = args
