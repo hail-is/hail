@@ -56,8 +56,6 @@ sealed trait IR extends BaseIR {
       cp._typ = _typ
     if (_pType != null)
       cp._pType = _pType
-    if (_pType2 != null)
-      cp._pType2 = _pType2
     cp
   }
 

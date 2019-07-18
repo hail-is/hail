@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.{TArray, TTuple}
+import is.hail.expr.types.virtual.{TArray, TTuple, TVoid}
 import is.hail.utils._
 
 // Env contains all of the symbols values to reference
@@ -98,6 +98,8 @@ object InferPType {
         body.inferSetPType(env.bind(name, value.pType2))
         body.pType2
       }
+      // TODO: It feels like this PType could benefit from inspecting the values it applies the op to
+      // whenever the values are known at time of compilation (current only time of inference)
       case ApplyBinaryPrimOp(op, l, r) => {
           l.inferSetPType(env)
           r.inferSetPType(env)
@@ -132,28 +134,36 @@ object InferPType {
       // 1) it may have subtle bugs, .implementation calls ir.typ, which is not pre-filled
       // 2) .subst sets requiredness on virtualTypes
       // 3) pType inference isn't really used to any effect here
-      case a: AbstractApplyNode[_] => {
-        val argPTypes = a.args.map( ir => {
-          ir.inferSetPType(env)
-          ir.pType2.virtualType
-        })
-        a.implementation.unify(argPTypes)
-        // TODO: This calls setRequired on the virtual types
-        PType.canonical(a.implementation.returnType.subst())
-      }
+//      case a: AbstractApplyNode[_] => {
+//        val argTypes = a.args.map( ir => {
+//          ir.inferSetPType(env)
+//          ir.pType2.virtualType
+//        })
+//        a.implementation.unify(argTypes)
+//        // TODO: This calls setRequired on the virtual types
+//        PType.canonical(a.implementation.returnType.subst())
+//      }
       case _: Uniroot => PFloat64()
       // TODO: check that i.pType2 isOfType is correct (for ArrayRef, ArraySort)
       case ArrayRef(a, i) => {
         a.inferSetPType(env)
         i.inferSetPType(env)
+        println("GOT AN I")
+        println(i)
+        println(i.pType2)
         assert(i.pType2 isOfType PInt32() )
         coerce[PStreamable](a.pType2).elementType.setRequired(a.pType2.required && i.pType2.required)
       }
-      case ArraySort(a, _, _, compare) => {
+      case ArraySort(a, leftName, rightName, compare) => {
         a.inferSetPType(env)
-        compare.inferSetPType(env)
-        assert(compare.pType2.isOfType(PBoolean()))
         val et = coerce[PStreamable](a.pType2).elementType
+
+        compare.inferSetPType(env.bind(leftName -> et, rightName -> et))
+        assert(compare.pType2.isOfType(PBoolean()))
+
+        println("GOT A TYPE")
+        println(compare.pType2)
+
         PArray(et, a.pType2.required)
       }
       case ToSet(a) => {
@@ -183,8 +193,16 @@ object InferPType {
       }
       // TODO: Check the env.bindEval needs name, a
       case ArrayMap(a, name, body) => {
+        println("IN ARRAY MAP")
+        println(a)
+        println(name)
+        println(body)
+        println("DONE WITH BODY")
         // infer array side of tree fully
         a.inferSetPType(env)
+        println("past infer a")
+        println(a.pType2)
+        println("that is a.pType2")
         // push do the element side, applies to each element
         body.inferSetPType(env.bind(name, a.pType2))
         // TODO: why setRequired false?
@@ -357,6 +375,29 @@ object InferPType {
         PArray(body.pType2)
       }
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
+      case _ => PVoid
+//      case ApplySpecial(name, irs) => {
+//        println("Name of applyspecial")
+//        println(name)
+//        val it = irs.iterator
+//        val head = it.next()
+//        head.inferSetPType(env)
+//
+//        while(it.hasNext) {
+//          val value = it.next()
+//
+//          value.inferSetPType(env)
+//          println("value.pType2")
+//          println(value.pType2)
+//          println("head.pType2")
+//          println(head.pType2)
+//          assert(value.pType2 == head.pType2)
+//        }
+//
+//        head.pType2
+//      }
+//      case _: ArrayAggScan => PVoid
+//      case _: ArrayAgg => PVoid
     }
   }
 }

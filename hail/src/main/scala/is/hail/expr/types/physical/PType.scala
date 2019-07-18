@@ -199,9 +199,20 @@ abstract class PType extends BaseType with Serializable {
 
   def required: Boolean
 
+  final def unary_+(): PType = setRequired(true)
+
+  final def unary_-(): PType = setRequired(false)
+
   final def setRequired(required: Boolean): PType = {
-    if (required == this.required)
+    println("CHECKING")
+    println(this)
+    println("is required?")
+    println(this.required)
+    if (required == this.required) {
+      println("IS REQUIRED")
       this
+    }
+
     else
       this match {
         case PBinary(_) => PBinary(required)
