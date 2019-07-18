@@ -13,7 +13,7 @@ class EmptyContextManager:
 
 
 class NoSummary:
-    EMPTY_CONTEXT_MANAGER = EmptyContextManager
+    EMPTY_CONTEXT_MANAGER = EmptyContextManager()
 
     def time(self):
         return NoSummary.EMPTY_CONTEXT_MANAGER
