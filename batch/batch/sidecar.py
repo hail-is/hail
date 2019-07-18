@@ -1,17 +1,18 @@
+import asyncio
+import concurrent
+import json
+import logging
 import os
+import subprocess as sp
 import sys
 import time
-import json
-import asyncio
-import kubernetes as kube
-import concurrent
-import subprocess as sp
-import logging
 import traceback
 
+import kubernetes as kube
 from hailtop import gear
 
-from .batch_configuration import REFRESH_INTERVAL_IN_SECONDS, HAIL_POD_NAMESPACE, KUBERNETES_TIMEOUT_IN_SECONDS
+from .batch_configuration import REFRESH_INTERVAL_IN_SECONDS, HAIL_POD_NAMESPACE
+from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS
 from .blocking_to_async import blocking_to_async
 from .k8s import K8s
 from .log_store import LogStore
@@ -22,20 +23,10 @@ batch_instance = os.environ['INSTANCE_ID']
 copy_output_cmd = os.environ.get('COPY_OUTPUT_CMD')
 gs_directory = os.environ['OUTPUT_DIRECTORY']
 
-
 gear.configure_logging()
 log = logging.getLogger('batch-sidecar')
 
-
-# if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-#     kube.config.load_kube_config()
-# else:
 kube.config.load_incluster_config()
-# kube.config.incluster_config.InClusterConfigLoader(
-#     token_filename='/batch-output-pod-token/token',
-#     cert_filename='/batch-output-pod-token/ca.crt'
-# ).load_and_set()
-
 v1 = kube.client.CoreV1Api()
 
 
@@ -50,7 +41,9 @@ def upload_to_gcs(file_name, output):
     f.write(output)
     f.close()
 
-    authorize = 'set -ex; gcloud -q auth activate-service-account --key-file=/batch-gsa-key/privateKeyData'
+    authorize = ('set -ex; '
+                 'gcloud -q auth activate-service-account '
+                 '--key-file=/batch-gsa-key/privateKeyData')
     cmd = f'{authorize} && gsutil cp {file_name} {gs_directory}'
     rc = sp.call(cmd, shell=True)
     if rc != 0:
@@ -80,7 +73,9 @@ async def process_container(pod, container_name):
     if state_terminated.finished_at is not None and state_terminated.started_at is not None:
         duration = (state_terminated.finished_at - state_terminated.started_at).total_seconds()
     else:
-        log.warning(f'{container_name} container is terminated but has no timing information. {status}')
+        log.warning(
+            f'{container_name} container is terminated but has no timing '
+            f'information. {status}')
         duration = None
 
     result = {'exit_code': ec,
@@ -147,7 +142,9 @@ async def pod_changed(pod):
                 await process_pod(pod)
             elif (main_status.state.waiting
                   and main_status.state.waiting.reason == 'ImagePullBackOff'):
-                await process_pod(None, failed=True, failure_reason=main_status.state.waiting.reason)
+                await process_pod(None,
+                                  failed=True,
+                                  failure_reason=main_status.state.waiting.reason)
 
 
 async def kube_event_loop(pool):
