@@ -1172,8 +1172,9 @@ async def update_job_with_pod(job, pod):
         return
 
     if pod and (not job or job.is_complete()):
-        log.info(f'deleting k8s resources because the job does not exist or is complete')
-        await job._delete_k8s_resources()
+        if job:
+            log.info(f'deleting k8s resources because the job does not exist or is complete')
+            await job._delete_k8s_resources()
         # _, err = await app['k8s'].delete_pod(name=pod.metadata.name)
         # if err is not None:
         #     traceback.print_tb(err.__traceback__)
