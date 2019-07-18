@@ -9,7 +9,7 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -79,9 +79,14 @@ object IRSuite {
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
+  def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
+    assert(InferPType(node, env) == expected)
+  }
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
+
 
   @Test def testI64() {
     assertEvalsTo(I64(5), 5L)
@@ -105,6 +110,16 @@ class IRSuite extends HailSuite {
 
   @Test def testFalse() {
     assertEvalsTo(False(), false)
+  }
+
+  @Test def testScalarInferPType() {
+    assertPType(I32(5), PInt32())
+    assertPType(I64(5), PInt64())
+    assertPType(F32(3.1415f), PFloat32())
+    assertPType(F64(3.1415926589793238462643383), PFloat64())
+    assertPType(Str("HELLO WORLD"), PString())
+    assertPType(True(), PBoolean())
+    assertPType(False(), PBoolean())
   }
 
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
@@ -134,11 +149,49 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Cast(F64(3.14), TFloat64()), 3.14)
   }
 
+  @Test def testCastInferPType() {
+    assertPType(Cast(I32(5), TInt32()), PInt32())
+    assertPType(Cast(I32(5), TInt64()), PInt64())
+    assertPType(Cast(I32(5), TFloat32()), PFloat32())
+    assertPType(Cast(I32(5), TFloat64()), PFloat64())
+
+    assertPType(Cast(I64(5), TInt32()), PInt32())
+    assertPType(Cast(I64(0xf29fb5c9af12107dL), TInt32()), PInt32()) // truncate
+    assertPType(Cast(I64(5), TInt64()), PInt64())
+    assertPType(Cast(I64(5), TFloat32()), PFloat32())
+    assertPType(Cast(I64(5), TFloat64()), PFloat64())
+
+    assertPType(Cast(F32(3.14f), TInt32()), PInt32())
+    assertPType(Cast(F32(3.99f), TInt32()), PInt32()) // truncate
+    assertPType(Cast(F32(3.14f), TInt64()), PInt64())
+    assertPType(Cast(F32(3.14f), TFloat32()), PFloat32())
+    assertPType(Cast(F32(3.14f), TFloat64()), PFloat64())
+
+    assertPType(Cast(F64(3.14), TInt32()), PInt32())
+    assertPType(Cast(F64(3.99), TInt32()), PInt32()) // truncate
+    assertPType(Cast(F64(3.14), TInt64()), PInt64())
+    assertPType(Cast(F64(3.14), TFloat32()), PFloat32())
+    assertPType(Cast(F64(3.14), TFloat64()), PFloat64())
+  }
+
   @Test def testCastRename() {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32())), Row(1))
     assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
       TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32()))),
       FastIndexedSeq(Row(1)))
+  }
+
+  @Test def testCastRenameInferPType() {
+    var node = CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32()))
+    assertPType(node, PStruct("foo" -> PInt32()))
+
+    node = CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
+      TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32())))
+
+    val expected = PArray(PStruct("foo" -> PInt32()))
+
+    assertPType(node, expected)
+
   }
 
   @Test def testNA() {

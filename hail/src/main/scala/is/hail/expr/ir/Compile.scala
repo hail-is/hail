@@ -39,7 +39,7 @@ object Compile {
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
-    InferPType(ir, Env.fromSeq[PType](args.map { case (name, ptype, _) => name -> ptype }))
+    InferPType(ir, Env.fromSeq[PType](args.map { case (name, pType, _) => name -> pType }))
 
     val env = args
       .zipWithIndex
