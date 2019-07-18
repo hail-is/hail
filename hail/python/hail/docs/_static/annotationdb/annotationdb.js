@@ -9,14 +9,24 @@ $.ajax({
         success: function (data) {
              console.log(data);
              var tr = data.report
+             var dict = {};
              var mySet = new Set();
-                    for (var i = 0; i < data.length; i++) {
+             for (var i = 0; i < data.length; i++) {
+                 if(data[i].name in dict){
+                    dict[data[i].name].push(data[i].reference_genome);
+                 }else{
+                     dict[data[i].name] = [data[i].reference_genome]
+                 }  
+            }
+            for (var i = 0; i < data.length; i++) {
                     if(!mySet.has(data[i].name)){
                         mySet.add(data[i].name);
                         tr = $('<tr/>');
                         tr.append("<td><input type='checkbox' class='checkboxadd' value='"+data[i].name+"' onClick='updateTextArea()'/>&nbsp;</td>")
                         tr.append("<td>" + data[i].name + "</td>");
                         tr.append("<td>" + data[i].description + "\n<a href='"+ data[i].url + "'>" +data[i].url+ "</a></td>");
+                        tr.append("<td>" + (data[i].version == null ? "" : data[i].version) + 
+                                  "\n" + (dict[data[i].name][0] == null ? "" : "("+ dict[data[i].name]+ ")") + "</td>");
                         $('.table1').append(tr);
                      }
                 }
@@ -72,4 +82,4 @@ function updateTextArea() {
 
 $('input[type=checkbox]').change(function () {
     updateTextArea();
-});
+}); 
