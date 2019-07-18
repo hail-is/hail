@@ -263,6 +263,7 @@ class Job:
             log.info(f'ignoring: could not delete pvc {self._pvc_name} due to {err}')
 
     async def _delete_pod(self):
+        log.info(f'deleting pod {self._pod_name}')
         _, err = await app['k8s'].delete_pod(name=self._pod_name)
         if err is not None:
             if err.status == 404:
