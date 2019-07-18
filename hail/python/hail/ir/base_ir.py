@@ -44,7 +44,8 @@ class BaseIR(Renderable):
     def parse(self, code, ref_map, ir_map):
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def typ(self):
         return
 
@@ -70,6 +71,11 @@ class BaseIR(Renderable):
 
     def __hash__(self):
         return 31 + hash(str(self))
+
+    @staticmethod
+    @abc.abstractmethod
+    def new_block(i):
+        return False
 
 
 class IR(BaseIR):

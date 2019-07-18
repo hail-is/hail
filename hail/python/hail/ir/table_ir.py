@@ -131,6 +131,10 @@ class TableMapGlobals(TableIR):
                                self.child.typ.row_type,
                                self.child.typ.row_key)
 
+    @staticmethod
+    def new_block(i):
+        return i == 1
+
 
 class TableExplode(TableIR):
     def __init__(self, child, path):

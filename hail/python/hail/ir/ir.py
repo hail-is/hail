@@ -236,6 +236,10 @@ class If(IR):
         assert (self.cnsq.typ == self.altr.typ)
         self._type = self.cnsq.typ
 
+    @staticmethod
+    def new_block(i):
+        return i == 1 or i == 2
+
 
 class Coalesce(IR):
     @typecheck_method(values=IR)

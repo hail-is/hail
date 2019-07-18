@@ -1,6 +1,6 @@
 from hail import ir
 import abc
-from typing import Sequence, List
+from typing import Sequence, List, Set, Dict
 
 
 class Renderable(object):
@@ -134,3 +134,98 @@ class Renderer(object):
                     x = top.pop()
 
         return ''.join(builder)
+
+
+class CSERenderer(object):
+    def __init__(self, stop_at_jir=False):
+        self.stop_at_jir = stop_at_jir
+        self.jir_count = 0
+        self.jirs = {}
+        self.memo: Dict[int, Sequence[str]] = {}
+        self.uid_count = 0
+
+    def uid(self) -> str:
+        self.uid_count += 1
+        return f'__cse_{self.uid_count}'
+
+    def add_jir(self, x):
+        jir_id = f'm{self.jir_count}'
+        self.jir_count += 1
+        self.jirs[jir_id] = x._jir
+        if isinstance(x, ir.MatrixIR):
+            return f'(JavaMatrix {jir_id})'
+        elif isinstance(x, ir.TableIR):
+            return f'(JavaTable {jir_id})'
+        elif isinstance(x, ir.BlockMatrixIR):
+            return f'(JavaBlockMatrix {jir_id})'
+        else:
+            assert isinstance(x, ir.IR)
+            return f'(JavaIR {jir_id})'
+
+    def block_local(self, x: 'BaseIR') -> Sequence[str]:
+        visited: Set[int] = set()
+        lift: Dict[int, str] = {}
+
+        def find_lifts(x: 'BaseIR'):
+            visited.add(id(x))
+            for i in range(0, len(x.children)):
+                child = x.children[i]
+                if id(child) in visited:
+                    # for now, only add non-relational lets
+                    if id(child) not in lift and isinstance(child, ir.IR):
+                        # second time we've seen 'x', lift to a let
+                        lift[id(child)] = self.uid()
+                elif self.stop_at_jir and hasattr(child, '_jir'):
+                    self.memo[id(child)] = self.add_jir(child)
+                elif x.new_block(i):
+                    self.memo[id(child)] = self.block_local(child)
+                    visited.add(id(child))
+                else:
+                    find_lifts(child)
+
+        find_lifts(x)
+        visited = set()
+        # later lets may refer to earlier lets
+        lets = []
+
+        def add_lets(x: 'BaseIR', builder):
+            visited.add(id(x))
+            head = x.render_head(self)
+            if head != '':
+                builder.append(head)
+            for i in range(0, len(x.children)):
+                builder.append(' ')
+                child = x.children[i]
+                first_visit = id(child) not in visited
+                new_block = id(child) in self.new_blocks
+                if id(child) in lift:
+                    name = lift[id(child)]
+                    if first_visit:
+                        local_builder = []
+                        if new_block:
+                            local_builder = self.new_blocks[id(child)]
+                        else:
+                            add_lets(child, local_builder)
+                        lets.extend(f'(Let {name} ')
+                        lets.extend(local_builder)
+                        lets.extend(' ')
+                    builder.extend(f'(Ref {name})')
+                else:
+                    if new_block:
+                        builder.extend(self.new_blocks[id(child)])
+                    else:
+                        add_lets(child, builder)
+            builder.append(x.render_tail(self))
+
+        builder = []
+        add_lets(x, builder)
+
+        num_lets = len(lift)
+        lets.extend(builder)
+        for i in range(num_lets):
+            lets.extend(')')
+
+        return lets
+
+    def __call__(self, x: 'BaseIR') -> str:
+        return ''.join(self.block_local(x))

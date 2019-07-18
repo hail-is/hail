@@ -1,6 +1,7 @@
 import unittest
 import hail as hl
 import hail.ir as ir
+from hail.ir.renderer import CSERenderer
 from hail.expr import construct_expr
 from hail.utils.java import Env
 from hail.utils import new_temp_file
@@ -351,3 +352,40 @@ class ValueTests(unittest.TestCase):
                     None))
             new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
             self.assertEqual(new_globals, hl.Struct(foo=v))
+
+class CSETests(unittest.TestCase):
+    def test_cse(self):
+        x = ir.I32(5)
+        x = ir.ApplyBinaryPrimOp('+', x, x)
+        r = CSERenderer()
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (ApplyBinaryPrimOp `+`'
+                ' (Ref __cse_1)'
+                ' (Ref __cse_1)))')
+        self.assertEqual(r(x), expected)
+
+    def test_cse2(self):
+        x = ir.I32(5)
+        y = ir.I32(4)
+        sum = ir.ApplyBinaryPrimOp('+', x, x)
+        prod = ir.ApplyBinaryPrimOp('*', sum, y)
+        div = ir.ApplyBinaryPrimOp('/', prod, sum)
+        expected = (
+            '(Let __cse_1 (I32 5)'
+            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            ' (ApplyBinaryPrimOp `/`'
+                ' (ApplyBinaryPrimOp `*`'
+                    ' (Ref __cse_2)'
+                    ' (I32 4))'
+                ' (Ref __cse_2))))')
+        self.assertEqual(CSERenderer(div), expected)
+
+    def test_cse_ifs(self):
+        outer_repeated = ir.I32(5)
+        inner_repeated = ir.I32(1)
+        sum = ir.ApplyBinaryPrimOp('+', inner_repeated, inner_repeated)
+        prod = ir.ApplyBinaryPrimOp('*', sum, outer_repeated)
+        cond = ir.If(ir.TrueIR(), prod, outer_repeated)
+        print(CSERenderer()(cond))
+        self.assertTrue(False)
