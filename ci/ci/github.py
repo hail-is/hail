@@ -274,6 +274,8 @@ class PR(Code):
                 data=data)
         except gidgethub.HTTPException as e:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {e}')
+        except aiohttp.client_exceptions.ClientResponseError as e:
+            log.error(f'{self.short_str()}: Unexpected exception in post to github: {e}')
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
