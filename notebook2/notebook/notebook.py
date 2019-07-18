@@ -1,3 +1,19 @@
+from hailtop.gear.auth import JWTClient, get_domain
+from table import Table
+import jwt
+import kubernetes as kube
+import hashlib
+import uuid
+import requests
+import os
+import logging
+from functools import wraps
+from urllib.parse import urlencode
+from authlib.flask.client import OAuth
+import sass
+import flask
+from flask_sockets import Sockets
+from flask import Flask, session, redirect, render_template, request, g
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
@@ -5,31 +21,14 @@ A Jupyter notebook service with local-mode Hail pre-installed
 import secrets
 import gevent
 # must happen before anytyhing else
-from gevent import monkey; monkey.patch_all()
+from gevent import monkey
+monkey.patch_all()
 
-from flask import Flask, session, redirect, render_template, request, g
-from flask_sockets import Sockets
-import flask
-import sass
-from authlib.flask.client import OAuth
-from urllib.parse import urlencode
-from functools import wraps
-
-import logging
-import os
-import requests
-import uuid
-import hashlib
-import kubernetes as kube
-import jwt
-
-from table import Table
-from hailtop.gear.auth import JWTClient, get_domain
 
 fmt = logging.Formatter(
-   # NB: no space after levelname because WARNING is so long
-   '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-   '%(message)s')
+    # NB: no space after levelname because WARNING is so long
+    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+    '%(message)s')
 
 fh = logging.FileHandler('notebook2.log')
 fh.setLevel(logging.INFO)
@@ -56,13 +55,14 @@ os.makedirs(css_path, exist_ok=True)
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 
-def read_string(f, encoding = 'r'):
+def read_string(f, encoding='r'):
     with open(f, encoding) as f:
         return f.read().strip()
 
 
 # Must be int for Kubernetes V1 api timeout_seconds property
-KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
+KUBERNETES_TIMEOUT_IN_SECONDS = float(
+    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
 AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
@@ -77,10 +77,10 @@ POD_PORT = 8888
 
 USE_SECURE_COOKIE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
-    SECRET_KEY = SESSION_SECRET_KEY,
-    SESSION_COOKIE_SAMESITE = 'Lax',
-    SESSION_COOKIE_HTTPONLY = True,
-    SESSION_COOKIE_SECURE = USE_SECURE_COOKIE
+    SECRET_KEY=SESSION_SECRET_KEY,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=USE_SECURE_COOKIE
 )
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
@@ -88,12 +88,12 @@ AUTH0_BASE_URL = 'https://hail.auth0.com'
 
 auth0 = oauth.register(
     'auth0',
-    client_id = AUTH0_CLIENT_ID,
-    client_secret = read_string('/notebook-secrets/auth0-client-secret'),
-    api_base_url = AUTH0_BASE_URL,
-    access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
-    authorize_url = f'{AUTH0_BASE_URL}/authorize',
-    client_kwargs = {
+    client_id=AUTH0_CLIENT_ID,
+    client_secret=read_string('/notebook-secrets/auth0-client-secret'),
+    api_base_url=AUTH0_BASE_URL,
+    access_token_url=f'{AUTH0_BASE_URL}/oauth/token',
+    authorize_url=f'{AUTH0_BASE_URL}/authorize',
+    client_kwargs={
         'scope': 'openid email profile',
     },
 )
@@ -138,7 +138,7 @@ def attach_user():
     return attach_user
 
 
-def requires_auth(for_page = True):
+def requires_auth(for_page=True):
     def auth(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -167,6 +167,9 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
 
     pod_spec = kube.client.V1PodSpec(
         service_account_name=ksa_name,
+        security_context=kube.client.V1PodSecurityContext(
+            run_as_user=1000
+        ),
         containers=[
             kube.client.V1Container(
                 command=[
@@ -175,7 +178,7 @@ def start_pod(jupyter_token, image, name, user_id, user_data):
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{pod_id}/',
                     f'--GoogleStorageContentManager.default_path="{bucket}"',
-                    "--ip", "0.0.0.0", "--no-browser", "--allow-root"
+                    "--ip", "0.0.0.0", "--no-browser"
                 ],
                 name='default',
                 image=image,
@@ -248,7 +251,8 @@ def external_url_for(path):
 
 
 # Kube has max 63 character limit
-def user_id_transform(user_id): return hashlib.sha224(user_id.encode('utf-8')).hexdigest()
+def user_id_transform(user_id): return hashlib.sha224(
+    user_id.encode('utf-8')).hexdigest()
 
 
 def container_status_for_ui(container_statuses):
@@ -275,12 +279,12 @@ def container_status_for_ui(container_statuses):
 
     if state.terminated:
         return {"terminated": {
-                                "exit_code": state.terminated.exit_code,
-                                "finished_at": state.terminated.finished_at,
-                                "started_at": state.terminated.started_at,
-                                "reason": state.terminated.reason
-                              }
-                }
+            "exit_code": state.terminated.exit_code,
+            "finished_at": state.terminated.finished_at,
+            "started_at": state.terminated.started_at,
+            "reason": state.terminated.reason
+        }
+        }
 
 
 def pod_condition_for_ui(conds):
@@ -294,7 +298,8 @@ def pod_condition_for_ui(conds):
     if conds is None:
         return None
 
-    maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
+    maxCond = max(conds, key=lambda c: (
+        c.last_transition_time, c.status == 'True'))
 
     return {"status": maxCond.status, "type": maxCond.type}
 
@@ -331,7 +336,6 @@ def get_live_user_notebooks(user_id):
     return list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
 
-
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
@@ -346,7 +350,8 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = user_id_transform(g.user['auth0_id']))
+    notebooks = get_live_user_notebooks(
+        user_id=user_id_transform(g.user['auth0_id']))
 
     # https://github.com/hail-is/hail/issues/5487
     assert len(notebooks) <= 1
@@ -476,7 +481,7 @@ def worker_image():
 
 
 @sockets.route('/wait')
-@requires_auth(for_page = False)
+@requires_auth(for_page=False)
 def wait_websocket(ws):
     notebook = session['notebook']
 
@@ -500,13 +505,16 @@ def wait_websocket(ws):
             response = requests.head(url, timeout=1, cookies=request.cookies)
 
             if response.status_code == 502:
-                log.info(f'Pod not reachable for pod_uuid: {pod_uuid} : response: {response}')
+                log.info(
+                    f'Pod not reachable for pod_uuid: {pod_uuid} : response: {response}')
                 continue
 
             if response.status_code == 405:
-                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
+                log.info(
+                    f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
             else:
-                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
+                log.info(
+                    f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
 
             break
         except requests.exceptions.Timeout:
@@ -541,7 +549,8 @@ def auth0_callback():
         redir = redirect('/')
 
     response = flask.make_response(redir)
-    response.set_cookie('user', jwtclient.encode(g.user), domain=get_domain(request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
+    response.set_cookie('user', jwtclient.encode(g.user), domain=get_domain(
+        request.host), secure=USE_SECURE_COOKIE, httponly=True, samesite='Lax')
 
     return response
 
@@ -549,7 +558,7 @@ def auth0_callback():
 @app.route('/error', methods=['GET'])
 @attach_user()
 def error_page():
-    return render_template('error.html', error = request.args.get('err'))
+    return render_template('error.html', error=request.args.get('err'))
 
 
 @app.route('/user', methods=['GET'])
@@ -560,8 +569,8 @@ def user_page():
 
 @app.route('/login', methods=['GET'])
 def login_auth0():
-    return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
-                                    audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
+    return auth0.authorize_redirect(redirect_uri=external_url_for('auth0-callback'),
+                                    audience=f'{AUTH0_BASE_URL}/userinfo', prompt='login')
 
 
 @app.route('/logout', methods=['POST'])
@@ -579,5 +588,6 @@ def logout():
 if __name__ == '__main__':
     from gevent import pywsgi
     from geventwebsocket.handler import WebSocketHandler
-    server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
+    server = pywsgi.WSGIServer(
+        ('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
