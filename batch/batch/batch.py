@@ -181,9 +181,9 @@ class Job:
         """
 
         env = {'INSTANCE_ID': INSTANCE_ID,
-               'BATCH_ID': self.batch_id,
-               'JOB_ID': self.job_id,
-               'TOKEN': self.token,
+               'BATCH_ID': str(self.batch_id),
+               'JOB_ID': str(self.job_id),
+               'TOKEN': str(self.token),
                'BATCH_BUCKET_NAME': app['log_store'].batch_bucket_name,
                'COPY_OUTPUT_CMD': copy(self.output_files),
                'HAIL_POD_NAMESPACE': HAIL_POD_NAMESPACE,
