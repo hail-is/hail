@@ -113,7 +113,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testArrayElementsAgg() {
     val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
-    val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](), FastSeq[Type](TInt32()), Some(aggSigs))
+    val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](TVoid), FastSeq[Type](TInt32()), Some(aggSigs))
     val eltAggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq[Type](TInt32(), TVoid), Some(aggSigs))
 
 
