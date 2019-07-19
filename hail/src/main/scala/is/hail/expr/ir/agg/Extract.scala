@@ -164,7 +164,7 @@ object TableMapIRNew {
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature]) {
+case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature2]) {
   val typ: PTuple = PTuple(aggs.map(Extract.getPType))
   val nAggs: Int = aggs.length
 
@@ -192,39 +192,36 @@ object Extract {
     lets.foldRight[IR](ir) { case (al, comb) => Let(al.name, al.value, comb)}
   }
 
-  def compatible(sig1: AggSignature, sig2: AggSignature): Boolean = (sig1.op, sig2.op) match {
-    case (AggElements2(nestedAggs1), AggElements2(nestedAggs2)) =>
-      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
-    case (AggElementsLengthCheck2(nestedAggs1, _), AggElements2(nestedAggs2)) =>
-      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
-    case (AggElements2(nestedAggs1), AggElementsLengthCheck2(nestedAggs2, _)) =>
-      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
-    case (AggElementsLengthCheck2(nestedAggs1, _), AggElementsLengthCheck2(nestedAggs2, _)) =>
-      nestedAggs1.zip(nestedAggs2).forall { case (a1, a2) => compatible(a1, a2) }
+  def compatible(sig1: AggSignature2, sig2: AggSignature2): Boolean = (sig1.op, sig2.op) match {
+    case (AggElements(), AggElements()) |
+         (AggElementsLengthCheck(), AggElements()) |
+         (AggElements(), AggElementsLengthCheck()) |
+         (AggElementsLengthCheck(), AggElementsLengthCheck()) =>
+      sig1.nested.get.zip(sig2.nested.get).forall { case (a1, a2) => compatible(a1, a2) }
     case _ => sig1 == sig2
   }
 
-  def getAgg(aggSig: AggSignature): StagedRegionValueAggregator = aggSig match {
-    case AggSignature(Sum(), _, _, Seq(t)) =>
+  def getAgg(aggSig: AggSignature2): StagedRegionValueAggregator = aggSig match {
+    case AggSignature2(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
-    case AggSignature(Count(), _, _, _) =>
+    case AggSignature2(Count(), _, _, _) =>
       CountAggregator
-    case AggSignature(AggElementsLengthCheck2(nestedAggs, knownLength), _, _, _) =>
+    case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
+      val knownLength = nestedAggs.flatMap(_.initOpArgs).length == initOpArgs.length - 1
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
-    case AggSignature(AggElements2(nestedAggs), _, _, _) =>
+    case AggSignature2(AggElements(), _, _, Some(nestedAggs)) =>
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
-    case AggSignature(PrevNonnull(), _, _, Seq(t)) =>
+    case AggSignature2(PrevNonnull(), _, Seq(t), _) =>
       new PrevNonNullAggregator(t.physicalType)
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
-  def getPType(aggSig: AggSignature): PType = getAgg(aggSig).resultType
+  def getPType(aggSig: AggSignature2): PType = getAgg(aggSig).resultType
 
-  def getType(aggSig: AggSignature): Type = getPType(aggSig).virtualType
-
+  def getType(aggSig: AggSignature2): Type = getPType(aggSig).virtualType
 
   def apply(ir: IR, resultName: String): Aggs = {
-    val ab = new ArrayBuilder[(AggSignature, IndexedSeq[IR])]()
+    val ab = new ArrayBuilder[(AggSignature2, IndexedSeq[IR])]()
     val seq = new ArrayBuilder[IR]()
     val let = new ArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
@@ -237,7 +234,7 @@ object Extract {
     Aggs(postAgg, Begin(initOps), Begin(seq.result()), aggs)
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[(AggSignature, IndexedSeq[IR])], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
+  private def extract(ir: IR, ab: ArrayBuilder[(AggSignature2, IndexedSeq[IR])], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result)
 
     ir match {
@@ -249,8 +246,13 @@ object Extract {
         extract(body)
       case x: ApplyAggOp =>
         val i = ab.length
-        ab += x.aggSig -> (x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()))
-        seqBuilder += SeqOp2(i, x.seqOpArgs, x.aggSig)
+        val newSig = AggSignature2(
+          x.aggSig.op,
+          x.aggSig.constructorArgs ++ x.aggSig.initOpArgs.getOrElse(FastSeq.empty),
+          x.aggSig.seqOpArgs,
+          None)
+        ab += newSig -> (x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()))
+        seqBuilder += SeqOp2(i, x.seqOpArgs, newSig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
         val newSeq = new ArrayBuilder[IR]()
@@ -274,7 +276,7 @@ object Extract {
         throw new UnsupportedExtraction("group by")
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
-        val newAggs = new ArrayBuilder[(AggSignature, IndexedSeq[IR])]()
+        val newAggs = new ArrayBuilder[(AggSignature2, IndexedSeq[IR])]()
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
@@ -289,9 +291,8 @@ object Extract {
         newRef._typ = -rt.elementType
         val initArgs = knownLength.map(FastIndexedSeq(_)).getOrElse[IndexedSeq[IR]](FastIndexedSeq()) ++ inits.flatten.toFastIndexedSeq
 
-        val aggSigCheck = AggSignature(AggElementsLengthCheck2(aggs, knownLength.isDefined), FastSeq[Type](),
-          Some(initArgs.map(_.typ)), FastSeq(TInt32()))
-        val aggSig = AggSignature(AggElements2(aggs), FastSeq[Type](), None, FastSeq(TInt32(), TVoid))
+        val aggSigCheck = AggSignature2(AggElementsLengthCheck(), initArgs.map(_.typ), FastSeq(TInt32()), Some(aggs))
+        val aggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq(TInt32(), TVoid), Some(aggs))
 
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32())

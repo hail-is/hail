@@ -20,20 +20,20 @@ class Aggregators2Suite extends HailSuite {
   val arrayType = PArray(rowType)
   val streamType = PArray(arrayType)
 
-  val pnnAggSig = AggSignature(PrevNonnull(), FastSeq[Type](), None, FastSeq[Type](rowType.virtualType))
+  val pnnAggSig = AggSignature2(PrevNonnull(), FastSeq[Type](), FastSeq[Type](rowType.virtualType), None)
   val pnnAgg = agg.Extract.getAgg(pnnAggSig)
-  val countAggSig = AggSignature(Count(), FastSeq[Type](), None, FastSeq[Type]())
+  val countAggSig = AggSignature2(Count(), FastSeq[Type](), FastSeq[Type](), None)
   val countAgg = agg.Extract.getAgg(countAggSig)
-  val sumAggSig = AggSignature(Sum(), FastSeq[Type](), None, FastSeq[Type](TInt64()))
+  val sumAggSig = AggSignature2(Sum(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
   val sumAgg = agg.Extract.getAgg(sumAggSig)
 
   val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
   val aggs: Array[StagedRegionValueAggregator] = Array(pnnAgg, countAgg, sumAgg)
 
 
-  val lcAggSig = AggSignature(AggElementsLengthCheck2(aggSigs, false), FastSeq[Type](), Some(FastSeq[Type]()), FastSeq[Type](TInt32()))
+  val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](), FastSeq[Type](TInt32()), Some(aggSigs))
   val lcAgg: ArrayElementLengthCheckAggregator = agg.Extract.getAgg(lcAggSig).asInstanceOf[ArrayElementLengthCheckAggregator]
-  val eltAggSig = AggSignature(AggElements2(aggSigs), FastSeq[Type](), None, FastSeq[Type](TInt32(), TVoid))
+  val eltAggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq[Type](TInt32(), TVoid), Some(aggSigs))
   val eltAgg: ArrayElementwiseOpAggregator = agg.Extract.getAgg(eltAggSig).asInstanceOf[ArrayElementwiseOpAggregator]
 
   val resType = PTuple(FastSeq(lcAgg.resultType))
