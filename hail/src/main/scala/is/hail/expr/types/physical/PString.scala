@@ -45,11 +45,14 @@ object PString {
     new String(region.loadBytes(PBinary.bytesOffset(boff), length))
   }
 
-  def loadString(region: Code[Region], boff: Code[Long]): Code[String] = {
-    val length = PBinary.loadLength(region, boff)
+  def loadString(boff: Code[Long]): Code[String] = {
+    val length = PBinary.loadLength(boff)
     Code.newInstance[String, Array[Byte]](
-      region.loadBytes(PBinary.bytesOffset(boff), length))
+      Region.loadBytes(PBinary.bytesOffset(boff), length))
   }
+
+  def loadString(region: Code[Region], boff: Code[Long]): Code[String] =
+    loadString(boff)
 
   def loadLength(region: Region, boff: Long): Int =
     PBinary.loadLength(region, boff)

@@ -48,7 +48,7 @@ class PBinary(override val required: Boolean) extends PType {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] = {
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
         val l1 = mb.newLocal[Int]
         val l2 = mb.newLocal[Int]
         val lim = mb.newLocal[Int]
@@ -56,15 +56,15 @@ class PBinary(override val required: Boolean) extends PType {
         val cmp = mb.newLocal[Int]
 
         Code(
-          l1 := PBinary.loadLength(rx, x),
-          l2 := PBinary.loadLength(ry, y),
+          l1 := PBinary.loadLength(x),
+          l2 := PBinary.loadLength(y),
           lim := (l1 < l2).mux(l1, l2),
           i := 0,
           cmp := 0,
           Code.whileLoop(cmp.ceq(0) && i < lim,
             cmp := Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare",
-              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", rx.loadByte(PBinary.bytesOffset(x) + i.toL)),
-              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", ry.loadByte(PBinary.bytesOffset(y) + i.toL))),
+              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(PBinary.bytesOffset(x) + i.toL)),
+              Code.invokeStatic[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(PBinary.bytesOffset(y) + i.toL))),
             i += 1),
           cmp.ceq(0).mux(Code.invokeStatic[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
       }
@@ -88,8 +88,10 @@ object PBinary {
   def loadLength(region: Region, boff: Long): Int =
     region.loadInt(boff)
 
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] =
-    region.loadInt(boff)
+  def loadLength(boff: Code[Long]): Code[Int] =
+    Region.loadInt(boff)
+
+  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] = loadLength(boff)
 
   def bytesOffset(boff: Long): Long = boff + 4
 
