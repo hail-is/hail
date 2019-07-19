@@ -1004,7 +1004,20 @@ class tstruct(HailType, Mapping):
         return t
 
     def _rename(self, map):
-        return tstruct(**{map.get(f, f): t for f, t in self.items()})
+        seen = {}
+        new_field_types = {}
+
+        for f0, t in self.items():
+            f = map.get(f0, f0)
+            if f in seen:
+                raise ValueError(
+                    "Cannot rename two fields to the same name: attempted to rename {} and {} both to {}".format(
+                        repr(seen[f]), repr(f0), repr(f)))
+            else:
+                seen[f] = f0
+                new_field_types[f] = t
+
+        return tstruct(**new_field_types)
 
     def unify(self, t):
         if not (isinstance(t, tstruct) and len(self) == len(t)):

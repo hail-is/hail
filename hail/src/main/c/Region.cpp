@@ -171,121 +171,109 @@ REGIONMETHOD(void, Region, nativeCtor)(
 }
 
 REGIONMETHOD(void, Region, clearButKeepMem)(
-  JNIEnv* env,
-  jobject thisJ
+  JNIEnv*,
+  jobject,
+  jlong addr
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   r->region_ = r->region_->get_region(r->region_->get_block_size());
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
   jlong a
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   r->region_->align(a);
 }
 
 REGIONMETHOD(jlong, Region, nativeAlignAllocate)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
   jlong a,
   jlong n
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   return reinterpret_cast<jlong>(r->region_->allocate((size_t)a, (size_t)n));
 }
 
 REGIONMETHOD(jlong, Region, nativeAllocate)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
   jlong n
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   return reinterpret_cast<jlong>(r->region_->allocate((size_t)n));
 }
 
 REGIONMETHOD(void, Region, nativeReference)(
-  JNIEnv* env,
-  jobject thisJ,
-  jobject otherJ
+  JNIEnv*,
+  jobject,
+  jlong thisAddr,
+  jlong otherAddr
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  auto r = reinterpret_cast<ScalaRegion*>(thisAddr);
+  auto r2 = reinterpret_cast<ScalaRegion*>(otherAddr);
   r->region_->add_reference_to(r2->region_);
 }
 
-REGIONMETHOD(void, Region, nativeRefreshRegion)(
-  JNIEnv* env,
-  jobject thisJ
-) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  r->region_ = r->region_->get_region();
-}
-
-REGIONMETHOD(void, Region, nativeCloseRegion)(
-  JNIEnv* env,
-  jobject thisJ
-) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  r->region_ = nullptr;
-}
-
-REGIONMETHOD(jboolean, Region, nativeIsValidRegion)(
-  JNIEnv* env,
-  jobject thisJ
-) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  return (jboolean) (r->region_ == nullptr) ? 0 : 1;
-}
-
 REGIONMETHOD(void, Region, nativeGetNewRegion)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
+  jlong addrPool,
   jint blockSizeJ
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  r->region_ = r->region_->get_region((size_t) blockSizeJ);
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
+  auto pool = reinterpret_cast<ScalaRegionPool*>(addrPool);
+  r->region_ = pool->pool_.get_region((size_t) blockSizeJ);
 }
 
 REGIONMETHOD(jint, Region, nativeGetNumParents)(
-  JNIEnv* env,
-  jobject thisJ
+  JNIEnv*,
+  jobject,
+  jlong addr
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   return (jint) r->region_->get_num_parents();
 }
 
 REGIONMETHOD(void, Region, nativeSetNumParents)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
   jint i
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   r->region_->set_num_parents((int) i);
 }
 
 REGIONMETHOD(void, Region, nativeSetParentReference)(
-  JNIEnv* env,
-  jobject thisJ,
-  jobject otherJ,
+  JNIEnv*,
+  jobject,
+  jlong addr1,
+  jlong addr2,
   jint i
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr1);
+  auto r2 = reinterpret_cast<ScalaRegion*>(addr2);
   r->region_->set_parent_reference(r2->region_, (int) i);
 }
 
 REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
-  JNIEnv* env,
-  jobject thisJ,
-  jobject otherJ,
+  JNIEnv*,
+  jobject,
+  jlong addr1,
+  jlong addr2,
   jint i,
   jint blockSizeJ
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
-  auto r2 = static_cast<ScalaRegion*>(get_from_NativePtr(env, otherJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr1);
+  auto r2 = reinterpret_cast<ScalaRegion*>(addr2);
   auto block_size = (size_t) blockSizeJ;
   r2->region_ = r->region_->get_parent_reference((int) i);
   if (r2->region_.get() == nullptr) {
@@ -298,11 +286,12 @@ REGIONMETHOD(void, Region, nativeGetParentReferenceInto)(
 }
 
 REGIONMETHOD(void, Region, nativeClearParentReference)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
+  jlong addr,
   jint i
 ) {
-  auto r = static_cast<ScalaRegion*>(get_from_NativePtr(env, thisJ));
+  auto r = reinterpret_cast<ScalaRegion*>(addr);
   r->region_->clear_parent_reference((int) i);
 }
 

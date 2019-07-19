@@ -89,6 +89,8 @@ def start_pod(jupyter_token, image):
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
     )
     pod_spec = kube.client.V1PodSpec(
+        security_context=kube.client.V1SecurityContext(
+            run_as_user=1000),
         containers=[
             kube.client.V1Container(
                 command=[
@@ -143,7 +145,7 @@ def root():
         return render_template('index.html',
                                form_action_url=external_url_for('new'),
                                images=list(WORKER_IMAGES),
-                               default='ibg2019')
+                               default='hands-on-with-hail')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
@@ -242,7 +244,6 @@ def delete_worker_pod(pod_name, svc_name):
         k8s.delete_namespaced_pod(
             pod_name,
             'default',
-            kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
         log.info(f'pod {pod_name} or associated service already deleted {e}')
@@ -250,7 +251,6 @@ def delete_worker_pod(pod_name, svc_name):
         k8s.delete_namespaced_service(
             svc_name,
             'default',
-            kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
         log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
@@ -310,4 +310,3 @@ if __name__ == '__main__':
     from geventwebsocket.handler import WebSocketHandler
     server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-

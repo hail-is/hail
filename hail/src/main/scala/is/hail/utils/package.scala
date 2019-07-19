@@ -761,6 +761,37 @@ package object utils extends Logging
     }
     compressedLength
   }
+
+  def unwrappedApply[T](f: T => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1) = s
+    f(arg1)
+  }
+
+  def unwrappedApply[T](f: (T, T) => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1, arg2) = s
+    f(arg1, arg2)
+  }
+
+  def unwrappedApply[T](f: (T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1, arg2, arg3) = s
+    f(arg1, arg2, arg3)
+  }
+
+  def unwrappedApply[T](f: (T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1, arg2, arg3, arg4) = s
+    f(arg1, arg2, arg3, arg4)
+  }
+
+  def unwrappedApply[T](f: (T, T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1, arg2, arg3, arg4, arg5) = s
+    f(arg1, arg2, arg3, arg4, arg5)
+  }
+
+  def unwrappedApply[T](f: (T, T, T, T, T, T) => T): Seq[T] => T = if (f == null) null else { s =>
+    val Seq(arg1, arg2, arg3, arg4, arg5, arg6) = s
+    f(arg1, arg2, arg3, arg4, arg5, arg6)
+  }
+
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

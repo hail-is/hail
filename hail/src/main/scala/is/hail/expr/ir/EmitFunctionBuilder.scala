@@ -233,14 +233,14 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggSignature] = _
+  private[this] var _aggSigs: Array[AggSignature2] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.StateContainer = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature]): (agg.StateContainer, Code[Long]) = {
+  def addAggStates(aggSigs: Array[AggSignature2]): (agg.StateContainer, Code[Long]) = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState -> _aggOff
@@ -269,17 +269,19 @@ class EmitFunctionBuilder[F >: Null](
     newF.emit(
       Code(_aggRegion := newF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
         _aggOff := _aggRegion.load().allocate(_aggState.typ.alignment, _aggState.typ.byteSize),
-        _aggState.loadRegions(0)))
+        _aggState.newStates))
 
     setF.emit(
-      Code(_aggRegion := setF.getArg[Region](1),
+      Code(
+        _aggRegion := setF.getArg[Region](1),
         _aggState.topRegion.setNumParents(aggSigs.length),
+        _aggState.toCode((i, s) => s.createState),
         _aggOff := setF.getArg[Long](2),
-        _aggState.loadRegions(0),
-        _aggState.loadStateOffsets(_aggOff)))
+        _aggState.load(0, _aggOff)))
 
-    getF.emit(Code(_aggState.storeRegions(0), _aggState.storeStateOffsets(_aggOff), _aggOff))
+    getF.emit(Code(_aggState.store(0, _aggOff), _aggOff))
 
     setNSer.emit(_aggSerialized := Code.newArray[Array[Byte]](setNSer.getArg[Int](1)))
 

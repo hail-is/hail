@@ -35,7 +35,7 @@ object IRSuite {
 
   object TestFunctions extends RegistryFunctions {
 
-    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitRegion, Long, Array[(PType, EmitTriplet)]) => EmitTriplet) {
+    def registerSeededWithMissingness(mname: String, aTypes: Array[Type], rType: Type, pt: Seq[PType] => PType)(impl: (EmitRegion, PType, Long, Array[(PType, EmitTriplet)]) => EmitTriplet) {
       IRFunctionRegistry.addIRFunction(new SeededIRFunction {
         val isDeterministic: Boolean = false
 
@@ -45,28 +45,30 @@ object IRSuite {
 
         override val returnType: Type = rType
 
+        override def returnPType(argTypes: Seq[PType]): PType = if (pt == null) PType.canonical(returnType) else pt(argTypes)
+
         def applySeeded(seed: Long, r: EmitRegion, args: (PType, EmitTriplet)*): EmitTriplet =
-          impl(r, seed, args.toArray)
+          impl(r, returnPType(args.map(_._1)), seed, args.toArray)
       })
     }
 
-    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type)(impl: (EmitRegion, Long, (PType, EmitTriplet)) => EmitTriplet): Unit =
-      registerSeededWithMissingness(mname, Array(mt1), rType) { case (r, seed, Array(a1)) => impl(r, seed, a1) }
+    def registerSeededWithMissingness(mname: String, mt1: Type, rType: Type, pt: PType => PType)(impl: (EmitRegion, PType, Long, (PType, EmitTriplet)) => EmitTriplet): Unit =
+      registerSeededWithMissingness(mname, Array(mt1), rType, unwrappedApply(pt)) { case (r, rt, seed, Array(a1)) => impl(r, rt, seed, a1) }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
+      registerSeededWithMissingness("incr_s", TBoolean(), TBoolean(), null) { case (mb, rt,  _, (lT, l)) =>
         EmitTriplet(Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.setup),
           l.m,
           l.v)
       }
 
-      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
+      registerSeededWithMissingness("incr_m", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.m),
           l.v)
       }
 
-      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean()) { case (mb, _, (lT, l)) =>
+      registerSeededWithMissingness("incr_v", TBoolean(), TBoolean(), null) { case (mb, rt, _, (lT, l)) =>
         EmitTriplet(l.setup,
           l.m,
           Code(Code.invokeScalaObject[Unit](outer.getClass, "incr"), l.v))
@@ -1516,6 +1518,9 @@ class IRSuite extends HailSuite {
 
     val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
+    val callStatsSig2 = AggSignature2(CallStats(), Seq(TInt32()), Seq(TCall()), None)
+    val collectSig2 = AggSignature2(CallStats(), Seq(), Seq(TInt32()), None)
+
     val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
@@ -1596,14 +1601,14 @@ class IRSuite extends HailSuite {
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
-      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig),
-      SeqOp2(0, FastIndexedSeq(i), collectSig),
-      CombOp2(0, 1, collectSig),
-      ResultOp2(0, FastSeq(collectSig)),
-      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
-      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig)),
-      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
-      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig)),
+      InitOp2(0, FastIndexedSeq(I32(2)), callStatsSig2),
+      SeqOp2(0, FastIndexedSeq(i), collectSig2),
+      CombOp2(0, 1, collectSig2),
+      ResultOp2(0, FastSeq(collectSig2)),
+      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
+      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
+      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
+      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),

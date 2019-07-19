@@ -14,6 +14,12 @@ case class AggSignature(
   initOpArgs: Option[Seq[Type]],
   seqOpArgs: Seq[Type])
 
+case class AggSignature2(
+  op: AggOp,
+  initOpArgs: Seq[Type],
+  seqOpArgs: Seq[Type],
+  nested: Option[Seq[AggSignature2]])
+
 sealed trait AggOp { }
 final case class ApproxCDF() extends AggOp
 final case class CallStats() extends AggOp
@@ -39,8 +45,6 @@ final case class TakeBy() extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
 final case class AggElementsLengthCheck() extends AggOp
-final case class AggElements2(aggSig: IndexedSeq[AggSignature]) extends AggOp
-final case class AggElementsLengthCheck2(aggSig: IndexedSeq[AggSignature], knownLength: Boolean) extends AggOp
 final case class PrevNonnull() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
