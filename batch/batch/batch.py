@@ -370,7 +370,7 @@ class Job:
             pod_status, err = await app['k8s'].read_pod_status(self._pod_name, pretty=True)
             if err is not None:
                 traceback.print_tb(err.__traceback__)
-               log.info(f'ignoring: could not get pod status for {self.id} '
+                log.info(f'ignoring: could not get pod status for {self.id} '
                          f'due to {err}')
             return pod_status
         else:
