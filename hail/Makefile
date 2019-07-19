@@ -133,7 +133,7 @@ cluster_test_files := $(wildcard python/cluster-tests/*.py)
 test-dataproc: install-hailctl
 	hailctl dataproc start $(cluster_name) --max-idle 10m --vep GRCh37
 	for FILE in $(cluster_test_files); do \
-	  hailctl dataproc submit $(cluster_name) python/cluster-tests/$$FILE || exit 1; done || exit
+	  hailctl dataproc submit $(cluster_name) $$FILE || exit 1; done || exit
 
 .PHONY: init-scripts
 init-scripts: python/hailtop/hailctl/deploy.yaml
