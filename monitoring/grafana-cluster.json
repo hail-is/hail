@@ -25,8 +25,8 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 5,
-        "w": 7,
+        "h": 6,
+        "w": 5,
         "x": 0,
         "y": 0
       },
@@ -124,9 +124,9 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 5,
-        "w": 7,
-        "x": 7,
+        "h": 6,
+        "w": 5,
+        "x": 5,
         "y": 0
       },
       "id": 6,
@@ -216,9 +216,9 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 5,
-        "w": 7,
-        "x": 14,
+        "h": 6,
+        "w": 5,
+        "x": 10,
         "y": 0
       },
       "id": 2,
@@ -300,10 +300,95 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 7,
+        "h": 6,
+        "w": 5,
+        "x": 15,
+        "y": 0
+      },
+      "id": 38,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum(kube_namespace_labels{namespace=~\"^pr-.*\"})",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "PR Namespaces",
+          "refId": "A"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "PR Namespaces",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 6,
         "w": 5,
         "x": 0,
-        "y": 5
+        "y": 6
       },
       "id": 12,
       "legend": {
@@ -384,10 +469,10 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 7,
+        "h": 6,
         "w": 5,
         "x": 5,
-        "y": 5
+        "y": 6
       },
       "id": 20,
       "legend": {
@@ -476,10 +561,10 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 7,
+        "h": 6,
         "w": 5,
         "x": 10,
-        "y": 5
+        "y": 6
       },
       "id": 16,
       "legend": {
@@ -560,10 +645,10 @@
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 7,
+        "h": 6,
         "w": 5,
         "x": 15,
-        "y": 5
+        "y": 6
       },
       "id": 36,
       "legend": {
@@ -1133,17 +1218,118 @@
     },
     {
       "aliasColors": {},
-      "bars": false,
+      "bars": true,
       "dashLength": 10,
       "dashes": false,
       "fill": 1,
       "gridPos": {
-        "h": 8,
+        "h": 5,
         "w": 7,
         "x": 0,
         "y": 24
       },
       "id": 34,
+      "interval": "5m",
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": false,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": true,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "sum(increase(batch_read_pod_log_failures_total{kubernetes_namespace=\"default\"}[5m]))",
+          "format": "time_series",
+          "instant": false,
+          "intervalFactor": 1,
+          "legendFormat": "read log failure",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(increase(batch_pvc_creation_failures_total{kubernetes_namespace=\"default\"}[5m]))",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "pvc create failure",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(increase(batch_pod_evictions_total{kubernetes_namespace=\"default\"}[5m]))",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "evictions",
+          "refId": "C"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Batch Health Signs",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 5,
+        "w": 7,
+        "x": 7,
+        "y": 24
+      },
+      "id": 40,
       "legend": {
         "avg": false,
         "current": false,
@@ -1168,17 +1354,117 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "sum(increase(batch_read_pod_log_failures_total{kubernetes_namespace=\"default\"}[5m]))",
+          "expr": "rate(batch_create_pod_seconds_sum{kubernetes_namespace=\"default\"}[5m]) / rate(batch_create_pod_seconds_count{kubernetes_namespace=\"default\"}[5m]) * 1000",
           "format": "time_series",
           "intervalFactor": 1,
+          "legendFormat": "create_pod (ms)",
           "refId": "A"
+        },
+        {
+          "expr": "rate(batch_create_pvc_seconds_sum{kubernetes_namespace=\"default\"}[5m]) / rate(batch_create_pvc_seconds_count{kubernetes_namespace=\"default\"}[5m]) * 1000",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "create_pvc (ms)",
+          "refId": "B"
         }
       ],
       "thresholds": [],
       "timeFrom": null,
       "timeRegions": [],
       "timeShift": null,
-      "title": "Count of Read Pod Log Failures",
+      "title": "Batch k8s Latency",
+      "tooltip": {
+        "shared": true,
+        "sort": 0,
+        "value_type": "individual"
+      },
+      "type": "graph",
+      "xaxis": {
+        "buckets": null,
+        "mode": "time",
+        "name": null,
+        "show": true,
+        "values": []
+      },
+      "yaxes": [
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        },
+        {
+          "format": "short",
+          "label": null,
+          "logBase": 1,
+          "max": null,
+          "min": null,
+          "show": true
+        }
+      ],
+      "yaxis": {
+        "align": false,
+        "alignLevel": null
+      }
+    },
+    {
+      "aliasColors": {},
+      "bars": false,
+      "dashLength": 10,
+      "dashes": false,
+      "fill": 1,
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 14,
+        "y": 24
+      },
+      "id": 42,
+      "legend": {
+        "avg": false,
+        "current": false,
+        "max": false,
+        "min": false,
+        "show": true,
+        "total": false,
+        "values": false
+      },
+      "lines": true,
+      "linewidth": 1,
+      "links": [],
+      "nullPointMode": "null",
+      "options": {},
+      "percentage": false,
+      "pointradius": 2,
+      "points": false,
+      "renderer": "flot",
+      "seriesOverrides": [],
+      "spaceLength": 10,
+      "stack": false,
+      "steppedLine": false,
+      "targets": [
+        {
+          "expr": "increase(batch_create_pvc_seconds_count{kubernetes_namespace=\"default\"}[5m])",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "create_pvc",
+          "refId": "A"
+        },
+        {
+          "expr": "increase(batch_create_pod_seconds_count{kubernetes_namespace=\"default\"}[5m])",
+          "format": "time_series",
+          "intervalFactor": 1,
+          "legendFormat": "create_pod",
+          "refId": "B"
+        }
+      ],
+      "thresholds": [],
+      "timeFrom": null,
+      "timeRegions": [],
+      "timeShift": null,
+      "title": "Batch k8s API Call Counts",
       "tooltip": {
         "shared": true,
         "sort": 0,
@@ -1255,5 +1541,5 @@
   "timezone": "",
   "title": "Cluster",
   "uid": "fTL6coMWz",
-  "version": 55
+  "version": 56
 }
