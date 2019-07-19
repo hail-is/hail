@@ -247,6 +247,7 @@ test {
     systemProperties System.getProperties()
 
     testLogging {
+        exceptionFormat = 'full'
         events "passed", "skipped", "failed"
     }
 

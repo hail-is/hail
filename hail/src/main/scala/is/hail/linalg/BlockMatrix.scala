@@ -1236,7 +1236,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filterCols(keep: Array[Long]): BlockMatrix = {
-    new BlockMatrix(new BlockMatrixFilterColsRDD(densify(), keep), blockSize, nRows, keep.length)
+    new BlockMatrix(new BlockMatrixFilterColsRDD(this, keep), blockSize, nRows, keep.length)
   }
 
   def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix = {
@@ -1426,7 +1426,8 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val gp = bm.gp
   private val blockSize = gp.blockSize
-  private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length)
+  //private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length)
+  private val newGP = gp.filterCols(keep)
 
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
     BlockMatrixFilterRDD.computeAllBlockColRanges(keep, gp, newGP)
@@ -1450,7 +1451,6 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     val (blockRow, newBlockCol) = newGP.blockCoordinates(split.index)
     val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
     val newBlock = BDM.zeros[Double](blockNRows, newBlockNCols)
-
     var j = 0
     var k = 0
     split.asInstanceOf[BlockMatrixFilterColsRDDPartition]

@@ -159,6 +159,18 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     } yield (j * nBlockRows) + i).toArray
   }
 
+  def filterCols(keep: Array[Long]): GridPartitioner = {
+    val blockSize = this.blockSize
+    val nCols = keep.length
+    val nRows = this.nRows
+
+
+    //Hard part: What should go in maybeBlocks?
+    val maybeBlocks = None
+
+    return GridPartitioner(blockSize, nRows, nCols, maybeBlocks)
+  }
+
   // returns increasing array of all blocks intersecting the rectangle
   // [r(0), r(1)) x [r(2), r(3)), i.e. [startRow, stopRow) x [startCol, stopCol)
   // rectangle checked in Python

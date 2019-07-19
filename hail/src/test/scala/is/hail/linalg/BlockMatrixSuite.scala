@@ -866,6 +866,21 @@ class BlockMatrixSuite extends HailSuite {
       assert(filteredEquals(fbm, BlockMatrix.read(hc, fname)))
     }
   }
+
+  @Test
+  def testSparseBlockMatrixArbitraryFilter(): Unit = {
+    val lm = toLM(4, 4, Array(
+      1, 2, 3, 4,
+      5, 6, 7, 8,
+      9, 10, 11, 12,
+      13, 14, 15, 16))
+
+    val bm: BlockMatrix = toBM(lm, blockSize = 2)
+    val allButTopRight = bm.filterBand(-3, 0, false)
+    print(allButTopRight.toBreezeMatrix())
+    val filtered = allButTopRight.filterCols(Array[Long](3))
+    print(filtered.toBreezeMatrix())
+  }
   
   @Test
   def testSparseBlockMatrixMathAndFilter() {
