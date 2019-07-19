@@ -11,7 +11,7 @@ The following is an incomplete list of scientific work enabled by Hail. We welco
 
 * Martin, Alicia R., et al. "Current clinical use of polygenic scores will risk exacerbating health disparities." *bioRxiv* (2019): 441261. https://www.biorxiv.org/content/10.1101/441261v3
 
-* Collaborative, Epi25, et al. "Ultra-rare genetic variation in the epilepsies: a whole-exome sequencing study of 17,606 individuals." *American Journal of Human Genetics* (2019): 525683. https://www.cell.com/ajhg/fulltext/S0002-9297(19)30207-1
+* Collaborative, Epi25, et al. "Ultra-rare genetic variation in the epilepsies: a whole-exome sequencing study of 17,606 individuals." *American Journal of Human Genetics* (2019): https://www.cell.com/ajhg/fulltext/S0002-9297(19)30207-1
 
 * Karczewski, Konrad J., et al. "Variation across 141,456 human exomes and genomes reveals the spectrum of loss-of-function intolerance across human protein-coding genes." *bioRxiv* (2019): 531210. https://www.biorxiv.org/content/10.1101/531210v2.abstract
 
