@@ -63,6 +63,18 @@ trait FunctionWithAggRegion {
   def setSerializedAgg(i: Int, b: Array[Byte]): Unit
 
   def getSerializedAgg(i: Int): Array[Byte]
+
+  def initialize(aggRegion: Region, serialized: Array[Byte]): Unit = {
+    newAggState(aggRegion)
+    setSerializedAgg(0, serialized)
+  }
+
+  def initialize(aggRegion: Region, serialized: Array[Array[Byte]]): Unit = {
+    newAggState(aggRegion)
+    Array.range(0, serialized.length).foreach { i =>
+      setSerializedAgg(i, serialized(i))
+    }
+  }
 }
 
 trait FunctionWithLiterals {

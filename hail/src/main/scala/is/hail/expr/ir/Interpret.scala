@@ -4,12 +4,14 @@ import is.hail.{HailContext, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
+import is.hail.expr.ir.agg
 import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PTuple, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.methods._
+import is.hail.rvd.RVDContext
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -63,7 +65,7 @@ object Interpret {
     ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    agg: Option[Agg],
+    aggArgs: Option[Agg],
     optimize: Boolean = true
   ): T = {
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
@@ -74,7 +76,7 @@ object Interpret {
 
     def optimizeIR(canGenerateLiterals: Boolean, context: String) {
       ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some(context))
-      TypeCheck(ir, BindingEnv(typeEnv, agg = agg.map { agg =>
+      TypeCheck(ir, BindingEnv(typeEnv, agg = aggArgs.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
         }
@@ -87,7 +89,7 @@ object Interpret {
     ir = EvaluateRelationalLets(ir).asInstanceOf[IR]
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
 
-    val result = apply(ctx, ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
+    val result = apply(ctx, ir, valueEnv, args, aggArgs, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
     result
   }
@@ -96,11 +98,11 @@ object Interpret {
     ir: IR,
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
-    agg: Option[Agg],
+    aggArgs: Option[Agg],
     aggregator: Option[TypedAggregator[Any]],
     functionMemo: Memo[AsmFunction3[Region, Long, Boolean, Long]]): Any = {
-    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
-      apply(ctx, ir, env, args, agg, aggregator, functionMemo)
+    def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, aggArgs: Option[Agg] = aggArgs, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
+      apply(ctx, ir, env, args, aggArgs, aggregator, functionMemo)
 
     ir match {
       case I32(x) => x
@@ -113,7 +115,7 @@ object Interpret {
       case Literal(_, value) => value
       case Void() => ()
       case Cast(v, t) =>
-        val vValue = interpret(v, env, args, agg)
+        val vValue = interpret(v, env, args, aggArgs)
         if (vValue == null)
           null
         else
@@ -138,28 +140,28 @@ object Interpret {
           }
       case CastRename(v, _) => interpret(v)
       case NA(_) => null
-      case IsNA(value) => interpret(value, env, args, agg) == null
+      case IsNA(value) => interpret(value, env, args, aggArgs) == null
       case Coalesce(values) =>
         values.iterator
-          .flatMap(x => Option(interpret(x, env, args, agg)))
+          .flatMap(x => Option(interpret(x, env, args, aggArgs)))
           .headOption
           .orNull
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
-        val condValue = interpret(cond, env, args, agg)
+        val condValue = interpret(cond, env, args, aggArgs)
         if (condValue == null)
           null
         else if (condValue.asInstanceOf[Boolean])
-          interpret(cnsq, env, args, agg)
+          interpret(cnsq, env, args, aggArgs)
         else
-          interpret(altr, env, args, agg)
+          interpret(altr, env, args, aggArgs)
       case Let(name, value, body) =>
-        val valueValue = interpret(value, env, args, agg)
-        interpret(body, env.bind(name, valueValue), args, agg)
+        val valueValue = interpret(value, env, args, aggArgs)
+        interpret(body, env.bind(name, valueValue), args, aggArgs)
       case Ref(name, _) => env.lookup(name)
       case ApplyBinaryPrimOp(op, l, r) =>
-        val lValue = interpret(l, env, args, agg)
-        val rValue = interpret(r, env, args, agg)
+        val lValue = interpret(l, env, args, aggArgs)
+        val rValue = interpret(r, env, args, aggArgs)
         if (lValue == null || rValue == null)
           null
         else
@@ -225,7 +227,7 @@ object Interpret {
               }
           }
       case ApplyUnaryPrimOp(op, x) =>
-        val xValue = interpret(x, env, args, agg)
+        val xValue = interpret(x, env, args, aggArgs)
         if (xValue == null)
           null
         else op match {
@@ -247,8 +249,8 @@ object Interpret {
             }
         }
       case ApplyComparisonOp(op, l, r) =>
-        val lValue = interpret(l, env, args, agg)
-        val rValue = interpret(r, env, args, agg)
+        val lValue = interpret(l, env, args, aggArgs)
+        val rValue = interpret(r, env, args, aggArgs)
         if (op.strict && (lValue == null || rValue == null))
           null
         else
@@ -264,10 +266,10 @@ object Interpret {
             case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
 
-      case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toFastIndexedSeq
+      case MakeArray(elements, _) => elements.map(interpret(_, env, args, aggArgs)).toFastIndexedSeq
       case ArrayRef(a, i) =>
-        val aValue = interpret(a, env, args, agg)
-        val iValue = interpret(i, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
+        val iValue = interpret(i, env, args, aggArgs)
         if (aValue == null || iValue == null)
           null
         else {
@@ -279,15 +281,15 @@ object Interpret {
             a.apply(i)
         }
       case ArrayLen(a) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].length
       case ArrayRange(start, stop, step) =>
-        val startValue = interpret(start, env, args, agg)
-        val stopValue = interpret(stop, env, args, agg)
-        val stepValue = interpret(step, env, args, agg)
+        val startValue = interpret(start, env, args, aggArgs)
+        val stopValue = interpret(stop, env, args, aggArgs)
+        val stepValue = interpret(step, env, args, aggArgs)
         if (stepValue == 0)
           fatal("Array range cannot have step size 0.")
         if (startValue == null || stopValue == null || stepValue == null)
@@ -295,13 +297,13 @@ object Interpret {
         else
           startValue.asInstanceOf[Int] until stopValue.asInstanceOf[Int] by stepValue.asInstanceOf[Int]
       case ArraySort(a, l, r, compare) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].sortWith { (left, right) =>
             if (left != null && right != null) {
-              val res = interpret(compare, env.bind(l, left).bind(r, right), args, agg)
+              val res = interpret(compare, env.bind(l, left).bind(r, right), args, aggArgs)
               if (res == null)
                 fatal("Result of sorting function cannot be missing.")
               res.asInstanceOf[Boolean]
@@ -311,13 +313,13 @@ object Interpret {
           }
         }
       case ToSet(a) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else
           aValue.asInstanceOf[IndexedSeq[Any]].toSet
       case ToDict(a) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else
@@ -325,7 +327,7 @@ object Interpret {
 
       case ToArray(c) =>
         val ordering = coerce[TIterable](c.typ).elementType.ordering.toOrdering
-        val cValue = interpret(c, env, args, agg)
+        val cValue = interpret(c, env, args, aggArgs)
         if (cValue == null)
           null
         else
@@ -337,8 +339,8 @@ object Interpret {
           }
 
       case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val cValue = interpret(orderedCollection, env, args, agg)
-        val eValue = interpret(elem, env, args, agg)
+        val cValue = interpret(orderedCollection, env, args, aggArgs)
+        val eValue = interpret(elem, env, args, aggArgs)
         if (cValue == null)
           null
         else {
@@ -356,36 +358,36 @@ object Interpret {
         }
 
       case GroupByKey(collection) =>
-        interpret(collection, env, args, agg).asInstanceOf[IndexedSeq[Row]]
+        interpret(collection, env, args, aggArgs).asInstanceOf[IndexedSeq[Row]]
           .groupBy { case Row(k, _) => k }
           .mapValues { elt: IndexedSeq[Row] => elt.map { case Row(_, v) => v } }
 
       case ArrayMap(a, name, body) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].map { element =>
-            interpret(body, env.bind(name, element), args, agg)
+            interpret(body, env.bind(name, element), args, aggArgs)
           }
         }
       case ArrayFilter(a, name, cond) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].filter { element =>
             // casting to boolean treats null as false
-            interpret(cond, env.bind(name, element), args, agg).asInstanceOf[Boolean]
+            interpret(cond, env.bind(name, element), args, aggArgs).asInstanceOf[Boolean]
           }
         }
       case ArrayFlatMap(a, name, body) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].flatMap { element =>
-            val r = interpret(body, env.bind(name, element), args, agg).asInstanceOf[IndexedSeq[Any]]
+            val r = interpret(body, env.bind(name, element), args, aggArgs).asInstanceOf[IndexedSeq[Any]]
             if (r != null)
               r
             else
@@ -393,57 +395,57 @@ object Interpret {
           }
         }
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
-          var zeroValue = interpret(zero, env, args, agg)
+          var zeroValue = interpret(zero, env, args, aggArgs)
           aValue.asInstanceOf[IndexedSeq[Any]].foreach { element =>
-            zeroValue = interpret(body, env.bind(accumName -> zeroValue, valueName -> element), args, agg)
+            zeroValue = interpret(body, env.bind(accumName -> zeroValue, valueName -> element), args, aggArgs)
           }
           zeroValue
         }
       case ArrayScan(a, zero, accumName, valueName, body) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue == null)
           null
         else {
-          val zeroValue = interpret(zero, env, args, agg)
+          val zeroValue = interpret(zero, env, args, aggArgs)
           aValue.asInstanceOf[IndexedSeq[Any]].scanLeft(zeroValue) { (accum, elt) =>
-            interpret(body, env.bind(accumName -> accum, valueName -> elt), args, agg)
+            interpret(body, env.bind(accumName -> accum, valueName -> elt), args, aggArgs)
           }
         }
 
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
-        val lValue = interpret(left, env, args, agg).asInstanceOf[IndexedSeq[Any]]
-        val rValue = interpret(right, env, args, agg).asInstanceOf[IndexedSeq[Any]].toIterator
+        val lValue = interpret(left, env, args, aggArgs).asInstanceOf[IndexedSeq[Any]]
+        val rValue = interpret(right, env, args, aggArgs).asInstanceOf[IndexedSeq[Any]].toIterator
 
         var relt: Any = if (rValue.hasNext) rValue.next() else null
 
         lValue.map { lelt =>
-          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] > 0) {
+          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args, aggArgs).asInstanceOf[Int] > 0) {
             relt = rValue.next()
           }
-          if (interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] == 0) {
-            interpret(join, env.bind(l -> lelt, r -> relt), args, agg)
+          if (interpret(compare, env.bind(l -> lelt, r -> relt), args, aggArgs).asInstanceOf[Int] == 0) {
+            interpret(join, env.bind(l -> lelt, r -> relt), args, aggArgs)
           } else {
-            interpret(join, env.bind(l -> lelt, r -> null), args, agg)
+            interpret(join, env.bind(l -> lelt, r -> null), args, aggArgs)
           }
         }
 
       case ArrayFor(a, valueName, body) =>
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
         if (aValue != null) {
           aValue.asInstanceOf[IndexedSeq[Any]].foreach { element =>
-            interpret(body, env.bind(valueName -> element), args, agg)
+            interpret(body, env.bind(valueName -> element), args, aggArgs)
           }
         }
         ()
 
       case ArrayAgg(a, name, body) =>
-        assert(agg.isEmpty)
+        assert(aggArgs.isEmpty)
         val aggElementType = TStruct(name -> a.typ.asInstanceOf[TArray].elementType)
-        val aValue = interpret(a, env, args, agg)
+        val aValue = interpret(a, env, args, aggArgs)
           .asInstanceOf[IndexedSeq[Any]]
           .map(Row(_))
         interpret(body, env, args, Some(aValue -> aggElementType))
@@ -481,7 +483,7 @@ object Interpret {
       case x@AggFilter(cond, aggIR, isScan) =>
         assert(!isScan)
         // filters elements under aggregation environment
-        val Some((aggElements, aggElementType)) = agg
+        val Some((aggElements, aggElementType)) = aggArgs
         val newAgg = aggElements.filter { row =>
           val env = (row.toSeq, aggElementType.fieldNames).zipped
             .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
@@ -489,12 +491,12 @@ object Interpret {
             }
           interpret(cond, env).asInstanceOf[Boolean]
         }
-        interpret(aggIR, agg = Some(newAgg -> aggElementType))
+        interpret(aggIR, aggArgs = Some(newAgg -> aggElementType))
 
       case x@AggExplode(array, name, aggBody, isScan) =>
         assert(!isScan)
         // adds exploded array to elements under aggregation environment
-        val Some((aggElements, aggElementType)) = agg
+        val Some((aggElements, aggElementType)) = aggArgs
         val newAggElementType = aggElementType.appendKey(name, coerce[TArray](array.typ).elementType)
         val newAgg = aggElements.flatMap { row =>
           val env = (row.toSeq, aggElementType.fieldNames).zipped
@@ -505,11 +507,11 @@ object Interpret {
             Row(row.toSeq :+ elt: _*)
           }
         }
-        interpret(aggBody, agg = Some(newAgg -> newAggElementType))
+        interpret(aggBody, aggArgs = Some(newAgg -> newAggElementType))
       case x@AggGroupBy(key, aggIR, isScan) =>
         assert(!isScan)
         // evaluates one aggregation per key in aggregation environment
-        val Some((aggElements, aggElementType)) = agg
+        val Some((aggElements, aggElementType)) = aggArgs
         val groupedAgg = aggElements.groupBy { row =>
           val env = (row.toSeq, aggElementType.fieldNames).zipped
             .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
@@ -518,7 +520,7 @@ object Interpret {
           interpret(key, env)
         }
         groupedAgg.mapValues { row =>
-          interpret(aggIR, agg = Some((row, aggElementType)))
+          interpret(aggIR, aggArgs = Some((row, aggElementType)))
         }
 
       case x@AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) => ???
@@ -628,7 +630,7 @@ object Interpret {
         }
 
         val aggregator = getAggregator(aggSig.op, aggSig.seqOpArgs)
-        val Some((aggElements, aggElementType)) = agg
+        val Some((aggElements, aggElementType)) = aggArgs
         aggElements.foreach { element =>
           val env = (element.toSeq, aggElementType.fieldNames).zipped
             .foldLeft(Env.empty[Any]) { case (env, (v, n)) =>
@@ -640,20 +642,20 @@ object Interpret {
       case x: ApplyScanOp =>
         throw new UnsupportedOperationException("interpreter doesn't support scans right now.")
       case MakeStruct(fields) =>
-        Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })
+        Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, aggArgs) })
       case SelectFields(old, fields) =>
         val oldt = coerce[TStruct](old.typ)
-        val oldRow = interpret(old, env, args, agg).asInstanceOf[Row]
+        val oldRow = interpret(old, env, args, aggArgs).asInstanceOf[Row]
         if (oldRow == null)
           null
         else
           Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
       case x@InsertFields(old, fields, fieldOrder) =>
-        var struct = interpret(old, env, args, agg)
+        var struct = interpret(old, env, args, aggArgs)
         if (struct != null)
           fieldOrder match {
             case Some(fds) =>
-              val newValues = fields.toMap.mapValues(interpret(_, env, args, agg))
+              val newValues = fields.toMap.mapValues(interpret(_, env, args, aggArgs))
               val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
               Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))))
             case None =>
@@ -661,14 +663,14 @@ object Interpret {
               fields.foreach { case (name, body) =>
                 val (newT, ins) = t.insert(body.typ, name)
                 t = newT.asInstanceOf[TStruct]
-                struct = ins(struct, interpret(body, env, args, agg))
+                struct = ins(struct, interpret(body, env, args, aggArgs))
               }
               struct
           }
         else
           null
       case GetField(o, name) =>
-        val oValue = interpret(o, env, args, agg)
+        val oValue = interpret(o, env, args, aggArgs)
         if (oValue == null)
           null
         else {
@@ -677,9 +679,9 @@ object Interpret {
           oValue.asInstanceOf[Row].get(fieldIndex)
         }
       case MakeTuple(types) =>
-        Row.fromSeq(types.map { case (_, x) => interpret(x, env, args, agg) })
+        Row.fromSeq(types.map { case (_, x) => interpret(x, env, args, aggArgs) })
       case GetTupleElement(o, idx) =>
-        val oValue = interpret(o, env, args, agg)
+        val oValue = interpret(o, env, args, aggArgs)
         if (oValue == null)
           null
         else
@@ -691,7 +693,7 @@ object Interpret {
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>")
       case ir@ApplyIR(function, functionArgs) =>
-        interpret(ir.explicitNode, env, args, agg)
+        interpret(ir.explicitNode, env, args, aggArgs)
       case ApplySpecial("||", Seq(left_, right_)) =>
         val left = interpret(left_)
         if (left == true)
@@ -733,7 +735,7 @@ object Interpret {
           rvb.start(argTuple)
           rvb.startTuple()
           ir.args.zip(argTuple.types).foreach { case (arg, t) =>
-            val argValue = interpret(arg, env, args, agg)
+            val argValue = interpret(arg, env, args, aggArgs)
             rvb.addAnnotation(t.virtualType, argValue)
           }
           rvb.endTuple()
@@ -744,9 +746,9 @@ object Interpret {
             .get(0)
         }
       case Uniroot(functionid, fn, minIR, maxIR) =>
-        val f = { x: Double => interpret(fn, env.bind(functionid, x), args, agg).asInstanceOf[Double] }
-        val min = interpret(minIR, env, args, agg)
-        val max = interpret(maxIR, env, args, agg)
+        val f = { x: Double => interpret(fn, env.bind(functionid, x), args, aggArgs).asInstanceOf[Double] }
+        val min = interpret(minIR, env, args, aggArgs)
+        val max = interpret(maxIR, env, args, aggArgs)
         if (min == null || max == null)
           null
         else
@@ -777,6 +779,88 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case TableAggregate(child, query) =>
         val value = child.execute(ctx)
+
+        val globalsBc = value.globals.broadcast
+        val globalsOffset = value.globals.value.offset
+
+        if (HailContext.getFlag("newaggs") != null) {
+          try {
+            val res = genUID()
+            val extracted = agg.Extract(query, res)
+
+            val wrapped = if (extracted.aggs.isEmpty) {
+              val (rt: PTuple, f) = Compile[Long, Long](
+                "global", value.globals.t,
+                MakeTuple(FastSeq(extracted.postAggIR)))
+
+              Region.scoped { region =>
+                SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
+              }
+            } else {
+              val spec = CodecSpec.defaultUncompressed
+
+              val (_, initOp) = CompileWithAggregators2[Long, Unit](
+                extracted.aggs,
+                "global", value.globals.t,
+                Begin(FastIndexedSeq(extracted.init,
+                  SerializeAggs(0, 0, spec, extracted.aggs))))
+
+              val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](
+                extracted.aggs,
+                "global", value.globals.t,
+                "row", value.rvd.rowPType,
+                extracted.seqPerElt)
+
+              val read = extracted.deserialize(spec)
+              val write = extracted.serialize(spec)
+              val combOpF = extracted.combOpF(spec)
+
+              val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](
+                extracted.aggs,
+                "global", value.globals.t,
+                Let(res, extracted.results, MakeTuple(FastSeq(extracted.postAggIR))))
+              assert(rTyp.types(0).virtualType == query.typ)
+
+              val initBytes = Region.scoped { region =>
+                val initF = initOp(0, region)
+                Region.scoped { aggRegion =>
+                  initF.newAggState(aggRegion)
+                  initF(region, globalsOffset, false)
+                  initF.getSerializedAgg(0)
+                }
+              }
+
+              val aggResults = value.rvd.combine[Array[Byte]](initBytes,
+                { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+                  val partRegion = ctx.freshRegion
+                  val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+                  val seqOps = partitionOpSeq(i, partRegion)
+
+                  Region.smallScoped { aggRegion =>
+                    seqOps.setAggState(aggRegion, read(aggRegion, initBytes))
+                    it.foreach { rv =>
+                      seqOps(rv.region, globalsOffset, false, rv.offset, false)
+                      ctx.region.clear()
+                    }
+                    write(aggRegion, seqOps.getAggOffset())
+                  }
+                }, combOpF)
+
+              Region.scoped { r =>
+                val resF = f(0, r)
+                Region.smallScoped { aggRegion =>
+                  resF.initialize(aggRegion, aggResults)
+                  SafeRow(rTyp, r, resF(r, globalsOffset, false))
+                }
+              }
+            }
+            return wrapped.get(0)
+          } catch {
+            case e: agg.UnsupportedExtraction =>
+              log.info(s"couldn't lower TableAggregate: $e")
+          }
+        }
+
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
           "global", value.globals.t,
           "global", value.globals.t,
@@ -789,10 +873,6 @@ object Interpret {
           "global", value.globals.t,
           "AGGR", aggResultType,
           postAggIR)
-
-        val globalsBc = value.globals.broadcast
-
-        val globalsOffset = value.globals.value.offset
 
         val aggResults = if (rvAggs.nonEmpty) {
 
