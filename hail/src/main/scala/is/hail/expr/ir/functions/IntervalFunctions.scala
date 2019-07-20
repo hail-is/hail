@@ -52,7 +52,7 @@ object IntervalFunctions extends RegistryFunctions {
         val iv = r.mb.newLocal[Long]
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
-          interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(region, iv)),
+          interval.m || !Code(iv := interval.value[Long], intervalT.startDefined(iv)),
           region.loadIRIntermediate(intervalT.pointType)(intervalT.startOffset(iv))
         )
     }
@@ -63,19 +63,19 @@ object IntervalFunctions extends RegistryFunctions {
         val iv = r.mb.newLocal[Long]
         EmitTriplet(
           Code(interval.setup, iv.storeAny(defaultValue(intervalT))),
-          interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(region, iv)),
+          interval.m || !Code(iv := interval.value[Long], intervalT.endDefined(iv)),
           region.loadIRIntermediate(tv("T").t)(intervalT.endOffset(iv))
         )
     }
 
     registerCode("includesStart", TInterval(tv("T")), TBooleanOptional, null) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
-        intervalT.includeStart(r.region, interval)
+        intervalT.includeStart(interval)
     }
 
     registerCode("includesEnd", TInterval(tv("T")), TBooleanOptional, null) {
       case (r, rt, (intervalT: PInterval, interval: Code[Long])) =>
-        intervalT.includeEnd(r.region, interval)
+        intervalT.includeEnd(interval)
     }
 
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean(), null) {
@@ -133,16 +133,16 @@ class IRInterval(r: EmitRegion, typ: PInterval, value: Code[Long]) {
   val region: Code[Region] = r.region
 
   def ordering[T](op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[T] =
-    r.mb.getCodeOrdering[T](typ.pointType, op)(region, _, region, _)
+    r.mb.getCodeOrdering[T](typ.pointType, op)(_, _)
 
   def storeToLocal: Code[Unit] = ref := value
 
   def start: (Code[Boolean], Code[_]) =
-    (!typ.startDefined(region, ref), region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
+    (!typ.startDefined(ref), region.getIRIntermediate(typ.pointType)(typ.startOffset(ref)))
   def end: (Code[Boolean], Code[_]) =
-    (!typ.endDefined(region, ref), region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
-  def includeStart: Code[Boolean] = typ.includeStart(region, ref)
-  def includeEnd: Code[Boolean] = typ.includeEnd(region, ref)
+    (!typ.endDefined(ref), region.getIRIntermediate(typ.pointType)(typ.endOffset(ref)))
+  def includeStart: Code[Boolean] = typ.includeStart(ref)
+  def includeEnd: Code[Boolean] = typ.includeEnd(ref)
 
   def isEmpty: Code[Boolean] = {
     val gt = ordering(CodeOrdering.gt)

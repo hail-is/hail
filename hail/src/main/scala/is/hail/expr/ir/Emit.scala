@@ -429,7 +429,7 @@ private class Emit(
         val codeL = emit(l)
         val codeR = emit(r)
         if (op.strict) {
-          strict(f(region, (false, codeL.v), region, (false, codeR.v)),
+          strict(f((false, codeL.v), (false, codeR.v)),
             codeL, codeR)
         } else {
           val lm = mb.newLocal[Boolean]
@@ -439,8 +439,8 @@ private class Emit(
             codeR.setup,
             lm := codeL.m,
             rm := codeR.m,
-            f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
-              region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+            f((lm, lm.mux(defaultValue(l.typ), codeL.v)),
+              (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
       case MakeArray(args, typ) =>
