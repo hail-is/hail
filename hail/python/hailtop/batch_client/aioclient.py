@@ -222,7 +222,7 @@ class Batch:
         while True:
             status = await self.status(limit=0)
             if status['complete']:
-                return status
+                return await self.status()
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
             # max 44.5s
