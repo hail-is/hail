@@ -1258,7 +1258,11 @@ async def refresh_k8s_pods():
         job = await Job.from_k8s_labels(pod)
         await update_job_with_pod(job, pod)
 
-    log.info('restarting ready and running jobs with pods not seen in k8s')
+    if app['pod_throttler'].full():
+        log.info(f'pod creation queue is full; skipping restarting jobs not seen in k8s')
+        return
+
+    log.info('restarting running jobs with pods not seen in k8s')
 
     for job in pod_jobs:
         if job._pod_name not in seen_pods:

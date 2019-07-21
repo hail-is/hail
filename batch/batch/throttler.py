@@ -59,3 +59,6 @@ class PodThrottler:
         elif pod_name in self.created_pods:
             self.created_pods.remove(pod_name)
             self.semaphore.release()
+
+    def full(self):
+        return self.queue.full()
