@@ -68,19 +68,20 @@ def make_where_statement(items):
 
 async def _retry(cursor, f):
     n_attempts = 0
-    err = None
+    saved_err = None
     while n_attempts < MAX_RETRIES:
         n_attempts += 1
         try:
             result = await f(cursor)
             return result
         except pymysql.err.OperationalError as err:
+            saved_err = err
             code, _ = err.args
             if code != 1213:
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
             await asyncio.sleep(0.5)
-    raise err
+    raise saved_err
 
 
 async def execute_with_retry(cursor, sql, items):

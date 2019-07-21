@@ -555,8 +555,9 @@ class Job:
     async def mark_complete(self, pod, failed=False, failure_reason=None):
         if pod is not None:
             assert pod.metadata.name == self._pod_name
-            if self.is_complete() or pod.metadata.labels['task'] != self._current_task.name:
-                log.info(f'ignoring because pod task label does not match the current task for job {self.full_id}')
+            if pod.metadata.labels['task'] != self._current_task.name:
+                log.info(f'ignoring because pod task label does not match '
+                         f'the current task {(self._pod_name, pod.metadata.labels["task"])}')
                 return
 
         task_name = self._current_task.name
@@ -1218,6 +1219,8 @@ async def kube_event_loop():
 
 
 async def refresh_k8s_pods():
+    log.info(f'refreshing k8s pods')
+
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]

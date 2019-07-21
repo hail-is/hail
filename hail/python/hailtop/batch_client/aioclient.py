@@ -2,13 +2,16 @@ import os
 import math
 import time
 import random
+import aiohttp
+import asyncio
 
 import hailtop.gear.auth as hj
 
 from .globals import complete_states
 
 
-job_array_size = 20
+job_array_size = 50
+max_job_submit_attempts = 3
 
 
 def filter_params(complete, success, attributes):
@@ -342,6 +345,18 @@ class BatchBuilder:
         self._jobs.append(j)
         return j
 
+    async def _submit_job_with_retry(self, batch_id, docs):
+        n_attempts = 0
+        saved_err = None
+        while n_attempts < max_job_submit_attempts:
+            try:
+                return await self._client._post(f'/api/v1alpha/batches/{batch_id}/jobs/create', json={'jobs': docs})
+            except Exception as err:  # pylint: disable=W0703
+                saved_err = err
+                n_attempts += 1
+                await asyncio.sleep(1)
+        raise saved_err
+
     async def submit(self):
         if self._submitted:
             raise ValueError("cannot submit an already submitted batch")
@@ -353,23 +368,29 @@ class BatchBuilder:
         if self.callback:
             batch_doc['callback'] = self.callback
 
-        b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
-        batch = Batch(self._client, b['id'], b.get('attributes'))
+        batch = None
+        try:
+            b = await self._client._post('/api/v1alpha/batches/create', json=batch_doc)
+            batch = Batch(self._client, b['id'], b.get('attributes'))
 
-        docs = []
-        n = 0
-        for jdoc in self._job_docs:
-            n += 1
-            docs.append(jdoc)
-            if n == job_array_size:
-                await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
-                n = 0
-                docs = []
+            docs = []
+            n = 0
+            for jdoc in self._job_docs:
+                n += 1
+                docs.append(jdoc)
+                if n == job_array_size:
+                    await self._submit_job_with_retry(batch.id, docs)
+                    n = 0
+                    docs = []
 
-        if docs:
-            await self._client._post(f'/api/v1alpha/batches/{batch.id}/jobs/create', json={'jobs': docs})
+            if docs:
+                await self._submit_job_with_retry(batch.id, docs)
 
-        await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+            await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
+        except Exception as err:  # pylint: disable=W0703
+            if batch:
+                await batch.cancel()
+            raise err
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
@@ -382,11 +403,16 @@ class BatchBuilder:
 
 
 class BatchClient:
-    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
-        if not url:
+    def __init__(self, session=None, url=None, token_file=None, token=None, headers=None):
+        if url is None:
             url = 'http://batch.default'
         self.url = url
+
+        if session is None:
+            session = aiohttp.ClientSession(raise_for_status=True,
+                                            timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
+
         if token is None:
             token = hj.find_token(token_file)
         userdata = hj.JWTClient.unsafe_decode(token)
