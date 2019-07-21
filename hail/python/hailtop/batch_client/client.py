@@ -84,8 +84,8 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    def status(self):
-        return async_to_blocking(self._async_batch.status())
+    def status(self, limit=None, offset=None):
+        return async_to_blocking(self._async_batch.status(limit=limit, offset=offset))
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())

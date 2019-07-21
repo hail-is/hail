@@ -208,15 +208,24 @@ class Batch:
     async def cancel(self):
         await self._client._patch(f'/api/v1alpha/batches/{self.id}/cancel')
 
-    async def status(self):
-        return await self._client._get(f'/api/v1alpha/batches/{self.id}')
+    async def status(self, limit=None, offset=None):
+        params = None
+        if limit is not None:
+            if not params:
+                params = {}
+            params['limit'] = str(limit)
+        if offset is not None:
+            if limit is None:
+                raise ValueError("cannot define 'offset' without a 'limit'")
+            params['offset'] = str(offset)
+        return await self._client._get(f'/api/v1alpha/batches/{self.id}', params=params)
 
     async def wait(self):
         i = 0
         while True:
-            status = await self.status()
+            status = await self.status(limit=0)
             if status['complete']:
-                return status
+                return await self.status()
             j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
             # max 44.5s
