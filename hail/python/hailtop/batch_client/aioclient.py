@@ -354,7 +354,7 @@ class BatchBuilder:
             except Exception as err:  # pylint: disable=W0703
                 saved_err = err
                 n_attempts += 1
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1)
         raise saved_err
 
     async def submit(self):
@@ -387,9 +387,10 @@ class BatchBuilder:
                 await self._submit_job_with_retry(batch.id, docs)
 
             await self._client._patch(f'/api/v1alpha/batches/{batch.id}/close')
-        finally:
+        except Exception as err:  # pylint: disable=W0703
             if batch:
                 await batch.cancel()
+            raise err
 
         for j in self._jobs:
             j._job = j._job._submit(batch)
