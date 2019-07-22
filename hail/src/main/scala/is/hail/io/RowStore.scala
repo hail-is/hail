@@ -1694,7 +1694,8 @@ object EmitPackEncoder { self =>
 
   def writeBinary(mb: MethodBuilder, region: Code[Region], boff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     val length = region.loadInt(boff)
-    Code(out.writeInt(length),
+    Code(
+      out.writeInt(length),
       out.writeBytes(region, boff + const(4), length))
   }
 

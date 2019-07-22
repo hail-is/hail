@@ -261,6 +261,8 @@ object Extract {
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
     case AggSignature2(PrevNonnull(), _, Seq(t), _) =>
       new PrevNonNullAggregator(t.physicalType)
+    case AggSignature2(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
+      new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 
@@ -321,7 +323,24 @@ object Extract {
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
-        throw new UnsupportedExtraction("group by")
+        val newAggs = new ArrayBuilder[InitOp2]()
+        val newSeq = new ArrayBuilder[IR]()
+        val newRef = Ref(genUID(), null)
+        val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"))
+
+        val i = ab.length
+        val initOps = newAggs.result()
+        val aggs = initOps.map(_.aggSig)
+
+        val rt = TDict(key.typ, TTuple(aggs.map(Extract.getType): _*))
+        newRef._typ = -rt.elementType
+
+        val aggSig = AggSignature2(Group(), Seq(TVoid), FastSeq(key.typ, TVoid), Some(aggs))
+        ab += InitOp2(i, FastIndexedSeq(Begin(initOps)), aggSig)
+        seqBuilder += SeqOp2(i, FastIndexedSeq(key, Begin(newSeq.result().toFastIndexedSeq)), aggSig)
+
+        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
+
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val newAggs = new ArrayBuilder[InitOp2]()

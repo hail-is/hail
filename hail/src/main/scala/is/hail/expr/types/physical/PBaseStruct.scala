@@ -162,6 +162,11 @@ abstract class PBaseStruct extends PType {
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
 
+  def isFieldDefined(offset: Long, fieldIdx: Int): Boolean =
+    fieldRequired(fieldIdx) || !Region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldMissing(off: Long, fieldIdx: Int): Boolean = !isFieldDefined(off, fieldIdx)
+
   def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))
       false
