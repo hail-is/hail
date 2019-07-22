@@ -151,7 +151,8 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
 
     { (aggRegion: Region, bytes: Array[Byte]) =>
       val f2 = f(0, aggRegion);
-      f2.initialize(aggRegion, bytes)
+      f2.newAggState(aggRegion)
+      f2.setSerializedAgg(0, bytes)
       f2(aggRegion)
       f2.getAggOffset()
     }
@@ -181,7 +182,9 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     { (c1: Array[Byte], c2: Array[Byte]) =>
       Region.smallScoped { aggRegion =>
         val comb = f(0, aggRegion)
-        comb.initialize(aggRegion, Array(c1, c2))
+        comb.newAggState(aggRegion)
+        comb.setSerializedAgg(0, c1)
+        comb.setSerializedAgg(1, c2)
         comb(aggRegion)
         comb.getSerializedAgg(0)
       }

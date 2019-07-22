@@ -848,7 +848,8 @@ object Interpret {
               Region.scoped { r =>
                 val resF = f(0, r)
                 Region.smallScoped { aggRegion =>
-                  resF.initialize(aggRegion, aggResults)
+                  resF.newAggState(aggRegion)
+                  resF.setSerializedAgg(0, aggResults)
                   SafeRow(rTyp, r, resF(r, globalsOffset, false))
                 }
               }
