@@ -105,7 +105,7 @@ async def process_pod(pod, failed=False, failure_reason=None):
 
     pod_status, err = await k8s.read_pod_status(pod_name, pretty=True)
     if err is None:
-        log_store.write_gs_file(
+        await log_store.write_gs_file(
             directory,
             LogStore.pod_status_file_name,
             JSON_ENCODER.encode(pod_status.to_dict()))
@@ -116,12 +116,12 @@ async def process_pod(pod, failed=False, failure_reason=None):
 
     exit_codes = [result['exit_code'] for result in (setup, main, cleanup)]
     durations = [result['duration'] for result in (setup, main, cleanup)]
-    log_store.write_gs_file(
+    await log_store.write_gs_file(
         directory,
         LogStore.results_file_name,
         json.dumps({'exit_codes': exit_codes, 'durations': durations}))
 
-    log_store.write_gs_file(
+    await log_store.write_gs_file(
         directory,
         LogStore.log_file_name,
         json.dumps({'setup': setup['log'],
