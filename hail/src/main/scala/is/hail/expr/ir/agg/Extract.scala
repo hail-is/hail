@@ -281,6 +281,8 @@ object Extract {
       new PrevNonNullAggregator(t.physicalType)
     case AggSignature2(Group(), _, Seq(kt, TVoid), Some(nestedAggs)) =>
       new GroupedAggregator(PType.canonical(kt), nestedAggs.map(getAgg).toArray)
+    case AggSignature2(CollectAsSet(), _, Seq(t), _) =>
+      new CollectAsSetAggregator(PType.canonical(t))
     case _ => throw new UnsupportedExtraction(aggSig.toString)
   }
 

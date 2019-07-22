@@ -453,4 +453,15 @@ class Aggregators2Suite extends HailSuite {
 
     assertAggEquals(grouped2, initOpArgs, seqOpArgs, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
+
+  @Test def testCollectAsSet() {
+    val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
+    val rref = Ref("rows", TArray(t))
+    val elts = Array.tabulate(rows.length)(i => FastIndexedSeq(GetField(ArrayRef(rref, i), "a")))
+
+    val expected = Set("abcd", "foo", null)
+
+    val aggsig = AggSignature2(CollectAsSet(), FastSeq(), FastSeq(TString()), None)
+    assertAggEquals(aggsig, FastSeq(), elts, expected = expected, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
 }
