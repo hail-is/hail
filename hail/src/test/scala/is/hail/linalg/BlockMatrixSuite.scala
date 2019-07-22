@@ -868,7 +868,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testSparseBlockMatrixArbitraryFilter(): Unit = {
+  def testSparseBlockMatrixArbitraryFilters(): Unit = {
     val lm = toLM(4, 4, Array(
       1, 2, 3, 4,
       5, 6, 7, 8,
@@ -877,9 +877,12 @@ class BlockMatrixSuite extends HailSuite {
 
     val bm: BlockMatrix = toBM(lm, blockSize = 2)
     val allButTopRight = bm.filterBand(-3, 0, false)
-    print(allButTopRight.toBreezeMatrix())
-    val filtered = allButTopRight.filterCols(Array[Long](3))
-    print(filtered.toBreezeMatrix())
+    val lastColumn = allButTopRight.filterCols(Array[Long](3))
+    assert(lastColumn.toBreezeMatrix() == toLM(4, 1, Array(0, 0, 0, 16)))
+
+    val bottomLeft = bm.filterRows(Array[Long](2, 3)).filterCols(Array[Long](0, 1))
+    assert(bottomLeft.toBreezeMatrix() == toLM(2, 2, Array(9, 10, 13, 14)))
+
   }
   
   @Test

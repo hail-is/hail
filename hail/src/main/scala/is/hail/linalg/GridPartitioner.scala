@@ -109,13 +109,16 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       pi
   }
   
-  val blockToPartition: Int => Int = maybeBlocks match {
-    case Some(bis) => bis.zipWithIndex.toMap.withDefaultValue(-1)
-    case None => bi => bi
+  def blockToPartition(blockId: Int): Int = maybeBlocks match {
+    case Some(bis) => {
+      println(s"blockToPartition: Searching ${bis.toIndexedSeq} for blockId ${blockId}")
+      bis.indexOf(blockId)
+    } //(bis.zipWithIndex.toMap.withDefaultValue(-1))(blockId)
+    case None =>  blockId
   }
 
   val partBlock = partitionToBlock
-  val blockPart = blockToPartition
+  val blockPart = blockToPartition(_)
   
   def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
 
