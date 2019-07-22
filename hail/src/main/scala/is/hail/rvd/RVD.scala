@@ -318,56 +318,6 @@ class RVD(
 
   // Key-wise operations
 
-  def groupByKey(valuesField: String = "values"): RVD = {
-    val newTyp = RVDType(
-      (typ.kType.virtualType ++ TStruct(valuesField -> TArray(typ.valueType.virtualType))).physicalType,
-      typ.key)
-    val newRowType = newTyp.rowType
-
-    val localType = typ
-
-    RVD(newTyp, partitioner, crdd.cmapPartitionsAndContext { (consumerCtx, useCtxes) =>
-      val consumerRegion = consumerCtx.region
-      val rvb = consumerCtx.rvb
-      val outRV = RegionValue(consumerRegion)
-
-      val bufferRegion = consumerCtx.freshRegion
-      val buffer = new RegionValueArrayBuffer(localType.valueType, bufferRegion)
-
-      val producerCtx = consumerCtx.freshContext
-      val producerRegion = producerCtx.region
-      val it = useCtxes.flatMap(_ (producerCtx))
-
-      val stepped = OrderedRVIterator(
-        localType,
-        it,
-        consumerCtx.freshContext
-      ).staircase
-
-      stepped.map { stepIt =>
-        buffer.clear()
-        rvb.start(newRowType)
-        rvb.startStruct()
-        var i = 0
-        while (i < localType.kType.size) {
-          rvb.addField(localType.rowType, stepIt.value, localType.kFieldIdx(i))
-          i += 1
-        }
-        for (rv <- stepIt) {
-          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
-          producerRegion.clear()
-        }
-        rvb.startArray(buffer.length)
-        for (rv <- buffer)
-          rvb.addRegionValue(localType.valueType, rv)
-        rvb.endArray()
-        rvb.endStruct()
-        outRV.setOffset(rvb.end())
-        outRV
-      }
-    })
-  }
-
   def distinctByKey(): RVD = {
     val localType = typ
     repartition(partitioner.strictify)
