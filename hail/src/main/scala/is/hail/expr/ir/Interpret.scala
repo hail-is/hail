@@ -801,8 +801,7 @@ object Interpret {
               val (_, initOp) = CompileWithAggregators2[Long, Unit](
                 extracted.aggs,
                 "global", value.globals.t,
-                Begin(FastIndexedSeq(extracted.init,
-                  SerializeAggs(0, 0, spec, extracted.aggs))))
+                extracted.init)
 
               val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](
                 extracted.aggs,
@@ -810,7 +809,6 @@ object Interpret {
                 "row", value.rvd.rowPType,
                 extracted.seqPerElt)
 
-              val read = extracted.deserialize(spec)
               val write = extracted.serialize(spec)
               val combOpF = extracted.combOpF(spec)
 
@@ -820,23 +818,25 @@ object Interpret {
                 Let(res, extracted.results, MakeTuple(FastSeq(extracted.postAggIR))))
               assert(rTyp.types(0).virtualType == query.typ)
 
-              val initBytes = Region.scoped { region =>
-                val initF = initOp(0, region)
-                Region.scoped { aggRegion =>
-                  initF.newAggState(aggRegion)
-                  initF(region, globalsOffset, false)
-                  initF.getSerializedAgg(0)
-                }
-              }
-
-              val aggResults = value.rvd.combine[Array[Byte]](initBytes,
+              val aggResults = value.rvd.combine[Array[Byte]](
+                Region.scoped { region =>
+                  val initF = initOp(0, region)
+                  Region.scoped { aggRegion =>
+                    initF.newAggState(aggRegion)
+                    initF(region, globalsOffset, false)
+                    write(aggRegion, initF.getAggOffset())
+                  }
+                },
                 { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
                   val partRegion = ctx.freshRegion
                   val globalsOffset = globalsBc.value.readRegionValue(partRegion)
+                  val init = initOp(i, partRegion)
                   val seqOps = partitionOpSeq(i, partRegion)
 
                   Region.smallScoped { aggRegion =>
-                    seqOps.setAggState(aggRegion, read(aggRegion, initBytes))
+                    init.newAggState(aggRegion)
+                    init(partRegion, globalsOffset, false)
+                    seqOps.setAggState(aggRegion, init.getAggOffset())
                     it.foreach { rv =>
                       seqOps(rv.region, globalsOffset, false, rv.offset, false)
                       ctx.region.clear()

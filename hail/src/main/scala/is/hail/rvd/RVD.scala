@@ -559,6 +559,7 @@ class RVD(
     RVD(typ, newPartitioner, crdd.subsetPartitions(keep))
   }
 
+  // Aggregating
   // used in Interpret by TableAggregate2
   def combine[U: ClassTag](
     zeroValue: U,
