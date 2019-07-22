@@ -39,7 +39,7 @@ class Job:
             return None
 
         exit_codes = job_status['exit_code']
-        exit_codes = [exit_codes[task] for task in ['input', 'main', 'output'] if task in exit_codes]
+        exit_codes = [exit_codes[task] for task in ['setup', 'main', 'cleanup'] if task in exit_codes]
 
         i = 0
         while i < len(exit_codes):
@@ -50,6 +50,25 @@ class Job:
                 return ec
             i += 1
         return 0
+
+    @staticmethod
+    def duration(job_status):
+        if 'duration' not in job_status or job_status['duration'] is None:
+            return None
+
+        durations = job_status['duration']
+        durations = [durations[task] for task in ['setup', 'main', 'cleanup'] if task in durations]
+
+        i = 0
+        duration = 0
+        while i < len(durations):
+            d = durations[i]
+            if d is None:
+                return None
+            duration += d
+            i += 1
+        return duration
+
 
     @staticmethod
     def unsubmitted_job(batch_builder, job_id, attributes=None, parent_ids=None):

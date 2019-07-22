@@ -29,6 +29,13 @@ steps:
    dependsOn:
     - default_ns
     - deploy_batch_sa
+ - kind: deploy
+   name: deploy_batch_output_sa
+   namespace:
+     valueFrom: batch_pods_ns.name
+   config: batch/output-service-account.yaml
+   dependsOn:
+    - batch_pods_ns
  - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
@@ -51,6 +58,7 @@ steps:
      kubectl -n {{ default_ns.name }} create secret generic jwt-secret-key --from-file=./secret-key
      # batch
      kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json --export secret test-gsa-key | jq '.metadata.name = "batch-gsa-key"' | kubectl -n {{ batch_pods_ns.name }} apply -f -
      python3 -c "
      import jwt
      with open('secret-key', 'rb') as f:
@@ -521,6 +529,7 @@ steps:
    dependsOn:
     - default_ns
     - batch_pods_ns
+    - deploy_batch_output_sa
     - create_accounts
     - batch_image
     - batch_database
@@ -589,7 +598,7 @@ steps:
    name: cleanup_pipeline
    image:
      valueFrom: base_image.image
-   alwaysRun: true     
+   alwaysRun: true
    script: |
      set -e
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/privateKeyData
@@ -600,7 +609,7 @@ steps:
       mountPath: /test-gsa-key
    dependsOn:
     - base_image
-    - setup_pipeline    
+    - setup_pipeline
     - test_pipeline
  - kind: deploy
    name: deploy_scheduler

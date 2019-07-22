@@ -43,7 +43,8 @@ def test_simple(client):
     batch = batch.submit()
     status = batch.wait()
     assert batch_status_job_counter(status, 'Success') == 2, status
-    assert batch_status_exit_codes(status) == [{'main': 0}, {'main': 0}], status
+    assert batch_status_exit_codes(status) == [
+        {'input': 0, 'main': 0, 'output': 0}, {'input': 0, 'main': 0, 'output': 0}], status
 
 
 def test_missing_parent_is_400(client):
