@@ -583,6 +583,19 @@ class MatrixToTableApply(TableIR):
                 list(child_typ.row_key))
 
 
+class BlockMatrixToTableApply(TableIR):
+    def __init__(self, bm, aux, config):
+        super().__init__(bm, aux)
+        self.bm = bm
+        self.aux = aux
+        self.config = config
+
+    def head_str(self):
+        return dump_json(self.config)
+
+    def _eq(self, other):
+        return self.config == other.config
+
 class BlockMatrixToTable(TableIR):
     def __init__(self, child):
         super().__init__(child)
