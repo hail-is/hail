@@ -605,7 +605,7 @@ class Job:
                         assert pod_status is not None
                         await app['log_store'].write_gs_file(self.directory,
                                                              LogStore.pod_status_file_name,
-                                                             json.dumps(pod_status.to_dict()))
+                                                             JSON_ENCODER.encode(pod_status.to_dict()))
 
                     new_state = 'Failed'
                 else:
@@ -613,7 +613,7 @@ class Job:
                     cleanup_container = [status for status in pod.status.container_statuses if status.name == 'cleanup'][0]
                     container_log, err = await app['k8s'].read_pod_log(pod.metadata.name, container='cleanup')
                     if err:
-                        container_log = 'no log due to {err}'
+                        container_log = f'no log due to {err}'
                     log.error(f'cleanup container failed: {cleanup_container}, log: {container_log}')
                     assert cleanup_container.state.terminated.exit_code == 0, container_log
                     # log.info(f'rescheduling job {self.id} -- cleanup container failed')
