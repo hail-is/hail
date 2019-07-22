@@ -68,19 +68,20 @@ def make_where_statement(items):
 
 async def _retry(cursor, f):
     n_attempts = 0
-    err = None
+    saved_err = None
     while n_attempts < MAX_RETRIES:
         n_attempts += 1
         try:
             result = await f(cursor)
             return result
         except pymysql.err.OperationalError as err:
+            saved_err = err
             code, _ = err.args
             if code != 1213:
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
             await asyncio.sleep(0.5)
-    raise err
+    raise saved_err
 
 
 async def execute_with_retry(cursor, sql, items):
@@ -301,18 +302,37 @@ class JobsTable(Table):
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
 
-    async def get_records_by_batch(self, batch_id):
-        return await self.get_records_where({'batch_id': batch_id})
+    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
+        if offset is not None:
+            assert limit is not None
+        return await self.get_records_where({'batch_id': batch_id},
+                                            limit=limit,
+                                            offset=offset,
+                                            order_by='batch_id, job_id',
+                                            ascending=True)
 
-    async def get_records_where(self, condition):
+    async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement(condition)
+
                 fields = ', '.join(self._select_fields())
+                limit = f'LIMIT {limit}' if limit else ''
+                offset = f'OFFSET {offset}' if offset else ''
+                order_by = f'ORDER BY {order_by}' if order_by else ''
+                if ascending is None:
+                    ascending = ''
+                elif ascending:
+                    ascending = 'ASC'
+                else:
+                    ascending = 'DESC'
+
                 sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
-                          WHERE {where_template}"""
+                          WHERE {where_template}
+                          {order_by} {ascending}                          
+                          {limit} {offset}"""
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
 

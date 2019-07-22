@@ -429,7 +429,7 @@ private class Emit(
         val codeL = emit(l)
         val codeR = emit(r)
         if (op.strict) {
-          strict(f(region, (false, codeL.v), region, (false, codeR.v)),
+          strict(f((false, codeL.v), (false, codeR.v)),
             codeL, codeR)
         } else {
           val lm = mb.newLocal[Boolean]
@@ -439,8 +439,8 @@ private class Emit(
             codeR.setup,
             lm := codeL.m,
             rm := codeR.m,
-            f(region, (lm, lm.mux(defaultValue(l.typ), codeL.v)),
-              region, (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
+            f((lm, lm.mux(defaultValue(l.typ), codeL.v)),
+              (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
       case MakeArray(args, typ) =>
@@ -985,7 +985,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i), aggSig))
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
         void(
           sc(i).newState,
           rvAgg.initOp(sc(i), argVars))
@@ -995,7 +995,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i), aggSig), s"${ aggs(i) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        val argVars = args.map(a => agg.RVAVariable(emit(a, container = container.flatMap(_.nested(i))), a.pType)).toArray
+        val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
         void(
           sc.loadOneIfMissing(aggOff, i),
           rvAgg.seqOp(sc(i), argVars))

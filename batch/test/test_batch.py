@@ -125,6 +125,15 @@ class Test(unittest.TestCase):
 
         assert_batch_ids({b2.id}, attributes={'tag': tag, 'name': 'b2'})
 
+    def test_limit_offset(self):
+        b1 = self.client.create_batch()
+        for i in range(3):
+            b1.create_job('alpine', ['true'])
+        b1 = b1.submit()
+        s = b1.status(limit=2, offset=1)
+        filtered_jobs = {j['job_id'] for j in s['jobs']}
+        assert filtered_jobs == {2, 3}, s
+
     def test_fail(self):
         b = self.client.create_batch()
         j = b.create_job('alpine', ['false'])
@@ -215,15 +224,15 @@ class Test(unittest.TestCase):
         b.cancel()
         bstatus = b.wait()
 
-        assert(len(bstatus['jobs']) == 3)
+        assert len(bstatus['jobs']) == 3, bstatus
         state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
         n_cancelled = state_count['Cancelled']
         n_complete = state_count['Error'] + state_count['Failed'] + state_count['Success']
-        self.assertTrue(n_cancelled <= 1)
-        self.assertTrue(n_cancelled + n_complete == 3)
+        assert n_cancelled <= 1, bstatus
+        assert n_cancelled + n_complete == 3, bstatus
 
         n_failed = sum([j['exit_code']['main'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
-        self.assertTrue(n_failed == 1)
+        assert n_failed == 1, bstatus
 
     def test_batch_status(self):
         b1 = self.client.create_batch()

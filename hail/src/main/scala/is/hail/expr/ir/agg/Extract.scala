@@ -201,13 +201,13 @@ object Extract {
     case _ => sig1 == sig2
   }
 
-  def getAgg(aggSig: AggSignature2): StagedRegionValueAggregator = aggSig match {
+  def getAgg(aggSig: AggSignature2): StagedAggregator = aggSig match {
     case AggSignature2(Sum(), _, Seq(t), _) =>
       new SumAggregator(t.physicalType)
     case AggSignature2(Count(), _, _, _) =>
       CountAggregator
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
-      val knownLength = nestedAggs.flatMap(_.initOpArgs).length == initOpArgs.length - 1
+      val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
     case AggSignature2(AggElements(), _, _, Some(nestedAggs)) =>
       new ArrayElementwiseOpAggregator(nestedAggs.map(getAgg).toArray)
@@ -221,20 +221,20 @@ object Extract {
   def getType(aggSig: AggSignature2): Type = getPType(aggSig).virtualType
 
   def apply(ir: IR, resultName: String): Aggs = {
-    val ab = new ArrayBuilder[(AggSignature2, IndexedSeq[IR])]()
+    val ab = new ArrayBuilder[InitOp2]()
     val seq = new ArrayBuilder[IR]()
     val let = new ArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
     val postAgg = extract(ir, ab, seq, let, ref)
-    val (aggs, initArgs) = ab.result().unzip
+    val initOps = ab.result()
+    val aggs = initOps.map(_.aggSig)
     val rt = TTuple(aggs.map(Extract.getType): _*)
     ref._typ = rt
 
-    val initOps = Array.tabulate(initArgs.length)(i => InitOp2(i, initArgs(i), aggs(i)))
     Aggs(postAgg, Begin(initOps), Begin(seq.result()), aggs)
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[(AggSignature2, IndexedSeq[IR])], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
+  private def extract(ir: IR, ab: ArrayBuilder[InitOp2], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result)
 
     ir match {
@@ -251,7 +251,7 @@ object Extract {
           x.aggSig.constructorArgs ++ x.aggSig.initOpArgs.getOrElse(FastSeq.empty),
           x.aggSig.seqOpArgs,
           None)
-        ab += newSig -> (x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()))
+        ab += InitOp2(i, x.constructorArgs ++ x.initOpArgs.getOrElse[IndexedSeq[IR]](FastIndexedSeq()), newSig)
         seqBuilder += SeqOp2(i, x.seqOpArgs, newSig)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
@@ -276,7 +276,7 @@ object Extract {
         throw new UnsupportedExtraction("group by")
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
-        val newAggs = new ArrayBuilder[(AggSignature2, IndexedSeq[IR])]()
+        val newAggs = new ArrayBuilder[InitOp2]()
         val newSeq = new ArrayBuilder[IR]()
         val newLet = new ArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
@@ -286,18 +286,22 @@ object Extract {
         letBuilder ++= independent
 
         val i = ab.length
-        val (aggs, inits) = newAggs.result().unzip
+        val initOps = newAggs.result()
+        val aggs = initOps.map(_.aggSig)
+
         val rt = TArray(TTuple(aggs.map(Extract.getType): _*))
         newRef._typ = -rt.elementType
-        val initArgs = knownLength.map(FastIndexedSeq(_)).getOrElse[IndexedSeq[IR]](FastIndexedSeq()) ++ inits.flatten.toFastIndexedSeq
 
-        val aggSigCheck = AggSignature2(AggElementsLengthCheck(), initArgs.map(_.typ), FastSeq(TInt32()), Some(aggs))
+        val aggSigCheck = AggSignature2(
+          AggElementsLengthCheck(),
+          knownLength.map(l => FastSeq(l.typ)).getOrElse(FastSeq()) :+ TVoid,
+          FastSeq(TInt32()), Some(aggs))
         val aggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq(TInt32(), TVoid), Some(aggs))
 
         val aRef = Ref(genUID(), a.typ)
         val iRef = Ref(genUID(), TInt32())
 
-        ab += aggSigCheck -> initArgs
+        ab += InitOp2(i, knownLength.map(FastSeq(_)).getOrElse(FastSeq[IR]()) :+ Begin(initOps), aggSigCheck)
         seqBuilder +=
           Let(
             aRef.name, a,

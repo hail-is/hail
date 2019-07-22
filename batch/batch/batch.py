@@ -30,7 +30,8 @@ from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE
+    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS
+from .throttler import PodThrottler
 
 from . import schemas
 
@@ -72,6 +73,8 @@ log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'BATCH_IMAGE = {BATCH_IMAGE}')
+log.info(f'MAX_PODS = {MAX_PODS}')
+log.info(f'QUEUE_SIZE = {QUEUE_SIZE}')
 
 STORAGE_CLASS_NAME = 'batch'
 
@@ -300,7 +303,7 @@ class Job:
 
     async def _delete_k8s_resources(self):
         await self._delete_pvc()
-        await self._delete_pod()
+        await app['pod_throttler'].delete_pod(self)
 
     async def _read_logs(self):
         if self._state in ('Pending', 'Cancelled'):
@@ -516,7 +519,7 @@ class Job:
                     (not self._cancelled and all(p.is_successful() for p in parents))):
                 log.info(f'all parents complete for {self.id},'
                          f' creating pod')
-                await self._create_pod()
+                app['pod_throttler'].create_pod(self)
             else:
                 log.info(f'parents deleted, cancelled, or failed: cancelling {self.id}')
                 await self.set_state('Cancelled')
@@ -540,17 +543,11 @@ class Job:
             log.info(f'job is already completed in db, not rescheduling pod')
             return
 
-        await self._delete_pod()
+        await app['pod_throttler'].delete_pod(self)
         if self._state == 'Running' and (not self._cancelled or self.always_run):
-            await self._create_pod()
+            app['pod_throttler'].create_pod(self)
 
     async def mark_complete(self, pod, failed=False, failure_reason=None):
-        if pod is not None:
-            assert pod.metadata.name == self._pod_name
-            if self.is_complete():
-                log.info(f'ignoring because job {self.id} is already complete')
-                return
-
         new_state = None
         exit_codes = [None for _ in tasks]
         durations = [None for _ in tasks]
@@ -904,8 +901,8 @@ class Batch:
         self.cancelled = cancelled
         self.closed = closed
 
-    async def get_jobs(self):
-        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id)]
+    async def get_jobs(self, limit=None, offset=None):
+        return [Job.from_record(record) for record in await db.jobs.get_records_by_batch(self.id, limit, offset)]
 
     async def cancel(self):
         await db.batch.update_record(self.id, cancelled=True, closed=True)
@@ -918,7 +915,7 @@ class Batch:
     async def _close_jobs(self):
         for j in await self.get_jobs():
             if j._state == 'Running':
-                await app['start_job_queue'].put(j)
+                app['pod_throttler'].create_pod(j)
 
     async def close(self):
         await db.batch.update_record(self.id, closed=True)
@@ -961,7 +958,7 @@ class Batch:
     def is_successful(self):
         return self.state == 'success'
 
-    async def to_dict(self, include_jobs=False):
+    async def to_dict(self, include_jobs=False, limit=None, offset=None):
         result = {
             'id': self.id,
             'state': self.state,
@@ -971,7 +968,7 @@ class Batch:
         if self.attributes:
             result['attributes'] = self.attributes
         if include_jobs:
-            jobs = await self.get_jobs()
+            jobs = await self.get_jobs(limit, offset)
             result['jobs'] = sorted([j.to_dict() for j in jobs], key=lambda j: j['job_id'])
         return result
 
@@ -1064,11 +1061,11 @@ async def create_batch(request, userdata):
     return jsonify(await batch.to_dict(include_jobs=False))
 
 
-async def _get_batch(batch_id, user):
+async def _get_batch(batch_id, user, limit=None, offset=None):
     batch = await Batch.from_db(batch_id, user)
     if not batch:
         abort(404)
-    return await batch.to_dict(include_jobs=True)
+    return await batch.to_dict(include_jobs=True, limit=limit, offset=offset)
 
 
 async def _cancel_batch(batch_id, user):
@@ -1084,7 +1081,11 @@ async def _cancel_batch(batch_id, user):
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    return jsonify(await _get_batch(batch_id, user))
+    params = request.query
+    limit = params.get('limit')
+    offset = params.get('offset')
+    return jsonify(await _get_batch(batch_id, user, limit=limit, offset=offset))
+
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
@@ -1130,7 +1131,10 @@ async def delete_batch(request, userdata):
 async def ui_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    batch = await _get_batch(batch_id, user)
+    params = request.query
+    limit = params.get('limit')
+    offset = params.get('offset')
+    batch = await _get_batch(batch_id, user, limit=limit, offset=offset)
     return {'batch': batch}
 
 
@@ -1207,6 +1211,11 @@ async def update_job_with_pod(job, pod):
         if err is not None:
             traceback.print_tb(err.__traceback__)
             log.info(f'failed to delete pod {pod.metadata.name} for job {job.id if job else "None"} due to {err}, ignoring')
+
+        err = await app['k8s'].delete_pvc(name=pod.metadata.name)
+        if err is not None:
+            traceback.print_tb(err.__traceback__)
+            log.info(f'failed to delete pvc {pod.metadata.name} for job {job.id if job else "None"} due to {err}, ignoring')
         return
 
     if job and job._cancelled and not job.always_run and job._state == 'Running':
@@ -1266,6 +1275,8 @@ async def kube_event_loop():
 
 
 async def refresh_k8s_pods():
+    log.info(f'refreshing k8s pods')
+
     # if we do this after we get pods, we will pick up jobs created
     # while listing pods and unnecessarily restart them
     pod_jobs = [Job.from_record(record) for record in await db.jobs.get_records_where({'state': 'Running'})]
@@ -1287,7 +1298,11 @@ async def refresh_k8s_pods():
         job = await Job.from_k8s_labels(pod)
         await update_job_with_pod(job, pod)
 
-    log.info('restarting ready and running jobs with pods not seen in k8s')
+    if app['pod_throttler'].full():
+        log.info(f'pod creation queue is full; skipping restarting jobs not seen in k8s')
+        return
+
+    log.info('restarting running jobs with pods not seen in k8s')
 
     for job in pod_jobs:
         if job._pod_name not in seen_pods:
@@ -1313,17 +1328,6 @@ async def refresh_k8s_pvc():
             if err is not None:
                 traceback.print_tb(err.__traceback__)
                 log.info(f'could not delete {pvc.metadata.name} due to {err}')
-
-
-async def start_job(queue):
-    while True:
-        job = await queue.get()
-        if job._state == 'Running':
-            try:
-                await job._create_pod()
-            except Exception as exc:  # pylint: disable=W0703
-                log.exception(f'Could not create pod for job {job.id} due to exception: {exc}')
-        queue.task_done()
 
 
 async def refresh_k8s_state():  # pylint: disable=W0613
@@ -1368,12 +1372,11 @@ async def on_startup(app):
     app['blocking_pool'] = pool
     app['k8s'] = K8s(pool, KUBERNETES_TIMEOUT_IN_SECONDS, HAIL_POD_NAMESPACE, v1)
     app['log_store'] = LogStore(pool, INSTANCE_ID)
-    app['start_job_queue'] = asyncio.Queue()
+    app['pod_throttler'] = PodThrottler(QUEUE_SIZE, MAX_PODS, parallelism=16)
 
     asyncio.ensure_future(polling_event_loop())
     asyncio.ensure_future(kube_event_loop())
     asyncio.ensure_future(db_cleanup_event_loop())
-    asyncio.ensure_future(scale_queue_consumers(app['start_job_queue'], start_job, n=16))
 
 
 app.on_startup.append(on_startup)

@@ -1,16 +1,12 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.physical.{PFloat64, PInt64, PTuple, PType}
-import is.hail.utils._
+import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.types.physical.{PFloat64, PInt64, PType}
 
-class SumAggregator(typ: PType) extends StagedRegionValueAggregator {
+class SumAggregator(typ: PType) extends StagedAggregator {
   type State = PrimitiveRVAState
-
-  val initOpTypes: Array[PType] = Array()
-  val seqOpTypes: Array[PType] = Array(typ)
   val resultType: PType = typ
 
   def add(v1: Code[_], v2: Code[_]): Code[_] = typ match {
@@ -27,15 +23,14 @@ class SumAggregator(typ: PType) extends StagedRegionValueAggregator {
 
   def createState(mb: EmitMethodBuilder): State = PrimitiveRVAState(Array(typ.setRequired(true)), mb)
 
-  def initOp(state: State, init: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
+  def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
     Code(v.storeAny(zero), state._loaded := true)
   }
 
-  def seqOp(state: State, seq: Array[RVAVariable], dummy: Boolean): Code[Unit] = {
-    val Array(RVAVariable(elt, t)) = seq
-    assert(t isOfType typ, s"$t vs $typ")
+  def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
+    val Array(elt) = seq
     val (_, v, _) = state.fields(0)
     Code(
       elt.setup,
