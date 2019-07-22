@@ -577,6 +577,11 @@ class Job:
             pod_results, _ = await app['log_store'].read_gs_file(self.directory, LogStore.results_file_name)
 
             if pod_results is None:
+                if pod.status.init_container_statuses is None:
+                    log.error(f'no init container statuses, will reschedule {self.id}, {pod}')
+                    await self.mark_unscheduled()
+                    return
+
                 setup_container = pod.status.init_container_statuses[0]
                 assert setup_container.name == 'setup'
                 setup_terminated = setup_container.state.terminated
