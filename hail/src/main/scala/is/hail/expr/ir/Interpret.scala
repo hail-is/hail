@@ -803,8 +803,6 @@ object Interpret {
                 "global", value.globals.t,
                 extracted.init)
 
-              println(Pretty(query))
-              println(Pretty(extracted.seqPerElt))
               val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](
                 extracted.aggs,
                 "global", value.globals.t,
