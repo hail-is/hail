@@ -140,7 +140,8 @@ object RelationalFunctions {
     classOf[GetElement],
     classOf[WrappedMatrixToTableFunction],
     classOf[WrappedMatrixToMatrixFunction],
-    classOf[WrappedMatrixToValueFunction]
+    classOf[WrappedMatrixToValueFunction],
+    classOf[PCRelate]
   ))
 
   def extractTo[T: Manifest](config: String): T = {
