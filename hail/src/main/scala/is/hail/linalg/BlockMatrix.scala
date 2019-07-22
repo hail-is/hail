@@ -1426,24 +1426,46 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
 
   private val gp = bm.gp
   private val blockSize = gp.blockSize
-  //private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length)
-  private val newGP = gp.filterCols(keep)
+  private val denseGP = GridPartitioner(blockSize, gp.nRows, keep.length)
+  //private val newGP = gp.filterCols(keep)
 
   private val allBlockColRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
-    BlockMatrixFilterRDD.computeAllBlockColRanges(keep, gp, newGP)
+    BlockMatrixFilterRDD.computeAllBlockColRanges(keep, gp, denseGP)
+
+  //Map the denseGP blocks to the blocks of parents they depend on, temporarily pretending they are all there.
+  //Then delete the parents that aren't in gp.maybeBlocks, then delete the pairs
+  //without parents at all.
+  private val parentMap = (0 until denseGP.numPartitions).map { blockId =>
+    val (blockRow, newBlockCol) = denseGP.blockCoordinates(blockId)
+    blockId -> allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
+      gp.coordinatesBlock(blockRow, blockCol)
+    }
+  }.map{case (blockId, parents) =>
+      val filteredParents = gp.maybeBlocks match {
+        case None => parents
+        case Some(bis) => parents.filter(id => bis.contains(id))
+      }
+      (blockId, filteredParents)
+  }.filter{case (_, parents) => !parents.isEmpty}.toMap
+
+  private val blockIndices = parentMap.keys.toArray.sorted
+  private val newGP = GridPartitioner(blockSize, gp.nRows, keep.length, Some(blockIndices))
 
   protected def getPartitions: Array[Partition] =
-    Array.tabulate(newGP.numPartitions) { pi =>
-      BlockMatrixFilterColsRDDPartition(pi, allBlockColRanges(newGP.blockBlockCol(pi)))
+    Array.tabulate(newGP.numPartitions) { blockIndex: Int =>
+      BlockMatrixFilterColsRDDPartition(newGP.blockToPartition(blockIndex), allBlockColRanges(newGP.blockBlockCol(blockIndex)))
     }
 
   override def getDependencies: Seq[Dependency[_]] = Array[Dependency[_]](
     new NarrowDependency(bm.blocks) {
       def getParents(partitionId: Int): Seq[Int] = {
-        val (blockRow, newBlockCol) = newGP.blockCoordinates(partitionId)
-        allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
-          gp.coordinatesBlock(blockRow, blockCol)
-        }
+//        val (blockRow, newBlockCol) = newGP.blockCoordinates(partitionId)
+//        allBlockColRanges(newBlockCol).map { case (blockCol, _, _) =>
+//          gp.coordinatesBlock(blockRow, blockCol)
+//        }
+          val blockParents = parentMap(newGP.partitionToBlock(partitionId))
+          val partitionParents = blockParents.map(blockId => newGP.blockToPartition(blockId)).toSet.toArray.sorted
+          partitionParents
       }
     })
 

@@ -53,6 +53,22 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     require(0 <= j && j < nBlockCols, s"Block column $j out of range [0, $nBlockCols).")
     i + j * nBlockRows
   }
+
+//  def partitionToBlock(partitionId: Int): Int = {
+//    maybeBlocks match {
+//      case None => partitionId
+//      case Some(bis) => bis(partitionId)
+//    }
+//  }
+//
+//  def blockToPartition(blockId: Int): Int = {
+//    maybeBlocks match {
+//      case None => blockId
+//      case Some(bis) => bis.indexOf(blockId)
+//    }
+//  }
+
+
   
   def intersect(that: GridPartitioner): GridPartitioner = {
     copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
@@ -84,7 +100,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       maxNBlocks.toInt
   }
   
-  val partBlock: Int => Int = maybeBlocks match {
+  val partitionToBlock: Int => Int = maybeBlocks match {
     case Some(bis) => pi =>
       assert(pi >= 0 && pi < bis.length)
       bis(pi)
@@ -93,14 +109,17 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       pi
   }
   
-  val blockPart: Int => Int = maybeBlocks match {
+  val blockToPartition: Int => Int = maybeBlocks match {
     case Some(bis) => bis.zipWithIndex.toMap.withDefaultValue(-1)
     case None => bi => bi
   }
-  
-  def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partBlock(pi))
 
-  def coordinatesPart(i: Int, j: Int): Int = blockPart(coordinatesBlock(i, j))
+  val partBlock = partitionToBlock
+  val blockPart = blockToPartition
+  
+  def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
+
+  def coordinatesPart(i: Int, j: Int): Int = blockToPartition(coordinatesBlock(i, j))
 
   override def getPartition(key: Any): Int = key match {
     case (i: Int, j: Int) => coordinatesPart(i, j)
@@ -159,17 +178,28 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     } yield (j * nBlockRows) + i).toArray
   }
 
-  def filterCols(keep: Array[Long]): GridPartitioner = {
-    val blockSize = this.blockSize
-    val nCols = keep.length
-    val nRows = this.nRows
-
-
-    //Hard part: What should go in maybeBlocks?
-    val maybeBlocks = None
-
-    return GridPartitioner(blockSize, nRows, nCols, maybeBlocks)
-  }
+//  def filterCols(keep: Array[Long]): GridPartitioner = {
+//    val blockSize = this.blockSize
+//    val nCols = keep.length
+//    val nRows = this.nRows
+//
+//    return this.maybeBlocks match {
+//      case None => GridPartitioner(blockSize, nRows, nCols)
+//      case Some(bis) => {
+//        val rectangles = bis.map(blockToRectangle)
+//
+//        //Flatmap the list of rectangles, getting the list of blocks we overlap with in the new gp.
+//
+//        GridPartitioner(blockSize, nRows, nCols)
+//      }
+//    }
+//
+//    //Hard part: What should go in maybeBlocks?
+//    //For all blocks in this.maybeBlocks, check what blocks they touch in the new partitioner.
+//    val maybeBlocks = None
+//
+//    return GridPartitioner(blockSize, nRows, nCols, maybeBlocks)
+//  }
 
   // returns increasing array of all blocks intersecting the rectangle
   // [r(0), r(1)) x [r(2), r(3)), i.e. [startRow, stopRow) x [startCol, stopCol)
