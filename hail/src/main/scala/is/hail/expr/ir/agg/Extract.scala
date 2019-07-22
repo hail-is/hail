@@ -189,8 +189,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
         comb.getSerializedAgg(0)
       }
     }
-
-
   }
 
   def results: IR = ResultOp2(0, aggs)
