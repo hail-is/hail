@@ -33,6 +33,12 @@ abstract class MatrixToTableFunction {
   def lower(): Option[TableToTableFunction] = None
 }
 
+abstract class BlockMatrixToTableFunction {
+  def typ(bmType: BlockMatrixType, auxType: Type): TableType
+
+  def execute(ctx: ExecuteContext, bm: BlockMatrix, aux: Any): TableValue
+}
+
 case class WrappedMatrixToTableFunction(
   function: MatrixToTableFunction,
   colsFieldName: String,
@@ -146,6 +152,8 @@ object RelationalFunctions {
   def lookupMatrixToTable(config: String): MatrixToTableFunction = extractTo[MatrixToTableFunction](config)
 
   def lookupTableToTable(config: String): TableToTableFunction = extractTo[TableToTableFunction](config)
+
+  def lookupBlockMatrixToTable(config: String): BlockMatrixToTableFunction = extractTo[BlockMatrixToTableFunction](config)
 
   def lookupTableToValue(config: String): TableToValueFunction = extractTo[TableToValueFunction](config)
 
