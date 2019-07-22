@@ -240,7 +240,7 @@ object Extract {
     val rt = TTuple(aggs.map(Extract.getType): _*)
     ref._typ = rt
 
-    Aggs(postAgg, Begin(initOps), Begin(seq.result()), aggs)
+    Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), aggs)
   }
 
   private def extract(ir: IR, ab: ArrayBuilder[InitOp2], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR): IR = {

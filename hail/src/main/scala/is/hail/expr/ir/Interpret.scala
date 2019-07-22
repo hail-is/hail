@@ -803,12 +803,15 @@ object Interpret {
                 "global", value.globals.t,
                 extracted.init)
 
+              println(Pretty(query))
+              println(Pretty(extracted.seqPerElt))
               val (_, partitionOpSeq) = CompileWithAggregators2[Long, Long, Unit](
                 extracted.aggs,
                 "global", value.globals.t,
                 "row", value.rvd.rowPType,
                 extracted.seqPerElt)
 
+              val read = extracted.deserialize(spec)
               val write = extracted.serialize(spec)
               val combOpF = extracted.combOpF(spec)
 
@@ -848,8 +851,7 @@ object Interpret {
               Region.scoped { r =>
                 val resF = f(0, r)
                 Region.smallScoped { aggRegion =>
-                  resF.newAggState(aggRegion)
-                  resF.setSerializedAgg(0, aggResults)
+                  resF.setAggState(aggRegion, read(aggRegion, aggResults))
                   SafeRow(rTyp, r, resF(r, globalsOffset, false))
                 }
               }
