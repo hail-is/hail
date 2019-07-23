@@ -161,6 +161,12 @@ object Simplify {
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
+    case If(ApplyUnaryPrimOp(Bang(), c), cnsq, altr) => If(c, altr, cnsq)
+
+    case If(c1, If(c2, cnsq2, _), altr1) if c1 == c2 => If(c1, cnsq2, altr1)
+
+    case If(c1, cnsq1, If(c2, _, altr2)) if c1 == c2 => If(c1, cnsq1, altr2)
+
     case Cast(x, t) if x.typ == t => x
 
     case CastRename(x, t) if x.typ == t => x
@@ -205,7 +211,7 @@ object Simplify {
     case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayFlatMap(a, n1, Let(n2, b1, b2))
 
-    case ArrayMap(a, elt, r: Ref) if r.name == elt => a
+    case ArrayMap(a, elt, r: Ref) if r.name == elt && r.typ == a.typ.asInstanceOf[TArray].elementType => a
 
     case ArrayMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayMap(a, n1, Let(n2, b1, b2))

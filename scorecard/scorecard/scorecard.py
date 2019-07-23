@@ -38,9 +38,9 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
 github = Github(token)
 
 component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231'],
-    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
-    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'konradjk', 'johnc1231', 'iitalics'],
+    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231', 'iitalics'],
+    'C++ backend': ['catoverdrive', 'patrick-schultz', 'chrisvittal', 'akotlar', 'iitalics'],
     'hailctl dataproc': ['tpoterba', 'danking', 'konradjk'],
     'k8s, services': ['danking', 'jigold', 'akotlar', 'johnc1231'],
     'Web app (JS)': ['akotlar', 'danking'],
@@ -49,7 +49,6 @@ component_users = {
 default_repo = 'hail'
 repos = {
     'hail': 'hail-is/hail',
-    'cloudtools': 'Nealelab/cloudtools'
 }
 
 app = Flask('scorecard')

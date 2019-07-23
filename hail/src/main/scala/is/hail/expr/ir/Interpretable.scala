@@ -10,6 +10,8 @@ object Interpretable {
         _: ResultOp2 |
         _: ReadAggs |
         _: WriteAggs |
+        _: SerializeAggs |
+        _: DeserializeAggs |
         _: MakeNDArray |
         _: NDArrayShape |
         _: NDArrayReshape |

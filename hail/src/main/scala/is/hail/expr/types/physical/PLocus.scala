@@ -69,17 +69,17 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
     new CodeOrdering {
       type T = Long
 
-      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long]): Code[Int] = {
+      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val cmp = mb.newLocal[Int]
 
-        val c1 = representation.loadField(rx, x, 0)
-        val c2 = representation.loadField(ry, y, 0)
+        val c1 = representation.loadField(x, 0)
+        val c2 = representation.loadField(y, 0)
 
-        val s1 = Code.invokeScalaObject[Region, Long, String](PString.getClass, "loadString", rx, c1)
-        val s2 = Code.invokeScalaObject[Region, Long, String](PString.getClass, "loadString", ry, c2)
+        val s1 = PString.loadString(c1)
+        val s2 = PString.loadString(c2)
 
-        val p1 = rx.loadInt(representation.fieldOffset(x, 1))
-        val p2 = ry.loadInt(representation.fieldOffset(y, 1))
+        val p1 = Region.loadInt(representation.fieldOffset(x, 1))
+        val p2 = Region.loadInt(representation.fieldOffset(y, 1))
 
         val codeRG = mb.getReferenceGenome(rg.asInstanceOf[ReferenceGenome])
 

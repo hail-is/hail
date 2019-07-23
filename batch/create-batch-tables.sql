@@ -22,24 +22,18 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `batch_id` BIGINT NOT NULL,
   `job_id` INT NOT NULL,
   `state` VARCHAR(40) NOT NULL,
-  `input_exit_code` INT,
-  `main_exit_code` INT,
-  `output_exit_code` INT,
   `token` VARCHAR(1024),
   `pvc_size` TEXT(65535),
   `callback` TEXT(65535),
-  `task_idx` INT NOT NULL,
   `always_run` BOOLEAN NOT NULL,
   `time_created` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  `duration` BIGINT,
   `attributes` TEXT(65535),
-  `tasks` TEXT(65535) NOT NULL,
-  `input_log_uri` VARCHAR(1024),
-  `main_log_uri` VARCHAR(1024),
-  `output_log_uri` VARCHAR(1024),
-  `input_pod_status` TEXT(65535),
-  `main_pod_status` TEXT(65535),
-  `output_pod_status` TEXT(65535),
+  `directory` VARCHAR(1024),
+  `pod_spec` TEXT(65535),
+  `exit_codes` TEXT(65535),
+  `durations` TEXT(65535),
+  `input_files` TEXT(65535),
+  `output_files` TEXT(65535),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
@@ -53,6 +47,15 @@ CREATE TABLE IF NOT EXISTS `jobs-parents` (
   FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX jobs_parents_parent_id ON `jobs-parents` (batch_id, parent_id);
+
+CREATE TABLE IF NOT EXISTS `batch-attributes` (
+  `batch_id` BIGINT NOT NULL,
+  `key` VARCHAR(100) NOT NULL,
+  `value` TEXT(65535),
+  PRIMARY KEY (`batch_id`, `key`),
+  FOREIGN KEY (`batch_id`) REFERENCES batch(id) ON DELETE CASCADE  
+) ENGINE = InnoDB;
+CREATE INDEX batch_attributes_key_value ON `batch-attributes` (`key`, `value`(256));
 
 DELIMITER $$
 

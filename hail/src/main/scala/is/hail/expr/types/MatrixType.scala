@@ -95,9 +95,7 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def canonicalRVDType: RVDType = RVDType(rowType.appendKey(MatrixType.entriesIdentifier, TArray(entryType)).physicalType, rowKey)
-
-  def canonicalTableType: TableType = toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
+  lazy val canonicalTableType: TableType = toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
 
   def toTableType(entriesFieldName: String, colsFieldName: String): TableType = TableType(
     rowType = rowType.appendKey(entriesFieldName, TArray(entryType)),

@@ -34,7 +34,30 @@ case class IndexNodeInfo(
 
 object IndexWriter {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
+
+  def builder(
+    keyType: Type,
+    annotationType: Type,
+    branchingFactor: Int = 4096,
+    attributes: Map[String, Any] = Map.empty[String, Any]
+  ): (FS, String) => IndexWriter = {
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType);
+    { (fs, path) =>
+      new IndexWriter(
+        fs,
+        path,
+        keyType,
+        annotationType,
+        makeLeafEncoder,
+        makeInternalEncoder,
+        branchingFactor,
+        attributes)
+    }
+  }
 }
+
 
 class IndexWriter(
   fs: FS,
@@ -48,7 +71,7 @@ class IndexWriter(
   require(branchingFactor > 1)
 
   private var elementIdx = 0L
-  private val region = new Region()
+  private val region = Region()
   private val rvb = new RegionValueBuilder(region)
 
   private val leafNodeBuilder = new LeafNodeBuilder(keyType, annotationType, 0L)
@@ -150,7 +173,7 @@ class IndexWriter(
       val metadata = IndexMetadata(
         IndexWriter.version.rep,
         branchingFactor,
-        height, 
+        height,
         keyType.parsableString(),
         annotationType.parsableString(),
         elementIdx,

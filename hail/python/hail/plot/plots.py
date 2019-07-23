@@ -1375,7 +1375,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     observed_contigs = set(source_pd['_contig'])
     observed_contigs = [contig for contig in ref.contigs.copy() if contig in observed_contigs]
-    contig_ticks = hail.eval([hail.locus(contig, int(ref.lengths[contig]/2)).global_position() for contig in observed_contigs])
+
+    contig_ticks = [ref._contig_global_position(contig) + ref.contig_length(contig) // 2 for contig in observed_contigs]
     color_mapper = CategoricalColorMapper(factors=ref.contigs, palette= palette[:2] * int((len(ref.contigs)+1)/2))
 
     p = figure(title=title, x_axis_label='Chromosome', y_axis_label='P-value (-log10 scale)', width=1000)

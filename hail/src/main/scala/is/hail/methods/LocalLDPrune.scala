@@ -5,9 +5,9 @@ import java.util
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir.{ExecuteContext, Interpret, MatrixValue, TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt32Required, PInt64Required, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -17,8 +17,8 @@ import is.hail.variant._
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
 
-  def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
+  def rvRowPType(locusType: PType, allelesType: PType): PStruct = PStruct("locus" -> locusType, "alleles" -> allelesType,
+    "bpv" -> PArray(PInt64Required), "nSamples" -> PInt32Required, "mean" -> PFloat64(), "centered_length_rec" -> PFloat64())
 }
 
 class BitPackedVectorView(rvRowType: PStruct) {
@@ -280,7 +280,11 @@ object LocalLDPrune {
     callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
   ): Table = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-    new Table(HailContext.get, TableLiteral(pruner.execute(mt.value)))
+
+    ExecuteContext.scoped { ctx =>
+      new Table(HailContext.get,
+        TableLiteral(pruner.execute(ctx, Interpret(mt.lit, ctx, optimize = false).toMatrixValue(mt.colKey)), ctx))
+    }
   }
 }
 
@@ -296,19 +300,18 @@ case class LocalLDPrune(
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(mv: MatrixValue): TableValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found '$maxQueueSize'.")
 
     val nSamples = mv.nCols
-    
-    val fullRowType = mv.rvRowType
+
     val fullRowPType = mv.rvRowPType
 
-    val locusIndex = fullRowType.fieldIdx("locus")
-    val allelesIndex = fullRowType.fieldIdx("alleles")
+    val locusIndex = fullRowPType.fieldIdx("locus")
+    val allelesIndex = fullRowPType.fieldIdx("alleles")
 
-    val bpvType = BitPackedVectorView.rvRowType(fullRowType.types(locusIndex), fullRowType.types(allelesIndex))
+    val bpvType = BitPackedVectorView.rvRowPType(fullRowPType.types(locusIndex), fullRowPType.types(allelesIndex))
 
     val tableType = typ(mv.typ)
 
@@ -338,7 +341,7 @@ case class LocalLDPrune(
             None
         }
       })
-    
+
     val rvdLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
@@ -353,7 +356,7 @@ case class LocalLDPrune(
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.rowType.physicalType)
+        rvb.start(tableType.canonicalPType)
         rvb.startStruct()
         rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
@@ -362,7 +365,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(), sitesOnly)
+    TableValue(tableType, BroadcastRow.empty(ctx), sitesOnly)
   }
 }
 

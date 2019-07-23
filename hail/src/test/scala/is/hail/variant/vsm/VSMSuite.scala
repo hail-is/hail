@@ -75,9 +75,9 @@ class VSMSuite extends HailSuite {
 
   @Test def testFilesWithRequiredGlobals() {
     val ht = Table.read(hc, "src/test/resources/required_globals.ht").tir
-    Interpret(TableRepartition(ht, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
+    Interpret(TableRepartition(ht, 10, RepartitionStrategy.SHUFFLE), ctx).rvd.count()
 
     val mt = MatrixTable.read(hc, "src/test/resources/required_globals.mt").ast
-    Interpret(MatrixRepartition(mt, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
+    Interpret(MatrixRepartition(mt, 10, RepartitionStrategy.SHUFFLE), ctx, optimize = false).rvd.count()
   }
 }

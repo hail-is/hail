@@ -36,15 +36,15 @@ object TestRandomFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerSeeded("counter_seeded", TInt32()) { case (r, seed) =>
+    registerSeeded("counter_seeded", TInt32(), null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded("seed_seeded", TInt64()) { case (r, seed) =>
+    registerSeeded("seed_seeded", TInt64(), null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded("pi_seeded", TInt32()) { case (r, seed) =>
+    registerSeeded("pi_seeded", TInt32(), null) { case (r, rt, seed) =>
       getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }
@@ -69,7 +69,7 @@ class RandomFunctionsSuite extends HailSuite {
   }
 
   @Test def testRandomAcrossJoins() {
-    def asArray(ir: TableIR) = Interpret(ir).rdd.collect()
+    def asArray(ir: TableIR) = Interpret(ir, ctx).rdd.collect()
 
     val joined = TableJoin(
       mapped2(10, 4),
@@ -86,7 +86,7 @@ class RandomFunctionsSuite extends HailSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = Interpret(mapped2(15, 4)).rvd
+    val mapped = Interpret(mapped2(15, 4), ctx).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
@@ -134,7 +134,7 @@ class RandomFunctionsSuite extends HailSuite {
           "pi" -> partitionIdx,
           "counter" -> counter)))
 
-    val expected = Interpret(tir).rvd.toRows.collect()
+    val expected = Interpret(tir, ctx).rvd.toRows.collect()
     val actual = new Table(hc, tir).rdd.collect()
 
     assert(expected.sameElements(actual))

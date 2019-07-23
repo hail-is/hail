@@ -2,7 +2,7 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical.{PLocus, PStruct}
@@ -25,9 +25,10 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
     )
   }
 
-  def execute(mv: MatrixValue): MatrixValue = {
+  def execute(ctx: ExecuteContext, mv: MatrixValue): MatrixValue = {
     val newType = typ(mv.typ)
-    val rvdType = newType.canonicalRVDType
+    val newTableType = newType.canonicalTableType
+    val rvdType = newTableType.canonicalRVDType
 
     val oldBounds = mv.rvd.partitioner.rangeBounds
     val adjBounds = oldBounds.map { interval =>
@@ -162,7 +163,6 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
     }
 
-    mv.copy(typ = newType,
-      rvd = RVD(newType.canonicalRVDType, mv.rvd.partitioner, newRDD))
+    mv.copy(newType, TableValue(newTableType, mv.tv.globals, RVD(rvdType, mv.rvd.partitioner, newRDD)))
   }
 }

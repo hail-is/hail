@@ -348,13 +348,13 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
 
   lazy val fullType: TableType = metadata.fullType
 
-  def apply(tr: TableRead): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     HailContext.maybeGZipAsBGZip(options.forceBGZ) {
-      apply1(tr)
+      apply1(tr, ctx)
     }
   }
 
-  def apply1(tr: TableRead): TableValue = {
+  def apply1(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
     val rowTyp = tr.typ.rowType
     val nFieldOrig = fullType.rowType.size
@@ -409,6 +409,6 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
       }
     }
 
-    TableValue(tr.typ, BroadcastRow(Row.empty, tr.typ.globalType, hc.backend), RVD.unkeyed(rowTyp.physicalType, crdd))
+    TableValue(tr.typ, BroadcastRow.empty(ctx), RVD.unkeyed(rowTyp.physicalType, crdd))
   }
 }

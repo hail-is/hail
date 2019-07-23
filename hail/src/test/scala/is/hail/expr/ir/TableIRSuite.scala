@@ -10,6 +10,8 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.TestUtils._
+import is.hail.annotations.BroadcastRow
+import is.hail.io.CodecSpec
 
 class TableIRSuite extends HailSuite {
   def getKT: Table = {
@@ -59,6 +61,15 @@ class TableIRSuite extends HailSuite {
     val node = TableCollect(TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx")))))
     assertEvalsTo(TableCollect(t), Row(Array.tabulate(10)(Row(_)).toFastIndexedSeq, Row()))
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastIndexedSeq, Row()))
+  }
+
+  @Test def testRangeSum() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val t = TableRange(10, 2)
+    val row = Ref("row", t.typ.rowType)
+    val sum = AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))
+    val node = TableCollect(TableMapRows(t, InsertFields(row, FastIndexedSeq("sum" -> ApplyScanOp(FastSeq(), None, FastSeq(Cast(GetField(row, "idx"), TInt64())), sum)))))
+    assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, Array.range(0, i).sum.toLong)).toFastIndexedSeq, Row()))
   }
 
   @Test def testGetGlobals() {
@@ -314,7 +325,7 @@ class TableIRSuite extends HailSuite {
         Some(1)),
       if (!leftProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")))
     val partitionedLeft = left.copy2(
-      rvd = left.value.rvd
+      rvd = left.rvd
         .repartition(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1)))
 
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
@@ -326,7 +337,7 @@ class TableIRSuite extends HailSuite {
         Some(1)),
       if (!rightProject.contains(1)) FastIndexedSeq("A", "B") else FastIndexedSeq("A")))
     val partitionedRight = right.copy2(
-      rvd = right.value.rvd
+      rvd = right.rvd
         .repartition(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
@@ -351,9 +362,15 @@ class TableIRSuite extends HailSuite {
     val signature = TStruct(("field1", TString()), ("field2", TInt32()))
     val keyNames = FastIndexedSeq("field1", "field2")
     val kt = Table(hc, rdd, signature, keyNames)
-    val distinctCount = TableCount(TableDistinct(TableLiteral(
-      kt.value.copy(typ = kt.typ.copy(key = FastIndexedSeq("field1")))
-    )))
+    val tt = TableType(rowType = signature, key = keyNames, globalType = TStruct())
+    val base = TableLiteral(
+      TableValue(tt,
+        BroadcastRow.empty(ctx),
+        rdd),
+      ctx)
+
+    // construct the table with a longer key, then copy the table to shorten the key in type, but not rvd
+    val distinctCount = TableCount(TableDistinct(TableLiteral(tt.copy(key = FastIndexedSeq("field1")), base.rvd, base.encodedGlobals)))
     assertEvalsTo(distinctCount, 2L)
   }
 
@@ -383,7 +400,7 @@ class TableIRSuite extends HailSuite {
             FastIndexedSeq("k" -> (I32(49999) - GetField(row, "idx"))))),
         FastIndexedSeq("k"))
 
-    Interpret(TableJoin(t1, t2, "left")).rvd.count()
+    Interpret(TableJoin(t1, t2, "left"), ctx).rvd.count()
   }
 
   @Test def testTableRename() {
@@ -391,9 +408,9 @@ class TableIRSuite extends HailSuite {
     val before = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("foo" -> I32(0))))
     val t = TableRename(before, Map("idx" -> "idx_"), Map("foo" -> "foo_"))
     assert(t.typ == TableType(rowType = TStruct("idx_" -> TInt32()), key = FastIndexedSeq("idx_"), globalType = TStruct("foo_" -> TInt32())))
-    val beforeValue = Interpret(before)
-    val after = Interpret(t)
-    assert(beforeValue.globals.safeValue == after.globals.safeValue)
+    val beforeValue = Interpret(before, ctx)
+    val after = Interpret(t, ctx)
+    assert(beforeValue.globals.javaValue == after.globals.javaValue)
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
 
@@ -401,10 +418,10 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = tmpDir.createLocalTempFile(extension = "ht")
-    Interpret(TableWrite(table, TableNativeWriter(path)))
-    val before = table.execute(hc)
+    Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
+    val before = table.execute(ctx)
     val after = Table.read(hc, path)
-    assert(before.globals.safeValue == after.globals.safeValue)
+    assert(before.globals.javaValue == after.globals)
     assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
 
@@ -472,6 +489,6 @@ class TableIRSuite extends HailSuite {
       )
       ))))
 
-    assert(testTable.globals.safeValue == texp.globals.safeValue)
+    assert(testTable.globals == texp.globals)
   }
 }

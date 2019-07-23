@@ -1826,6 +1826,8 @@ class TableToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountTable':
             self._type = tint64
+        elif name == 'TableCalculateNewPartitions':
+            self._type = tarray(tinterval(self.child.typ.key_type))
         else:
             assert name == 'NPartitionsTable', name
             self._type = tint32

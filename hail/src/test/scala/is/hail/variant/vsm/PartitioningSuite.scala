@@ -31,20 +31,21 @@ class PartitioningSuite extends HailSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), FastIndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
-      typ, BroadcastRow(Row.empty, TStruct.empty(), hc.backend), RVD.empty(sc, typ.canonicalRVDType)))
+      typ, BroadcastRow.empty(ctx), RVD.empty(sc, typ.canonicalRVDType)), ctx)
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     Interpret(
       MatrixAnnotateRowsTable(
         ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
         t,
         "foo",
-        product=false))
+        product = false),
+      ctx, optimize = false)
       .rvd.count()
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalRVDType
+    val rvdType = mt.matrixType.canonicalTableType.canonicalRVDType
 
     mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "left", (_, it) => it.map(_._1), rvdType).count()
     mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "inner", (_, it) => it.map(_._1), rvdType).count()
@@ -52,7 +53,7 @@ class PartitioningSuite extends HailSuite {
 
   @Test def testEmptyRDDOrderedJoin() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalRVDType
+    val rvdType = mt.matrixType.canonicalTableType.canonicalRVDType
 
     val nonEmptyRVD = mt.rvd
     val emptyRVD = RVD.empty(hc.sc, rvdType)

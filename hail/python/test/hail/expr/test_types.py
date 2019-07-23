@@ -90,3 +90,9 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(nested=hl.dict({"tup": hl.tuple([ht.idx])}))
         ht.to_spark()  # should not throw exception
+
+    def test_rename_not_unique(self):
+        with self.assertRaisesRegex(ValueError, "attempted to rename 'b' and 'c' both to 'x'"):
+            hl.tstruct(a=hl.tbool, b=hl.tint32, c=hl.tint32)._rename({'b': 'x', 'c': 'x'})
+        with self.assertRaisesRegex(ValueError, "attempted to rename 'a' and 'b' both to 'a'"):
+            hl.tstruct(a=hl.tbool, b=hl.tint32)._rename({'b': 'a'})

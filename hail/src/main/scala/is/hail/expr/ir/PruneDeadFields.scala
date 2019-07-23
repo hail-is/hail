@@ -248,7 +248,7 @@ object PruneDeadFields {
     memo.requestedType.bind(tir, requestedType)
     tir match {
       case TableRead(_, _, _) =>
-      case TableLiteral(_) =>
+      case TableLiteral(_, _, _) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableRange(_, _) =>
@@ -552,7 +552,7 @@ object PruneDeadFields {
         val irDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _) =>
-      case MatrixLiteral(_) =>
+      case MatrixLiteral(_, _) =>
       case MatrixChooseCols(child, _) =>
         memoizeMatrixIR(child, unify(child.typ, requestedType), memo)
       case MatrixCollectColsByKey(child) =>
@@ -1667,7 +1667,7 @@ object PruneDeadFields {
     if (ir.typ == rType)
       ir
     else {
-      ir.typ match {
+      val result = ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
           val uid = genUID()
@@ -1677,7 +1677,7 @@ object PruneDeadFields {
               f.name -> upcast(GetField(ref, f.name), f.typ)
             }
           )
-          Let(uid, ir, ms)
+          Let(uid, ir, If(IsNA(ref), NA(ms.typ), ms))
         case ta: TStreamable =>
           val ra = rType.asInstanceOf[TStreamable]
           val uid = genUID()
@@ -1690,7 +1690,7 @@ object PruneDeadFields {
           val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
             upcast(GetTupleElement(ref, i), typ)
           })
-          Let(uid, ir, mt)
+          Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
         case td: TDict =>
           val rd = rType.asInstanceOf[TDict]
           ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
@@ -1699,6 +1699,8 @@ object PruneDeadFields {
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case t => ir
       }
+      assert(result.typ == rType)
+      result
     }
   }
 

@@ -46,5 +46,5 @@ case class WrappedMatrixNativeMultiWriter(
   colKey: IndexedSeq[String]
 ) {
   def apply(mvs: IndexedSeq[TableValue]): Unit = writer.apply(
-    mvs.map(_.toMatrixValue(LowerMatrixIR.colsFieldName, LowerMatrixIR.entriesFieldName, colKey)))
+    mvs.map(_.toMatrixValue(colKey)))
 }

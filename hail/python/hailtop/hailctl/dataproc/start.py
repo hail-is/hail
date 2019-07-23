@@ -1,9 +1,10 @@
-import sys
-
 import re
 import subprocess as sp
+import sys
 
-from hailtop import hailctl
+import pkg_resources
+import yaml
+
 from .cluster_config import ClusterConfig
 
 DEFAULT_PROPERTIES = {
@@ -103,10 +104,10 @@ def main(args, pass_through_args):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
-    if not pkg_resources.resource_exists(__name__, "deploy.yaml"):
+    if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
         raise RuntimeError(f"package has no 'deploy.yaml' file")
     deploy_metadata = yaml.safe_load(
-        pkg_resources.resource_stream(__name__, "deploy.yaml"))
+        pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']
 
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if args.properties:
@@ -182,6 +183,8 @@ def main(args, pass_through_args):
         cmd.append('--max-idle={}'.format(args.max_idle))
     if args.max_age:
         cmd.append('--max-age={}'.format(args.max_age))
+
+    cmd.extend(pass_through_args)
 
     # print underlying gcloud command
     print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))

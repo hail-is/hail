@@ -1,54 +1,102 @@
 package is.hail.annotations
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.HailContext
 import is.hail.backend.{Backend, BroadcastValue}
+import is.hail.expr.ir.ExecuteContext
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct}
-import org.apache.spark.SparkContext
+import is.hail.io.Decoder
+import is.hail.rvd.RVD
 import org.apache.spark.sql.Row
 
-object BroadcastRow {
-  def empty(): BroadcastRow =
-    BroadcastRow(Row.empty, TStruct.empty(), HailContext.backend)
 
-  def apply(value: Row, t: TBaseStruct, sc: SparkContext): BroadcastRow =
-    BroadcastRow(value, t, HailContext.backend)
+case class SerializableRegionValue(encodedValue: Array[Byte], t: PType, makeDecoder: ByteArrayInputStream => Decoder) {
+  def readRegionValue(r: Region): Long = {
+    val dec = makeDecoder(new ByteArrayInputStream(encodedValue))
+    val offset = dec.readRegionValue(r)
+    dec.close()
+    offset
+  }
 }
 
-case class BroadcastRow(value: Row,
-  t: TBaseStruct,
-  backend: Backend) {
-  require(Annotation.isSafe(t, value))
+object BroadcastRow {
+  def empty(ctx: ExecuteContext): BroadcastRow = apply(ctx, Row(), TStruct())
 
-  lazy val safeValue: Row = value
-
-  lazy val broadcast: BroadcastValue[Row] = backend.broadcast(value)
-
-  def toRegion(region: Region): Long = {
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(t.physicalType)
+  def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
+    val pType = PType.canonical(t).asInstanceOf[PStruct]
+    val rvb = new RegionValueBuilder(ctx.r)
+    rvb.start(pType)
     rvb.addAnnotation(t, value)
-    rvb.end()
+    val offset = rvb.end()
+    BroadcastRow(RegionValue(ctx.r, offset), pType, HailContext.get.backend)
   }
+}
+
+trait BroadcastRegionValue {
+
+  def value: RegionValue
+
+  def t: PType
+
+  def backend: Backend
+
+  lazy val broadcast: BroadcastValue[SerializableRegionValue] = {
+    val codec = RVD.wireCodec
+    val makeEnc = codec.buildEncoder(t)
+    val makeDec = codec.buildDecoder(t, t)
+
+    val baos = new ByteArrayOutputStream()
+
+    val enc = makeEnc(baos)
+    enc.writeRegionValue(value.region, value.offset)
+    enc.flush()
+    enc.close()
+
+    val srv = SerializableRegionValue(baos.toByteArray, t, makeDec)
+    backend.broadcast(srv)
+  }
+
+  def javaValue: Any
+
+  def safeJavaValue: Any
+
+  override def equals(obj: Any): Boolean = obj match {
+    case b: BroadcastRegionValue => t == b.t && backend == b.backend && t.unsafeOrdering().compare(value, b.value) == 0
+    case _ => false
+  }
+
+  override def hashCode(): Int = javaValue.hashCode()
+}
+
+case class BroadcastRow(value: RegionValue,
+  t: PStruct,
+  backend: Backend) extends BroadcastRegionValue {
+
+  def javaValue: UnsafeRow = UnsafeRow.readBaseStruct(t, value.region, value.offset)
+
+  def safeJavaValue: Row = SafeRow.read(t, value).asInstanceOf[Row]
 }
 
 object BroadcastIndexedSeq {
-  def apply(value: IndexedSeq[Annotation], t: TArray, sc: SparkContext): BroadcastIndexedSeq =
-    BroadcastIndexedSeq(value, t, HailContext.backend)
+  def apply(ctx: ExecuteContext, value: IndexedSeq[Annotation],
+    t: TArray,
+    backend: Backend): BroadcastIndexedSeq = {
+    val pType = PType.canonical(t).asInstanceOf[PArray]
+    val rvb = new RegionValueBuilder(ctx.r)
+    rvb.start(pType)
+    rvb.addAnnotation(t, value)
+    val offset = rvb.end()
+    BroadcastIndexedSeq(RegionValue(ctx.r, offset), pType, HailContext.get.backend)
+  }
 }
 
-case class BroadcastIndexedSeq(value: IndexedSeq[Annotation],
-  t: TArray,
-  backend: Backend) {
-  require(Annotation.isSafe(t, value))
+case class BroadcastIndexedSeq(value: RegionValue,
+  t: PArray,
+  backend: Backend) extends BroadcastRegionValue {
 
-  lazy val safeValue: IndexedSeq[Annotation] = value
+  def safeJavaValue: IndexedSeq[Row] = SafeRow.read(t, value).asInstanceOf[IndexedSeq[Row]]
 
-  lazy val broadcast: BroadcastValue[IndexedSeq[Annotation]] = backend.broadcast(value)
-
-  def toRegion(region: Region): Long = {
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(t.physicalType)
-    rvb.addAnnotation(t, value)
-    rvb.end()
-  }
+  def javaValue: UnsafeIndexedSeq = new UnsafeIndexedSeq(t, value.region, value.offset)
 }

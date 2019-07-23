@@ -6,7 +6,8 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
+import is.hail.expr.types.physical.{PArray, PLocus, PString, PStruct, PType}
+import is.hail.expr.types.virtual.{TArray, TString, TStruct}
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -53,13 +54,13 @@ object LocalLDPruneSuite {
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.field("locus").typ,
-    rvRowType.field("alleles").typ)
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowPType(PType.canonical(rvRowType.field("locus").typ),
+    PType.canonical(rvRowType.field("alleles").typ))
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toFastIndexedSeq
     val rvb = new RegionValueBuilder(Region())
-    rvb.start(rvRowType.physicalType)
+    rvb.start(PType.canonical(rvRowType))
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), FastIndexedSeq("A", "T"))
@@ -89,7 +90,7 @@ object LocalLDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rvRowType.physicalType)
+    val hcView = HardCallView(PType.canonical(rvRowType).asInstanceOf[PStruct])
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
@@ -141,7 +142,7 @@ class LocalLDPruneSuite extends HailSuite {
   val nCores = 4
   lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
-  
+
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def getLocallyPrunedRDDWithGT(unprunedMatrixTable: MatrixTable, locallyPrunedTable: Table):
@@ -292,7 +293,7 @@ class LocalLDPruneSuite extends HailSuite {
         val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LocalLDPruneSuite.rvRowType.physicalType)
+        val view = HardCallView(PType.canonical(LocalLDPruneSuite.rvRowType).asInstanceOf[PStruct])
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)
@@ -325,9 +326,9 @@ class LocalLDPruneSuite extends HailSuite {
   @Test def bitPackedVectorCorrectWhenOffsetNotZero() {
     Region.scoped { r =>
       val rvb = new RegionValueBuilder(r)
-      val t = BitPackedVectorView.rvRowType(
-        +TLocus(ReferenceGenome.GRCh37),
-        +TArray(+TString()))
+      val t = BitPackedVectorView.rvRowPType(
+        +PLocus(ReferenceGenome.GRCh37),
+        +PArray(+PString()))
       val bpv = new BitPackedVectorView(t)
       r.appendInt(0xbeef)
       rvb.start(t)
