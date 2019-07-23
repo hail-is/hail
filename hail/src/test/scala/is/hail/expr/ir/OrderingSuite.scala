@@ -43,17 +43,6 @@ class OrderingSuite extends HailSuite {
     fb.resultWithIndex()(0, r)
   }
 
-  def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
-    val rvb = new RegionValueBuilder(region)
-    args.map { case (t, a) =>
-      rvb.start(TTuple(t).physicalType)
-      rvb.startTuple()
-      rvb.addAnnotation(t, a)
-      rvb.endTuple()
-      rvb.end()
-    }.toArray
-  }
-
   @Test def testRandomOpsAgainstExtended() {
     val compareGen = for {
       t <- Type.genArb
@@ -128,7 +117,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testToSetOnRandomDuplicatedArray() {
+  @Test def testToSetOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -144,7 +133,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testToDictOnRandomDuplicatedArray() {
+  @Test def testToDictOnRandomDuplicatedArray() {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       kt <- Type.genArb
@@ -197,7 +186,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testDictGetOnRandomDict() {
+  @Test def testDictGetOnRandomDict() {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
@@ -223,7 +212,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testBinarySearchOnSet() {
+  @Test def testBinarySearchOnSet() {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
