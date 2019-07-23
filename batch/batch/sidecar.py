@@ -178,7 +178,7 @@ async def refresh_k8s_pods():
             log.info(f'could not refresh pods due to {err}, will try again later')
             return
 
-        name = pod['metadata']['name']
+        name = pod.metadata['name']
         log.info(f'refreshing from pod {name}')
         await pod_changed(pod)
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
