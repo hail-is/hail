@@ -1339,6 +1339,8 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   
   private val originalGP = bm.gp
   private val blockSize = originalGP.blockSize
+  private val tempDenseGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
+
   private val newGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
 
   private val allBlockRowRanges: Array[Array[(Int, Array[Int], Array[Int])]] =
@@ -1452,7 +1454,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
   println(s"Asked to keep: ${keep.toIndexedSeq}")
 
   private val blockIndices = blockParentMap.keys.toArray.sorted
-  private val newGPMaybeBlocks = if (blockIndices.length ==  tempDenseGP.nBlockRows)  None else Some(blockIndices)
+  private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
 
   protected def getPartitions: Array[Partition] = {
