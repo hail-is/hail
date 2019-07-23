@@ -1240,7 +1240,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   }
 
   def filter(keepRows: Array[Long], keepCols: Array[Long]): BlockMatrix = {
-    new BlockMatrix(new BlockMatrixFilterRDD(this, keepRows, keepCols),
+    new BlockMatrix(new BlockMatrixFilterRDD(densify(), keepRows, keepCols),
       blockSize, keepRows.length, keepCols.length)
   }
 
@@ -1418,7 +1418,9 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
-case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
+case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition{
+  override def toString() = s"BlockMatrixFilterColsRDDPartition${(index, blockColRanges.map{case (a, b, c) => (a, b.toIndexedSeq, c.toIndexedSeq)}.toIndexedSeq)}"
+}
 
 // checked in Python: keep non-empty, increasing, valid range
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
@@ -1457,6 +1459,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     println(s"Trying to get partitions. \n" +
       s"ParentMap: ${parentMap.mapValues(_.toIndexedSeq)}\n" +
       s"OriginalGP.numPartitions: ${gp.numPartitions}\n" +
+      s"OriginalGP.maybeBlocks: ${gp.maybeBlocks.map(_.toIndexedSeq)}\n" +
       s"DenseGP.numPartitions: ${denseGP.numPartitions}\n" +
       s"newGP.numPartitions: ${newGP.numPartitions}\n" +
       s"newGP.maybeBlocks: ${newGP.maybeBlocks.map(_.toIndexedSeq)}")
@@ -1503,6 +1506,7 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
         println(s"Computing for ${(blockCol, startIndices.toIndexedSeq, endIndices.toIndexedSeq)}")
         val parentBI = gp.coordinatesBlock(blockRow, blockCol)
         val parentPI = gp.blockToPartition(parentBI)
+        println(s"Block index ${parentBI} maps to partition ${parentPI}")
         val (_, block) = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()
 
         var colRangeIndex = 0
