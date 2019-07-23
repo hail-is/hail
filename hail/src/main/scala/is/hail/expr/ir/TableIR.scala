@@ -1704,8 +1704,11 @@ case class BlockMatrixToTableApply(
 
   override lazy val typ: TableType = function.typ(bm.typ, aux.typ)
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableValue =
-    function.execute(ctx, bm.execute(ctx), Interpret[Any](ctx, aux))
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
+    val b = bm.execute(ctx)
+    val (a, _) = CompileAndEvaluate[Any](ctx, aux, optimize = false)
+    function.execute(ctx, b, a)
+  }
 }
 
 case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
