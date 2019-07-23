@@ -1475,23 +1475,13 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       (blockId, filteredParents)
   }.filter{case (_, parents) => !parents.isEmpty}.toMap
 
-  println(s"Asked to keep: ${keep.toIndexedSeq}")
-
   private val blockIndices = blockParentMap.keys.toArray.sorted
   private val newGPMaybeBlocks = if (blockIndices.length == tempDenseGP.maxNBlocks)  None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
 
   protected def getPartitions: Array[Partition] = {
-    println(s"Trying to get partitions. \n" +
-      s"ParentMap: ${blockParentMap.mapValues(_.toIndexedSeq)}\n" +
-      s"OriginalGP.numPartitions: ${originalGP.numPartitions}\n" +
-      s"OriginalGP.maybeBlocks: ${originalGP.maybeBlocks.map(_.toIndexedSeq)}\n" +
-      s"DenseGP.numPartitions: ${tempDenseGP.numPartitions}\n" +
-      s"newGP.numPartitions: ${newGP.numPartitions}\n" +
-      s"newGP.maybeBlocks: ${newGP.maybeBlocks.map(_.toIndexedSeq)}")
     Array.tabulate(newGP.numPartitions) { partitionIndex: Int =>
       val blockIndex = newGP.partitionToBlock(partitionIndex)
-      println(s"partition ${partitionIndex} maps to block ${blockIndex}")
       BlockMatrixFilterColsRDDPartition(partitionIndex, allBlockColRanges(newGP.blockBlockCol(blockIndex)))
     }
   }
@@ -1501,7 +1491,6 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       def getParents(partitionId: Int): Seq[Int] = {
           val blockForPartition = newGP.partitionToBlock(partitionId)
           val blockParents = blockParentMap(blockForPartition)
-          println(s"The parents of block ${blockForPartition} are ${blockParents.toIndexedSeq}")
           val partitionParents = blockParents.map(blockId => originalGP.blockToPartition(blockId)).toSet.toArray.sorted
           partitionParents
       }
@@ -1517,22 +1506,17 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     var j = 0
     var k = 0
 
-    val debug = (blockRow, newBlockCol, blockNRows, newBlockNCols)
-    println(s"blockRow, newBlockCol, blockNRows, newBlockNCols: ${debug}")
-
     val splitCast = split.asInstanceOf[BlockMatrixFilterColsRDDPartition]
     println(splitCast)
 
     splitCast
       .blockColRanges
       .foreach { case (blockCol, startIndices, endIndices) =>
-        println(s"Computing for ${(blockCol, startIndices.toIndexedSeq, endIndices.toIndexedSeq)}")
         val parentBI = originalGP.coordinatesBlock(blockRow, blockCol)
         var block = parentZeroBlock
 
         if (blockParentMap(newGP.partitionToBlock(split.index)).contains(parentBI)) {
           val parentPI = originalGP.blockToPartition(parentBI)
-          println(s"Block index ${parentBI} maps to partition ${parentPI}")
           block = bm.blocks.iterator(bm.blocks.partitions(parentPI), context).next()._2
         }
         var colRangeIndex = 0
