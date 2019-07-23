@@ -2180,6 +2180,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ArrayFold(cond1, True(), "accum", "i", Ref("i", TInt32()).ceq(v)), FastIndexedSeq(0 -> TInt32()), false)
   }
 
+  @Test def testNonCanonicalTypeParsing(): Unit = {
+    val t = TTuple(FastIndexedSeq(TupleField(1, TInt64())))
+    val lit = Literal(t, Row(1L))
+
+    assert(IRParser.parseType(t.parsableString()) == t)
+    assert(IRParser.parse_value_ir(Pretty(lit)) == lit)
+  }
+
   @Test def regressionTestUnifyBug(): Unit = {
     // failed due to misuse of Type.unify
     val ir = IRParser.parse_value_ir(

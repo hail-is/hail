@@ -586,7 +586,9 @@ private class Emit(
 
         val (k1, k2) = etyp match {
           case t: PStruct => GetField(In(0, t.virtualType), "key") -> GetField(In(1, t.virtualType), "key")
-          case t: PTuple => GetTupleElement(In(0, t.virtualType), t.fields(0).index) -> GetTupleElement(In(1, t.virtualType), t.fields(0).index)
+          case t: PTuple =>
+            assert(t.fields(0).index == 0)
+            GetTupleElement(In(0, t.virtualType), 0) -> GetTupleElement(In(1, t.virtualType), 0)
         }
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0

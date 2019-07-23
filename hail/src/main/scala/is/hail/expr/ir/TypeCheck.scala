@@ -305,10 +305,11 @@ object TypeCheck {
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
         assert(x.typ == -t.field(name).typ)
-      case x@MakeTuple(types) =>
-        val indices = types.map(_._1)
+      case x@MakeTuple(fields) =>
+        val indices = fields.map(_._1)
         assert(indices.areDistinct())
         assert(indices.isSorted)
+        assert(x.typ == TTuple(fields.map { case (idx, f) => TupleField(idx, f.typ)}.toFastIndexedSeq))
       case x@GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx))

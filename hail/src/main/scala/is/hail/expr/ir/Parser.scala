@@ -389,7 +389,7 @@ object IRParser {
         punctuation(it, "[")
         val types = repsepUntil(it, type_expr, PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
-        TTuple(types.zipWithIndex.map { case (t, idx) => TupleField(idx, t)}, req)
+        TTuple(req, types: _*)
       case "TupleSubset" =>
         punctuation(it, "[")
         val fields = repsepUntil(it, tuple_subset_field, PunctuationToken(","), PunctuationToken("]"))

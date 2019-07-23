@@ -341,7 +341,7 @@ object MakeTuple {
   def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
 }
 
-final case class MakeTuple(types: Seq[(Int, IR)]) extends IR
+final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR
