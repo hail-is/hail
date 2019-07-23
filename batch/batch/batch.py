@@ -30,7 +30,8 @@ from .datetime_json import JSON_ENCODER
 from .k8s import K8s
 from .globals import states, complete_states, valid_state_transitions
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, REFRESH_INTERVAL_IN_SECONDS, \
-    HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, MAX_PODS
+    HAIL_NAMESPACE, HAIL_POD_NAMESPACE, POD_VOLUME_SIZE, INSTANCE_ID, BATCH_IMAGE, QUEUE_SIZE, \
+    MAX_PODS
 from .throttler import PodThrottler
 
 from . import schemas
@@ -69,6 +70,7 @@ uvloop.install()
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
+log.info(f'HAIL_NAMESPACE {HAIL_NAMESPACE}')
 log.info(f'HAIL_POD_NAMESPACE {HAIL_POD_NAMESPACE}')
 log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
 log.info(f'INSTANCE_ID = {INSTANCE_ID}')
@@ -1092,7 +1094,6 @@ async def get_batch(request, userdata):
     return jsonify(await _get_batch(batch_id, user, limit=limit, offset=offset))
 
 
-
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
 @rest_authenticated_users_only
@@ -1129,7 +1130,7 @@ async def delete_batch(request, userdata):
     return jsonify({})
 
 
-@routes.get('/batches/{batch_id}')
+@routes.get('/batches/{batch_id}', name='batch_index')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @aiohttp_jinja2.template('batch.html')
 @web_authenticated_users_only
@@ -1143,7 +1144,7 @@ async def ui_batch(request, userdata):
     return {'batch': batch}
 
 
-@routes.post('/batches/{batch_id}/cancel')
+@routes.post('/batches/{batch_id}/cancel', name='batch_cancel')
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @aiohttp_jinja2.template('batches.html')
 @check_csrf_token
@@ -1173,7 +1174,7 @@ async def ui_batches(request, userdata):
     return response
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/log')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/log', name='job_log')
 @prom_async_time(REQUEST_TIME_GET_LOGS_UI)
 @aiohttp_jinja2.template('job_log.html')
 @web_authenticated_users_only
@@ -1185,7 +1186,7 @@ async def ui_get_job_log(request, userdata):
     return {'batch_id': batch_id, 'job_id': job_id, 'job_log': job_log}
 
 
-@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status')
+@routes.get('/batches/{batch_id}/jobs/{job_id}/pod_status', name='job_pod_status')
 @prom_async_time(REQUEST_TIME_GET_POD_STATUS_UI)
 @aiohttp_jinja2.template('pod_status.html')
 @web_authenticated_users_only
@@ -1199,7 +1200,7 @@ async def ui_get_pod_status(request, userdata):
 
 @routes.get('/')
 @web_authenticated_users_only
-async def batch_id(request, userdata):
+async def index(request, userdata):
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -1384,12 +1385,16 @@ async def on_startup(app):
     asyncio.ensure_future(db_cleanup_event_loop())
 
 
-app.on_startup.append(on_startup)
-
-
 async def on_cleanup(app):
     blocking_pool = app['blocking_pool']
     blocking_pool.shutdown()
 
 
-app.on_cleanup.append(on_cleanup)
+if HAIL_NAMESPACE != 'default':
+    main_app = web.Application()
+    main_app.add_subapp(f'/{HAIL_NAMESPACE}/', app)
+else:
+    main_app = app
+
+main_app.on_startup.append(on_startup)
+main_app.on_cleanup.append(on_cleanup)

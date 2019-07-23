@@ -34,6 +34,8 @@ spec:
             memory: "1G"
             cpu: "1"
         env:
+         - name: HAIL_NAMESPACE
+           value: "{{ default_ns.name }}"
          - name: HAIL_POD_NAMESPACE
            value: "{{ batch_pods_ns.name }}"
          - name: HAIL_JWT_SECRET_KEY_FILE
