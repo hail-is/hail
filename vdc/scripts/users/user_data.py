@@ -9,9 +9,11 @@ import secrets
 import json
 import shortuuid
 
+from hailtop.gear.auth.hailjwt import JWTClient
+
 from globals import v1, kube_client, gcloud_service
 from utils import get_secret_bin
-from hailjwt import JWTClient
+
 
 shortuuid.set_alphabet("0123456789abcdefghijkmnopqrstuvwxyz")
 
