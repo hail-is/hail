@@ -131,11 +131,18 @@ object InferPType {
         a.explicitNode.pType2
       }
       case a: AbstractApplyNode[_] => {
-        val args = a.args.map( ir => {
+        val pTypes = a.args.map( ir => {
           ir.inferSetPType(env)
-          ir
+          ir.pType2
         })
-        a.implementation.returnPType(args.map(_.pType2))
+        a.implementation.returnPType(pTypes)
+      }
+      case a: ApplySpecial => {
+        val pTypes = a.args.map( ir => {
+          ir.inferSetPType(env)
+          ir.pType2
+        })
+        a.implementation.returnPType(pTypes)
       }
       case _: Uniroot => PFloat64()
       // TODO: check that i.pType2 isOfType is correct (for ArrayRef, ArraySort)
@@ -369,29 +376,6 @@ object InferPType {
         PArray(body.pType2)
       }
       case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
-      case _ => PVoid
-//      case ApplySpecial(name, irs) => {
-//        println("Name of applyspecial")
-//        println(name)
-//        val it = irs.iterator
-//        val head = it.next()
-//        head.inferSetPType(env)
-//
-//        while(it.hasNext) {
-//          val value = it.next()
-//
-//          value.inferSetPType(env)
-//          println("value.pType2")
-//          println(value.pType2)
-//          println("head.pType2")
-//          println(head.pType2)
-//          assert(value.pType2 == head.pType2)
-//        }
-//
-//        head.pType2
-//      }
-//      case _: ArrayAggScan => PVoid
-//      case _: ArrayAgg => PVoid
     }
   }
 }
