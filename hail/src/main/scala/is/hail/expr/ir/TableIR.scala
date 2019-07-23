@@ -1438,6 +1438,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
+    val localChildRowType = prevRVD.rowPType
     val keyType = PType.canonical(prev.typ.keyType).asInstanceOf[PStruct]
     val rowType = keyType ++ rTyp
     assert(rowType.virtualType == typ.rowType, s"$rowType, ${ typ.rowType }")
@@ -1482,7 +1483,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
             if (!hasNext)
               throw new java.util.NoSuchElementException()
 
-            rowKey.setSelect(rowType, keyIndices, current)
+            rowKey.setSelect(localChildRowType, keyIndices, current)
 
             rvAggs.foreach(_.clear())
 
