@@ -11,4 +11,5 @@ dependencies:
       - google-cloud-storage==1.*
       - PyMySQL==0.9.*
       - aiohttp==3.5.*
+      - shortuuid=0.5.0
       - ../../../hailjwt
