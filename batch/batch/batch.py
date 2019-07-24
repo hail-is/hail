@@ -36,11 +36,6 @@ from .throttler import PodThrottler
 from . import schemas
 
 
-async def scale_queue_consumers(queue, f, n=1):
-    for _ in range(n):
-        asyncio.ensure_future(f(queue))
-
-
 gear.configure_logging()
 log = logging.getLogger('batch')
 
