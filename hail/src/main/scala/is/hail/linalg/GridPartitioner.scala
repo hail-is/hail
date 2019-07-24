@@ -100,24 +100,19 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
       maxNBlocks.toInt
   }
   
-  val partitionToBlock: Int => Int = maybeBlocks match {
-    case Some(bis) => pi =>
+  def partitionToBlock(pi: Int): Int = maybeBlocks match {
+    case Some(bis) =>
       assert(pi >= 0 && pi < bis.length)
       bis(pi)
-    case None => pi =>
+    case None =>
       assert(pi >= 0 && pi < numPartitions)
       pi
   }
   
   def blockToPartition(blockId: Int): Int = maybeBlocks match {
-    case Some(bis) => {
-      bis.indexOf(blockId)
-    } //(bis.zipWithIndex.toMap.withDefaultValue(-1))(blockId)
+    case Some(bis) => bis.indexOf(blockId)
     case None =>  blockId
   }
-
-  val partBlock = partitionToBlock
-  val blockPart = blockToPartition(_)
   
   def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
 

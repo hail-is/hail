@@ -362,7 +362,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       this
     else {
       def newPIPartition(pi: Int): Iterator[((Int, Int), BDM[Double])] = {
-        val bi = newGP.partBlock(pi)
+        val bi = newGP.partitionToBlock(pi)
         val lm = (BDM.zeros[Double] _).tupled(newGP.blockDims(bi))
         Iterator.single((newGP.blockCoordinates(bi), lm))
       }
@@ -1594,10 +1594,10 @@ private class BlockMatrixUnionOpRDD(
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](
       new NarrowDependency(l.blocks) {
-        def getParents(partitionId: Int): Seq[Int] = Array(lGP.blockPart(gp.partBlock(partitionId))).filter(_ >= 0)
+        def getParents(partitionId: Int): Seq[Int] = Array(lGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
       },
       new NarrowDependency(r.blocks) {
-        def getParents(partitionId: Int): Seq[Int] = Array(rGP.blockPart(gp.partBlock(partitionId))).filter(_ >= 0)
+        def getParents(partitionId: Int): Seq[Int] = Array(rGP.blockToPartition(gp.partitionToBlock(partitionId))).filter(_ >= 0)
       })
 
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
