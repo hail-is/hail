@@ -1532,7 +1532,6 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
           j = k
           colRangeIndex += 1
         }
-
       }
     assert(j == newBlockNCols)
 
