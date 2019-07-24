@@ -36,12 +36,11 @@ object Compile {
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
 
     var ir = body
-
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("Compile"))
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](args.map { case (name, t, _) => name -> t.virtualType })))
-    val e = Env.fromSeq[PType](args.map { case (name, pType, _) => name -> pType })
-    ir.inferSetPType(e)
+
+    ir.inferSetPType(Env.fromSeq[PType](args.map { case (name, pType, _) => name -> pType }))
 
     val env = args
       .zipWithIndex

@@ -239,8 +239,7 @@ class IRSuite extends HailSuite {
     assert(node.values.forall(ir => ir.pType == PInt32()))
 
     node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt64())))
-    node.inferSetPType(Env.empty)
-    interceptAssertion("Values in Coalesce must all be of the same type")(node)
+    interceptAssertion("Values in Coalesce must all be of the same type")(node.inferSetPType(Env.empty))
   }
 
   val i32na = NA(TInt32())
