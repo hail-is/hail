@@ -1389,11 +1389,10 @@ app.add_routes(web_routes)
 if HAIL_NAMESPACE != 'default':
     main_app = web.Application()
     main_app.add_subapp(f'/{HAIL_NAMESPACE}/', app)
-else:
-    main_app = app
+    app = main_app
 
-main_app.add_routes(rest_routes)
-main_app.router.add_get("/metrics", server_stats)
+app.add_routes(rest_routes)
+app.router.add_get("/metrics", server_stats)
 
-main_app.on_startup.append(on_startup)
-main_app.on_cleanup.append(on_cleanup)
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
