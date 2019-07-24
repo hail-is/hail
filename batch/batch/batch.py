@@ -36,12 +36,6 @@ from .throttler import PodThrottler
 
 from . import schemas
 
-
-async def scale_queue_consumers(queue, f, n=1):
-    for _ in range(n):
-        asyncio.ensure_future(f(queue))
-
-
 gear.configure_logging()
 log = logging.getLogger('batch')
 
@@ -1389,6 +1383,8 @@ async def on_cleanup(app):
     blocking_pool = app['blocking_pool']
     blocking_pool.shutdown()
 
+app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
 
 if HAIL_NAMESPACE != 'default':
     main_app = web.Application()
@@ -1396,5 +1392,5 @@ if HAIL_NAMESPACE != 'default':
 else:
     main_app = app
 
-main_app.on_startup.append(on_startup)
-main_app.on_cleanup.append(on_cleanup)
+# main_app.on_startup.append(on_startup)
+# main_app.on_cleanup.append(on_cleanup)
