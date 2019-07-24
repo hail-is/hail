@@ -35,10 +35,10 @@ class PodThrottler:
         while True:
             await self.semaphore.acquire()
 
-            try:
-                job = await self.queue.get()
-                pod_name = job._pod_name
+            job = await self.queue.get()
+            pod_name = job._pod_name
 
+            try:
                 if pod_name not in self.pending_pods:
                     log.info(f'pod {pod_name} was deleted before it was created, ignoring')
                     self.semaphore.release()

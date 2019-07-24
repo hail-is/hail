@@ -1,0 +1,27 @@
+import asyncio
+import logging
+import sys
+import traceback
+
+from aiohttp import web
+from hailtop import gear
+
+from .stoppable_server import StoppableServer
+
+gear.configure_logging()
+log = logging.getLogger('keep_alive_sidecar')
+
+app = web.Application()
+routes = web.RouteTableDef()
+server = StoppableServer(app, '0.0.0.0', 5001)
+
+
+@routes.post('/')
+async def finish(request):
+    log.info(f'received shutdown request')
+    await server.stop(0)
+    return web.Response()
+
+if __name__ == '__main__':
+    app.add_routes(routes)
+    server.run()
