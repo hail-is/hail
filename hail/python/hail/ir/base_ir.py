@@ -1,6 +1,6 @@
 import abc
 
-from typing import List
+from typing import List, Set
 
 from hail.utils.java import Env
 from .renderer import Renderer, Renderable, RenderableStr
@@ -44,7 +44,8 @@ class BaseIR(Renderable):
     def parse(self, code, ref_map, ir_map):
         return
 
-    @abc.abstractproperty
+    @property
+    @abc.abstractmethod
     def typ(self):
         return
 
@@ -70,6 +71,13 @@ class BaseIR(Renderable):
 
     def __hash__(self):
         return 31 + hash(str(self))
+
+    @staticmethod
+    def new_block(i: int):
+        return False
+
+    def binds(self, i: int) -> Set[str]:
+        return set()
 
 
 class IR(BaseIR):
@@ -146,6 +154,9 @@ class TableIR(BaseIR):
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_table_ir(code, ref_map, ir_map)
 
+    global_env = {'global'}
+    row_env = {'global', 'row'}
+
 
 class MatrixIR(BaseIR):
     def __init__(self, *children):
@@ -164,6 +175,11 @@ class MatrixIR(BaseIR):
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_matrix_ir(code, ref_map, ir_map)
+
+    global_env = {'global'}
+    row_env = {'global', 'va'}
+    col_env = {'global', 'sa'}
+    entry_env = {'global', 'sa', 'va', 'g'}
 
 
 class BlockMatrixIR(BaseIR):

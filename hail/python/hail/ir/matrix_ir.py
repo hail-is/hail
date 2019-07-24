@@ -10,6 +10,10 @@ class MatrixAggregateRowsByKey(MatrixIR):
         self.entry_expr = entry_expr
         self.row_expr = row_expr
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         child_typ = self.child.typ
         self.entry_expr._compute_type(child_typ.col_env(), child_typ.entry_env())
@@ -21,6 +25,14 @@ class MatrixAggregateRowsByKey(MatrixIR):
             child_typ.row_key_type._concat(self.row_expr.typ),
             child_typ.row_key,
             self.entry_expr.typ)
+
+    def binds(self, i):
+        if i == 1:
+            return self.entry_env
+        elif i == 2:
+            return self.row_env
+        else:
+            return {}
 
 
 class MatrixRead(MatrixIR):
@@ -46,9 +58,16 @@ class MatrixFilterRows(MatrixIR):
         self.child = child
         self.pred = pred
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.row_env(), None)
         self._type = self.child.typ
+
+    def binds(self, i):
+        return self.row_env if i == 1 else {}
 
 
 class MatrixChooseCols(MatrixIR):
@@ -74,6 +93,10 @@ class MatrixMapCols(MatrixIR):
         self.new_col = new_col
         self.new_key = new_key
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def head_str(self):
         return '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None'
 
@@ -90,6 +113,9 @@ class MatrixMapCols(MatrixIR):
             child_typ.row_type,
             child_typ.row_key,
             child_typ.entry_type)
+
+    def binds(self, i):
+        return self.entry_env if i == 1 else {}
 
 
 class MatrixUnionCols(MatrixIR):
@@ -109,6 +135,10 @@ class MatrixMapEntries(MatrixIR):
         self.child = child
         self.new_entry = new_entry
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         child_typ = self.child.typ
         self.new_entry._compute_type(child_typ.entry_env(), None)
@@ -120,6 +150,9 @@ class MatrixMapEntries(MatrixIR):
             child_typ.row_key,
             self.new_entry.typ)
 
+    def binds(self, i):
+        return self.entry_env if i == 1 else {}
+
 
 class MatrixFilterEntries(MatrixIR):
     def __init__(self, child, pred):
@@ -127,9 +160,16 @@ class MatrixFilterEntries(MatrixIR):
         self.child = child
         self.pred = pred
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.entry_env(), None)
         self._type = self.child.typ
+
+    def binds(self, i):
+        return self.entry_env if i == 1 else {}
 
 
 class MatrixKeyRowsBy(MatrixIR):
@@ -164,6 +204,10 @@ class MatrixMapRows(MatrixIR):
         self.child = child
         self.new_row = new_row
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         child_typ = self.child.typ
         self.new_row._compute_type(child_typ.row_env(), child_typ.entry_env())
@@ -175,12 +219,19 @@ class MatrixMapRows(MatrixIR):
             child_typ.row_key,
             child_typ.entry_type)
 
+    def binds(self, i):
+        return self.entry_env if i == 1 else {}
+
 
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_global):
         super().__init__(child, new_global)
         self.child = child
         self.new_global = new_global
+
+    @staticmethod
+    def new_block(i):
+        return i > 0
 
     def _compute_type(self):
         child_typ = self.child.typ
@@ -193,6 +244,9 @@ class MatrixMapGlobals(MatrixIR):
             child_typ.row_key,
             child_typ.entry_type)
 
+    def binds(self, i):
+        return self.global_env if i == 1 else {}
+
 
 class MatrixFilterCols(MatrixIR):
     def __init__(self, child, pred):
@@ -200,9 +254,16 @@ class MatrixFilterCols(MatrixIR):
         self.child = child
         self.pred = pred
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         self.pred._compute_type(self.child.typ.col_env(), None)
         self._type = self.child.typ
+
+    def binds(self, i):
+        return self.col_env if i == 1 else {}
 
 
 class MatrixCollectColsByKey(MatrixIR):
@@ -229,6 +290,10 @@ class MatrixAggregateColsByKey(MatrixIR):
         self.entry_expr = entry_expr
         self.col_expr = col_expr
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     def _compute_type(self):
         child_typ = self.child.typ
         self.entry_expr._compute_type(child_typ.row_env(), child_typ.entry_env())
@@ -240,6 +305,14 @@ class MatrixAggregateColsByKey(MatrixIR):
             child_typ.row_type,
             child_typ.row_key,
             self.entry_expr.typ)
+
+    def binds(self, i):
+        if i == 1:
+            return self.entry_env
+        elif i == 2:
+            return self.col_env
+        else:
+            return {}
 
 
 class MatrixExplodeRows(MatrixIR):

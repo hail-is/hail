@@ -236,6 +236,10 @@ class If(IR):
         assert (self.cnsq.typ == self.altr.typ)
         self._type = self.cnsq.typ
 
+    @staticmethod
+    def new_block(i):
+        return i == 1 or i == 2
+
 
 class Coalesce(IR):
     @typecheck_method(values=IR)
@@ -264,6 +268,10 @@ class Let(IR):
         self.value = value
         self.body = body
 
+    @staticmethod
+    def new_block(i):
+        return i > 0
+
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
         return Let(self.name, value, body)
@@ -282,6 +290,9 @@ class Let(IR):
         self.value._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.name, self.value._type), agg_env)
         self._type = self.body._type
+
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
 
 
 class Ref(IR):
@@ -550,6 +561,9 @@ class NDArrayMap(IR):
         self.body._compute_type(_env_bind(env, self.name, self.nd.typ.element_type), agg_env)
         self._type = tndarray(self.body.typ, self.nd.typ.ndim)
 
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
+
 
 class NDArrayRef(IR):
     @typecheck_method(nd=IR, idxs=sequenceof(IR))
@@ -696,6 +710,9 @@ class ArraySort(IR):
         self.a._compute_type(env, agg_env)
         self._type = self.a.typ
 
+    def binds(self, i):
+        return {self.l_name, self.r_name} if i == 1 else {}
+
 
 class ToSet(IR):
     @typecheck_method(a=IR)
@@ -806,6 +823,9 @@ class ArrayMap(IR):
         self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
         self._type = tarray(self.body.typ)
 
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
+
 
 class ArrayFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -834,6 +854,9 @@ class ArrayFilter(IR):
         self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
         self._type = self.a.typ
 
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
+
 
 class ArrayFlatMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -861,6 +884,9 @@ class ArrayFlatMap(IR):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
         self._type = tarray(self.body.typ.element_type)
+
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
 
 
 class ArrayFold(IR):
@@ -898,6 +924,9 @@ class ArrayFold(IR):
             agg_env)
         self._type = self.zero.typ
 
+    def binds(self, i):
+        return {self.accum_name, self.value_name} if i == 2 else {}
+
 
 class ArrayScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
@@ -934,6 +963,9 @@ class ArrayScan(IR):
             agg_env)
         self._type = tarray(self.body.typ)
 
+    def binds(self, i):
+        return {self.accum_name, self.value_name} if i == 2 else {}
+
 
 class ArrayLeftJoinDistinct(IR):
     @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
@@ -960,6 +992,9 @@ class ArrayLeftJoinDistinct(IR):
     @property
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
+
+    def binds(self, i):
+        return {self.l_name, self.r_name} if i == 2 or i == 3 else {}
 
 
 class ArrayFor(IR):
@@ -988,6 +1023,9 @@ class ArrayFor(IR):
         self.a._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.value_name, self.a.typ.element_type), agg_env)
         self._type = tvoid
+
+    def binds(self, i):
+        return {self.value_name} if i == 1 else {}
 
 
 class AggFilter(IR):
@@ -1041,6 +1079,9 @@ class AggExplode(IR):
         self.array._compute_type(agg_env, None)
         self.agg_body._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
         self._type = self.agg_body.typ
+
+    def binds(self, i):
+        return {self.name} if i == 1 else {}
 
 
 class AggGroupBy(IR):
@@ -1096,6 +1137,9 @@ class AggArrayPerElement(IR):
     @property
     def bound_variables(self):
         return {self.element_name, self.index_name} | super().bound_variables
+
+    def binds(self, i):
+        return {self.index_name, self.element_name} if i == 1 else {}
 
 
 def _register(registry, name, f):
@@ -1615,6 +1659,9 @@ class Uniroot(IR):
         self.max._compute_type(env, agg_env)
         self._type = tfloat64
 
+    def binds(self, i):
+        return {self.argname} if i == 0 else {}
+
 
 class TableCount(IR):
     @typecheck_method(child=TableIR)
@@ -1677,6 +1724,9 @@ class TableAggregate(IR):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
         self._type = self.query.typ
 
+    def binds(self, i):
+        return TableIR.row_env if i == 1 else {}
+
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
@@ -1697,6 +1747,9 @@ class MatrixAggregate(IR):
     def _compute_type(self, env, agg_env):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.entry_env())
         self._type = self.query.typ
+
+    def binds(self, i):
+        return MatrixIR.entry_env if i == 1 else {}
 
 
 class TableWrite(IR):
