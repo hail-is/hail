@@ -1452,7 +1452,13 @@ def corr(x, y) -> Float64Expression:
     -------
     :class:`.Float64Expression`
     """
-    return _agg_func('PearsonCorrelation', [x, y], tfloat64)
+
+    return hl.bind(lambda xsum, ysum, xsq, ysq, xy, n_def:
+                   (n_def * xy - xsum * ysum) /
+                   hl.sqrt((n_def * xsq - xsum ** 2) *
+                           (n_def * ysq - ysum ** 2)),
+                   sum(x), sum(y), sum(x ** 2), sum(y ** 2),
+                   sum(x * y), count_where(hl.is_defined(x) & hl.is_defined(y)))
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))

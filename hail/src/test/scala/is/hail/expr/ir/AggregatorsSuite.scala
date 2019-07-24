@@ -7,11 +7,9 @@ import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.types.virtual._
-import is.hail.stats.PearsonCorrelationCombiner
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
-import org.apache.commons.math3.stat.correlation.PearsonsCorrelation
 import is.hail.utils._
 import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
@@ -628,25 +626,6 @@ class AggregatorsSuite extends HailSuite {
     assertTakeByEvalsTo(TCall(), TInt64(), 3,
       FastIndexedSeq(Row(Call2(0, 0), 4L), Row(null, null), Row(null, 2L), Row(Call2(0, 1), 0L), Row(Call2(1, 1), 1L), Row(Call2(0, 2), null)),
       FastIndexedSeq(Call2(0, 1), Call2(1, 1), null))
-  }
-
-  @Test def pearsonCorrelationAggregator() {
-    val g = Gen.oneOfGen(Gen.choose(-100d, 100d), Gen.const(null))
-    Prop.forAll(Gen.buildableOf[Array](Gen.zip(g, g))) { values =>
-      val bothDefined = values.filter { case (x, y) => x != null && y != null }
-      val xa = bothDefined.map(_._1.asInstanceOf[Double])
-      val ya = bothDefined.map(_._2.asInstanceOf[Double])
-      val expected = new PearsonsCorrelation().correlation(xa, ya)
-      runAggregator(PearsonCorrelation(),
-        TStruct("x" -> TFloat64(), "y" -> TFloat64()),
-        values.map { elt: (Any, Any) =>  Row(elt._1, elt._2) },
-        expected,
-        constrArgs = FastIndexedSeq(),
-        initOpArgs = None,
-        seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()))
-      )
-      true
-    }.check()
   }
 
   @Test def linearRegression1x() {
