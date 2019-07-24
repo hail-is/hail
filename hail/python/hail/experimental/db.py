@@ -27,7 +27,7 @@ class DB:
             
             >>> db = hl.experimental.DB()
             >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics')
-            ...
+            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')
             
             Parameters
             ----------
