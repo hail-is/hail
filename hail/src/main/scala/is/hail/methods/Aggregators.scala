@@ -98,25 +98,6 @@ class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] 
   def copy() = new CounterAggregator(t)
 }
 
-class HistAggregator(indices: Array[Double])
-  extends TypedAggregator[Annotation] {
-
-  var _state = new HistogramCombiner(indices)
-
-  def result = _state.toAnnotation
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(DoubleNumericConversion.to(x))
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new HistAggregator(indices)
-}
-
 class CollectSetAggregator(t: Type) extends TypedAggregator[Set[Any]] {
 
   var _state = new mutable.HashSet[Any]

@@ -1161,12 +1161,36 @@ def hist(expr, start, end, bins) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
-    t = tstruct(bin_edges=tarray(tfloat64),
-                bin_freq=tarray(tint64),
-                n_smaller=tint64,
-                n_larger=tint64)
-    return _agg_func('Histogram', [expr], t, constructor_args=[start, end, bins])
 
+    def wrap_errors(s, e, nbins, cont):
+        return (hl.case()
+                .when(nbins > 0, hl.bind(lambda binsize: hl.case()
+                                         .when((binsize > 0) &
+                                               (~hl.is_nan(binsize)) &
+                                               (~hl.is_infinite(binsize)),
+                                               cont(s, e, nbins, binsize))
+                                         .or_error("'hist': start=" + hl.str(s) +
+                                                   " end=" + hl.str(e) +
+                                                   " bins=" + hl.str(nbins) +
+                                                   " requires positive bin size."),
+                                         hl.float64(e - s) / nbins))
+                .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
+
+    def result(s, e, nbins, binsize):
+        bin_idx = hl.bind(lambda v: hl.case()
+                          .when(v < s, -1)
+                          .when(v >= e, nbins)
+                          .default(hl.floor((v - s) / binsize)), expr)
+
+        return hl.bind(lambda fd: hl.struct(
+            bin_edges=hl.range(0, nbins + 1).map(lambda i: start + i * binsize),
+            bin_freq=hl.range(0, nbins).map(lambda i: fd.get(i, 0)),
+            n_smaller=fd.get(-1, 0),
+            n_larger=fd.get(nbins, 0)
+        ), filter(hl.is_defined(expr), group_by(bin_idx, count())))
+
+    return hl.bind(lambda s, e, nbins: wrap_errors(s, e, nbins, result),
+                   start, end, bins)
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
 def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:

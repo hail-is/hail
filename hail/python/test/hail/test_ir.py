@@ -77,7 +77,6 @@ class ValueIRTests(unittest.TestCase):
             ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', 'y', ir.I32(0), False),
             ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
-            ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
             ir.ApplyAggOp('CallStats', [], [ir.I32(2)], [call]),
             ir.ApplyAggOp('TakeBy', [ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)]),
             ir.Begin([ir.Void()]),

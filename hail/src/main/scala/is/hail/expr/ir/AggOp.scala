@@ -29,7 +29,6 @@ final case class Count() extends AggOp
 final case class Counter() extends AggOp
 final case class Downsample() extends AggOp
 final case class HardyWeinberg() extends AggOp
-final case class Histogram() extends AggOp
 final case class Inbreeding() extends AggOp
 final case class InfoScore() extends AggOp
 final case class LinearRegression() extends AggOp
@@ -181,12 +180,6 @@ object AggOp {
         case (_, _) => tbCodeAgg[RegionValueTakeByAnnotationAnnotationAggregator](classOf[Long], classOf[Long])
       }
 
-    case (Histogram(), constArgs@Seq(_: TFloat64, _: TFloat64, _: TInt32), None, Seq(_: TFloat64)) =>
-      CodeAggregator[RegionValueHistogramAggregator](
-        RegionValueHistogramAggregator.typ,
-        constrArgTypes = Array(classOf[Double], classOf[Double], classOf[Int]),
-        seqOpArgTypes = Array(classOf[Double]))
-
     case (Downsample(), constArgs@Seq(_: TInt32), None, seqOpArgs@Seq(_: TFloat64, _: TFloat64, _: TArray)) =>
       CodeAggregator[RegionValueDownsampleAggregator](
         RegionValueDownsampleAggregator.typ,
@@ -231,7 +224,6 @@ object AggOp {
     case "counter" | "Counter" => Counter()
     case "take" | "Take" => Take()
     case "takeBy" | "TakeBy" => TakeBy()
-    case "hist" | "Histogram" => Histogram()
     case "infoScore" | "InfoScore" => InfoScore()
     case "callStats" | "CallStats" => CallStats()
     case "inbreeding" | "Inbreeding" => Inbreeding()
