@@ -8,7 +8,6 @@ import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
-import org.apache.spark.util.StatCounter
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -35,33 +34,6 @@ class CountAggregator() extends TypedAggregator[Long] {
   }
 
   def copy() = new CountAggregator()
-}
-
-class FractionAggregator(f: (Any) => Any)
-  extends TypedAggregator[java.lang.Double] {
-
-  var _num = 0L
-  var _denom = 0L
-
-  def result =
-    if (_denom == 0L)
-      null
-    else
-      _num.toDouble / _denom
-
-  def seqOp(x: Any) {
-    val r = f(x)
-    _denom += 1
-    if (r.asInstanceOf[Boolean])
-      _num += 1
-  }
-
-  def combOp(agg2: this.type) {
-    _num += agg2._num
-    _denom += agg2._denom
-  }
-
-  def copy() = new FractionAggregator(f)
 }
 
 class ExistsAggregator(f: (Any) => Any)
@@ -104,30 +76,6 @@ class ForallAggregator(f: (Any) => Any)
   }
 
   def copy() = new ForallAggregator(f)
-}
-
-class StatAggregator() extends TypedAggregator[Annotation] {
-
-  var _state = new StatCounter()
-
-  def result = Annotation(
-    if (_state.count == 0d) null else _state.mean,
-    if (_state.count == 0d) null else _state.stdev,
-    if (_state.count == 0d) null else _state.min,
-    if (_state.count == 0d) null else _state.max,
-    _state.count,
-    _state.sum)
-
-  def seqOp(x: Any) {
-    if (x != null)
-      _state.merge(DoubleNumericConversion.to(x))
-  }
-
-  def combOp(agg2: this.type) {
-    _state.merge(agg2._state)
-  }
-
-  def copy() = new StatAggregator()
 }
 
 class CounterAggregator(t: Type) extends TypedAggregator[Map[Annotation, Long]] {

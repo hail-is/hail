@@ -546,9 +546,6 @@ object Interpret {
           case CollectAsSet() =>
             val IndexedSeq(aggType) = seqOpArgTypes
             new CollectSetAggregator(aggType)
-          case Fraction() =>
-            assert(seqOpArgTypes == FastIndexedSeq(TBoolean()))
-            new FractionAggregator(a => a)
           case Sum() =>
             val Seq(aggType) = seqOpArgTypes
             aggType match {
@@ -591,7 +588,6 @@ object Interpret {
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
-          case Statistics() => new StatAggregator()
           case InfoScore() =>
             val IndexedSeq(aggType) = seqOpArgTypes
             new InfoScoreAggregator(aggType.physicalType)

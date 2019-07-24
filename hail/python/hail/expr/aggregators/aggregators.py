@@ -759,12 +759,21 @@ def stats(expr) -> StructExpression:
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
         `n`, and `sum`.
     """
-    return _agg_func('Statistics', [expr], tstruct(mean=tfloat64,
-                                                   stdev=tfloat64,
-                                                   min=tfloat64,
-                                                   max=tfloat64,
-                                                   n=tint64,
-                                                   sum=tfloat64))
+
+    return hl.bind(lambda aggs:
+                   hl.bind(lambda mean: hl.struct(
+                       mean = mean,
+                       stdev = hl.sqrt(hl.float64(aggs.sumsq - 2 * mean * aggs.sum + mean ** 2) / aggs.n_def),
+                       min = hl.float64(aggs.min),
+                       max = hl.float64(aggs.max),
+                       n = hl.float64(aggs.n_def),
+                       sum = hl.float64(aggs.sum)
+                   ), hl.float64(aggs.sum)/aggs.n_def),
+                   hl.struct(n_def = count_where(hl.is_defined(expr)),
+                             sum = sum(expr),
+                             sumsq = sum(expr ** 2),
+                             min = min(expr),
+                             max = max(expr)))
 
 
 @typecheck(expr=expr_oneof(expr_int64, expr_float64))
@@ -831,7 +840,7 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    return _agg_func("Fraction", [predicate], tfloat64)
+    return hl.float64(filter(predicate, count())) / count()
 
 
 @typecheck(expr=expr_call)
