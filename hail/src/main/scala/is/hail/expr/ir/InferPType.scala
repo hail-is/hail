@@ -4,21 +4,6 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual.{TArray, TNDArray, TTuple, TVoid}
 import is.hail.utils._
 
-// Env contains all of the symbols values to reference
-// at root, the env is empty
-// In body of say tablemaprows, you are allowed to reference row, or global, etc
-// the names of row and global are bound in the body of tablemaprows
-// so tablemaprows appends to the environment
-// It's possible for a name to be bound twice
-// we may have nested array maps, and say each binds i
-// inside the inner map body, any reference to the name
-// FIXME: strip all requiredness logic when possible
-// TODO: We don't implicitly walk bottom-up for virtualTypes (not calling .typ) in all cases
-// TODO: If virtual type inference doesn't occur before this step, there may be subtle
-// TODO: behavior differences between IR Nodes (those that need .typ here and those that don't)
-// TODO: In cases where env is sent as is to child nodes, do we need copy? I believe no, as long as copy-on-write
-
-// TODO: aggregators: 1) use bindAgg/bindScan instead of bindEval? 2) proper passing of env, seems little needed
 object InferPType {
   def apply(ir: IR, env: Env[PType]): PType = {
     val pt = ir match {
@@ -174,9 +159,8 @@ object InferPType {
       }
       case ArrayMap(a, name, body) => {
         a.inferSetPType(env)
-        body.inferSetPType(env.bind(name, a.pType2.asInstanceOf[PArray].elementType))
-        // TODO: why was setRequired false here in InferType?
-        coerce[PStreamable](a.pType2).copyStreamable(body.pType2)
+        body.inferSetPType(env.bind(name, a.pType2.asInstanceOf[PArray].elementType.setRequired(false)))
+        coerce[PStreamable](a.pType2).copyStreamable(body.pType2.setRequired(false))
       }
       case ArrayFilter(a, name, cond) => {
         a.inferSetPType(env)
@@ -305,7 +289,6 @@ object InferPType {
         val t = coerce[PStruct](o.pType2)
         if (t.index(name).isEmpty)
           throw new RuntimeException(s"$name not in $t")
-
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       }
