@@ -102,7 +102,7 @@ class Test(unittest.TestCase):
             batches = self.client.list_batches(complete=complete, success=success, attributes=attributes)
             # list_batches returns all batches for all prev run tests
             actual = set([b.id for b in batches]).intersection({b1.id, b2.id})
-            self.assertEqual(actual, expected)
+            assert actual == expected, batches
 
         assert_batch_ids({b1.id, b2.id}, attributes={'tag': tag})
 
