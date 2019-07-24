@@ -188,7 +188,7 @@ object TestUtils {
       val rewritten = Subst(rewrite(x), BindingEnv(substEnv))
       val f = cxx.Compile(
         argsVar, argsType.physicalType,
-        MakeTuple(FastSeq(rewritten)), false)
+        MakeTuple.ordered(FastSeq(rewritten)), false)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -257,7 +257,7 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
@@ -284,8 +284,8 @@ object TestUtils {
           // aggregate
           i = 0
           rvAggs.foreach(_.clear())
-          initOps(0)(region, rvAggs, argsOff, false)
-          var seqOpF = seqOps(0)
+          initOps(0, region)(region, rvAggs, argsOff, false)
+          var seqOpF = seqOps(0, region)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -299,8 +299,8 @@ object TestUtils {
 
           val rvAggs2 = rvAggs.map(_.newInstance())
           rvAggs2.foreach(_.clear())
-          initOps(0)(region, rvAggs2, argsOff, false)
-          seqOpF = seqOps(1)
+          initOps(0, region)(region, rvAggs2, argsOff, false)
+          seqOpF = seqOps(1, region)
           while (i < aggElements.length) {
             // FIXME use second region for elements
             rvb.start(aggType.physicalType)
@@ -325,14 +325,14 @@ object TestUtils {
           rvb.endTuple()
           val aggResultsOff = rvb.end()
 
-          val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
+          val resultOff = f(0, region)(region, aggResultsOff, false, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
           argsVar, argsType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
+          MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))))
         assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
@@ -347,7 +347,7 @@ object TestUtils {
           rvb.endTuple()
           val argsOff = rvb.end()
 
-          val resultOff = f(0)(region, argsOff, false)
+          val resultOff = f(0, region)(region, argsOff, false)
           SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
         }
     }

@@ -64,7 +64,7 @@ object ExtractAggregators {
   private def unstagedNewAggregator(ir: ApplyAggOp): RegionValueAggregator = {
     val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
     fb.emit(newAggregator(fb, ir))
-    Region.scoped(fb.resultWithIndex()(0)(_))
+    Region.scoped(r => fb.resultWithIndex()(0, r)(r))
   }
 
   def apply(ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
@@ -164,7 +164,7 @@ object ExtractAggregators {
           Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSig)),
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
-        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+        ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val newRVAggBuilder = new ArrayBuilder[IRAgg[RVAgg]]()

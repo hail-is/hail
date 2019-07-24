@@ -49,20 +49,21 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   def rdd: RDD[Row] =
     rvd.toRows
 
-  def filterWithPartitionOp[P](partitionOp: Int => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RegionValue, RegionValue) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, RegionValue)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.freshRegion
-        (partitionOp(partitionIdx), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
+        (partitionOp(partitionIdx, globalRegion), RegionValue(globalRegion, localGlobals.value.readRegionValue(globalRegion)))
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))
   }
 
   def filter(p: (RegionValue, RegionValue) => Boolean): TableValue = {
-    filterWithPartitionOp(_ => ())((_, rv1, rv2) => p(rv1, rv2))
+    filterWithPartitionOp((_, _) => ())((_, rv1, rv2) => p(rv1, rv2))
   }
 
   def write(path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+    assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 
@@ -83,7 +84,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     fs.mkDir(globalsPath)
-    AbstractRVDSpec.writeSingle(fs, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.javaValue))
+    AbstractRVDSpec.writeSingle(fs, globalsPath, globals.t, codecSpec, Array(globals.javaValue))
 
     val partitionCounts = rvd.write(path + "/rows", "../index", stageLocally, codecSpec)
 
@@ -123,7 +124,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
       exportTypes(file, hc.sFS, fields.map(f => (f.name, f.typ)).toArray)
     }
 
-    val localSignature = typ.rowType.physicalType
+    val localSignature = rvd.rowPType
     val localTypes = fields.map(_.typ)
 
     val localDelim = delimiter

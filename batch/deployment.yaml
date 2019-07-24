@@ -38,6 +38,8 @@ spec:
            value: "{{ batch_pods_ns.name }}"
          - name: HAIL_JWT_SECRET_KEY_FILE
            value: /jwt-secret-key/secret-key
+         - name: BATCH_IMAGE
+           value: "{{ batch_image.image }}"
 {% if deploy %}
          - name: HAIL_INSTANCE_ID
            value: cd50b95a89914efb897965a5e982a29d
@@ -80,6 +82,11 @@ spec:
          secret:
            optional: false
            secretName: batch-jwt
+      tolerations:
+      - key: "preemptible"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service

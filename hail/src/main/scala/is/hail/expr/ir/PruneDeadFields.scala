@@ -172,7 +172,10 @@ object PruneDeadFields {
             TStruct(ts.required, subFields: _*)
           case tt: TTuple =>
             val subTuples = children.map(_.asInstanceOf[TTuple])
-            TTuple(tt.required, tt.types.indices.map(i => unifySeq(tt.types(i), subTuples.map(_.types(i)))): _*)
+            TTuple(tt._types.map { fd => fd -> subTuples.flatMap(child => child.fieldIndex.get(fd.index).map(child.types)) }
+              .filter(_._2.nonEmpty)
+              .map { case (fd, fdChildren) => TupleField(fd.index, unifySeq(fd.typ, fdChildren)) },
+              tt.required)
           case ta: TStreamable =>
             ta.copyStreamable(unifySeq(ta.elementType, children.map(_.asInstanceOf[TStreamable].elementType)))
           case _ =>
@@ -822,8 +825,10 @@ object PruneDeadFields {
                 Field(base.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
               }, base.required)
             case (TTuple(req, _), TTuple(cast, _), TTuple(base, r)) =>
-              assert(req.length == cast.length && req.length == base.length)
-              TTuple(req.indices.map { i => recur(req(i), cast(i), base(i)) }, r)
+              assert(base.length == cast.length)
+              val castFields = cast.map { f => f.index -> f.typ }.toMap
+              val baseFields = base.map { f => f.index -> f.typ }.toMap
+              TTuple(req.map { f => TupleField(f.index, recur(f.typ, castFields(f.index), baseFields(f.index)))})
             case (TArray(req, _), TArray(cast, _), TArray(base, r)) =>
               TArray(recur(req, cast, base), r)
             case (TSet(req, _), TSet(cast, _), TSet(base, r)) =>
@@ -1145,19 +1150,19 @@ object PruneDeadFields {
         memoizeValueIR(old, TStruct(old.typ.required, fields.flatMap(f => sType.fieldOption(f).map(f -> _.typ)): _*), memo)
       case GetField(o, name) =>
         memoizeValueIR(o, TStruct(o.typ.required, name -> requestedType), memo)
-      case MakeTuple(types) =>
+      case MakeTuple(fields) =>
         val tType = requestedType.asInstanceOf[TTuple]
-        assert(types.length == tType.size)
+
         unifyEnvsSeq(
-          types.zip(tType.types).map { case (tir, t) => memoizeValueIR(tir, t, memo) }
-        )
+          fields.flatMap { case (i, value) =>
+            // ignore unreachable fields, these are eliminated on the upwards pass
+            tType.fieldIndex.get(i)
+              .map { idx =>
+                memoizeValueIR(value, tType.types(idx), memo)
+              }})
       case GetTupleElement(o, idx) =>
-        // FIXME handle tuples better
         val childTupleType = o.typ.asInstanceOf[TTuple]
-        val tupleDep = TTuple(childTupleType.required,
-          childTupleType.types
-            .zipWithIndex
-            .map { case (t, i) => if (i == idx) requestedType else minimal(t) }: _*)
+        val tupleDep = TTuple(FastIndexedSeq(TupleField(idx, requestedType)), childTupleType.required)
         memoizeValueIR(o, tupleDep, memo)
       case TableCount(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
@@ -1461,8 +1466,10 @@ object PruneDeadFields {
                 Field(cast.fieldNames(idx), recur(f.typ, cast.types(idx), base.types(idx)), f.index)
               }, base.required)
             case (TTuple(reb, _), TTuple(cast, _), TTuple(base, r)) =>
-              assert(reb.length == cast.length && reb.length == base.length)
-              TTuple(reb.indices.map { i => recur(reb(i), cast(i), base(i)) }, r)
+              assert(base.length == cast.length)
+              val castFields = cast.map { f => f.index -> f.typ }.toMap
+              val baseFields = base.map { f => f.index -> f.typ }.toMap
+              TTuple(reb.map { f => TupleField(f.index, recur(f.typ, castFields(f.index), baseFields(f.index)))})
             case (TArray(reb, _), TArray(cast, _), TArray(base, r)) =>
               TArray(recur(reb, cast, base), r)
             case (TSet(reb, _), TSet(cast, _), TSet(base, r)) =>
@@ -1568,6 +1575,16 @@ object PruneDeadFields {
             None
           }
         })
+      case MakeTuple(fields) =>
+        val depTuple = requestedType.asInstanceOf[TTuple]
+        // drop unnecessary field IRs
+        val depFieldIndices = depTuple.fieldIndex.keySet
+        MakeTuple(fields.flatMap { case (i, f) =>
+          if (depFieldIndices(i))
+            Some(i -> rebuildIR(f, env, memo))
+          else
+            None
+        })
       case InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
@@ -1667,7 +1684,7 @@ object PruneDeadFields {
     if (ir.typ == rType)
       ir
     else {
-      ir.typ match {
+      val result = ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
           val uid = genUID()
@@ -1677,7 +1694,7 @@ object PruneDeadFields {
               f.name -> upcast(GetField(ref, f.name), f.typ)
             }
           )
-          Let(uid, ir, ms)
+          Let(uid, ir, If(IsNA(ref), NA(ms.typ), ms))
         case ta: TStreamable =>
           val ra = rType.asInstanceOf[TStreamable]
           val uid = genUID()
@@ -1687,10 +1704,10 @@ object PruneDeadFields {
           val rt = rType.asInstanceOf[TTuple]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
-          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
-            upcast(GetTupleElement(ref, i), typ)
+          val mt = MakeTuple(rt.fields.map { fd =>
+            fd.index -> upcast(GetTupleElement(ref, fd.index), fd.typ)
           })
-          Let(uid, ir, mt)
+          Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
         case td: TDict =>
           val rd = rType.asInstanceOf[TDict]
           ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
@@ -1699,6 +1716,8 @@ object PruneDeadFields {
           ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case t => ir
       }
+      assert(result.typ == rType)
+      result
     }
   }
 

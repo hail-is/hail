@@ -1,6 +1,7 @@
 import traceback
 import json
 import os
+import logging
 import asyncio
 import concurrent.futures
 import datetime
@@ -14,20 +15,22 @@ import aiohttp_jinja2
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 
 from hailtop.batch_client.aioclient import BatchClient, Job
-from hailtop.gear.auth import web_authenticated_developers_only, new_csrf_token, check_csrf_token
-
-from .log import log
+from hailtop.gear.auth import web_authenticated_developers_only, rest_authenticated_developers_only, new_csrf_token, check_csrf_token
+from hailtop import gear
 from .constants import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, pretty_timestamp_age
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
+
+gear.configure_logging()
+log = logging.getLogger('ci')
 
 uvloop.install()
 
 watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
-    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES')))
+    for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
 
 app = web.Application()
@@ -118,7 +121,9 @@ async def get_pr(request):
             status = await pr.batch.status()
             for j in status['jobs']:
                 if 'duration' in j and j['duration'] is not None:
-                    j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=j['duration']))
+                    duration = Job.duration(j)
+                    if duration is not None:
+                        j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=duration))
                 j['exit_code'] = Job.exit_code(j)
                 attrs = j['attributes']
                 if 'link' in attrs:
@@ -261,6 +266,31 @@ async def batch_callback_handler(request):
                     log.info(f'watched_branch {wb.branch.short_str()} notify batch changed')
                     await wb.notify_batch_changed()
 
+@routes.post('/api/v1alpha/dev_test_branch/')
+@rest_authenticated_developers_only
+async def dev_test_branch(request):
+    params = await request.json()
+    userdata = params['userdata']
+    repo = Repo.from_short_str(params['repo'])
+    fq_branch = FQBranch(repo, params.get('branch'))
+    namespace = params['namespace']
+    profile = params['profile']
+
+    gh = app['github_client']
+    request_string = f'/repos/{repo.owner}/{repo.name}/git/refs/heads/{fq_branch.name}'
+    branch_gh_json = await gh.getitem(request_string)
+    sha = branch_gh_json['object']['sha']
+
+    unwatched_branch = UnwatchedBranch(fq_branch, sha, userdata, namespace)
+
+    batch_client = app['batch_client']
+
+    batch_id = await unwatched_branch.deploy(batch_client, profile)
+
+    if batch_id is not None:
+        return web.Response(status=200, text=str(batch_id))
+    else:
+        return web.Response(status=503)
 
 @routes.post('/api/v1alpha/batch_callback')
 async def batch_callback(request):
@@ -280,8 +310,6 @@ async def update_loop(app):
             log.error(f'{wb.branch.short_str()} update failed due to exception: {traceback.format_exc()}{e}')
         await asyncio.sleep(300)
 
-routes.static('/static', 'ci/static')
-app.add_routes(routes)
 
 aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader('ci/templates'))
 
@@ -306,7 +334,6 @@ async def on_startup(app):
 
     asyncio.ensure_future(update_loop(app))
 
-app.on_startup.append(on_startup)
 
 
 async def on_cleanup(app):
@@ -317,8 +344,11 @@ async def on_cleanup(app):
     dbpool.close()
     await dbpool.wait_closed()
 
-app.on_cleanup.append(on_cleanup)
 
 
 def run():
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
+    app.add_routes(routes)
+    routes.static('/static', 'ci/static')
     web.run_app(app, host='0.0.0.0', port=5000)

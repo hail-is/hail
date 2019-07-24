@@ -43,6 +43,8 @@ object InferType {
         TTuple(aggSigs.map(agg.Extract.getType): _*)
       case _: ReadAggs => TVoid
       case _: WriteAggs => TVoid
+      case _: SerializeAggs => TVoid
+      case _: DeserializeAggs => TVoid
       case _: Begin => TVoid
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
@@ -170,11 +172,10 @@ object InferType {
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>
-        TTuple(values.map(_.typ).toFastIndexedSeq)
+        TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq, required = false)
       case GetTupleElement(o, idx) =>
         val t = coerce[TTuple](o.typ)
-        assert(idx >= 0 && idx < t.size)
-        val fd = t.types(idx)
+        val fd = t.fields(t.fieldIndex(idx)).typ
         fd.setRequired(t.required && fd.required)
       case TableCount(_) => TInt64()
       case TableAggregate(child, query) =>

@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations.Annotation
-import is.hail.expr.ir.{Interpret, TextTableReader}
+import is.hail.expr.ir.{Interpret, MatrixToTableApply, TableIR, TextTableReader}
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
 import is.hail.table.Table
@@ -106,7 +106,7 @@ class IBDSuite extends HailSuite {
     }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
-    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast), ctx)).collect().toMap
+    val us = IBD.toRDD(Interpret(MatrixToTableApply(vds.ast, IBD()), ctx)).collect().toMap
 
     val plink = runPlinkIBD(vds)
     val sampleIds = vds.stringSampleIds
@@ -117,6 +117,6 @@ class IBDSuite extends HailSuite {
 
   @Test def ibdSchemaCorrect() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val us = new Table(HailContext.get, IBD.pyApply(vds.ast)).typeCheck()
+    val us = new Table(HailContext.get, MatrixToTableApply(vds.ast, IBD())).typeCheck()
   }
 }

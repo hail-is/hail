@@ -59,7 +59,7 @@ object Graph {
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple.ordered(FastSeq(ir)))
       assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {
@@ -79,7 +79,7 @@ object Graph {
           rvb.endTuple()
           val rOffset = rvb.end()
 
-          val resultOffset = f(0)(region, lOffset, false, rOffset, false)
+          val resultOffset = f(0, region)(region, lOffset, false, rOffset, false)
           SafeRow(t.asInstanceOf[PBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
         }
       }

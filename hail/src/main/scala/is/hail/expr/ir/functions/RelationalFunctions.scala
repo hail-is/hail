@@ -129,6 +129,7 @@ object RelationalFunctions {
     classOf[MatrixExportEntriesByCol],
     classOf[PCA],
     classOf[VEP],
+    classOf[IBD],
     classOf[Nirvana],
     classOf[GetElement],
     classOf[WrappedMatrixToTableFunction],

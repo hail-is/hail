@@ -63,6 +63,15 @@ class TableIRSuite extends HailSuite {
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastIndexedSeq, Row()))
   }
 
+  @Test def testRangeSum() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+    val t = TableRange(10, 2)
+    val row = Ref("row", t.typ.rowType)
+    val sum = AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))
+    val node = TableCollect(TableMapRows(t, InsertFields(row, FastIndexedSeq("sum" -> ApplyScanOp(FastSeq(), None, FastSeq(Cast(GetField(row, "idx"), TInt64())), sum)))))
+    assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, Array.range(0, i).sum.toLong)).toFastIndexedSeq, Row()))
+  }
+
   @Test def testGetGlobals() {
     val t = TableRange(10, 2)
     val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> TableCollect(t)))

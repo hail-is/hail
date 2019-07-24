@@ -27,6 +27,7 @@ lazy val root = (project in file(".")).
     ),
     Compile / scalacOptions ++= Seq(
       "-Xfatal-warnings",
+      "-Xno-patmat-analysis",
       "-Xlint:_",
       "-deprecation",
       "-unchecked",
@@ -69,5 +70,6 @@ lazy val root = (project in file(".")).
       ShadeRule
         .rename("org.objectweb.asm.**" -> "shaded.@1")
         .inLibrary(hadoopClient)
-    )
+    ),
+    unmanagedClasspath in Test += baseDirectory.value / "prebuilt" / "lib"
   )

@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.annotations.Annotation
-import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.utils.{ExportType, FastIndexedSeq}
+import is.hail.utils.{FastIndexedSeq, _}
 
 import scala.language.existentials
 
@@ -117,10 +116,22 @@ object If {
     if (cnsq.typ == altr.typ)
       If(cond, cnsq, altr)
     else {
-      val t = unifyType.getOrElse(cnsq.typ.deepOptional())
-      If(cond,
-        PruneDeadFields.upcast(cnsq, t),
-        PruneDeadFields.upcast(altr, t))
+      cnsq match {
+        case NA(_) => If(cond, NA(altr.typ), altr)
+        case Die(msg, _) => If(cond, Die(msg, altr.typ), altr)
+        case Literal(_, value) if altr.typ.typeCheck(value) => If(cond, Literal(altr.typ, value), altr)
+        case _ =>
+          altr match {
+            case NA(_) => If(cond, cnsq, NA(cnsq.typ))
+            case Die(msg, _) => If(cond, cnsq, Die(msg, cnsq.typ))
+            case Literal(_, value) if cnsq.typ.typeCheck(value)  => If(cond, cnsq, Literal(cnsq.typ, value))
+            case _ =>
+              val t = unifyType.getOrElse(cnsq.typ.deepOptional())
+              If(cond,
+                PruneDeadFields.upcast(cnsq, t),
+                PruneDeadFields.upcast(altr, t))
+          }
+      }
     }
   }
 }
@@ -185,7 +196,7 @@ object ArraySort {
           ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
         case atyp: TStreamable if atyp.elementType.isInstanceOf[TTuple] =>
           val elt = coerce[TTuple](atyp.elementType)
-          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
+          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), elt.fields(0).index), GetTupleElement(Ref(r, atyp.elementType), elt.fields(0).index))
       }
     } else {
       ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
@@ -291,18 +302,15 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 
-final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
-final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature) extends IR
-final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature]) extends IR
+final case class InitOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
+final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) extends IR
+final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
+final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
-final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature]) extends IR
-
-//final case class WriteAggs(path: IR, spec: CodecSpec) extends IR
-//final case class ReadAggs(path: IR, spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
-//
-//final case class CombAggs(paths: IndexedSeq[IR], spec: CodecSpec, aggSigs: Array[AggSignature]) extends IR
+final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
+final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
@@ -329,7 +337,11 @@ object GetFieldByIdx {
 
 final case class GetField(o: IR, name: String) extends IR
 
-final case class MakeTuple(types: Seq[IR]) extends IR
+object MakeTuple {
+  def ordered(types: Seq[IR]): MakeTuple = MakeTuple(types.iterator.zipWithIndex.map { case (ir, i) => (i, ir)}.toFastIndexedSeq)
+}
+
+final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 final case class In(i: Int, _typ: Type) extends IR

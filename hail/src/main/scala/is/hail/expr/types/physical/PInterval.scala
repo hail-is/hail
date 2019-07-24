@@ -118,13 +118,13 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
 
   def includesEnd(region: Region, off: Long): Boolean = region.loadBoolean(representation.loadField(region, off, 3))
 
-  def startDefined(region: Code[Region], off: Code[Long]): Code[Boolean] = representation.isFieldDefined(region, off, 0)
+  def startDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 0)
 
-  def endDefined(region: Code[Region], off: Code[Long]): Code[Boolean] = representation.isFieldDefined(region, off, 1)
+  def endDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 1)
 
-  def includeStart(region: Code[Region], off: Code[Long]): Code[Boolean] =
-    region.loadBoolean(representation.loadField(region, off, 2))
+  def includeStart(off: Code[Long]): Code[Boolean] =
+    Region.loadBoolean(representation.loadField(off, 2))
 
-  def includeEnd(region: Code[Region], off: Code[Long]): Code[Boolean] =
-    region.loadBoolean(representation.loadField(region, off, 3))
+  def includeEnd(off: Code[Long]): Code[Boolean] =
+    Region.loadBoolean(representation.loadField(off, 3))
 }

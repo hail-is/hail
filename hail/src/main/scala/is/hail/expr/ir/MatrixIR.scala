@@ -156,7 +156,7 @@ abstract class MatrixHybridReader extends TableReader with MatrixReader {
         BroadcastRow(ctx, Row(arr), requestedType.globalType)
       case None =>
         assert(requestedType.globalType == TStruct())
-        BroadcastRow(ctx, Row.empty, requestedType.globalType)
+        BroadcastRow(ctx, Row(), requestedType.globalType)
     }
   }
 }

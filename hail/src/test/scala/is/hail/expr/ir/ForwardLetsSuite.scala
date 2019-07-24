@@ -20,7 +20,7 @@ class ForwardLetsSuite extends TestNGSuite {
       ArrayFold(a, I32(0), "acc", "y", ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), Ref("acc", TInt32()))),
       ArrayScan(a, I32(0), "acc", "y", ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, y), Ref("acc", TInt32()))),
       MakeStruct(FastSeq("a" -> ApplyBinaryPrimOp(Add(), x, I32(1)), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
-      MakeTuple(FastSeq(ApplyBinaryPrimOp(Add(), x, I32(1)), ApplyBinaryPrimOp(Add(), x, I32(2)))),
+      MakeTuple.ordered(FastSeq(ApplyBinaryPrimOp(Add(), x, I32(1)), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), x, x), I32(1))
     ).map(ir => Array[IR](Let("x", In(0, TInt32()) + In(0, TInt32()), ir)))
   }
@@ -31,7 +31,7 @@ class ForwardLetsSuite extends TestNGSuite {
     val x = Ref("x", TInt32())
     Array(
       MakeStruct(FastSeq("a" -> I32(1), "b" -> ApplyBinaryPrimOp(Add(), x, I32(2)))),
-      MakeTuple(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
+      MakeTuple.ordered(FastSeq(I32(1), ApplyBinaryPrimOp(Add(), x, I32(2)))),
       If(True(), x, I32(0)),
       ApplyBinaryPrimOp(Add(), ApplyBinaryPrimOp(Add(), I32(2), x), I32(1)),
       ApplyUnaryPrimOp(Negate(), x)

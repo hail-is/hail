@@ -463,15 +463,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           pStruct.cxxLoadField(ot.v, fieldIdx))
 
       case ir.GetTupleElement(o, idx) =>
-        val pStruct = o.pType.asInstanceOf[PTuple]
+        val pTuple = o.pType.asInstanceOf[PTuple]
         val ot = emit(o).memoize(fb)
+        val fieldIndex = pTuple.fieldIndex(idx)
         triplet(Code(ot.setup),
-          s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, idx) })",
-          pStruct.cxxLoadField(ot.v, idx))
+          s"${ ot.m } || (${ pTuple.cxxIsFieldMissing(ot.v, fieldIndex) })",
+          pTuple.cxxLoadField(ot.v, fieldIndex))
 
       case ir.MakeTuple(fields) =>
         val sb = resultRegion.structBuilder(fb, pType.asInstanceOf[PBaseStruct])
-        fields.foreach { x =>
+        fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
         sb.triplet()
@@ -1154,14 +1155,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           }
         }
 
-      case ir.MakeStream(args, t) =>
+      case x@ir.MakeStream(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
             val m = fb.variable("argm", "bool")
-            val v = fb.variable("argv", typeToCXXType(t.elementType.physicalType))
+            val v = fb.variable("argv", typeToCXXType(x.pType.asInstanceOf[PStream].elementType))
             val cont = f(m.toString, v.toString)
 
             triplets.foreach { argt =>
@@ -1419,7 +1420,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
       case ir.NDArraySlice(child, slicesIR) =>
         val slicesPType = slicesIR.pType.asInstanceOf[PTuple]
-        val slicePType = PTuple(IndexedSeq(PInt64(), PInt64(), PInt64()))
+        val slicePType = PTuple(PInt64(), PInt64(), PInt64())
 
         val childEmitter = deforest(child)
 

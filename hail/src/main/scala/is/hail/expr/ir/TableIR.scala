@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBaseStruct, PInt32, PStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir
@@ -17,14 +17,14 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
-import java.io.{ ObjectInputStream, ObjectOutputStream }
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
-import org.json4s.{Formats, ShortTypeHints, CustomSerializer, JObject}
-import org.json4s.JsonAST.{JArray, JInt, JNull, JString, JField, JNothing}
+import org.json4s.{CustomSerializer, Formats, JObject, ShortTypeHints}
+import org.json4s.JsonAST.{JArray, JField, JInt, JNothing, JNull, JString}
 import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods
-
 
 import scala.reflect.ClassTag
 
@@ -324,7 +324,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     log.info(s"parallelized ${ rows.length } rows")
 
-    val rowTyp = typ.rowType.physicalType
+    val rowTyp = PType.canonical(typ.rowType).asInstanceOf[PStruct]
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(ctx, globals, typ.globalType), RVD.unkeyed(rowTyp, rvd))
@@ -384,14 +384,14 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct.empty())
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
-    val localRowType = typ.rowType
+    val localRowType = PType.canonical(typ.rowType).asInstanceOf[PStruct]
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val hc = HailContext.get
     TableValue(typ,
       BroadcastRow.empty(ctx),
       new RVD(
-        RVDType(typ.rowType.physicalType, Array("idx")),
+        RVDType(localRowType, Array("idx")),
         new RVDPartitioner(Array("idx"), typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -407,7 +407,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                rvb.start(localRowType.physicalType)
+                rvb.start(localRowType)
                 rvb.startStruct()
                 rvb.addInt(j)
                 rvb.endStruct()
@@ -437,8 +437,8 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       return tv.copy(rvd = RVD.empty(HailContext.get.sc, typ.canonicalRVDType))
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
-      "row", child.typ.rowType.physicalType,
-      "global", child.typ.globalType.physicalType,
+      "row", tv.rvd.rowPType,
+      "global", tv.globals.t,
       pred)
     assert(rTyp.virtualType == TBoolean())
 
@@ -650,8 +650,7 @@ case class TableIntervalJoin(
   lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   val rightType: Type = if (product) TArray(right.typ.valueType) else right.typ.valueType
-  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(rightType.physicalType, List(root))
-  val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
+  val typ: TableType = left.typ.copy(rowType = left.typ.rowType.appendKey(root, rightType))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root, product)
@@ -661,6 +660,10 @@ case class TableIntervalJoin(
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val leftValue = left.execute(ctx)
     val rightValue = right.execute(ctx)
+
+    val rightValuePType = rightValue.rvd.typ.valueType
+    val rightPType = if (product) PArray(rightValuePType) else rightValuePType
+    val (newRowPType, ins) = leftValue.rvd.rowPType.unsafeStructInsert(rightPType, List(root))
 
     val rightRVDType = rightValue.rvd.typ
 
@@ -755,7 +758,8 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
     assert(t2 == rvdType.rowType)
 
     val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
-      val f = makeF(i)
+      val partRegion = ctx.freshRegion
+      val f = makeF(i, partRegion)
       val region = ctx.region
       val rv3 = RegionValue(region)
       new Iterator[RegionValue] {
@@ -918,6 +922,15 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   protected[ir] override def execute(ctx: ExecuteContext): TableValue = {
     val tv = child.execute(ctx)
+    if (HailContext.getFlag("newaggs") != null) {
+      try {
+        return agg.TableMapIRNew(tv, newRow)
+      } catch {
+        case e: agg.UnsupportedExtraction =>
+          log.info(s"couldn't lower TableMapRows: $e")
+      }
+    }
+
     val gType = tv.globals.t
 
     var scanInitNeedsGlobals = false
@@ -927,7 +940,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
       "global", gType,
       "global", gType,
-      "row", tv.typ.rowType.physicalType,
+      "row", tv.rvd.rowPType,
       CompileWithAggregators.liftScan(newRow), "SCANR", { (nAggs: Int, initOp: IR) =>
         scanInitNeedsGlobals |= Mentions(initOp, "global")
         initOp
@@ -937,8 +950,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       })
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
-      "global", child.typ.globalType.physicalType,
-      "row", child.typ.rowType.physicalType,
+      "global", tv.globals.t,
+      "row", tv.rvd.rowPType,
       "SCANR", scanResultType,
       postScanIR)
     assert(rTyp.virtualType == typ.rowType)
@@ -952,12 +965,13 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         null
 
     if (scanAggs.nonEmpty) {
-      scanInitOps(0)(ctx.r, scanAggs, tv.globals.value.offset, false)
+      scanInitOps(0, ctx.r)(ctx.r, scanAggs, tv.globals.value.offset, false)
 
       val scannedAggs = SpillingCollectIterator(tv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
-        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(ctx.freshRegion) else 0L
+        val partRegion = ctx.freshRegion
+        val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(partRegion) else 0L
 
-        val scanSeqOpF = scanSeqOps(i)
+        val scanSeqOpF = scanSeqOps(i, partRegion)
         it.foreach { rv =>
           scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
           ctx.region.clear()
@@ -994,14 +1008,15 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             _.readObject().asInstanceOf[Array[RegionValueAggregator]])
         }
         val rvb = new RegionValueBuilder()
+        val globalRegion = ctx.freshRegion
         val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
-          globalsBc.value.readRegionValue(ctx.freshRegion)
+          globalsBc.value.readRegionValue(globalRegion)
         else
           0
 
         val rv2 = RegionValue()
-        val newRow = f(i)
-        val scanSeqOpF = scanSeqOps(i)
+        val newRow = f(i, globalRegion)
+        val scanSeqOpF = scanSeqOps(i, globalRegion)
         it.map { rv =>
           rvb.set(rv.region)
           rvb.start(scanResultType)
@@ -1025,13 +1040,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices, itF))
     } else {
       val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+        val globalRegion = ctx.freshRegion
         val globals = if (rowIterationNeedsGlobals)
-          globalsBc.value.readRegionValue(ctx.freshRegion)
+          globalsBc.value.readRegionValue(globalRegion)
         else
           0
 
         val rv2 = RegionValue()
-        val newRow = f(i)
+        val newRow = f(i, globalRegion)
         it.map { rv =>
           rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, 0, false))
           rv2
@@ -1071,7 +1087,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
     rvb.start(ncPType)
     rvb.addAnnotation(ncType, ncValue)
     val ncOffset = rvb.end()
-    val resultOff = f(0)(ctx.r,
+    val resultOff = f(0, ctx.r)(ctx.r,
       tv.globals.value.offset, false,
       ncOffset, ncValue == null
     )
@@ -1137,9 +1153,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       prev.globals,
       prev.rvd.boundary.mapPartitionsWithIndex(rvdType, { (i, ctx, it) =>
         val region2 = ctx.region
+        val globalRegion = ctx.freshRegion
         val rv2 = RegionValue(region2)
-        val lenF = l(i)
-        val rowF = f(i)
+        val lenF = l(i, globalRegion)
+        val rowF = f(i, globalRegion)
         it.flatMap { rv =>
           val len = lenF(rv.region, rv.offset, false)
           new Iterator[RegionValue] {
@@ -1258,19 +1275,19 @@ case class TableKeyByAndAggregate(
     val prev = child.execute(ctx)
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", child.typ.globalType.physicalType,
-      "global", child.typ.globalType.physicalType,
-      "row", child.typ.rowType.physicalType,
+      "global", prev.globals.t,
+      "global", prev.globals.t,
+      "row", prev.rvd.rowPType,
       expr, "AGGR",
       (nAggs, initializeIR) => initializeIR,
       (nAggs, sequenceIR) => sequenceIR)
 
     val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
       "AGGR", aggResultType,
-      "global", child.typ.globalType.physicalType,
+      "global", prev.globals.t,
       postAggIR)
 
-    val init = makeInit(0)
+    val init = makeInit(0, ctx.r)
     val globalsOffset = prev.globals.value.offset
     init(ctx.r, rvAggs, globalsOffset, false)
 
@@ -1303,20 +1320,18 @@ case class TableKeyByAndAggregate(
     val rdd = prev.rvd
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
-        val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshRegion
-
         val globals = globalsBc.value.readRegionValue(partRegion)
 
         val makeKey = {
-          val f = makeKeyF(i)
+          val f = makeKeyF(i, partRegion)
           rv: RegionValue => {
             val keyOff = f(rv.region, rv.offset, false, globals, false)
             SafeRow.read(localKeyPType, rv.region, keyOff).asInstanceOf[Row]
           }
         }
         val sequence = {
-          val f = makeSeq(i)
+          val f = makeSeq(i, partRegion)
           (rv: RegionValue, rvAggs: Array[RegionValueAggregator]) => {
             f(rv.region, rvAggs, globals, false, rv.offset, false)
           }
@@ -1334,8 +1349,9 @@ case class TableKeyByAndAggregate(
         val region = ctx.region
 
         val rvb = new RegionValueBuilder()
-        val globals = globalsBc.value.readRegionValue(ctx.freshRegion)
-        val annotate = makeAnnotate(i)
+        val partRegion = ctx.freshRegion
+        val globals = globalsBc.value.readRegionValue(partRegion)
+        val annotate = makeAnnotate(i, partRegion)
 
         val rv = RegionValue(region)
         it.map { case (key, aggs) =>
@@ -1433,9 +1449,9 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
         val partGlobalsOff = globalsBc.value.readRegionValue(partRegion)
 
-        val initialize = makeInit(i)
-        val sequence = makeSeq(i)
-        val annotate = makeAnnotate(i)
+        val initialize = makeInit(i, partRegion)
+        val sequence = makeSeq(i, partRegion)
+        val annotate = makeAnnotate(i, partRegion)
 
         new Iterator[RegionValue] {
           var isEnd = false

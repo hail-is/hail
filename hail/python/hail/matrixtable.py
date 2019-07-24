@@ -1742,7 +1742,7 @@ class MatrixTable(ExprContainer):
         entry_ir = hl.cond(
             hl.is_defined(self.entry),
             self.entry,
-            hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
+            hl.literal(hl.Struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()})))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
 
     @typecheck_method(row_field=str, col_field=str)
@@ -3457,8 +3457,8 @@ class MatrixTable(ExprContainer):
         analyze(caller, s, self._global_indices)
         return cleanup(MatrixTable(MatrixMapGlobals(base._mir, s._ir)))
 
-    @typecheck(datasets=matrix_table_type)
-    def union_rows(*datasets: 'MatrixTable') -> 'MatrixTable':
+    @typecheck(datasets=matrix_table_type, _check_cols=bool)
+    def union_rows(*datasets: 'MatrixTable', _check_cols=True) -> 'MatrixTable':
         """Take the union of dataset rows.
 
         Examples
@@ -3537,12 +3537,13 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
-            wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
-                hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
-                    .find(lambda x: ~(x[1] == first_keys))[0])))
-            if wrong_keys is not None:
-                raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
-                                 "Datasets 0 and {} have different columns (or possibly different order).".format(wrong_keys+1))
+            if _check_cols:
+                wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
+                    hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                        .find(lambda x: ~(x[1] == first_keys))[0])))
+                if wrong_keys is not None:
+                    raise ValueError(f"'MatrixTable.union_rows' expects all datasets to have the same columns. " +
+                                     f"Datasets 0 and {wrong_keys+1} have different columns (or possibly different order).")
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)

@@ -5,6 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.io.InputBuffer
 import is.hail.utils._
 import is.hail.asm4s._
+import is.hail.expr.types.physical._
 
 class RichCodeInputBuffer(in: Code[InputBuffer]) {
   def readByte(): Code[Byte] = {
@@ -62,5 +63,13 @@ class RichCodeInputBuffer(in: Code[InputBuffer]) {
 
   def skipBytes(n: Code[Int]): Code[Unit] = {
     in.invoke[Int, Unit]("skipBytes", n)
+  }
+
+  def readPrimitive(typ: PType): Code[_] = typ.fundamentalType match {
+    case _: PBoolean => readBoolean()
+    case _: PInt32 => readInt()
+    case _: PInt64 => readLong()
+    case _: PFloat32 => readFloat()
+    case _: PFloat64 => readDouble()
   }
 }

@@ -12,7 +12,7 @@ See the [documentation](https://hail.is/docs/0.2/) for more info on using Hail.
 
 ### Contribute
 
-If you'd like to discuss or contribute to the development of methods or infrastructure, please: 
+If you'd like to discuss or contribute to the development of methods or infrastructure, please:
 
 - see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
@@ -29,8 +29,8 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 
 ### Citing Hail
 
-If you use Hail for published work, please cite the software. You can get a
-citation for the version of hail you installed by executing:
+If you use Hail for published work, please cite the software and add a link to your work to our [growing list of Hail-powered science](hail/www/references.md). You can get a
+citation for the version of Hail you installed by executing:
 
 ```python
 import hail as hl

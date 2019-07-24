@@ -696,6 +696,8 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(bgen.count_rows(), 199)
 
     def test_import_bgen_skip_invalid_loci(self):
+        # Note: the skip_invalid_loci.bgen has 16-bit probabilities, and Hail
+        # will crash if the genotypes are decoded
         hl.index_bgen(resource('skip_invalid_loci.bgen'),
                       reference_genome='GRCh37',
                       skip_invalid_loci=True)
@@ -703,7 +705,7 @@ class BGENTests(unittest.TestCase):
         mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                             entry_fields=[],
                             sample_file=resource('skip_invalid_loci.sample'))
-        self.assertTrue(mt._force_count_rows() == 3)
+        self.assertTrue(mt.rows().count() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
             hl.index_bgen(resource('skip_invalid_loci.bgen'))
@@ -711,7 +713,7 @@ class BGENTests(unittest.TestCase):
             mt = hl.import_bgen(resource('skip_invalid_loci.bgen'),
                                 entry_fields=[],
                                 sample_file=resource('skip_invalid_loci.sample'))
-            mt._force_count_rows()
+            mt.rows().count()
 
     def test_import_bgen_gavin_example(self):
         recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}

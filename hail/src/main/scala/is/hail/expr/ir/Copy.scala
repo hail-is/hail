@@ -189,6 +189,8 @@ object Copy {
       case ReadAggs(startIdx, _, spec, aggSigs) =>
         assert(newChildren.length == 1)
         ReadAggs(startIdx, newChildren.head.asInstanceOf[IR], spec, aggSigs)
+      case x: SerializeAggs => x
+      case x: DeserializeAggs => x
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
       case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
@@ -205,8 +207,9 @@ object Copy {
           initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
           args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case MakeTuple(_) =>
-        MakeTuple(newChildren.map(_.asInstanceOf[IR]))
+      case MakeTuple(fields) =>
+        assert(fields.length == newChildren.length)
+        MakeTuple(fields.zip(newChildren).map { case ((i, _), newValue) => (i, newValue.asInstanceOf[IR]) })
       case GetTupleElement(_, idx) =>
         val IndexedSeq(o: IR) = newChildren
         GetTupleElement(o, idx)

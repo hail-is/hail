@@ -71,8 +71,13 @@ class RVD(
   // Exporting
 
   def toRows: RDD[Row] = {
-    val localRowType = rowType
-    map(rv => SafeRow(localRowType.physicalType, rv.region, rv.offset))
+    val localRowType = rowPType
+    map(rv => SafeRow(localRowType, rv.region, rv.offset))
+  }
+
+  def toUnsafeRows: RDD[UnsafeRow] = {
+    val localRowPType = rowPType
+    map(rv => new UnsafeRow(localRowPType, rv.region, rv.offset))
   }
 
   def stabilize(codec: CodecSpec = RVD.memoryCodec): RDD[Array[Byte]] = {
@@ -901,27 +906,17 @@ class RVD(
 
   def orderedLeftJoinDistinctAndInsert(
     right: RVD,
-    root: String,
-    lift: Option[String] = None,
-    dropLeft: Option[Array[String]] = None
-  ): RVD = {
+    root: String): RVD = {
     assert(!typ.key.contains(root))
 
     val valueStruct = right.typ.valueType
     val rightRowType = right.typ.rowType
-    val liftField = lift.map { name => rightRowType.field(name) }
-    val valueType = liftField.map(f => f.typ.setRequired(false)).getOrElse(valueStruct)
 
-    val removeLeft = dropLeft.map(_.toSet).getOrElse(Set.empty)
-    val keepIndices = rowType.fields.filter(f => !removeLeft.contains(f.name)).map(_.index).toArray
-    val newRowType = TStruct(
-      keepIndices.map(i => rowType.fieldNames(i) -> rowType.types(i)) ++ Array(root -> valueType.virtualType): _*).physicalType
+    val newRowType = rowPType.appendKey(root, right.typ.valueType)
 
-    val localRowType = rowType
+    val localRowType = rowPType
 
-    val shouldLift = lift.isDefined
     val rightValueIndices = right.typ.valueFieldIdx
-    val liftIndex = liftField.map(_.index).getOrElse(-1)
 
     val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = ctx.rvb
@@ -932,17 +927,13 @@ class RVD(
         val rrv = jrv.rvRight
         rvb.start(newRowType)
         rvb.startStruct()
-        rvb.addFields(localRowType.physicalType, lrv, keepIndices)
+        rvb.addAllFields(localRowType, lrv)
         if (rrv == null)
           rvb.setMissing()
         else {
-          if (shouldLift)
-            rvb.addField(rightRowType, rrv, liftIndex)
-          else {
-            rvb.startStruct()
-            rvb.addFields(rightRowType, rrv, rightValueIndices)
-            rvb.endStruct()
-          }
+          rvb.startStruct()
+          rvb.addFields(rightRowType, rrv, rightValueIndices)
+          rvb.endStruct()
         }
         rvb.endStruct()
         rv.set(ctx.region, rvb.end())
@@ -955,9 +946,7 @@ class RVD(
       right.typ.key.length,
       "left",
       joiner,
-      typ.copy(rowType = newRowType,
-        key = typ.key.filter(!removeLeft.contains(_)))
-    )
+      typ.copy(rowType = newRowType))
   }
 
   def orderedJoin(

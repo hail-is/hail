@@ -130,6 +130,8 @@ object Children {
     case _: CombOp2 => none
     case WriteAggs(_, path, _, _) => Array(path)
     case ReadAggs(_, path, _, _) => Array(path)
+    case SerializeAggs(_, _, _, _) => none
+    case DeserializeAggs(_, _, _, _) => none
     case Begin(xs) =>
       xs
     case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
@@ -138,8 +140,8 @@ object Children {
       constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
-    case MakeTuple(types) =>
-      types.toFastIndexedSeq
+    case MakeTuple(fields) =>
+      fields.map(_._2).toFastIndexedSeq
     case GetTupleElement(o, idx) =>
       Array(o)
     case In(i, typ) =>

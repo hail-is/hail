@@ -38,7 +38,7 @@ object CompileAndEvaluate {
     ir = evalIR
 
     val argsInVar = genUID()
-    val argsInType = TTuple(args.map(_._2))
+    val argsInType = TTuple(args.map(_._2): _*)
     val argsInValue = Row.fromSeq(args.map(_._1))
 
     // don't do extra work
@@ -80,7 +80,7 @@ object CompileAndEvaluate {
       ncVar, ncPType,
       argsInVar, argsInPType,
       envVar, envPType,
-      MakeTuple(FastSeq(ir))), "compile")
+      MakeTuple.ordered(FastSeq(ir))), "compile")
 
     val value = timer.time(
       Region.scoped { region =>
@@ -97,7 +97,7 @@ object CompileAndEvaluate {
         rvb.addAnnotation(envType, envValue)
         val envOffset = rvb.end()
 
-        val resultOff = f(0)(region,
+        val resultOff = f(0, region)(region,
           ncOffset, ncValue == null,
           argsInOffset, argsInValue == null,
           envOffset, envValue == null)

@@ -175,7 +175,7 @@ object CompileDecoder {
     val cp = mb.getArg[BgenPartition](2).load()
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
-    val srvb = new StagedRegionValueBuilder(mb, settings.pType)
+    val srvb = new StagedRegionValueBuilder(mb, settings.rowPType)
     val offset = mb.newLocal[Long]
     val fileIdx = mb.newLocal[Int]
     val varid = mb.newLocal[String]
@@ -210,12 +210,12 @@ object CompileDecoder {
     val c = Code(
       offset := cbfis.invoke[Long]("getPosition"),
       fileIdx := cp.invoke[Int]("index"),
-      if (settings.rowFields.varid) {
+      if (settings.hasField("varid")) {
         varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
         cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
       },
-      if (settings.rowFields.rsid) {
+      if (settings.hasField("rsid")) {
         rsid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
         cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
@@ -255,66 +255,59 @@ object CompileDecoder {
         }
       ),
       srvb.start(),
-      srvb.addBaseStruct(settings.pType.field("locus").typ.fundamentalType.asInstanceOf[PStruct], { srvb =>
+      if (settings.hasField("locus"))
         Code(
-          srvb.start(),
-          srvb.addString(contigRecoded),
-          srvb.advance(),
-          srvb.addInt(position))
-      }),
-      srvb.advance(),
+        srvb.addBaseStruct(settings.rowPType.field("locus").typ.fundamentalType.asInstanceOf[PStruct], { srvb =>
+          Code(
+            srvb.start(),
+            srvb.addString(contigRecoded),
+            srvb.advance(),
+            srvb.addInt(position))
+        }),
+        srvb.advance())
+      else Code._empty,
       nAlleles := cbfis.invoke[Int]("readShort"),
       nAlleles.cne(2).mux(
         Code._fatal(
           const("Only biallelic variants supported, found variant with ")
             .concat(nAlleles.toS)),
         Code._empty),
-      srvb.addArray(settings.pType.field("alleles").typ.fundamentalType.asInstanceOf[PArray], { srvb =>
-        Code(
-          srvb.start(nAlleles),
-          i := 0,
-          Code.whileLoop(i < nAlleles,
-            srvb.addString(cbfis.invoke[Int, String]("readLengthAndString", 4)),
-            srvb.advance(),
-            i := i + 1))
-      }),
-      srvb.advance(),
-      if (settings.rowFields.rsid)
+      if (settings.hasField("alleles"))
+        Code(srvb.addArray(settings.rowPType.field("alleles").typ.fundamentalType.asInstanceOf[PArray], { srvb =>
+          Code(
+            srvb.start(nAlleles),
+            i := 0,
+            Code.whileLoop(i < nAlleles,
+              srvb.addString(cbfis.invoke[Int, String]("readLengthAndString", 4)),
+              srvb.advance(),
+              i := i + 1))}),
+          srvb.advance())
+       else Code._empty,
+      if (settings.hasField("rsid"))
         Code(srvb.addString(rsid), srvb.advance())
       else Code._empty,
-      if (settings.rowFields.varid)
+      if (settings.hasField("varid"))
         Code(srvb.addString(varid), srvb.advance())
       else Code._empty,
-      if (settings.rowFields.offset)
+      if (settings.hasField("offset"))
         Code(srvb.addLong(offset), srvb.advance())
       else Code._empty,
-      if (settings.rowFields.fileIdx)
+      if (settings.hasField("file_idx"))
         Code(srvb.addInt(fileIdx), srvb.advance())
       else Code._empty,
       dataSize := cbfis.invoke[Int]("readInt"),
-      settings.entries match {
-        case NoEntries =>
+      settings.entryType match {
+        case None =>
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
-        case EntriesWithFields(_, _, _) if settings.dropCols =>
-          Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
+        case Some(t) =>
+          val entriesArrayType = settings.rowPType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray]
+          val entryType = entriesArrayType.elementType.asInstanceOf[PStruct]
 
-        case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
-          assert(settings.matrixType.entryType.physicalType.byteSize == 0)
-          Code(
-            srvb.addArray(settings.matrixType.canonicalTableType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
-              { srvb =>
-                Code(
-                  srvb.start(settings.nSamples),
-                  i := 0,
-                  Code.whileLoop(i < settings.nSamples,
-                    srvb.advance(),
-                    i := i + 1))
-              }),
-            srvb.advance(),
-            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
+          val includeGT = t.hasField("GT")
+          val includeGP = t.hasField("GP")
+          val includeDosage = t.hasField("dosage")
 
-        case EntriesWithFields(includeGT, includeGP, includeDosage) =>
           Code(
             cp.invoke[Boolean]("compressed").mux(
               Code(
@@ -402,7 +395,7 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(settings.matrixType.canonicalTableType.canonicalRVDType.rowType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray],
+            srvb.addArray(entriesArrayType,
               { srvb =>
                 Code(
                   srvb.start(settings.nSamples),
@@ -410,7 +403,7 @@ object CompileDecoder {
                   Code.whileLoop(i < settings.nSamples,
                     (data(i + 8) & 0x80).cne(0).mux(
                       srvb.setMissing(),
-                      srvb.addBaseStruct(settings.matrixType.entryType.physicalType, { srvb =>
+                      srvb.addBaseStruct(entryType, { srvb =>
                         Code(
                           srvb.start(),
                           off := const(settings.nSamples + 10) + i * 2,
@@ -437,7 +430,7 @@ object CompileDecoder {
                           } else Code._empty,
                           if (includeGP) {
                             Code(
-                              srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray].physicalType, { srvb =>
+                              srvb.addArray(entryType.field("GP").typ.asInstanceOf[PArray], { srvb =>
                                 Code(
                                   srvb.start(3),
                                   srvb.addDouble(d0.toD / 255.0),
