@@ -1338,6 +1338,11 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
   
   private val originalGP = bm.gp
+
+  if (bm.isSparse) {
+    log.info("Filtering a sparse matrix")
+  }
+
   private val blockSize = originalGP.blockSize
   private val tempDenseGP = GridPartitioner(blockSize, keepRows.length, keepCols.length)
 
@@ -1393,6 +1398,8 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
     val (newBlockNRows, newBlockNCols) = newGP.blockDims(blockForPartition)
     val parentZeroBlock = BDM.zeros[Double](originalGP.blockSize, originalGP.blockSize)
     val newBlock = BDM.zeros[Double](newBlockNRows, newBlockNCols)
+
+    log.info(s"Computing partition for FilterRDD ${part}")
 
     var jCol = 0
     var kCol = 0
