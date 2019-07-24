@@ -53,22 +53,6 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     require(0 <= j && j < nBlockCols, s"Block column $j out of range [0, $nBlockCols).")
     i + j * nBlockRows
   }
-
-//  def partitionToBlock(partitionId: Int): Int = {
-//    maybeBlocks match {
-//      case None => partitionId
-//      case Some(bis) => bis(partitionId)
-//    }
-//  }
-//
-//  def blockToPartition(blockId: Int): Int = {
-//    maybeBlocks match {
-//      case None => blockId
-//      case Some(bis) => bis.indexOf(blockId)
-//    }
-//  }
-
-
   
   def intersect(that: GridPartitioner): GridPartitioner = {
     copy(maybeBlocks = (maybeBlocks, that.maybeBlocks) match {
