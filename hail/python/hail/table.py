@@ -1553,6 +1553,7 @@ class Table(ExprContainer):
             raise ExpressionException('Cannot index with a scalar expression')
 
         is_interval = (len(exprs) == 1
+                       and len(self.key) > 0
                        and isinstance(self.key[0].dtype, hl.tinterval)
                        and exprs[0].dtype == self.key[0].dtype.point_type)
 
