@@ -11,7 +11,7 @@ import scala.collection.mutable
   * @param blockSize
   * @param nRows
   * @param nCols
-  * @param maybeBlocks If exists, matrix is sparse this contains a list of indices of blocks that are not all zero
+  * @param maybeBlocks If exists, matrix is sparse and this contains a list of indices of blocks that are not all zero
   */
 case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks: Option[Array[Int]] = None) extends Partitioner {
   if (nRows == 0)

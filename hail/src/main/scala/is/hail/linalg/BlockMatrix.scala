@@ -366,7 +366,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         val lm = (BDM.zeros[Double] _).tupled(newGP.blockDims(bi))
         Iterator.single((newGP.blockCoordinates(bi), lm))
       }
-      val oldToNewPI = gp.maybeBlocks.get.map(newGP.blockPart)
+      val oldToNewPI = gp.maybeBlocks.get.map(newGP.blockToPartition)
       val newBlocks = blocks.supersetPartitions(oldToNewPI, newGP.numPartitions, newPIPartition, Some(newGP))
 
       new BlockMatrix(newBlocks, blockSize, nRows, nCols)
@@ -385,7 +385,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       this
     else {
       assert(subsetGP.maybeBlocks.isDefined)
-      new BlockMatrix(blocks.subsetPartitions(subsetGP.maybeBlocks.get.map(gp.blockPart), Some(subsetGP)),
+      new BlockMatrix(blocks.subsetPartitions(subsetGP.maybeBlocks.get.map(gp.blockToPartition), Some(subsetGP)),
         blockSize, nRows, nCols)
     }
   }
