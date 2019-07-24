@@ -1451,9 +1451,7 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   @transient override val partitioner: Option[Partitioner] = Some(newGP)
 }
 
-case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition{
-  override def toString() = s"BlockMatrixFilterColsRDDPartition${(index, blockColRanges.map{case (a, b, c) => (a, b.toIndexedSeq, c.toIndexedSeq)}.toIndexedSeq)}"
-}
+case class BlockMatrixFilterColsRDDPartition(index: Int, blockColRanges: Array[(Int, Array[Int], Array[Int])]) extends Partition
 
 // checked in Python: keep non-empty, increasing, valid range
 private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
@@ -1503,8 +1501,6 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
       }
     })
 
-  // allBlockColRanges(newBlockCol) has elements of the form (blockCol, startIndices, endIndices) with blockCol increasing
-  //   startIndices.zip(endIndices) gives all column-index ranges in blockCol to be copied to ranges in newBlockCol
   def compute(split: Partition, context: TaskContext): Iterator[((Int, Int), BDM[Double])] = {
     val (blockRow, newBlockCol) = newGP.blockCoordinates(newGP.partitionToBlock(split.index))
     val (blockNRows, newBlockNCols) = newGP.blockDims(split.index)
@@ -1514,7 +1510,6 @@ private class BlockMatrixFilterColsRDD(bm: BlockMatrix, keep: Array[Long])
     var k = 0
 
     val splitCast = split.asInstanceOf[BlockMatrixFilterColsRDDPartition]
-    println(splitCast)
 
     splitCast
       .blockColRanges
