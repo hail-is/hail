@@ -17,7 +17,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
   private val nStates: Int = nested.length
   override val regionSize: Int = Region.SMALL
 
-  val typ: PTuple = PTuple(FastIndexedSeq(container.typ, arrayType))
+  val typ: PTuple = PTuple(container.typ, arrayType)
 
   val lenRef: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_lenref")
   val idx: ClassFieldRef[Int] = mb.newField[Int]("arrayrva_idx")
@@ -135,7 +135,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
 class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], knownLength: Boolean) extends StagedAggregator {
   type State = ArrayElementState
 
-  val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType))
+  val resultEltType: PTuple = PTuple(nestedAggs.map(_.resultType): _*)
   val resultType: PArray = PArray(resultEltType)
 
   def createState(mb: EmitMethodBuilder): State = ArrayElementState(mb, nestedAggs.map(_.createState(mb)))
@@ -201,7 +201,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   def initOpTypes: Array[PType] = Array()
   def seqOpTypes: Array[PType] = Array(PInt32(), PVoid)
 
-  def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType)))
+  def resultType: PType = PArray(PTuple(nestedAggs.map(_.resultType): _*))
 
   def createState(mb: EmitMethodBuilder): State =
     throw new UnsupportedOperationException(s"State must be created by ArrayElementLengthCheckAggregator")

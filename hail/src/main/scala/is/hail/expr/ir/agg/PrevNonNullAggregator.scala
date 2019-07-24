@@ -9,7 +9,7 @@ import is.hail.utils._
 class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   type State = TypedRVAState
 
-  val stateType: PTuple = PTuple(FastIndexedSeq(typ.setRequired(false)))
+  val stateType: PTuple = PTuple(typ.setRequired(false))
   val resultType: PType = typ
 
   def createState(mb: EmitMethodBuilder): State =

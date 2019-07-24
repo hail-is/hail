@@ -22,7 +22,7 @@ object TestUtils {
     if (p == null)
       NA(TTuple(TInt32(), TInt32()))
     else
-      MakeTuple(Seq(toIRInt(p._1), toIRInt(p._2)))
+      MakeTuple.ordered(Seq(toIRInt(p._1), toIRInt(p._2)))
 
   def toIRArray(a: Seq[Integer]): IR =
     if (a == null)

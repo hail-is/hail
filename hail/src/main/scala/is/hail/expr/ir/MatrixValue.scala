@@ -190,6 +190,7 @@ case class MatrixValue(
     codecSpecJSONStr: String,
     partitions: String,
     partitionsTypeStr: String) = {
+    assert(typ.isCanonical)
     val hc = HailContext.get
     val fs = hc.sFS
 

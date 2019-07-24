@@ -83,7 +83,7 @@ case class PrimitiveRVAState(types: Array[PType], mb: EmitMethodBuilder) extends
     val v = mb.newField(s"primitiveRVA_${i}_v")(typeToTypeInfo(types(i)))
     (m, v, types(i))
   }
-  val storageType: PTuple = PTuple(types.toFastIndexedSeq)
+  val storageType: PTuple = PTuple(types: _*)
 
   def foreachField(f: (Int, ValueField) => Code[Unit]): Code[Unit] =
     coerce[Unit](Code(Array.tabulate(nFields)(i => f(i, fields(i))) :_*))
@@ -148,7 +148,7 @@ case class PrimitiveRVAState(types: Array[PType], mb: EmitMethodBuilder) extends
 
 case class StateContainer(states: Array[AggregatorState], topRegion: Code[Region]) {
   val nStates: Int = states.length
-  val typ: PTuple = PTuple(states.map { s => s.storageType }, required = true)
+  val typ: PTuple = PTuple(true, states.map { s => s.storageType }: _*)
 
   def apply(i: Int): AggregatorState = states(i)
   def getRegion(rOffset: Code[Int], i: Int): Code[Region] => Code[Unit] = { r: Code[Region] =>
