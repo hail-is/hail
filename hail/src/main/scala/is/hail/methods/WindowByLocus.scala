@@ -84,8 +84,9 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
         deque.push(locus -> RegionValue(cpRegion, rvb.end()))
       }
 
+      val pLocus = localRVRowType.field("locus").typ.asInstanceOf[PLocus]
       def getLocus(row: RegionValue): Locus =
-        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
+        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), pLocus)
 
       val unsafeRow = new UnsafeRow(localRVRowType)
       val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
@@ -95,7 +96,7 @@ case class WindowByLocus(basePairs: Int) extends MatrixToMatrixFunction {
       }
 
       bit.map { rv =>
-        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
+        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), pLocus)
 
         def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
           || x._1.contig != locus.contig)

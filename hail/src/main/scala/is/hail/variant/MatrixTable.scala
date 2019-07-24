@@ -229,7 +229,7 @@ object MatrixTable {
       TStruct.empty())
 
     val rvRowType = matrixType.canonicalTableType.canonicalRVDType.rowType
-    val oldRowType = kt.signature.physicalType
+    val oldRowType = kt.rvd.rowPType
 
     val rvd = kt.rvd.mapPartitions(matrixType.canonicalTableType.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()

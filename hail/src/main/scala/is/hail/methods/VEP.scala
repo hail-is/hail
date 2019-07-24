@@ -9,6 +9,7 @@ import is.hail.expr._
 import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.methods.VEP._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
@@ -131,7 +132,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val localBlockSize = blockSize
 
-    val localRowType = tv.typ.rowType.physicalType
+    val localRowType = tv.rvd.rowPType
     val rowKeyOrd = tv.typ.keyType.ordering
 
     val prev = tv.rvd
@@ -215,7 +216,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = (prev.rowType ++ TStruct("vep" -> vepType)).physicalType)
+    val vepRVDType = prev.typ.copy(rowType = PType.canonical(prev.rowType ++ TStruct("vep" -> vepType)).asInstanceOf[PStruct])
 
     val vepRowType = vepRVDType.rowType
 

@@ -228,7 +228,7 @@ case class MatrixValue(
     // only used in exportPlink
     assert(typ.colKey.isEmpty)
     val hc = HailContext.get
-    val colPType = typ.colType.physicalType
+    val colPType = PType.canonical(typ.colType).asInstanceOf[PStruct]
 
     RVD.coerce(
       typ.colsTableType.canonicalRVDType,

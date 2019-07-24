@@ -3,6 +3,7 @@ package is.hail.backend
 import is.hail.HailContext
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -145,7 +146,7 @@ object LowerTableIR {
       val partCounts = partition(n, nPartitionsAdj)
       val partStarts = partCounts.scanLeft(0)(_ + _)
 
-      val rvdType = RVDType(tir.typ.rowType.physicalType, Array("idx"))
+      val rvdType = RVDType(PType.canonical(tir.typ.rowType).asInstanceOf[PStruct], Array("idx"))
 
       val contextType = TStruct(
         "start" -> TInt32(),

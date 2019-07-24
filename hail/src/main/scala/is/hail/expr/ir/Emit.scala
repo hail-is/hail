@@ -443,8 +443,8 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case MakeArray(args, typ) =>
-        val pType = typ.physicalType
+      case x@MakeArray(args, typ) =>
+        val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
         val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
@@ -903,7 +903,7 @@ private class Emit(
                   case t =>
                     Code.invokeScalaObject[PType, Region, Long, AnyRef](
                       SafeRow.getClass, "read",
-                      mb.getPType(t.physicalType), region, key.value[Long])
+                      mb.getPType(args.head.pType), region, key.value[Long])
                 }))
             val groupRVAs = mb.newField[Array[RegionValueAggregator]]("groupRVAs")
 
