@@ -72,7 +72,7 @@ class BlockMatrixSuite extends HailSuite {
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(nRows, innerDim, nCols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize <- interestingPosInt.map(math.pow(_, 1.0 / 3.0).toInt)
+    blockSize <- interestingPosInt
     l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), element)
     r <- blockMatrixGen(const(blockSize), const(innerDim -> nCols), element)
   } yield (l, r)
@@ -360,13 +360,10 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def fromLocalTest() {
-    forAll(denseMatrix[Double]()) { lm =>
-      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows + 1).toBreezeMatrix())
-      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows).toBreezeMatrix())
-      if (lm.rows > 1) {
-        assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, lm.rows - 1).toBreezeMatrix())
-        assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, math.sqrt(lm.rows).toInt).toBreezeMatrix())
-      }
+    forAll(denseMatrix[Double]().flatMap { m =>
+      Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
+    }) { case (lm, blockSize) =>
+      assert(lm === BlockMatrix.fromBreezeMatrix(sc, lm, blockSize).toBreezeMatrix())
       true
     }.check()
   }
@@ -444,6 +441,8 @@ class BlockMatrixSuite extends HailSuite {
     forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       l.cache()
       r.cache()
+      println(l.blocks.getNumPartitions)
+      println(r.blocks.getNumPartitions)
 
       val actual = l.dot(r).toBreezeMatrix()
       val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
