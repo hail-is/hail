@@ -165,7 +165,7 @@ object TableMapIRNew {
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
 case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature2]) {
-  val typ: PTuple = PTuple(aggs.map(Extract.getPType))
+  val typ: PTuple = PTuple(aggs.map(Extract.getPType): _*)
   val nAggs: Int = aggs.length
 
   def deserializeSet(i: Int, i2: Int, spec: CodecSpec): IR =

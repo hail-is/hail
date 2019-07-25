@@ -145,13 +145,14 @@ object Table {
     globals: Annotation,
     isSorted: Boolean
   ): Table = {
-    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature.physicalType))
+    val pType = PType.canonical(signature).asInstanceOf[PStruct]
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, pType))
     ExecuteContext.scoped { ctx =>
       new Table(hc, TableKeyBy(TableLiteral(
         TableValue(
           TableType(signature, FastIndexedSeq(), globalSignature),
           BroadcastRow(ctx, globals.asInstanceOf[Row], globalSignature),
-          RVD.unkeyed(signature.physicalType, crdd2)), ctx),
+          RVD.unkeyed(pType, crdd2)), ctx),
         key, isSorted))
     }
   }
@@ -218,7 +219,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(ctx, globals, globalSignature),
-            RVD.coerce(RVDType(signature.physicalType, key), crdd)), ctx)}
+            RVD.coerce(RVDType(PType.canonical(signature).asInstanceOf[PStruct], key), crdd)), ctx)}
   )
 
   def typ: TableType = tir.typ
@@ -389,14 +390,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def distinctByKey(): Table = {
     new Table(hc, ir.TableDistinct(tir))
-  }
-
-  // expandTypes must be called before toDF
-  def toDF(ss: SparkSession): DataFrame = {
-    val localSignature = signature.physicalType
-    ss.createDataFrame(
-      rvd.map { rv => SafeRow(localSignature, rv) },
-      signature.schema.asInstanceOf[StructType])
   }
 
   def explode(column: String): Table = new Table(hc, TableExplode(tir, Array(column)))

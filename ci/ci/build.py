@@ -1,14 +1,15 @@
 import abc
 import os.path
 import json
+import logging
 from shlex import quote as shq
 import yaml
 import jinja2
-from .log import log
 from .utils import flatten, generate_token
 from .constants import BUCKET
 from .environment import GCP_PROJECT, DOMAIN, IP, CI_UTILS_IMAGE
 
+log = logging.getLogger('ci')
 
 def expand_value_from(value, config):
     if isinstance(value, str):

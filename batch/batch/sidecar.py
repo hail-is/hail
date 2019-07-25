@@ -170,7 +170,7 @@ async def kube_event_loop(pool):
 async def refresh_k8s_pods():
     await asyncio.sleep(1)
     while True:
-        pods, err = await k8s.get_pod(
+        pod, err = await k8s.get_pod(
             namespace=HAIL_POD_NAMESPACE,
             name=pod_name)
         if err is not None:
@@ -178,10 +178,9 @@ async def refresh_k8s_pods():
             log.info(f'could not refresh pods due to {err}, will try again later')
             return
 
-        for pod in pods.items:
-            name = pod['metadata']['name']
-            log.info(f'refreshing from pod {name}')
-            await pod_changed(pod)
+        name = pod.metadata['name']
+        log.info(f'refreshing from pod {name}')
+        await pod_changed(pod)
         await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 

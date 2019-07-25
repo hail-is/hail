@@ -2,7 +2,6 @@ import itertools
 from typing import *
 from collections import OrderedDict, Counter
 import warnings
-
 import hail
 import hail as hl
 from hail.expr.expressions import *

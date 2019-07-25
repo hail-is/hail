@@ -443,8 +443,8 @@ private class Emit(
               (rm, rm.mux(defaultValue(r.typ), codeR.v)))))
         }
 
-      case MakeArray(args, typ) =>
-        val pType = typ.physicalType
+      case x@MakeArray(args, typ) =>
+        val pType = x.pType.asInstanceOf[PArray]
         val srvb = new StagedRegionValueBuilder(mb, pType)
         val addElement = srvb.addIRIntermediate(pType.elementType)
         val addElts = { (newMB: EmitMethodBuilder, t: PType, v: EmitTriplet) =>
@@ -586,7 +586,9 @@ private class Emit(
 
         val (k1, k2) = etyp match {
           case t: PStruct => GetField(In(0, t.virtualType), "key") -> GetField(In(1, t.virtualType), "key")
-          case t: PTuple => GetTupleElement(In(0, t.virtualType), 0) -> GetTupleElement(In(1, t.virtualType), 0)
+          case t: PTuple =>
+            assert(t.fields(0).index == 0)
+            GetTupleElement(In(0, t.virtualType), 0) -> GetTupleElement(In(1, t.virtualType), 0)
         }
 
         val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
@@ -615,7 +617,7 @@ private class Emit(
           case ts: TStruct =>
             GetField(Ref("i-1", ts), ts.fieldNames(0)) -> GetField(Ref("i", ts), ts.fieldNames(0))
           case tt: TTuple =>
-            GetTupleElement(Ref("i-1", tt), 0) -> GetTupleElement(Ref("i", tt), 0)
+            GetTupleElement(Ref("i-1", tt), tt.fields(0).index) -> GetTupleElement(Ref("i", tt), tt.fields(0).index)
         }
 
         val isSame = emit(
@@ -901,7 +903,7 @@ private class Emit(
                   case t =>
                     Code.invokeScalaObject[PType, Region, Long, AnyRef](
                       SafeRow.getClass, "read",
-                      mb.getPType(t.physicalType), region, key.value[Long])
+                      mb.getPType(args.head.pType), region, key.value[Long])
                 }))
             val groupRVAs = mb.newField[Array[RegionValueAggregator]]("groupRVAs")
 
@@ -1250,10 +1252,11 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2))(addFields), srvb.offset))
 
-      case GetTupleElement(o, idx) =>
+      case GetTupleElement(o, i) =>
         val t = coerce[PTuple](o.pType)
+        val idx = t.fieldIndex(i)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
         val xo = mb.newLocal[Long]
@@ -1360,9 +1363,9 @@ private class Emit(
         val gType = globals.pType
         val bType = body.pType
 
-        val ctxTypeTuple = PTuple(FastIndexedSeq(ctxType))
-        val gTypeTuple = PTuple(FastIndexedSeq(gType))
-        val bTypeTuple = PTuple(FastIndexedSeq(bType))
+        val ctxTypeTuple = PTuple(ctxType)
+        val gTypeTuple = PTuple(gType)
+        val bTypeTuple = PTuple(bType)
 
         val spec = CodecSpec.defaultUncompressed
         val parentFB = mb.fb
@@ -1381,7 +1384,7 @@ private class Emit(
             (gname, (typeToTypeInfo(gType), bodyMB.getArg[Boolean](5).load(), bodyMB.getArg(4)(typeToTypeInfo(gType)).load())))
 
           // FIXME fix number of aggs here
-          val t = new Emit(bodyMB, 1).emit(MakeTuple(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
+          val t = new Emit(bodyMB, 1).emit(MakeTuple.ordered(FastSeq(body)), env, EmitRegion.default(bodyMB), None)
           bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal("return cannot be missing"), t.v)))
 
           val ctxIS = Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getArg[Array[Byte]](2))

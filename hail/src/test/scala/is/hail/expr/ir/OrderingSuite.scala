@@ -275,7 +275,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(tDict, dict)
         val soff = rvb.end()
 
-        val ptuple = PTuple(FastIndexedSeq(pDict.keyType))
+        val ptuple = PTuple(FastIndexedSeq(pDict.keyType): _*)
         rvb.start(ptuple)
         rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()

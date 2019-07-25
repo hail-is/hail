@@ -16,7 +16,7 @@ class IntervalSuite extends TestNGSuite {
   val tinterval1 = TInterval(tpoint1)
   val na = NA(tinterval1)
 
-  def point(i: Int): IR = MakeTuple(Seq(I32(i)))
+  def point(i: Int): IR = MakeTuple.ordered(Seq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
     invoke("Interval", start, end, Literal.coerce(TBoolean(), includeStart), Literal.coerce(TBoolean(), includeEnd))
   }
