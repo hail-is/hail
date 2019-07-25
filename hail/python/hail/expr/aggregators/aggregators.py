@@ -745,7 +745,7 @@ def stats(expr) -> StructExpression:
     - `max` (:py:data:`.tfloat64`) - Maximum value.
     - `mean` (:py:data:`.tfloat64`) - Mean value,
     - `stdev` (:py:data:`.tfloat64`) - Standard deviation.
-    - `n` (:py:data:`.tfloat64`) - Number of non-missing records.
+    - `n` (:py:data:`.tint64`) - Number of non-missing records.
     - `sum` (:py:data:`.tfloat64`) - Sum.
 
     Parameters
