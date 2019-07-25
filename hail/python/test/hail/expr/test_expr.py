@@ -350,7 +350,15 @@ class Tests(unittest.TestCase):
                  (hl.agg.filter(t.idx > 7,
                              hl.agg.group_by(t.idx % 3,
                                           hl.array(hl.agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 2: [9, 0]})
+                  {0: [10, 0], 2: [9, 0]}),
+                 (hl.agg.filter(t.idx > 7, hl.agg.count()), 2),
+                 (hl.agg.filter(t.idx > 7,
+                                hl.agg.explode(lambda elt: hl.agg.count(),
+                                               [t.idx, t.idx + 1])), 4),
+                 (hl.agg.filter(t.idx > 7,
+                                hl.agg.group_by(t.idx % 3,
+                                                hl.agg.count())),
+                  {0: 1, 2: 1}),
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
@@ -395,10 +403,16 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(lambda elt: hl.agg.sum(elt), x), ht.a))
         assert r == [285, 570]
 
+        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(lambda elt: hl.agg.count(), x), ht.a))
+        assert r == [45, 45]
+
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(ht.idx, 2 * ht.idx)])
         r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
         assert r == [120, 405]
+
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.count(), x), ht.a))
+        assert r == [45, 45]
 
     def test_agg_array_filter(self):
         ht = hl.utils.range_table(10)
@@ -409,6 +423,12 @@ class Tests(unittest.TestCase):
         r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
         assert r2 == [5]
 
+        r3 = ht.aggregate(hl.agg.filter(ht.idx == 5, hl.agg.array_agg(lambda x: hl.agg.count(), ht.a)))
+        assert r3 == [1]
+
+        r4 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.count()), ht.a))
+        assert r4 == [1]
+
     def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx, ht.idx + 1])
@@ -417,10 +437,18 @@ class Tests(unittest.TestCase):
         assert r == {0: [20, 25], 1: [25, 30]}
 
         r2 = ht.aggregate(
-            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.sum(x)), ht.a)
-        )
+            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.sum(x)), ht.a))
 
         assert r2 == [{0: 20, 1: 25}, {0: 30, 1: 25}]
+
+        r3 = ht.aggregate(
+            hl.agg.group_by(ht.idx % 2, hl.agg.array_agg(lambda x: hl.agg.count(), ht.a)))
+        assert r3 == {0: [5, 5], 1: [5, 5]}
+
+        r4 = ht.aggregate(
+            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.count()), ht.a))
+
+        assert r4 == [{0: 5, 1: 5}, {0: 5, 1: 5}]
 
     def test_agg_array_nested(self):
         ht = hl.utils.range_table(10)
@@ -476,7 +504,24 @@ class Tests(unittest.TestCase):
                                            hl.cond(t.idx > 7,
                                                    [t.idx, t.idx + 1],
                                                    hl.empty_array(hl.tint32))),
-                  {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]})
+                  {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]}),
+                 (hl.agg.explode(lambda elt: hl.agg.count(),
+                                 hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  4),
+                 (hl.agg.explode(lambda elt: hl.agg.explode(lambda elt2: hl.agg.count(),
+                                                            [elt, elt + 1]),
+                                 hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  8),
+                 (hl.agg.explode(lambda elt: hl.agg.filter(elt > 8,
+                                                           hl.agg.count()),
+                                 hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  3),
+                 (hl.agg.explode(lambda elt: hl.agg.group_by(elt % 3,
+                                                             hl.agg.count()),
+                                 hl.cond(t.idx > 7,
+                                         [t.idx, t.idx + 1],
+                                         hl.empty_array(hl.tint32))),
+                  {0: 2, 1: 1, 2: 1})
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
@@ -496,6 +541,19 @@ class Tests(unittest.TestCase):
                                                    [t.idx, t.idx + 1],
                                                    hl.empty_array(hl.tint32)))),
                   {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),
+                 (hl.agg.group_by(t.idx % 2, hl.agg.count()), {0: 5, 1: 5}),
+                 (hl.agg.group_by(t.idx % 3,
+                                  hl.agg.filter(t.idx > 7, hl.agg.count())),
+                  {0: 1, 1: 0, 2: 1}),
+                 (hl.agg.group_by(t.idx % 3,
+                                  hl.agg.explode(lambda elt: hl.agg.count(),
+                                                 hl.cond(t.idx > 7,
+                                                         [t.idx, t.idx + 1],
+                                                         hl.empty_array(hl.tint32)))),
+                  {0: 2, 1: 0, 2: 2}),
+                 (hl.agg.group_by(t.idx % 5,
+                                  hl.agg.group_by(t.idx % 2, hl.agg.count())),
+                  {i: {0: 1, 1: 1} for i in range(5)}),
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
