@@ -518,6 +518,11 @@ class Tests(unittest.TestCase):
         j = t1.annotate(f=t2[t1.a].x)
         self.assertEqual(j.count(), t1.count())
 
+    def test_index_keyless_table(self):
+        t = hl.utils.range_table(10).key_by()
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "Table key: *<<<empty key>>>"):
+            t[t.idx]
+
     def test_aggregation_with_no_aggregators(self):
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)

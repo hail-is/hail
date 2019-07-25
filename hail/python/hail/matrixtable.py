@@ -2760,7 +2760,7 @@ class MatrixTable(ExprContainer):
             key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  MatrixTable row key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                 f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_cols(self, *exprs, all_matches=False) -> 'Expression':
@@ -2800,7 +2800,7 @@ class MatrixTable(ExprContainer):
             key_type, exprs = err.args
             raise ExpressionException(
                 f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values())}\n"
+                f"  MatrixTable col key: {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                 f"  Index expressions:   {', '.join(str(e.dtype) for e in exprs)}")
 
     def index_entries(self, row_exprs, col_exprs):

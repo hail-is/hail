@@ -387,6 +387,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(mt.index_cols(mt.col_key).take(1), mt.index_cols(mt.s).take(1))
         self.assertEqual(mt[mt.row_key, mt.col_key].take(1), mt[(mt.locus, mt.alleles), mt.s].take(1))
 
+    def test_index_keyless(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable row key: *<<<empty key>>>"):
+            mt.key_rows_by().index_rows(mt.row_idx)
+        with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable col key: *<<<empty key>>>"):
+            mt.key_cols_by().index_cols(mt.col_idx)
+
     def test_table_join(self):
         ds = self.get_vds()
         # test different row schemas
