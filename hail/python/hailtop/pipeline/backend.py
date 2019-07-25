@@ -4,12 +4,16 @@ import subprocess as sp
 import uuid
 import secrets
 import json
+import asyncio
+from aiohttp import web
 from shlex import quote as shq
 from hailtop.batch_client.client import BatchClient, Job
 import aiohttp
 
 from .resource import InputResourceFile, TaskResourceFile
 from .utils import PipelineException
+
+log = logging.getLogger('pipeline')
 
 class Backend:
     @abc.abstractmethod
@@ -364,15 +368,16 @@ class HackRunner:
         self.pipeline = pipeline
         self.verbose = verbose
 
+        self.semaphore = asyncio.Semaphore(10)
+
+        self.ready = asyncio.Queue()
+
         self.n_complete = 0
 
-        self.ready = []
         self.task_n_deps = {}
         for t in pipeline._tasks:
             n = len(t._dependencies)
             self.task_n_deps[t] = n
-            if n == 0:
-                self.ready.append(t)
 
         self.task_children = {t: set() for t in pipeline._tasks}
         for t in pipeline._tasks:
@@ -380,6 +385,27 @@ class HackRunner:
                 self.task_children[d].add(t)
 
         self.task_token = {}
+        # token of complete attempt
+        self.token_task = {}
+
+        self.task_state = {}
+
+        self.app = web.Application()
+        self.app.add_routes([
+            web.post('/status', self.handle_status),
+            web.post('/shutdown', self.handle_shutdown)
+        ])
+
+    async def handle_status(self, request):
+        status = await request.json()
+        await self.mark_complete(status)
+        return web.Response()
+
+    async def handle_shutdown(self, request):
+        b = await request.json()
+        token = b['token']
+        await self.shutdown(token)
+        return web.Response()
 
     def gs_input_path(self, r):
         if isinstance(r, InputResourceFile):
@@ -398,10 +424,69 @@ class HackRunner:
                 output_paths.append(p)
         return output_paths
 
-    def launch(self, t):
+    async def shutdown(self, token):
+        self.semaphore.release()
+
+        t = self.token_task[token]
+
+        log.info(f'shutdown task {t._uid} {t.name} token {token}')
+
+        if t in self.task_state:
+            return
+
+        log.info(f'rescheduling task {t._uid} {t.name}')
+        await self.ready.put(t)
+
+    async def notify_children(self):
+        for c in self.task_children[t]:
+            n = self.task_n_deps[c]
+            assert n > 0
+            n -= 1
+            self.task_n_deps[c] = n
+            if n == 0:
+                await self.ready.put(c)
+
+    async def set_state(self, t, state, token):
+        if t in self.task_state:
+            return
+
+        log.info(f'set_state task {t._uid} {t.name} state {state} token {token}')
+        
+        self.task_state[t] = state
+        if token:
+            self.task_token[t] = token
+        self.n_complete += 1
+        await self.notify_children()
+
+        if self.n_complete == len(self.pipeline._tasks):
+            await self.ready.put(None)
+
+    async def mark_complete(self, status):
+        token = status['token']
+        t = self.token_task[token]
+
+        state = 'success'
+        for name in ['input', 'main', 'output']:
+            ec = status.get(name)
+            if ec is not None and ec != 0:
+                state = 'failure'
+
+        await self.set_state(t, state, token)
+
+    async def launch(self, t):
         assert t._image
 
-        token = secrets.token_urlsafe(8)
+        if t in self.task_state:
+            return
+
+        if any(self.task_state[p] != 'success' for p in t._dependencies):
+            await self.set_state(t, 'cancelled', None)
+            return
+
+        token = secrets.token_urlsafe(16)
+        self.token_task[token] = t
+
+        log.info(f'launching task {t._uid} {t.name} token {token}')
 
         inputs_cmd = ' && '.join([
             f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/tmp"))}'
@@ -429,29 +514,35 @@ class HackRunner:
             'outputs_cmd': outputs_cmd
         }
 
-        print(f'{json.dumps(config)}')
+        check_shell(f'echo {shq(json.dumps(config))} | gsutil cp - gs://hail-cseed/cs-hack/tmp/{token}/config.json')
+        # FIXME
+        # zone?
+        # memory, cores, disk size
+        # scores
+        check_shell(f'gcloud -q compute instances create cs-hack-{token} --async --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size=20GB --boot-disk-type=pd-ssd')
 
-        self.mark_complete(t, token)
+    async def run(self):
+        log.info(f'running pipeline')
 
-    def mark_complete(self, t, token):
-        self.task_token[t] = token
+        app_runner = web.AppRunner(self.app)
+        await app_runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', 5000)
+        await site.start()
 
-        self.n_complete += 1
-
-        for c in self.task_children[t]:
-            n = self.task_n_deps[c]
-            assert n > 0
-            n -= 1
-            self.task_n_deps[c] = n
+        for t, n in self.task_n_deps.items():
             if n == 0:
-                self.ready.append(c)
+                await self.ready.put(t)
 
-    def run(self):
-        while self.ready:
-            t = self.ready.pop()
-            self.launch(t)
+        while True:
+            t = await self.ready.get()
+            if not t:
+                return
+            await self.semaphore.acquire()
+            await self.launch(t)
 
-        assert self.n_complete == len(self.pipeline._tasks)
+        await app_runner.cleanup()
+
+        log.info(f'pipeline finished')
 
 
 class HackBackend(Backend):
@@ -460,4 +551,6 @@ class HackBackend(Backend):
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         runner = HackRunner(pipeline, verbose)
-        runner.run()
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(runner.run())
+        loop.run_until_complete(loop.shutdown_asyncgens())

@@ -32,3 +32,8 @@ test-task:
 	gsutil -m cp task-startup.sh run-task.sh run-task.py input.txt gs://hail-cseed/cs-hack/
 	gsutil cp test-config.json gs://hail-cseed/cs-hack/tmp/foobar/config.json
 	gcloud -q compute --project $(PROJECT) instances create $(TEST_TASK_INSTANCE_NAME) --zone=$(ZONE) --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata=token=foobar,startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --service-account=842871226259-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --image-project=$(PROJECT) --boot-disk-size=20GB --boot-disk-type=pd-ssd
+
+copy-all:
+	gsutil -m cp master-startup.sh gs://hail-cseed/cs-hack/
+	gsutil -m cp task-startup.sh run-task.sh run-task.py input.txt gs://hail-cseed/cs-hack/
+	gsutil cp test-config.json gs://hail-cseed/cs-hack/tmp/foobar/config.json
