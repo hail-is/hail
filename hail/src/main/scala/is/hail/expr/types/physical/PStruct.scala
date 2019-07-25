@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{Field, TStruct, Type}
+import is.hail.expr.types.virtual.{Field, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
