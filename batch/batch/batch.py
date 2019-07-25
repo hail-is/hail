@@ -795,7 +795,7 @@ async def _get_pod_status(batch_id, job_id, user):
 
     pod_statuses = await job._read_pod_statuses()
     if pod_statuses:
-        return pod_statuses
+        return JSON_ENCODER.encode(pod_statuses)
     abort(404)
 
 

@@ -91,7 +91,7 @@ class Test(unittest.TestCase):
     def test_list_batches(self):
         tag = secrets.token_urlsafe(64)
         b1 = self.client.create_batch(attributes={'tag': tag, 'name': 'b1'})
-        b1.create_job('alpine', ['sleep', '30'])
+        b1.create_job('alpine', ['sleep', '3600'])
         b1 = b1.submit()
 
         b2 = self.client.create_batch(attributes={'tag': tag, 'name': 'b2'})
