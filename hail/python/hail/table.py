@@ -1532,8 +1532,9 @@ class Table(ExprContainer):
             return self._index(*exprs, all_matches=all_matches)
         except TableIndexKeyError as err:
             key_type, exprs = err.args
+
             raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
-                                      f"  Table key:         {', '.join(str(t) for t in key_type.values())}\n"
+                                      f"  Table key:         {', '.join(str(t) for t in key_type.values()) or '<<<empty key>>>'}\n"
                                       f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
     def _index(self, *exprs, all_matches=False) -> 'Expression':
