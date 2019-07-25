@@ -840,7 +840,9 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    return hl.float64(filter(predicate, count())) / count()
+    return hl.bind(lambda n: hl.cond(n == 0, hl.null(hl.tfloat64),
+                                     hl.float64(filter(predicate, count())) / n),
+                   count())
 
 
 @typecheck(expr=expr_call)
