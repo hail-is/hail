@@ -26,6 +26,7 @@ spec:
     targetPort: 5000
   selector:
     app: scorecard
+---
 apiVersion: v1
 kind: Service
 metadata:
