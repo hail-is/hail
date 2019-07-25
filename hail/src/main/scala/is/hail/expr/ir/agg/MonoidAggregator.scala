@@ -25,7 +25,9 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     assert(init.length == 0)
     val (mOpt, v, _) = state.fields(0)
     (mOpt, monoid.neutral) match {
+      // if state is optional, then set it to "missing" on initialization
       case (Some(m), _)  => Code(m.store(true), state._loaded := true)
+      // if state is not optional, set it to the neutral value
       case (_, Some(v0)) => Code(v.storeAny(v0), state._loaded := true)
     }
   }
@@ -64,9 +66,16 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
       case (None, None) =>
         combineAndStore
       case (None, Some(m2)) =>
+        // only update if the element is not missing
         m2.mux(Code._empty, combineAndStore)
+      case (Some(m1), None) =>
+        m1.mux(
+          Code(m1.store(false), v1.storeAny(v2)),
+          combineAndStore)
       case (Some(m1), Some(m2)) =>
         m1.mux(
+          // if the current state is missing, then just copy the other
+          // element + its missingness
           Code(m1.store(m2), v1.storeAny(v2)),
           m2.mux(Code._empty, combineAndStore))
     }
