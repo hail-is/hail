@@ -288,7 +288,7 @@ class IRSuite extends HailSuite {
     assertPType(node, PInt32())
 
     node = ApplyUnaryPrimOp(Negate(), i32na)
-    interceptAssertion("pType2 must be set exactly once")(InferPType(node, Env.empty))
+    intercept[AssertionErrorgit ](InferPType(node, Env.empty))
 
     node = ApplyUnaryPrimOp(Negate(), I64(5))
     assertPType(node, PInt64())

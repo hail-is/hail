@@ -10,7 +10,7 @@ import is.hail.utils.{FastIndexedSeq, _}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  var _pType2: PType = null
+  protected[ir] var _pType2: PType = null
   private var _pType: PType = null
   private var _typ: Type = null
 

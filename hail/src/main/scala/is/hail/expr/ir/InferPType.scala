@@ -200,7 +200,7 @@ object InferPType {
       }
       case NDArrayShape(nd) => {
         InferPType(nd, env)
-        PTuple(IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64()), nd.pType2.required)
+        PTuple(nd.pType2.required, IndexedSeq.tabulate(nd.pType2.asInstanceOf[PNDArray].nDims)(_ => PInt64()):_*)
       }
       case NDArrayReshape(nd, shape) => {
         InferPType(nd, env)
@@ -295,9 +295,9 @@ object InferPType {
       }
       case MakeTuple(values) => {
         PTuple(values.map(v => {
-          InferPType(v, env)
-          v.pType2
-        }).toFastIndexedSeq)
+          InferPType(v._2, env)
+          v._2.pType2
+        }): _*)
       }
       case GetTupleElement(o, idx) => {
         InferPType(o, env)
