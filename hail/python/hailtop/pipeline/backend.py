@@ -13,8 +13,6 @@ import aiohttp
 from .resource import InputResourceFile, TaskResourceFile
 from .utils import PipelineException
 
-log = logging.getLogger('pipeline')
-
 class Backend:
     @abc.abstractmethod
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
@@ -363,6 +361,37 @@ class BatchBackend(Backend):
         raise PipelineException(fail_msg)
 
 
+class CalledProcessError(Exception):
+    def __init__(self, command, returncode):
+        super().__init__()
+        self.command = command
+        self.returncode = returncode
+
+    def __str__(self):
+        return f'Command {self.command} returned non-zero exit status {self.returncode}.'
+
+
+async def check_shell(script):
+    proc = await asyncio.create_subprocess_exec('/bin/bash', '-c', script)
+    await proc.wait()
+    if proc.returncode != 0:
+        raise CalledProcessError(script, proc.returncode)
+
+
+async def check_shell_output(script):
+    proc = await asyncio.create_subprocess_exec(
+        '/bin/bash', '-c', script,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+    outerr = await proc.communicate()
+    if proc.returncode != 0:
+        raise CalledProcessError(script, proc.returncode)
+    return outerr
+
+
+ZONE = os.environ['ZONE']
+
+
 class HackRunner:
     def __init__(self, pipeline, verbose):
         self.pipeline = pipeline
@@ -429,15 +458,15 @@ class HackRunner:
 
         t = self.token_task[token]
 
-        log.info(f'shutdown task {t._uid} {t.name} token {token}')
+        print(f'shutdown task {t._uid} {t.name} token {token}')
 
         if t in self.task_state:
             return
 
-        log.info(f'rescheduling task {t._uid} {t.name}')
+        print(f'rescheduling task {t._uid} {t.name}')
         await self.ready.put(t)
 
-    async def notify_children(self):
+    async def notify_children(self, t):
         for c in self.task_children[t]:
             n = self.task_n_deps[c]
             assert n > 0
@@ -450,13 +479,13 @@ class HackRunner:
         if t in self.task_state:
             return
 
-        log.info(f'set_state task {t._uid} {t.name} state {state} token {token}')
+        print(f'set_state task {t._uid} {t.name} state {state} token {token}')
         
         self.task_state[t] = state
         if token:
             self.task_token[t] = token
         self.n_complete += 1
-        await self.notify_children()
+        await self.notify_children(t)
 
         if self.n_complete == len(self.pipeline._tasks):
             await self.ready.put(None)
@@ -483,28 +512,29 @@ class HackRunner:
             await self.set_state(t, 'cancelled', None)
             return
 
-        token = secrets.token_urlsafe(16)
+        token = secrets.token_hex(16)
         self.token_task[token] = t
 
-        log.info(f'launching task {t._uid} {t.name} token {token}')
+        print(f'launching task {t._uid} {t.name} token {token}')
 
         inputs_cmd = ' && '.join([
-            f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/tmp"))}'
+            f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/shared"))}'
             for i in t._inputs
         ]) if t._inputs else None
 
         bash_flags = 'set -e' + ('x' if self.verbose else '') + '; '
-        defs = ''.join([r._declare('/tmp') + '; ' for r in t._mentioned])
-        make_local_tmpdir = f'mkdir -p /tmp/{t._uid}'
+        defs = ''.join([r._declare('/shared') + '; ' for r in t._mentioned])
+        make_local_tmpdir = f'mkdir -p /shared/{t._uid}'
         cmd = bash_flags + defs + make_local_tmpdir + ' && (' + ' && '.join(t._command) + ')'
 
         outputs = t._internal_outputs.union(t._external_outputs)
         outputs_cmd = ' && '.join([
-            f'gsutil -m cp -r {shq(o._get_path("/tmp"))} {shq(output_path)}'
+            f'gsutil -m cp -r {shq(o._get_path("/shared"))} {shq(output_path)}'
             for o in outputs for output_path in self.gs_output_paths(o, token)
         ]) if t._outputs else None
 
         config = {
+            'master': 'cs-hack-master',
             'uid': t._uid,
             'name': t.name,
             'token': token,
@@ -514,19 +544,18 @@ class HackRunner:
             'outputs_cmd': outputs_cmd
         }
 
-        check_shell(f'echo {shq(json.dumps(config))} | gsutil cp - gs://hail-cseed/cs-hack/tmp/{token}/config.json')
+        await check_shell(f'echo {shq(json.dumps(config))} | gsutil cp - gs://hail-cseed/cs-hack/tmp/{token}/config.json')
         # FIXME
         # zone?
         # memory, cores, disk size
-        # scores
-        check_shell(f'gcloud -q compute instances create cs-hack-{token} --async --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size=20GB --boot-disk-type=pd-ssd')
+        await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size=20GB --boot-disk-type=pd-ssd')
 
     async def run(self):
-        log.info(f'running pipeline')
+        print(f'running pipeline')
 
         app_runner = web.AppRunner(self.app)
         await app_runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', 5000)
+        site = web.TCPSite(app_runner, '0.0.0.0', 5000)
         await site.start()
 
         for t, n in self.task_n_deps.items():
@@ -542,7 +571,7 @@ class HackRunner:
 
         await app_runner.cleanup()
 
-        log.info(f'pipeline finished')
+        print(f'pipeline finished')
 
 
 class HackBackend(Backend):
