@@ -132,7 +132,6 @@ class Aggregators2Suite extends HailSuite {
         Row(Row("c", 4), 6L, 8L),
         Row(Row("f", 5), 6L, 10L))
 
-    val arrayPType = PType.canonical(arrayType).asInstanceOf[PArray]
 
     val array = Ref("array", arrayType)
     val stream = Ref("stream", TArray(arrayType))
@@ -141,6 +140,7 @@ class Aggregators2Suite extends HailSuite {
 
     val spec = CodecSpec.defaultUncompressed
     val partitioned = value.grouped(3).toFastIndexedSeq
+    val streamPType = PArray(PType.canonical(arrayType))
 
     val (_, initAndSeqF) = CompileWithAggregators2[Long, Unit](
       Array(lcAggSig),
@@ -176,7 +176,7 @@ class Aggregators2Suite extends HailSuite {
       val f = initAndSeqF(0, region)
 
       partitioned.map { case lit =>
-        val voff = ScalaToRegionValue(region, arrayPType, lit)
+        val voff = ScalaToRegionValue(region, streamPType, lit)
 
         Region.scoped { aggRegion =>
           f.newAggState(aggRegion)
