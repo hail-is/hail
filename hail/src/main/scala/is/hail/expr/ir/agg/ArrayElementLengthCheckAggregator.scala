@@ -125,10 +125,12 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
     Code(
       srcOff := src,
       init(container.toCode((i, s) => s.copyFrom(container.getStateOffset(initOffset, i))), initLen = false),
-      lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
-      (lenRef < 0).mux(
-        typ.setFieldMissing(off, 1),
-        seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i)))))
+      typ.isFieldMissing(srcOff, 1).mux(
+        Code(typ.setFieldMissing(off, 1),
+          lenRef := -1),
+        Code(
+          lenRef := arrayType.loadLength(typ.loadField(srcOff, 1)),
+          seq((i, s) => s.copyFrom(container.getStateOffset(eltOffset, i))))))
   }
 }
 
