@@ -6,6 +6,7 @@ import is.hail.utils._
 
 object InferPType {
   def apply(ir: IR, env: Env[PType]): Unit = {
+    assert(ir._pType2 == null)
     ir._pType2 = ir match {
       case I32(_) => PInt32()
       case I64(_) => PInt64()
