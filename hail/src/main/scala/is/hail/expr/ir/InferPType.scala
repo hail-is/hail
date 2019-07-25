@@ -116,7 +116,6 @@ object InferPType {
         a.implementation.returnPType(pTypes)
       }
       case _: Uniroot => PFloat64()
-      // TODO: check that i.pType2 isOfType is correct (for ArrayRef, ArraySort)
       case ArrayRef(a, i) => {
         InferPType(a, env)
         InferPType(i, env)
@@ -239,7 +238,6 @@ object InferPType {
           assert(idxIR.pType2.isOfType(PInt64()) || idxIR.pType2.isOfType(PInt32()))
         })
 
-        // TODO: In standing with other similar cases, should we be mutating elementType, or copyStreamable?
         coerce[PNDArray](nd.pType2).elementType.setRequired(nd.pType2.required && allRequired)
       }
       case NDArraySlice(nd, slices) => {

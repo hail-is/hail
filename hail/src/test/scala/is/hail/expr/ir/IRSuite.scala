@@ -284,7 +284,6 @@ class IRSuite extends HailSuite {
     var node = ApplyUnaryPrimOp(Negate(), I32(5))
     assertPType(node, PInt32())
     node = ApplyUnaryPrimOp(Negate(), i32na)
-    // TODO: this feels like there should be a NULL/missing type, or at least a missing flag on the PType
     assertPType(node, PInt32())
 
     node = ApplyUnaryPrimOp(Negate(), i32na)
