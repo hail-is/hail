@@ -330,6 +330,18 @@ class IRSuite extends HailSuite {
     assertPType(node, PInt64())
   }
 
+  @Test def testComplexInferPType() {
+    val ir = ArrayMap(Let("q", I32(2),
+      ArrayMap(Let("v", Ref("q", TInt32()) + I32(3),
+        ArrayRange(0, Ref("v", TInt32()), 1)),
+        "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
+      "y", Ref("y", TInt32()) + I32(3))
+
+    ir.inferSetPType(Env.empty)
+    assert(ir.a.pType2 == PArray(PInt32()))
+    assert(ir.body.pType2 == PInt32())
+  }
+
   @Test def testApplyBinaryPrimOpAdd() {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), sum)
