@@ -763,10 +763,10 @@ def stats(expr) -> StructExpression:
     return hl.bind(lambda aggs:
                    hl.bind(lambda mean: hl.struct(
                        mean = mean,
-                       stdev = hl.sqrt(hl.float64(aggs.sumsq - 2 * mean * aggs.sum + mean ** 2) / aggs.n_def),
+                       stdev = hl.sqrt(hl.float64(aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
                        min = hl.float64(aggs.min),
                        max = hl.float64(aggs.max),
-                       n = hl.float64(aggs.n_def),
+                       n = aggs.n_def,
                        sum = hl.float64(aggs.sum)
                    ), hl.float64(aggs.sum)/aggs.n_def),
                    hl.struct(n_def = count_where(hl.is_defined(expr)),
