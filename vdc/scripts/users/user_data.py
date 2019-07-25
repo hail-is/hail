@@ -212,6 +212,11 @@ def create_rbac(namespace, sa_name):
                     "type": "user"
                 }
             ),
+            subjects=[kube_client.V1Subject(
+                name=sa_name,
+                namespace=namespace,
+                kind="ServiceAccount"
+            )],
             role_ref=kube_client.V1RoleRef(
                 api_group="",
                 kind="Role",
@@ -477,7 +482,7 @@ if __name__ == "__main__":
             req = {
                 'user_id': user['user_id'],
                 'kube_namespace': user['kube_namespace'],
-                'batch_namespace': user['batch_namepsace'],
+                'batch_namespace': user['batch_namespace'],
                 'google_project': user['google_project'],
             }
 
