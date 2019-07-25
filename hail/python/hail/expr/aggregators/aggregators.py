@@ -1457,13 +1457,13 @@ def corr(x, y) -> Float64Expression:
                    (a.n * a.xy - a.x * a.y) /
                    hl.sqrt((a.n * a.xsq - a.x ** 2) *
                            (a.n * a.ysq - a.y ** 2)),
-                   hl.filter(hl.is_defined(x) & hl.is_defined(y),
-                             hl.struct(x=hl.agg.sum(x),
-                                       y=hl.agg.sum(y),
-                                       xsq=hl.agg.sum(x ** 2),
-                                       ysq=hl.agg.sum(y ** 2),
-                                       xy=hl.agg.sum(x * y),
-                                       n=hl.agg.count())))
+                   hl.agg.filter(hl.is_defined(x) & hl.is_defined(y),
+                                 hl.struct(x=hl.agg.sum(x),
+                                           y=hl.agg.sum(y),
+                                           xsq=hl.agg.sum(x ** 2),
+                                           ysq=hl.agg.sum(y ** 2),
+                                           xy=hl.agg.sum(x * y),
+                                           n=hl.agg.count())))
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))
