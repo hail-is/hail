@@ -1,4 +1,5 @@
 from shlex import quote as shq
+import time
 import json
 import subprocess
 import requests
@@ -20,7 +21,17 @@ def check_shell_output(script):
     return subprocess.check_output(['/bin/bash', '-c', script], encoding='utf-8')
 
 def docker_run(name, image, cmd):
-    container_id = check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}').strip()
+    container_id = None
+    attempts = 0
+    while not container_id:
+        try:
+            container_id = check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}').strip()
+        except subprocess.CalledProcessError as e:
+            if attempts < 12 and e.returncode == 125:
+                attempt += 1
+                time.sleep(5)
+            else:
+                raise e
 
     ec_str = check_shell_output(f'docker container wait {shq(container_id)}').strip()
     ec = int(ec_str)

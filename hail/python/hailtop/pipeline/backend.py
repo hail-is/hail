@@ -427,13 +427,14 @@ class HackRunner:
 
     async def handle_status(self, request):
         status = await request.json()
+        print(f'POST /status status {json.dumps(status)}')
         await self.mark_complete(status)
         return web.Response()
 
     async def handle_shutdown(self, request):
-        b = await request.json()
-        token = b['token']
-        await self.shutdown(token)
+        body = await request.json()
+        print(f'POST /shutdown body {json.dumps(body)}')
+        await self.shutdown(body['token'])
         return web.Response()
 
     def gs_input_path(self, r):

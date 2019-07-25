@@ -1,16 +1,6 @@
 #!/bin/bash
 set -ex
 
-# wait for docker to be active
-while true; do
-    # systemctl won't report active until we run a docker command
-    docker ps -a || true
-    if [ $(systemctl is-active docker) == "active" ]; then
-        break
-    fi
-    sleep 1
-done
-
 docker info
 
 mkdir /shared
