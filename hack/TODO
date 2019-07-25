@@ -1,4 +1,8 @@
  - shutdown script hit endpoint
+
+get internal IP:
+curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip"
+
  - integrate server into backend
  - run tests
  - run scale tests 3K, 30K, 300K

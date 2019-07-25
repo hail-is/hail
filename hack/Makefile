@@ -23,6 +23,10 @@ cleanup-image:
 image: cleanup-image
 	gcloud -q compute --project $(PROJECT) images create cs-hack --source-disk=cs-hack-image-builder --source-disk-zone=$(ZONE)
 
+master:
+	gsutil -m cp master-startup.sh gs://hail-cseed/cs-hack/
+	gcloud -q compute --project $(PROJECT) instances create cs-hack-master --zone=$(ZONE) --machine-type=n1-standard-8 --network=default --network-tier=PREMIUM --metadata=startup-script-url=gs://hail-cseed/cs-hack/master-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --service-account=842871226259-compute@developer.gserviceaccount.com --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --image-project=$(PROJECT) --boot-disk-size=20GB --boot-disk-type=pd-ssd
+
 TEST_TASK_INSTANCE_NAME = cs-hack-test-task-7
 test-task:
 	gsutil -m cp task-startup.sh run-task.sh run-task.py input.txt gs://hail-cseed/cs-hack/
