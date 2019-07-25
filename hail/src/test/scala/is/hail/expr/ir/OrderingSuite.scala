@@ -69,7 +69,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(t, a1)
         val v1 = rvb.end()
 
-        rvb.start(t.physicalType)
+        rvb.start(pType)
         rvb.addAnnotation(t, a2)
         val v2 = rvb.end()
 
@@ -227,7 +227,11 @@ class OrderingSuite extends HailSuite {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
-      val pset = PSet(t.physicalType)
+      val pt = PType.canonical(t)
+      val pset = PSet(pt)
+
+      val pTuple = PTuple(pt)
+      val pArray = PArray(pt)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -236,7 +240,7 @@ class OrderingSuite extends HailSuite {
         rvb.addAnnotation(pset.virtualType, set)
         val soff = rvb.end()
 
-        rvb.start(TTuple(t).physicalType)
+        rvb.start(pTuple)
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
@@ -246,9 +250,9 @@ class OrderingSuite extends HailSuite {
         val cetuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pset, keyOnly = false)
-        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).physicalType.fieldOffset(cetuple, 0))))
+        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(pTuple.fieldOffset(cetuple, 0))))
 
-        val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
+        val asArray = SafeIndexedSeq(pArray, region, soff)
 
         val f = fb.resultWithIndex()(0, region)
         val closestI = f(region, soff, eoff)
@@ -266,7 +270,7 @@ class OrderingSuite extends HailSuite {
       .flatMap { case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue) }
     val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tDict, a, key) =>
       val dict = a.asInstanceOf[Map[Any, Any]]
-      val pDict = tDict.physicalType
+      val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)

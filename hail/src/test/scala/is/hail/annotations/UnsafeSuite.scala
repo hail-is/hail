@@ -146,7 +146,7 @@ class UnsafeSuite extends HailSuite {
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
       .filter { case (t, a, n, n2) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
-      val pt = t.physicalType
+      val pt = PType.canonical(t)
       t.typeCheck(a)
 
       // test addAnnotation
@@ -186,12 +186,13 @@ class UnsafeSuite extends HailSuite {
       // test addRegionValue nested
       t match {
         case t: TStruct =>
+          val ps = pt.asInstanceOf[PStruct]
           region2.clear()
           region2.allocate(1, n) // preallocate
-          rvb2.start(t.physicalType)
+          rvb2.start(ps)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
-          val ur4 = new UnsafeRow(t.physicalType, region2, offset4)
+          val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
       }
@@ -206,10 +207,11 @@ class UnsafeSuite extends HailSuite {
       // test addRegionValue to same region nested
       t match {
         case t: TStruct =>
-          rvb.start(t.physicalType)
+          val ps = pt.asInstanceOf[PStruct]
+          rvb.start(ps)
           rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset6 = rvb.end()
-          val ur6 = new UnsafeRow(t.physicalType, region, offset6)
+          val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
       }
@@ -309,19 +311,19 @@ class UnsafeSuite extends HailSuite {
       tv.typeCheck(a2)
 
       region.clear()
-      rvb.start(tv.physicalType.fundamentalType)
+      rvb.start(t)
       rvb.addRow(tv, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
-      val ur1 = new UnsafeRow(tv.physicalType, region, offset)
+      val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      rvb2.start(tv.physicalType.fundamentalType)
+      rvb2.start(t)
       rvb2.addRow(tv, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 
-      val ur2 = new UnsafeRow(tv.physicalType, region2, offset2)
+      val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering
