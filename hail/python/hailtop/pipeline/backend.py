@@ -1,6 +1,7 @@
 import abc
 import os
 import subprocess as sp
+import re
 import uuid
 import secrets
 import json
@@ -459,12 +460,12 @@ class HackRunner:
 
         t = self.token_task[token]
 
-        print(f'shutdown task {t._uid} {t.name} token {token}')
+        print(f'INFO: shutdown task {t._uid} {t.name} token {token}')
 
         if t in self.task_state:
             return
 
-        print(f'rescheduling task {t._uid} {t.name}')
+        print(f'INFO: rescheduling task {t._uid} {t.name}')
         await self.ready.put(t)
 
     async def notify_children(self, t):
@@ -480,7 +481,7 @@ class HackRunner:
         if t in self.task_state:
             return
 
-        print(f'set_state task {t._uid} {t.name} state {state} token {token}')
+        print(f'INFO: set_state task {t._uid} {t.name} state {state} token {token}')
         
         self.task_state[t] = state
         if token:
@@ -516,7 +517,7 @@ class HackRunner:
         token = secrets.token_hex(16)
         self.token_task[token] = t
 
-        print(f'launching task {t._uid} {t.name} token {token}')
+        print(f'INFO: launching task {t._uid} {t.name} token {token}')
 
         inputs_cmd = ' && '.join([
             f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/shared"))}'
@@ -546,13 +547,69 @@ class HackRunner:
         }
 
         await check_shell(f'echo {shq(json.dumps(config))} | gsutil cp - gs://hail-cseed/cs-hack/tmp/{token}/config.json')
-        # FIXME
-        # zone?
-        # memory, cores, disk size
-        await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size=20GB --boot-disk-type=pd-ssd')
+
+        if t._cpu:
+            cpu = round_up(t._cpu)
+        else:
+            cpu = 1
+
+        # max out at 16
+        cores = 1
+        while cores < 16 and cores < req_cpu:
+            cores *= 2
+
+        if t._memory:
+            memory = float(t._memory)
+        else:
+            memory = cores * 3.75
+
+        memory_per_core = memory / cores
+        if cores == 1:
+            machine_type == 'standard'
+        elif memory_per_core < 1.2:
+            machine_type = 'highcpu'
+        elif memory_per_core < 4:
+            machine_type = 'standard'
+        else:
+            machine_type = 'highmem'
+
+        if t._storage:
+            storage = t._storage
+
+            pat = '(?P<value>[0-9\\.]+)(?P<unit>[KMGTP]i?B?)?'
+            m = re.match(pat, storage)
+
+            if not m:
+                raise ValueError(f'could not convert to size: {storage}')
+            value = float(m['value'])
+
+            unit = m['unit']
+            if not unit:
+                multiplier = 1
+            else:
+                end = -1
+                if unit[end] == 'B':
+                    end -= 1
+                if unit[end] == 'i':
+                    base = 1024
+                else:
+                    base = 1000
+                exponents = {'K': 1, 'M': 2, 'G': 3, 'T': 4}
+                e = exponents[unit[0]]
+                multiplier = base**e
+            storage_gb = round_up((value*multiplier)/(1000**3))
+            # FIXME consider max 200GB
+            if storage_gb < 20:
+                storage_gb = 20
+        else:
+            storage_gb = 20
+
+        print(f'INFO: requested cpu {t._cpu} mem {t._memory} disk {t._storage}, allocated n1-{machine_type}-{cores}, {storage_gb}GB')
+
+        await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-{machine_type}-{cores} --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size={storage_gb}GB --boot-disk-type=pd-ssd')
 
     async def run(self):
-        print(f'running pipeline')
+        print(f'INFO: running pipeline')
 
         app_runner = web.AppRunner(self.app)
         await app_runner.setup()
@@ -572,8 +629,12 @@ class HackRunner:
 
         await app_runner.cleanup()
 
-        print(f'pipeline finished')
+        print(f'INFO: pipeline finished')
 
+def round_up(x):
+    i = int(x)
+    if x > i:
+        i += 1
 
 class HackBackend(Backend):
     def __init__(self):
