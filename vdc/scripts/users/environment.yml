@@ -13,4 +13,4 @@ dependencies:
       - aiohttp==3.5.*
       - shortuuid==0.5.*
       - python-json-logger==0.1.*
-      - pyjwt==1.4.*
+      - pyjwt==1.7.*
