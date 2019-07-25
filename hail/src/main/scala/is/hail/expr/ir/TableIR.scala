@@ -540,12 +540,12 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   private val newRowType = {
     val leftRowType = left.typ.rowType
     val rightRowType = right.typ.rowType
-    val leftKey = left.typ.key.take(joinKey).toSet
-    val rightKey = right.typ.key.take(joinKey).toSet
+    val leftKey = left.typ.key.take(joinKey)
+    val rightKey = right.typ.key.take(joinKey)
 
-    val leftKeyType = leftRowType.filterSet(leftKey)._1
-    val leftValueType = leftRowType.filterSet(leftKey, include = false)._1
-    val rightValueType = rightRowType.filterSet(rightKey, include = false)._1
+    val leftKeyType = TableType.keyType(leftRowType, leftKey)
+    val leftValueType = TableType.valueType(leftRowType, leftKey)
+    val rightValueType = TableType.valueType(rightRowType, rightKey)
     if (leftValueType.fieldNames.toSet
       .intersect(rightValueType.fieldNames.toSet)
       .nonEmpty)
