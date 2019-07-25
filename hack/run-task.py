@@ -28,7 +28,7 @@ def docker_run(name, image, cmd):
             container_id = check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}').strip()
         except subprocess.CalledProcessError as e:
             if attempts < 12 and e.returncode == 125:
-                attempt += 1
+                attempts += 1
                 time.sleep(5)
             else:
                 raise e
