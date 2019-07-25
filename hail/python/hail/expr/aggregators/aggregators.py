@@ -111,7 +111,7 @@ class AggFunc(object):
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
         return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
-                              aggregated._indices,
+                              Indices(indices.source, aggregated._indices.axes),
                               aggregations)
 
     @typecheck_method(condition=expr_bool,
@@ -126,14 +126,14 @@ class AggFunc(object):
 
         _check_agg_bindings(condition, self._agg_bindings)
         _check_agg_bindings(aggregation, self._agg_bindings)
-        unify_all(condition, aggregation)
+        indices, _ = unify_all(condition, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(condition, aggregation))
         return construct_expr(AggFilter(condition._ir, aggregation._ir, self._as_scan),
                               aggregation.dtype,
-                              aggregation._indices,
+                              Indices(indices.source, aggregation._indices.axes),
                               aggregations)
 
     def group_by(self, group, aggregation):
@@ -146,7 +146,7 @@ class AggFunc(object):
 
         _check_agg_bindings(group, self._agg_bindings)
         _check_agg_bindings(aggregation, self._agg_bindings)
-        unify_all(group, aggregation)
+        indices, _ = unify_all(group, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
@@ -154,7 +154,7 @@ class AggFunc(object):
 
         return construct_expr(AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
-                              aggregation._indices,
+                              Indices(indices.source, aggregation._indices.axes),
                               aggregations)
 
     def array_agg(self, array, f):
@@ -181,7 +181,7 @@ class AggFunc(object):
             aggregations = aggregations.push(Aggregation(array, aggregated))
         return construct_expr(AggArrayPerElement(array._ir, var, 'unused', aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
-                              aggregated._indices,
+                              Indices(indices.source, aggregated._indices.axes),
                               aggregations)
 
 _agg_func = AggFunc()
