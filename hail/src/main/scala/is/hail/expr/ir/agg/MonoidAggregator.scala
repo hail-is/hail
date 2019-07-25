@@ -93,6 +93,17 @@ class MinMonoid(val typ: PType) extends StagedMonoidSpec {
   }
 }
 
+class MaxMonoid(val typ: PType) extends StagedMonoidSpec {
+
+  def neutral: Option[Code[_]] = None
+
+  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt64 => (coerce[Long](v1) > coerce[Long](v2)).mux(v1, v2)
+    case _: PFloat64 => (coerce[Double](v1) > coerce[Double](v2)).mux(v1, v2)
+    case _ => throw new UnsupportedOperationException(s"can't max over type $typ")
+  }
+}
+
 class SumMonoid(val typ: PType) extends StagedMonoidSpec {
 
   def neutral: Option[Code[_]] = Some(typ match {
@@ -108,5 +119,22 @@ class SumMonoid(val typ: PType) extends StagedMonoidSpec {
   }
 }
 
+class ProductMonoid(val typ: PType) extends StagedMonoidSpec {
+
+  def neutral: Option[Code[_]] = Some(typ match {
+    case _: PInt64 => const(1L)
+    case _: PFloat64 => const(1.0d)
+    case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
+  })
+
+  def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt64 => coerce[Long](v1) * coerce[Long](v2)
+    case _: PFloat64 => coerce[Double](v1) * coerce[Double](v2)
+    case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
+  }
+}
+
 class MinAggregator(typ: PType) extends MonoidAggregator(new MinMonoid(typ))
+class MaxAggregator(typ: PType) extends MonoidAggregator(new MaxMonoid(typ))
 class SumAggregator(typ: PType) extends MonoidAggregator(new SumMonoid(typ))
+class ProductAggregator(typ: PType) extends MonoidAggregator(new ProductMonoid(typ))
