@@ -11,7 +11,8 @@ class SchedulerSuite extends TestNGSuite {
   if (schedulerHost == null)
     schedulerHost = "localhost"
 
-  @Test def testSimpleJob(): Unit = {
+  // @Test disabled until connection retry infinite loop is impossible
+  def testSimpleJob(): Unit = {
     val a = Array(-5, 6, 11)
     val da: DArray[Int] = new DArray[Int] {
       type Context = Int
@@ -34,7 +35,8 @@ class SchedulerSuite extends TestNGSuite {
     conn.close()
   }
 
-  @Test def testException(): Unit = {
+  // @Test disabled until connection retry infinite loop is impossible
+  def testException(): Unit = {
     val da: DArray[Int] = new DArray[Int] {
       type Context = Int
       val contexts: Array[Int] = Array(1, 2, 3)
