@@ -10,7 +10,7 @@ import is.hail.utils.{ExportType, FastIndexedSeq, log}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  private var _pType2: PType = null
+  var _pType2: PType = null
   private var _pType: PType = null
   private var _typ: Type = null
 
@@ -25,12 +25,6 @@ sealed trait IR extends BaseIR {
     assert(_pType2 != null)
 
     _pType2
-  }
-
-  def inferSetPType(env: Env[PType]): Unit = {
-    assert(_pType2 == null, "pType2 must be set exactly once")
-
-    _pType2 = InferPType(this, env)
   }
 
   def typ: Type = {

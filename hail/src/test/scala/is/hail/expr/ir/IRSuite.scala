@@ -82,7 +82,7 @@ class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
   def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
-    node.inferSetPType(env)
+    InferPType(node, env)
     assert(node.pType2 == expected)
   }
 
@@ -239,7 +239,7 @@ class IRSuite extends HailSuite {
     assert(node.values.forall(ir => ir.pType == PInt32()))
 
     node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt64())))
-    interceptAssertion("Values in Coalesce must all be of the same type")(node.inferSetPType(Env.empty))
+    interceptAssertion("Values in Coalesce must all be of the same type")(InferPType(node, Env.empty))
   }
 
   val i32na = NA(TInt32())
@@ -288,7 +288,7 @@ class IRSuite extends HailSuite {
     assertPType(node, PInt32())
 
     node = ApplyUnaryPrimOp(Negate(), i32na)
-    interceptAssertion("pType2 must be set exactly once")(node.inferSetPType(Env.empty))
+    interceptAssertion("pType2 must be set exactly once")(InferPType(node, Env.empty))
 
     node = ApplyUnaryPrimOp(Negate(), I64(5))
     assertPType(node, PInt64())
@@ -337,7 +337,7 @@ class IRSuite extends HailSuite {
         "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
       "y", Ref("y", TInt32()) + I32(3))
 
-    ir.inferSetPType(Env.empty)
+    InferPType(ir, Env.empty)
     assert(ir.a.pType2 == PArray(PInt32()))
     assert(ir.body.pType2 == PInt32())
   }
