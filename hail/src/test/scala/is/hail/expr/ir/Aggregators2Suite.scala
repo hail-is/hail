@@ -203,6 +203,15 @@ class Aggregators2Suite extends HailSuite {
           SeqOp2(aggIdx, FastIndexedSeq(idx, seqOps(elt)), eltSig)))))
   }
 
+  @Test def testMin() {
+    val aggSig = AggSignature2(Min(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
+    val seqOpArgsNA = Array.tabulate(8)(i => FastIndexedSeq[IR](NA(TInt64())))
+
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = -2L, args = FastIndexedSeq(("rows", (arrayType, rows))))
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
   @Test def testArrayElementsAgg() {
     val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
     val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](TVoid), FastSeq[Type](TInt32()), Some(aggSigs))
