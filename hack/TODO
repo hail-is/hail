@@ -1,0 +1,5 @@
+ - shutdown script hit endpoint
+ - integrate server into backend
+ - run tests
+ - run scale tests 3K, 30K, 300K
+ - throttle at some point

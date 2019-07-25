@@ -2,6 +2,8 @@ import abc
 import os
 import subprocess as sp
 import uuid
+import secrets
+import json
 from shlex import quote as shq
 from hailtop.batch_client.client import BatchClient, Job
 import aiohttp
@@ -355,3 +357,107 @@ class BatchBackend(Backend):
                 f"  Log:\t{log}\n")
 
         raise PipelineException(fail_msg)
+
+
+class HackRunner:
+    def __init__(self, pipeline, verbose):
+        self.pipeline = pipeline
+        self.verbose = verbose
+
+        self.n_complete = 0
+
+        self.ready = []
+        self.task_n_deps = {}
+        for t in pipeline._tasks:
+            n = len(t._dependencies)
+            self.task_n_deps[t] = n
+            if n == 0:
+                self.ready.append(t)
+
+        self.task_children = {t: set() for t in pipeline._tasks}
+        for t in pipeline._tasks:
+            for d in t._dependencies:
+                self.task_children[d].add(t)
+
+        self.task_token = {}
+
+    def gs_input_path(self, r):
+        if isinstance(r, InputResourceFile):
+            return r._input_path
+        else:
+            assert isinstance(r, TaskResourceFile)
+            assert r._source
+            token = self.task_token[r._source]
+            return r._get_path(f'gs://hail-cseed/cs-hack/tmp/{token}')
+
+    def gs_output_paths(self, r, token):
+        assert isinstance(r, TaskResourceFile)
+        output_paths = [r._get_path(f'gs://hail-cseed/cs-hack/tmp/{token}')]
+        if r._output_paths:
+            for p in r._output_paths:
+                output_paths.append(p)
+        return output_paths
+
+    def launch(self, t):
+        assert t._image
+
+        token = secrets.token_urlsafe(8)
+
+        inputs_cmd = ' && '.join([
+            f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/tmp"))}'
+            for i in t._inputs
+        ]) if t._inputs else None
+
+        bash_flags = 'set -e' + ('x' if self.verbose else '') + '; '
+        defs = ''.join([r._declare('/tmp') + '; ' for r in t._mentioned])
+        make_local_tmpdir = f'mkdir -p /tmp/{t._uid}'
+        cmd = bash_flags + defs + make_local_tmpdir + ' && (' + ' && '.join(t._command) + ')'
+
+        outputs = t._internal_outputs.union(t._external_outputs)
+        outputs_cmd = ' && '.join([
+            f'gsutil -m cp -r {shq(o._get_path("/tmp"))} {shq(output_path)}'
+            for o in outputs for output_path in self.gs_output_paths(o, token)
+        ]) if t._outputs else None
+
+        config = {
+            'uid': t._uid,
+            'name': t.name,
+            'token': token,
+            'inputs_cmd': inputs_cmd,
+            'image': t._image,
+            'command': cmd,
+            'outputs_cmd': outputs_cmd
+        }
+
+        print(f'{json.dumps(config)}')
+
+        self.mark_complete(t, token)
+
+    def mark_complete(self, t, token):
+        self.task_token[t] = token
+
+        self.n_complete += 1
+
+        for c in self.task_children[t]:
+            n = self.task_n_deps[c]
+            assert n > 0
+            n -= 1
+            self.task_n_deps[c] = n
+            if n == 0:
+                self.ready.append(c)
+
+    def run(self):
+        while self.ready:
+            t = self.ready.pop()
+            self.launch(t)
+
+        assert self.n_complete == len(self.pipeline._tasks)
+
+
+class HackBackend(Backend):
+    def __init__(self):
+        pass
+
+    def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+        runner = HackRunner(pipeline, verbose)
+        runner.run()

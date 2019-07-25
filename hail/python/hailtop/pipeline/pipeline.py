@@ -2,7 +2,7 @@ import os
 import re
 import uuid
 
-from .backend import LocalBackend, BatchBackend
+from .backend import LocalBackend, BatchBackend, HackBackend
 from .task import Task
 from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
 from .utils import PipelineException
