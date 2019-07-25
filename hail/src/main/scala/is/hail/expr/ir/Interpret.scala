@@ -790,7 +790,7 @@ object Interpret {
             val wrapped = if (extracted.aggs.isEmpty) {
               val (rt: PTuple, f) = Compile[Long, Long](
                 "global", value.globals.t,
-                MakeTuple(FastSeq(extracted.postAggIR)))
+                MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
               Region.scoped { region =>
                 SafeRow(rt, region, f(0, region)(region, globalsOffset, false))
