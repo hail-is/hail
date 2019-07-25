@@ -354,7 +354,7 @@ class Tests(unittest.TestCase):
                  (hl.agg.filter(t.idx > 7, hl.agg.count()), 2),
                  (hl.agg.filter(t.idx > 7,
                                 hl.agg.explode(lambda elt: hl.agg.count(),
-                                               [t.idx, t.idx + 1])), 3),
+                                               [t.idx, t.idx + 1])), 4),
                  (hl.agg.filter(t.idx > 7,
                                 hl.agg.group_by(t.idx % 3,
                                                 hl.agg.count())),
