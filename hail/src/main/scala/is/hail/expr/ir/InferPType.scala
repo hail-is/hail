@@ -28,7 +28,7 @@ object InferPType {
         while(vit.hasNext) {
           val value = vit.next()
           InferPType(value, env)
-          assert(head.pType2 == value.pType2, "Values in Coalesce must all be of the same type")
+          assert(head.pType2 == value.pType2)
         }
 
         head.pType2
