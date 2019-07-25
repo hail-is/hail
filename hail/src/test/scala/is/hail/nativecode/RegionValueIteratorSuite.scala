@@ -70,7 +70,7 @@ class RegionValueIteratorSuite extends HailSuite {
         val rvb = new RegionValueBuilder(region)
         val it = new RegionValueIterator(rows.toIterator.map { r =>
           rvb.start(t)
-          rvb.addAnnotation(t, r)
+          rvb.addAnnotation(t.virtualType, r)
           RegionValue(region, rvb.end())
         })
 
@@ -130,7 +130,7 @@ class RegionValueIteratorSuite extends HailSuite {
         val encoder = new NativePackEncoder(baos, encMod)
         rows.foreach { r =>
           rvb.start(t)
-          rvb.addAnnotation(t, r)
+          rvb.addAnnotation(t.virtualType, r)
           encoder.writeByte(1)
           encoder.writeRegionValue(region, rvb.end())
         }

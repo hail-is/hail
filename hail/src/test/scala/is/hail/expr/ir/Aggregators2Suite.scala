@@ -21,9 +21,9 @@ class Aggregators2Suite extends HailSuite {
     nPartitions: Int = 2): Unit = {
     assert(seqArgs.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
-    val argT = TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)
+    val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
-    val argRef = Ref(genUID(), argT)
+    val argRef = Ref(genUID(), argT.virtualType)
     val spec = CodecSpec.defaultUncompressed
 
     val (_, combAndDuplicate) = CompileWithAggregators2[Unit](
@@ -132,6 +132,8 @@ class Aggregators2Suite extends HailSuite {
         Row(Row("c", 4), 6L, 8L),
         Row(Row("f", 5), 6L, 10L))
 
+    val arrayPType = PType.canonical(arrayType).asInstanceOf[PArray]
+
     val array = Ref("array", arrayType)
     val stream = Ref("stream", TArray(arrayType))
     val idx = Ref("idx", TInt32())
@@ -174,7 +176,7 @@ class Aggregators2Suite extends HailSuite {
       val f = initAndSeqF(0, region)
 
       partitioned.map { case lit =>
-        val voff = ScalaToRegionValue(region, stream.typ, lit)
+        val voff = ScalaToRegionValue(region, arrayPType, lit)
 
         Region.scoped { aggRegion =>
           f.newAggState(aggRegion)

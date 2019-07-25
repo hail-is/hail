@@ -461,7 +461,7 @@ class StagedRegionValueSuite extends HailSuite {
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue))
       .filter { case (t, a) => a != null }
-      .map { case (t, a) => (PType.canonical(t), a) }
+      .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
 
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.virtualType.typeCheck(a))
