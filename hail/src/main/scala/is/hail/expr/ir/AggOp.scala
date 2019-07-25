@@ -28,7 +28,6 @@ final case class CollectAsSet() extends AggOp
 final case class Count() extends AggOp
 final case class Counter() extends AggOp
 final case class Downsample() extends AggOp
-final case class Fraction() extends AggOp
 final case class HardyWeinberg() extends AggOp
 final case class Histogram() extends AggOp
 final case class Inbreeding() extends AggOp
@@ -38,7 +37,6 @@ final case class PearsonCorrelation() extends AggOp
 final case class Max() extends AggOp
 final case class Min() extends AggOp
 final case class Product() extends AggOp
-final case class Statistics() extends AggOp
 final case class Sum() extends AggOp
 final case class Take() extends AggOp
 final case class TakeBy() extends AggOp
@@ -71,12 +69,6 @@ object AggOp {
         case _: TFloat32 => CodeAggregator[RegionValueApproxCDFFloatAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Float]))
         case _: TFloat64 => CodeAggregator[RegionValueApproxCDFDoubleAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Double]))
     }
-
-    case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
-      CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
-
-    case (Statistics(), Seq(), None, Seq(_: TFloat64)) =>
-      CodeAggregator[RegionValueStatisticsAggregator](RegionValueStatisticsAggregator.typ, seqOpArgTypes = Array(classOf[Double]))
 
     case (Collect(), Seq(), None, Seq(in)) => in match {
       case _: TBoolean => CodeAggregator[RegionValueCollectBooleanAggregator](TArray(in), seqOpArgTypes = Array(classOf[Boolean]))
@@ -236,8 +228,6 @@ object AggOp {
 
   val fromString: PartialFunction[String, AggOp] = {
     case "approxCDF" | "ApproxCDF" => ApproxCDF()
-    case "fraction" | "Fraction" => Fraction()
-    case "stats" | "Statistics" => Statistics()
     case "collect" | "Collect" => Collect()
     case "collectAsSet" | "CollectAsSet" => CollectAsSet()
     case "sum" | "Sum" => Sum()

@@ -12,11 +12,6 @@ def register_aggregators():
     register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('float64'),),
                         dtype('struct{values:array<float64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
 
-    register_aggregator('Fraction', (), None, (dtype('bool'),), dtype('float64'))
-
-    stats_aggregator_type = dtype('struct{mean:float64,stdev:float64,min:float64,max:float64,n:int64,sum:float64}')
-    register_aggregator('Statistics', (), None, (dtype('float64'),), stats_aggregator_type)
-
     register_aggregator('Collect', (), None, (dtype("?in"),), dtype('array<?in>'))
 
     info_score_aggregator_type = dtype('struct{score:float64,n_included:tint32}')

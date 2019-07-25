@@ -54,10 +54,6 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(Sum(), TInt64(), FastIndexedSeq(-1L, 2L, 3L), 4L)
   }
 
-  @Test def fraction() {
-    runAggregator(Fraction(), TBoolean(), FastIndexedSeq(true, false, null, true, false), 2.0 / 5.0)
-  }
-
   @Test def collectBoolean() {
     runAggregator(Collect(), TBoolean(), FastIndexedSeq(true, false, null, true, false), FastIndexedSeq(true, false, null, true, false))
   }
