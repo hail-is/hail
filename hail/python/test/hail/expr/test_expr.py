@@ -903,7 +903,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_corr(self):
         ht = hl.utils.range_table(10)
-        ht = ht.annotate(tests=hl.range(10).map(
+        ht = ht.annotate(tests=hl.range(0, 10).map(
             lambda i: hl.struct(
                 x=hl.cond(hl.rand_bool(0.1), hl.null(hl.tfloat64), hl.rand_unif(-10, 10)),
                 y=hl.cond(hl.rand_bool(0.1), hl.null(hl.tfloat64), hl.rand_unif(-10, 10)))))
@@ -912,7 +912,7 @@ class Tests(unittest.TestCase):
 
         for corr, xy in results:
             filtered = [(x, y) for x, y in xy if x is not None and y is not None]
-            scipy_corr, _ = pearsonr([xy[0] for xy in filtered], [xy[1] for xy in filtered])
+            scipy_corr, _ = pearsonr([x for x, _ in filtered], [y for _, y in filtered])
             self.assertAlmostEqual(corr, scipy_corr)
 
     def test_joins_inside_aggregators(self):
