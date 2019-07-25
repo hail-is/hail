@@ -1162,13 +1162,22 @@ def hist(expr, start, end, bins) -> StructExpression:
         Struct expression with fields `bin_edges`, `bin_freq`, `n_smaller`, and `n_larger`.
     """
 
+    bin_idx = hl.bind(lambda s, e, nbins, binsize, v:
+                      hl.case()
+                      .when(v < s, -1)
+                      .when(v >= e, nbins)
+                      .default(hl.floor((v - s) / binsize)),
+                      start, end, bins, hl.float64(end - start) / bins, expr)
+
+    freq_dict = filter(hl.is_defined(expr), group_by(bin_idx, count()))
+
     def wrap_errors(s, e, nbins, cont):
         return (hl.case()
-                .when(nbins > 0, hl.bind(lambda binsize: hl.case()
-                                         .when((binsize > 0) &
-                                               (~hl.is_nan(binsize)) &
-                                               (~hl.is_infinite(binsize)),
-                                               cont(s, e, nbins, binsize))
+                .when(nbins > 0, hl.bind(lambda bs: hl.case()
+                                         .when((bs > 0) &
+                                               (~hl.is_nan(bs)) &
+                                               (~hl.is_infinite(bs)),
+                                               cont(s, nbins, bs))
                                          .or_error("'hist': start=" + hl.str(s) +
                                                    " end=" + hl.str(e) +
                                                    " bins=" + hl.str(nbins) +
@@ -1176,18 +1185,12 @@ def hist(expr, start, end, bins) -> StructExpression:
                                          hl.float64(e - s) / nbins))
                 .or_error(hl.literal("'hist' requires positive 'bins', but bins=") + hl.str(nbins)))
 
-    def result(s, e, nbins, binsize):
-        bin_idx = hl.bind(lambda v: hl.case()
-                          .when(v < s, -1)
-                          .when(v >= e, nbins)
-                          .default(hl.floor((v - s) / binsize)), expr)
-
-        return hl.bind(lambda fd: hl.struct(
-            bin_edges=hl.range(0, nbins + 1).map(lambda i: start + i * binsize),
-            bin_freq=hl.range(0, nbins).map(lambda i: fd.get(i, 0)),
-            n_smaller=fd.get(-1, 0),
-            n_larger=fd.get(nbins, 0)
-        ), filter(hl.is_defined(expr), group_by(bin_idx, count())))
+    def result(s, nbins, bs):
+        return hl.bind(lambda fdict: hl.struct(
+            bin_edges=hl.range(0, nbins + 1).map(lambda i: s + i * bs),
+            bin_freq=hl.range(0, nbins).map(lambda i: fdict.get(i, 0)),
+            n_smaller=fdict.get(-1, 0),
+            n_larger=fdict.get(nbins, 0)), freq_dict)
 
     return hl.bind(lambda s, e, nbins: wrap_errors(s, e, nbins, result),
                    start, end, bins)
