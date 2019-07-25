@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
-import is.hail.expr.types.physical.{PFloat64, PInt64, PType}
+import is.hail.expr.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType}
 
 import scala.language.existentials
 
@@ -87,7 +87,9 @@ class MinMonoid(val typ: PType) extends StagedMonoidSpec {
   def neutral: Option[Code[_]] = None
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt32 => (coerce[Int](v1) < coerce[Int](v2)).mux(v1, v2)
     case _: PInt64 => (coerce[Long](v1) < coerce[Long](v2)).mux(v1, v2)
+    case _: PFloat32 => (coerce[Float](v1) < coerce[Float](v2)).mux(v1, v2)
     case _: PFloat64 => (coerce[Double](v1) < coerce[Double](v2)).mux(v1, v2)
     case _ => throw new UnsupportedOperationException(s"can't min over type $typ")
   }
@@ -98,7 +100,9 @@ class MaxMonoid(val typ: PType) extends StagedMonoidSpec {
   def neutral: Option[Code[_]] = None
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt32 => (coerce[Int](v1) > coerce[Int](v2)).mux(v1, v2)
     case _: PInt64 => (coerce[Long](v1) > coerce[Long](v2)).mux(v1, v2)
+    case _: PFloat32 => (coerce[Float](v1) > coerce[Float](v2)).mux(v1, v2)
     case _: PFloat64 => (coerce[Double](v1) > coerce[Double](v2)).mux(v1, v2)
     case _ => throw new UnsupportedOperationException(s"can't max over type $typ")
   }
@@ -107,13 +111,17 @@ class MaxMonoid(val typ: PType) extends StagedMonoidSpec {
 class SumMonoid(val typ: PType) extends StagedMonoidSpec {
 
   def neutral: Option[Code[_]] = Some(typ match {
+    case _: PInt32 => const(0)
     case _: PInt64 => const(0L)
+    case _: PFloat32 => const(0.0f)
     case _: PFloat64 => const(0.0d)
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   })
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt32 => coerce[Int](v1) + coerce[Int](v2)
     case _: PInt64 => coerce[Long](v1) + coerce[Long](v2)
+    case _: PFloat32 => coerce[Float](v1) + coerce[Float](v2)
     case _: PFloat64 => coerce[Double](v1) + coerce[Double](v2)
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   }
@@ -122,13 +130,17 @@ class SumMonoid(val typ: PType) extends StagedMonoidSpec {
 class ProductMonoid(val typ: PType) extends StagedMonoidSpec {
 
   def neutral: Option[Code[_]] = Some(typ match {
+    case _: PInt32 => const(1)
     case _: PInt64 => const(1L)
+    case _: PFloat32 => const(1.0f)
     case _: PFloat64 => const(1.0d)
     case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
   })
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
+    case _: PInt32 => coerce[Int](v1) * coerce[Int](v2)
     case _: PInt64 => coerce[Long](v1) * coerce[Long](v2)
+    case _: PFloat32 => coerce[Float](v1) * coerce[Float](v2)
     case _: PFloat64 => coerce[Double](v1) * coerce[Double](v2)
     case _ => throw new UnsupportedOperationException(s"can't product over type $typ")
   }
