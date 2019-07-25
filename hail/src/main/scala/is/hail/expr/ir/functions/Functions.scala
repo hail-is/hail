@@ -192,17 +192,17 @@ abstract class RegistryFunctions {
         r.region, coerce[Long](c))
   }
 
-  def unwrapReturn(r: EmitRegion, t: Type): Code[_] => Code[_] = t match {
-    case _: TBoolean => coerce[Boolean]
-    case _: TInt32 => coerce[Int]
-    case _: TInt64 => coerce[Long]
-    case _: TFloat32 => coerce[Float]
-    case _: TFloat64 => coerce[Double]
+  def unwrapReturn(r: EmitRegion, t: PType): Code[_] => Code[_] = t.virtualType match {
+    case _: TBoolean => identity[Code[_]]
+    case _: TInt32 => identity[Code[_]]
+    case _: TInt64 => identity[Code[_]]
+    case _: TFloat32 => identity[Code[_]]
+    case _: TFloat64 => identity[Code[_]]
     case _: TString => c =>
       r.region.appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[Int]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Integer]
@@ -218,7 +218,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TFloat64, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[Double]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.Double]
@@ -234,7 +234,7 @@ abstract class RegistryFunctions {
             srvb.advance())),
         srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(r, t.physicalType)
+      val srvb = new StagedRegionValueBuilder(r, t)
       val alocal = r.mb.newLocal[IndexedSeq[String]]
       val len = r.mb.newLocal[Int]
       val v = r.mb.newLocal[java.lang.String]
@@ -301,7 +301,7 @@ abstract class RegistryFunctions {
     registerCode(mname, argTypes, rType, pt) { case (r, rt, args) =>
       val cts = argTypes.map(ct(_).runtimeClass)
       val out = Code.invokeScalaObject(cls, method, cts, args.map { case (t, a) => wrapArg(r, t)(a) })(ct(rType))
-      unwrapReturn(r, rType)(out)
+      unwrapReturn(r, rt)(out)
     }
   }
 

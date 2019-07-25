@@ -233,14 +233,14 @@ class EmitFunctionBuilder[F >: Null](
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: ClassFieldRef[BackendUtils] = _
 
-  private[this] var _aggSigs: Array[AggSignature] = _
+  private[this] var _aggSigs: Array[AggSignature2] = _
   private[this] var _aggRegion: ClassFieldRef[Region] = _
   private[this] var _aggOff: ClassFieldRef[Long] = _
   private[this] var _aggState: agg.StateContainer = _
   private[this] var _nSerialized: Int = 0
   private[this] var _aggSerialized: ClassFieldRef[Array[Array[Byte]]] = _
 
-  def addAggStates(aggSigs: Array[AggSignature]): (agg.StateContainer, Code[Long]) = {
+  def addAggStates(aggSigs: Array[AggSignature2]): (agg.StateContainer, Code[Long]) = {
     if (_aggSigs != null) {
       assert(aggSigs sameElements _aggSigs)
       return _aggState -> _aggOff
@@ -365,53 +365,49 @@ class EmitFunctionBuilder[F >: Null](
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
       val newMB = if (ignoreMissingness) {
-        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], ti, typeInfo[Region], ti), rt)
+        val newMB = newMethod(Array[TypeInfo[_]](ti, ti), rt)
         val ord = t1.codeOrdering(newMB, t2)
-        val r1 = newMB.getArg[Region](1)
-        val r2 = newMB.getArg[Region](3)
-        val v1 = newMB.getArg(2)(ti)
-        val v2 = newMB.getArg(4)(ti)
+        val v1 = newMB.getArg(1)(ti)
+        val v2 = newMB.getArg(3)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
-          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.compare => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.equiv => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.lt => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.lteq => ord.lteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.gt => ord.gtNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.gteq => ord.gteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+          case CodeOrdering.neq => !ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
         }
         newMB.emit(c)
         newMB
       } else {
-        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[Boolean], ti, typeInfo[Region], typeInfo[Boolean], ti), rt)
+        val newMB = newMethod(Array[TypeInfo[_]](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
         val ord = t1.codeOrdering(newMB, t2)
-        val r1 = newMB.getArg[Region](1)
-        val r2 = newMB.getArg[Region](4)
-        val m1 = newMB.getArg[Boolean](2)
-        val v1 = newMB.getArg(3)(ti)
-        val m2 = newMB.getArg[Boolean](5)
-        val v2 = newMB.getArg(6)(ti)
+        val m1 = newMB.getArg[Boolean](1)
+        val v1 = newMB.getArg(2)(ti)
+        val m2 = newMB.getArg[Boolean](3)
+        val v2 = newMB.getArg(4)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
-          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.compare => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.equiv => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lt => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lteq => ord.lteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gt => ord.gt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gteq => ord.gteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
+          case CodeOrdering.neq => !ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)))
         }
         newMB.emit(c)
         newMB
       }
-      val f = { (rx: Code[Region], x: (Code[Boolean], Code[_]), ry: Code[Region], y: (Code[Boolean], Code[_])) =>
+      val f = { (x: (Code[Boolean], Code[_]), y: (Code[Boolean], Code[_])) =>
         if (ignoreMissingness)
-          newMB.invoke(rx, x._2, ry, y._2)
+          newMB.invoke(x._2, y._2)
         else
-          newMB.invoke(rx, x._1, x._2, ry, y._1, y._2)
+          newMB.invoke(x._1, x._2, y._1, y._2)
       }
       f
     })
-    (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
+    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[T](f(v1, v2))
   }
 
   def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =

@@ -38,7 +38,7 @@ abstract class Backend {
           val (_, f) = timer.time(Compile[Unit](ir), "JVM compile")
           timer.time(f(0, region)(region), "Runtime")
         case _ =>
-          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple(FastSeq(ir))), "JVM compile")
+          val (pt: PTuple, f) = timer.time(Compile[Long](MakeTuple.ordered(FastSeq(ir))), "JVM compile")
           timer.time(SafeRow(pt, region, f(0, region)(region)).get(0), "Runtime")
       }
     }
@@ -59,7 +59,7 @@ abstract class Backend {
         timer.time(Region.scoped { region => f(region.get()) }, "Runtime")
         Unit
       case _ =>
-        val pipeline = MakeTuple(FastIndexedSeq(ir))
+        val pipeline = MakeTuple.ordered(FastIndexedSeq(ir))
         val f = timer.time(cxx.Compile(pipeline, optimize: Boolean), "CXX compile")
         timer.time(
           Region.scoped { region =>
@@ -106,7 +106,7 @@ abstract class Backend {
       throw new LowererUnsupportedOperation(s"lowered to unit-valued IR: ${Pretty(ir)}")
 
     Region.scoped { region =>
-      val (pt: PTuple, f) = Compile[Long](MakeTuple(FastSeq(ir)))
+      val (pt: PTuple, f) = Compile[Long](MakeTuple.ordered(FastSeq(ir)))
       (pt.parsableString(), codec.encode(pt, region, f(0, region)(region)))
     }
   }

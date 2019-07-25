@@ -68,19 +68,20 @@ def make_where_statement(items):
 
 async def _retry(cursor, f):
     n_attempts = 0
-    err = None
+    saved_err = None
     while n_attempts < MAX_RETRIES:
         n_attempts += 1
         try:
             result = await f(cursor)
             return result
         except pymysql.err.OperationalError as err:
+            saved_err = err
             code, _ = err.args
             if code != 1213:
                 raise err
             log.info(f'ignoring error {err}; retrying query after {n_attempts} attempts')
             await asyncio.sleep(0.5)
-    raise err
+    raise saved_err
 
 
 async def execute_with_retry(cursor, sql, items):
@@ -156,8 +157,10 @@ class Table:  # pylint: disable=R0903
 
 class JobsBuilder:
     jobs_fields = {'batch_id', 'job_id', 'state', 'pvc_size',
-                   'callback', 'attributes', 'tasks', 'task_idx',
-                   'always_run', 'duration', 'token'}
+                   'callback', 'attributes', 'always_run',
+                   'token', 'pod_spec', 'input_files',
+                   'output_files', 'directory', 'exit_codes',
+                   'durations'}
 
     jobs_parents_fields = {'batch_id', 'job_id', 'parent_id'}
 
@@ -214,18 +217,6 @@ class BatchDatabase(Database):
 
 
 class JobsTable(Table):
-    log_uri_mapping = {'input': 'input_log_uri',
-                       'main': 'main_log_uri',
-                       'output': 'output_log_uri'}
-
-    exit_code_mapping = {'input': 'input_exit_code',
-                         'main': 'main_exit_code',
-                         'output': 'output_exit_code'}
-
-    pod_status_mapping = {'input': 'input_pod_status',
-                          'main': 'main_pod_status',
-                          'output': 'output_pod_status'}
-
     batch_view_fields = {'cancelled', 'user', 'userdata'}
 
     def _select_fields(self, fields=None):
@@ -311,45 +302,39 @@ class JobsTable(Table):
                 result = await cursor.fetchall()
                 return [(record['batch_id'], record['job_id']) for record in result]
 
-    async def get_records_by_batch(self, batch_id):
-        return await self.get_records_where({'batch_id': batch_id})
+    async def get_records_by_batch(self, batch_id, limit=None, offset=None):
+        if offset is not None:
+            assert limit is not None
+        return await self.get_records_where({'batch_id': batch_id},
+                                            limit=limit,
+                                            offset=offset,
+                                            order_by='batch_id, job_id',
+                                            ascending=True)
 
-    async def get_records_where(self, condition):
+    async def get_records_where(self, condition, limit=None, offset=None, order_by=None, ascending=None):
         async with self._db.pool.acquire() as conn:
             async with conn.cursor() as cursor:
                 batch_name = self._db.batch.name
                 where_template, where_values = make_where_statement(condition)
+
                 fields = ', '.join(self._select_fields())
+                limit = f'LIMIT {limit}' if limit else ''
+                offset = f'OFFSET {offset}' if offset else ''
+                order_by = f'ORDER BY {order_by}' if order_by else ''
+                if ascending is None:
+                    ascending = ''
+                elif ascending:
+                    ascending = 'ASC'
+                else:
+                    ascending = 'DESC'
+
                 sql = f"""SELECT {fields} FROM `{self.name}`
                           INNER JOIN `{batch_name}` ON `{self.name}`.batch_id = `{batch_name}`.id
-                          WHERE {where_template}"""
+                          WHERE {where_template}
+                          {order_by} {ascending}                          
+                          {limit} {offset}"""
                 await cursor.execute(sql, where_values)
                 return await cursor.fetchall()
-
-    async def update_with_log_ec(self, batch_id, job_id, task_name, uri, exit_code,
-                                 pod_status, compare_items=None, **items):
-        return await self.update_record(batch_id, job_id,
-                                        compare_items=compare_items,
-                                        **{JobsTable.log_uri_mapping[task_name]: uri,
-                                           JobsTable.exit_code_mapping[task_name]: exit_code,
-                                           JobsTable.pod_status_mapping[task_name]: pod_status},
-                                        **items)
-
-    async def get_log_uri(self, batch_id, job_id, task_name):
-        uri_field = JobsTable.log_uri_mapping[task_name]
-        records = await self.get_records(batch_id, job_id, fields=[uri_field])
-        if records:
-            assert len(records) == 1
-            return records[0][uri_field]
-        return None
-
-    async def get_pod_status(self, batch_id, job_id, task_name):
-        pod_status_field = JobsTable.pod_status_mapping[task_name]
-        records = await self.get_records(batch_id, job_id, fields=[pod_status_field])
-        if records:
-            assert len(records) == 1
-            return records[0][pod_status_field]
-        return None
 
     async def get_parents(self, batch_id, job_id):
         async with self._db.pool.acquire() as conn:

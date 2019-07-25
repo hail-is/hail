@@ -305,6 +305,13 @@ object IRParser {
     (name, desc)
   }
 
+  def tuple_subset_field(it: TokenIterator): (Int, Type) = {
+    val i = int32_literal(it)
+    punctuation(it, ":")
+    val t = type_expr(it)
+    i -> t
+  }
+
   def type_field(it: TokenIterator): (String, Type) = {
     val name = identifier(it)
     punctuation(it, ":")
@@ -382,7 +389,12 @@ object IRParser {
         punctuation(it, "[")
         val types = repsepUntil(it, type_expr, PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
-        TTuple(types, req)
+        TTuple(req, types: _*)
+      case "TupleSubset" =>
+        punctuation(it, "[")
+        val fields = repsepUntil(it, tuple_subset_field, PunctuationToken(","), PunctuationToken("]"))
+        punctuation(it, "]")
+        TTuple(fields.map { case (idx, t) => TupleField(idx, t)}, req)
       case "Struct" =>
         punctuation(it, "{")
         val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
@@ -509,9 +521,19 @@ object IRParser {
     AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
   }
 
-  def agg_signatures(it: TokenIterator): Array[AggSignature] = {
+  def agg_signature2(it: TokenIterator): AggSignature2 = {
     punctuation(it, "(")
-    val sigs = repUntil(it, agg_signature, PunctuationToken(")"))
+    val op = agg_op(it)
+    val initArgs = type_exprs(it).map(t => -t)
+    val seqOpArgs = type_exprs(it).map(t => -t)
+    val nested = opt(it, agg_signatures).map(_.toFastSeq)
+    punctuation(it, ")")
+    AggSignature2(op, initArgs, seqOpArgs, nested)
+  }
+
+  def agg_signatures(it: TokenIterator): Array[AggSignature2] = {
+    punctuation(it, "(")
+    val sigs = repUntil(it, agg_signature2, PunctuationToken(")"))
     punctuation(it, ")")
     sigs
   }
@@ -810,18 +832,18 @@ object IRParser {
         ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "InitOp2" =>
         val i = int32_literal(it)
-        val aggSig = agg_signature(it)
+        val aggSig = agg_signature2(it)
         val args = ir_value_exprs(env)(it)
         InitOp2(i, args, aggSig)
       case "SeqOp2" =>
         val i = int32_literal(it)
-        val aggSig = agg_signature(it)
+        val aggSig = agg_signature2(it)
         val args = ir_value_exprs(env)(it)
         SeqOp2(i, args, aggSig)
       case "CombOp2" =>
         val i1 = int32_literal(it)
         val i2 = int32_literal(it)
-        val aggSig = agg_signature(it)
+        val aggSig = agg_signature2(it)
         CombOp2(i1, i2, aggSig)
       case "ResultOp2" =>
         val i = int32_literal(it)
@@ -885,8 +907,9 @@ object IRParser {
         val s = ir_value_expr(env)(it)
         GetField(s, name)
       case "MakeTuple" =>
+        val indices = int32_literals(it)
         val args = ir_value_children(env)(it)
-        MakeTuple(args)
+        MakeTuple(indices.zip(args))
       case "GetTupleElement" =>
         val idx = int32_literal(it)
         val tuple = ir_value_expr(env)(it)

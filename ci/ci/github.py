@@ -2,12 +2,12 @@ import datetime
 import secrets
 from shlex import quote as shq
 import json
+import logging
 import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
 import humanize
-from .log import log
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS
 from .environment import SELF_HOSTNAME
 from .utils import check_shell, check_shell_output
@@ -15,6 +15,7 @@ from .build import BuildConfiguration, Code
 
 repos_lock = asyncio.Lock()
 
+log = logging.getLogger('ci')
 
 def timestamp_age(t):
     if t is None:

@@ -57,7 +57,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerCode("slice", TString(), TInt32(), TInt32(), TString(), null) {
       case (r: EmitRegion, rt, (sT: PString, s: Code[Long]), (startT, start: Code[Int]), (endT, end: Code[Int])) =>
-      unwrapReturn(r, TString())(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
+      unwrapReturn(r, rt)(asm4s.coerce[String](wrapArg(r, sT)(s)).invoke[Int, Int, String]("substring", start, end))
     }
 
     registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (str, start, end) =>
@@ -91,14 +91,14 @@ object StringFunctions extends RegistryFunctions {
     registerCode("str", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
       val annotation = boxArg(r, aT)(a)
       val str = r.mb.getType(aT.virtualType).invoke[Any, String]("str", annotation)
-      unwrapReturn(r, TString())(str)
+      unwrapReturn(r, rt)(str)
     }
 
     registerCodeWithMissingness("json", tv("T"), TString(), null) { case (r, rt, (aT, a)) =>
       val annotation = Code(a.setup, a.m).mux(Code._null, boxArg(r, aT)(a.v))
       val json = r.mb.getType(aT.virtualType).invoke[Any, JValue]("toJSON", annotation)
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
-      EmitTriplet(Code._empty, false, unwrapReturn(r, TString())(str))
+      EmitTriplet(Code._empty, false, unwrapReturn(r, rt)(str))
     }
 
     registerWrappedScalaFunction("upper", TString(), TString(), null)(thisClass,"upper")
