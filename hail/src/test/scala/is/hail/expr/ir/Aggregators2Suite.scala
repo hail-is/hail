@@ -14,12 +14,12 @@ class Aggregators2Suite extends HailSuite {
 
   def assertAggEquals(
     aggSig: AggSignature2,
-    initArgs: IndexedSeq[IR],
-    seqArgs: IndexedSeq[IndexedSeq[IR]],
+    initOp: IR,
+    seqOps: IndexedSeq[IR],
     expected: Any,
-    args: IndexedSeq[(String, (Type, Any))] = FastIndexedSeq(),
-    nPartitions: Int = 2): Unit = {
-    assert(seqArgs.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
+    args: IndexedSeq[(String, (Type, Any))],
+    nPartitions: Int): Unit = {
+    assert(seqOps.length >= 2 * nPartitions, s"Test aggregators with a larger stream!")
 
     val argT = PType.canonical(TStruct(args.map { case (n, (typ, _)) => n -> typ }: _*)).asInstanceOf[PStruct]
     val argVs = Row.fromSeq(args.map { case (_, (_, v)) => v })
@@ -44,17 +44,15 @@ class Aggregators2Suite extends HailSuite {
 
     Region.scoped { region =>
       val argOff = ScalaToRegionValue(region, argT, argVs)
-      val serializedParts = seqArgs.grouped(math.ceil(seqArgs.length / nPartitions.toDouble).toInt).map { seqs =>
+      val serializedParts = seqOps.grouped(math.ceil(seqOps.length / nPartitions.toDouble).toInt).map { seqs =>
         val partitionOp = Begin(
-          InitOp2(0, initArgs, aggSig) +:
-            seqs.map { s => SeqOp2(0, s, aggSig) } :+
-            SerializeAggs(0, 0, spec, Array(aggSig)))
+          initOp +: seqs :+ SerializeAggs(0, 0, spec, Array(aggSig)))
 
         val (_, f) = CompileWithAggregators2[Long, Unit](
           Array(aggSig),
           argRef.name, argRef.pType,
           args.map(_._1).foldLeft[IR](partitionOp) { case (op, name) =>
-              Let(name, GetField(argRef, name), op)
+            Let(name, GetField(argRef, name), op)
           })
 
         val initAndSeq = f(0, region)
@@ -81,6 +79,18 @@ class Aggregators2Suite extends HailSuite {
       }
     }
   }
+
+  def assertAggEquals(
+    aggSig: AggSignature2,
+    initArgs: IndexedSeq[IR],
+    seqArgs: IndexedSeq[IndexedSeq[IR]],
+    expected: Any,
+    args: IndexedSeq[(String, (Type, Any))] = FastIndexedSeq(),
+    nPartitions: Int = 2): Unit =
+    assertAggEquals(aggSig,
+      InitOp2(0, initArgs, aggSig),
+      seqArgs.map(s => SeqOp2(0, s, aggSig)),
+      expected, args, nPartitions)
 
   val t = TStruct("a" -> TString(), "b" -> TInt64())
   val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
@@ -111,11 +121,22 @@ class Aggregators2Suite extends HailSuite {
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = rows.last, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
+  def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, lcSig: AggSignature2): IR = {
+    val idx = Ref(genUID(), TInt32())
+    val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
+
+    val eltSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq[Type](TInt32(), TVoid), lcSig.nested)
+
+    Begin(FastIndexedSeq(
+      SeqOp2(aggIdx, FastIndexedSeq(ArrayLen(a)), lcSig),
+      ArrayFor(ArrayRange(0, ArrayLen(a), 1), idx.name,
+        Let(elt.name, ArrayRef(a, idx),
+          SeqOp2(aggIdx, FastIndexedSeq(idx, seqOps(elt)), eltSig)))))
+  }
+
   @Test def testArrayElementsAgg() {
     val aggSigs = FastIndexedSeq(pnnAggSig, countAggSig, sumAggSig)
     val lcAggSig = AggSignature2(AggElementsLengthCheck(), FastSeq[Type](TVoid), FastSeq[Type](TInt32()), Some(aggSigs))
-    val eltAggSig = AggSignature2(AggElements(), FastSeq[Type](), FastSeq[Type](TInt32(), TVoid), Some(aggSigs))
-
 
     val value = FastIndexedSeq(
       FastIndexedSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
@@ -127,90 +148,56 @@ class Aggregators2Suite extends HailSuite {
 
     val expected =
       FastIndexedSeq(
-        Row(Row("a", 4), 6L, 10L),
-        Row(Row("b", 4), 6L, 9L),
-        Row(Row("c", 4), 6L, 8L),
-        Row(Row("f", 5), 6L, 10L))
+        Row(Row("a", 4L), 6L, 10L),
+        Row(Row("b", 4L), 6L, 9L),
+        Row(Row("c", 4L), 6L, 8L),
+        Row(Row("f", 5L), 6L, 10L))
 
+    val init = InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+      InitOp2(0, FastIndexedSeq(), pnnAggSig),
+      InitOp2(1, FastIndexedSeq(), countAggSig),
+      InitOp2(2, FastIndexedSeq(), sumAggSig)
+    ))), lcAggSig)
 
-    val array = Ref("array", arrayType)
     val stream = Ref("stream", TArray(arrayType))
-    val idx = Ref("idx", TInt32())
-    val elt = Ref("elt", t)
-
-    val spec = CodecSpec.defaultUncompressed
-    val partitioned = value.grouped(3).toFastIndexedSeq
-    val streamPType = PArray(PType.canonical(arrayType))
-
-    val (_, initAndSeqF) = CompileWithAggregators2[Long, Unit](
-      Array(lcAggSig),
-      "stream", stream.pType,
-      Begin(FastIndexedSeq(
-        InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
-          InitOp2(0, FastIndexedSeq(), pnnAggSig),
-          InitOp2(1, FastIndexedSeq(), countAggSig),
-          InitOp2(2, FastIndexedSeq(), sumAggSig)
-        ))), lcAggSig),
-        ArrayFor(stream,
-          array.name,
-          Begin(FastIndexedSeq(
-            SeqOp2(0, FastIndexedSeq(ArrayLen(array)), lcAggSig),
-            ArrayFor(
-              ArrayRange(I32(0), ArrayLen(array), I32(1)),
-              idx.name,
-              Let(elt.name,
-                ArrayRef(array, idx),
-                SeqOp2(0,
-                  FastIndexedSeq(idx,
-                    Begin(FastIndexedSeq(
-                      SeqOp2(0, FastIndexedSeq(elt), pnnAggSig),
-                      SeqOp2(1, FastIndexedSeq(), countAggSig),
-                      SeqOp2(2, FastIndexedSeq(GetField(elt, "b")), sumAggSig)))),
-                  eltAggSig)))))),
-        SerializeAggs(0, 0, spec, FastIndexedSeq(lcAggSig)))))
-
-    val (rt: PTuple, resultF) = CompileWithAggregators2[Long](
-      Array(lcAggSig, lcAggSig), ResultOp2(0, FastIndexedSeq(lcAggSig)))
-
-    val aggs = Region.scoped { region =>
-      val f = initAndSeqF(0, region)
-
-      partitioned.map { case lit =>
-        val voff = ScalaToRegionValue(region, streamPType, lit)
-
-        Region.scoped { aggRegion =>
-          f.newAggState(aggRegion)
-          f(region, voff, false)
-          f.getSerializedAgg(0)
-        }
-      }
+    val seq = Array.tabulate(value.length) { i =>
+      seqOpOverArray(0, ArrayRef(stream, i), { elt =>
+        Begin(FastIndexedSeq(
+          SeqOp2(0, FastIndexedSeq(elt), pnnAggSig),
+          SeqOp2(1, FastIndexedSeq(), countAggSig),
+          SeqOp2(2, FastIndexedSeq(GetField(elt, "b")), sumAggSig)))
+      }, lcAggSig)
     }
 
-    val (_, deserializeAndComb) = CompileWithAggregators2[Unit](
-      Array(lcAggSig, lcAggSig),
-      Begin(
-        DeserializeAggs(0, 0, spec, FastIndexedSeq(lcAggSig)) +:
-          Array.range(1, aggs.length).flatMap { i =>
-            FastIndexedSeq(
-              DeserializeAggs(1, i, spec, FastIndexedSeq(lcAggSig)),
-              CombOp2(0, 1, lcAggSig))
-          }))
+    assertAggEquals(lcAggSig, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, value))), 2)
+  }
 
-    Region.scoped { region =>
-      val comb = deserializeAndComb(0, region)
-      val resF = resultF(0, region)
+  @Test def testNestedArrayElementsAgg() {
+    val lcAggSig1 = AggSignature2(AggElementsLengthCheck(),
+      FastSeq[Type](TVoid), FastSeq[Type](TInt32()),
+      Some(FastIndexedSeq(sumAggSig)))
+    val lcAggSig2 = AggSignature2(AggElementsLengthCheck(),
+      FastSeq[Type](TVoid), FastSeq[Type](TInt32()),
+      Some(FastIndexedSeq(lcAggSig1)))
 
-      Region.scoped { aggRegion =>
-        comb.newAggState(aggRegion)
-        aggs.zipWithIndex.foreach { case (agg, i) =>
-          comb.setSerializedAgg(i, agg)
-        }
-        comb(region)
-        resF.setAggState(aggRegion, comb.getAggOffset())
-        val res = resF(region)
+    val init = InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+      InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+        InitOp2(0, FastIndexedSeq(), sumAggSig)
+      ))), lcAggSig1)
+    ))), lcAggSig2)
 
-        assert(SafeRow(rt, region, res).get(0) == expected)
-      }
+    val stream = Ref("stream", TArray(TArray(TArray(TInt64()))))
+    val seq = Array.tabulate(10) { i =>
+      seqOpOverArray(0, ArrayRef(stream, i), { array1 =>
+        seqOpOverArray(0, array1, { elt =>
+          SeqOp2(0, FastIndexedSeq(elt), sumAggSig)
+        }, lcAggSig1)
+      }, lcAggSig2)
     }
+
+    val expected = FastIndexedSeq(Row(FastIndexedSeq(Row(45L))))
+
+    val args = Array.tabulate(10)(i => FastIndexedSeq(FastIndexedSeq(i.toLong))).toFastIndexedSeq
+    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2)
   }
 }
