@@ -405,16 +405,16 @@ class HackRunner:
 
         self.n_complete = 0
 
-        self.task_n_deps = {t: len(t._dependencies) for t in pipeline._tasks}
+        self.task_n_pending_parents = {t: len(t._dependencies) for t in pipeline._tasks}
 
         # FIXME noisy
-        for t, n in self.task_n_deps.items():
+        for t, n in self.task_n_pending_parents.items():
             print(f'INFO: task {t._uid} {t.name} waiting on {n} parents')
 
         self.task_children = {t: set() for t in pipeline._tasks}
         for t in pipeline._tasks:
-            for d in t._dependencies:
-                self.task_children[d].add(t)
+            for p in t._dependencies:
+                self.task_children[p].add(t)
 
         # token of complete attempt
         self.task_token = {}
@@ -472,14 +472,14 @@ class HackRunner:
 
     async def notify_children(self, t):
         for c in self.task_children[t]:
-            n = self.task_n_deps[c]
+            n = self.task_n_pending_parents[c]
             assert n > 0
             n -= 1
-            self.task_n_deps[c] = n
-            print(f'INFO: task {t._uid} {t.name} now waiting on {n} parents')
+            self.task_n_pending_parents[c] = n
+            print(f'INFO: task {c._uid} {c.name} now waiting on {n} parents')
             if n == 0:
                 await self.ready.put(c)
-                print(f'INFO: task {t._uid} {t.name} ready')
+                print(f'INFO: task {c._uid} {c.name} ready')
 
     async def set_state(self, t, state, token):
         if t in self.task_state:
@@ -492,6 +492,7 @@ class HackRunner:
         await self.notify_children(t)
 
         if self.n_complete == len(self.pipeline._tasks):
+            print(f'INFO: last task complete, scheduling None task')
             await self.ready.put(None)
 
         print(f'INFO: set_state task {t._uid} {t.name} state {state} token {token}')
@@ -626,8 +627,9 @@ class HackRunner:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            for t, n in self.task_n_deps.items():
+            for t, n in self.task_n_pending_parents.items():
                 if n == 0:
+                    print(f'INFO: task {t._uid} {t.name} ready')
                     await self.ready.put(t)
 
             while True:
