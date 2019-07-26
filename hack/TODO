@@ -10,10 +10,14 @@
  - update throttle via endpoint
  - n-way launch tasks
  - more proper logging, including output for invoked tasks
-
- - run tests
+ - merge out and err
+ - make pre-emptible
 
  - run scale tests 30, 300, 3K, 30K, 300K, 3M
+
+
+
+ - run tests (later)
 
 get internal IP:
 curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip"

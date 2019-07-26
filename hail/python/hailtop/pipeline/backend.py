@@ -405,18 +405,19 @@ class HackRunner:
 
         self.n_complete = 0
 
-        self.task_n_deps = {}
-        for t in pipeline._tasks:
-            n = len(t._dependencies)
-            self.task_n_deps[t] = n
+        self.task_n_deps = {t: len(t._dependencies) for t in pipeline._tasks}
+
+        # FIXME noisy
+        for t, n in self.task_n_deps.items():
+            print(f'INFO: task {t._uid} {t.name} waiting on {n} parents')
 
         self.task_children = {t: set() for t in pipeline._tasks}
         for t in pipeline._tasks:
             for d in t._dependencies:
                 self.task_children[d].add(t)
 
-        self.task_token = {}
         # token of complete attempt
+        self.task_token = {}
         self.token_task = {}
 
         self.task_state = {}
@@ -461,13 +462,13 @@ class HackRunner:
 
         t = self.token_task[token]
 
-        print(f'INFO: shutdown task {t._uid} {t.name} token {token}')
+        print(f'INFO: task {t._uid} {t.name} token {token} shut down')
 
         if t in self.task_state:
             return
 
-        print(f'INFO: rescheduling task {t._uid} {t.name}')
         await self.ready.put(t)
+        print(f'INFO: rescheduled task {t._uid} {t.name}')
 
     async def notify_children(self, t):
         for c in self.task_children[t]:
@@ -475,15 +476,15 @@ class HackRunner:
             assert n > 0
             n -= 1
             self.task_n_deps[c] = n
+            print(f'INFO: task {t._uid} {t.name} now waiting on {n} parents')
             if n == 0:
                 await self.ready.put(c)
+                print(f'INFO: task {t._uid} {t.name} ready')
 
     async def set_state(self, t, state, token):
         if t in self.task_state:
             return
 
-        print(f'INFO: set_state task {t._uid} {t.name} state {state} token {token}')
-        
         self.task_state[t] = state
         if token:
             self.task_token[t] = token
@@ -492,6 +493,8 @@ class HackRunner:
 
         if self.n_complete == len(self.pipeline._tasks):
             await self.ready.put(None)
+
+        print(f'INFO: set_state task {t._uid} {t.name} state {state} token {token}')
 
     async def mark_complete(self, status):
         token = status['token']
@@ -520,8 +523,6 @@ class HackRunner:
 
         token = secrets.token_hex(16)
         self.token_task[token] = t
-
-        print(f'INFO: launching task {t._uid} {t.name} token {token}')
 
         inputs_cmd = ' && '.join([
             f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/shared"))}'
@@ -612,8 +613,10 @@ class HackRunner:
 
         await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-{machine_type}-{cores} --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size={storage_gb}GB --boot-disk-type=pd-ssd')
 
+        print(f'INFO: launched task {t._uid} {t.name} token {token}')
+
     async def run(self):
-        print(f'INFO: running pipeline')
+        print(f'INFO: running pipeline...')
 
         app_runner = None
         site = None
@@ -650,7 +653,7 @@ class HackRunner:
         if n_failed > 0:
             raise PipelineException('pipeline failed')
         else:
-            print('INFO: pipeline successful')
+            print('INFO: pipeline succeeded!')
 
 
 def round_up(x):

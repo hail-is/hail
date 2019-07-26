@@ -3,6 +3,7 @@ import sys
 
 N = int(sys.argv[1])
 M = int(sys.argv[2])
+print(f'N {N} M {M}')
 
 p = pipeline.Pipeline(backend=pipeline.HackBackend(), default_image='ubuntu:18.04')
 
@@ -14,7 +15,7 @@ for i in range(N):
 
 m = []
 for j in range(M):
-    t = p.new_task(f'M{i}')
+    t = p.new_task(f'M{j}')
     t.command(f'head -c 10 </dev/random | base64 >{t.ofile}')
     m.append(t)
 
