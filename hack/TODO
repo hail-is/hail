@@ -5,12 +5,14 @@
 
 
  - make throttle limit an option
+ - make master figure out its name
  - status UI
  - update throttle via endpoint
  - n-way launch tasks
  - more proper logging, including output for invoked tasks
- - 
+
  - run tests
+
  - run scale tests 30, 300, 3K, 30K, 300K, 3M
 
 get internal IP:

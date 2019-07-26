@@ -504,7 +504,7 @@ class HackRunner:
                 state = 'failure'
 
         if state == 'failure':
-            print(f'ERROR: task {t._uid} {t.name} failed status {status} log in gs://hail-cseed/cs-hack/tmp/{token}')
+            print(f'ERROR: task {t._uid} {t.name} failed status {status} logs in gs://hail-cseed/cs-hack/tmp/{token}')
 
         await self.set_state(t, state, token)
 
@@ -630,7 +630,7 @@ class HackRunner:
             while True:
                 t = await self.ready.get()
                 if not t:
-                    return
+                    break
                 await self.semaphore.acquire()
                 await self.launch(t)
         finally:
