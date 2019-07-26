@@ -10,13 +10,21 @@ import is.hail.utils.{FastIndexedSeq, _}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-  private var _ptype: PType = null
+  protected[ir] var _pType2: PType = null
+  private var _pType: PType = null
   private var _typ: Type = null
 
-  def pType: PType = {
-    if (_ptype == null)
-      _ptype = PType.canonical(typ)
-    _ptype
+  def pType = {
+    if (_pType == null)
+      _pType = PType.canonical(typ)
+
+    _pType
+  }
+
+  def pType2 = {
+    assert(_pType2 != null)
+
+    _pType2
   }
 
   def typ: Type = {
@@ -24,7 +32,7 @@ sealed trait IR extends BaseIR {
       try {
         _typ = InferType(this)
       } catch {
-        case e: Throwable => throw new RuntimeException(s"type inference failure!\n${ Pretty(this) }", e)
+        case e: Throwable => throw new RuntimeException(s"typ: inference failure: \n${ Pretty(this) }", e)
       }
     _typ
   }
@@ -40,8 +48,8 @@ sealed trait IR extends BaseIR {
     val cp = super.deepCopy()
     if (_typ != null)
       cp._typ = _typ
-    if (_ptype != null)
-      cp._ptype = _ptype
+    if (_pType != null)
+      cp._pType = _pType
     cp
   }
 

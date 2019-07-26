@@ -9,7 +9,7 @@ import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.TableType
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -18,7 +18,7 @@ import is.hail.methods._
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils.{FastIndexedSeq, _}
-import is.hail.variant.{Call, Call2, Locus, MatrixTable}
+import is.hail.variant.{Call2, Locus, MatrixTable}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
@@ -81,9 +81,15 @@ object IRSuite {
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
+  def assertPType(node: IR, expected: PType, env: Env[PType] = Env.empty) {
+    InferPType(node, env)
+    assert(node.pType2 == expected)
+  }
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
+
 
   @Test def testI64() {
     assertEvalsTo(I64(5), 5L)
@@ -107,6 +113,16 @@ class IRSuite extends HailSuite {
 
   @Test def testFalse() {
     assertEvalsTo(False(), false)
+  }
+
+  @Test def testScalarInferPType() {
+    assertPType(I32(5), PInt32())
+    assertPType(I64(5), PInt64())
+    assertPType(F32(3.1415f), PFloat32())
+    assertPType(F64(3.1415926589793238462643383), PFloat64())
+    assertPType(Str("HELLO WORLD"), PString())
+    assertPType(True(), PBoolean())
+    assertPType(False(), PBoolean())
   }
 
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
@@ -136,6 +152,31 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Cast(F64(3.14), TFloat64()), 3.14)
   }
 
+  @Test def testCastInferPType() {
+    assertPType(Cast(I32(5), TInt32()), PInt32())
+    assertPType(Cast(I32(5), TInt64()), PInt64())
+    assertPType(Cast(I32(5), TFloat32()), PFloat32())
+    assertPType(Cast(I32(5), TFloat64()), PFloat64())
+
+    assertPType(Cast(I64(5), TInt32()), PInt32())
+    assertPType(Cast(I64(0xf29fb5c9af12107dL), TInt32()), PInt32()) // truncate
+    assertPType(Cast(I64(5), TInt64()), PInt64())
+    assertPType(Cast(I64(5), TFloat32()), PFloat32())
+    assertPType(Cast(I64(5), TFloat64()), PFloat64())
+
+    assertPType(Cast(F32(3.14f), TInt32()), PInt32())
+    assertPType(Cast(F32(3.99f), TInt32()), PInt32()) // truncate
+    assertPType(Cast(F32(3.14f), TInt64()), PInt64())
+    assertPType(Cast(F32(3.14f), TFloat32()), PFloat32())
+    assertPType(Cast(F32(3.14f), TFloat64()), PFloat64())
+
+    assertPType(Cast(F64(3.14), TInt32()), PInt32())
+    assertPType(Cast(F64(3.99), TInt32()), PInt32()) // truncate
+    assertPType(Cast(F64(3.14), TInt64()), PInt64())
+    assertPType(Cast(F64(3.14), TFloat32()), PFloat32())
+    assertPType(Cast(F64(3.14), TFloat64()), PFloat64())
+  }
+
   @Test def testCastRename() {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32())), Row(1))
     assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
@@ -143,13 +184,27 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(Row(1)))
   }
 
+  @Test def testCastRenameInferPType() {
+    var node = CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32()))
+    assertPType(node, PStruct("foo" -> PInt32()))
+
+    node = CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
+      TArray(TStruct("x" -> TInt32()))), TArray(TStruct("foo" -> TInt32())))
+
+    val expected = PArray(PStruct("foo" -> PInt32()))
+
+    assertPType(node, expected)
+  }
+
   @Test def testNA() {
     assertEvalsTo(NA(TInt32()), null)
   }
 
-  @Test def testIsNA() {
-    assertEvalsTo(IsNA(NA(TInt32())), true)
-    assertEvalsTo(IsNA(I32(5)), false)
+  @Test def testNAInferPType() {
+    assertPType(NA(TInt32()), PInt32())
+
+    assertPType(IsNA(NA(TInt32())), PBoolean())
+    assertPType(IsNA(I32(5)), PBoolean())
   }
 
   @Test def testCoalesce() {
@@ -160,6 +215,35 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32()), NA(TInt32()))), FastIndexedSeq((1, TInt32())), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1))), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32()))), 1)(ExecStrategy.javaOnly)
+  }
+
+  @Test def testCoalesceInferPType() {
+    var node = Coalesce(FastSeq(In(0, TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), In(0, TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(In(0, TInt32()), NA(TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), I32(1), NA(TInt32()), I32(1), NA(TInt32()), I32(1)))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt32())))
+    assertPType(node, PInt32())
+    assert(node.values.forall(ir => ir.pType == PInt32()))
+  }
+
+  @Test def testCoalesceMustBeOfSameTypeToInferPType() {
+    var node = Coalesce(FastSeq(In(0, TInt32())))
+
+    node = Coalesce(FastSeq(NA(TInt32()), I32(1), Die("foo", TInt64())))
+    intercept[AssertionError](InferPType(node, Env.empty))
   }
 
   val i32na = NA(TInt32())
@@ -194,6 +278,73 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i64na), null)
   }
 
+  @Test def testApplyUnaryPrimOpInferPType() {
+    val i32na = NA(TInt32())
+    def i64na = NA(TInt64())
+    def f32na = NA(TFloat32())
+    def f64na = NA(TFloat64())
+    def bna = NA(TBoolean())
+
+    var node = ApplyUnaryPrimOp(Negate(), I32(5))
+    assertPType(node, PInt32())
+    node = ApplyUnaryPrimOp(Negate(), i32na)
+    assertPType(node, PInt32())
+
+    node = ApplyUnaryPrimOp(Negate(), i32na)
+    intercept[AssertionError](InferPType(node, Env.empty))
+
+    node = ApplyUnaryPrimOp(Negate(), I64(5))
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(Negate(), i64na)
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(Negate(), F32(5))
+    assertPType(node, PFloat32())
+
+    node = ApplyUnaryPrimOp(Negate(), f32na)
+    assertPType(node, PFloat32())
+
+    node = ApplyUnaryPrimOp(Negate(), F64(5))
+    assertPType(node, PFloat64())
+
+    node = ApplyUnaryPrimOp(Negate(), f64na)
+    assertPType(node, PFloat64())
+
+    node = ApplyUnaryPrimOp(Bang(), False())
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(Bang(), True())
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(Bang(), bna)
+    assertPType(node, PBoolean())
+
+    node = ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef))
+    assertPType(node, PInt32())
+
+    node = ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L))
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L))
+    assertPType(node, PInt64())
+
+    node = ApplyUnaryPrimOp(BitNot(), i64na)
+    assertPType(node, PInt64())
+  }
+
+  @Test def testComplexInferPType() {
+    val ir = ArrayMap(Let("q", I32(2),
+      ArrayMap(Let("v", Ref("q", TInt32()) + I32(3),
+        ArrayRange(0, Ref("v", TInt32()), 1)),
+        "x", Ref("x", TInt32()) + Ref("q", TInt32()))),
+      "y", Ref("y", TInt32()) + I32(3))
+
+    InferPType(ir, Env.empty)
+    assert(ir.a.pType2 == PArray(PInt32()))
+    assert(ir.body.pType2 == PInt32())
+  }
+
   @Test def testApplyBinaryPrimOpAdd() {
     def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), sum)
@@ -217,6 +368,28 @@ class IRSuite extends HailSuite {
     assertSumsTo(TFloat64(), 5.0, null, null)
     assertSumsTo(TFloat64(), null, 3.0, null)
     assertSumsTo(TFloat64(), null, null, null)
+  }
+
+  @Test def testApplyBinaryPrimOpAddInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
+    assertToPType(TFloat32(), PFloat32())
+    assertToPType(TFloat64(), PFloat64())
+  }
+
+  @Test def testApplyBinaryPrimOpSubtractInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
+    assertToPType(TFloat32(), PFloat32())
+    assertToPType(TFloat64(), PFloat64())
   }
 
   @Test def testApplyBinaryPrimOpSubtract() {
@@ -269,7 +442,17 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), 5d, null, null)
     assertExpected(TFloat64(), null, 2d, null)
     assertExpected(TFloat64(), null, null, null)
+  }
 
+  @Test def testApplyBinaryPrimOpMultiplyInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
+    assertToPType(TFloat32(), PFloat32())
+    assertToPType(TFloat64(), PFloat64())
   }
 
   @Test def testApplyBinaryPrimOpFloatingPointDivide() {
@@ -298,6 +481,17 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
+  @Test def testApplyBinaryPrimOpFloatingPointDivideInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PFloat32())
+    assertToPType(TInt64(), PFloat32())
+    assertToPType(TFloat32(), PFloat32())
+    assertToPType(TFloat64(), PFloat64())
+  }
+
   @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -324,6 +518,17 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64(), null, null, null)
   }
 
+  @Test def testApplyBinaryPrimOpRoundToNegInfDivideInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
+    assertToPType(TFloat32(), PFloat32())
+    assertToPType(TFloat64(), PFloat64())
+  }
+
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -346,6 +551,15 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), null, null, null)
   }
 
+  @Test def testApplyBinaryPrimOpBitAndInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
+  }
+
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
     def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
       assertEvalsTo(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
@@ -366,6 +580,15 @@ class IRSuite extends HailSuite {
     assertExpected(TInt64(), 5L, null, null)
     assertExpected(TInt64(), null, 2L, null)
     assertExpected(TInt64(), null, null, null)
+  }
+
+  @Test def testApplyBinaryPrimOpBitOrInferPType() {
+    def assertToPType(t: Type, p: PType) {
+      assertPType(ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)), p)
+    }
+
+    assertToPType(TInt32(), PInt32())
+    assertToPType(TInt64(), PInt64())
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
