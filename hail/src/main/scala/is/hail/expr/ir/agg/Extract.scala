@@ -6,7 +6,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.io.CodecSpec
+import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
@@ -16,7 +16,6 @@ object TableMapIRNew {
 
   def apply(tv: TableValue, newRow: IR): TableValue = {
     val typ = tv.typ
-    val gType = tv.globals.t
 
     val scanRef = genUID()
     val extracted = Extract.apply(CompileWithAggregators.liftScan(newRow), scanRef)
@@ -35,7 +34,7 @@ object TableMapIRNew {
       else
         null
 
-    val spec = CodecSpec.defaultUncompressed
+    val spec = CodecSpec.defaultUncompressedBuffer
 
     // Order of operations:
     // 1. init op on all aggs and serialize to byte array.
@@ -45,12 +44,12 @@ object TableMapIRNew {
 
     val (_, initF) = ir.CompileWithAggregators2[Long, Unit](
       extracted.aggs,
-      "global", gType,
+      "global", tv.globals.t,
       Begin(FastIndexedSeq(extracted.init, extracted.serializeSet(0, 0, spec))))
 
     val (_, eltSeqF) = ir.CompileWithAggregators2[Long, Long, Unit](
       extracted.aggs,
-      "global", gType,
+      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", typ.rowType.physicalType,
       extracted.eltOp())
 
@@ -60,7 +59,7 @@ object TableMapIRNew {
 
     val (rTyp, f) = ir.CompileWithAggregators2[Long, Long, Long](
       extracted.aggs,
-      "global", gType,
+      "global", Option(globalsBc).map(_.value.t).getOrElse(PStruct()),
       "row", typ.rowType.physicalType,
       Let(scanRef, extracted.results, extracted.postAggIR))
     assert(rTyp.virtualType == newRow.typ)
@@ -169,15 +168,15 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     aggs.forall(aggCommutes)
   }
 
-  def deserializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
+  def deserializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
     DeserializeAggs(i * nAggs, i2, spec, aggs)
 
-  def serializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
+  def serializeSet(i: Int, i2: Int, spec: BufferSpec): IR =
     SerializeAggs(i * nAggs, i2, spec, aggs)
 
   def eltOp(optimize: Boolean = true): IR = if (optimize) Optimize(seqPerElt) else seqPerElt
 
-  def deserialize(spec: CodecSpec): ((Region, Array[Byte]) => Long) = {
+  def deserialize(spec: BufferSpec): ((Region, Array[Byte]) => Long) = {
     val (_, f) = ir.CompileWithAggregators2[Unit](
       aggs, ir.DeserializeAggs(0, 0, spec, aggs))
 
@@ -190,7 +189,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     }
   }
 
-  def serialize(spec: CodecSpec): (Region, Long) => Array[Byte] = {
+  def serialize(spec: BufferSpec): (Region, Long) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[Unit](
       aggs, ir.SerializeAggs(0, 0, spec, aggs))
 
@@ -202,7 +201,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
     }
   }
 
-  def combOpF(spec: CodecSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
+  def combOpF(spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
     val (_, f) = ir.CompileWithAggregators2[Unit](
       aggs ++ aggs,
       Begin(

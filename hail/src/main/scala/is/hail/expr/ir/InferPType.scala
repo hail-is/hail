@@ -323,7 +323,7 @@ object InferPType {
         InferPType(body, env.bind(contextsName -> contexts.pType2, globalsName -> globals.pType2))
         PArray(body.pType2)
       }
-      case ReadPartition(_, _, _, rowType) => PStream(PType.canonical(rowType))
+      case ReadPartition(_, _, rowType) => throw new Exception("node not supported")
       case _: Coalesce | _: MakeArray | _: MakeStream | _: If => throw new Exception("Node not supported")
     }
 

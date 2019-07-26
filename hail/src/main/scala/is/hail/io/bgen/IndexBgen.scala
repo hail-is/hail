@@ -2,12 +2,13 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.expr.types.TableType
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TLocus, TString, TStruct}
-import is.hail.io.CodecSpec
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual._
+import is.hail.io.fs.FS
 import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
+import is.hail.io._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
-import is.hail.io.fs.FS
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
@@ -55,7 +56,7 @@ object IndexBgen {
     val headers = LoadBgen.getFileHeaders(fs, bgenFilePaths)
     LoadBgen.checkVersionTwo(headers)
 
-    val annotationType = +TStruct()
+    val annotationType = +PStruct()
 
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
@@ -67,7 +68,7 @@ object IndexBgen {
         key = Array("locus", "alleles"),
         globalType = TStruct()),
       referenceGenome.map(_.broadcast),
-      annotationType
+      annotationType.virtualType
     )
 
     val typ = RVDType(settings.rowPType, Array("file_idx", "locus", "alleles"))
@@ -90,7 +91,7 @@ object IndexBgen {
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
     val (keyType, _) = rowType.virtualType.select(Array("file_idx", "locus", "alleles"))
-    val (indexKeyType, _) = keyType.select(Array("locus", "alleles"))
+    val indexKeyType = rowType.selectFields(Array("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
@@ -100,9 +101,17 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
-    val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(indexKeyType, annotationType).physicalType)
+    val codecSpec = PackCodecSpec(LEB128BufferSpec(
+      BlockingBufferSpec(32 * 1024,
+        LZ4BlockBufferSpec(32 * 1024,
+          new StreamBlockBufferSpec))))
+    val leafPType = LeafNodeBuilder.typ(indexKeyType, annotationType)
+    val leafCodec = codecSpec.makeCodecSpec2(leafPType)
+    val leafEnc = leafCodec.buildEncoder(leafPType)
+
+    val intPType = InternalNodeBuilder.typ(indexKeyType, annotationType)
+    val intCodec = codecSpec.makeCodecSpec2(intPType)
+    val intEnc = intCodec.buildEncoder(intPType)
 
     RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
@@ -111,7 +120,7 @@ object IndexBgen {
         val partIdx = TaskContext.get.partitionId()
 
         using(new IndexWriter(bcFS.value, indexFilePaths(partIdx), indexKeyType, annotationType,
-          makeLeafEncoder, makeInternalEncoder, attributes = attributes)) { iw =>
+          leafEnc, intEnc, leafPType, intPType, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

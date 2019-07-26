@@ -6,7 +6,7 @@ import java.util
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderLike}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitUtils, EstimableEmitter, MethodBuilderLike, PruneDeadFields}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
@@ -14,7 +14,7 @@ import is.hail.io.compress.LZ4Utils
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.nativecode._
-import is.hail.rvd.{AbstractRVDSpec, IndexedRVDSpec, IndexSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractRVDSpec, IndexSpec, IndexedRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -25,7 +25,7 @@ import org.apache.spark.{ExposedMetrics, TaskContext}
 import org.json4s.jackson.JsonMethods
 import org.json4s.{Extraction, JValue}
 
-trait BufferSpec extends Serializable {
+trait BufferSpec extends Spec {
   def buildInputBuffer(in: InputStream): InputBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
@@ -75,7 +75,7 @@ final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) exte
     s"BlockingInputBuffer<$blockSize, ${ child.nativeInputBufferType(inputStreamType) }, $inputStreamType>"
 }
 
-trait BlockBufferSpec extends Serializable {
+trait BlockBufferSpec extends Spec {
   def buildInputBuffer(in: InputStream): InputBlockBuffer
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
@@ -149,17 +149,19 @@ final class StreamBufferSpec extends BufferSpec {
 }
 
 object CodecSpec {
-  val default: CodecSpec = new PackCodecSpec(
-    new LEB128BufferSpec(
-      new BlockingBufferSpec(32 * 1024,
-        new LZ4BlockBufferSpec(32 * 1024,
-          new StreamBlockBufferSpec))))
+  val defaultBufferSpec: BufferSpec = LEB128BufferSpec(
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
+        new StreamBlockBufferSpec)))
 
-  val defaultUncompressed = new PackCodecSpec(
-    new BlockingBufferSpec(32 * 1024,
-      new StreamBlockBufferSpec))
+  val default: CodecSpec = PackCodecSpec(defaultBufferSpec)
 
-  val unblockedUncompressed = new PackCodecSpec(new StreamBufferSpec)
+  val defaultUncompressedBuffer: BufferSpec = BlockingBufferSpec(32 * 1024,
+    new StreamBlockBufferSpec)
+
+  val defaultUncompressed: CodecSpec = PackCodecSpec(defaultUncompressedBuffer)
+
+  val unblockedUncompressed: CodecSpec = PackCodecSpec(new StreamBufferSpec)
 
   def fromShortString(s: String): CodecSpec = s match {
     case "default" => CodecSpec.default
@@ -168,78 +170,90 @@ object CodecSpec {
   }
 
   val baseBufferSpecs: Array[BufferSpec] = Array(
-    new BlockingBufferSpec(64 * 1024,
+    BlockingBufferSpec(64 * 1024,
       new StreamBlockBufferSpec),
-    new BlockingBufferSpec(32 * 1024,
-      new LZ4BlockBufferSpec(32 * 1024,
+    BlockingBufferSpec(32 * 1024,
+      LZ4BlockBufferSpec(32 * 1024,
         new StreamBlockBufferSpec)),
     new StreamBufferSpec)
 
   val bufferSpecs: Array[BufferSpec] = baseBufferSpecs.flatMap { blockSpec =>
-    Array(blockSpec, new LEB128BufferSpec(blockSpec))
+    Array(blockSpec, LEB128BufferSpec(blockSpec))
   }
 
   val codecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
-    Array(new PackCodecSpec(bufferSpec))
+    Array(PackCodecSpec(bufferSpec))
   }
 
   val supportedCodecSpecs: Array[CodecSpec] = bufferSpecs.flatMap { bufferSpec =>
-    Array(new PackCodecSpec(bufferSpec))
+    Array(PackCodecSpec(bufferSpec))
   }
 }
 
-trait CodecSpec extends Serializable {
-  type StagedEncoderF[T] = (Code[Region], Code[T], Code[OutputBuffer]) => Code[Unit]
-  type StagedDecoderF[T] = (Code[Region], Code[InputBuffer]) => Code[T]
 
-  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder = buildEncoder(t, t)
+trait CodecSpec extends Spec {
+  def makeCodecSpec2(pType: PType): CodecSpec2
+}
 
-  def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
+  def makeCodecSpec2(pType: PType) = PackCodecSpec2(pType, child)
+}
 
-  def encode(t: PType, region: Region, offset: Long): Array[Byte] = {
-    val baos = new ByteArrayOutputStream()
-    using(buildEncoder(t)(baos))(_.writeRegionValue(region, offset))
-    baos.toByteArray()
+final case class PackCodecSpec2(eType: PType, child: BufferSpec) extends CodecSpec2 {
+  def encodedType: Type = eType.virtualType
+
+  def computeSubsetPType(requestedType: Type): PType = {
+    assert(PruneDeadFields.isSupertype(requestedType, eType.virtualType))
+    PType.canonical(requestedType)
   }
 
-  def decode(t: PType, bytes: Array[Byte], region: Region): Long = {
-    val bais = new ByteArrayInputStream(bytes)
-    buildDecoder(t, t)(bais).readRegionValue(region)
-  }
-
-  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
-
-  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
-
-  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T]
-
-  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T]
-
-  def buildNativeDecoderClass(
-    t: PType,
-    requestedType: PType,
-    inputStreamType: String,
-    tub: cxx.TranslationUnitBuilder
-  ): cxx.Class
-
-  def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
-
-  // FIXME: is there a better place for this to live?
-  def decodeRDD(t: PType, bytes: RDD[Array[Byte]]): ContextRDD[RVDContext, RegionValue] = {
-    val dec = buildDecoder(t, t)
-    ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
-      val rv = RegionValue(ctx.region)
-      it.map(RegionValue.fromBytes(dec, ctx.region, rv))
+  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
+    if (HailContext.isInitialized && HailContext.get.flags.get("cpp") != null && requestedType == t) {
+      val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
+      (out: OutputStream) => new NativePackEncoder(out, e)
+    } else {
+      val f = EmitPackEncoder(t, requestedType)
+      out: OutputStream => new CompiledPackEncoder(child.buildOutputBuffer(out), f)
     }
   }
 
-  override def toString: String = {
-    implicit val formats = AbstractRVDSpec.formats
-    val jv = Extraction.decompose(this)
-    JsonMethods.compact(JsonMethods.render(jv))
+  def buildDecoder(requestedType: Type): (PType, (InputStream) => Decoder) = {
+    val rt = computeSubsetPType(requestedType)
+    if (HailContext.isInitialized && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
+      val d: NativeDecoderModule = cxx.PackDecoder.buildModule(eType, rt, child)
+      (rt, (in: InputStream) => new NativePackDecoder(in, d))
+    } else {
+      val f = EmitPackDecoder(eType, rt)
+      (rt, (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f))
+    }
   }
+
+  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = child.buildCodeInputBuffer(is)
+
+  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = child.buildCodeOutputBuffer(os)
+
+  def buildEmitDecoderF[T](requestedType: Type, fb: EmitFunctionBuilder[_]): (PType, StagedDecoderF[T]) = {
+    val rt = computeSubsetPType(requestedType)
+    val mb = EmitPackDecoder.buildMethod(eType, rt, fb)
+    (rt, (region: Code[Region], buf: Code[InputBuffer]) => mb.invoke[T](region, buf))
+  }
+
+  def buildEmitEncoderF[T](t: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
+    val mb = EmitPackEncoder.buildMethod(t, eType, fb)
+    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
+  }
+
+  def buildNativeDecoderClass(
+    requestedType: Type,
+    inputStreamType: String,
+    tub: cxx.TranslationUnitBuilder
+  ): (PType, cxx.Class) = {
+    val rt = computeSubsetPType(requestedType)
+    (rt, cxx.PackDecoder(eType, rt, inputStreamType, child, tub))
+  }
+
+  def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackEncoder(t, child, tub)
 }
 
 object ShowBuf {
@@ -272,59 +286,13 @@ object ShowBuf {
 
 }
 
-final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
-
-  def buildEncoder(t: PType, requestedType: PType): (OutputStream) => Encoder = {
-    if (HailContext.isInitialized && HailContext.get.flags.get("cpp") != null && requestedType == t) {
-      val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
-      (out: OutputStream) => new NativePackEncoder(out, e)
-    } else {
-      val f = EmitPackEncoder(t, requestedType)
-      out: OutputStream => new CompiledPackEncoder(child.buildOutputBuffer(out), f)
-    }
-  }
-
-  def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
-    if (HailContext.isInitialized && HailContext.get.flags != null && HailContext.get.flags.get("cpp") != null) {
-      val d: NativeDecoderModule = cxx.PackDecoder.buildModule(t, requestedType, child)
-      (in: InputStream) => new NativePackDecoder(in, d)
-    } else {
-      val f = EmitPackDecoder(t, requestedType)
-      (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
-    }
-  }
-
-  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = child.buildCodeInputBuffer(is)
-
-  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = child.buildCodeOutputBuffer(os)
-
-  def buildEmitDecoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedDecoderF[T] = {
-    val mb = EmitPackDecoder.buildMethod(t, requestedType, fb)
-    (region: Code[Region], buf: Code[InputBuffer]) => mb.invoke[T](region, buf)
-  }
-
-  def buildEmitEncoderF[T](t: PType, requestedType: PType, fb: EmitFunctionBuilder[_]): StagedEncoderF[T] = {
-    val mb = EmitPackEncoder.buildMethod(t, requestedType, fb)
-    (region: Code[Region], off: Code[T], buf: Code[OutputBuffer]) => mb.invoke[Unit](region, off, buf)
-  }
-
-  def buildNativeDecoderClass(
-    t: PType,
-    requestedType: PType,
-    inputStreamType: String,
-    tub: cxx.TranslationUnitBuilder
-  ): cxx.Class = cxx.PackDecoder(t, requestedType, inputStreamType, child, tub)
-
-  def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackEncoder(t, child, tub)
-}
-
-trait OutputBlockBuffer extends Closeable {
+trait OutputBlockBuffer extends Spec with Closeable {
   def writeBlock(buf: Array[Byte], len: Int): Unit
 
   def getPos(): Long
 }
 
-trait InputBlockBuffer extends Closeable {
+trait InputBlockBuffer extends Spec with Closeable {
   def close(): Unit
 
   def seek(offset: Long)
@@ -1167,7 +1135,6 @@ object EmitPackDecoder {
       srvb.start(init = true),
       moff := region.allocate(const(1), const(t.nMissingBytes)),
       in.readBytes(region, moff, t.nMissingBytes))
-
     val fieldEmitters = new Array[Emitter](t.size)
 
     assert(t.isInstanceOf[PTuple] || t.isInstanceOf[PStruct])
@@ -2004,15 +1971,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     idxRelPath: String,
     t: RVDType,
     stageLocally: Boolean,
-    codecSpec: CodecSpec
+    encoding: CodecSpec2
   ): (Array[String], Array[Long]) = {
     crdd.writePartitions(
       path,
       idxRelPath,
       stageLocally,
-      IndexWriter.builder(t.kType.virtualType, +TStruct()),
+      IndexWriter.builder(t.kType, +PStruct()),
       RichContextRDDRegionValue.writeRowsPartition(
-        codecSpec.buildEncoder(t.rowType),
+        encoding.buildEncoder(t.rowType, t.rowType),
         t.kFieldIdx,
         t.rowType))
   }

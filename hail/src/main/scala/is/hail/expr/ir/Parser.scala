@@ -6,7 +6,7 @@ import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
-import is.hail.io.CodecSpec
+import is.hail.io.{BufferSpec, CodecSpec, CodecSpec2}
 import is.hail.io.bgen.MatrixBGENReaderSerializer
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.table.{Ascending, Descending, SortField}
@@ -867,14 +867,14 @@ object IRParser {
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val spec = JsonMethods.parse(string_literal(it)).extract[BufferSpec]
         val aggSigs = agg_signatures(env.typEnv)(it)
         SerializeAggs(i, i2, spec, aggSigs)
       case "DeserializeAggs" =>
         val i = int32_literal(it)
         val i2 = int32_literal(it)
         implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val spec = JsonMethods.parse(string_literal(it)).extract[BufferSpec]
         val aggSigs = agg_signatures(env.typEnv)(it)
         DeserializeAggs(i, i2, spec, aggSigs)
       case "InitOp" =>
@@ -1014,11 +1014,10 @@ object IRParser {
         env.irMap(name).asInstanceOf[IR]
       case "ReadPartition" =>
         implicit val formats: Formats = AbstractRVDSpec.formats
-        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
-        val encType = coerce[TStruct](type_expr(env.typEnv)(it))
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec2]
         val rowType = coerce[TStruct](type_expr(env.typEnv)(it))
         val path = ir_value_expr(env)(it)
-        ReadPartition(path, spec, encType, rowType)
+        ReadPartition(path, spec, rowType)
     }
   }
 

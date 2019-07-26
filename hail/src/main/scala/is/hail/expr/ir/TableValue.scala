@@ -42,7 +42,7 @@ object TableValue {
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
-  require(typ.rowType == rvd.rowType)
+  require(typ.rowType == rvd.rowType, s"mismatch:\n  typ: ${ typ.rowType }\n  rvd: ${ rvd.rowType }")
   require(rvd.typ.key.startsWith(typ.key))
   require(typ.globalType == globals.t.virtualType)
 

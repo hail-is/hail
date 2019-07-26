@@ -10,6 +10,8 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.{TableType, virtual}
 import is.hail.expr.types.physical.{PArray, PBoolean, PFloat32, PFloat64, PInt32, PInt64, PString, PStruct, PTuple, PType}
+import is.hail.expr.types.TableType
+import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
@@ -1742,8 +1744,8 @@ class IRSuite extends HailSuite {
       SeqOp2(0, FastIndexedSeq(i), collectSig2),
       CombOp2(0, 1, collectSig2),
       ResultOp2(0, FastSeq(collectSig2)),
-      SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
-      DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
+      SerializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
+      DeserializeAggs(0, 0, CodecSpec.defaultBufferSpec, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),
       MakeStruct(FastIndexedSeq("x" -> i)),
       SelectFields(s, FastIndexedSeq("x", "z")),
@@ -1775,7 +1777,7 @@ class IRSuite extends HailSuite {
       BlockMatrixWrite(blockMatrix, blockMatrixWriter),
       BlockMatrixMultiWrite(IndexedSeq(blockMatrix, blockMatrix), blockMatrixMultiWriter),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32())),
+      ReadPartition(Str("foo"), CodecSpec.default.makeCodecSpec2(PStruct("foo" -> PInt32(), "bar" -> PString())), TStruct("foo" -> TInt32())),
       RelationalLet("x", I32(0), I32(0))
     )
     irs.map(x => Array(x))

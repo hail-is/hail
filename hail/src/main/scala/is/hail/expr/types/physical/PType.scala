@@ -2,11 +2,18 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, IRParser}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, EncodedType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
+
+class PTypeSerializer extends CustomSerializer[PType](format => (
+  { case JString(s) => PType.canonical(IRParser.parseType(s)) },
+  { case t: PType => JString(t.parsableString()) }))
+
 
 object PType {
   def genScalar(required: Boolean): Gen[PType] =

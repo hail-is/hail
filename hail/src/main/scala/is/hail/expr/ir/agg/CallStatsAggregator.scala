@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
+import is.hail.io.{BufferSpec, CodecSpec, InputBuffer, OutputBuffer, PackCodecSpec2}
 import is.hail.stats.CallStats
 import is.hail.utils._
 
@@ -69,14 +69,18 @@ class CallStatsState(val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAStat
     Region.storeInt(addr, updater(Region.loadInt(addr)))
   )
 
-  def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
-    codec.buildEmitEncoderF[Long](CallStatsState.stateType, CallStatsState.stateType, fb)(region, off, _)
+  def serialize(codec: BufferSpec): Code[OutputBuffer] => Code[Unit] = {
+    PackCodecSpec2(CallStatsState.stateType, codec).buildEmitEncoderF[Long](CallStatsState.stateType, fb)(region, off, _)
   }
 
-  def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
+  def deserialize(codec: BufferSpec): Code[InputBuffer] => Code[Unit] = {
+    val (decType, dec) = PackCodecSpec2(CallStatsState.stateType, codec)
+      .buildEmitDecoderF[Long](CallStatsState.stateType.virtualType, fb)
+    assert(decType == CallStatsState.stateType)
+
     { ib: Code[InputBuffer] =>
       Code(
-        off := codec.buildEmitDecoderF(CallStatsState.stateType, CallStatsState.stateType, fb)(region, ib),
+        off := dec(region, ib),
         loadNAlleles)
     }
   }
