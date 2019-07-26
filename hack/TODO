@@ -1,8 +1,17 @@
- - add emacs-nox to image
+ - rebuild the image:
+   - add emacs-nox to image
+   - installed pip packages to image
+   - pre-pull used docker images
 
+
+ - make throttle limit an option
+ - status UI
+ - update throttle via endpoint
+ - n-way launch tasks
+ - more proper logging, including output for invoked tasks
+ - 
  - run tests
- - run scale tests 3K, 30K, 300K
- - throttle at some point
+ - run scale tests 30, 300, 3K, 30K, 300K, 3M
 
 get internal IP:
 curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip"

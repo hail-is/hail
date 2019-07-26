@@ -1,4 +1,5 @@
 import abc
+import collections
 import os
 import subprocess as sp
 import re
@@ -502,6 +503,9 @@ class HackRunner:
             if ec is not None and ec != 0:
                 state = 'failure'
 
+        if state == 'failure':
+            print(f'ERROR: task {t._uid} {t.name} failed status {status} log in gs://hail-cseed/cs-hack/tmp/{token}')
+
         await self.set_state(t, state, token)
 
     async def launch(self, t):
@@ -555,7 +559,7 @@ class HackRunner:
 
         # max out at 16
         cores = 1
-        while cores < 16 and cores < req_cpu:
+        while cores < 16 and cores < cpu:
             cores *= 2
 
         if t._memory:
@@ -565,7 +569,7 @@ class HackRunner:
 
         memory_per_core = memory / cores
         if cores == 1:
-            machine_type == 'standard'
+            machine_type = 'standard'
         elif memory_per_core < 1.2:
             machine_type = 'highcpu'
         elif memory_per_core < 4:
@@ -611,25 +615,43 @@ class HackRunner:
     async def run(self):
         print(f'INFO: running pipeline')
 
-        app_runner = web.AppRunner(self.app)
-        await app_runner.setup()
-        site = web.TCPSite(app_runner, '0.0.0.0', 5000)
-        await site.start()
+        app_runner = None
+        site = None
+        try:
+            app_runner = web.AppRunner(self.app)
+            await app_runner.setup()
+            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+            await site.start()
 
-        for t, n in self.task_n_deps.items():
-            if n == 0:
-                await self.ready.put(t)
+            for t, n in self.task_n_deps.items():
+                if n == 0:
+                    await self.ready.put(t)
 
-        while True:
-            t = await self.ready.get()
-            if not t:
-                return
-            await self.semaphore.acquire()
-            await self.launch(t)
+            while True:
+                t = await self.ready.get()
+                if not t:
+                    return
+                await self.semaphore.acquire()
+                await self.launch(t)
+        finally:
+            if site:
+                await site.stop()
+            if app_runner:
+                await app_runner.cleanup()
 
-        await app_runner.cleanup()
+        c = collections.Counter(self.task_state.values())
 
-        print(f'INFO: pipeline finished')
+        n_succeeded = c.get('success', 0)
+        n_failed = c.get('failure', 0)
+        n_cancelled = c.get('cancelled', 0)
+
+        print(f'INFO: pipeline finished: ok {n_succeeded} bad {n_failed} skipped {n_cancelled}')
+
+        if n_failed > 0:
+            raise PipelineException('pipeline failed')
+        else:
+            print('INFO: pipeline successful')
+
 
 def round_up(x):
     i = int(x)
@@ -641,6 +663,10 @@ class HackBackend(Backend):
         pass
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+        if dry_run:
+            print('do stuff')
+            return
+
         runner = HackRunner(pipeline, verbose)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(runner.run())

@@ -3,7 +3,7 @@ import os
 import subprocess as sp
 import tempfile
 
-from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, PipelineException
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, HackBackend, PipelineException
 
 gcs_input_dir = os.environ.get('SCRATCH') + '/input'
 gcs_output_dir = os.environ.get('SCRATCH') + '/output'
@@ -289,15 +289,9 @@ class LocalTests(unittest.TestCase):
         p.run()
 
 
-class BatchTests(unittest.TestCase):
-    def setUp(self):
-        self.backend = BatchBackend(os.environ.get('BATCH_URL'))
-
-    def tearDown(self):
-        self.backend.close()
-
+class HackTests(unittest.TestCase):
     def pipeline(self):
-        return Pipeline(backend=self.backend,
+        return Pipeline(backend=HackBackend(),
                         default_image='google/cloud-sdk:237.0.0-alpine',
                         attributes={'foo': 'a', 'bar': 'b'})
 
