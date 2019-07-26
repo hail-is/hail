@@ -1336,6 +1336,9 @@ object BlockMatrixFilterRDD {
 // checked in Python: keepRows and keepCols non-empty, increasing, valid range
 private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepCols: Array[Long])
   extends RDD[((Int, Int), BDM[Double])](bm.blocks.sparkContext, Nil) {
+  log.info("Constructing BlockMatrixFilterRDD")
+
+  val t0 = System.nanoTime()
   
   private val originalGP = bm.gp
 
@@ -1371,6 +1374,8 @@ private class BlockMatrixFilterRDD(bm: BlockMatrix, keepRows: Array[Long], keepC
   private val blockIndices = blockParentMap.keys.toArray.sorted
   private val newGPMaybeBlocks: Option[Array[Int]] = if (blockIndices.length == tempDenseGP.maxNBlocks) None else Some(blockIndices)
   private val newGP = tempDenseGP.copy(maybeBlocks = newGPMaybeBlocks)
+
+  log.info(s"Finished constructing block matrix filter RDD. Total time ${System.nanoTime() - t0}")
 
   protected def getPartitions: Array[Partition] =
     Array.tabulate(newGP.numPartitions) { partitionIndex =>
