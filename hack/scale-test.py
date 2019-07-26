@@ -24,6 +24,6 @@ for i in range(N):
         t = p.new_task(f'X{i},{j}')
         a = n[i]
         b = m[j]
-        t.command(f'cat {a.ofile} {b.ofile} | sum > {t.ofile}')
+        t.command(f'cat {a.ofile} {b.ofile} | sum > {t.sum}')
 
-        p.write_output(t2.sum, 'gs://hail-cseed/cs-hack/x/sum_{i}_{j}.txt')
+        p.write_output(t.sum, 'gs://hail-cseed/cs-hack/x/sum_{i}_{j}.txt')
