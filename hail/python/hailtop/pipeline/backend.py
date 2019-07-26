@@ -612,7 +612,7 @@ class HackRunner:
 
         print(f'INFO: requested cpu {t._cpu} mem {t._memory} disk {t._storage}, allocated n1-{machine_type}-{cores}, {storage_gb}GB')
 
-        await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-{machine_type}-{cores} --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size={storage_gb}GB --boot-disk-type=pd-ssd')
+        await check_shell(f'gcloud -q compute instances create cs-hack-{token} --zone={ZONE} --async --machine-type=n1-{machine_type}-{cores} --network=default --network-tier=PREMIUM --metadata=master=cs-hack-master,token={token},startup-script-url=gs://hail-cseed/cs-hack/task-startup.sh,shutdown-script-url=gs://hail-cseed/cs-hack/task-shutdown.sh --no-restart-on-failure --maintenance-policy=TERMINATE --preemptible --scopes=https://www.googleapis.com/auth/cloud-platform --image=cs-hack --boot-disk-size={storage_gb}GB --boot-disk-type=pd-ssd')
 
         print(f'INFO: launched task {t._uid} {t.name} token {token}')
 
@@ -629,8 +629,8 @@ class HackRunner:
 
             for t, n in self.task_n_pending_parents.items():
                 if n == 0:
-                    print(f'INFO: task {t._uid} {t.name} ready')
                     await self.ready.put(t)
+                    print(f'INFO: task {t._uid} {t.name} ready')
 
             while True:
                 t = await self.ready.get()
