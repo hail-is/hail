@@ -6,6 +6,11 @@
 
 sortedcontainers google-api-python-client google-cloud==0.32.0
 
+ - FIXME why wasn't heal running?
+ - shorten timeout on logging?
+ - run logging in separate thread and let it feed events through janus queue?
+ - 
+
  - semaphore should track cores, not instances
 
  - make throttle limit an option

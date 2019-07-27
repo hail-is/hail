@@ -25,7 +25,30 @@ from .utils import PipelineException
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
-logging.basicConfig(level=logging.INFO)
+def configure_logging():
+    # GMT
+    logging.Formatter.converter = time.gmtime
+
+    fmt = logging.Formatter(
+        # NB: no space after levename because WARNING is so long
+        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+        '%(message)s')
+
+    fh = logging.FileHandler('pipeline.log')
+    fh.setFormatter(fmt)
+    fh.setLevel(logging.DEBUG)
+
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    sh.setLevel(logging.INFO)
+
+    logging.basicConfig(
+        handlers=[fh, sh],
+        level=logging.DEBUG,
+        # FIXME microseconds
+        datefmt='%Y-%m-%dT%H:%M:%S%z')
+
+configure_logging()
 log = logging.getLogger('pipeline')
 
 async def anext(ait):
@@ -57,6 +80,7 @@ class EntryIterator:
     def __init__(self, gservices):
         self.gservices = gservices
         self.mark = time.time()
+        log.debug(f'initial mark {self.mark}')
         self.entries = None
         self.latest = None
 
@@ -70,16 +94,19 @@ class EntryIterator:
             try:
                 entry = await anext(self.entries)
                 timestamp = entry.timestamp.timestamp()
+                log.debug(f'got entry timestamp {timestamp}')
                 if not self.latest:
+                    log.debug('new latest')
                     self.latest = timestamp
-                # this can potentially drop entries with identical timestamp
-                # fix is to track insertIds
-                if timestamp <= self.mark:
+                if timestamp < self.mark:
+                    log.debug('timestamp older than mark')
                     raise StopIteration
                 return entry
             except StopIteration:
                 if self.latest and self.mark < self.latest:
+                    log.debug(f'mark {self.latest} => {self.mark}')
                     self.mark = self.latest
+                log.debug('end of list entries stream')
                 self.entries = None
                 self.latest = None
 
@@ -96,10 +123,17 @@ class PagedIterator:
         while True:
             if self.page is None:
                 await asyncio.sleep(5)
-                self.page = next(self.pages)
+                try:
+                    log.info('getting new page...')
+                    self.page = next(self.pages)
+                    log.debug('got new page')
+                except StopIteration:
+                    log.debug('end of pages')
+                    raise
             try:
                 return next(self.page)
             except StopIteration:
+                log.debug('end of page')
                 self.page = None
 
 class GClients:
@@ -599,7 +633,9 @@ class GRunner:
                 if self.instances:
                     # 0 is the smalltest (oldest)
                     inst = self.instances[0]
-                    if time.time() - inst.last_updated > 60:
+                    inst_age = time.time() - inst.last_updated
+                    log.debug(f'heal: oldest {inst} age {inst_age}s')
+                    if inst_age > 60:
                         await inst.heal()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
