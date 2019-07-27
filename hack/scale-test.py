@@ -5,7 +5,9 @@ N = int(sys.argv[1])
 M = int(sys.argv[2])
 print(f'N {N} M {M}')
 
-p = pipeline.Pipeline(backend=pipeline.HackBackend(), default_image='ubuntu:18.04')
+p = pipeline.Pipeline(
+    backend=pipeline.GoogleBackend('gs://hail-cseed/cs-hack/tmp'),
+    default_image='ubuntu:18.04')
 
 n = []
 for i in range(N):
