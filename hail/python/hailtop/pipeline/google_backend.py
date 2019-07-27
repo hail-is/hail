@@ -211,7 +211,7 @@ class GTask:
             assert n > 0
             n -= 1
             c.n_pending_parents = n
-            log.info('{c} now waiting on {n} parents')
+            log.info(f'{c} now waiting on {n} parents')
             if n == 0:
                 await runner.pool.call(runner.launch, c)
 
@@ -257,7 +257,7 @@ class Instance:
         runner.instances.add(self)
 
     async def detach(self):
-        if self.task.active_inst is self:
+        if self.task and self.task.active_inst is self:
             t = self.task
             self.task = None
             t.active_inst = None
@@ -279,7 +279,7 @@ class Instance:
 
     async def mark_preempted(self):
         await self.detach()
-        await self.runner.gservices.delete_instance('pipeline-{self.token}')
+        await self.runner.gservices.delete_instance(f'pipeline-{self.token}')
         log.info('deleted preempted {self}')
 
     async def mark_complete(self):
@@ -299,7 +299,7 @@ class Instance:
             await self.detach()
 
         if not self.task:
-            await self.runner.gservices.delete_instance('pipeline-{self.token}')
+            await self.runner.gservices.delete_instance(f'pipeline-{self.token}')
             log.info('heal: deleted {self}')
 
         self.update_timestamp()
@@ -379,7 +379,7 @@ class GRunner:
         return web.Response()
 
     async def set_state(self, t, state, complete_inst_token):
-        t.set_state(state, complete_inst_token)
+        await t.set_state(self, state, complete_inst_token)
         self.changed.set()
 
     async def mark_complete(self, status):
@@ -572,7 +572,7 @@ class GRunner:
         while True:
             try:
                 if self.instances:
-                    # 0 is the smalltest (earliest)
+                    # 0 is the smalltest (oldest)
                     inst = self.instances[0]
                     if time.time() - inst.last_updated > 60:
                         await inst.heal()
@@ -604,6 +604,7 @@ class GRunner:
 
             while self.n_pending != 0 or self.instances:
                 await self.changed.wait()
+                log.info(f'changed n_pending {self.n_pending} n_instances {len(self.instances)}')
                 self.changed.clear()
         finally:
             if site:
