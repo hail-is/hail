@@ -42,7 +42,7 @@ class AsyncWorkerPool:
         while True:
             try:
                 f, args, kwargs = await self.queue.get()
-                f(*args, **kwargs)
+                await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -256,7 +256,7 @@ class Instance:
         runner.token_inst[inst_token] = self
         runner.instances.add(self)
 
-    def detach(self):
+    async def detach(self):
         if self.task.active_inst is self:
             t = self.task
             self.task = None
@@ -296,7 +296,7 @@ class Instance:
         status = spec['status']
 
         if status in ('TERMINATED', 'STOPPING'):
-            self.detach()
+            await self.detach()
 
         if not self.task:
             await self.runner.gservices.delete_instance('pipeline-{self.token}')
@@ -426,6 +426,7 @@ class GRunner:
             'name': pt.name,
             'inst_token': inst_token,
             'task_token': t.token,
+            'scratch_dir': self.scratch_dir,
             'inputs_cmd': inputs_cmd,
             'image': pt._image,
             'command': cmd,
@@ -440,7 +441,7 @@ class GRunner:
 
         config = {
             'name': f'pipeline-{inst_token}',
-            'machineType': 'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{t.cores}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{t.cores}',
             'labels': {
                 'role': 'pipeline_worker',
                 'inst_token': inst_token
@@ -514,7 +515,7 @@ class GRunner:
 
             await self.inst_semaphore.acquire()
             try:
-                await self.launch2(self, t)
+                await self.launch2(t)
                 return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -544,7 +545,7 @@ class GRunner:
 
         if event_type == 'GCE_OPERATION_DONE':
             if event_subtype in ('compute.instances.delete', 'compute.instances.preempted'):
-                if name.starts_with('pipeline-'):
+                if name.startswith('pipeline-'):
                     inst_token = name[9:]
                     inst = self.token_inst.get(inst_token)
                     if inst:
@@ -565,7 +566,7 @@ class GRunner:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.error('event loop failed due to exception')
+                log.exception('event loop failed due to exception')
 
     async def heal(self):
         while True:
@@ -573,11 +574,12 @@ class GRunner:
                 if self.instances:
                     # 0 is the smalltest (earliest)
                     inst = self.instances[0]
-                    await inst.heal(self)
+                    if time.time() - inst.last_updated > 60:
+                        await inst.heal()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.error('heal failed due to exception')
+                log.exception('heal failed due to exception')
             await asyncio.sleep(1)
 
     async def run(self):
@@ -600,7 +602,7 @@ class GRunner:
                 if not t.parents:
                     await self.pool.call(self.launch, t)
 
-            while self.n_pending == 0 and not self.instances:
+            while self.n_pending != 0 or self.instances:
                 await self.changed.wait()
                 self.changed.clear()
         finally:

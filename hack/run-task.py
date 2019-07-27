@@ -7,7 +7,9 @@ import requests
 with open('/config.json') as f:
     config = json.loads(f.read())
 
-token = config['token']
+task_token = config['task_token']
+inst_token = config['inst_token']
+scratch_dir = config['scratch_dir']
 inputs_cmd = config['inputs_cmd']
 image = config['image']
 cmd = config['command']
@@ -39,7 +41,7 @@ def docker_run(name, image, cmd):
     print(f'ec {name} {ec}')
 
     local_log = f'{name}.log'
-    gs_log = f'gs://hail-cseed/cs-hack/tmp/{token}/{name}.log'
+    gs_log = f'{scratch_dir}/{inst_token}/{name}.log'
 
     check_shell(f'docker logs {container_id} > {shq(local_log)} 2>&1')
     check_shell(f'gsutil cp {shq(local_log)} {shq(gs_log)}')
@@ -50,7 +52,8 @@ def docker_run(name, image, cmd):
 input_ec = docker_run('input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
 
 status = {
-    'token': token,
+    'task_token': task_token,
+    'inst_token': inst_token,
     'input': input_ec
 }
 
