@@ -294,13 +294,14 @@ class Instance:
                 return
 
         status = spec['status']
+        log.info(f'heal: 'pipeline-{self.token}' status {status}')
 
         if status in ('TERMINATED', 'STOPPING'):
             await self.detach()
 
         if not self.task:
             await self.runner.gservices.delete_instance(f'pipeline-{self.token}')
-            log.info('heal: deleted {self}')
+            log.info(f'heal: deleted instance pipeline-{self.token}')
 
         self.update_timestamp()
 
