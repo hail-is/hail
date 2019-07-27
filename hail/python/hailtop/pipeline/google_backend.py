@@ -271,6 +271,7 @@ class Instance:
 
         self.token = inst_token
         self.last_updated = time.time()
+        self.deleted = False
 
         runner.token_inst[inst_token] = self
         runner.instances.add(self)
@@ -299,7 +300,8 @@ class Instance:
     async def mark_preempted(self):
         await self.detach()
         await self.runner.gservices.delete_instance(f'pipeline-{self.token}')
-        log.info('deleted preempted {self}')
+        self.deleted = True
+        log.info(f'deleted preempted {self}')
 
     async def mark_complete(self):
         self.update_timestamp()
@@ -315,11 +317,16 @@ class Instance:
         status = spec['status']
         log.info(f'heal: pipeline-{self.token} status {status}')
 
+        if status == 'TERMINATED' and self.deleted:
+            await self.mark_deleted()
+            return
+
         if status in ('TERMINATED', 'STOPPING'):
             await self.detach()
 
         if not self.task:
             await self.runner.gservices.delete_instance(f'pipeline-{self.token}')
+            self.deleted = True
             log.info(f'heal: deleted instance pipeline-{self.token}')
 
         self.update_timestamp()

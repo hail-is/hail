@@ -6,6 +6,8 @@
 
 sortedcontainers google-api-python-client google-cloud==0.32.0
 
+ - semaphore should track cores, not instances
+
  - make throttle limit an option
 
  - make master figure out its name
