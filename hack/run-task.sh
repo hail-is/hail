@@ -5,14 +5,14 @@ docker info
 
 mkdir /shared
 
-TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/token")
+INST_DIR=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_dir")
 
-gsutil cp gs://hail-cseed/cs-hack/tmp/$TOKEN/config.json /config.json
+gsutil cp $INST_DIR/config.json /config.json
 
-python3 /run-task.py >run-task2.out 2>run-task2.err
+python3 /run-task.py >run-task2.log 2>&1
 echo $? > run-task2.ec
 
-gsutil cp run-task2.out run-task2.err run-task2.ec gs://hail-cseed/cs-hack/tmp/$TOKEN/
+gsutil cp run-task2.log run-task2.ec $INST_DIR/
 
 # terminate
 export NAME=$(curl http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')

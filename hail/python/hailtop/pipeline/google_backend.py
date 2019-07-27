@@ -487,8 +487,8 @@ class GRunner:
                     'key': 'master',
                     'value': 'cs-hack-master'
                 }, {
-                    'key': 'inst_token',
-                    'value': inst_token
+                    'key': 'inst_dir',
+                    'value': f'{self.scratch_dir}/{inst_token}'
                 }, {
                     'key': 'startup-script-url',
                     'value': 'gs://hail-cseed/cs-hack/task-startup.sh'

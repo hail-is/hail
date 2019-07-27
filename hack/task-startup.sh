@@ -5,4 +5,4 @@ gsutil -m cp gs://hail-cseed/cs-hack/run-task.sh gs://hail-cseed/cs-hack/run-tas
 
 chmod +x /run-task.sh
 
-nohup /run-task.sh >/run-task1.out 2>/run-task1.err &
+nohup /run-task.sh >/run-task1.log 2>&1 &
