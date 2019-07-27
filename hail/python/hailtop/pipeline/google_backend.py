@@ -6,12 +6,14 @@ import random
 import secrets
 import logging
 import json
+import threading
 import urllib.parse
 import asyncio
 import concurrent
 from shlex import quote as shq
 from aiohttp import web
 import sortedcontainers
+import httplib2
 
 import googleapiclient.discovery
 import google.cloud.storage
@@ -109,6 +111,14 @@ class GServices:
         self.compute_client = googleapiclient.discovery.build('compute', 'v1')
         self.loop = asyncio.get_event_loop()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+        self.local_http = threading.local()
+
+    def get_http(self):
+        http = getattr(self.local_http, 'http', None)
+        if http is None:
+            http = httplib2.Http()
+            self.local_http.http = http
+        return http
 
     async def run_in_pool(self, f, *args, **kwargs):
         return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
@@ -134,16 +144,22 @@ class GServices:
 
     # compute
     async def get_instance(self, instance):
-        return await self.run_in_pool(
-            self.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute)  # pylint: disable=no-member
+        async def get():
+            self.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute(http=self.get_http())  # pylint: disable=no-member
+
+        return await self.run_in_pool(get)
 
     async def create_instance(self, body):
-        return await self.run_in_pool(
-            self.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute)  # pylint: disable=no-member
+        async def create():
+            self.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute(http=self.get_http())  # pylint: disable=no-member
+
+        return await self.run_in_pool(create)
 
     async def delete_instance(self, instance):
-        return await self.run_in_pool(
-            self.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute)  # pylint: disable=no-member
+        async def delete():
+            self.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute(http=self.get_http())  # pylint: disable=no-member
+
+        return await self.run_in_pool(delete)
 
 
 def round_up(x):
@@ -507,7 +523,7 @@ class GRunner:
             await self.set_state(t, 'SKIPPED', None)
             return
 
-        delay = 1
+        delay = 5
         while True:
             if t.state:
                 return
@@ -521,7 +537,7 @@ class GRunner:
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
-                log.exception('launch {t} failed due to exception, will retry')
+                log.exception(f'launch {t} failed due to exception, will retry')
                 self.inst_semaphore.release()
                 await asyncio.sleep(delay * random.uniform(1, 1.25))
                 delay = min(delay * 2, 180)
