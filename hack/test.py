@@ -1,6 +1,8 @@
 from hailtop import pipeline
 
-p = pipeline.Pipeline(backend=pipeline.HackBackend(), default_image='ubuntu:18.04')
+p = pipeline.Pipeline(
+    backend=pipeline.GoogleBackend('gs://hail-cseed/cs-hack/tmp'),
+    default_image='ubuntu:18.04')
 
 input = p.read_input('gs://hail-cseed/cs-hack/input.txt')
 

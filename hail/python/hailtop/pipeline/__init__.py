@@ -1,7 +1,7 @@
 import nest_asyncio
 
 from .pipeline import Pipeline
-from .backend import LocalBackend, BatchBackend, HackBackend
+from .backend import LocalBackend, BatchBackend
 from .google_backend import GoogleBackend
 from .utils import PipelineException
 

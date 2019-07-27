@@ -4,6 +4,8 @@
    - pre-pull used docker images
    - google libraries
 
+sortedcontainers google-api-python-client google-cloud==0.32.0
+
  - make throttle limit an option
 
  - make master figure out its name
