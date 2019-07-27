@@ -25,14 +25,18 @@ from .utils import PipelineException
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
-def configure_logging():
-    # GMT
-    logging.Formatter.converter = time.gmtime
+class UTCFormatter(logging.Formatter):
+    converter = time.gmtime
 
-    fmt = logging.Formatter(
+def configure_logging():
+    log = logging.getLogger('pipeline')
+
+    fmt = UTCFormatter(
         # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
+        '%(levelname)s\t| %(asctime)s | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
+        '%(message)s',
+        # FIXME microseconds
+        datefmt='%Y-%m-%dT%H:%M:%SZ')
 
     fh = logging.FileHandler('pipeline.log')
     fh.setFormatter(fmt)
@@ -42,14 +46,13 @@ def configure_logging():
     sh.setFormatter(fmt)
     sh.setLevel(logging.INFO)
 
-    logging.basicConfig(
-        handlers=[fh, sh],
-        level=logging.DEBUG,
-        # FIXME microseconds
-        datefmt='%Y-%m-%dT%H:%M:%S%z')
+    log.addHandler(fh)
+    log.addHandler(sh)
 
-configure_logging()
-log = logging.getLogger('pipeline')
+    log.setLevel(logging.DEBUG)
+    return log
+
+log = configure_logging()
 
 async def anext(ait):
     return await ait.__anext__()
