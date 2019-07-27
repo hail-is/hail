@@ -6,6 +6,8 @@ import random
 import secrets
 import logging
 import json
+import threading
+import concurrent
 import urllib.parse
 import asyncio
 from shlex import quote as shq
@@ -94,26 +96,43 @@ class PagedIterator:
         while True:
             if self.page is None:
                 await asyncio.sleep(5)
-                self.page = await self.gservices.run_in_pool(next, self.pages)
+                self.page = next(self.pages)
             try:
                 return next(self.page)
             except StopIteration:
                 self.page = None
 
+class GClients:
+    def __init__(self):
+        self.storage_client = google.cloud.storage.Client()
+        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
 
 class GServices:
     def __init__(self):
         self.logging_client = google.cloud.logging.Client()
-        self.storage_client = google.cloud.storage.Client()
-        self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+        self.local_clients = threading.local()
+        self.loop = asyncio.get_event_loop()
+        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
+
+    def get_clients(self):
+        clients = getattr(self.local_clients, 'clients', None)
+        if clients is None:
+            clients = GClients()
+            self.local_clients.clients = clients
+        return clients
+
+    async def run_in_pool(self, f, *args, **kwargs):
+        return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
 
     # storage
-    async def get_bucket(self, name):
-        return self.storage_client.get_bucket(name)
+    async def upload_from_string(self, bucket_name, path, data):
+        def upload():
+            clients = self.get_clients()
+            bucket = clients.storage_client.get_bucket(bucket_name)
+            blob = bucket.blob(path)
+            blob.upload_from_string(data)
 
-    async def upload_from_string(self, bucket, path, data):
-        blob = bucket.blob(path)
-        blob.upload_from_string(data)
+        return await self.run_in_pool(upload)
 
     # logging
     async def list_entries(self):
@@ -127,13 +146,23 @@ class GServices:
 
     # compute
     async def get_instance(self, instance):
-        return self.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+        def get():
+            clients = self.get_clients()
+            return clients.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+
+        return await self.run_in_pool(get)
 
     async def create_instance(self, body):
-        return self.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute()  # pylint: disable=no-member
+        def create():
+            clients = self.get_clients()
+            return clients.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute()  # pylint: disable=no-member
+        return await self.run_in_pool(create)
 
     async def delete_instance(self, instance):
-        return self.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+        def delete():
+            clients = self.get_clients()
+            return clients.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
+        return await self.run_in_pool(delete)
 
 
 def round_up(x):
@@ -321,19 +350,18 @@ class GRunner:
 
         self.gservices = GServices()
 
-        self.pool = AsyncWorkerPool(16)
+        self.pool = AsyncWorkerPool(100)
 
         self.scratch_dir = scratch_dir
         parsed_scratch_dir = urllib.parse.urlparse(self.scratch_dir)
 
         self.scratch_dir_bucket_name = parsed_scratch_dir.netloc
-        self.scratch_dir_bucket = None # filled in by async_init
 
         self.scratch_dir_path = parsed_scratch_dir.path
         while self.scratch_dir_path and self.scratch_dir_path[0] == '/':
             self.scratch_dir_path = self.scratch_dir_path[1:]
 
-        self.inst_semaphore = asyncio.Semaphore(10)
+        self.inst_semaphore = asyncio.Semaphore(1000)
         self.changed = asyncio.Event()
 
         self.n_pending = len(pipeline._tasks)
@@ -361,9 +389,6 @@ class GRunner:
             web.post('/status', self.handle_status)
         ])
 
-    async def async_init(self):
-        self.scratch_dir_bucket = await self.gservices.get_bucket(self.scratch_dir_bucket_name)
-
     async def handle_status(self, request):
         status = await request.json()
         await self.mark_complete(status)
@@ -376,7 +401,9 @@ class GRunner:
     async def mark_complete(self, status):
         task_token = status['task_token']
         complete_inst_token = status['inst_token']
-        t = self.token_task[task_token]
+        t = self.token_task.get(task_token)
+        if not t:
+            log.warning('received /status for unknown task token {task_token}')
 
         if all(status.get(name, 0) == 0 for name in ['input', 'main', 'output']):
             state = 'OK'
@@ -425,7 +452,7 @@ class GRunner:
         }
 
         await self.gservices.upload_from_string(
-            self.scratch_dir_bucket,
+            self.scratch_dir_bucket_name,
             f'{self.scratch_dir_path}/{inst_token}/config.json',
             json.dumps(config))
         log.info(f'uploaded {t} {inst_token} config.json')
@@ -574,8 +601,6 @@ class GRunner:
             await asyncio.sleep(1)
 
     async def run(self):
-        await self.async_init()
-
         log.info(f'running pipeline...')
 
         app_runner = None
