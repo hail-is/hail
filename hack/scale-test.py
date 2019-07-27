@@ -26,6 +26,6 @@ for i in range(N):
         b = m[j]
         t.command(f'cat {a.ofile} {b.ofile} | sum > {t.sum}')
 
-        p.write_output(t.sum, 'gs://hail-cseed/cs-hack/x/sum_{i}_{j}.txt')
+        p.write_output(t.sum, f'gs://hail-cseed/cs-hack/x/sum{i},{j}.txt')
 
 p.run()

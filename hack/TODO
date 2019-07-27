@@ -2,19 +2,17 @@
    - add emacs-nox to image
    - installed pip packages to image
    - pre-pull used docker images
-
+   - google libraries
 
  - make throttle limit an option
+
  - make master figure out its name
  - status UI
  - update throttle via endpoint
- - n-way launch tasks
- - more proper logging, including output for invoked tasks
- - merge out and err
- - make pre-emptible
+ - merge out and err in run-task2 logs
 
- - run scale tests 30, 300, 3K, 30K, 300K, 3M
-
+ - run scale tests: 300, 3K, 30K, 300K, 3M
+   - done: 30
 
 
  - run tests (later)
