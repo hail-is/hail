@@ -398,7 +398,7 @@ class GRunner:
 
     async def handle_status(self, request):
         status = await request.json()
-        await self.mark_complete(status)
+        await asyncio.shield(self.mark_complete(status))
         return web.Response()
 
     async def set_state(self, t, state, complete_inst_token):
