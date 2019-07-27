@@ -816,7 +816,7 @@ object Interpret {
               val (rTyp: PTuple, f) = CompileWithAggregators2[Long, Long](
                 extracted.aggs,
                 "global", value.globals.t,
-                Let(res, extracted.results, MakeTuple(FastSeq(extracted.postAggIR))))
+                Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
               assert(rTyp.types(0).virtualType == query.typ)
 
               val aggResults = value.rvd.combine[Array[Byte]](
