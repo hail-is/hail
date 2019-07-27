@@ -560,6 +560,16 @@ class RVD(
   }
 
   // Aggregating
+  // used in Interpret by TableAggregate2
+  def combine[U: ClassTag](
+    zeroValue: U,
+    itF: (Int, RVDContext, Iterator[RegionValue]) => U,
+    combOp: (U, U) => U): U = {
+    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(itF(i, ctx, it)) }
+    val ac = new AssociativeCombiner(zeroValue, combOp)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    ac.result()
+  }
 
   // used in Interpret by TableAggregate, MatrixAggregate
   def aggregateWithPartitionOp[PC, U: ClassTag](
