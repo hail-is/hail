@@ -294,7 +294,7 @@ class Instance:
                 return
 
         status = spec['status']
-        log.info(f'heal: 'pipeline-{self.token}' status {status}')
+        log.info(f'heal: pipeline-{self.token} status {status}')
 
         if status in ('TERMINATED', 'STOPPING'):
             await self.detach()
