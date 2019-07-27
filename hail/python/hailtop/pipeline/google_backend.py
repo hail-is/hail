@@ -6,14 +6,11 @@ import random
 import secrets
 import logging
 import json
-import threading
 import urllib.parse
 import asyncio
-import concurrent
 from shlex import quote as shq
 from aiohttp import web
 import sortedcontainers
-import httplib2
 
 import googleapiclient.discovery
 import google.cloud.storage
@@ -109,34 +106,20 @@ class GServices:
         self.logging_client = google.cloud.logging.Client()
         self.storage_client = google.cloud.storage.Client()
         self.compute_client = googleapiclient.discovery.build('compute', 'v1')
-        self.loop = asyncio.get_event_loop()
-        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
-        self.local_http = threading.local()
-
-    def get_http(self):
-        http = getattr(self.local_http, 'http', None)
-        if http is None:
-            http = httplib2.Http()
-            self.local_http.http = http
-        return http
-
-    async def run_in_pool(self, f, *args, **kwargs):
-        return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
 
     # storage
     async def get_bucket(self, name):
-        return await self.run_in_pool(self.storage_client.get_bucket, name)
+        return self.storage_client.get_bucket(name)
 
     async def upload_from_string(self, bucket, path, data):
-        blob = await self.run_in_pool(bucket.blob, path)
-        await self.run_in_pool(blob.upload_from_string, data)
+        blob = bucket.blob(path)
+        blob.upload_from_string(data)
 
     # logging
     async def list_entries(self):
         filter = f'logName:projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log'
         await asyncio.sleep(5)
-        entries = await self.run_in_pool(
-            self.logging_client.list_entries, filter_=filter, order_by=google.cloud.logging.DESCENDING)
+        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING)
         return PagedIterator(self, entries.pages)
 
     async def stream_entries(self):
@@ -144,22 +127,13 @@ class GServices:
 
     # compute
     async def get_instance(self, instance):
-        async def get():
-            self.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute(http=self.get_http())  # pylint: disable=no-member
-
-        return await self.run_in_pool(get)
+        return self.compute_client.instances().get(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
 
     async def create_instance(self, body):
-        async def create():
-            self.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute(http=self.get_http())  # pylint: disable=no-member
-
-        return await self.run_in_pool(create)
+        return self.compute_client.instances().insert(project=PROJECT, zone=ZONE, body=body).execute()  # pylint: disable=no-member
 
     async def delete_instance(self, instance):
-        async def delete():
-            self.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute(http=self.get_http())  # pylint: disable=no-member
-
-        return await self.run_in_pool(delete)
+        return self.compute_client.instances().delete(project=PROJECT, zone=ZONE, instance=instance).execute()  # pylint: disable=no-member
 
 
 def round_up(x):
