@@ -377,9 +377,9 @@ class InstancePool:
 
     async def start(self):
         log.info('starting instance pool')
-        await asyncio.ensure_future(self.control_loop())
-        await asyncio.ensure_future(self.event_loop())
-        await asyncio.ensure_future(self.heal_loop())
+        asyncio.ensure_future(self.control_loop())
+        asyncio.ensure_future(self.event_loop())
+        asyncio.ensure_future(self.heal_loop())
         log.info('instance pool started')
 
     async def launch_instance(self):
@@ -707,7 +707,9 @@ class GRunner:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
+            log.info('starting instance pool')
             await self.inst_pool.start()
+            log.info('instance pool started')
 
             for t in self.tasks:
                 if not t.parents:

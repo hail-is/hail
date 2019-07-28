@@ -115,7 +115,7 @@ class Worker:
         self.tasks.add(task_token)
         self.free_cores -= cores
 
-        await asyncio.ensure_future(self.run_task(config))
+        asyncio.ensure_future(self.run_task(config))
 
         self.last_updated = time.time()
 
@@ -165,7 +165,7 @@ class Worker:
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post('http://{self.driver}:5000/task_complete', json=status) as resp:
+            async with session.post(f'http://{self.driver}:5000/task_complete', json=status) as resp:
                 await resp.json()
                 log.info(f'task {task_token} status posted')
                 self.last_updated = time.time()
@@ -195,10 +195,11 @@ class Worker:
         tries = 0
         while True:
             try:
-                with aiohttp.ClientSession(
+                log.info('registering')
+                async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     body = {'inst_token': self.token}
-                    with session.post('http://{self.driver}:5000/register_worker', json=body) as resp:
+                    async with session.post(f'http://{self.driver}:5000/register_worker', json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
                             break
