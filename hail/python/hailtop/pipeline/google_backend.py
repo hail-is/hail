@@ -104,7 +104,7 @@ class PagedIterator:
             if self.page is None:
                 await asyncio.sleep(5)
                 try:
-                    log.info('getting new page...')
+                    log.debug('getting new page...')
                     self.page = next(self.pages)
                     log.debug('got new page')
                 except StopIteration:
@@ -199,15 +199,41 @@ class GTask:
             self.cores = 1
         assert self.cores in (1, 2, 4, 8, 16)
 
-    def deactivate(self):
-        if self.active_inst:
-            self.active_inst.tasks.remove(self)
-            self.active_inst.inst_pool.free_cores += self.cores
-            self.active_inst = None
+    def unschedule(self):
+        if not self.active_inst:
+            return
+
+        inst = self.active_inst
+        inst_pool = inst.inst_pool
+
+        inst.tasks.remove(self)
+
+        inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores += self.cores
+        inst_pool.instances_by_free_cores.add(inst)
+        inst_pool.changed.set()
+
+        inst_pool.free_cores += self.cores
+
+        self.active_inst = None
+
+    def schedule(self, inst):
+        assert not inst.pending and inst.active
+        assert not self.active_inst
+
+        inst.tasks.add(self)
+
+        inst.inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores -= self.cores
+        inst.inst_pool.instances_by_free_cores.add(inst)
+
+        inst.inst_pool.free_cores -= self.cores
+
+        self.active_inst = inst
 
     def reschedule(self, runner):
-        self.deactivate()
-        runner.ready.add(self)
+        self.unschedule()
+        runner.ready.put_nowait(self)
         runner.ready_task_cores += self.cores
 
     async def notify_children(self, runner):
@@ -221,7 +247,7 @@ class GTask:
                 if any(p.state != 'OK' for p in self.parents):
                     await c.set_state(runner, 'SKIPPED', None)
                 else:
-                    runner.ready.add(c)
+                    runner.ready.put_nowait(c)
                     runner.ready_task_cores += c.cores
 
     async def set_state(self, runner, state, attempt_token):
@@ -230,10 +256,8 @@ class GTask:
 
         log.info(f'set_state {self} state {state} attempt_token {attempt_token}')
 
-        # detach
-        runner.ready.remove(self)
-        runner.ready_task_cores -= self.cores
-        self.deactivate()
+        # can potentially set state of task on ready queue
+        self.unschedule()
 
         self.state = state
         self.attempt_token = attempt_token
@@ -253,15 +277,30 @@ class Instance:
         self.inst_pool = inst_pool
         self.tasks = set()
         self.token = inst_token
+        self.free_cores = WORKER_CORES
+        self.pending = True
         self.active = True
         self.deleted = False
         self.last_updated = time.time()
 
+    def activate(self):
+        if not self.pending:
+            return
+        self.pending = False
+        self.inst_pool.n_active_instances += 1
+        self.inst_pool.instances_by_free_cores.add(self)
+
     def deactivate(self):
+        if self.pending:
+            assert self.active
+            self.active = False
+            return
         if not self.active:
             return
+
         self.active = False
         self.inst_pool.n_active_instances -= 1
+        self.inst_pool.instances_by_free_cores.remove(self)
         for t in self.tasks:
             assert t.active_inst == self
             t.reschedule()
@@ -287,18 +326,17 @@ class Instance:
         if self.deleted:
             return
         self.deactivate()
-        await self.inst_pool.gservices.delete_instance(f'pipeline-{self.token}')
+        await self.inst_pool.runner.gservices.delete_instance(f'pipeline-{self.token}')
         log.info(f'deleted instance {self}')
         self.deleted = True
 
     async def handle_preempt_event(self):
-        self.deactivate()
         await self.delete()
         self.update_timestamp()
 
     async def heal(self):
         try:
-            spec = await self.inst_pool.gservices.get_instance(f'pipeline-{self.token}')
+            spec = await self.inst_pool.runner.gservices.get_instance(f'pipeline-{self.token}')
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 self.remove()
@@ -330,6 +368,8 @@ class InstancePool:
         self.pool_size = pool_size
         self.max_instances = max_instances
         self.instances = sortedcontainers.SortedSet(key=lambda inst: inst.last_updated)
+        self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
+        self.changed = asyncio.Event()
         self.n_active_instances = 0
         self.free_cores = 0
         self.token_inst = {}
@@ -421,9 +461,9 @@ class InstancePool:
 
         event_type = payload['event_type']
         event_subtype = payload['event_subtype']
+        type_ = payload['resource']['type']
         resource = payload['resource']
         name = resource['name']
-        type_ = resource['type']
 
         log.info(f'event {version} {event_type} {event_subtype} {name}')
 
@@ -467,7 +507,7 @@ class InstancePool:
         while True:
             try:
                 if self.instances:
-                    # 0 is the smalltest (oldest)
+                    # 0 is the smallest (oldest)
                     inst = self.instances[0]
                     inst_age = time.time() - inst.last_updated
                     log.debug(f'heal: oldest {inst} age {inst_age}s')
@@ -531,7 +571,7 @@ class GRunner:
 
         self.n_pending = len(pipeline._tasks)
 
-        self.ready = set()
+        self.ready = asyncio.Queue()
         self.ready_task_cores = 0
 
         self.tasks = []
@@ -544,7 +584,7 @@ class GRunner:
             self.task_gtask[pt] = t
 
             if not pt._dependencies:
-                self.ready.add(t)
+                self.ready.put_nowait(t)
                 self.ready_task_cores += t.cores
 
         for t in self.tasks:
@@ -553,12 +593,31 @@ class GRunner:
                 t.parents.add(p)
                 p.children.add(t)
 
-        # FIXME break out into separate object
         self.app = web.Application()
         self.app.add_routes([
-            web.post('/get_task', self.handle_get_task),
+            web.post('/register_worker', self.handle_register_worker),
             web.post('/task_complete', self.handle_task_complete)
         ])
+
+    async def handle_register_worker(self, request):
+        return await asyncio.shield(self.handle_register_worker2(request))
+
+    async def handle_register_worker2(self, request):
+        body = await request.json()
+        inst_token = body['inst_token']
+        inst = self.inst_pool.token_inst.get(inst_token)
+        if not inst:
+            log.warning(f'/register_worker from unknown inst {inst_token}')
+            raise web.HTTPNotFound()
+
+        inst.activate()
+
+        return web.Response()
+
+    async def handle_task_complete(self, request):
+        # protect
+        await asyncio.shield(self.handle_task_complete2(request))
+        return web.Response()
 
     async def handle_task_complete2(self, request):
         status = await request.json()
@@ -577,41 +636,20 @@ class GRunner:
 
         await self.set_task_state(t, state, attempt_token)
 
-    async def handle_task_complete(self, request):
-        # protect
-        await asyncio.shield(self.handle_task_complete2(request))
-        return web.Response()
-
     async def set_task_state(self, t, state, attempt_token):
         await t.set_state(self, state, attempt_token)
         self.changed.set()
 
-    async def handle_get_task(self, request):
-        body = request.json()
-        inst_token = body['inst_token']
-        active_tasks = set(body['active_tasks'])
-
-        inst = self.inst_pool.token_inst.get(inst_token)
-        if not inst:
-            log.warning(f'/get_task from unknown inst {inst_token}')
-            return web.json_response({})
-
-        for t in inst.tasks:
-            if t not in active_tasks:
-                t.reschedule(self)
-        inst.update_timestamp()
-
-        if not self.ready:
-            return web.json_response({})
-
-        t = self.ready.pop()
-        self.ready_task_cores -= t.cores
-        assert not t.active_inst
-        assert not t.state
-
-        t.active_inst = inst
-        inst.tasks.add(t)
-        self.inst_pool.free_cores -= t.cores
+    async def execute_task(self, t, inst):
+        try:
+            t.schedule(inst)
+            config = self.get_task_config(t)
+            return web.json_response({
+                'task': config
+            })
+        except Exception as e:
+            t.reschedule()
+            raise e
 
         config = self.get_task_config(t)
         return web.json_response({
@@ -664,10 +702,32 @@ class GRunner:
 
             await self.inst_pool.start()
 
-            while self.n_pending != 0 or self.inst_pool.instances:
-                await self.changed.wait()
-                log.info(f'changed n_pending {self.n_pending} n_instances {len(self.inst_pool.instances)}')
-                self.changed.clear()
+            for t in self.tasks:
+                if not t.parents:
+                    self.ready.put_nowait(t)
+
+            while True:
+                # wait for a task
+                t = await self.ready.get()
+                if not t:
+                    break
+                if t.state:
+                    continue
+                assert not t.active_inst
+                assert not t.state
+
+                self.ready_task_cores -= t.cores
+
+                # wait for an instance
+                while True:
+                    if self.inst_pool.instances_by_free_cores:
+                        inst = self.inst_pool.instances_by_free_cores[-1]
+                        if t.cores <= inst.free_cores:
+                            break
+                    await self.inst_pool.changed.wait()
+                    self.inst_pool.changed.clear()
+
+                self.execute_task(t, inst)
         finally:
             if site:
                 await site.stop()

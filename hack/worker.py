@@ -189,7 +189,7 @@ class Worker:
             with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 body = {'inst_token': self.token}
-                with session.post('http://{self.driver}:5000/ping', json=body) as resp:
+                with session.post('http://{self.driver}:5000/register_worker', json=body) as resp:
                     if resp.status == 200:
                         self.last_updated = time.time()
                         break
@@ -211,9 +211,3 @@ worker = Worker(cores, driver, inst_token)
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
 loop.run_until_complete(loop.shutdown_asyncgens())
-
-name = os.environ['NAME']
-zone = os.environ['ZONE']
-
-# later
-# os.system(f'gcloud -q compute instances delete {name} --zone={zone}')

@@ -8,11 +8,9 @@ sortedcontainers google-api-python-client google-cloud==0.32.0
 
 GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
 
- - check cores when assigning nodes
+ - use async pool in launching tasks
 
  - log in another thread, put events on a queue
-
- - make exit cleanup function for run-worker.sh
 
  - update max_workers via api
  - make master figure out its name
