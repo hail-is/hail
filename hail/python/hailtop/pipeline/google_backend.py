@@ -235,7 +235,7 @@ class GTask:
         self.active_inst = None
 
     def schedule(self, inst):
-        assert not inst.pending and inst.active
+        assert inst.active
         assert not self.active_inst
 
         inst.tasks.add(self)
@@ -297,30 +297,41 @@ class Instance:
         self.tasks = set()
         self.token = inst_token
         self.free_cores = WORKER_CORES
+
+        # state: pending, active, deactivated (and/or deleted)
         self.pending = True
-        self.active = True
+        self.inst_pool.n_pending += 1
+
+        self.active = False
         self.deleted = False
+
         self.last_updated = time.time()
 
     def machine_name(self):
         return self.inst_pool.token_machine_name(self.token)
 
     def activate(self):
-        if not self.pending:
+        if self.deleted:
             return
-        self.pending = False
+
+        if self.pending:
+            self.pending = False
+            self.inst_pool.n_pending_parents -= 1
+
+        if self.active:
+            return
+        self.active = True
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
         self.inst_pool.changed.set()
 
     def deactivate(self):
         if self.pending:
-            assert self.active
-            self.active = False
-            return
+            self.pending = False
+            self.inst_pool.n_pending_parents -= 1
+
         if not self.active:
             return
-
         self.active = False
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.instances_by_free_cores.remove(self)
@@ -395,6 +406,7 @@ class InstancePool:
         self.instances = sortedcontainers.SortedSet(key=lambda inst: inst.last_updated)
         self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
         self.changed = asyncio.Event()
+        self.n_pending_instances = 0
         self.n_active_instances = 0
         self.free_cores = 0
         self.token_inst = {}
@@ -564,13 +576,14 @@ class InstancePool:
     async def control_loop(self):
         while True:
             try:
-                log.info(f'n_active_instances {self.n_active_instances}'
+                log.info(f'n_pending_instances {self.n_pending_instances}'
+                         f'n_active_instances {self.n_active_instances}'
                          f' pool_size {self.pool_size}'
                          f' n_instances {len(self.instances)}'
                          f' max_instances {self.max_instances}'
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_task_cores}')
-                while (self.n_active_instances < self.pool_size and
+                while ((self.n_pending_instances + self.n_active_instances) < self.pool_size and
                        len(self.instances) < self.max_instances and
                        self.free_cores < self.runner.ready_task_cores):
                     await self.create_instance()
@@ -787,7 +800,7 @@ class GRunner:
 
                 self.ready_task_cores -= t.cores
 
-                self.pool.call(self.execute_task, t, inst)
+                await self.pool.call(self.execute_task, t, inst)
         finally:
             if site:
                 await site.stop()
