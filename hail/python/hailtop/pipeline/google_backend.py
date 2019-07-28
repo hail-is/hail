@@ -573,11 +573,14 @@ class InstancePool:
             return
 
         if event_subtype == 'compute.instances.preempted':
+            log.info('event handler: handle preempt {isnt}')
             await inst.handle_preempt_event()
         elif event_subtype == 'compute.instances.delete':
             if event_type == 'GCE_OPERATION_DONE':
+                log.info('event handler: remove {inst}')
                 inst.remove()
             elif event_type == 'GCE_API_CALL':
+                log.info('event handler: handle call delete {inst}')
                 inst.handle_call_delete_event()
             else:
                 log.warning(f'unknown event type {event_type}')

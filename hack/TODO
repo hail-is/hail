@@ -10,8 +10,6 @@ rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
- - run 30 kill a node
-
  - check event loop (kill a node ...)
 
  - keep an eye out for intermittent gsutil errors
@@ -27,7 +25,7 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
  - status UI
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
-   - done: 30, 300 (twice in a row)
+   - done: 30, 300 (3 in a row, 1 with deleted node)
 
  - run tests (later)
 
