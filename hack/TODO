@@ -48,3 +48,6 @@ curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetada
 
 44 681 => 30689
 (+ 44 681 (* 44 681))
+
+136 2200 => 301.5K
+(+ 136 2200 (* 136 2200))
