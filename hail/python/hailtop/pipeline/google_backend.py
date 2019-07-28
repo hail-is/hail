@@ -25,9 +25,8 @@ HOSTNAME = socket.gethostname()
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
-def new_token():
-    # 36**7 / 12000000.0 ~ 6.5K
-    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(7)])
+def new_token(n=5):
+    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
@@ -443,9 +442,10 @@ class InstancePool:
         log.info('instance pool started')
 
     async def create_instance(self):
-        inst_token = new_token()
-        while inst_token in self.token_inst:
+        while True:
             inst_token = new_token()
+            if inst_token not in self.token_inst:
+                break
         # reserve
         self.token_inst[inst_token] = None
 
@@ -661,9 +661,11 @@ class GRunner:
         self.token_task = {}
         self.task_gtask = {}
         for pt in pipeline._tasks:
-            task_token = new_token()
-            while task_token in self.token_task:
-                task_token = new_token()
+            while True:
+                # 36**7 / 12000000.0 ~ 6.5K
+                task_token = new_token(7)
+                if task_token not in self.token_task:
+                    break
             t = GTask(pt, task_token)
             self.token_task[t.token] = t
             self.tasks.append(t)

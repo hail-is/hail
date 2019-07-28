@@ -96,7 +96,7 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
 
     log.info(f'uploading logs for {full_step}')
 
-    gs_log = f'{scratch_dir}/{attempt_token}/{step_name}.log'
+    gs_log = f'{scratch_dir}/{task_token}/{attempt_token}/{step_name}.log'
     await check_shell(f'docker logs {container_id} 2>&1 | gsutil cp - {shq(gs_log)}')
 
     asyncio.ensure_future(docker_delete_container(container_id))
