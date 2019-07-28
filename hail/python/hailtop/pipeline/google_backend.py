@@ -284,8 +284,7 @@ class GTask:
             c.n_pending_parents = n
             log.info(f'{c} now waiting on {n} parents')
             if n == 0:
-                assert all(p.state for p in self.parents)
-                if any(p.state != 'OK' for p in self.parents):
+                if any(p.state != 'OK' for p in c.parents):
                     c.set_state(runner, 'SKIPPED', None)
                 else:
                     c.put_on_ready(runner)

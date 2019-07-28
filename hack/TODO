@@ -10,9 +10,13 @@ rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
+ - scale test 3000
+
  - keep an eye out for intermittent gsutil errors
 
  - limit ready queue
+
+ - improve throughput by over-scheduling
 
  - move resources to somewhere like gs://hail-common/cseed/pipeline_google_backend/
 
@@ -21,7 +25,12 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
  - status UI
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
-   - done: 30, 300, 3000 (2 x metadata service connection refused)
+   - done: 30, 300
+
+ - 30K, while running:
+cotton   18233 59.1  0.7 1057796 228180 pts/1  Sl+  23:10   0:31 python3 scale-test.py 44 681
+cotton   18233 25.1  1.3 5154568 426400 pts/1  Rl+  23:10   0:38 python3 scale-test.py 44 681
+cotton   18233 23.1  1.4 5172948 453440 pts/1  Sl+  23:10   0:49 python3 scale-test.py 44 681
 
  - run tests (later)
 
@@ -33,3 +42,9 @@ curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetada
 
 11 25 => 311
 (+ 11 25 (* 11 25))
+
+33 89 => 3059
+(+ 33 89 (* 33 89))
+
+44 681 => 30689
+(+ 44 681 (* 44 681))
