@@ -527,7 +527,10 @@ class InstancePool:
     async def control_loop(self):
         while True:
             try:
-                log.info(f'n_active_instances {self.n_active_instances} n_instances {len(self.instance)} free_cores {self.free_cores} ready_cores {self.runner.ready_task_cores}')
+                log.info(f'n_active_instances {self.n_active_instances}'
+                         f' n_instances {len(self.instances)}'
+                         f' free_cores {self.free_cores}'
+                         f' ready_cores {self.runner.ready_task_cores}')
                 while (self.n_active_instances < self.pool_size and
                        len(self.instances) < self.max_instances and
                        self.free_cores < self.runner.ready_task_cores):
