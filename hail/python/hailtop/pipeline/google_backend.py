@@ -258,14 +258,14 @@ class GTask:
         if not self.on_ready:
             return
         self.on_ready = False
-        runner.ready_task_cores -= self.cores
+        runner.ready_cores -= self.cores
 
     def put_on_ready(self, runner):
         if self.on_ready:
             return
         self.unschedule()
         self.on_ready = True
-        runner.ready_task_cores += self.cores
+        runner.ready_cores += self.cores
         runner.ready.put_nowait(self)
         log.info(f'put {self} on ready')
 
@@ -597,10 +597,10 @@ class InstancePool:
                          f' n_instances {len(self.instances)}'
                          f' max_instances {self.max_instances}'
                          f' free_cores {self.free_cores}'
-                         f' ready_cores {self.runner.ready_task_cores}')
+                         f' ready_cores {self.runner.ready_cores}')
                 while ((self.n_pending_instances + self.n_active_instances) < self.pool_size and
                        len(self.instances) < self.max_instances and
-                       self.free_cores < self.runner.ready_task_cores):
+                       self.free_cores < self.runner.ready_cores):
                     await self.create_instance()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -649,7 +649,7 @@ class GRunner:
         self.n_pending_tasks = len(pipeline._tasks)
 
         self.ready = asyncio.Queue()
-        self.ready_task_cores = 0
+        self.ready_cores = 0
 
         self.tasks = []
         self.token_task = {}
@@ -662,9 +662,6 @@ class GRunner:
             self.token_task[t.token] = t
             self.tasks.append(t)
             self.task_gtask[pt] = t
-
-            if not pt._dependencies:
-                self.ready_task_cores += t.cores
 
         for t in self.tasks:
             for pp in t.task._dependencies:
