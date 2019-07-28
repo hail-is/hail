@@ -6,7 +6,9 @@
 
 sortedcontainers google-api-python-client google-cloud==0.32.0
 
-GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
+rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
+
+make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
  - pipeline-{tok}-worker-{tok}
 
