@@ -10,13 +10,13 @@ rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
- - scale test 3000
+ - scale test 300K on 1000 nodes
 
  - keep an eye out for intermittent gsutil errors
 
  - limit ready queue
 
- - improve throughput by over-scheduling
+ - improve throughput by over-scheduling?
 
  - move resources to somewhere like gs://hail-common/cseed/pipeline_google_backend/
 
@@ -25,7 +25,7 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
  - status UI
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
-   - done: 30, 300
+   - done: 30, 300, 3000, 30K
 
  - 30K, while running:
 cotton   18233 59.1  0.7 1057796 228180 pts/1  Sl+  23:10   0:31 python3 scale-test.py 44 681
