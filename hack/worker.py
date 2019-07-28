@@ -218,7 +218,7 @@ class Worker:
             await asyncio.sleep(15)
 
 
-cores = os.environ['CORES']
+cores = int(os.environ['CORES'])
 driver = os.environ['DRIVER']
 inst_token = os.environ['INST_TOKEN']
 worker = Worker(cores, driver, inst_token)
