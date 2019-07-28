@@ -406,7 +406,7 @@ class Instance:
             self.deactivate()
 
         if status == 'TERMINATED' and not self.deleted:
-            self.delete()
+            await self.delete()
 
         self.update_timestamp()
 
@@ -532,16 +532,16 @@ class InstancePool:
             log.warning('unknown event verison {version}')
             return
 
+        event_resource_type = event['resource']['type']
         event_type = payload['event_type']
         event_subtype = payload['event_subtype']
-        type_ = payload['resource']['type']
         resource = payload['resource']
         name = resource['name']
 
-        log.info(f'event {version} {event_type} {event_subtype} {name}')
+        log.info(f'event {version} {event_resource_type} {event_type} {event_subtype} {name}')
 
-        if type_ != 'gce_instance':
-            log.warning(f'unknown event resource type {type_}')
+        if event_resource_type != 'gce_instance':
+            log.warning(f'unknown event resource type {event_resource_type}')
             return
 
         if not name.startswith(self.machine_name_prefix):

@@ -73,7 +73,7 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
     attempts = 0
     while not container_id:
         try:
-            docker_cmd = f'docker run -d -v /shared:/shared {shq(image)} --cpus {cores} --memory {cores * 3.5}g /bin/bash -c {shq(cmd)}'
+            docker_cmd = f'docker run -d -v /shared:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
             log.info(f'running {full_step}: {docker_cmd}')
             container_id, _ = await check_shell_output(docker_cmd)
             container_id = container_id.decode('utf-8').strip()
