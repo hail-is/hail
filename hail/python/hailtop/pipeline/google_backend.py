@@ -384,7 +384,7 @@ class InstancePool:
 
     async def launch_instance(self):
         inst_token = secrets.token_hex(16)
-        log.info('launching instance {inst_token}')
+        log.info(f'launching instance {inst_token}')
 
         config = {
             'name': f'pipeline-{inst_token}',
@@ -652,10 +652,10 @@ class GRunner:
         try:
             t.schedule(inst)
             config = self.get_task_config(t)
-            with aiohttp.ClientSession(
+            async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 req_body = {'task': config}
-                with session.post('http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
+                async with session.post('http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
                     inst.update_timestamp()

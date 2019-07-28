@@ -120,10 +120,15 @@ class Worker:
         self.last_updated = time.time()
 
     async def run_task(self, config):
+        task_token = config['task_token']
         try:
+            log.info(f'executing task {task_token}')
             self.run_task2(config)
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'caught exception while running task {task_token}')
         finally:
-            task_token = config['task_token']
             cores = config['cores']
 
             self.tasks.remove(task_token)
@@ -137,6 +142,8 @@ class Worker:
         image = config['image']
         cmd = config['command']
         outputs_cmd = config['outputs_cmd']
+
+        log.info(f'running task {task_token} attempt {attempt_token}')
 
         input_ec = await docker_run(scratch_dir, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
 
@@ -156,10 +163,11 @@ class Worker:
 
         log.info(f'task {task_token} done: status {status}')
 
-        with aiohttp.ClientSession(
+        async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            with session.post('http://{self.driver}:5000/task_complete', json=status) as resp:
+            async with session.post('http://{self.driver}:5000/task_complete', json=status) as resp:
                 await resp.json()
+                log.info(f'task {task_token} status posted')
                 self.last_updated = time.time()
 
     async def run(self):
@@ -186,21 +194,29 @@ class Worker:
     async def run2(self):
         tries = 0
         while True:
-            with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                body = {'inst_token': self.token}
-                with session.post('http://{self.driver}:5000/register_worker', json=body) as resp:
-                    if resp.status == 200:
-                        self.last_updated = time.time()
-                        break
+            try:
+                with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    body = {'inst_token': self.token}
+                    with session.post('http://{self.driver}:5000/register_worker', json=body) as resp:
+                        if resp.status == 200:
+                            self.last_updated = time.time()
+                            break
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception('caught exception while registering')
             tries += 1
             if tries == 12:
                 # give up
                 return
             await asyncio.sleep(5 * random.uniform(1, 1.25))
 
+        log.info('registered')
+
         while self.tasks or time.time() - self.last_updated < 60:
-            await asyncio.sleep(5)
+            log.info(f'n_tasks {len(self.tasks)} age {time.time() - self.last_updated}')
+            await asyncio.sleep(15)
 
 
 cores = os.environ['CORES']
