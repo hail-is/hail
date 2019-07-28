@@ -741,6 +741,7 @@ class GRunner:
             t.schedule(inst, self)
 
             config = self.get_task_config(t)
+
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 req_body = {'task': config}
@@ -748,6 +749,8 @@ class GRunner:
                     await resp.json()
                     # FIXME update inst tasks
                     inst.update_timestamp()
+
+            log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:  # pylint: disable=broad-except
