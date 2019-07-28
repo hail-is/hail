@@ -8,6 +8,7 @@ import concurrent
 import urllib.parse
 import asyncio
 from shlex import quote as shq
+import aiohttp
 from aiohttp import web
 import sortedcontainers
 
