@@ -13,7 +13,6 @@ from aiohttp import web
 import sortedcontainers
 
 import googleapiclient.discovery
-import google.cloud.storage
 import google.cloud.logging
 
 from .backend import Backend
@@ -24,6 +23,10 @@ PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
 WORKER_CORES = 1
+
+def new_token():
+    # 36**7 / 12000000.0 ~ 6.5K
+    return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(7)])
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
@@ -53,6 +56,27 @@ def configure_logging():
 
 configure_logging()
 log = logging.getLogger('pipeline')
+
+
+class AsyncWorkerPool:
+    def __init__(self, parallelism):
+        self.queue = asyncio.Queue(maxsize=50)
+
+        for _ in range(parallelism):
+            asyncio.ensure_future(self._worker())
+
+    async def _worker(self):
+        while True:
+            try:
+                f, args, kwargs = await self.queue.get()
+                await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:  # pylint: disable=broad-except
+                log.exception(f'worker pool caught exception')
+
+    async def call(self, f, *args, **kwargs):
+        await self.queue.put((f, args, kwargs))
 
 
 async def anext(ait):
@@ -120,11 +144,11 @@ class PagedIterator:
 
 class GClients:
     def __init__(self):
-        self.storage_client = google.cloud.storage.Client()
         self.compute_client = googleapiclient.discovery.build('compute', 'v1')
 
 class GServices:
-    def __init__(self):
+    def __init__(self, machine_name_prefix):
+        self.machine_name_prefix = machine_name_prefix
         self.logging_client = google.cloud.logging.Client()
         self.local_clients = threading.local()
         self.loop = asyncio.get_event_loop()
@@ -140,24 +164,15 @@ class GServices:
     async def run_in_pool(self, f, *args, **kwargs):
         return await self.loop.run_in_executor(self.thread_pool, lambda: f(*args, **kwargs))
 
-    # storage
-    async def upload_from_string(self, bucket_name, path, data):
-        def upload():
-            clients = self.get_clients()
-            bucket = clients.storage_client.get_bucket(bucket_name)
-            blob = bucket.blob(path)
-            blob.upload_from_string(data)
-
-        return await self.run_in_pool(upload)
-
     # logging
     async def list_entries(self):
         filter = f'''
 logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
 resource.type=gce_instance AND
+jsonPayload.resource.name:"{self.machine_name_prefix}" AND
 jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
 '''
-        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING, page_size=100)
+        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING)
         return PagedIterator(self, entries.pages)
 
     async def stream_entries(self):
@@ -185,9 +200,9 @@ jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.d
 
 
 class GTask:
-    def __init__(self, t):
+    def __init__(self, t, task_token):
         self.task = t
-        self.token = secrets.token_hex(16)
+        self.token = task_token
         self.parents = set()
         self.children = set()
         self.n_pending_parents = len(t._dependencies)
@@ -265,6 +280,7 @@ class GTask:
         self.attempt_token = attempt_token
 
         runner.n_pending -= 1
+        log.info(f'n_pending {runner.n_pending}')
         if runner.n_pending == 0:
             log.info('all tasks complete, put None task')
             runner.ready.put_nowait(None)
@@ -285,6 +301,9 @@ class Instance:
         self.active = True
         self.deleted = False
         self.last_updated = time.time()
+
+    def machine_name(self):
+        return self.inst_pool.token_machine_name(self.token)
 
     def activate(self):
         if not self.pending:
@@ -330,8 +349,8 @@ class Instance:
         if self.deleted:
             return
         self.deactivate()
-        await self.inst_pool.runner.gservices.delete_instance(f'pipeline-{self.token}')
-        log.info(f'deleted instance {self}')
+        await self.inst_pool.runner.gservices.delete_instance(self.machine_name())
+        log.info(f'deleted machine {self.machine_name()}')
         self.deleted = True
 
     async def handle_preempt_event(self):
@@ -340,14 +359,14 @@ class Instance:
 
     async def heal(self):
         try:
-            spec = await self.inst_pool.runner.gservices.get_instance(f'pipeline-{self.token}')
+            spec = await self.inst_pool.runner.gservices.get_instance(self.machine_name())
         except googleapiclient.errors.HttpError as e:
             if e.resp['status'] == '404':
                 self.remove()
                 return
 
         status = spec['status']
-        log.info(f'heal: pipeline-{self.token} status {status}')
+        log.info(f'heal: machine {self.machine_name()} status {status}')
 
         # preempted goes into terminated state
         if status == 'TERMINATED' and self.deleted:
@@ -368,6 +387,8 @@ class Instance:
 
 class InstancePool:
     def __init__(self, runner, pool_size, max_instances):
+        self.token = new_token()
+        self.machine_name_prefix = f'pipeline-{self.token}-worker-'
         self.runner = runner
         self.pool_size = pool_size
         self.max_instances = max_instances
@@ -378,6 +399,9 @@ class InstancePool:
         self.free_cores = 0
         self.token_inst = {}
 
+    def token_machine_name(self, inst_token):
+        return f'{self.machine_name_prefix}-{inst_token}'
+
     async def start(self):
         log.info('starting instance pool')
         asyncio.ensure_future(self.control_loop())
@@ -385,12 +409,18 @@ class InstancePool:
         asyncio.ensure_future(self.heal_loop())
         log.info('instance pool started')
 
-    async def launch_instance(self):
-        inst_token = secrets.token_hex(16)
-        log.info(f'launching instance {inst_token}')
+    async def create_instance(self):
+        inst_token = new_token()
+        while inst_token in self.token_inst:
+            inst_token = new_token()
+        # reserve
+        self.token_inst[inst_token] = None
 
+        log.info(f'creating instance {inst_token}')
+
+        machine_name = self.token_machine_name(inst_token)
         config = {
-            'name': f'pipeline-{inst_token}',
+            'name': machine_name,
             # FIXME resize
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{WORKER_CORES}',
             'labels': {
@@ -447,12 +477,14 @@ class InstancePool:
         }
 
         await self.runner.gservices.create_instance(config)
-        log.info(f'created instance pipeline-{inst_token}')
+        log.info(f'created machine {machine_name}')
 
         inst = Instance(self, inst_token)
         self.token_inst[inst_token] = inst
         self.instances.add(inst)
         self.free_cores += WORKER_CORES
+
+        log.info(f'created instance {inst}')
 
         return inst
 
@@ -479,11 +511,11 @@ class InstancePool:
             log.warning(f'unknown event resource type {type_}')
             return
 
-        if not name.startswith('pipeline-'):
+        if not name.startswith(self.machine_name_prefix):
             log.warning(f'event for unknown instance {name}')
             return
 
-        inst_token = name[9:]
+        inst_token = name[len(self.machine_name_prefix):]
         inst = self.token_inst.get(inst_token)
         if not inst:
             log.warning(f'event for unknown instance {name}')
@@ -526,19 +558,22 @@ class InstancePool:
                 raise
             except Exception:  # pylint: disable=broad-except
                 log.exception('instance pool heal loop: caught exception')
-            await asyncio.sleep(15)
+
+            await asyncio.sleep(1)
 
     async def control_loop(self):
         while True:
             try:
                 log.info(f'n_active_instances {self.n_active_instances}'
+                         f' pool_size {self.pool_size}'
                          f' n_instances {len(self.instances)}'
+                         f' max_instances {self.max_instances}'
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_task_cores}')
                 while (self.n_active_instances < self.pool_size and
                        len(self.instances) < self.max_instances and
                        self.free_cores < self.runner.ready_task_cores):
-                    await self.launch_instance()
+                    await self.create_instance()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -567,9 +602,6 @@ class GRunner:
         self.pipeline = pipeline
         self.verbose = verbose
 
-        self.gservices = GServices()
-        self.inst_pool = InstancePool(self, 3, 1000)
-
         self.scratch_dir = scratch_dir
 
         parsed_scratch_dir = urllib.parse.urlparse(self.scratch_dir)
@@ -579,6 +611,10 @@ class GRunner:
         self.scratch_dir_path = parsed_scratch_dir.path
         while self.scratch_dir_path and self.scratch_dir_path[0] == '/':
             self.scratch_dir_path = self.scratch_dir_path[1:]
+
+        self.inst_pool = InstancePool(self, 3, 1000)
+        self.gservices = GServices(self.inst_pool.machine_name_prefix)
+        self.pool = None  # created in run
 
         self.changed = asyncio.Event()
 
@@ -591,7 +627,10 @@ class GRunner:
         self.token_task = {}
         self.task_gtask = {}
         for pt in pipeline._tasks:
-            t = GTask(pt)
+            task_token = new_token()
+            while task_token in self.token_task:
+                task_token = new_token()
+            t = GTask(pt, task_token)
             self.token_task[t.token] = t
             self.tasks.append(t)
             self.task_gtask[pt] = t
@@ -661,7 +700,7 @@ class GRunner:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 req_body = {'task': config}
-                async with session.post(f'http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
+                async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
                     inst.update_timestamp()
@@ -672,7 +711,7 @@ class GRunner:
             t.reschedule(self)
 
     def get_task_config(self, t):
-        attempt_token = secrets.token_hex(16)
+        attempt_token = secrets.token_urlsafe(16)
 
         pt = t.task
 
@@ -719,6 +758,8 @@ class GRunner:
 
             await self.inst_pool.start()
 
+            self.pool = AsyncWorkerPool(100)
+
             for t in self.tasks:
                 if not t.parents:
                     self.ready.put_nowait(t)
@@ -746,7 +787,7 @@ class GRunner:
 
                 self.ready_task_cores -= t.cores
 
-                await self.execute_task(t, inst)
+                self.pool.call(self.execute_task, t, inst)
         finally:
             if site:
                 await site.stop()
