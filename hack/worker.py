@@ -121,7 +121,7 @@ class Worker:
         task_token = config['task_token']
         try:
             log.info(f'executing task {task_token}')
-            self.run_task2(config)
+            await self.run_task2(config)
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:  # pylint: disable=broad-except

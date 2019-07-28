@@ -597,7 +597,6 @@ class GRunner:
             self.task_gtask[pt] = t
 
             if not pt._dependencies:
-                self.ready.put_nowait(t)
                 self.ready_task_cores += t.cores
 
         for t in self.tasks:
@@ -619,7 +618,7 @@ class GRunner:
         body = await request.json()
         inst_token = body['inst_token']
 
-        log.info('registering worker {inst_token}')
+        log.info(f'registering worker {inst_token}')
 
         inst = self.inst_pool.token_inst.get(inst_token)
         if not inst:
@@ -654,8 +653,6 @@ class GRunner:
         return web.Response()
 
     async def execute_task(self, t, inst):
-        log.info(f'executing {t} on {inst}...')
-
         try:
             t.schedule(inst)
             config = self.get_task_config(t)
@@ -666,9 +663,11 @@ class GRunner:
                     await resp.json()
                     # FIXME update inst tasks
                     inst.update_timestamp()
-        except Exception as e:
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'failed to execute {t}, rescheduling"')
             t.reschedule(self)
-            raise e
 
     def get_task_config(self, t):
         attempt_token = secrets.token_hex(16)
@@ -720,7 +719,7 @@ class GRunner:
             for t in self.tasks:
                 if not t.parents:
                     self.ready.put_nowait(t)
-                    log.info(f'{t} ready')
+                    log.info(f'ready {t}')
 
             while True:
                 # wait for a task
@@ -729,10 +728,9 @@ class GRunner:
                     break
                 if t.state:
                     continue
+                log.info(f'executing {t}')
                 assert not t.active_inst
                 assert not t.state
-
-                log.info(f'executing {t}')
 
                 while True:
                     if self.inst_pool.instances_by_free_cores:
