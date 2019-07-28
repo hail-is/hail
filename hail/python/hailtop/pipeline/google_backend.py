@@ -229,12 +229,13 @@ class GTask:
 
         inst.tasks.remove(self)
 
-        inst_pool.instances_by_free_cores.remove(inst)
-        inst.free_cores += self.cores
-        inst_pool.instances_by_free_cores.add(inst)
-        inst_pool.changed.set()
-
-        inst_pool.free_cores += self.cores
+        assert not inst.pending
+        if inst.active:
+            inst_pool.instances_by_free_cores.remove(inst)
+            inst.free_cores += self.cores
+            inst_pool.instances_by_free_cores.add(inst)
+            inst_pool.free_cores += self.cores
+            inst_pool.changed.set()
 
         self.active_inst = None
 
@@ -248,11 +249,12 @@ class GTask:
 
         inst.tasks.add(self)
 
+        # inst.active:
         inst.inst_pool.instances_by_free_cores.remove(inst)
         inst.free_cores -= self.cores
         inst.inst_pool.instances_by_free_cores.add(inst)
-
         inst.inst_pool.free_cores -= self.cores
+        inst.inst_pool.changed.set()
 
         self.active_inst = inst
 
@@ -313,11 +315,14 @@ class Instance:
         self.inst_pool = inst_pool
         self.tasks = set()
         self.token = inst_token
+
+        # for active and pending
         self.free_cores = inst_pool.worker_cores
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = True
         self.inst_pool.n_pending_instances += 1
+        self.inst_pool.free_cores += self.free_cores
 
         self.active = False
         self.deleted = False
@@ -328,6 +333,8 @@ class Instance:
         return self.inst_pool.token_machine_name(self.token)
 
     def activate(self):
+        if self.active:
+            return
         if self.deleted:
             return
 
@@ -335,8 +342,6 @@ class Instance:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
 
-        if self.active:
-            return
         self.active = True
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
@@ -346,12 +351,16 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
+            self.inst_pool.free_cores -= self.inst_pool.worker_cores
+            assert not self.active
+            return
 
         if not self.active:
             return
         self.active = False
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.instances_by_free_cores.remove(self)
+        self.inst_pool.free_cores -= self.inst_pool.worker_cores
         for t in self.tasks:
             assert t.active_inst == self
             t.put_on_ready(self.inst_pool.runner)
@@ -424,11 +433,17 @@ class InstancePool:
         self.token = new_token()
         self.machine_name_prefix = f'pipeline-{self.token}-worker-'
         self.instances = sortedcontainers.SortedSet(key=lambda inst: inst.last_updated)
+
+        # for active instances only
         self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
+
         self.changed = asyncio.Event()
         self.n_pending_instances = 0
         self.n_active_instances = 0
+
+        # for pending and active
         self.free_cores = 0
+
         self.token_inst = {}
 
     def token_machine_name(self, inst_token):
@@ -515,7 +530,6 @@ class InstancePool:
         inst = Instance(self, inst_token)
         self.token_inst[inst_token] = inst
         self.instances.add(inst)
-        self.free_cores += self.worker_cores
 
         log.info(f'created {inst}')
 
@@ -532,26 +546,28 @@ class InstancePool:
             log.warning('unknown event verison {version}')
             return
 
-        event_resource_type = event.resource['type']
+        log.info(f'event resource {event.resource}')
+        # resource_type = event.resource['type']
+        # if event_resource_type != 'gce_instance':
+        #     log.warning(f'unknown event resource type {event_resource_type}')
+        #     return
+        # log {event_resource_type}
+
         event_type = payload['event_type']
         event_subtype = payload['event_subtype']
         resource = payload['resource']
         name = resource['name']
 
-        log.info(f'event {version} {event_resource_type} {event_type} {event_subtype} {name}')
-
-        if event_resource_type != 'gce_instance':
-            log.warning(f'unknown event resource type {event_resource_type}')
-            return
+        log.info(f'event {version} {event_type} {event_subtype} {name}')
 
         if not name.startswith(self.machine_name_prefix):
-            log.warning(f'event for unknown instance {name}')
+            log.warning(f'event for unknown machine {name}')
             return
 
         inst_token = name[len(self.machine_name_prefix):]
         inst = self.token_inst.get(inst_token)
         if not inst:
-            log.warning(f'event for unknown instance {name}')
+            log.warning(f'event for unknown instance {inst_token}')
             return
 
         if event_subtype == 'compute.instances.preempted':
