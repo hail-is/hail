@@ -18,19 +18,12 @@ def configure_logging():
         # FIXME microseconds
         datefmt='%Y-%m-%dT%H:%M:%SZ')
 
-    fh = logging.FileHandler('pipeline.log')
+    fh = logging.FileHandler('worker.log')
     fh.setFormatter(fmt)
     fh.setLevel(logging.DEBUG)
 
-    sh = logging.StreamHandler()
-    sh.setFormatter(fmt)
-    sh.setLevel(logging.INFO)
-
     root_log = logging.getLogger()
-
     root_log.addHandler(fh)
-    root_log.addHandler(sh)
-
     root_log.setLevel(logging.DEBUG)
 
 configure_logging()

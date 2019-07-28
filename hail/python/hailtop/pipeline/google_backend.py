@@ -510,6 +510,7 @@ class InstancePool:
                 raise
             except Exception:  # pylint: disable=broad-except
                 log.exception('event loop failed due to exception')
+            await asyncio.sleep(15)
 
     async def heal_loop(self):
         while True:
