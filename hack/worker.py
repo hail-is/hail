@@ -58,13 +58,24 @@ async def check_shell_output(script):
     return outerr
 
 async def docker_delete_container(container_id):
+    cmd = f'docker rm {container_id}'
     try:
-        log.info(f'running docker rm {container_id}')
-        await check_shell(f'docker rm {container_id}')
+        log.info(f'running {cmd}')
+        await check_shell(cmd)
     except asyncio.CancelledError:  # pylint: disable=try-except-raise
         raise
     except Exception:  # pylint: disable=broad-except
-        log.exception(f'docker rm {container_id} failed')
+        log.exception(f'{cmd} failed')
+
+async def delete_task_shared(task_token):
+    cmd = f'rm -rf /shared/{task_token}'
+    try:
+        log.info(f'running {cmd}')
+        await check_shell(cmd)
+    except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.exception(f'{cmd} failed')
 
 async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
@@ -73,7 +84,7 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
     attempts = 0
     while not container_id:
         try:
-            docker_cmd = f'docker run -d -v /shared:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
+            docker_cmd = f'docker run -d -v /shared/{task_token}:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
             log.info(f'running {full_step}: {docker_cmd}')
             container_id, _ = await check_shell_output(docker_cmd)
             container_id = container_id.decode('utf-8').strip()
@@ -166,6 +177,8 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
+        await check_shell('mkdir -p /shared/{task_token}')
+
         input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
 
         status = {
@@ -181,6 +194,9 @@ class Worker:
             if main_ec == 0:
                 output_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'output', 'google/cloud-sdk:255.0.0-alpine', outputs_cmd)
                 status['output'] = output_ec
+
+        # cleanup
+        asyncio.ensure_future(delete_task_shared(task_token))
 
         log.info(f'task {task_token} done status {status}')
 
