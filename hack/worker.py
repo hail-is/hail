@@ -64,7 +64,7 @@ async def docker_run(scratch_dir, attempt_token, name, image, cmd):
     while not container_id:
         try:
             container_id, _ = await check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}')
-            container_id = container_id.strip()
+            container_id = container_id.decode('utf-8').strip()
         except CalledProcessError as e:
             if attempts < 12 and e.returncode == 125:
                 attempts += 1
@@ -72,8 +72,8 @@ async def docker_run(scratch_dir, attempt_token, name, image, cmd):
             else:
                 raise e
 
-    ec_str = await check_shell_output(f'docker container wait {shq(container_id)}')
-    ec_str = ec_str.strip()
+    ec_str, _ = await check_shell_output(f'docker container wait {shq(container_id)}')
+    ec_str = ec_str.decode('utf-8').strip()
     ec = int(ec_str)
 
     log.info(f'ec {name} {ec}')
@@ -127,6 +127,7 @@ class Worker:
         except Exception:  # pylint: disable=broad-except
             log.exception(f'caught exception while running task {task_token}')
         finally:
+            # FIMXE notify of internal failure
             cores = config['cores']
 
             self.tasks.remove(task_token)
@@ -182,14 +183,18 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            await self.run2()
+            await self.register()
+
+            while self.tasks or time.time() - self.last_updated < 60:
+                log.info(f'n_tasks {len(self.tasks)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
+                await asyncio.sleep(15)
         finally:
             if site:
                 await site.stop()
             if app_runner:
                 await app_runner.cleanup()
 
-    async def run2(self):
+    async def register(self):
         tries = 0
         while True:
             try:
@@ -200,22 +205,17 @@ class Worker:
                     async with session.post(f'http://{self.driver}:5000/register_worker', json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
-                            break
+                            log.info('registered')
+                            return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
-            except Exception:  # pylint: disable=broad-except
+            except Exception as e:  # pylint: disable=broad-except
                 log.exception('caught exception while registering')
-            tries += 1
-            if tries == 12:
-                # give up
-                return
+                if tries == 12:
+                    log.info('register: giving up')
+                    raise e
+                tries += 1
             await asyncio.sleep(5 * random.uniform(1, 1.25))
-
-        log.info('registered')
-
-        while self.tasks or time.time() - self.last_updated < 120:
-            log.info(f'n_tasks {len(self.tasks)} age {time.time() - self.last_updated}')
-            await asyncio.sleep(15)
 
 
 cores = int(os.environ['CORES'])

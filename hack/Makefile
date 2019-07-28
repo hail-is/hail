@@ -46,3 +46,11 @@ master:
 
 copy-all:
 	gsutil -m cp master-startup.sh worker-startup.sh run-worker.sh worker.py input.txt gs://hail-cseed/cs-hack/
+
+check-all: check
+	make -C ../hail/python check
+
+push: check-all copy-all
+	git add -u
+	git commit -m 'wip'
+	git push origin
