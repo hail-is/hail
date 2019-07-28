@@ -695,6 +695,7 @@ class GRunner:
         config = {
             'scratch_dir': self.scratch_dir,
             'task_token': t.token,
+            'cores': t.cores,
             'attempt_token': attempt_token,
             'inputs_cmd': inputs_cmd,
             'image': pt._image,
