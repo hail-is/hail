@@ -759,21 +759,27 @@ class GRunner:
 
         pt = t.task
 
-        inputs_cmd = ' && '.join([
-            f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/shared"))}'
-            for i in pt._inputs
-        ]) if pt._inputs else None
+        if pt._inputs:
+            inputs_cmd = 'set -ex; ' + (' && '.join([
+                f'gsutil -m cp -r {shq(self.gs_input_path(i))} {shq(i._get_path("/shared"))}'
+                for i in pt._inputs
+            ]))
+        else:
+            inputs_cmd = None
 
         bash_flags = 'set -e' + ('x' if self.verbose else '') + '; '
         defs = ''.join([r._declare('/shared') + '; ' for r in pt._mentioned])
         make_local_tmpdir = f'mkdir -p /shared/{pt._uid}'
         cmd = bash_flags + defs + make_local_tmpdir + ' && (' + ' && '.join(pt._command) + ')'
 
-        outputs = pt._internal_outputs.union(pt._external_outputs)
-        outputs_cmd = ' && '.join([
-            f'gsutil -m cp -r {shq(o._get_path("/shared"))} {shq(output_path)}'
-            for o in outputs for output_path in self.gs_output_paths(o, t.task, attempt_token)
-        ]) if pt._outputs else None
+        if pt._outupts:
+            outputs = pt._internal_outputs.union(pt._external_outputs)
+            outputs_cmd = 'set -ex; ' + (' && '.join([
+                f'gsutil -m cp -r {shq(o._get_path("/shared"))} {shq(output_path)}'
+                for o in outputs for output_path in self.gs_output_paths(o, t.token, attempt_token)
+            ]))
+        else:
+            outputs_cmd = None
 
         assert pt._image
         config = {
