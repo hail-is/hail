@@ -6,40 +6,17 @@
 
 sortedcontainers google-api-python-client google-cloud==0.32.0
 
- - check worker code
- - 
+GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
 
-
- - agent running on workers processes multiple jobs in parallel
-   - requests job given cores
-   - send request if (1) core count changes, or (2) timeout with back-off so steady-state is reasonable,
-   - shuts down if no jobs after timeout (1m?)
- - driver maintains instance list,
- - spins up more nodes if below (fixed) target
- - instances get a list of jobs they're handling
+ - check cores when assigning nodes
 
  - log in another thread, put events on a queue
 
+ - make exit cleanup function for run-worker.sh
 
- - FIXME 
-
- - FIXME throttle GCE calls based on 100s running average
-
- - FIXME why wasn't heal running?
- - shorten timeout on logging?
- - run logging in separate thread and let it feed events through janus queue?
-
- - target number of instances, scale up if missing (no scale down)
-
- - make exit cleanup function for run-test.sh
-
- - semaphore should track cores, not instances
-
- - make throttle limit an option
-
+ - update max_workers via api
  - make master figure out its name
  - status UI
- - update throttle via endpoint
  - merge out and err in run-task2 logs
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
