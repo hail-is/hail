@@ -225,6 +225,14 @@ class Worker:
             while self.tasks or time.time() - self.last_updated < 60:
                 log.info(f'n_tasks {len(self.tasks)} free_cores {self.free_cores} age {time.time() - self.last_updated}')
                 await asyncio.sleep(15)
+
+            log.info('idle 60s, exiting')
+
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                body = {'inst_token': self.token}
+                async with session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
+                    log.info('deactivated')
         finally:
             if site:
                 await site.stop()
@@ -239,7 +247,7 @@ class Worker:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                     body = {'inst_token': self.token}
-                    async with session.post(f'http://{self.driver}:5000/register_worker', json=body) as resp:
+                    async with session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
                         if resp.status == 200:
                             self.last_updated = time.time()
                             log.info('registered')
@@ -263,5 +271,3 @@ worker = Worker(cores, driver, inst_token)
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
 loop.run_until_complete(loop.shutdown_asyncgens())
-
-log.info('worker exiting')

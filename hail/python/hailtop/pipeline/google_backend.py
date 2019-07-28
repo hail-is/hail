@@ -693,25 +693,42 @@ class GRunner:
 
         self.app = web.Application()
         self.app.add_routes([
-            web.post('/register_worker', self.handle_register_worker),
+            web.post('/activate_worker', self.handle_activate_worker),
+            web.post('/deactivate_worker', self.handle_deactivate_worker),
             web.post('/task_complete', self.handle_task_complete)
         ])
 
-    async def handle_register_worker(self, request):
-        return await asyncio.shield(self.handle_register_worker2(request))
+    async def handle_activate_worker(self, request):
+        return await asyncio.shield(self.handle_activate_worker2(request))
 
-    async def handle_register_worker2(self, request):
+    async def handle_activate_worker2(self, request):
         body = await request.json()
         inst_token = body['inst_token']
 
-        log.info(f'registering worker {inst_token}')
+        inst = self.inst_pool.token_inst.get(inst_token)
+        if not inst:
+            log.warning(f'/activate_worker from unknown inst {inst_token}')
+            raise web.HTTPNotFound()
+
+        log.info(f'activating {inst}')
+        inst.activate()
+
+        return web.Response()
+
+    async def handle_deactivate_worker(self, request):
+        return await asyncio.shield(self.handle_deactivate_worker2(request))
+
+    async def handle_deactivate_worker2(self, request):
+        body = await request.json()
+        inst_token = body['inst_token']
 
         inst = self.inst_pool.token_inst.get(inst_token)
         if not inst:
-            log.warning(f'/register_worker from unknown inst {inst_token}')
+            log.warning(f'/deactivate_worker from unknown inst {inst_token}')
             raise web.HTTPNotFound()
 
-        inst.activate()
+        log.info(f'deactivating {inst}')
+        inst.deactivate()
 
         return web.Response()
 

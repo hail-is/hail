@@ -10,10 +10,9 @@ rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
- - check event loop
+ - check event loop (kill a node ...)
 
  - limit ready queue
- - reschedule non-running tasks on worker task_complete
 
  - move resources to somewhere like gs://hail-common/cseed/pipeline_google_backend/
 
