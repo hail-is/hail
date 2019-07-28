@@ -708,14 +708,12 @@ class GRunner:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            log.info('starting instance pool')
             await self.inst_pool.start()
-            log.info('instance pool started')
 
             for t in self.tasks:
                 if not t.parents:
                     self.ready.put_nowait(t)
-                    log.info(f'put {t}')
+                    log.info(f'{t} ready')
 
             while True:
                 # wait for a task
@@ -727,18 +725,18 @@ class GRunner:
                 assert not t.active_inst
                 assert not t.state
 
-                self.ready_task_cores -= t.cores
-                log.info(f'got {t}')
+                log.info(f'executing {t}')
 
-                # wait for an instance
                 while True:
                     if self.inst_pool.instances_by_free_cores:
                         inst = self.inst_pool.instances_by_free_cores[-1]
                         if t.cores <= inst.free_cores:
-                            log.info(f'found {inst} for {t}')
+                            log.info(f'scheduling {t} on {inst}')
                             break
                     await self.inst_pool.changed.wait()
                     self.inst_pool.changed.clear()
+
+                self.ready_task_cores -= t.cores
 
                 self.execute_task(t, inst)
         finally:
