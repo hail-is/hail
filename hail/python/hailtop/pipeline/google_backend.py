@@ -281,6 +281,7 @@ class GTask:
             c.n_pending_parents = n
             log.info(f'{c} now waiting on {n} parents')
             if n == 0:
+                assert all(p.state for p in self.parents)
                 if any(p.state != 'OK' for p in self.parents):
                     c.set_state(runner, 'SKIPPED', None)
                 else:
@@ -292,8 +293,8 @@ class GTask:
 
         log.info(f'set_state {self} state {state} attempt_token {attempt_token}')
 
-        # can potentially set state of task on ready queue
         self.unschedule()
+        self.remove_from_ready(runner)
 
         self.state = state
         self.attempt_token = attempt_token
@@ -635,7 +636,7 @@ class GRunner:
             return resource._input_path
 
         assert isinstance(resource, TaskResourceFile)
-        t = self.task_gtask[resource._source]
+        t = self.ptask_task[resource._source]
         return resource._get_path(f'{self.scratch_dir}/{t.token}/{t.attempt_token}')
 
     def gs_output_paths(self, resource, task_token, attempt_token):
@@ -673,7 +674,7 @@ class GRunner:
 
         self.tasks = []
         self.token_task = {}
-        self.task_gtask = {}
+        self.ptask_task = {}
         for pt in pipeline._tasks:
             while True:
                 # 36**7 / 12000000.0 ~ 6.5K
@@ -683,13 +684,23 @@ class GRunner:
             t = GTask(pt, task_token)
             self.token_task[t.token] = t
             self.tasks.append(t)
-            self.task_gtask[pt] = t
+            self.ptask_task[pt] = t
 
         for t in self.tasks:
             for pp in t.task._dependencies:
-                p = self.task_gtask[pp]
+                p = self.ptask_task[pp]
                 t.parents.add(p)
                 p.children.add(t)
+
+        # FIXME debugging
+        for t in self.tasks:
+            print(t)
+            print('  parents')
+            for p in t.parents:
+                print(f'    {p}')
+            print('  children')
+            for c in t.children:
+                print(f'    {c}')
 
         self.app = web.Application()
         self.app.add_routes([
