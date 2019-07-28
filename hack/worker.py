@@ -166,7 +166,7 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
-        input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
+        input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
 
         status = {
             'task_token': task_token,
@@ -179,7 +179,7 @@ class Worker:
             status['main'] = main_ec
 
             if main_ec == 0:
-                output_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'output', 'google/cloud-sdk:237.0.0-alpine', outputs_cmd)
+                output_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'output', 'google/cloud-sdk:255.0.0-alpine', outputs_cmd)
                 status['output'] = output_ec
 
         log.info(f'task {task_token} done status {status}')

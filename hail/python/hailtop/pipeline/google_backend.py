@@ -621,12 +621,12 @@ class GRunner:
             return resource._input_path
 
         assert isinstance(resource, TaskResourceFile)
-        attempt_token = self.task_gtask[resource._source].attempt_token
-        return resource._get_path(f'{self.scratch_dir}/{attempt_token}')
+        t = self.task_gtask[resource._source]
+        return resource._get_path(f'{self.scratch_dir}/{t.token}/{t.attempt_token}')
 
-    def gs_output_paths(self, resource, attempt_token):
+    def gs_output_paths(self, resource, task_token, attempt_token):
         assert isinstance(resource, TaskResourceFile)
-        output_paths = [resource._get_path(f'{self.scratch_dir}/{attempt_token}')]
+        output_paths = [resource._get_path(f'{self.scratch_dir}/{task_token}/{attempt_token}')]
         if resource._output_paths:
             for p in resource._output_paths:
                 output_paths.append(p)
@@ -717,7 +717,7 @@ class GRunner:
             state = 'OK'
         else:
             state = 'BAD'
-            log.error(f'{t} failed logs in {self.scratch_dir}/{attempt_token}')
+            log.error(f'{t} failed logs in {self.scratch_dir}/{task_token}/{attempt_token}')
 
         t.set_state(self, state, attempt_token)
         self.changed.set()
@@ -753,7 +753,7 @@ class GRunner:
             t.put_on_ready(self)
 
     def get_task_config(self, t):
-        attempt_token = secrets.token_urlsafe(16)
+        attempt_token = new_token()
 
         pt = t.task
 
@@ -770,7 +770,7 @@ class GRunner:
         outputs = pt._internal_outputs.union(pt._external_outputs)
         outputs_cmd = ' && '.join([
             f'gsutil -m cp -r {shq(o._get_path("/shared"))} {shq(output_path)}'
-            for o in outputs for output_path in self.gs_output_paths(o, attempt_token)
+            for o in outputs for output_path in self.gs_output_paths(o, t.task, attempt_token)
         ]) if pt._outputs else None
 
         assert pt._image
