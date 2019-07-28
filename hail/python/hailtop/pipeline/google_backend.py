@@ -546,19 +546,17 @@ class InstancePool:
             log.warning('unknown event verison {version}')
             return
 
-        log.info(f'event resource {event.resource}')
-        # resource_type = event.resource['type']
-        # if event_resource_type != 'gce_instance':
-        #     log.warning(f'unknown event resource type {event_resource_type}')
-        #     return
-        # log {event_resource_type}
+        resource_type = event.resource.type
+        if resource_type != 'gce_instance':
+            log.warning(f'unknown event resource type {resource_type}')
+            return
 
         event_type = payload['event_type']
         event_subtype = payload['event_subtype']
         resource = payload['resource']
         name = resource['name']
 
-        log.info(f'event {version} {event_type} {event_subtype} {name}')
+        log.info(f'event {version} {resource_type} {event_type} {event_subtype} {name}')
 
         if not name.startswith(self.machine_name_prefix):
             log.warning(f'event for unknown machine {name}')
