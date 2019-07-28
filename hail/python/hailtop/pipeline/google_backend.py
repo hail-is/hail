@@ -532,7 +532,7 @@ class InstancePool:
             log.warning('unknown event verison {version}')
             return
 
-        event_resource_type = event['resource']['type']
+        event_resource_type = event.resource['type']
         event_type = payload['event_type']
         event_subtype = payload['event_subtype']
         resource = payload['resource']
