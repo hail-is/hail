@@ -11,8 +11,6 @@ class UTCFormatter(logging.Formatter):
     converter = time.gmtime
 
 def configure_logging():
-    log = logging.getLogger('pipeline')
-
     fmt = UTCFormatter(
         # NB: no space after levename because WARNING is so long
         '%(levelname)s\t| %(asctime)s | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
@@ -20,16 +18,23 @@ def configure_logging():
         # FIXME microseconds
         datefmt='%Y-%m-%dT%H:%M:%SZ')
 
-    fh = logging.FileHandler('worker.log')
+    fh = logging.FileHandler('pipeline.log')
     fh.setFormatter(fmt)
     fh.setLevel(logging.DEBUG)
 
-    log.addHandler(fh)
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    sh.setLevel(logging.INFO)
 
-    log.setLevel(logging.DEBUG)
-    return log
+    root_log = logging.getLogger()
 
-log = configure_logging()
+    root_log.addHandler(fh)
+    root_log.addHandler(sh)
+
+    root_log.setLevel(logging.DEBUG)
+
+configure_logging()
+log = logging.getLogger('worker')
 
 
 class CalledProcessError(Exception):
@@ -215,7 +220,7 @@ class Worker:
 
         log.info('registered')
 
-        while self.tasks or time.time() - self.last_updated < 60:
+        while self.tasks or time.time() - self.last_updated < 120:
             log.info(f'n_tasks {len(self.tasks)} age {time.time() - self.last_updated}')
             await asyncio.sleep(15)
 
@@ -228,3 +233,5 @@ worker = Worker(cores, driver, inst_token)
 loop = asyncio.get_event_loop()
 loop.run_until_complete(worker.run())
 loop.run_until_complete(loop.shutdown_asyncgens())
+
+log.info('worker exiting')

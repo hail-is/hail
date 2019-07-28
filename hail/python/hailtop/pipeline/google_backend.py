@@ -29,8 +29,6 @@ class UTCFormatter(logging.Formatter):
     converter = time.gmtime
 
 def configure_logging():
-    log = logging.getLogger('pipeline')
-
     fmt = UTCFormatter(
         # NB: no space after levename because WARNING is so long
         '%(levelname)s\t| %(asctime)s | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
@@ -46,13 +44,16 @@ def configure_logging():
     sh.setFormatter(fmt)
     sh.setLevel(logging.INFO)
 
-    log.addHandler(fh)
-    log.addHandler(sh)
+    root_log = logging.getLogger()
 
-    log.setLevel(logging.DEBUG)
-    return log
+    root_log.addHandler(fh)
+    root_log.addHandler(sh)
 
-log = configure_logging()
+    root_log.setLevel(logging.DEBUG)
+
+configure_logging()
+log = logging.getLogger('pipeline')
+
 
 async def anext(ait):
     return await ait.__anext__()
@@ -291,6 +292,7 @@ class Instance:
         self.pending = False
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
+        self.inst_pool.changed.set()
 
     def deactivate(self):
         if self.pending:
@@ -615,6 +617,9 @@ class GRunner:
     async def handle_register_worker2(self, request):
         body = await request.json()
         inst_token = body['inst_token']
+
+        log.info('registering worker {inst_token}')
+
         inst = self.inst_pool.token_inst.get(inst_token)
         if not inst:
             log.warning(f'/register_worker from unknown inst {inst_token}')
@@ -731,7 +736,7 @@ class GRunner:
                     if self.inst_pool.instances_by_free_cores:
                         inst = self.inst_pool.instances_by_free_cores[-1]
                         if t.cores <= inst.free_cores:
-                            log.info(f'scheduling {t} on {inst}')
+                            log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
                             break
                     await self.inst_pool.changed.wait()
                     self.inst_pool.changed.clear()
