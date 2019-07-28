@@ -307,7 +307,7 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         for t in self.tasks:
             assert t.active_inst == self
-            t.reschedule()
+            t.reschedule(self.inst_pool.runner)
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
@@ -661,12 +661,12 @@ class GRunner:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 req_body = {'task': config}
-                async with session.post('http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
+                async with session.post(f'http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
                     inst.update_timestamp()
         except Exception as e:
-            t.reschedule()
+            t.reschedule(self)
             raise e
 
     def get_task_config(self, t):
