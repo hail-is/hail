@@ -743,7 +743,7 @@ class GRunner:
 
                 self.ready_task_cores -= t.cores
 
-                self.execute_task(t, inst)
+                await self.execute_task(t, inst)
         finally:
             if site:
                 await site.stop()
