@@ -208,6 +208,8 @@ class GTask:
         self.n_pending_parents = len(t._dependencies)
         self.state = None
         self.attempt_token = None
+
+        self.on_ready = False
         self.active_inst = None
 
         if t._cpu:
@@ -234,9 +236,13 @@ class GTask:
 
         self.active_inst = None
 
-    def schedule(self, inst):
+    def schedule(self, inst, runner):
         assert inst.active
         assert not self.active_inst
+
+        # all mine
+        self.unschedule()
+        self.remove_from_ready(runner)
 
         inst.tasks.add(self)
 
@@ -248,10 +254,20 @@ class GTask:
 
         self.active_inst = inst
 
-    def reschedule(self, runner):
+    def remove_from_ready(self, runner):
+        if not self.on_ready:
+            return
+        self.on_ready = False
+        runner.ready_task_cores -= self.cores
+
+    def put_on_ready(self, runner):
+        if self.on_ready:
+            return
         self.unschedule()
-        runner.ready.put_nowait(self)
+        self.on_ready = True
         runner.ready_task_cores += self.cores
+        runner.ready.put_nowait(self)
+        log.info(f'put {self} on ready')
 
     def notify_children(self, runner):
         for c in self.children:
@@ -264,8 +280,7 @@ class GTask:
                 if any(p.state != 'OK' for p in self.parents):
                     c.set_state(runner, 'SKIPPED', None)
                 else:
-                    runner.ready.put_nowait(c)
-                    runner.ready_task_cores += c.cores
+                    c.put_on_ready(runner)
 
     def set_state(self, runner, state, attempt_token):
         if self.state:
@@ -337,7 +352,7 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         for t in self.tasks:
             assert t.active_inst == self
-            t.reschedule(self.inst_pool.runner)
+            t.put_on_ready(self.inst_pool.runner)
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
@@ -706,9 +721,20 @@ class GRunner:
 
         return web.Response()
 
-    async def execute_task(self, t, inst):
+    async def execute_task(self, t):
         try:
-            t.schedule(inst)
+            # get instance
+            while True:
+                if self.inst_pool.instances_by_free_cores:
+                    inst = self.inst_pool.instances_by_free_cores[-1]
+                    if t.cores <= inst.free_cores:
+                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
+                        break
+                await self.inst_pool.changed.wait()
+                self.inst_pool.changed.clear()
+
+            t.schedule(inst, self)
+
             config = self.get_task_config(t)
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
@@ -721,7 +747,7 @@ class GRunner:
             raise
         except Exception:  # pylint: disable=broad-except
             log.exception(f'failed to execute {t}, rescheduling"')
-            t.reschedule(self)
+            t.put_on_ready(self)
 
     def get_task_config(self, t):
         attempt_token = secrets.token_urlsafe(16)
@@ -775,8 +801,7 @@ class GRunner:
 
             for t in self.tasks:
                 if not t.parents:
-                    self.ready.put_nowait(t)
-                    log.info(f'ready {t}')
+                    t.put_on_ready(self)
 
             while True:
                 # wait for a task
@@ -785,22 +810,13 @@ class GRunner:
                     break
                 if t.state:
                     continue
+
                 log.info(f'executing {t}')
+
                 assert not t.active_inst
                 assert not t.state
 
-                while True:
-                    if self.inst_pool.instances_by_free_cores:
-                        inst = self.inst_pool.instances_by_free_cores[-1]
-                        if t.cores <= inst.free_cores:
-                            log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
-                            break
-                    await self.inst_pool.changed.wait()
-                    self.inst_pool.changed.clear()
-
-                self.ready_task_cores -= t.cores
-
-                await self.pool.call(self.execute_task, t, inst)
+                await self.pool.call(self.execute_task, t)
         finally:
             if site:
                 await site.stop()

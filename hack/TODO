@@ -14,7 +14,7 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
 
  - log in another thread, put events on a queue
 
- - update max_workers via api
+ - update pool_size via api
  - make master figure out its name
  - status UI
  - merge out and err in run-task2 logs
