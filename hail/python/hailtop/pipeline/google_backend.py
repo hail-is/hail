@@ -279,9 +279,9 @@ class GTask:
         self.state = state
         self.attempt_token = attempt_token
 
-        runner.n_pending -= 1
-        log.info(f'n_pending {runner.n_pending}')
-        if runner.n_pending == 0:
+        runner.n_pending_tasks -= 1
+        log.info(f'n_pending_tasks {runner.n_pending_tasks}')
+        if runner.n_pending_tasks == 0:
             log.info('all tasks complete, put None task')
             runner.ready.put_nowait(None)
 
@@ -300,7 +300,7 @@ class Instance:
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = True
-        self.inst_pool.n_pending += 1
+        self.inst_pool.n_pending_instances += 1
 
         self.active = False
         self.deleted = False
@@ -316,7 +316,7 @@ class Instance:
 
         if self.pending:
             self.pending = False
-            self.inst_pool.n_pending_parents -= 1
+            self.inst_pool.n_pending_instances -= 1
 
         if self.active:
             return
@@ -328,7 +328,7 @@ class Instance:
     def deactivate(self):
         if self.pending:
             self.pending = False
-            self.inst_pool.n_pending_parents -= 1
+            self.inst_pool.n_pending_instances -= 1
 
         if not self.active:
             return
@@ -577,7 +577,7 @@ class InstancePool:
         while True:
             try:
                 log.info(f'n_pending_instances {self.n_pending_instances}'
-                         f'n_active_instances {self.n_active_instances}'
+                         f' n_active_instances {self.n_active_instances}'
                          f' pool_size {self.pool_size}'
                          f' n_instances {len(self.instances)}'
                          f' max_instances {self.max_instances}'
@@ -631,7 +631,7 @@ class GRunner:
 
         self.changed = asyncio.Event()
 
-        self.n_pending = len(pipeline._tasks)
+        self.n_pending_tasks = len(pipeline._tasks)
 
         self.ready = asyncio.Queue()
         self.ready_task_cores = 0
