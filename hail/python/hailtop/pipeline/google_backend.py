@@ -362,9 +362,12 @@ class Instance:
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.free_cores -= self.inst_pool.worker_cores
-        for t in self.tasks:
+
+        # copy because put_on_ready => unschedule => removes from inst
+        for t in list(self.tasks):
             assert t.active_inst == self
             t.put_on_ready(self.inst_pool.runner)
+        assert not self.tasks
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
