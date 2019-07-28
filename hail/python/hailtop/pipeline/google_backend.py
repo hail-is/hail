@@ -106,9 +106,9 @@ class EntryIterator:
                     self.latest = timestamp
                 if timestamp < self.mark:
                     log.debug('timestamp older than mark')
-                    raise StopIteration
+                    raise StopAsyncIteration
                 return entry
-            except StopIteration:
+            except StopAsyncIteration:
                 if self.latest and self.mark < self.latest:
                     log.debug(f'mark {self.latest} => {self.mark}')
                     self.mark = self.latest
@@ -135,7 +135,7 @@ class PagedIterator:
                     log.debug('got new page')
                 except StopIteration:
                     log.debug('end of pages')
-                    raise
+                    raise StopAsyncIteration
             try:
                 return next(self.page)
             except StopIteration:
@@ -400,7 +400,7 @@ class InstancePool:
         self.token_inst = {}
 
     def token_machine_name(self, inst_token):
-        return f'{self.machine_name_prefix}-{inst_token}'
+        return f'{self.machine_name_prefix}{inst_token}'
 
     async def start(self):
         log.info('starting instance pool')
@@ -484,7 +484,7 @@ class InstancePool:
         self.instances.add(inst)
         self.free_cores += WORKER_CORES
 
-        log.info(f'created instance {inst}')
+        log.info(f'created {inst}')
 
         return inst
 
