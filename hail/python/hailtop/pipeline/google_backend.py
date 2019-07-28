@@ -22,6 +22,8 @@ from .utils import PipelineException
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
+WORKER_CORES = 1
+
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
 
@@ -339,11 +341,10 @@ class InstancePool:
 
     async def launch_instance(self):
         inst_token = secrets.token_hex(16)
-        worker_cores = 1
         config = {
             'name': f'pipeline-{inst_token}',
             # FIXME resize
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{worker_cores}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{WORKER_CORES}',
             'labels': {
                 'role': 'pipeline_worker',
                 'inst_token': inst_token
@@ -392,7 +393,6 @@ class InstancePool:
                     'value': inst_token
                 }, {
                     'key': 'startup-script-url',
-                    # FIXME write worker-startup.sh
                     'value': 'gs://hail-cseed/cs-hack/worker-startup.sh'
                 }]
             }
@@ -404,7 +404,7 @@ class InstancePool:
         inst = Instance(self, inst_token)
         self.token_inst[inst_token] = inst
         self.instances.add(inst)
-        self.free_cores += worker_cores
+        self.free_cores += WORKER_CORES
 
         return inst
 
