@@ -641,11 +641,13 @@ class GRunner:
         if not t:
             log.warning('received /task_complete for unknown task {task_token}')
 
+        log.info(f'{t} complete status {status}')
+
         if all(status.get(name, 0) == 0 for name in ['input', 'main', 'output']):
             state = 'OK'
         else:
             state = 'BAD'
-        log.error(f'{t} failed status {status} logs in {self.scratch_dir}/{attempt_token}')
+            log.error(f'{t} failed logs in {self.scratch_dir}/{attempt_token}')
 
         t.set_state(self, state, attempt_token)
         self.changed.set()
@@ -693,6 +695,7 @@ class GRunner:
         assert pt._image
         config = {
             'scratch_dir': self.scratch_dir,
+            'task_name': pt.name,
             'task_token': t.token,
             'cores': t.cores,
             'attempt_token': attempt_token,

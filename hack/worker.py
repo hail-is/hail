@@ -58,27 +58,36 @@ async def check_shell_output(script):
     return outerr
 
 
-async def docker_run(scratch_dir, attempt_token, name, image, cmd):
+async def docker_run(scratch_dir, task_token, task_name, attempt_token, step_name, image, cmd):
+    full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
+
     container_id = None
     attempts = 0
     while not container_id:
         try:
+            log.info(f'running {full_step}')
             container_id, _ = await check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}')
             container_id = container_id.decode('utf-8').strip()
         except CalledProcessError as e:
             if attempts < 12 and e.returncode == 125:
                 attempts += 1
+                log.info(f'{full_step} failed, attempt {attempts}, retrying')
                 await asyncio.sleep(5)
             else:
+                log.info(f'{full_step} failed, attempt {attempts}, giving up')
                 raise e
+
+    log.info(f'waiting for {full_step}')
 
     ec_str, _ = await check_shell_output(f'docker container wait {shq(container_id)}')
     ec_str = ec_str.decode('utf-8').strip()
     ec = int(ec_str)
 
-    log.info(f'ec {name} {ec}')
+    log.info(f'{full_step} exit_code {ec}')
 
-    gs_log = f'{scratch_dir}/{attempt_token}/{name}.log'
+    log.info(f'uploading logs for {full_step}')
+
+    gs_log = f'{scratch_dir}/{attempt_token}/{step_name}.log'
     await check_shell(f'docker logs {container_id} 2>&1 | gsutil cp - {shq(gs_log)}')
 
     return ec
@@ -126,8 +135,8 @@ class Worker:
             raise
         except Exception:  # pylint: disable=broad-except
             log.exception(f'caught exception while running task {task_token}')
-        finally:
             # FIMXE notify of internal failure
+        finally:
             cores = config['cores']
 
             self.tasks.remove(task_token)
@@ -136,6 +145,7 @@ class Worker:
     async def run_task2(self, config):
         scratch_dir = config['scratch_dir']
         task_token = config['task_token']
+        task_name = config['task_name']
         attempt_token = config['attempt_token']
         inputs_cmd = config['inputs_cmd']
         image = config['image']
@@ -144,7 +154,7 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
-        input_ec = await docker_run(scratch_dir, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
+        input_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
 
         status = {
             'task_token': task_token,
@@ -153,19 +163,18 @@ class Worker:
         }
 
         if input_ec == 0:
-            main_ec = await docker_run(scratch_dir, attempt_token, 'main', image, cmd)
+            main_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'main', image, cmd)
             status['main'] = main_ec
 
             if main_ec == 0:
-                output_ec = await docker_run(scratch_dir, attempt_token, 'output', 'google/cloud-sdk:237.0.0-alpine', outputs_cmd)
+                output_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'output', 'google/cloud-sdk:237.0.0-alpine', outputs_cmd)
                 status['output'] = output_ec
 
-        log.info(f'task {task_token} done: status {status}')
+        log.info(f'task {task_token} done status {status}')
 
         async with aiohttp.ClientSession(
                 raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post(f'http://{self.driver}:5000/task_complete', json=status) as resp:
-                await resp.json()
+            async with session.post(f'http://{self.driver}:5000/task_complete', json=status):
                 log.info(f'task {task_token} status posted')
                 self.last_updated = time.time()
 
