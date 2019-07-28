@@ -151,9 +151,9 @@ class GServices:
     # logging
     async def list_entries(self):
         filter = f'''
-logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log"' AND
+logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
 resource.type=gce_instance AND
-jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete"
+jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
 '''
         entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING, page_size=250)
         return PagedIterator(self, entries.pages)
@@ -491,7 +491,7 @@ class InstancePool:
             except Exception:  # pylint: disable=broad-except
                 log.exception('instance pool control loop: caught exception')
 
-            asyncio.sleep(15)
+            await asyncio.sleep(15)
 
 class GRunner:
     def gs_input_path(self, resource):
@@ -515,7 +515,7 @@ class GRunner:
         self.verbose = verbose
 
         self.gservices = GServices()
-        self.inst_pool = InstancePool(self, self, 3, 1000)
+        self.inst_pool = InstancePool(self, 3, 1000)
 
         self.scratch_dir = scratch_dir
 
@@ -583,7 +583,7 @@ class GRunner:
         return web.Response()
 
     async def set_task_state(self, t, state, attempt_token):
-        await t.set_state(self, self, state, attempt_token)
+        await t.set_state(self, state, attempt_token)
         self.changed.set()
 
     async def handle_get_task(self, request):
