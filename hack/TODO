@@ -21,7 +21,7 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
  - status UI
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
-   - done: 30, 300
+   - done: 30, 300, 3000 (2 x metadata service connection refused)
 
  - run tests (later)
 
