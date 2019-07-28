@@ -57,16 +57,25 @@ async def check_shell_output(script):
         raise CalledProcessError(script, proc.returncode)
     return outerr
 
+async def docker_delete_container(container_id):
+    try:
+        log.info(f'running docker rm {container_id}')
+        await check_shell(f'docker rm {container_id}')
+    except asyncio.CancelledError:  # pylint: disable=try-except-raise
+        raise
+    except Exception:  # pylint: disable=broad-except
+        log.exception(f'docker rm {container_id} failed')
 
-async def docker_run(scratch_dir, task_token, task_name, attempt_token, step_name, image, cmd):
+async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
 
     container_id = None
     attempts = 0
     while not container_id:
         try:
-            log.info(f'running {full_step}')
-            container_id, _ = await check_shell_output(f'docker run -d -v /shared:/shared {shq(image)} /bin/bash -c {shq(cmd)}')
+            docker_cmd = f'docker run -d -v /shared:/shared {shq(image)} --cpus {cores} --memory {cores * 3.5}g /bin/bash -c {shq(cmd)}'
+            log.info(f'running {full_step}: {docker_cmd}')
+            container_id, _ = await check_shell_output(docker_cmd)
             container_id = container_id.decode('utf-8').strip()
         except CalledProcessError as e:
             if attempts < 12 and e.returncode == 125:
@@ -89,6 +98,8 @@ async def docker_run(scratch_dir, task_token, task_name, attempt_token, step_nam
 
     gs_log = f'{scratch_dir}/{attempt_token}/{step_name}.log'
     await check_shell(f'docker logs {container_id} 2>&1 | gsutil cp - {shq(gs_log)}')
+
+    asyncio.ensure_future(docker_delete_container(container_id))
 
     return ec
 
@@ -146,6 +157,7 @@ class Worker:
         scratch_dir = config['scratch_dir']
         task_token = config['task_token']
         task_name = config['task_name']
+        cores = config['cores']
         attempt_token = config['attempt_token']
         inputs_cmd = config['inputs_cmd']
         image = config['image']
@@ -154,7 +166,7 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
-        input_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
+        input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:237.0.0-alpine', inputs_cmd)
 
         status = {
             'task_token': task_token,
@@ -163,11 +175,11 @@ class Worker:
         }
 
         if input_ec == 0:
-            main_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'main', image, cmd)
+            main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd)
             status['main'] = main_ec
 
             if main_ec == 0:
-                output_ec = await docker_run(scratch_dir, task_token, task_name, attempt_token, 'output', 'google/cloud-sdk:237.0.0-alpine', outputs_cmd)
+                output_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'output', 'google/cloud-sdk:237.0.0-alpine', outputs_cmd)
                 status['output'] = output_ec
 
         log.info(f'task {task_token} done status {status}')

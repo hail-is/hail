@@ -3,6 +3,7 @@ import os
 import time
 import secrets
 import logging
+import socket
 import threading
 import concurrent
 import urllib.parse
@@ -19,10 +20,10 @@ from .backend import Backend
 from .resource import InputResourceFile, TaskResourceFile
 from .utils import PipelineException
 
+HOSTNAME = socket.gethostname()
+
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
-
-WORKER_CORES = 1
 
 def new_token():
     # 36**7 / 12000000.0 ~ 6.5K
@@ -154,6 +155,14 @@ class GServices:
         self.loop = asyncio.get_event_loop()
         self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=40)
 
+        self.filter = f'''
+logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
+resource.type=gce_instance AND
+jsonPayload.resource.name:"{self.machine_name_prefix}" AND
+jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
+'''
+        log.info(f'filter {self.filter}')
+
     def get_clients(self):
         clients = getattr(self.local_clients, 'clients', None)
         if clients is None:
@@ -166,13 +175,7 @@ class GServices:
 
     # logging
     async def list_entries(self):
-        filter = f'''
-logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
-resource.type=gce_instance AND
-jsonPayload.resource.name:"{self.machine_name_prefix}" AND
-jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
-'''
-        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING)
+        entries = self.logging_client.list_entries(filter_=self.filter, order_by=google.cloud.logging.DESCENDING)
         return PagedIterator(self, entries.pages)
 
     async def stream_entries(self):
@@ -311,7 +314,7 @@ class Instance:
         self.inst_pool = inst_pool
         self.tasks = set()
         self.token = inst_token
-        self.free_cores = WORKER_CORES
+        self.free_cores = inst_pool.worker_cores
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = True
@@ -412,12 +415,15 @@ class Instance:
 
 
 class InstancePool:
-    def __init__(self, runner, pool_size, max_instances):
-        self.token = new_token()
-        self.machine_name_prefix = f'pipeline-{self.token}-worker-'
+    def __init__(self, runner, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.runner = runner
+        self.worker_cores = worker_cores
+        self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
+
+        self.token = new_token()
+        self.machine_name_prefix = f'pipeline-{self.token}-worker-'
         self.instances = sortedcontainers.SortedSet(key=lambda inst: inst.last_updated)
         self.instances_by_free_cores = sortedcontainers.SortedSet(key=lambda inst: inst.free_cores)
         self.changed = asyncio.Event()
@@ -449,7 +455,7 @@ class InstancePool:
         config = {
             'name': machine_name,
             # FIXME resize
-            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{WORKER_CORES}',
+            'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{self.worker_cores}',
             'labels': {
                 'role': 'pipeline_worker',
                 'inst_token': inst_token
@@ -459,7 +465,7 @@ class InstancePool:
                 'boot': True,
                 'autoDelete': True,
                 # FIXME resize
-                'diskSizeGb': '20',
+                'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
                     'sourceImage': 'projects/broad-ctsa/global/images/cs-hack',
                 }
@@ -492,7 +498,7 @@ class InstancePool:
             'metadata': {
                 'items': [{
                     'key': 'driver',
-                    'value': 'cs-hack-master'
+                    'value': HOSTNAME
                 }, {
                     'key': 'inst_token',
                     'value': inst_token
@@ -509,7 +515,7 @@ class InstancePool:
         inst = Instance(self, inst_token)
         self.token_inst[inst_token] = inst
         self.instances.add(inst)
-        self.free_cores += WORKER_CORES
+        self.free_cores += self.worker_cores
 
         log.info(f'created {inst}')
 
@@ -626,7 +632,7 @@ class GRunner:
                 output_paths.append(p)
         return output_paths
 
-    def __init__(self, pipeline, verbose, scratch_dir):
+    def __init__(self, pipeline, verbose, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.pipeline = pipeline
         self.verbose = verbose
 
@@ -640,7 +646,7 @@ class GRunner:
         while self.scratch_dir_path and self.scratch_dir_path[0] == '/':
             self.scratch_dir_path = self.scratch_dir_path[1:]
 
-        self.inst_pool = InstancePool(self, 3, 1000)
+        self.inst_pool = InstancePool(self, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
 
@@ -835,15 +841,19 @@ class GRunner:
 
 
 class GoogleBackend(Backend):
-    def __init__(self, scratch_dir):
+    def __init__(self, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.scratch_dir = scratch_dir
+        self.worker_cores = worker_cores
+        self.worker_disk_size_gb = worker_disk_size_gb
+        self.pool_size = pool_size
+        self.max_instances = max_instances
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         if dry_run:
             print('do stuff')
             return
 
-        runner = GRunner(pipeline, verbose, self.scratch_dir)
+        runner = GRunner(pipeline, verbose, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(runner.run())
         loop.run_until_complete(loop.shutdown_asyncgens())

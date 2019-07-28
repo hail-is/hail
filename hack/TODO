@@ -10,20 +10,22 @@ rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
 
- - delete docker container after done on worker
+ - check event loop
 
  - log in another thread, put events on a queue
 
- - update pool_size via api
- - make master figure out its name
  - status UI
- - merge out and err in run-task2 logs
 
  - run scale tests: 300, 3K, 30K, 300K, 3M
    - done: 30
-
 
  - run tests (later)
 
 get internal IP:
 curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip"
+
+3 7 => 31
+(+ 3 7 (* 3 7))
+
+11 25 => 311
+(+ 11 25 (* 11 25))

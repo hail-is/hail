@@ -6,7 +6,12 @@ M = int(sys.argv[2])
 print(f'N {N} M {M}')
 
 p = pipeline.Pipeline(
-    backend=pipeline.GoogleBackend('gs://hail-cseed/cs-hack/tmp'),
+    backend=pipeline.GoogleBackend(
+        scratch_dir='gs://hail-cseed/cs-hack/tmp'
+        worker_cores=8,
+        worker_disk_size_gb='200',
+        pool_size=100,
+        max_instances=1000),
     default_image='ubuntu:18.04')
 
 n = []
