@@ -18,12 +18,14 @@ n = []
 for i in range(N):
     t = p.new_task(f'N{i}')
     t.command(f'head -c 10 </dev/random | base64 >{t.ofile}')
+    t.cpu(4)
     n.append(t)
 
 m = []
 for j in range(M):
     t = p.new_task(f'M{j}')
     t.command(f'head -c 10 </dev/random | base64 >{t.ofile}')
+    t.cpu(2)
     m.append(t)
 
 for i in range(N):
