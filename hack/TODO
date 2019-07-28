@@ -9,6 +9,7 @@ sortedcontainers google-api-python-client google-cloud==0.32.0
 GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
 
  - use async pool in launching tasks
+ - delete docker container after done on worker
 
  - log in another thread, put events on a queue
 

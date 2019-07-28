@@ -376,12 +376,16 @@ class InstancePool:
         self.token_inst = {}
 
     async def start(self):
-        asyncio.ensure_future(self.control_loop())
-        asyncio.ensure_future(self.event_loop())
-        asyncio.ensure_future(self.heal_loop())
+        log.info('starting instance pool')
+        await asyncio.ensure_future(self.control_loop())
+        await asyncio.ensure_future(self.event_loop())
+        await asyncio.ensure_future(self.heal_loop())
+        log.info('instance pool started')
 
     async def launch_instance(self):
         inst_token = secrets.token_hex(16)
+        log.info('launching instance {inst_token}')
+
         config = {
             'name': f'pipeline-{inst_token}',
             # FIXME resize
@@ -518,11 +522,12 @@ class InstancePool:
                 raise
             except Exception:  # pylint: disable=broad-except
                 log.exception('instance pool heal loop: caught exception')
-            await asyncio.sleep(1)
+            await asyncio.sleep(15)
 
     async def control_loop(self):
         while True:
             try:
+                log.info(f'n_active_instances {self.n_active_instances} n_instances {len(self.instance)} free_cores {self.free_cores} ready_cores {self.runner.ready_task_cores}')
                 while (self.n_active_instances < self.pool_size and
                        len(self.instances) < self.max_instances and
                        self.free_cores < self.runner.ready_task_cores):
@@ -639,12 +644,18 @@ class GRunner:
         return web.Response()
 
     async def execute_task(self, t, inst):
+        log.info(f'executing {t} on {inst}...')
+
         try:
             t.schedule(inst)
             config = self.get_task_config(t)
-            return web.json_response({
-                'task': config
-            })
+            with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                req_body = {'task': config}
+                with session.post('http://pipeline-{inst.token}:5000/execute_task', json=req_body) as resp:
+                    await resp.json()
+                    # FIXME update inst tasks
+                    inst.update_timestamp()
         except Exception as e:
             t.reschedule()
             raise e
@@ -698,6 +709,7 @@ class GRunner:
             for t in self.tasks:
                 if not t.parents:
                     self.ready.put_nowait(t)
+                    log.info(f'put {t}')
 
             while True:
                 # wait for a task
@@ -710,12 +722,14 @@ class GRunner:
                 assert not t.state
 
                 self.ready_task_cores -= t.cores
+                log.info(f'got {t}')
 
                 # wait for an instance
                 while True:
                     if self.inst_pool.instances_by_free_cores:
                         inst = self.inst_pool.instances_by_free_cores[-1]
                         if t.cores <= inst.free_cores:
+                            log.info(f'found {inst} for {t}')
                             break
                     await self.inst_pool.changed.wait()
                     self.inst_pool.changed.clear()
