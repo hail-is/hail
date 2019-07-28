@@ -155,7 +155,7 @@ logName="projects/{PROJECT}/logs/compute.googleapis.com%2Factivity_log" AND
 resource.type=gce_instance AND
 jsonPayload.event_subtype=("compute.instances.preempted" OR "compute.instances.delete")
 '''
-        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING, page_size=250)
+        entries = self.logging_client.list_entries(filter_=filter, order_by=google.cloud.logging.DESCENDING, page_size=100)
         return PagedIterator(self, entries.pages)
 
     async def stream_entries(self):
@@ -236,7 +236,7 @@ class GTask:
         runner.ready.put_nowait(self)
         runner.ready_task_cores += self.cores
 
-    async def notify_children(self, runner):
+    def notify_children(self, runner):
         for c in self.children:
             n = c.n_pending_parents
             assert n > 0
@@ -245,12 +245,12 @@ class GTask:
             log.info(f'{c} now waiting on {n} parents')
             if n == 0:
                 if any(p.state != 'OK' for p in self.parents):
-                    await c.set_state(runner, 'SKIPPED', None)
+                    c.set_state(runner, 'SKIPPED', None)
                 else:
                     runner.ready.put_nowait(c)
                     runner.ready_task_cores += c.cores
 
-    async def set_state(self, runner, state, attempt_token):
+    def set_state(self, runner, state, attempt_token):
         if self.state:
             return
 
@@ -264,9 +264,10 @@ class GTask:
 
         runner.n_pending -= 1
         if runner.n_pending == 0:
-            log.info('all tasks complete, waiting for instances to drain')
+            log.info('all tasks complete, put None task')
+            runner.ready.put_nowait(None)
 
-        await self.notify_children(runner)
+        self.notify_children(runner)
 
     def __str__(self):
         return f'task {self.task.name} {self.token}'
@@ -615,9 +616,7 @@ class GRunner:
         return web.Response()
 
     async def handle_task_complete(self, request):
-        # protect
-        await asyncio.shield(self.handle_task_complete2(request))
-        return web.Response()
+        return await asyncio.shield(self.handle_task_complete2(request))
 
     async def handle_task_complete2(self, request):
         status = await request.json()
@@ -634,11 +633,10 @@ class GRunner:
             state = 'BAD'
         log.error(f'{t} failed status {status} logs in {self.scratch_dir}/{attempt_token}')
 
-        await self.set_task_state(t, state, attempt_token)
-
-    async def set_task_state(self, t, state, attempt_token):
-        await t.set_state(self, state, attempt_token)
+        t.set_state(self, state, attempt_token)
         self.changed.set()
+
+        return web.Response()
 
     async def execute_task(self, t, inst):
         try:
@@ -650,11 +648,6 @@ class GRunner:
         except Exception as e:
             t.reschedule()
             raise e
-
-        config = self.get_task_config(t)
-        return web.json_response({
-            'task': config
-        })
 
     def get_task_config(self, t):
         attempt_token = secrets.token_hex(16)
