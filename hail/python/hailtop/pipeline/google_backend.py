@@ -251,12 +251,13 @@ class GTask:
 
         inst.tasks.add(self)
 
-        # inst.active:
+        # inst.active
         inst.inst_pool.instances_by_free_cores.remove(inst)
         inst.free_cores -= self.cores
         inst.inst_pool.instances_by_free_cores.add(inst)
         inst.inst_pool.free_cores -= self.cores
-        inst.inst_pool.changed.set()
+        # can't create more scheduling opportunities
+        # inst.inst_pool.changed.set()
 
         self.active_inst = inst
 
@@ -344,10 +345,12 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
+            self.inst_pool.free_cores -= self.inst_pool.worker_cores
 
         self.active = True
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
+        self.inst_pool.free_cores += self.inst_pool.worker_cores
         self.inst_pool.changed.set()
 
     def deactivate(self):
@@ -475,7 +478,6 @@ class InstancePool:
         machine_name = self.token_machine_name(inst_token)
         config = {
             'name': machine_name,
-            # FIXME resize
             'machineType': f'projects/{PROJECT}/zones/{ZONE}/machineTypes/n1-standard-{self.worker_cores}',
             'labels': {
                 'role': 'pipeline_worker',
@@ -485,7 +487,6 @@ class InstancePool:
             'disks': [{
                 'boot': True,
                 'autoDelete': True,
-                # FIXME resize
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
                     'sourceImage': 'projects/broad-ctsa/global/images/cs-hack',
@@ -673,8 +674,6 @@ class GRunner:
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
 
-        self.changed = asyncio.Event()
-
         self.n_pending_tasks = len(pipeline._tasks)
 
         self.ready = asyncio.Queue()
@@ -699,16 +698,6 @@ class GRunner:
                 p = self.ptask_task[pp]
                 t.parents.add(p)
                 p.children.add(t)
-
-        # FIXME debugging
-        for t in self.tasks:
-            print(t)
-            print('  parents')
-            for p in t.parents:
-                print(f'    {p}')
-            print('  children')
-            for c in t.children:
-                print(f'    {c}')
 
         self.app = web.Application()
         self.app.add_routes([
@@ -772,7 +761,6 @@ class GRunner:
             log.error(f'{t} failed logs in {self.scratch_dir}/{task_token}/{attempt_token}')
 
         t.set_state(self, state, attempt_token)
-        self.changed.set()
 
         return web.Response()
 
