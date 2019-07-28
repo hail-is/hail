@@ -12,6 +12,8 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
 
  - check event loop
 
+ - move resources to somewhere like gs://hail-common/cseed/pipeline_google_backend/
+
  - log in another thread, put events on a queue
 
  - status UI
