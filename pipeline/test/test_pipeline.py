@@ -3,10 +3,11 @@ import os
 import subprocess as sp
 import tempfile
 
-from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, HackBackend, PipelineException
+from hailtop.pipeline import Pipeline, BatchBackend, LocalBackend, GoogleBackend, PipelineException
 
-gcs_input_dir = os.environ.get('SCRATCH') + '/input'
-gcs_output_dir = os.environ.get('SCRATCH') + '/output'
+SCRATCH = os.environ['SCRATCH']
+gcs_input_dir = SCRATCH  + '/input'
+gcs_output_dir = SCRATCH + '/output'
 
 
 class LocalTests(unittest.TestCase):
@@ -289,9 +290,14 @@ class LocalTests(unittest.TestCase):
         p.run()
 
 
-class HackTests(unittest.TestCase):
+class GoogleTests(unittest.TestCase):
     def pipeline(self):
-        return Pipeline(backend=HackBackend(),
+        return Pipeline(backend=GoogleBackend(
+            scratch_dir='gs://hail-cseed/cs-hack/tmp',
+            worker_cores=1,
+            worker_disk_size_gb='20',
+            pool_size=3,
+            max_instances=10),
                         default_image='google/cloud-sdk:237.0.0-alpine',
                         attributes={'foo': 'a', 'bar': 'b'})
 
