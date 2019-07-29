@@ -13,6 +13,7 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
   def combine(i: Int, value0: U) {
+    log.info(s"at result $i, AssociativeCombiner contains ${ t.size() } queued results")
     var value = value0
     var end = i
 
