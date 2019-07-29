@@ -432,11 +432,14 @@ class EmitFunctionBuilder[F >: Null](
     m
   }
 
-  override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
-    val mb = new EmitMethodBuilder(this, s"method${ methods.size }", argsInfo, returnInfo)
+  def newMethod(prefix: String, argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder = {
+    val mb = new EmitMethodBuilder(this, s"${prefix}_${ methods.size }", argsInfo, returnInfo)
     methods.append(mb)
     mb
   }
+
+  override def newMethod(argsInfo: Array[TypeInfo[_]], returnInfo: TypeInfo[_]): EmitMethodBuilder =
+    newMethod("method", argsInfo, returnInfo)
 
   override def newMethod[R: TypeInfo]: EmitMethodBuilder =
     newMethod(Array[TypeInfo[_]](), typeInfo[R])
