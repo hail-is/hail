@@ -6,7 +6,7 @@ from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.expr.blockmatrix_type import *
-from hail.ir.renderer import Renderer, CSERenderer, NewCSE
+from hail.ir.renderer import Renderer, CSERenderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
 

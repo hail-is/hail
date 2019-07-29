@@ -1,9 +1,21 @@
 import abc
 
-from typing import List, Set
+from typing import List, Set, Optional
 
 from hail.utils.java import Env
 from .renderer import Renderer, Renderable, RenderableStr
+
+
+def _env_bind(env, *bindings):
+    if bindings:
+        if env:
+            res = env.copy()
+            res.update(bindings)
+            return res
+        else:
+            return dict(bindings)
+    else:
+        return env
 
 
 class BaseIR(Renderable):
@@ -72,12 +84,49 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
-    @staticmethod
-    def new_block(i: int):
+    def new_block(self, i: int):
+        return self.uses_agg_context(i) or self.uses_scan_context(i)
+
+    def binds(self, i: int):
         return False
 
-    def binds(self, i: int) -> Set[str]:
-        return set()
+    def bindings(self, i: int):
+        return []
+
+    def agg_bindings(self, i: int):
+        return []
+
+    def scan_bindings(self, i: int):
+        return []
+
+    def uses_agg_context(self, i: int):
+        return False
+
+    def uses_scan_context(self, i: int):
+        return False
+
+    def child_context_without_bindings(self, i: int, parent_context):
+        (eval_c, agg_c, scan_c) = parent_context
+        if self.uses_agg_context(i):
+            return (agg_c, None, None)
+        elif self.uses_scan_context(i):
+            return (scan_c, None, None)
+        else:
+            return parent_context
+
+    def child_context(self, i: int, parent_context, default_value=None):
+        base = self.child_context_without_bindings(i, parent_context)
+        if not self.binds(i):
+            return base
+        eval_b = self.bindings(i)
+        agg_b = self.agg_bindings(i)
+        scan_b = self.scan_bindings(i)
+        if default_value:
+            eval_b = [(var, default_value) for (var, _) in eval_b]
+            agg_b  = [(var, default_value) for (var, _) in agg_b]
+            scan_b = [(var, default_value) for (var, _) in scan_b]
+        (eval_c, agg_c, scan_c) = base
+        return _env_bind(eval_c, *eval_b), _env_bind(agg_c, *agg_b), _env_bind(scan_c, *scan_b)
 
 
 class IR(BaseIR):
@@ -114,6 +163,8 @@ class IR(BaseIR):
 
         return self.copy(*new_children)
 
+    # FIXME: This is only used to compute the free variables in a subtree,
+    # in an incorrect way. Should just define a free variables method directly.
     @property
     def bound_variables(self):
         return {v for child in self.children for v in child.bound_variables}

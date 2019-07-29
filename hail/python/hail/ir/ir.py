@@ -9,14 +9,10 @@ from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
 from hail.typecheck import *
 from hail.utils.misc import escape_str, dump_json, parsable_strings, escape_id
 from .base_ir import *
+from .base_ir import _env_bind
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 from .renderer import Renderer, Renderable, RenderableStr, ParensRenderer
 from .table_writer import TableWriter
-
-def _env_bind(env, k, v):
-    env = env.copy()
-    env[k] = v
-    return env
 
 
 class I32(IR):
@@ -236,8 +232,7 @@ class If(IR):
         assert (self.cnsq.typ == self.altr.typ)
         self._type = self.cnsq.typ
 
-    @staticmethod
-    def new_block(i):
+    def new_block(self, i):
         return i == 1 or i == 2
 
 
@@ -268,8 +263,7 @@ class Let(IR):
         self.value = value
         self.body = body
 
-    @staticmethod
-    def new_block(i):
+    def new_block(self, i):
         return i > 0
 
     @typecheck_method(value=IR, body=IR)
@@ -288,11 +282,14 @@ class Let(IR):
 
     def _compute_type(self, env, agg_env):
         self.value._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.name, self.value._type), agg_env)
+        self.body._compute_type(_env_bind(env, *self.bindings(1)), agg_env)
         self._type = self.body._type
 
+    def bindings(self, i):
+        return [(self.name, self.value._type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
 
 
 class Ref(IR):
@@ -558,11 +555,14 @@ class NDArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.nd._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.name, self.nd.typ.element_type), agg_env)
+        self.body._compute_type(_env_bind(env, (self.name, self.nd.typ.element_type)), agg_env)
         self._type = tndarray(self.body.typ, self.nd.typ.ndim)
 
+    def bindings(self, i):
+        return [(self.name, self.nd.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
 
 
 class NDArrayRef(IR):
@@ -710,8 +710,11 @@ class ArraySort(IR):
         self.a._compute_type(env, agg_env)
         self._type = self.a.typ
 
+    def bindings(self, i):
+        return [(self.l_name, self.a.typ.element_type), (self.r_name, self.a.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.l_name, self.r_name} if i == 1 else {}
+        return i == 1
 
 
 class ToSet(IR):
@@ -820,11 +823,14 @@ class ArrayMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
         self._type = tarray(self.body.typ)
 
+    def bindings(self, i):
+        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
 
 
 class ArrayFilter(IR):
@@ -851,11 +857,14 @@ class ArrayFilter(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
         self._type = self.a.typ
 
+    def bindings(self, i):
+        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
 
 
 class ArrayFlatMap(IR):
@@ -882,11 +891,14 @@ class ArrayFlatMap(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self.body._compute_type(_env_bind(env, (self.name, self.a.typ.element_type)), agg_env)
         self._type = tarray(self.body.typ.element_type)
 
+    def bindings(self, i):
+        return [(self.name, self.a.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
 
 
 class ArrayFold(IR):
@@ -918,14 +930,16 @@ class ArrayFold(IR):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
         self.body._compute_type(
-            _env_bind(
-                _env_bind(env, self.value_name, self.a.typ.element_type),
-                self.accum_name, self.zero.typ),
+            _env_bind(env, (self.value_name, self.a.typ.element_type),
+                           (self.accum_name, self.zero.typ)),
             agg_env)
         self._type = self.zero.typ
 
+    def bindings(self, i):
+        return [(self.accum_name, self.zero.typ), (self.value_name, self.a.typ.element_type)] if i == 2 else []
+
     def binds(self, i):
-        return {self.accum_name, self.value_name} if i == 2 else {}
+        return i == 2
 
 
 class ArrayScan(IR):
@@ -957,14 +971,16 @@ class ArrayScan(IR):
         self.a._compute_type(env, agg_env)
         self.zero._compute_type(env, agg_env)
         self.body._compute_type(
-            _env_bind(
-                _env_bind(env, self.value_name, self.a.typ.element_type),
-                self.accum_name, self.zero.typ),
+            _env_bind(env, (self.value_name, self.a.typ.element_type),
+                           (self.accum_name, self.zero.typ)),
             agg_env)
         self._type = tarray(self.body.typ)
 
+    def bindings(self, i):
+        return [(self.accum_name, self.zero.typ), (self.value_name, self.a.typ.element_type)] if i == 2 else []
+
     def binds(self, i):
-        return {self.accum_name, self.value_name} if i == 2 else {}
+        return i == 2
 
 
 class ArrayLeftJoinDistinct(IR):
@@ -993,8 +1009,13 @@ class ArrayLeftJoinDistinct(IR):
     def bound_variables(self):
         return {self.l_name, self.r_name} | super().bound_variables
 
+    def bindings(self, i):
+        return [(self.l_name, self.left.typ.element_type),
+                (self.r_name, self.right.typ.element_type)]\
+            if i == 2 or i == 3 else []
+
     def binds(self, i):
-        return {self.l_name, self.r_name} if i == 2 or i == 3 else {}
+        return i == 2 or i == 3
 
 
 class ArrayFor(IR):
@@ -1021,11 +1042,14 @@ class ArrayFor(IR):
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
-        self.body._compute_type(_env_bind(env, self.value_name, self.a.typ.element_type), agg_env)
+        self.body._compute_type(_env_bind(env, (self.value_name, self.a.typ.element_type)), agg_env)
         self._type = tvoid
 
+    def bindings(self, i):
+        return [(self.value_name, self.a.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.value_name} if i == 1 else {}
+        return i == 1
 
 
 class AggFilter(IR):
@@ -1050,6 +1074,12 @@ class AggFilter(IR):
         self.cond._compute_type(agg_env, None)
         self.agg_ir._compute_type(env, agg_env)
         self._type = self.agg_ir.typ
+
+    def uses_agg_context(self, i: int):
+        return i == 0
+
+    def uses_scan_context(self, i: int):
+        return i == 0
 
 
 class AggExplode(IR):
@@ -1077,11 +1107,26 @@ class AggExplode(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_body._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        new_agg = _env_bind(agg_env, (self.name, self.array.typ.element_type))
+        if not new_agg:
+            print("...")
+        self.agg_body._compute_type(env, _env_bind(agg_env, (self.name, self.array.typ.element_type)))
         self._type = self.agg_body.typ
 
+    def agg_bindings(self, i):
+        return [(self.name, self.array.typ.element_type)] if i == 1 else []
+
+    def scan_bindings(self, i):
+        return [(self.name, self.array.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.name} if i == 1 else {}
+        return i == 1
+
+    def uses_agg_context(self, i: int):
+        return i == 0
+
+    def uses_scan_context(self, i: int):
+        return i == 0
 
 
 class AggGroupBy(IR):
@@ -1107,6 +1152,12 @@ class AggGroupBy(IR):
         self.agg_ir._compute_type(env, agg_env)
         self._type = tdict(self.key.typ, self.agg_ir.typ)
 
+    def uses_agg_context(self, i: int):
+        return i == 0
+
+    def uses_scan_context(self, i: int):
+        return i == 0
+
 
 class AggArrayPerElement(IR):
     @typecheck_method(array=IR, element_name=str, index_name=str, agg_ir=IR, is_scan=bool)
@@ -1130,16 +1181,31 @@ class AggArrayPerElement(IR):
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(_env_bind(env, self.index_name, tint32),
-                                  _env_bind(agg_env, self.element_name, self.array.typ.element_type))
+        self.agg_ir._compute_type(_env_bind(env, (self.index_name, tint32)),
+                                  _env_bind(agg_env, (self.element_name, self.array.typ.element_type)))
         self._type = tarray(self.agg_ir.typ)
 
     @property
     def bound_variables(self):
         return {self.element_name, self.index_name} | super().bound_variables
 
+    def uses_agg_context(self, i: int):
+        return i == 0
+
+    def uses_scan_context(self, i: int):
+        return i == 0
+
+    def bindings(self, i):
+        return [(self.index_name, tint32)] if i == 1 else []
+
+    def agg_bindings(self, i):
+        return [(self.element_name, self.array.typ.element_type)] if i == 1 else []
+
+    def scan_bindings(self, i):
+        return [(self.element_name, self.array.typ.element_type)] if i == 1 else []
+
     def binds(self, i):
-        return {self.index_name, self.element_name} if i == 1 else {}
+        return i == 1
 
 
 def _register(registry, name, f):
@@ -1249,6 +1315,9 @@ class ApplyAggOp(BaseApplyAggOp):
     def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
         super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
 
+    def uses_agg_context(self, i: int):
+        return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
+
 
 class ApplyScanOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -1257,6 +1326,9 @@ class ApplyScanOp(BaseApplyAggOp):
                       seq_op_args=sequenceof(IR))
     def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
         super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
+
+    def uses_scan_context(self, i: int):
+        return i >= len(self.constructor_args) + (len(self.init_op_args) if self.init_op_args else 0)
 
 
 class Begin(IR):
@@ -1654,13 +1726,16 @@ class Uniroot(IR):
         return other.argname == self.argname
 
     def _compute_type(self, env, agg_env):
-        self.function._compute_type(_env_bind(env, self.argname, tfloat64), agg_env)
+        self.function._compute_type(_env_bind(env, (self.argname, tfloat64)), agg_env)
         self.min._compute_type(env, agg_env)
         self.max._compute_type(env, agg_env)
         self._type = tfloat64
 
+    def bindings(self, i):
+        return [(self.argname, tfloat64)] if i == 0 else []
+
     def binds(self, i):
-        return {self.argname} if i == 0 else {}
+        return i == 0
 
 
 class TableCount(IR):
@@ -1724,8 +1799,17 @@ class TableAggregate(IR):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
         self._type = self.query.typ
 
+    def new_block(self, i: int):
+        return i == 1
+
+    def bindings(self, i):
+        return self.child.typ.global_env() if i == 1 else []
+
+    def agg_bindings(self, i):
+        return self.child.typ.row_env() if i == 1 else []
+
     def binds(self, i):
-        return TableIR.row_env if i == 1 else {}
+        return i == 1
 
 
 class MatrixAggregate(IR):
@@ -1748,8 +1832,17 @@ class MatrixAggregate(IR):
         self.query._compute_type(self.child.typ.global_env(), self.child.typ.entry_env())
         self._type = self.query.typ
 
+    def new_block(self, i: int):
+        return i == 1
+
+    def bindings(self, i):
+        return self.child.typ.global_env() if i == 1 else []
+
+    def agg_bindings(self, i):
+        return self.child.typ.entry_env() if i == 1 else []
+
     def binds(self, i):
-        return MatrixIR.entry_env if i == 1 else {}
+        return i == 1
 
 
 class TableWrite(IR):
