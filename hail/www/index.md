@@ -2,7 +2,7 @@
 
 Hail is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
 
-Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS). Learn more about applications [here](references.md).
+Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS).
 
 Hail is exposed as a Python library, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++.
 
@@ -13,6 +13,10 @@ and feature requests. Chat with the Hail team and user community in Hail's
 
 Hail is actively developed with new features and performance improvements integrated weekly. See the [changelog](https://hail.is/docs/0.2/change_log.html) for more information.
 
+### Community
+
+Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](references.md).
+
 ### Maintainer
 
 Hail is maintained by a team in the [Neale lab](https://nealelab.is/) at the [Stanley Center for Psychiatric Research](http://www.broadinstitute.org/stanley) of the [Broad Institute of MIT and Harvard](http://www.broadinstitute.org) and the [Analytic and Translational Genetics Unit](https://www.atgu.mgh.harvard.edu/) of [Massachusetts General Hospital](http://www.massgeneral.org/).
@@ -21,8 +25,7 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 
 ### Citing Hail
 
-If you use Hail for published work, please cite the software and add a link to your work to our [growing list of Hail-powered science](references.md). You can get a
-citation for the version of Hail you installed by executing:
+If you use Hail for published work, please cite the software. You can get a citation for the version of Hail you installed by executing:
 
 ```python
 import hail as hl

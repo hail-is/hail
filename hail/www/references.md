@@ -1,9 +1,8 @@
-
 # Hail-Powered Science
 
-Hail has been widely adopted in academia and industry, including as an analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank](https://www.nealelab.is/uk-biobank). The Hail team also engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration, such as [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
+The following is an incomplete list of scientific work enabled by Hail. We welcome you to add additional examples by [editing this page directly]((https://github.com/hail-is/hail/edit/master/hail/www/references.md)), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.
 
-The following is an incomplete list of scientific work enabled by Hail. We welcome you to add additional examples by [editing the page directly]((https://github.com/hail-is/hail/edit/master/hail/www/references.md)), after which we will review the pull request to confirm the addition is valid. Please adhere to the existing formatting conventions.  
+In addition to software development, the Hail team engages in theoretical, algorithmic, and empirical research inspired by scientific collaboration. Examples include [Loss landscapes of regularized linear autoencoders](https://github.com/danielkunin/Regularized-Linear-Autoencoders), [Secure multi-party linear regression at plaintext speed](https://github.com/jbloom22/DASH), and [A synthetic-diploid benchmark for accurate variant-calling evaluation](https://www.nature.com/articles/s41592-018-0054-7).
 
 ## 2019
 
