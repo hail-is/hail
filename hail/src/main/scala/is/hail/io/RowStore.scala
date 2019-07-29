@@ -1363,10 +1363,9 @@ object EmitPackDecoder {
     }
   }
 
-  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
-    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]), ir.typeToTypeInfo(rt))
+  def decode(t: PType, rt: PType, mb: MethodBuilder): Code[_] = {
     val in = mb.getArg[InputBuffer](2)
-    val decode: Code[_] = t match {
+    t match {
       case _: PBoolean => in.load().readBoolean()
       case _: PInt32 => in.load().readInt()
       case _: PInt64 => in.load().readLong()
@@ -1381,26 +1380,27 @@ object EmitPackDecoder {
         }
         Code(emit, srvb.end())
     }
-    mb.emit(decode)
+  }
+
+  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
+    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], typeInfo[InputBuffer]), ir.typeToTypeInfo(rt))
+    mb.emit(decode(t, rt, mb))
     mb
   }
 
   def apply(t: PType, requestedType: PType): () => AsmFunction2[Region, InputBuffer, Long] = {
     val fb = new Function2Builder[Region, InputBuffer, Long]
     val mb = fb.apply_method
-    val in = mb.getArg[InputBuffer](2).load()
-    val srvb = new StagedRegionValueBuilder(mb, requestedType)
 
-    var c = t.fundamentalType match {
-      case t: PBaseStruct =>
-        emitBaseStruct(t, requestedType.fundamentalType.asInstanceOf[PBaseStruct], mb, in, srvb)
-      case t: PArray =>
-        emitArray(t, requestedType.fundamentalType.asInstanceOf[PArray], mb, in, srvb)
+    if (t.isPrimitive) {
+      val srvb = new StagedRegionValueBuilder(mb, requestedType)
+      mb.emit(Code(
+        srvb.start(),
+        srvb.addIRIntermediate(requestedType)(decode(t, requestedType, mb)),
+        srvb.end()))
+    } else {
+      mb.emit(decode(t, requestedType, mb))
     }
-
-    mb.emit(Code(
-      c,
-      Code._return(srvb.end())))
 
     fb.result()
   }
@@ -1712,12 +1712,10 @@ object EmitPackEncoder { self =>
     }
   }
 
-  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
-    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], ir.typeToTypeInfo(rt), typeInfo[OutputBuffer]), typeInfo[Unit])
+  def encode(t: PType, rt: PType, v: Code[_], mb: MethodBuilder): Code[Unit] = {
     val region: Code[Region] = mb.getArg[Region](1)
-    val v: Code[_] = mb.getArg(2)(ir.typeToTypeInfo(rt))
     val out: Code[OutputBuffer] = mb.getArg[OutputBuffer](3)
-    val encode: Code[Unit] = t.fundamentalType match {
+    t.fundamentalType match {
       case _: PBoolean => out.writeBoolean(coerce[Boolean](v))
       case _: PInt32 => out.writeInt(coerce[Int](v))
       case _: PInt64 => out.writeLong(coerce[Long](v))
@@ -1727,18 +1725,19 @@ object EmitPackEncoder { self =>
       case _: PBinary => writeBinary(mb, region, coerce[Long](v), out)
       case _ => emit(t, rt, mb, region, coerce[Long](v), out)
     }
-    mb.emit(encode)
+  }
+
+  def buildMethod(t: PType, rt: PType, fb: EmitFunctionBuilder[_]): ir.EmitMethodBuilder = {
+    val mb = fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], ir.typeToTypeInfo(rt), typeInfo[OutputBuffer]), typeInfo[Unit])
+    mb.emit(encode(t, rt, mb.getArg(2)(ir.typeToTypeInfo(rt)), mb))
     mb
   }
 
   def apply(t: PType, requestedType: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
     val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]
     val mb = fb.apply_method
-    val region = mb.getArg[Region](1).load()
     val offset = mb.getArg[Long](2).load()
-    val out = mb.getArg[OutputBuffer](3).load()
-
-    mb.emit(emit(t, requestedType, mb, region, offset, out))
+    mb.emit(encode(t, requestedType, Region.getIRIntermediate(t)(offset), mb))
     fb.result()
   }
 }
