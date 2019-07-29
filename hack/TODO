@@ -12,6 +12,9 @@ make check && make -C ../hail/python check && make copy-all && git add -u && git
 
  - scale test 300K on 1000 nodes
 
+ - speed up node creation
+
+ - disable console logging for large experiments
  - keep an eye out for intermittent gsutil errors
 
  - limit ready queue
