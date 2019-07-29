@@ -1744,8 +1744,6 @@ class IRSuite extends HailSuite {
     val callStatsSig2 = AggSignature2(CallStats(), Seq(TInt32()), Seq(TCall()), None)
     val collectSig2 = AggSignature2(CallStats(), Seq(), Seq(TInt32()), None)
 
-    val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
-
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
     val countSig = AggSignature(Count(), Seq(), None, Seq())
@@ -1818,7 +1816,6 @@ class IRSuite extends HailSuite {
       AggExplode(NA(TArray(TInt32())), "x", I32(0), false),
       AggGroupBy(True(), I32(0), false),
       ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig),
-      ApplyAggOp(FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, FastIndexedSeq(F64(-2.11)), histSig),
       ApplyAggOp(FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), FastIndexedSeq(call), callStatsSig),
       ApplyAggOp(FastIndexedSeq(I32(10)), None, FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),

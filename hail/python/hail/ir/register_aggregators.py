@@ -51,9 +51,6 @@ def register_aggregators():
 
     register_aggregator('TakeBy', (dtype('int32'),), None, (dtype('?in'), dtype('?key'),), dtype('array<?in>'))
 
-    histogram_aggregator_type = dtype('struct{bin_edges:array<float64>,bin_freq:array<int64>,n_smaller:int64,n_larger:int64}')
-    register_aggregator('Histogram', (dtype('float64'), dtype('float64'), dtype('int32'),), None, (dtype('float64'),), histogram_aggregator_type)
-
     downsample_aggregator_type = dtype('array<tuple(float64, float64, array<str>)>')
     register_aggregator('Downsample', (dtype('int32'),), None, (dtype('float64'), dtype('float64'), dtype('array<?T>'),), downsample_aggregator_type)
 

@@ -589,24 +589,6 @@ object Interpret {
           case InfoScore() =>
             val IndexedSeq(aggType) = seqOpArgTypes
             new InfoScoreAggregator(aggType.physicalType)
-          case Histogram() =>
-            val Seq(start, end, bins) = constructorArgs
-            val startValue = interpret(start, Env.empty[Any], null, null).asInstanceOf[Double]
-            val endValue = interpret(end, Env.empty[Any], null, null).asInstanceOf[Double]
-            val binsValue = interpret(bins, Env.empty[Any], null, null).asInstanceOf[Int]
-
-            if (binsValue <= 0)
-              fatal(s"""method 'hist' expects 'bins' argument to be > 0, but got $bins""")
-
-            val binSize = (endValue - startValue) / binsValue
-            if (binSize <= 0)
-              fatal(
-                s"""invalid bin size from given arguments (start = $startValue, end = $endValue, bins = $binsValue)
-                   |  Method requires positive bin size [(end - start) / bins], but got ${ binSize.formatted("%.2f") }
-                  """.stripMargin)
-
-            val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
-            new HistAggregator(indices)
           case LinearRegression() =>
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]

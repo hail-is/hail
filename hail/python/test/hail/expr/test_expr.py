@@ -789,8 +789,8 @@ class Tests(unittest.TestCase):
         table = table.annotate(d=hl.cond(table.idx == 11, -0.0, table.idx / 3))
         r = table.aggregate(hl.agg.hist(table.d, 0, 10, 5))
         self.assertEqual(r.bin_edges, [0, 2, 4, 6, 8, 10])
-        self.assertEqual(r.bin_freq, [6, 5, 6, 6, 7])
-        self.assertEqual(r.n_smaller, 1)
+        self.assertEqual(r.bin_freq, [7, 5, 6, 6, 7])
+        self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
     # Tested against R code

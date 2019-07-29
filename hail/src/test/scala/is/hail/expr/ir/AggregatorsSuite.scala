@@ -277,13 +277,6 @@ class AggregatorsSuite extends HailSuite {
       constrArgs = FastIndexedSeq(I32(2)))
   }
 
-  @Test def testHist() {
-    runAggregator(Histogram(), TFloat64(),
-      FastIndexedSeq(-10.0, 0.5, 2.0, 2.5, 4.4, 4.6, 9.5, 20.0, 20.0),
-      Row((0 to 10).map(_.toDouble).toFastIndexedSeq, FastIndexedSeq(1L, 0L, 2L, 0L, 2L, 0L, 0L, 0L, 0L, 1L), 1L, 2L),
-      constrArgs = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
-  }
-
   @Test
   def sumMultivar() {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
