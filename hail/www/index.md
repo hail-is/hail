@@ -2,7 +2,7 @@
 
 Hail is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data.
 
-Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS).
+Hail is built to scale and has first-class support for multi-dimensional structured data, like the genomic data in a genome-wide association study (GWAS). Learn more about applications [here](references.md).
 
 Hail is exposed as a Python library, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++.
 
