@@ -356,16 +356,17 @@ class Instance:
 
         if not self.active:
             return
-        self.active = False
-        self.inst_pool.n_active_instances -= 1
-        self.inst_pool.instances_by_free_cores.remove(self)
-        self.inst_pool.free_cores -= self.capacity
 
         # copy because put_on_ready => unschedule => removes from inst
         for t in list(self.tasks):
             assert t.active_inst == self
             t.put_on_ready(self.inst_pool.runner)
         assert not self.tasks
+
+        self.active = False
+        self.inst_pool.n_active_instances -= 1
+        self.inst_pool.instances_by_free_cores.remove(self)
+        self.inst_pool.free_cores -= self.capacity
 
         print('{self.inst_pool.n_active_instances} active workers')
 
