@@ -310,14 +310,12 @@ class Instance:
         self.tasks = set()
         self.token = inst_token
 
-        # 2x overschedule
-        self.capacity = 2 * inst_pool.worker_cores
-        self.free_cores = self.capacity
+        self.free_cores = inst_pool.worker_capacity
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = True
         self.inst_pool.n_pending_instances += 1
-        self.inst_pool.free_cores += self.capacity
+        self.inst_pool.free_cores += inst_pool.worker_capacity
 
         self.active = False
         self.deleted = False
@@ -336,12 +334,12 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
-            self.inst_pool.free_cores -= self.capacity
+            self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
         self.active = True
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
-        self.inst_pool.free_cores += self.capacity
+        self.inst_pool.free_cores += self.inst_pool.worker_capacity
         self.inst_pool.runner.changed.set()
 
         print(f'{self.inst_pool.n_active_instances} active workers')
@@ -350,7 +348,7 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
-            self.inst_pool.free_cores -= self.capacity
+            self.inst_pool.free_cores -= self.inst_pool.worker_capacity
             assert not self.active
             return
 
@@ -366,7 +364,7 @@ class Instance:
         self.active = False
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.instances_by_free_cores.remove(self)
-        self.inst_pool.free_cores -= self.capacity
+        self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
         print('{self.inst_pool.n_active_instances} active workers')
 
@@ -431,6 +429,8 @@ class InstancePool:
     def __init__(self, runner, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.runner = runner
         self.worker_cores = worker_cores
+        # 2x overschedule
+        self.worker_capacity = 2 * worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
@@ -624,7 +624,7 @@ class InstancePool:
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_cores}')
 
-                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_cores - 1) // self.worker_cores
+                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
                 instances_needed = min(instances_needed,
                                        self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                        self.max_instances - len(self.instances),
