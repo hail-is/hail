@@ -10,6 +10,10 @@ Hail is exposed as a Python library, using primitives for distributed queries an
 
 See the [documentation](https://hail.is/docs/0.2/) for more info on using Hail.
 
+### Community
+
+Hail has been widely adopted in academia and industry, including as the analysis platform for the [genome aggregation database](https://gnomad.broadinstitute.org) and [UK Biobank rapid GWAS](https://www.nealelab.is/uk-biobank). Learn more about [Hail-powered science](hail/www/references.md).
+
 ### Contribute
 
 If you'd like to discuss or contribute to the development of methods or infrastructure, please:
@@ -29,7 +33,7 @@ Contact the Hail team at <a href="mailto:hail@broadinstitute.org"><code>hail@bro
 
 ### Citing Hail
 
-If you use Hail for published work, please cite the software and add a link to your work to our [growing list of Hail-powered science](hail/www/references.md). You can get a
+If you use Hail for published work, please cite the software. You can get a
 citation for the version of Hail you installed by executing:
 
 ```python
