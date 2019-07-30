@@ -62,7 +62,7 @@ log = logging.getLogger('pipeline')
 
 class AsyncWorkerPool:
     def __init__(self, parallelism):
-        self.queue = asyncio.Queue(maxsize=50)
+        self.queue = asyncio.Queue()
 
         for _ in range(parallelism):
             asyncio.ensure_future(self._worker())
@@ -296,7 +296,7 @@ class GTask:
         if runner.n_pending_tasks == 0:
             log.info('all tasks complete')
 
-        print('{runner.n_pending} / {len(runner.tasks} complete')
+        print(f'{len(runner.ready)} / {runner.n_pending_tasks} / {len(runner.tasks)} complete')
 
         self.notify_children(runner)
 
@@ -322,6 +322,8 @@ class Instance:
 
         self.last_updated = time.time()
 
+        print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
+
     def machine_name(self):
         return self.inst_pool.token_machine_name(self.token)
 
@@ -342,7 +344,7 @@ class Instance:
         self.inst_pool.free_cores += self.inst_pool.worker_capacity
         self.inst_pool.runner.changed.set()
 
-        print(f'{self.inst_pool.n_active_instances} active workers')
+        print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def deactivate(self):
         if self.pending:
@@ -350,6 +352,8 @@ class Instance:
             self.inst_pool.n_pending_instances -= 1
             self.inst_pool.free_cores -= self.inst_pool.worker_capacity
             assert not self.active
+
+            print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
             return
 
         if not self.active:
@@ -366,7 +370,7 @@ class Instance:
         self.inst_pool.instances_by_free_cores.remove(self)
         self.inst_pool.free_cores -= self.inst_pool.worker_capacity
 
-        print('{self.inst_pool.n_active_instances} active workers')
+        print(f'{self.inst_pool.n_pending_instances} pending {self.inst_pool.n_active_instances} active workers')
 
     def update_timestamp(self):
         if self in self.inst_pool.instances:
@@ -675,7 +679,6 @@ class GRunner:
         self.inst_pool = InstancePool(self, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
-        self.session = None
 
         self.n_pending_tasks = len(pipeline._tasks)
 
@@ -772,10 +775,13 @@ class GRunner:
         try:
             config = self.get_task_config(t)
             req_body = {'task': config}
-            async with self.session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
-                await resp.json()
-                # FIXME update inst tasks
-                inst.update_timestamp()
+
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
+                    await resp.json()
+                    # FIXME update inst tasks
+                    inst.update_timestamp()
 
             log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
@@ -847,7 +853,7 @@ class GRunner:
                     if not t.state:
                         assert not t.active_inst
 
-                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
+                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
                         t.schedule(inst, self)
                         await self.pool.call(self.execute_task, t, inst)
 
@@ -866,8 +872,6 @@ class GRunner:
             await self.inst_pool.start()
 
             self.pool = AsyncWorkerPool(100)
-            self.session = aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60))
 
             for t in self.tasks:
                 if not t.parents:
@@ -879,9 +883,6 @@ class GRunner:
                 await site.stop()
             if app_runner:
                 await app_runner.cleanup()
-            if self.session:
-                await self.session.close()
-                self.session = None
 
         c = collections.Counter([t.state for t in self.tasks])
 
