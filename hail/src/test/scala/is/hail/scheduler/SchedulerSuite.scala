@@ -1,17 +1,23 @@
 package is.hail.scheduler
 
 import org.scalatest.testng.TestNGSuite
+import org.testng.SkipException
 import org.testng.annotations.Test
 import is.hail.TestUtils._
 
 class SchedulerTestException(message: String) extends Exception(message)
 
 class SchedulerSuite extends TestNGSuite {
-  private var schedulerHost = System.getenv("HAIL_TEST_SCHEDULER_HOST")
-  if (schedulerHost == null)
-    schedulerHost = "localhost"
+  private val schedulerHost = sys.env.get("HAIL_TEST_SCHEDULER_HOST") match {
+    case Some(host) => host
+    case None => "localhost"
+  }
 
   @Test def testSimpleJob(): Unit = {
+    if (sys.env.contains("HAIL_TEST_SKIP_SCHEDULER")) {
+      throw new SkipException("Skipping tests of the scheduler")
+    }
+
     val a = Array(-5, 6, 11)
     val da: DArray[Int] = new DArray[Int] {
       type Context = Int
@@ -35,6 +41,10 @@ class SchedulerSuite extends TestNGSuite {
   }
 
   @Test def testException(): Unit = {
+    if (sys.env.contains("HAIL_TEST_SKIP_SCHEDULER")) {
+      throw new SkipException("Skipping tests of the scheduler")
+    }
+
     val da: DArray[Int] = new DArray[Int] {
       type Context = Int
       val contexts: Array[Int] = Array(1, 2, 3)
