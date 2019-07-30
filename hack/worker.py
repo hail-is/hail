@@ -171,12 +171,6 @@ class Worker:
         self.last_updated = time.time()
         self.cpu_sem = WeightedSemaphore(cores)
 
-        self.session = None  # set in run()
-
-    async def close(self):
-        await self.session.close()
-        self.session = None
-
     async def handle_execute_task(self, request):
         body = await request.json()
 
@@ -252,9 +246,11 @@ class Worker:
 
         log.info(f'task {task_token} done status {status}')
 
-        async with self.session.post(f'http://{self.driver}:5000/task_complete', json=status):
-            log.info(f'task {task_token} status posted')
-            self.last_updated = time.time()
+        async with aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post(f'http://{self.driver}:5000/task_complete', json=status):
+                log.info(f'task {task_token} status posted')
+                self.last_updated = time.time()
 
     async def run(self):
         app_runner = None
@@ -270,9 +266,6 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
-            self.session = aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60))
-
             await self.register()
 
             while self.tasks or time.time() - self.last_updated < 60:
@@ -282,8 +275,10 @@ class Worker:
             log.info('idle 60s, exiting')
 
             body = {'inst_token': self.token}
-            async with self.session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
-                log.info('deactivated')
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
+                    log.info('deactivated')
         finally:
             if site:
                 await site.stop()
@@ -296,11 +291,13 @@ class Worker:
             try:
                 log.info('registering')
                 body = {'inst_token': self.token}
-                async with self.session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
-                    if resp.status == 200:
-                        self.last_updated = time.time()
-                        log.info('registered')
-                        return
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    async with session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
+                        if resp.status == 200:
+                            self.last_updated = time.time()
+                            log.info('registered')
+                            return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
