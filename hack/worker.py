@@ -187,9 +187,7 @@ class Worker:
 
         await asyncio.shield(self.handle_execute_task2(config))
 
-        return web.json_response({
-            'active_tasks': list(self.tasks)
-        })
+        return web.Response()
 
     async def handle_execute_task2(self, config):
         task_token = config['task_token']

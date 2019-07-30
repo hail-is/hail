@@ -9,6 +9,7 @@ import concurrent
 import urllib.parse
 import asyncio
 from shlex import quote as shq
+import requests
 import aiohttp
 from aiohttp import web
 import sortedcontainers
@@ -657,6 +658,9 @@ class InstancePool:
 
             await asyncio.sleep(15)
 
+def post_execute_task(host, body):
+    requests.post(f'http://{host}:5000/execute_task', data=body)
+
 class GRunner:
     def gs_input_path(self, resource):
         if isinstance(resource, InputResourceFile):
@@ -691,6 +695,10 @@ class GRunner:
         self.inst_pool = InstancePool(self, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
+
+        self.loop = asyncio.get_event_loop()
+
+        self.proc_pool = concurrent.futures.ProcessPoolExecutor(max_workers=40)
 
         self.n_pending_tasks = len(pipeline._tasks)
 
@@ -784,13 +792,28 @@ class GRunner:
 
         return web.Response()
 
+    async def execute_task2(self, t, inst):
+        try:
+            config = self.get_task_config(t)
+            req_body = {'task': config}
+
+            await self.loop.run_in_executor(self.proc_pool, post_execute_task, inst.machine_name(), req_body)
+            inst.update_timestamp()
+
+            log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception:  # pylint: disable=broad-except
+            log.exception(f'failed to execute {t} on {inst}, rescheduling"')
+            t.put_on_ready(self)
+
     async def execute_task(self, t, inst):
         try:
             config = self.get_task_config(t)
             req_body = {'task': config}
 
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2.0)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
