@@ -770,8 +770,6 @@ class GRunner:
 
     async def execute_task(self, t, inst):
         try:
-            t.schedule(inst, self)
-
             config = self.get_task_config(t)
             req_body = {'task': config}
             async with self.session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
@@ -850,6 +848,7 @@ class GRunner:
                         assert not t.active_inst
 
                         log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
+                        t.schedule(inst, self)
                         await self.pool.call(self.execute_task, t, inst)
 
     async def run(self):
