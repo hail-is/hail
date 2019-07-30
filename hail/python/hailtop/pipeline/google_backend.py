@@ -59,6 +59,18 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('pipeline')
 
+class ATimer:
+    def __init__(self, name):
+        self.name = name
+        self.start = None
+
+    def __aenter__(self):
+        self.start = time.clock()
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        end = time.clock()
+        log.info(f'time {self.name} {exc} {end - self.start}')
 
 class AsyncWorkerPool:
     def __init__(self, parallelism):
@@ -71,7 +83,8 @@ class AsyncWorkerPool:
         while True:
             try:
                 f, args, kwargs = await self.queue.get()
-                await f(*args, **kwargs)
+                async with ATimer('async worker pool f'):
+                    await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -777,7 +790,7 @@ class GRunner:
             req_body = {'task': config}
 
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
                 async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
@@ -787,7 +800,7 @@ class GRunner:
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
         except Exception:  # pylint: disable=broad-except
-            log.exception(f'failed to execute {t}, rescheduling"')
+            log.exception(f'failed to execute {t} on {inst}, rescheduling"')
             t.put_on_ready(self)
 
     def get_task_config(self, t):
