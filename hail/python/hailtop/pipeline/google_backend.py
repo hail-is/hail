@@ -41,11 +41,16 @@ def configure_logging():
 
     fh = logging.FileHandler('pipeline.log')
     fh.setFormatter(fmt)
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(logging.INFO)
+
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    sh.setLevel(logging.INFO)
 
     root_log = logging.getLogger()
-    root_log.setLevel(logging.DEBUG)
+    root_log.setLevel(logging.INFO)
     root_log.addHandler(fh)
+    root_log.addHandler(sh)
 
 
 configure_logging()
@@ -79,7 +84,6 @@ class EntryIterator:
     def __init__(self, gservices):
         self.gservices = gservices
         self.mark = time.time()
-        log.debug(f'initial mark {self.mark}')
         self.entries = None
         self.latest = None
 
@@ -93,21 +97,16 @@ class EntryIterator:
             try:
                 entry = await anext(self.entries)
                 timestamp = entry.timestamp.timestamp()
-                log.debug(f'got entry timestamp {timestamp}')
                 if not self.latest:
-                    log.debug('new latest')
                     self.latest = timestamp
                 # might miss events with duplicate times
                 # solution is to track resourceId
                 if timestamp <= self.mark:
-                    log.debug('timestamp not newer than mark')
                     raise StopAsyncIteration
                 return entry
             except StopAsyncIteration:
                 if self.latest and self.mark < self.latest:
-                    log.debug(f'mark {self.latest} => {self.mark}')
                     self.mark = self.latest
-                log.debug('end of list entries stream')
                 self.entries = None
                 self.latest = None
 
@@ -125,16 +124,12 @@ class PagedIterator:
             if self.page is None:
                 await asyncio.sleep(5)
                 try:
-                    log.debug('getting new page...')
                     self.page = next(self.pages)
-                    log.debug('got new page')
                 except StopIteration:
-                    log.debug('end of pages')
                     raise StopAsyncIteration
             try:
                 return next(self.page)
             except StopIteration:
-                log.debug('end of page')
                 self.page = None
 
 class GClients:
@@ -346,7 +341,7 @@ class Instance:
         self.inst_pool.free_cores += self.capacity
         self.inst_pool.runner.changed.set()
 
-        print('{self.inst_pool.n_active_instances} active workers')
+        print(f'{self.inst_pool.n_active_instances} active workers')
 
     def deactivate(self):
         if self.pending:
@@ -604,8 +599,8 @@ class InstancePool:
                     # 0 is the smallest (oldest)
                     inst = self.instances[0]
                     inst_age = time.time() - inst.last_updated
-                    log.debug(f'heal: oldest {inst} age {inst_age}s')
                     if inst_age > 60:
+                        log.info(f'heal: oldest {inst} age {inst_age}s')
                         await inst.heal()
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
@@ -625,7 +620,7 @@ class InstancePool:
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_cores}')
 
-                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_cores - 1) / self.worker_cores
+                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_cores - 1) // self.worker_cores
                 instances_needed = min(instances_needed,
                                        self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                        self.max_instances - len(self.instances),
@@ -634,7 +629,7 @@ class InstancePool:
                 if instances_needed > 0:
                     log.info(f'creating {instances_needed} new instances')
                     # parallelism will be bounded by thread pool
-                    asyncio.gather([self.create_instance() for _ in range(instances_needed)])
+                    await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -829,6 +824,8 @@ class GRunner:
         return config
 
     async def schedule(self):
+        log.info('scheduler started')
+
         self.changed.clear()
         should_wait = False
         while self.n_pending_tasks > 0 or self.ready:
@@ -840,14 +837,15 @@ class GRunner:
             if self.inst_pool.instances_by_free_cores:
                 inst = self.inst_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_left(inst.free_cores)
+                log.info(f'scheduler: inst {inst} free_cores {inst.free_cores} i {i} / {len(self.ready)}')
                 if i < len(self.ready):
                     t = self.ready[i]
+                    log.info(f'scheduler: t {t} state {t.state}')
                     assert t.cores >= inst.free_cores
                     self.ready.remove(t)
                     should_wait = False
                     if not t.state:
                         assert not t.active_inst
-                        assert not t.state
 
                         log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
                         await self.pool.call(self.execute_task, t, inst)
