@@ -54,7 +54,7 @@ def configure_logging():
     root_log = logging.getLogger()
     root_log.setLevel(logging.INFO)
     root_log.addHandler(fh)
-    root_log.addHandler(sh)
+    # root_log.addHandler(sh)
 
 
 configure_logging()

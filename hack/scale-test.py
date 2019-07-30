@@ -10,7 +10,7 @@ p = pipeline.Pipeline(
         scratch_dir='gs://hail-cseed/cs-hack/tmp',
         worker_cores=8,
         worker_disk_size_gb='200',
-        pool_size=10,
+        pool_size=100,
         max_instances=1000),
     default_image='ubuntu:18.04')
 
