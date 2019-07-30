@@ -217,7 +217,7 @@ class Worker:
 
         log.info(f'running task {task_token} attempt {attempt_token}')
 
-        await check_shell('mkdir -p /shared/{task_token}-{attempt_token}')
+        await check_shell(f'mkdir -p /shared/{task_token}-{attempt_token}')
 
         input_ec = await docker_run(scratch_dir, task_token, task_name, 1, attempt_token, 'input', 'google/cloud-sdk:255.0.0-alpine', inputs_cmd)
 

@@ -10,7 +10,7 @@ p = pipeline.Pipeline(
         scratch_dir='gs://hail-cseed/cs-hack/tmp',
         worker_cores=8,
         worker_disk_size_gb='200',
-        pool_size=100,
+        pool_size=10,
         max_instances=1000),
     default_image='ubuntu:18.04')
 
@@ -33,7 +33,7 @@ for i in range(N):
         t = p.new_task(f'X{i},{j}')
         a = n[i]
         b = m[j]
-        t.command(f'cat {a.ofile} {b.ofile} | sum > {t.sum}')
+        t.command(f'sleep $(( 20 + (RANDOM % 21) )) && cat {a.ofile} {b.ofile} | sum > {t.sum}')
 
         p.write_output(t.sum, f'gs://hail-cseed/cs-hack/x/sum{i},{j}.txt')
 

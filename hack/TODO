@@ -9,7 +9,6 @@ sortedcontainers google-api-python-client google-cloud==0.32.0
 rm pipeline.log; GOOGLE_CLOUD_DISABLE_GRPC=true ZONE=us-central1-a PROJECT=broad-ctsa PYTHONPATH=$HOME/hail/hail/python python3 test.py
 
 make check && make -C ../hail/python check && make copy-all && git add -u && git commit -m 'wip' && git push origin
-
  - scale test 300K on 1000 nodes
 
  - keep an eye out for intermittent gsutil errors
@@ -47,3 +46,9 @@ curl -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetada
 
 136 2200 => 301.5K
 (+ 136 2200 (* 136 2200))
+
+3K/80 in new setup:
+
+INFO: pipeline succeeded!
+14.24user 1.89system 14:26.33elapsed 1%CPU (0avgtext+0avgdata 184324maxresident)k
+0inputs+6488outputs (0major+94582minor)pagefaults 0swaps
