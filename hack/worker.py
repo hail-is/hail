@@ -6,9 +6,9 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
-import uvloop
+# import uvloop
 
-uvloop.install()
+# uvloop.install()
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime

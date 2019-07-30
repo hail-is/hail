@@ -13,7 +13,7 @@ import requests
 import aiohttp
 from aiohttp import web
 import sortedcontainers
-import uvloop
+# import uvloop
 
 import googleapiclient.discovery
 import google.cloud.logging
@@ -22,7 +22,7 @@ from .backend import Backend
 from .resource import InputResourceFile, TaskResourceFile
 from .utils import PipelineException
 
-uvloop.install()
+# uvloop.install()
 
 HOSTNAME = socket.gethostname()
 
