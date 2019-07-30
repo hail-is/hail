@@ -12,6 +12,7 @@ from shlex import quote as shq
 import aiohttp
 from aiohttp import web
 import sortedcontainers
+import uvloop
 
 import googleapiclient.discovery
 import google.cloud.logging
@@ -19,6 +20,8 @@ import google.cloud.logging
 from .backend import Backend
 from .resource import InputResourceFile, TaskResourceFile
 from .utils import PipelineException
+
+uvloop.install()
 
 HOSTNAME = socket.gethostname()
 
@@ -837,11 +840,9 @@ class GRunner:
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_right(inst.free_cores)
-                log.info(f'scheduler: inst {inst} free_cores {inst.free_cores} i {i} / {len(self.ready)}')
                 if i > 0:
                     t = self.ready[i - 1]
-                    log.info(f'scheduler: t {t} state {t.state}')
-                    assert t.cores >= inst.free_cores
+                    assert t.cores <= inst.free_cores
                     self.ready.remove(t)
                     should_wait = False
                     if not t.state:

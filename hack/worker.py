@@ -6,6 +6,9 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
+import uvloop
+
+uvloop.install()
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
@@ -47,13 +50,15 @@ class WeightedSemaphore:
 
     async def acquire(self, weight):
         while self.value < weight:
-            await self.cond.wait()
+            with self.cond:
+                await self.cond.wait()
         self.value -= weight
 
     async def release(self, weight):
         self.value += weight
         # FIXME this can be more efficient
-        self.cond.notify_all()
+        with self.cond:
+            self.cond.notify_all()
 
     def __call__(self, weight):
         return WeightedSemaphoreContextManager(self, weight)
