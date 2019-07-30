@@ -1,6 +1,8 @@
 #!/bin/bash
 set -x
 
+python3 -m pip install -U uvloop
+
 export CORES=$(nproc)
 export DRIVER=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/driver")
 export INST_TOKEN=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/inst_token")
