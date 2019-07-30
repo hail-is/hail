@@ -118,6 +118,35 @@ class UnsafeSuite extends HailSuite {
     p.check()
   }
 
+  @Test def testCodecForNonWrappedTypes() {
+    val valuesAndTypes = FastIndexedSeq(
+      5 -> PInt32(),
+      6L -> PInt64(),
+      5.5f -> PFloat32(),
+      5.7d -> PFloat64(),
+      "foo" -> PString(),
+      Array[Byte](61, 62, 63) -> PBinary(),
+      FastIndexedSeq[Int](1, 2, 3) -> PArray(PInt32()))
+
+    valuesAndTypes.foreach { case (v, t) =>
+      Region.scoped { region =>
+        val off = ScalaToRegionValue(region, t, v)
+        CodecSpec.codecSpecs.foreach { spec =>
+          val baos = new ByteArrayOutputStream()
+          val enc = spec.buildEncoder(t)(baos)
+          enc.writeRegionValue(region, off)
+          enc.flush()
+
+          val serialized = baos.toByteArray
+          val dec = spec.buildDecoder(t, t)(new ByteArrayInputStream(serialized))
+          val res = dec.readRegionValue(region)
+
+          assert(t.unsafeOrdering().equiv(RegionValue(region, res), RegionValue(region, off)))
+        }
+      }
+    }
+  }
+
   @Test def testBufferWriteReadDoubles() {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 

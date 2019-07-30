@@ -225,7 +225,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       boff := PBinary.allocate(region, n),
       region.storeInt(boff, n),
       ftype match {
-        case _: PBinary => _empty
+        case _: PBinary => startOffset := boff
         case _ =>
           region.storeAddress(currentOffset, boff)
       },

@@ -427,6 +427,21 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
     }
   }
 
+  def orEmpty[T](cthen: Code[T]): Code[T] = {
+    val cond = lhs.toConditional
+    new Code[T] {
+      def emit(il: Growable[AbstractInsnNode]): Unit = {
+        val lafter = new LabelNode
+        val ltrue = new LabelNode
+        cond.emitConditional(il, ltrue, lafter)
+        il += ltrue
+        cthen.emit(il)
+        // fall through
+        il += lafter
+      }
+    }
+  }
+
   def &(rhs: Code[Boolean]): Code[Boolean] =
     Code(lhs, rhs, new InsnNode(IAND))
 
