@@ -50,14 +50,14 @@ class WeightedSemaphore:
 
     async def acquire(self, weight):
         while self.value < weight:
-            with self.cond:
+            async with self.cond:
                 await self.cond.wait()
         self.value -= weight
 
     async def release(self, weight):
         self.value += weight
         # FIXME this can be more efficient
-        with self.cond:
+        async with self.cond:
             self.cond.notify_all()
 
     def __call__(self, weight):
