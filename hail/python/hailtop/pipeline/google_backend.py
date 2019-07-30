@@ -770,6 +770,7 @@ class GRunner:
         t = self.token_task.get(task_token)
         if not t:
             log.warning('received /task_complete for unknown task {task_token}')
+            return
 
         log.info(f'{t} complete status {status}')
 
@@ -789,7 +790,7 @@ class GRunner:
             req_body = {'task': config}
 
             async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2.0)) as session:
                 async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
                     await resp.json()
                     # FIXME update inst tasks
