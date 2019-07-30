@@ -33,11 +33,22 @@ configure_logging()
 log = logging.getLogger('worker')
 
 class ANullContextManager:
-    def acquire(self, weight):
+    async def __aenter__(self):
         pass
 
-    def release(self, weight):
+    async def __aexit__(self, exc_type, exc, tb):
         pass
+
+class WeightedSemaphoreContextManager:
+    def __init__(self, sem, weight):
+        self.sem = sem
+        self.weight = weight
+
+    async def __aenter__(self):
+        await self.sem.acquire(self.weight)
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.sem.release(self.weight)
 
 class WeightedSemaphore:
     def __init__(self, value=1):
@@ -55,6 +66,9 @@ class WeightedSemaphore:
         # FIXME this can be more efficient
         async with self.cond:
             self.cond.notify_all()
+
+    def __call__(self, weight):
+        return WeightedSemaphoreContextManager(self, weight)
 
 class CalledProcessError(Exception):
     def __init__(self, command, returncode):
