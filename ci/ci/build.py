@@ -90,16 +90,12 @@ class BuildConfiguration:
 
         names_to_jobs = {}
         for step in self.steps:
-            names_to_jobs[step.name] = step.wrapped_job()[0]
-        #parent_jobs = names_to_jobs.values()
+            wrapped = step.wrapped_job()
+            if wrapped:
+                names_to_jobs[step.name] = wrapped[0]
 
         if scope == 'dev':
             return
-
-        # sink = batch.create_job('ubuntu:18.04',
-        #                         command=['/bin/true'],
-        #                         attributes={'name': 'sink'},
-        #                         parents=parent_jobs)
 
         #Invert the step dependencies for cleanup:
         cleanup_dependencies = {}
