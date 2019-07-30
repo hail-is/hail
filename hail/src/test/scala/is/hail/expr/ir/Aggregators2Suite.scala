@@ -114,6 +114,13 @@ class Aggregators2Suite extends HailSuite {
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = 10L, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
+  @Test def testPrevNonnullStr() {
+    val aggSig = AggSignature2(PrevNonnull(), FastSeq(), FastSeq(TString()), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "a")))
+
+    assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = rows.last.get(0), args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
   @Test def testPrevNonnull() {
     val aggSig = AggSignature2(PrevNonnull(), FastSeq(), FastSeq(t), None)
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](ArrayRef(Ref("rows", TArray(t)), i)))
