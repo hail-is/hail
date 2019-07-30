@@ -64,9 +64,8 @@ class ATimer:
         self.name = name
         self.start = None
 
-    def __aenter__(self):
+    async def __aenter__(self):
         self.start = time.clock()
-        return self
 
     async def __aexit__(self, exc_type, exc, tb):
         end = time.clock()
