@@ -135,6 +135,7 @@ class Aggregators2Suite extends HailSuite {
   val pnnAggSig = AggSignature2(PrevNonnull(), FastSeq[Type](), FastSeq[Type](t), None)
   val countAggSig = AggSignature2(Count(), FastSeq[Type](), FastSeq[Type](), None)
   val sumAggSig = AggSignature2(Sum(), FastSeq[Type](), FastSeq[Type](TInt64()), None)
+  def collectAggSig(t: Type): AggSignature2 = AggSignature2(Collect(), FastSeq(), FastSeq(t), None)
 
   @Test def TestCount() {
     val aggSig = AggSignature2(Count(), FastSeq(), FastSeq(), None)
@@ -307,6 +308,31 @@ class Aggregators2Suite extends HailSuite {
 
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = 7L, args = FastIndexedSeq(("rows", (arrayType, rows))))
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgsNA, expected = null, args = FastIndexedSeq(("rows", (arrayType, rows))))
+  }
+
+  @Test def testCollectLongs() {
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
+    assertAggEquals(collectAggSig(TInt64()), FastIndexedSeq(), seqOpArgs,
+      expected = FastIndexedSeq(5L, null, -2L, 7L, null, null),
+      args = FastIndexedSeq(("rows", (arrayType, rows)))
+    )
+  }
+
+  @Test def testCollectStrs() {
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "a")))
+
+    assertAggEquals(collectAggSig(TString()), FastIndexedSeq(), seqOpArgs,
+      expected = FastIndexedSeq("abcd", null, null, "abcd", null, "foo"),
+      args = FastIndexedSeq(("rows", (arrayType, rows)))
+    )
+  }
+
+  @Test def testCollectBig() {
+    val seqOpArgs = Array.tabulate(100)(i => FastIndexedSeq(I64(i)))
+    assertAggEquals(collectAggSig(TInt64()), FastIndexedSeq(), seqOpArgs,
+      expected = Array.tabulate(100)(i => i.toLong).toIndexedSeq,
+      args = FastIndexedSeq(("rows", (arrayType, rows)))
+    )
   }
 
   @Test def testArrayElementsAgg() {
