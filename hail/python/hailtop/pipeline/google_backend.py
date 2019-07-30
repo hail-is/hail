@@ -834,12 +834,12 @@ class GRunner:
                 self.changed.clear()
 
             should_wait = True
-            if self.inst_pool.instances_by_free_cores:
+            if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
-                i = self.ready.bisect_key_left(inst.free_cores)
+                i = self.ready.bisect_key_right(inst.free_cores)
                 log.info(f'scheduler: inst {inst} free_cores {inst.free_cores} i {i} / {len(self.ready)}')
-                if i < len(self.ready):
-                    t = self.ready[i]
+                if i > 0:
+                    t = self.ready[i - 1]
                     log.info(f'scheduler: t {t} state {t.state}')
                     assert t.cores >= inst.free_cores
                     self.ready.remove(t)
