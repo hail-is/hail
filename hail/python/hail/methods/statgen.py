@@ -1347,7 +1347,7 @@ def lambda_gc(p_value, approximate=True):
         Genomic inflation factor (lambda genomic control).
     """
     check_row_indexed('lambda_gc', p_value)
-    t = table_source(p_value)
+    t = table_source('lambda_gc', p_value)
     med_chisq = _lambda_gc_agg(p_value, approximate)
     return t.aggregate(med_chisq)
 
