@@ -1,5 +1,3 @@
-import nest_asyncio
-
 from .pipeline import Pipeline
 from .backend import LocalBackend, BatchBackend
 from .google_backend import GoogleBackend
@@ -10,5 +8,3 @@ __all__ = ['Pipeline',
            'BatchBackend',
            'GoogleBackend',
            'PipelineException']
-
-nest_asyncio.apply()
