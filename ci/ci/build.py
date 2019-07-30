@@ -97,7 +97,7 @@ class BuildConfiguration:
         if scope == 'dev':
             return
 
-        #Invert the step dependencies for cleanup:
+        # Invert the step dependencies for cleanup
         cleanup_dependencies = {}
         for step in self.steps:
             for dep in step.deps:
