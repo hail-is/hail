@@ -88,18 +88,18 @@ class BuildConfiguration:
             if step.scopes is None or scope in step.scopes:
                 step.build(batch, code, scope)
 
-        parents = set()
+        names_to_jobs = {}
         for step in self.steps:
-            parents.update(step.wrapped_job())
-        parents = list(parents)
+            names_to_jobs[step.name] = step.wrapped_job()[0]
+        #parent_jobs = names_to_jobs.values()
 
         if scope == 'dev':
             return
 
-        sink = batch.create_job('ubuntu:18.04',
-                                command=['/bin/true'],
-                                attributes={'name': 'sink'},
-                                parents=parents)
+        # sink = batch.create_job('ubuntu:18.04',
+        #                         command=['/bin/true'],
+        #                         attributes={'name': 'sink'},
+        #                         parents=parent_jobs)
 
         #Invert the step dependencies for cleanup:
         cleanup_dependencies = {}
@@ -112,7 +112,7 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, scope, [sink])
+                step.cleanup(batch, scope, [names_to_jobs[dep] for dep in cleanup_dependencies[step.name]])
 
 
 class Step(abc.ABC):
@@ -171,6 +171,12 @@ class Step(abc.ABC):
     @abc.abstractmethod
     def cleanup(self, batch, scope, parents):
         pass
+
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 class BuildImageStep(Step):
