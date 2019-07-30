@@ -814,8 +814,7 @@ class GRunner:
 
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
-                async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body) as resp:
-                    await resp.json()
+                async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body):
                     # FIXME update inst tasks
                     inst.update_timestamp()
 
@@ -891,7 +890,8 @@ class GRunner:
 
                         log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
                         t.schedule(inst, self)
-                        await self.pool.call(self.execute_task, t, inst)
+                        # await self.pool.call(self.execute_task, t, inst)
+                        await self.pool.call(self.execute_task2, t, inst)
 
     async def run(self):
         log.info(f'running pipeline...')
