@@ -312,13 +312,14 @@ class Instance:
         self.tasks = set()
         self.token = inst_token
 
-        # for active and pending
-        self.free_cores = inst_pool.worker_cores
+        # 2x overschedule
+        self.capacity = 2 * inst_pool.worker_cores
+        self.free_cores = self.capacity
 
         # state: pending, active, deactivated (and/or deleted)
         self.pending = True
         self.inst_pool.n_pending_instances += 1
-        self.inst_pool.free_cores += self.free_cores
+        self.inst_pool.free_cores += self.capacity
 
         self.active = False
         self.deleted = False
@@ -337,12 +338,12 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
-            self.inst_pool.free_cores -= self.inst_pool.worker_cores
+            self.inst_pool.free_cores -= self.capacity
 
         self.active = True
         self.inst_pool.n_active_instances += 1
         self.inst_pool.instances_by_free_cores.add(self)
-        self.inst_pool.free_cores += self.inst_pool.worker_cores
+        self.inst_pool.free_cores += self.capacity
         self.inst_pool.runner.changed.set()
 
         print('{self.inst_pool.n_active_instances} active workers')
@@ -351,7 +352,7 @@ class Instance:
         if self.pending:
             self.pending = False
             self.inst_pool.n_pending_instances -= 1
-            self.inst_pool.free_cores -= self.inst_pool.worker_cores
+            self.inst_pool.free_cores -= self.capacity
             assert not self.active
             return
 
@@ -360,7 +361,7 @@ class Instance:
         self.active = False
         self.inst_pool.n_active_instances -= 1
         self.inst_pool.instances_by_free_cores.remove(self)
-        self.inst_pool.free_cores -= self.inst_pool.worker_cores
+        self.inst_pool.free_cores -= self.capacity
 
         # copy because put_on_ready => unschedule => removes from inst
         for t in list(self.tasks):
@@ -624,8 +625,7 @@ class InstancePool:
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_cores}')
 
-                # free_cores < 0 if we've overscheduled
-                instances_needed = (self.runner.ready_cores - max(self.free_cores, 0) + self.worker_cores - 1) / self.worker_cores
+                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_cores - 1) / self.worker_cores
                 instances_needed = min(instances_needed,
                                        self.pool_size - (self.n_pending_instances + self.n_active_instances),
                                        self.max_instances - len(self.instances),
@@ -837,22 +837,20 @@ class GRunner:
                 self.changed.clear()
 
             should_wait = True
-            if not self.inst_pool.instances_by_free_cores:
+            if self.inst_pool.instances_by_free_cores:
                 inst = self.inst_pool.instances_by_free_cores[-1]
                 i = self.ready.bisect_key_left(inst.free_cores)
-                if i == len(self.ready):
-                    continue
+                if i < len(self.ready):
+                    t = self.ready[i]
+                    assert t.cores >= inst.free_cores
+                    self.ready.remove(t)
+                    should_wait = False
+                    if not t.state:
+                        assert not t.active_inst
+                        assert not t.state
 
-                t = self.ready[i]
-                assert t.cores >= inst.free_cores
-                self.ready.remove(t)
-                should_wait = False
-                if not t.state:
-                    assert not t.active_inst
-                    assert not t.state
-
-                    log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
-                    await self.pool.call(self.execute_task, t, inst)
+                        log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores}')
+                        await self.pool.call(self.execute_task, t, inst)
 
     async def run(self):
         log.info(f'running pipeline...')
