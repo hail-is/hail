@@ -57,7 +57,7 @@ object StagedRegionValueBuilder {
     typ.fundamentalType match {
       case t if t.isPrimitive => region.copyFrom(region, src, dest, t.byteSize)
       case t@(_: PBinary | _: PArray) =>
-        region.storeAddress(deepCopy(er, t, src), dest)
+        region.storeAddress(dest, deepCopy(er, t, src))
       case t: PBaseStruct =>
         Code(region.copyFrom(region, src, dest, t.byteSize),
           fixupStruct(er, t, dest))
