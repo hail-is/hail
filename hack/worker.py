@@ -32,17 +32,6 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('worker')
 
-class WeightedSemaphoreContextManager:
-    def __init__(self, sem, weight):
-        self.sem = sem
-        self.weight = weight
-
-    async def __aenter__(self):
-        await self.sem.acquire(self.weight)
-
-    async def __aexit__(self, exc_type, exc, tb):
-        await self.sem.release(self.weight)
-
 class WeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
@@ -59,9 +48,6 @@ class WeightedSemaphore:
         # FIXME this can be more efficient
         async with self.cond:
             self.cond.notify_all()
-
-    def __call__(self, weight):
-        return WeightedSemaphoreContextManager(self, weight)
 
 class CalledProcessError(Exception):
     def __init__(self, command, returncode):
@@ -110,33 +96,40 @@ async def delete_task_shared(task_token, attempt_token):
     except Exception:  # pylint: disable=broad-except
         log.exception(f'{cmd} failed')
 
-async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd):
+async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd, sem=None):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
 
-    container_id = None
-    attempts = 0
-    while not container_id:
-        try:
-            docker_cmd = f'docker run -d -v /shared/{task_token}-{attempt_token}:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
-            log.info(f'running {full_step}: {docker_cmd}')
-            container_id, _ = await check_shell_output(docker_cmd)
-            container_id = container_id.decode('utf-8').strip()
-        except CalledProcessError as e:
-            if attempts < 12 and e.returncode == 125:
-                attempts += 1
-                log.info(f'{full_step} failed, attempt {attempts}, retrying')
-                await asyncio.sleep(5)
-            else:
-                log.info(f'{full_step} failed, attempt {attempts}, giving up')
-                raise e
+    try:
+        if sem:
+            await sem.acquire(cores)
 
-    log.info(f'waiting for {full_step}')
+        container_id = None
+        attempts = 0
+        while not container_id:
+            try:
+                docker_cmd = f'docker run -d -v /shared/{task_token}-{attempt_token}:/shared --cpus {cores} --memory {cores * 3.5}g {shq(image)} /bin/bash -c {shq(cmd)}'
+                log.info(f'running {full_step}: {docker_cmd}')
+                container_id, _ = await check_shell_output(docker_cmd)
+                container_id = container_id.decode('utf-8').strip()
+            except CalledProcessError as e:
+                if attempts < 12 and e.returncode == 125:
+                    attempts += 1
+                    log.info(f'{full_step} failed, attempt {attempts}, retrying')
+                    await asyncio.sleep(5)
+                else:
+                    log.info(f'{full_step} failed, attempt {attempts}, giving up')
+                    raise e
 
-    ec_str, _ = await check_shell_output(f'docker container wait {shq(container_id)}')
-    ec_str = ec_str.decode('utf-8').strip()
-    ec = int(ec_str)
+        log.info(f'waiting for {full_step}')
 
-    log.info(f'{full_step} exit_code {ec}')
+        ec_str, _ = await check_shell_output(f'docker container wait {shq(container_id)}')
+        ec_str = ec_str.decode('utf-8').strip()
+        ec = int(ec_str)
+
+        log.info(f'{full_step} exit_code {ec}')
+    finally:
+        if sem:
+            sem.release(cores)
 
     log.info(f'uploading logs for {full_step}')
 
@@ -228,8 +221,7 @@ class Worker:
         }
 
         if input_ec == 0:
-            async with self.cpu_sem(cores):
-                main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd)
+            main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd, self.cpu_sem)
             status['main'] = main_ec
 
             if main_ec == 0:
