@@ -32,6 +32,13 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('worker')
 
+class ANullContextManager:
+    def acquire(self, weight):
+        pass
+
+    def release(self, weight):
+        pass
+
 class WeightedSemaphore:
     def __init__(self, value=1):
         self.value = value
@@ -99,10 +106,10 @@ async def delete_task_shared(task_token, attempt_token):
 async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd, sem=None):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
 
-    try:
-        if sem:
-            await sem.acquire(cores)
+    if not sem:
+        sem = ANullContextManager()
 
+    async with sem:
         container_id = None
         attempts = 0
         while not container_id:
@@ -123,15 +130,11 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
         log.info(f'waiting for {full_step}')
 
         ec_str, _ = await check_shell_output(f'docker container wait {shq(container_id)}')
-        ec_str = ec_str.decode('utf-8').strip()
-        ec = int(ec_str)
 
-        log.info(f'{full_step} exit_code {ec}')
-    finally:
-        if sem:
-            sem.release(cores)
+    ec_str = ec_str.decode('utf-8').strip()
+    ec = int(ec_str)
 
-    log.info(f'uploading logs for {full_step}')
+    log.info(f'{full_step} exit_code {ec}')
 
     gs_log = f'{scratch_dir}/{task_token}/{attempt_token}/{step_name}.log'
     await check_shell(f'docker logs {container_id} 2>&1 | gsutil cp - {shq(gs_log)}')
