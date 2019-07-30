@@ -39,6 +39,10 @@ class ANullContextManager:
     async def __aexit__(self, exc_type, exc, tb):
         pass
 
+class NullWeightedSemaphore:
+    def __call__(self, weight):
+        return ANullContextManager()
+
 class WeightedSemaphoreContextManager:
     def __init__(self, sem, weight):
         self.sem = sem
@@ -121,9 +125,9 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
 
     if not sem:
-        sem = ANullContextManager()
+        sem = NullWeightedSemaphore()
 
-    async with sem:
+    async with sem(cores):
         container_id = None
         attempts = 0
         while not container_id:
