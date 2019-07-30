@@ -29,6 +29,34 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('worker')
 
+class WeightedSemaphoreContextManager:
+    def __init__(self, sem, weight):
+        self.sem = sem
+        self.weight = weight
+
+    async def __aenter__(self):
+        await self.sem.acquire(self.weight)
+
+    async def __aexit__(self, exc_type, exc, tb):
+        await self.sem.release(self.weight)
+
+class WeightedSemaphore:
+    def __init__(self, value=1):
+        self.value = value
+        self.cond = asyncio.Condition()
+
+    async def acquire(self, weight):
+        while self.value < weight:
+            await self.cond.wait()
+        self.value -= weight
+
+    async def release(self, weight):
+        self.value += weight
+        # FIXME this can be more efficient
+        self.cond.notify_all()
+
+    def __call__(self, weight):
+        return WeightedSemaphoreContextManager(self, weight)
 
 class CalledProcessError(Exception):
     def __init__(self, command, returncode):
@@ -122,14 +150,21 @@ class Worker:
         self.free_cores = cores
         self.tasks = set()
         self.last_updated = time.time()
+        self.cpu_sem = WeightedSemaphore(cores)
+
+        self.session = None  # set in run()
+
+    async def close(self):
+        await self.session.close()
+        self.session = None
 
     async def handle_execute_task(self, request):
         body = await request.json()
 
         config = body['task']
-        cores = config['cores']
-        if cores > self.free_cores:
-            return web.HTTPBadRequest(reason='insufficient resources')
+        # cores = config['cores']
+        # if cores > self.free_cores:
+        #     return web.HTTPBadRequest(reason='insufficient resources')
 
         await asyncio.shield(self.handle_execute_task2(config))
 
@@ -188,7 +223,8 @@ class Worker:
         }
 
         if input_ec == 0:
-            main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd)
+            async with self.cpu_sem(cores):
+                main_ec = await docker_run(scratch_dir, task_token, task_name, cores, attempt_token, 'main', image, cmd)
             status['main'] = main_ec
 
             if main_ec == 0:
@@ -200,11 +236,9 @@ class Worker:
 
         log.info(f'task {task_token} done status {status}')
 
-        async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post(f'http://{self.driver}:5000/task_complete', json=status):
-                log.info(f'task {task_token} status posted')
-                self.last_updated = time.time()
+        async with self.session.post(f'http://{self.driver}:5000/task_complete', json=status):
+            log.info(f'task {task_token} status posted')
+            self.last_updated = time.time()
 
     async def run(self):
         app_runner = None
@@ -220,6 +254,9 @@ class Worker:
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
 
+            self.session = aiohttp.ClientSession(
+                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60))
+
             await self.register()
 
             while self.tasks or time.time() - self.last_updated < 60:
@@ -228,11 +265,9 @@ class Worker:
 
             log.info('idle 60s, exiting')
 
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                body = {'inst_token': self.token}
-                async with session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
-                    log.info('deactivated')
+            body = {'inst_token': self.token}
+            async with self.session.post(f'http://{self.driver}:5000/deactivate_worker', json=body):
+                log.info('deactivated')
         finally:
             if site:
                 await site.stop()
@@ -244,14 +279,12 @@ class Worker:
         while True:
             try:
                 log.info('registering')
-                async with aiohttp.ClientSession(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                    body = {'inst_token': self.token}
-                    async with session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
-                        if resp.status == 200:
-                            self.last_updated = time.time()
-                            log.info('registered')
-                            return
+                body = {'inst_token': self.token}
+                async with self.session.post(f'http://{self.driver}:5000/activate_worker', json=body) as resp:
+                    if resp.status == 200:
+                        self.last_updated = time.time()
+                        log.info('registered')
+                        return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:  # pylint: disable=broad-except
