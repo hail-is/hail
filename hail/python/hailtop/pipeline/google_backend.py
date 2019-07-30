@@ -777,8 +777,8 @@ class GRunner:
         attempt_token = status['attempt_token']
         t = self.token_task.get(task_token)
         if not t:
-            log.warning('received /task_complete for unknown task {task_token}')
-            return
+            log.warning(f'received /task_complete for unknown task {task_token}')
+            raise web.HTTPNotFound()
 
         log.info(f'{t} complete status {status}')
 
