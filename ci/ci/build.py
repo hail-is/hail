@@ -69,10 +69,10 @@ class BuildConfiguration:
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
-        
+
         if profile:
             log.info(f"Constructing build configuration with following profile: {profile}")
-        
+
         for step_config in config['steps']:
             step_params = StepParameters(code, scope, step_config, name_step)
 
@@ -101,9 +101,18 @@ class BuildConfiguration:
                                 attributes={'name': 'sink'},
                                 parents=parents)
 
+        #Invert the step dependencies for cleanup:
+        cleanup_dependencies = {}
+        for step in self.steps:
+            for dep in step.deps:
+                if dep in cleanup_dependencies:
+                    cleanup_dependencies[dep].add(step.name)
+                else:
+                    cleanup_dependencies[dep] = {step.name}
+
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, scope, sink)
+                step.cleanup(batch, scope, [sink])
 
 
 class Step(abc.ABC):
@@ -157,6 +166,10 @@ class Step(abc.ABC):
 
     @abc.abstractmethod
     def build(self, batch, code, scope):
+        pass
+
+    @abc.abstractmethod
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -314,7 +327,7 @@ date
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as:
             return
 
@@ -350,7 +363,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     volumes=volumes,
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -441,7 +454,7 @@ class RunImageStep(Step):
             parents=self.deps_parents(),
             always_run=self.always_run)
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -603,7 +616,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -621,7 +634,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -733,7 +746,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):  # pylint: disable=unused-argument
+    def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -752,7 +765,7 @@ date
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
                                         service_account_name='ci-agent',
-                                        parents=[sink],
+                                        parents=parents,
                                         always_run=True)
 
 
@@ -892,7 +905,7 @@ echo done.
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -915,5 +928,5 @@ true
                                     attributes={'name': f'cleanup_{self.name}'},
                                     # FIXME configuration
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
