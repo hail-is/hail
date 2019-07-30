@@ -659,7 +659,7 @@ class InstancePool:
             await asyncio.sleep(15)
 
 def post_execute_task(host, body):
-    requests.post(f'http://{host}:5000/execute_task', data=body)
+    requests.post(f'http://{host}:5000/execute_task', json=body)
 
 class GRunner:
     def gs_input_path(self, resource):
