@@ -354,3 +354,28 @@ class ServiceBackend(Backend):
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
         return resp.json()
+
+
+class DistributedBackend(Backend):
+
+    def __init__(self):
+        self._fs
+
+    @property
+    def fs(self):
+        if self._fs is None:
+            from hail.fs.google_fs import GoogleCloudStorageFS
+            self._fs = GoogleCloudStorageFS()
+        return self._fs
+
+    def value_type(self, ir):
+        jir = self._to_java_ir(ir)
+        return dtype(jir.typ().toString())
+
+    def table_type(self, tir):
+        jir = self._to_java_ir(tir)
+        return ttable._from_java(jir.typ())
+
+    def matrix_type(self, mir):
+        jir = self._to_java_ir(mir)
+        return tmatrix._from_java(jir.typ())
