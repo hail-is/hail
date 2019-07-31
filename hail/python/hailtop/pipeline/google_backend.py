@@ -642,16 +642,17 @@ class InstancePool:
                          f' free_cores {self.free_cores}'
                          f' ready_cores {self.runner.ready_cores}')
 
-                instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
-                instances_needed = min(instances_needed,
-                                       self.pool_size - (self.n_pending_instances + self.n_active_instances),
-                                       self.max_instances - len(self.instances),
-                                       # 20 queries/s; our GCE long-run quota
-                                       300)
-                if instances_needed > 0:
-                    log.info(f'creating {instances_needed} new instances')
-                    # parallelism will be bounded by thread pool
-                    await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+                if self.runner.ready_cores > 0:
+                    instances_needed = (self.runner.ready_cores - self.free_cores + self.worker_capacity - 1) // self.worker_capacity
+                    instances_needed = min(instances_needed,
+                                           self.pool_size - (self.n_pending_instances + self.n_active_instances),
+                                           self.max_instances - len(self.instances),
+                                           # 20 queries/s; our GCE long-run quota
+                                           300)
+                    if instances_needed > 0:
+                        log.info(f'creating {instances_needed} new instances')
+                        # parallelism will be bounded by thread pool
+                        await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -856,7 +857,7 @@ class GRunner:
 
         self.changed.clear()
         should_wait = False
-        while self.n_pending_tasks > 0 or self.ready:
+        while self.n_pending_tasks > 0:
             if should_wait:
                 await self.changed.wait()
                 self.changed.clear()
