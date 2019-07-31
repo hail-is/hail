@@ -375,7 +375,7 @@ class Instance:
         # copy because put_on_ready => unschedule => removes from inst
         for t in list(self.tasks):
             assert t.active_inst == self
-            t.put_on_ready(self.inst_pool.runner)
+            await t.put_on_ready(self.inst_pool.runner)
         assert not self.tasks
 
         self.active = False
@@ -807,7 +807,7 @@ class GRunner:
             raise
         except Exception:  # pylint: disable=broad-except
             log.exception(f'failed to execute {t} on {inst}, rescheduling"')
-            t.put_on_ready(self)
+            await t.put_on_ready(self)
 
     def get_task_config(self, t):
         attempt_token = new_token()
@@ -881,6 +881,11 @@ class GRunner:
                         t.schedule(inst, self)
                         await self.pool.call(self.execute_task, t, inst)
 
+    async def enqueue_roots(self):
+        for t in self.tasks:
+            if not t.parents:
+                await t.put_on_ready(self)
+
     async def run(self):
         log.info(f'running pipeline...')
         print('running pipeline...')
@@ -897,9 +902,7 @@ class GRunner:
 
             self.pool = AsyncWorkerPool(100)
 
-            for t in self.tasks:
-                if not t.parents:
-                    t.put_on_ready(self)
+            asyncio.ensure_future(self.enqueue_roots())
 
             await self.schedule()
         finally:
