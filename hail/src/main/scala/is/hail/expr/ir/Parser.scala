@@ -736,24 +736,24 @@ object IRParser {
       case "ArrayMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
         ArrayMap(a, name, body)
       case "ArrayFilter" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
         ArrayFilter(a, name, body)
       case "ArrayFlatMap" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)
-        val body = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
+        val body = ir_value_expr(env + (name -> -coerce[TStreamable](a.typ).elementType))(it)
         ArrayFlatMap(a, name, body)
       case "ArrayFold" =>
         val accumName = identifier(it)
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TStreamable](a.typ).elementType
+        val eltType = -coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
       case "ArrayScan" =>
@@ -761,7 +761,7 @@ object IRParser {
         val valueName = identifier(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
-        val eltType = coerce[TStreamable](a.typ).elementType
+        val eltType = -coerce[TStreamable](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayScan(a, zero, accumName, valueName, body)
       case "ArrayLeftJoinDistinct" =>
