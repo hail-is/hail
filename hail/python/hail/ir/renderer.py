@@ -172,14 +172,16 @@ class CSERenderer(Renderer):
             assert isinstance(x, ir.IR)
             return f'(JavaIR {jir_id})'
 
-    def find_in_scope(self, x: 'ir.BaseIR', context: List[Scope]) -> int:
-        for i in range(len(context)):
+    @staticmethod
+    def find_in_scope(x: 'ir.BaseIR', context: List[Scope], outermost_scope: int) -> int:
+        for i in range(outermost_scope, len(context), -1):
             if id(x) in context[i].visited:
                 return i
         return -1
 
-    def lifted_in_scope(self, x: 'ir.BaseIR', context: List[Scope]) -> int:
-        for i in range(len(context)):
+    @staticmethod
+    def lifted_in_scope(x: 'ir.BaseIR', context: List[Scope]) -> int:
+        for i in range(0, len(context), -1):
             if id(x) in context[i].lifted_lets:
                 return i
         return -1
@@ -200,18 +202,16 @@ class CSERenderer(Renderer):
     #   computed) outermost scope.
     # * 'self.scopes' is updated to map subtrees y of 'x' to scopes containing
     #   any lets to be inserted above y.
-    def recur(self, scopes: List[Scope], context: Context, x: 'ir.BaseIR') -> Set[str]:
+    def recur(self, scopes: List[Scope], outermost_scope: int, context: Context, x: 'ir.BaseIR') -> Set[str]:
         # Ref nodes should never be lifted to a let. (Not that it would be
         # incorrect, just pointlessly adding names for the same thing.)
         if isinstance(x, ir.Ref):
             return {x.name}
-        if isinstance(x, ir.GetField):
-            print('...')
         free_vars = set()
         for i in range(len(x.children)):
             child = x.children[i]
             # FIXME: maintain a union of seen nodes in all scopes
-            seen_in_scope = self.find_in_scope(child, scopes)
+            seen_in_scope = self.find_in_scope(child, scopes, outermost_scope)
             if seen_in_scope >= 0:
                 # we've seen 'child' before, no need to traverse
                 if id(child) not in scopes[seen_in_scope].lifted_lets and isinstance(child, ir.IR):
@@ -220,44 +220,40 @@ class CSERenderer(Renderer):
             elif self.stop_at_jir and hasattr(child, '_jir'):
                 self.memo[id(child)] = self.add_jir(child)
             else:
-                if x.binds(i) or x.new_block(i):
-                    def get_vars(bindings):
-                        if isinstance(bindings, dict):
-                            bindings = bindings.items()
-                        return [var for (var, _) in bindings]
-                    eval_b = get_vars(x.bindings(i))
-                    agg_b = get_vars(x.agg_bindings(i))
-                    scan_b = get_vars(x.scan_bindings(i))
-                    new_scope = Scope()
-                    if x.new_block(i):
-                        # Repeated subtrees of this child should never be lifted to
-                        # lets above 'x'. We accomplish that by clearing the context
-                        # in the recursive call.
-                        child_scopes = [new_scope]
-                        (eval_c, agg_c, scan_c) = ({}, {}, {})
-                        new_idx = 0
-                    else:
-                        new_idx = len(scopes)
-                        scopes.append(new_scope)
-                        child_scopes = scopes
-                        (eval_c, agg_c, scan_c) = x.child_context_without_bindings(i, context)
-                    eval_c = ir.base_ir._env_bind(eval_c, *[(var, new_idx) for var in eval_b])
-                    agg_c = ir.base_ir._env_bind(agg_c, *[(var, new_idx) for var in agg_b])
-                    scan_c = ir.base_ir._env_bind(scan_c, *[(var, new_idx) for var in scan_b])
-                    child_free_vars = self.recur(child_scopes, (eval_c, agg_c, scan_c), child)
-                    child_free_vars.difference_update(eval_b, agg_b, scan_b)
-                    free_vars |= child_free_vars
-                    if not x.new_block(i):
-                        scopes.pop()
-                    new_scope.visited.clear()
-                    self.scopes[id(child)] = new_scope
+                def get_vars(bindings):
+                    if isinstance(bindings, dict):
+                        bindings = bindings.items()
+                    return [var for (var, _) in bindings]
+                eval_b = get_vars(x.bindings(i))
+                agg_b = get_vars(x.agg_bindings(i))
+                scan_b = get_vars(x.scan_bindings(i))
+                new_scope = Scope()
+                depth = len(scopes)
+                scopes.append(new_scope)
+                if x.new_block(i):
+                    child_context = ({}, {}, {})
+                    child_outermost_scope = depth
                 else:
-                    free_vars |= self.recur(scopes, x.child_context_without_bindings(i, context), child)
+                    child_context = x.child_context_without_bindings(i, context)
+                    child_outermost_scope = outermost_scope
+                if x.binds(i):
+                    (eval_c, agg_c, scan_c) = child_context
+                    eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in eval_b])
+                    agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in agg_b])
+                    scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in scan_b])
+                    child_context = (eval_c, agg_c, scan_c)
+                child_free_vars = self.recur(scopes, child_outermost_scope, child_context, child)
+                child_free_vars.difference_update(eval_b, agg_b, scan_b)
+                free_vars |= child_free_vars
+                scopes.pop()
+                new_scope.visited.clear()
+                if x.binds(i) or x.new_block(i):
+                    self.scopes[id(child)] = new_scope
         if len(free_vars) > 0:
-            outermost_scope = max((context[0].get(v, 0) for v in free_vars))
+            bind_site = max((context[0].get(v, outermost_scope) for v in free_vars))
         else:
-            outermost_scope = 0
-        scopes[outermost_scope].visited.add(id(x))
+            bind_site = outermost_scope
+        scopes[bind_site].visited.add(id(x))
         return free_vars
 
     def print(self, builder: List[str], context: List[Scope], x: Renderable):
@@ -305,7 +301,7 @@ class CSERenderer(Renderer):
     def __call__(self, x: 'BaseIR') -> str:
         x.typ
         root_scope = Scope()
-        free_vars = self.recur([root_scope], ({}, {}, {}), x)
+        free_vars = self.recur([root_scope], 0, ({}, {}, {}), x)
         root_scope.visited = set()
         if len(free_vars) != 0:
             print('...')
