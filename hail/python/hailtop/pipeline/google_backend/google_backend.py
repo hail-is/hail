@@ -9,39 +9,40 @@ import concurrent
 import urllib.parse
 import asyncio
 from shlex import quote as shq
-import requests
 import aiohttp
 from aiohttp import web
 import sortedcontainers
-# import uvloop
+import uvloop
 
 import googleapiclient.discovery
 import google.cloud.logging
 
-from .backend import Backend
-from .resource import InputResourceFile, TaskResourceFile
-from .utils import PipelineException
+from ..backend import Backend
+from ..resource import InputResourceFile, TaskResourceFile
+from ..utils import PipelineException
 
-# uvloop.install()
+uvloop.install()
 
 HOSTNAME = socket.gethostname()
 
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE']
 
+
 def new_token(n=5):
     return ''.join([secrets.choice('abcdefghijklmnopqrstuvwxyz0123456789') for _ in range(n)])
+
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
 
+
 def configure_logging():
     fmt = UTCFormatter(
         # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
+        '%(levelname)s\t| %(asctime)s.%(msecs)dZ | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
         '%(message)s',
-        # FIXME microseconds
-        datefmt='%Y-%m-%dT%H:%M:%SZ')
+        datefmt='%Y-%m-%dT%H:%M:%S')
 
     fh = logging.FileHandler('pipeline.log')
     fh.setFormatter(fmt)
@@ -60,6 +61,7 @@ def configure_logging():
 configure_logging()
 log = logging.getLogger('pipeline')
 
+
 class ATimer:
     def __init__(self, name):
         self.name = name
@@ -71,6 +73,7 @@ class ATimer:
     async def __aexit__(self, exc_type, exc, tb):
         end = time.clock()
         log.info(f'time {self.name} {exc} {end - self.start}')
+
 
 class AsyncWorkerPool:
     def __init__(self, parallelism):
@@ -93,8 +96,10 @@ class AsyncWorkerPool:
     async def call(self, f, *args, **kwargs):
         await self.queue.put((f, args, kwargs))
 
+
 async def anext(ait):
     return await ait.__anext__()
+
 
 class EntryIterator:
     def __init__(self, gservices):
@@ -126,6 +131,7 @@ class EntryIterator:
                 self.entries = None
                 self.latest = None
 
+
 class PagedIterator:
     def __init__(self, gservices, pages):
         self.gservices = gservices
@@ -148,9 +154,11 @@ class PagedIterator:
             except StopIteration:
                 self.page = None
 
+
 class GClients:
     def __init__(self):
         self.compute_client = googleapiclient.discovery.build('compute', 'v1')
+
 
 class GServices:
     def __init__(self, machine_name_prefix):
@@ -235,12 +243,11 @@ class GTask:
         inst.tasks.remove(self)
 
         assert not inst.pending
-        if inst.active:
-            inst_pool.instances_by_free_cores.remove(inst)
-            inst.free_cores += self.cores
-            inst_pool.instances_by_free_cores.add(inst)
-            inst_pool.free_cores += self.cores
-            inst_pool.runner.changed.set()
+        inst_pool.instances_by_free_cores.remove(inst)
+        inst.free_cores += self.cores
+        inst_pool.instances_by_free_cores.add(inst)
+        inst_pool.free_cores += self.cores
+        inst_pool.runner.changed.set()
 
         self.active_inst = None
 
@@ -447,14 +454,15 @@ class Instance:
 
 
 class InstancePool:
-    def __init__(self, runner, worker_cores, worker_disk_size_gb, pool_size, max_instances):
-        self.runner = runner
+    def __init__(self, runner, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+        self.service_account = service_account
         self.worker_cores = worker_cores
         # 2x overschedule
         self.worker_capacity = 2 * worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
         self.pool_size = pool_size
         self.max_instances = max_instances
+        self.runner = runner
 
         self.token = new_token()
         self.machine_name_prefix = f'pipeline-{self.token}-worker-'
@@ -505,7 +513,7 @@ class InstancePool:
                 'autoDelete': True,
                 'diskSizeGb': self.worker_disk_size_gb,
                 'initializeParams': {
-                    'sourceImage': 'projects/broad-ctsa/global/images/cs-hack',
+                    'sourceImage': 'projects/broad-ctsa/global/images/pipeline',
                 }
             }],
 
@@ -525,7 +533,7 @@ class InstancePool:
             },
 
             'serviceAccounts': [{
-                'email': '842871226259-compute@developer.gserviceaccount.com',
+                'email': self.service_account,
                 'scopes': [
                     'https://www.googleapis.com/auth/cloud-platform'
                 ]
@@ -542,7 +550,7 @@ class InstancePool:
                     'value': inst_token
                 }, {
                     'key': 'startup-script-url',
-                    'value': 'gs://hail-cseed/cs-hack/worker-startup.sh'
+                    'value': 'gs://hail-common/dev/pipeline/worker-startup.sh'
                 }]
             }
         }
@@ -663,8 +671,6 @@ class InstancePool:
 
             await asyncio.sleep(15)
 
-def post_execute_task(host, body):
-    requests.post(f'http://{host}:5000/execute_task', json=body)
 
 class GRunner:
     def gs_input_path(self, resource):
@@ -683,7 +689,7 @@ class GRunner:
                 output_paths.append(p)
         return output_paths
 
-    def __init__(self, pipeline, verbose, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, pipeline, verbose, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
         self.pipeline = pipeline
         self.verbose = verbose
 
@@ -697,7 +703,7 @@ class GRunner:
         while self.scratch_dir_path and self.scratch_dir_path[0] == '/':
             self.scratch_dir_path = self.scratch_dir_path[1:]
 
-        self.inst_pool = InstancePool(self, worker_cores, worker_disk_size_gb, pool_size, max_instances)
+        self.inst_pool = InstancePool(self, service_account, worker_cores, worker_disk_size_gb, pool_size, max_instances)
         self.gservices = GServices(self.inst_pool.machine_name_prefix)
         self.pool = None  # created in run
 
@@ -804,7 +810,6 @@ class GRunner:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 async with session.post(f'http://{inst.machine_name()}:5000/execute_task', json=req_body):
-                    # FIXME update inst tasks
                     inst.update_timestamp()
 
             log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
@@ -937,7 +942,8 @@ class GRunner:
 
 
 class GoogleBackend(Backend):
-    def __init__(self, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+    def __init__(self, service_account, scratch_dir, worker_cores, worker_disk_size_gb, pool_size, max_instances):
+        self.service_account = service_account
         self.scratch_dir = scratch_dir
         self.worker_cores = worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
@@ -949,7 +955,7 @@ class GoogleBackend(Backend):
             print('do stuff')
             return
 
-        runner = GRunner(pipeline, verbose, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances)
+        runner = GRunner(pipeline, verbose, self.service_account, self.scratch_dir, self.worker_cores, self.worker_disk_size_gb, self.pool_size, self.max_instances)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(runner.run())
         loop.run_until_complete(loop.shutdown_asyncgens())

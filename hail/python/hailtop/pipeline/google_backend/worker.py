@@ -6,19 +6,20 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
-# import uvloop
+import uvloop
 
-# uvloop.install()
+uvloop.install()
+
 
 class UTCFormatter(logging.Formatter):
     converter = time.gmtime
 
+
 def configure_logging():
     fmt = UTCFormatter(
         # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
+        '%(levelname)s\t| %(asctime)s.%(msecs)dZ | %(filename)s\t| %(funcName)s:%(lineno)d\t| '
         '%(message)s',
-        # FIXME microseconds
         datefmt='%Y-%m-%dT%H:%M:%SZ')
 
     fh = logging.FileHandler('worker.log')
@@ -29,8 +30,10 @@ def configure_logging():
     root_log.addHandler(fh)
     root_log.setLevel(logging.DEBUG)
 
+
 configure_logging()
 log = logging.getLogger('worker')
+
 
 class ANullContextManager:
     async def __aenter__(self):
@@ -39,9 +42,11 @@ class ANullContextManager:
     async def __aexit__(self, exc_type, exc, tb):
         pass
 
+
 class NullWeightedSemaphore:
     def __call__(self, weight):
         return ANullContextManager()
+
 
 class WeightedSemaphoreContextManager:
     def __init__(self, sem, weight):
@@ -53,6 +58,7 @@ class WeightedSemaphoreContextManager:
 
     async def __aexit__(self, exc_type, exc, tb):
         await self.sem.release(self.weight)
+
 
 class WeightedSemaphore:
     def __init__(self, value=1):
@@ -67,12 +73,12 @@ class WeightedSemaphore:
 
     async def release(self, weight):
         self.value += weight
-        # FIXME this can be more efficient
         async with self.cond:
             self.cond.notify_all()
 
     def __call__(self, weight):
         return WeightedSemaphoreContextManager(self, weight)
+
 
 class CalledProcessError(Exception):
     def __init__(self, command, returncode):
@@ -101,6 +107,7 @@ async def check_shell_output(script):
         raise CalledProcessError(script, proc.returncode)
     return outerr
 
+
 async def docker_delete_container(container_id):
     cmd = f'docker rm {container_id}'
     try:
@@ -111,6 +118,7 @@ async def docker_delete_container(container_id):
     except Exception:  # pylint: disable=broad-except
         log.exception(f'{cmd} failed')
 
+
 async def delete_task_shared(task_token, attempt_token):
     cmd = f'rm -rf /shared/{task_token}-{attempt_token}'
     try:
@@ -120,6 +128,7 @@ async def delete_task_shared(task_token, attempt_token):
         raise
     except Exception:  # pylint: disable=broad-except
         log.exception(f'{cmd} failed')
+
 
 async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, step_name, image, cmd, sem=None):
     full_step = f'task {task_token} {task_name} step {step_name} attempt {attempt_token}'
@@ -160,6 +169,7 @@ async def docker_run(scratch_dir, task_token, task_name, cores, attempt_token, s
     asyncio.ensure_future(docker_delete_container(container_id))
 
     return ec
+
 
 class Worker:
     def __init__(self, cores, driver, token):
