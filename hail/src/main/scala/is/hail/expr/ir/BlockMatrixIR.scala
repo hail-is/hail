@@ -95,12 +95,14 @@ abstract class BlockMatrixReader {
 }
 
 case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
-  override def fullType: BlockMatrixType = {
+  lazy val _fullType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
     BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize)
   }
+
+  override def fullType: BlockMatrixType = _fullType
 
   override def apply(hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
 }
