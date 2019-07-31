@@ -31,9 +31,10 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
 
   val maxNBlocks: Long = nBlockRows.toLong * nBlockCols
   
-  assert(maybeBlocks.forall(bis => bis.isEmpty ||
+  if (!maybeBlocks.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
-      bis.length < maxNBlocks)), maybeBlocks.map(_.toIndexedSeq)) // a block-sparse matrix cannot have all blocks present
+      bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
+    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${maybeBlocks.toIndexedSeq}")
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
