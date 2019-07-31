@@ -76,7 +76,7 @@ class Tests(unittest.TestCase):
         assert np.isclose(model.h_sq, h2_fastlmm)
 
         h2_std_error = 0.13770773  # hard coded having checked against plot
-        assert np.isclose(model.h_sq_standard_error, h2_std_error)
+        assert np.isclose(model.h_sq_standard_error, h2_std_error, 1e-03)
 
         h_sq_norm_lkhd = model.h_sq_normalized_lkhd()[1:-1]
         argmax = int(100 * h2_fastlmm)
