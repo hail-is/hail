@@ -74,7 +74,7 @@ class ATimer:
 
 class AsyncWorkerPool:
     def __init__(self, parallelism):
-        self.queue = asyncio.Queue()
+        self.queue = asyncio.Queue(maxsize=50)
 
         for _ in range(parallelism):
             asyncio.ensure_future(self._worker())
@@ -269,17 +269,17 @@ class GTask:
         self.on_ready = False
         runner.ready_cores -= self.cores
 
-    def put_on_ready(self, runner):
+    async def put_on_ready(self, runner):
         if self.on_ready:
             return
         self.unschedule()
         self.on_ready = True
         runner.ready_cores += self.cores
-        runner.ready.add(self)
+        await runner.ready_queue.put(self)
         runner.changed.set()
         log.info(f'put {self} on ready')
 
-    def notify_children(self, runner):
+    async def notify_children(self, runner):
         for c in self.children:
             n = c.n_pending_parents
             assert n > 0
@@ -288,11 +288,11 @@ class GTask:
             if n == 0:
                 log.info(f'{c} parents finished')
                 if any(p.state != 'OK' for p in c.parents):
-                    c.set_state(runner, 'SKIPPED', None)
+                    await c.set_state(runner, 'SKIPPED', None)
                 else:
-                    c.put_on_ready(runner)
+                    await c.put_on_ready(runner)
 
-    def set_state(self, runner, state, attempt_token):
+    async def set_state(self, runner, state, attempt_token):
         if self.state:
             return
 
@@ -309,9 +309,9 @@ class GTask:
         if runner.n_pending_tasks == 0:
             log.info('all tasks complete')
 
-        print(f'{len(runner.ready)} / {runner.n_pending_tasks} / {len(runner.tasks)} complete')
+        print(f'{runner.ready_queue.qsize() + len(runner.ready)} / {runner.n_pending_tasks} / {len(runner.tasks)} complete')
 
-        self.notify_children(runner)
+        asyncio.ensure_future(self.notify_children(runner))
 
     def __str__(self):
         return f'task {self.task.name} {self.token}'
@@ -698,11 +698,10 @@ class GRunner:
 
         self.loop = asyncio.get_event_loop()
 
-        self.proc_pool = concurrent.futures.ProcessPoolExecutor(max_workers=40)
-
         self.n_pending_tasks = len(pipeline._tasks)
 
         self.changed = asyncio.Event()
+        self.ready_queue = asyncio.Queue(maxsize=50)
         self.ready = sortedcontainers.SortedSet(key=lambda inst: inst.cores)
         self.ready_cores = 0
 
@@ -788,24 +787,9 @@ class GRunner:
             state = 'BAD'
             log.error(f'{t} failed logs in {self.scratch_dir}/{task_token}/{attempt_token}')
 
-        t.set_state(self, state, attempt_token)
+        await t.set_state(self, state, attempt_token)
 
         return web.Response()
-
-    async def execute_task2(self, t, inst):
-        try:
-            config = self.get_task_config(t)
-            req_body = {'task': config}
-
-            await self.loop.run_in_executor(self.proc_pool, post_execute_task, inst.machine_name(), req_body)
-            inst.update_timestamp()
-
-            log.info(f'executed {t} attempt {config["attempt_token"]} on {inst}')
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
-        except Exception:  # pylint: disable=broad-except
-            log.exception(f'failed to execute {t} on {inst}, rescheduling"')
-            t.put_on_ready(self)
 
     async def execute_task(self, t, inst):
         try:
@@ -876,6 +860,11 @@ class GRunner:
                 await self.changed.wait()
                 self.changed.clear()
 
+            if not self.ready:
+                self.ready.add(await self.ready_queue.get())
+            while len(self.ready) < 50 and not self.ready_queue.empty():
+                self.ready.add(self.ready_queue.get_nowait())
+
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
                 inst = self.inst_pool.instances_by_free_cores[-1]
@@ -890,8 +879,7 @@ class GRunner:
 
                         log.info(f'scheduling {t} cores {t.cores} on {inst} free_cores {inst.free_cores} ready {len(self.ready)} qsize {self.pool.queue.qsize()}')
                         t.schedule(inst, self)
-                        # await self.pool.call(self.execute_task, t, inst)
-                        await self.pool.call(self.execute_task2, t, inst)
+                        await self.pool.call(self.execute_task, t, inst)
 
     async def run(self):
         log.info(f'running pipeline...')
