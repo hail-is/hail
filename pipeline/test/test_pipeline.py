@@ -293,7 +293,8 @@ class LocalTests(unittest.TestCase):
 class GoogleTests(unittest.TestCase):
     def pipeline(self):
         return Pipeline(backend=GoogleBackend(
-            scratch_dir='gs://hail-cseed/cs-hack/tmp',
+            service_account=os.environ['SERVICE_ACCOUNT'],
+            scratch_dir=SCRATCH,
             worker_cores=1,
             worker_disk_size_gb='20',
             pool_size=3,
