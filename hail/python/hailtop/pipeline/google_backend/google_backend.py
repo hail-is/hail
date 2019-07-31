@@ -552,7 +552,7 @@ class InstancePool:
                     'value': self.runner.scratch_dir
                 }, {
                     'key': 'startup-script-url',
-                    'value': 'gs://hail-common/dev/pipeline/worker-startup.sh'
+                    'value': 'gs://hail-common/dev2/pipeline/worker-startup.sh'
                 }]
             }
         }
