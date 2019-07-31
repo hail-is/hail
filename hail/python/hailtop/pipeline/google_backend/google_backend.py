@@ -548,6 +548,9 @@ class InstancePool:
                     'key': 'inst_token',
                     'value': inst_token
                 }, {
+                    'key': 'scratch',
+                    'value': self.runner.scratch_dir
+                }, {
                     'key': 'startup-script-url',
                     'value': 'gs://hail-common/dev/pipeline/worker-startup.sh'
                 }]
