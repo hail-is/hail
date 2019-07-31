@@ -86,8 +86,7 @@ class AsyncWorkerPool:
         while True:
             try:
                 f, args, kwargs = await self.queue.get()
-                async with ATimer('async worker pool f'):
-                    await f(*args, **kwargs)
+                await f(*args, **kwargs)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception:  # pylint: disable=broad-except
@@ -319,7 +318,7 @@ class GTask:
             await runner.ready_queue.put(None)
             runner.changed.set()
 
-        print(f'{runner.ready_queue.qsize() + len(runner.ready)} / {runner.n_pending_tasks} / {len(runner.tasks)} complete')
+        print(f'{runner.n_pending_tasks} / {len(runner.tasks)} pending')
 
         asyncio.ensure_future(self.notify_children(runner))
 
