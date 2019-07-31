@@ -131,7 +131,7 @@ async def get_pr(request):
             config['batch'] = status
             config['artifacts'] = f'{BUCKET}/build/{pr.batch.attributes["token"]}'
         else:
-            config['exception'] = str(pr.batch.exception)
+            config['exception'] = traceback.format_exception(None, pr.batch.exception, pr.batch.exception.__traceback__)
 
     batch_client = request.app['batch_client']
     batches = await batch_client.list_batches(
