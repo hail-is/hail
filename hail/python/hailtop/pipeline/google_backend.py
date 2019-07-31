@@ -74,7 +74,7 @@ class ATimer:
 
 class AsyncWorkerPool:
     def __init__(self, parallelism):
-        self.queue = asyncio.Queue(maxsize=50)
+        self.queue = asyncio.Queue(maxsize=100)
 
         for _ in range(parallelism):
             asyncio.ensure_future(self._worker())
@@ -308,6 +308,9 @@ class GTask:
         log.info(f'n_pending_tasks {runner.n_pending_tasks}')
         if runner.n_pending_tasks == 0:
             log.info('all tasks complete')
+            # signal scheduler that we're done
+            await runner.ready_queue.put(None)
+            runner.changed.set()
 
         print(f'{runner.ready_queue.qsize() + len(runner.ready)} / {runner.n_pending_tasks} / {len(runner.tasks)} complete')
 
@@ -703,7 +706,7 @@ class GRunner:
         self.n_pending_tasks = len(pipeline._tasks)
 
         self.changed = asyncio.Event()
-        self.ready_queue = asyncio.Queue(maxsize=50)
+        self.ready_queue = asyncio.Queue(maxsize=100)
         self.ready = sortedcontainers.SortedSet(key=lambda inst: inst.cores)
         self.ready_cores = 0
 
@@ -863,9 +866,15 @@ class GRunner:
                 self.changed.clear()
 
             if not self.ready:
-                self.ready.add(await self.ready_queue.get())
+                t = await self.ready_queue.get()
+                if not t:
+                    return
+                self.ready.add(t)
             while len(self.ready) < 50 and not self.ready_queue.empty():
-                self.ready.add(self.ready_queue.get_nowait())
+                t = self.ready_queue.get_nowait()
+                if not t:
+                    return
+                self.ready.add(t)
 
             should_wait = True
             if self.inst_pool.instances_by_free_cores and self.ready:
