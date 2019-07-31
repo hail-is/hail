@@ -119,7 +119,7 @@ class Step(abc.ABC):
         if 'dependsOn' in json:
             self.deps = [params.name_step[d] for d in json['dependsOn']]
         else:
-            self.deps = None
+            self.deps = []
         self.scopes = json.get('scopes')
 
         self.token = generate_token()
