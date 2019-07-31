@@ -346,6 +346,10 @@ spec:
             name: etc-prometheus
           - mountPath: "/prometheus"
             name: prometheus-storage
+         resources:
+          requests:
+            cpu: "2"
+            memory: 60Gi
       volumes:
        - name: etc-prometheus
          configMap:
