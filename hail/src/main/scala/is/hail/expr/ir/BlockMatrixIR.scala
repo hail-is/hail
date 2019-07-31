@@ -67,7 +67,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 }
 
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = reader.fullType
+  override lazy val typ: BlockMatrixType = reader.fullType
 
   lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
@@ -95,7 +95,7 @@ abstract class BlockMatrixReader {
 }
 
 case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
-  lazy val fullType = {
+  override lazy val fullType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
@@ -109,7 +109,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
   val IndexedSeq(nRows, nCols) = shape
   BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
 
-  override def fullType: BlockMatrixType = {
+  override lazy val fullType: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(nRows, nCols)
 
     BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
@@ -122,7 +122,7 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 }
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = {
+  override lazy val typ: BlockMatrixType = {
     val (shape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(value.nRows, value.nCols)
     BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize)
   }
@@ -140,7 +140,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
 
-  override def typ: BlockMatrixType = child.typ
+  override lazy val typ: BlockMatrixType = child.typ
 
   lazy val children: IndexedSeq[BaseIR] = Array(child)
 
