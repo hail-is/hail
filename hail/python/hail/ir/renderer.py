@@ -230,102 +230,6 @@ class CSERenderer(Renderer):
     #   computed) outermost scope.
     # * 'self.scopes' is updated to map subtrees y of 'x' to scopes containing
     #   any lets to be inserted above y.
-    def loop(self, state) -> str:
-        i = state.i
-        x = state.x
-        if i >= len(x.children):
-            return self.apply(state.k, state.free_vars)
-        child = x.children[i]
-        depth = len(state.scopes)
-        seen_in_scope = self.find_in_scope(child, state.scopes, state.outermost_scope)
-        if seen_in_scope >= 0:
-            # we've seen 'child' before, should not traverse (or we will find
-            # too many lifts)
-            if isinstance(child, ir.IR):
-                if id(child) not in state.scopes[seen_in_scope].lifted_lets:
-                    # second time we've seen 'child', lift to a let
-                    uid = self.uid()
-                    state.scopes[seen_in_scope].lifted_lets[id(child)] = (uid, child)
-                else:
-                    (uid, _) = state.scopes[seen_in_scope].lifted_lets[id(child)]
-                state.free_vars[uid] = seen_in_scope
-                state.i += 1
-                return self.loop(state)
-        elif self.stop_at_jir and hasattr(child, '_jir'):
-            self.memo[id(child)] = self.add_jir(child)
-            state.i += 1
-            return self.loop(state)
-        else:
-            def get_vars(bindings):
-                if isinstance(bindings, dict):
-                    bindings = bindings.items()
-                return [var for (var, _) in bindings]
-            eval_b = get_vars(x.bindings(i))
-            agg_b = get_vars(x.agg_bindings(i))
-            scan_b = get_vars(x.scan_bindings(i))
-            new_scope = Scope(depth)
-            state.scopes.append(new_scope)
-
-            if x.new_block(i):
-                child_outermost_scope = depth
-            else:
-                child_outermost_scope = state.outermost_scope
-
-            child_context = x.child_context_without_bindings(i, state.context)
-            if x.binds(i):
-                (eval_c, agg_c, scan_c) = child_context
-                eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in eval_b])
-                agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in agg_b])
-                scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in scan_b])
-                child_context = (eval_c, agg_c, scan_c)
-
-            if isinstance(child, ir.Ref):
-                state.scopes.pop()
-                child_free_vars = {child.name: child_context[0][child.name]}
-                for var in [*eval_b, *agg_b, *scan_b]:
-                    child_free_vars.pop(var, 0)
-                state.free_vars.update(child_free_vars)
-                state.i += 1
-                return self.loop(state)
-            else:
-                pc = PostChildren(state, child_outermost_scope, eval_b, agg_b, scan_b, new_scope.lifted_lets.values())
-                ls = LoopState(state.scopes, child_outermost_scope, child_context, child, pc)
-                return self.loop(ls)
-
-    def apply(self, kont: Kont, free_vars: Vars):
-        if isinstance(kont, PostChildren):
-            child = kont.state.x.children[kont.state.i]
-            if len(free_vars) > 0:
-                bind_depth = max(free_vars.values())
-                bind_depth = max(bind_depth, kont.child_outermost_scope)
-            else:
-                bind_depth = kont.child_outermost_scope
-            kont.state.scopes[bind_depth].visited[id(child)] = child
-            new_scope = kont.state.scopes[-1]
-            kont.state.scopes.pop()
-            new_scope.visited.clear()
-            if new_scope.lifted_lets:
-                self.scopes[id(child)] = new_scope
-            for var in [*kont.eval_b, *kont.agg_b, *kont.scan_b]:
-                free_vars.pop(var, 0)
-            for (var, _) in kont.new_bindings:
-                free_vars.pop(var, 0)
-            kont.state.free_vars.update(free_vars)
-            kont.state.i += 1
-            return self.loop(kont.state)
-        else:
-            assert isinstance(kont, BeginSecondPass)
-            kont.root_scope.visited = {}
-            if len(free_vars) != 0:
-                print('...')
-            for (var, _) in kont.root_scope.lifted_lets.values():
-                var_depth = free_vars.pop(var, 0)
-                assert var_depth == 0
-            assert(len(free_vars) == 0)
-            self.scopes[id(kont.root)] = kont.root_scope
-            builder = []
-            self.print(builder, [], 0, 1, kont.root)
-            return ''.join(builder)
 
     def print(self, builder: List[str], context: List[Scope], outermost_scope: int, depth: int, x: 'ir.BaseIR'):
         if id(x) in self.memo:
@@ -399,4 +303,103 @@ class CSERenderer(Renderer):
         root_scope = Scope(0)
 
         k = BeginSecondPass(root_scope, x)
-        return self.loop(LoopState([root_scope], 0, ({}, {}, {}), x, k))
+
+        state = LoopState([root_scope], 0, ({}, {}, {}), x, k)
+        while True:
+            i = state.i
+            x = state.x
+            if i >= len(x.children):
+                kont = state.k
+                free_vars = state.free_vars
+
+                if isinstance(kont, PostChildren):
+                    child = kont.state.x.children[kont.state.i]
+                    if len(free_vars) > 0:
+                        bind_depth = max(free_vars.values())
+                        bind_depth = max(bind_depth, kont.child_outermost_scope)
+                    else:
+                        bind_depth = kont.child_outermost_scope
+                    kont.state.scopes[bind_depth].visited[id(child)] = child
+                    new_scope = kont.state.scopes[-1]
+                    kont.state.scopes.pop()
+                    new_scope.visited.clear()
+                    if new_scope.lifted_lets:
+                        self.scopes[id(child)] = new_scope
+                    for var in [*kont.eval_b, *kont.agg_b, *kont.scan_b]:
+                        free_vars.pop(var, 0)
+                    for (var, _) in kont.new_bindings:
+                        free_vars.pop(var, 0)
+                    kont.state.free_vars.update(free_vars)
+                    state = kont.state
+                    state.i += 1
+                    continue
+                else:
+                    assert isinstance(kont, BeginSecondPass)
+                    kont.root_scope.visited = {}
+                    if len(free_vars) != 0:
+                        print('...')
+                    for (var, _) in kont.root_scope.lifted_lets.values():
+                        var_depth = free_vars.pop(var, 0)
+                        assert var_depth == 0
+                    assert(len(free_vars) == 0)
+                    self.scopes[id(kont.root)] = kont.root_scope
+                    builder = []
+                    self.print(builder, [], 0, 1, kont.root)
+                    return ''.join(builder)
+
+            child = x.children[i]
+            depth = len(state.scopes)
+            seen_in_scope = self.find_in_scope(child, state.scopes, state.outermost_scope)
+            if seen_in_scope >= 0:
+                # we've seen 'child' before, should not traverse (or we will find
+                # too many lifts)
+                if isinstance(child, ir.IR):
+                    if id(child) not in state.scopes[seen_in_scope].lifted_lets:
+                        # second time we've seen 'child', lift to a let
+                        uid = self.uid()
+                        state.scopes[seen_in_scope].lifted_lets[id(child)] = (uid, child)
+                    else:
+                        (uid, _) = state.scopes[seen_in_scope].lifted_lets[id(child)]
+                    state.free_vars[uid] = seen_in_scope
+                    state.i += 1
+                    continue
+            elif self.stop_at_jir and hasattr(child, '_jir'):
+                self.memo[id(child)] = self.add_jir(child)
+                state.i += 1
+                continue
+            else:
+                def get_vars(bindings):
+                    if isinstance(bindings, dict):
+                        bindings = bindings.items()
+                    return [var for (var, _) in bindings]
+                eval_b = get_vars(x.bindings(i))
+                agg_b = get_vars(x.agg_bindings(i))
+                scan_b = get_vars(x.scan_bindings(i))
+                new_scope = Scope(depth)
+                state.scopes.append(new_scope)
+
+                if x.new_block(i):
+                    child_outermost_scope = depth
+                else:
+                    child_outermost_scope = state.outermost_scope
+
+                child_context = x.child_context_without_bindings(i, state.context)
+                if x.binds(i):
+                    (eval_c, agg_c, scan_c) = child_context
+                    eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in eval_b])
+                    agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in agg_b])
+                    scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in scan_b])
+                    child_context = (eval_c, agg_c, scan_c)
+
+                if isinstance(child, ir.Ref):
+                    state.scopes.pop()
+                    child_free_vars = {child.name: child_context[0][child.name]}
+                    for var in [*eval_b, *agg_b, *scan_b]:
+                        child_free_vars.pop(var, 0)
+                    state.free_vars.update(child_free_vars)
+                    state.i += 1
+                    continue
+                else:
+                    pc = PostChildren(state, child_outermost_scope, eval_b, agg_b, scan_b, new_scope.lifted_lets.values())
+                    state = LoopState(state.scopes, child_outermost_scope, child_context, child, pc)
+                    continue
