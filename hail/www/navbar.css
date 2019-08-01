@@ -577,7 +577,7 @@ img {
 .navbar-toggle {
   position: relative;
   float: right;
-  margin-right: 15px;
+  margin-right: 0px;
   padding: 9px 10px;
   margin-top: 8px;
   margin-bottom: 8px;
@@ -663,10 +663,7 @@ img {
   .navbar-left {
     float: left !important;
   }
-  .navbar-right {
-    float: right !important;
-    margin-right: -15px;
-  }
+
   .navbar-right ~ .navbar-right {
     margin-right: 0;
   }
