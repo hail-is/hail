@@ -103,7 +103,7 @@ class BuildConfiguration:
 
         for step in self.steps:
             if step.scopes is None or scope in step.scopes:
-                step.cleanup(batch, scope, sink)
+                step.cleanup(batch, scope, [sink])
 
 
 class Step(abc.ABC):
@@ -163,6 +163,10 @@ class Step(abc.ABC):
 
     @abc.abstractmethod
     def build(self, batch, code, scope):
+        pass
+
+    @abc.abstractmethod
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -320,7 +324,7 @@ date
                                     input_files=input_files,
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope == 'deploy' and self.publish_as:
             return
 
@@ -356,7 +360,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     volumes=volumes,
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -447,7 +451,7 @@ class RunImageStep(Step):
             parents=self.deps_parents(),
             always_run=self.always_run)
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         pass
 
 
@@ -609,7 +613,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -627,7 +631,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
 
 
@@ -739,7 +743,7 @@ date
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):  # pylint: disable=unused-argument
+    def cleanup(self, batch, scope, parents):  # pylint: disable=unused-argument
         if self.wait:
             script = ''
             for w in self.wait:
@@ -758,7 +762,7 @@ date
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
                                         service_account_name='ci-agent',
-                                        parents=[sink],
+                                        parents=parents,
                                         always_run=True)
 
 
@@ -783,7 +787,7 @@ class CreateDatabaseStep(Step):
             self._name = params.code.namespace
             self.admin_username = f'{self._name}-admin'
             self.user_username = f'{self._name}-user'
-        
+
         self.admin_secret_name = f'sql-{self._name}-{self.admin_username}-config'
         self.user_secret_name = f'sql-{self._name}-{self.user_username}-config'
 
@@ -898,7 +902,7 @@ echo done.
                                     service_account_name='ci-agent',
                                     parents=self.deps_parents())
 
-    def cleanup(self, batch, scope, sink):
+    def cleanup(self, batch, scope, parents):
         if scope in ['deploy', 'dev']:
             return
 
@@ -921,5 +925,5 @@ true
                                     attributes={'name': f'cleanup_{self.name}'},
                                     # FIXME configuration
                                     service_account_name='ci-agent',
-                                    parents=[sink],
+                                    parents=parents,
                                     always_run=True)
