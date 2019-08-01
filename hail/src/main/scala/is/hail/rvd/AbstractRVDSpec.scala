@@ -295,20 +295,27 @@ case class IndexedRVDSpec(
     newPartitioner: Option[RVDPartitioner] = None,
     filterIntervals: Boolean = false
   ): RVD = {
-    val requestedKey = key.takeWhile(requestedType.hasField)
-    val tmpPartitioner = partitioner.intersect(newPartitioner.getOrElse(partitioner))
-
-    val rvdType = RVDType(requestedType, requestedKey)
-    val parts = if (key.isEmpty)
-      partFiles
-    else
-      tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }.toArray
-
-    val crdd = hc.readIndexedRows(path, indexSpec, encodedType, codecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
-    val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
     newPartitioner match {
-      case Some(partitioner) if !filterIntervals => tmprvd.repartition(partitioner.coarsen(requestedKey.length))
-      case _ => tmprvd
+      case Some(np) =>
+        val requestedKey = key.takeWhile(requestedType.hasField)
+        val tmpPartitioner = partitioner.intersect(np)
+
+        val rvdType = RVDType(requestedType, requestedKey)
+        val parts = if (key.isEmpty)
+          partFiles
+        else
+          tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }.toArray
+
+        val crdd = hc.readIndexedRows(path, indexSpec, encodedType, codecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
+        val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
+
+        if (filterIntervals)
+          tmprvd
+        else
+          tmprvd.repartition(partitioner.coarsen(requestedKey.length))
+      case None =>
+        // indexed reads are costly; don't use an indexed read when possible
+        super.read(hc, path, requestedType, newPartitioner, filterIntervals)
     }
   }
 }
