@@ -32,7 +32,7 @@ Released 2019-08-01
 
 - (hail#6760) Fixed tne address pointed at by `ui`  in `connect`, after
   Google changed proxy settings that rendered the UI URL incorrect. Also
-  added new addres `hist/spark-history`.
+  added new address `hist/spark-history`.
 
 -----
 
