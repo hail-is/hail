@@ -25,7 +25,7 @@ shadowJar:
 endif
 
 build-info: src/main/resources/build-info.properties python/hail/hail_version python/hail/hail_pip_version \
-	python/hailtop/hailctl/hail_version python/hailtop/hailctl/hail_pip_version
+	python/hailtop/hailctl/hail_version
 
 define properties
 endef
@@ -44,12 +44,6 @@ python/hail/hail_version:
 	echo $(HAIL_PIP_VERSION)-$(SHORT_REVISION) > $@
 
 python/hailtop/hailctl/hail_version: python/hail/hail_version
-	cp -f $< $@
-
-python/hail/hail_pip_version:
-	echo $(HAIL_PIP_VERSION) > $@
-
-python/hailtop/hailctl/hail_pip_version: python/hail/hail_pip_version
 	cp -f $< $@
 
 jars: build-info
