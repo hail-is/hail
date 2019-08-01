@@ -601,8 +601,17 @@ class MatrixTable(ExprContainer):
 
     def __getitem__(self, item):
         invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
-                                  f"  Usage 1: field selection ( mt['field'] )\n"
-                                  f"  Usage 2: Entry joining ( mt[mt2.row_key, mt2.col_key] )")
+                                  f"  Usage 1: field selection: mt['field']\n"
+                                  f"  Usage 2: Entry joining: mt[mt2.row_key, mt2.col_key]\n\n"
+                                  f"  To join row or column fields, use one of the following:\n"
+                                  f"    rows:\n"
+                                  f"       mt.index_rows(mt2.row_key)\n"
+                                  f"       mt.rows().index(mt2.row_key)\n"
+                                  f"       mt.rows()[mt2.row_key]\n"
+                                  f"    cols:\n"
+                                  f"       mt.index_cols(mt2.col_key)\n"
+                                  f"       mt.cols().index(mt2.col_key)\n"
+                                  f"       mt.cols()[mt2.col_key]")
 
         if isinstance(item, str):
             return self._get_field(item)
