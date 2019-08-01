@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical._
@@ -42,9 +42,6 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   private def isRoot(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 0)
   private def isLeaf(node: Code[Long]): Code[Boolean] = storageType.isFieldMissing(node, 1)
   private def getParent(node: Code[Long]): Code[Long] = Region.loadAddress(storageType.loadField(node, 0))
-  private def storeParent(node: Code[Long], parent: Code[Long]): Code[Unit] =
-    Code(storageType.setFieldPresent(node, 0),
-      Region.storeAddress(storageType.fieldOffset(node, 0), parent))
 
   private def elements(node: Code[Long]): Code[Long] = storageType.loadField(node, 2)
   private def hasKey(node: Code[Long], i: Int): Code[Boolean] = elementsType.isFieldDefined(elements(node), i)
@@ -55,16 +52,16 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
   private def loadKey(node: Code[Long], i: Int): Code[Long] = eltType.loadField(elementsType.loadField(elements(node), i), 0)
 
   private def childOffset(node: Code[Long], i: Int): Code[Long] =
-    eltType.fieldOffset(elementsType.loadField(elements(node), i), 1)
+    if (i == -1)
+      storageType.fieldOffset(node, 1)
+    else
+      eltType.fieldOffset(elementsType.loadField(elements(node), i), 1)
   private def loadChild(node: Code[Long], i: Int): Code[Long] =
-    Region.loadAddress(if (i == -1) storageType.fieldOffset(node, 1) else childOffset(node, i))
-  private def storeChild(parent: Code[Long], i: Int, child: Code[Long]): Code[Unit] =
+    Region.loadAddress(childOffset(node, i))
+  private def setChild(parent: Code[Long], i: Int, child: Code[Long]): Code[Unit] =
     Code(
-      if(i == -1)
-        Code(storageType.setFieldPresent(parent, 1),
-          Region.storeAddress(storageType.fieldOffset(parent, 1), child))
-      else
-        Region.storeAddress(childOffset(parent, i), child),
+      if (i == -1) storageType.setFieldPresent(parent, 1) else Code._empty,
+      Region.storeAddress(childOffset(parent, i), child),
       storageType.setFieldPresent(child, 0),
       Region.storeAddress(storageType.fieldOffset(child, 0), parent))
 
@@ -83,14 +80,14 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Code(
         setKeyPresent(node, idx),
         key.initializeEmpty(keyOffset(node, idx)),
-        (!isLeaf(node)).orEmpty(storeChild(node, idx, child)),
+        (!isLeaf(node)).orEmpty(setChild(node, idx, child)),
         loadKey(node, idx))
 
     def copyFrom(destNode: Code[Long], destIdx: Int, srcNode: Code[Long], srcIdx: Int): Code[Unit] =
       Code(
         setKeyPresent(destNode, destIdx),
         key.copy(keyOffset(srcNode, srcIdx), keyOffset(destNode, destIdx)),
-        (!isLeaf(srcNode)).orEmpty(storeChild(destNode, destIdx, loadChild(srcNode, srcIdx))))
+        (!isLeaf(srcNode)).orEmpty(setChild(destNode, destIdx, loadChild(srcNode, srcIdx))))
 
     val shiftAndInsert = Array.range(1, maxElements)
       .foldLeft(makeUninitialized(0)) { (cont, destIdx) =>
@@ -116,7 +113,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
             .mux(i, cont)
         }
       Code((!isLeaf(node)).orEmpty(
-        storeChild(newNode, -1, c)),
+        setChild(newNode, -1, c)),
         insertAt.invoke[Long](parent, upperBound, m, v, newNode))
     }
 
@@ -129,7 +126,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
         }
       val (compKeyM, compKeyV) = key.loadCompKey(loadKey(node, idx))
       Code((!isLeaf(node)).orEmpty(
-        storeChild(newNode, -1, loadChild(node, idx))),
+        setChild(newNode, -1, loadChild(node, idx))),
         key.copy(loadKey(node, idx),
           insertAt.invoke[Long](parent, upperBound, compKeyM, compKeyV, newNode)),
         setKeyMissing(node, idx))
@@ -138,10 +135,8 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     val splitAndInsert = Code(
       isRoot(node).orEmpty(Code(
         createNode(root),
-        storeParent(node, root),
-        storeChild(root, -1, node))),
+        setChild(root, -1, node))),
       createNode(newNode),
-      storeParent(newNode, parent),
       (insertIdx > splitIdx).mux(
         Code(copyToNew(splitIdx + 1),
           promote(splitIdx),
@@ -213,7 +208,6 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
 
     def copyChild(i: Int) =
       Code(createNode(newNode),
-        storeParent(newNode, destNode),
         f.invoke[Unit](newNode, loadChild(srcNode, i)))
 
     val copyNodes = Array.range(0, maxElements).foldRight(Code._empty[Unit]) { (i, cont) =>
@@ -222,14 +216,14 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
           key.deepCopy(er, destNode, srcNode),
           (!isLeaf(srcNode)).orEmpty(Code(
             copyChild(i),
-            storeChild(destNode, i, newNode))),
+            setChild(destNode, i, newNode))),
           cont))
     }
 
     f.emit(Code(
       (!isLeaf(srcNode)).orEmpty(
         Code(copyChild(-1),
-          storeChild(destNode, -1, newNode))),
+          setChild(destNode, -1, newNode))),
       copyNodes))
 
     { srcRoot: Code[Long] => f.invoke(root, srcRoot) }
