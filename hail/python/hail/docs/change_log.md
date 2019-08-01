@@ -1,5 +1,41 @@
 # Change Log
 
+## 0.2.19
+
+Released 2019-08-01
+
+### Critical performance bug fix
+
+- (hail#6629) Fixed a critical performance bug introduced in (hail#6266).
+  This bug led to long hang times when reading in Hail tables and matrix
+  tables **written in version 0.2.18**.
+
+### Bug fixes
+- (hail#6757) Fixed correctness bug in optimizations applied to the
+  combination of `Table.order_by` with `hl.desc` arguments and `show()`,
+  leading to tables sorted in ascending, not descending order.
+- (hail#6770) Fixed assertion error caused by `Table.expand_types()`,
+  which was used by `Table.to_spark` and `Table.to_pandas`. 
+
+### Performance Improvements
+
+- (hail#6666) Slightly improve performance of `hl.pca` and 
+  `hl.hwe_normalized_pca`.
+- (hail#6669) Improve performance of `hl.split_multi` and 
+  `hl.split_multi_hts`.
+- (hail#6644) Optimize core code generation primitives, leading to
+  across-the-board performance improvements.
+- (hail#6775) Fixed a major performance problem related to reading block 
+  matrices.
+  
+### `hailctl dataproc`
+
+- (hail#6760) Fixed tne address pointed at by `ui`  in `connect`, after
+  Google changed proxy settings that rendered the UI URL incorrect. Also
+  added new addres `hist/spark-history`.
+
+-----
+
 ## 0.2.18
 
 Released 2019-07-12
