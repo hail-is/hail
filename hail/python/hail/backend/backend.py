@@ -86,17 +86,7 @@ class Backend(abc.ABC):
         pass
 
 
-class SparkBackend(Backend):
-    def __init__(self):
-        self._fs = None
-
-    @property
-    def fs(self):
-        if self._fs is None:
-            from hail.fs.hadoop_fs import HadoopFS
-            self._fs = HadoopFS()
-        return self._fs
-
+class AbstractPy4JBackend(Backend):
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
             r = Renderer(stop_at_jir=True)
@@ -139,21 +129,6 @@ class SparkBackend(Backend):
         jir = self._to_java_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
-    def from_spark(self, df, key):
-        return Table._from_java(Env.hail().table.Table.pyFromDF(df._jdf, key))
-
-    def to_spark(self, t, flatten):
-        t = t.expand_types()
-        if flatten:
-            t = t.flatten()
-        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
-
-    def to_pandas(self, t, flatten):
-        return self.to_spark(t, flatten).toPandas()
-
-    def from_pandas(self, df, key):
-        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
-
     def add_reference(self, config):
         Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
 
@@ -185,6 +160,33 @@ class SparkBackend(Backend):
 
     def parse_vcf_metadata(self, path):
         return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
+
+
+class SparkBackend(AbstractPy4JBackend):
+    def __init__(self):
+        self._fs = None
+
+    @property
+    def fs(self):
+        if self._fs is None:
+            from hail.fs.hadoop_fs import HadoopFS
+            self._fs = HadoopFS()
+        return self._fs
+
+    def from_spark(self, df, key):
+        return Table._from_java(Env.hail().table.Table.pyFromDF(df._jdf, key))
+
+    def to_spark(self, t, flatten):
+        t = t.expand_types()
+        if flatten:
+            t = t.flatten()
+        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.spark_session()._wrapped)
+
+    def to_pandas(self, t, flatten):
+        return self.to_spark(t, flatten).toPandas()
+
+    def from_pandas(self, df, key):
+        return Table.from_spark(Env.spark_session().createDataFrame(df), key)
 
 
 class LocalBackend(Backend):
@@ -356,10 +358,10 @@ class ServiceBackend(Backend):
         return resp.json()
 
 
-class DistributedBackend(Backend):
+class DistributedBackend(AbstractPy4JBackend):
 
     def __init__(self):
-        self._fs
+        self._fs = None
 
     @property
     def fs(self):
@@ -368,14 +370,15 @@ class DistributedBackend(Backend):
             self._fs = GoogleCloudStorageFS()
         return self._fs
 
-    def value_type(self, ir):
-        jir = self._to_java_ir(ir)
-        return dtype(jir.typ().toString())
+    def from_spark(self, df, key):
+        raise RuntimeError("DistributedBackend does not support operation `from_spark`")
 
-    def table_type(self, tir):
-        jir = self._to_java_ir(tir)
-        return ttable._from_java(jir.typ())
+    def to_spark(self, t, flatten):
+        raise RuntimeError("DistributedBackend does not support operation `to_spark`")
 
-    def matrix_type(self, mir):
-        jir = self._to_java_ir(mir)
-        return tmatrix._from_java(jir.typ())
+    def to_pandas(self, t, flatten):
+        raise RuntimeError("DistributedBackend does not support operation `to_pandas`")
+
+    def from_pandas(self, df, key):
+        raise RuntimeError("DistributedBackend does not support operation `from_pandas`")
+
