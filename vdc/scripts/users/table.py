@@ -39,7 +39,7 @@ class Table:
             rows = cursor.execute("SHOW DATABASES LIKE %s", (db_name, ))
 
             if rows != 0:
-                print(f"{db_name} exists, skipping")
+                print(f"Database {db_name} exists, skipping creation")
                 return True
 
             edb = cnx.escape_string(db_name)
@@ -76,6 +76,9 @@ class Table:
                sql_admin_secret, sql_user_secret, developer=False,
                service_account=False):
         with self.cnx.cursor() as cursor:
+            if self.get(user_id) is not None:
+                return
+
             cursor.execute(
                 """
                 INSERT INTO user_data

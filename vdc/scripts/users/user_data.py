@@ -45,18 +45,24 @@ def delete_google_service_account(gsa_email, google_project):
 
 
 def create_kube_service_acccount(username, namespace):
-    return v1.create_namespaced_service_account(
-        namespace=namespace,
-        body=kube_client.V1ServiceAccount(
-            api_version='v1',
-            metadata=kube_client.V1ObjectMeta(
-                name=username,
-                labels={
-                    "type": "user"
-                }
+    try:
+        v1.create_namespaced_service_account(
+            namespace=namespace,
+            body=kube_client.V1ServiceAccount(
+                api_version='v1',
+                metadata=kube_client.V1ObjectMeta(
+                    name=username,
+                    labels={
+                        "type": "user"
+                    }
+                )
             )
         )
-    )
+    except kube_client.rest.ApiException as e:
+        if e.status != 409:
+            raise e
+
+    return username
 
 
 def delete_kube_service_acccount(ksa_name, namespace):
@@ -77,8 +83,8 @@ def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
     key['privateKeyData'] = b64decode(key['privateKeyData']).decode("utf-8")
 
     create_namespaced_secret(kube_namespace,
-                             secret_name=gsa_key_name,
                              string_data=key,
+                             secret_name=gsa_key_name,
                              labels={
                                  "type": "user"
                              }, annotations={
@@ -86,8 +92,8 @@ def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
                              })
 
     create_namespaced_secret(batch_namespace,
-                             secret_name=gsa_key_name,
                              string_data=key,
+                             secret_name=gsa_key_name,
                              labels={
                                  "type": "user"
                              }, annotations={
@@ -95,20 +101,24 @@ def store_gsa_key_in_kube(gsa_key_name, gsa_email, google_project,
                              })
 
 
-def create_namespaced_secret(kube_namespace, secret_name, string_data,
+def create_namespaced_secret(kube_namespace, string_data, secret_name,
                              labels=None, annotations=None):
-    return v1.create_namespaced_secret(
-        namespace=kube_namespace,
-        body=kube_client.V1Secret(
-            api_version='v1',
-            string_data=string_data,
-            metadata=kube_client.V1ObjectMeta(
-                name=secret_name,
-                labels=labels,
-                annotations=annotations
+    try:
+        v1.create_namespaced_secret(
+            namespace=kube_namespace,
+            body=kube_client.V1Secret(
+                api_version='v1',
+                string_data=string_data,
+                metadata=kube_client.V1ObjectMeta(
+                    name=secret_name,
+                    labels=labels,
+                    annotations=annotations
+                )
             )
         )
-    )
+    except kube_client.rest.ApiException as e:
+        if e.status != 409:
+            raise e
 
 
 def delete_kube_secret(secret_name, kube_namespace):
@@ -118,18 +128,11 @@ def delete_kube_secret(secret_name, kube_namespace):
 def create_user_kube_secret(user_data, kube_namespace):
     jwt = jwtclient.encode(user_data)
 
-    return v1.create_namespaced_secret(
-        namespace=kube_namespace,
-        body=kube_client.V1Secret(
-            api_version='v1',
-            string_data={'jwt': jwt},
-            metadata=kube_client.V1ObjectMeta(
-                name=user_data['jwt_secret_name'],
-                labels={
-                    "type": "user",
-                }
-            )
-        )
+    create_namespaced_secret(
+        kube_namespace=kube_namespace,
+        string_data={'jwt': jwt},
+        secret_name=user_data['jwt_secret_name'],
+        labels={"type": "user"}
     )
 
 
@@ -167,63 +170,78 @@ def grant_bucket_read_write(bucket, email):
 
 
 def create_kube_namespace(username):
-    return v1.create_namespace(
-        body=kube_client.V1Namespace(
-            api_version='v1',
-            metadata=kube_client.V1ObjectMeta(
-                name=username,
-                labels={
-                    "type": "user"
-                }
+    try:
+        v1.create_namespace(
+            body=kube_client.V1Namespace(
+                api_version='v1',
+                metadata=kube_client.V1ObjectMeta(
+                    name=username,
+                    labels={
+                        "type": "user"
+                    }
+                )
             )
         )
-    )
+    except kube_client.rest.ApiException as e:
+        if e.status != 409:
+            raise e
+
+    return username
 
 
 def create_rbac(namespace, sa_name):
-    api = kube_client.RbacAuthorizationV1Api()
+    try:
+        api = kube_client.RbacAuthorizationV1Api()
 
-    rule_name = "admin"
-    api.create_namespaced_role(
-        namespace=namespace,
-        body=kube_client.V1Role(
-            metadata=kube_client.V1ObjectMeta(
-                name=rule_name,
-                labels={
-                    "type": "user"
-                }
-            ),
-            rules=[
-                kube_client.V1PolicyRule(
-                    verbs=["*"],
-                    api_groups=["*"],
-                    resources=["*"]
-                )
-            ]
-        )
-    )
-
-    api.create_namespaced_role_binding(
-        namespace=namespace,
-        body=kube_client.V1RoleBinding(
-            metadata=kube_client.V1ObjectMeta(
-                name=f"{namespace}-admin",
-                labels={
-                    "type": "user"
-                }
-            ),
-            subjects=[kube_client.V1Subject(
-                name=sa_name,
-                namespace=namespace,
-                kind="ServiceAccount"
-            )],
-            role_ref=kube_client.V1RoleRef(
-                api_group="",
-                kind="Role",
-                name=rule_name
+        rule_name = "admin"
+        api.create_namespaced_role(
+            namespace=namespace,
+            body=kube_client.V1Role(
+                metadata=kube_client.V1ObjectMeta(
+                    name=rule_name,
+                    labels={
+                        "type": "user"
+                    }
+                ),
+                rules=[
+                    kube_client.V1PolicyRule(
+                        verbs=["*"],
+                        api_groups=["*"],
+                        resources=["*"]
+                    )
+                ]
             )
         )
-    )
+
+    except kube_client.rest.ApiException as e:
+        if e.status != 409:
+            raise e
+
+    try:
+        api.create_namespaced_role_binding(
+            namespace=namespace,
+            body=kube_client.V1RoleBinding(
+                metadata=kube_client.V1ObjectMeta(
+                    name=f"{namespace}-admin",
+                    labels={
+                        "type": "user"
+                    }
+                ),
+                subjects=[kube_client.V1Subject(
+                    name=sa_name,
+                    namespace=namespace,
+                    kind="ServiceAccount"
+                )],
+                role_ref=kube_client.V1RoleRef(
+                    api_group="",
+                    kind="Role",
+                    name=rule_name
+                )
+            )
+        )
+    except kube_client.rest.ApiException as e:
+        if e.status != 409:
+            raise e
 
 
 def delete_bucket(bucket_name):
@@ -254,11 +272,10 @@ def create_all(user_id, username, google_project, kube_namespace,
         out['developer'] = True
         out['service_account'] = False
 
-        namespace_response = create_kube_namespace(username)
-        out['namespace_name'] = namespace_response.metadata.name
+        out['namespace_name'] = create_kube_namespace(username)
 
-        ksa_response = create_kube_service_acccount(username, kube_namespace)
-        out['ksa_name'] = ksa_response.metadata.name
+        out['ksa_name'] = create_kube_service_acccount(
+            username, kube_namespace)
 
         (sql_admin_secret, sql_user_secret) = create_user_db(
             out['namespace_name'], username)
@@ -375,7 +392,6 @@ def create_user_db(kube_namespace, username):
     table.create_user_db(**data)
 
     create_namespaced_secret(kube_namespace=kube_namespace,
-                             secret_name=admin_secret,
                              string_data={
                                  "sql-config.json": json.dumps({
                                      "host": "10.80.0.3",
@@ -391,10 +407,10 @@ def create_user_db(kube_namespace, username):
                                  f"\nuser={data['admin_role']}" +
                                  f"\npassword={data['admin_pass']}"
                                  f"\ndatabase={data['db_name']}\n"
-                             })
+                             },
+                             secret_name=admin_secret)
 
     create_namespaced_secret(kube_namespace=kube_namespace,
-                             secret_name=user_secret,
                              string_data={
                                  "sql-config.json": json.dumps({
                                      "host": "10.80.0.3",
@@ -410,45 +426,41 @@ def create_user_db(kube_namespace, username):
                                  f"\nuser={data['user_role']}" +
                                  f"\npassword={data['user_pass']}"
                                  f"\ndatabase={data['db_name']}\n"
-                             })
+                             },
+                             secret_name=user_secret)
 
     return admin_secret, user_secret
 
 
 def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
                           **kwargs):
-    existing = table.get(user_id)
 
-    if existing is None:
-        if email is None and username is None:
-            raise("Must provide either 'username' or 'email'")
+    if email is None and username is None:
+        raise("Must provide either 'username' or 'email'")
 
-        if username is not None:
-            username = sanitize_username(username)
-        else:
-            username = email_to_username(email)
-
-        user = create_all(user_id=user_id, username=username, email=email,
-                          kube_namespace=kube_namespace, **kwargs)
-        user['jwt_secret_name'] = f"{user['username']}-jwt"
-
-        table.insert(**user)
-        res = table.get(user_id)
-        user['id'] = res['id']
-
-        if user['namespace_name'] is None:
-            del user['namespace_name']
-        if user['ksa_name'] is None:
-            del user['ksa_name']
-        if user['email'] is None:
-            del user['email']
-
-        create_user_kube_secret(user, kube_namespace)
-
-        return user
-
+    if username is not None:
+        username = sanitize_username(username)
     else:
-        return existing
+        username = email_to_username(email)
+
+    user = create_all(user_id=user_id, username=username, email=email,
+                      kube_namespace=kube_namespace, **kwargs)
+    user['jwt_secret_name'] = f"{user['username']}-jwt"
+
+    table.insert(**user)
+    res = table.get(user_id)
+    user['id'] = res['id']
+
+    if user['namespace_name'] is None:
+        del user['namespace_name']
+    if user['ksa_name'] is None:
+        del user['ksa_name']
+    if user['email'] is None:
+        del user['email']
+
+    create_user_kube_secret(user, kube_namespace)
+
+    return user
 
 
 def delete_all_idempotent(user_id, google_project,
