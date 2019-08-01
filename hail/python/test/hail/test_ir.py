@@ -363,7 +363,7 @@ class CSETests(unittest.TestCase):
             ' (ApplyBinaryPrimOp `+`'
                 ' (Ref __cse_1)'
                 ' (Ref __cse_1)))')
-        self.assertEqual(CSERenderer()(x), expected)
+        self.assertEqual(expected, CSERenderer()(x))
 
     def test_cse2(self):
         x = ir.I32(5)
@@ -379,7 +379,7 @@ class CSETests(unittest.TestCase):
                     ' (Ref __cse_2)'
                     ' (I32 4))'
                 ' (Ref __cse_2))))')
-        self.assertEqual(CSERenderer()(div), expected)
+        self.assertEqual(expected, CSERenderer()(div))
 
     def test_cse_ifs(self):
         outer_repeated = ir.I32(5)
@@ -395,7 +395,7 @@ class CSETests(unittest.TestCase):
                     ' (I32 5)))'
                 ' (I32 5))'
         )
-        self.assertEqual(CSERenderer()(cond), expected)
+        self.assertEqual(expected, CSERenderer()(cond))
     #
     # def test_foo(self):
     #     array = ir.MakeArray([ir.I32(5)], tint32)
