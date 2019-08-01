@@ -998,9 +998,7 @@ private class Emit(
         val rvAgg = agg.Extract.getAgg(aggSig)
 
         val argVars = args.map(a => emit(a, container = container.flatMap(_.nested(i)))).toArray
-        void(
-          sc.loadOneIfMissing(aggOff, i),
-          rvAgg.seqOp(sc(i), argVars))
+        void(rvAgg.seqOp(sc(i), argVars))
 
       case CombOp2(i1, i2, aggSig) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1008,10 +1006,7 @@ private class Emit(
         assert(agg.Extract.compatible(aggs(i2), aggSig), s"${ aggs(i2) } vs $aggSig")
         val rvAgg = agg.Extract.getAgg(aggSig)
 
-        void(
-          sc.loadOneIfMissing(aggOff, i1),
-          sc.loadOneIfMissing(aggOff, i2),
-          rvAgg.combOp(sc(i1), sc(i2)))
+        void(rvAgg.combOp(sc(i1), sc(i2)))
 
       case x@ResultOp2(start, aggSigs) =>
         val AggContainer(aggs, sc, aggOff) = container.get
@@ -1021,7 +1016,6 @@ private class Emit(
           assert(aggSigs(j) == aggs(idx))
           val rvAgg = agg.Extract.getAgg(aggSigs(j))
           Code(
-            sc.loadOneIfMissing(aggOff, idx),
             rvAgg.result(sc(idx), srvb),
             srvb.advance())
         }: _*))
@@ -1041,11 +1035,7 @@ private class Emit(
           PString.getClass, "loadString", region, p.value[Long])
 
         val serialize = Array.range(start, start + aggSigs.length)
-          .map { idx =>
-            Code(
-              sc.loadOneIfMissing(aggOff, idx),
-              sc(idx).serialize(spec)(ob))
-          }
+          .map { idx => sc(idx).serialize(spec)(ob) }
 
         void(
           p.setup, p.m.mux(Code._fatal("agg path can't be missing"), Code._empty),
@@ -1086,11 +1076,7 @@ private class Emit(
         val baos = mb.newField[ByteArrayOutputStream]
 
         val serialize = Array.range(start, start + aggSigs.length)
-          .map { idx =>
-            Code(
-              sc.loadOneIfMissing(aggOff, idx),
-              sc(idx).serialize(spec)(ob))
-          }
+          .map { idx => sc(idx).serialize(spec)(ob) }
 
         void(
           baos := Code.newInstance[ByteArrayOutputStream](),

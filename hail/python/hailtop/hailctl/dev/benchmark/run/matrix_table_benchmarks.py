@@ -105,6 +105,7 @@ def matrix_table_many_aggs_row_wise():
 
 @benchmark
 def matrix_table_many_aggs_col_wise():
+    # hl._set_flags(newaggs=None)
     mt = hl.read_matrix_table(resource('profile.mt'))
     mt = mt.annotate_cols(**many_aggs(mt))
     mt.cols()._force_count()
