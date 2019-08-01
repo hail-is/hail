@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{CodeOrdering, Region, RegionUtils}
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
@@ -123,7 +123,7 @@ class BTreeBackedSet(region: Region) {
 }
 
 class TestSet {
-  private val map = mutable.Set[java.lang.Long]()
+  val map = mutable.Set[java.lang.Long]()
 
   def clear(): Unit = map.clear()
 
@@ -139,22 +139,23 @@ class StagedBTreeSuite extends HailSuite {
       val refSet = new TestSet()
       val testSet = new BTreeBackedSet(region)
 
-      val values = Gen.zip(Gen.coin(.1), Gen.choose(-20, 10))
+      val sets = Gen.buildableOf[Array](Gen.zip(Gen.coin(.1), Gen.choose(-10, 10))
+        .map { case (m, v) => if (m) null else new java.lang.Long(v) })
       val lt = { (l1: java.lang.Long, l2: java.lang.Long) =>
         !(l1 == null) && ((l2 == null) || (l1 < l2))
       }
 
-      Array.range(0, 10).foreach { i =>
+      Prop.forAll(sets) { set =>
         refSet.clear()
         testSet.clear()
         assert(refSet.getElements sameElements testSet.getElements)
 
-        Prop.forAll(values) { case (m, v) =>
-          refSet.getOrElseInsert(if (m) null else new java.lang.Long(v))
-          testSet.getOrElseInsert(if (m) null else new java.lang.Long(v))
+        set.forall { v =>
+          refSet.getOrElseInsert(v)
+          testSet.getOrElseInsert(v)
           refSet.getElements.sortWith(lt) sameElements testSet.getElements.sortWith(lt)
-        }.check()
-      }
+        }
+      }.check()
     }
   }
 }

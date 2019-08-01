@@ -58,11 +58,15 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     eltType.fieldOffset(elementsType.loadField(elements(node), i), 1)
   private def loadChild(node: Code[Long], i: Int): Code[Long] =
     Region.loadAddress(if (i == -1) storageType.fieldOffset(node, 1) else childOffset(node, i))
-  private def storeChild(node: Code[Long], i: Int, child: Code[Long]): Code[Unit] =
-    Region.storeAddress(childOffset(node, i), child)
-  private def storeFirstChild(node: Code[Long], child: Code[Long]): Code[Unit] =
-    Code(storageType.setFieldPresent(node, 1),
-      Region.storeAddress(storageType.fieldOffset(node, 1), child))
+  private def storeChild(parent: Code[Long], i: Int, child: Code[Long]): Code[Unit] =
+    Code(
+      if(i == -1)
+        Code(storageType.setFieldPresent(parent, 1),
+          Region.storeAddress(storageType.fieldOffset(parent, 1), child))
+      else
+        Region.storeAddress(childOffset(parent, i), child),
+      storageType.setFieldPresent(child, 0),
+      Region.storeAddress(storageType.fieldOffset(child, 0), parent))
 
   private val insert: EmitMethodBuilder = {
     val insertAt = fb.newMethod("insert", Array[TypeInfo[_]](typeInfo[Long], typeInfo[Int], typeInfo[Boolean], typeToTypeInfo(key.compType), typeInfo[Long]), typeInfo[Long])
@@ -86,7 +90,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       Code(
         setKeyPresent(destNode, destIdx),
         key.copy(keyOffset(srcNode, srcIdx), keyOffset(destNode, destIdx)),
-        (!isLeaf(destNode)).orEmpty(storeChild(destNode, destIdx, loadChild(srcNode, srcIdx))))
+        (!isLeaf(srcNode)).orEmpty(storeChild(destNode, destIdx, loadChild(srcNode, srcIdx))))
 
     val shiftAndInsert = Array.range(1, maxElements)
       .foldLeft(makeUninitialized(0)) { (cont, destIdx) =>
@@ -112,7 +116,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
             .mux(i, cont)
         }
       Code((!isLeaf(node)).orEmpty(
-        storeFirstChild(newNode, c)),
+        storeChild(newNode, -1, c)),
         insertAt.invoke[Long](parent, upperBound, m, v, newNode))
     }
 
@@ -125,7 +129,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
         }
       val (compKeyM, compKeyV) = key.loadCompKey(loadKey(node, idx))
       Code((!isLeaf(node)).orEmpty(
-        storeFirstChild(newNode, loadChild(node, idx))),
+        storeChild(newNode, -1, loadChild(node, idx))),
         key.copy(loadKey(node, idx),
           insertAt.invoke[Long](parent, upperBound, compKeyM, compKeyV, newNode)),
         setKeyMissing(node, idx))
@@ -135,7 +139,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
       isRoot(node).orEmpty(Code(
         createNode(root),
         storeParent(node, root),
-        storeFirstChild(root, node))),
+        storeChild(root, -1, node))),
       createNode(newNode),
       storeParent(newNode, parent),
       (insertIdx > splitIdx).mux(
@@ -162,8 +166,7 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
     val cmp = get.newLocal[Int]
     def eltEqual(i: Int) = hasKey(node, i) && cmp.ceq(0)
     def insertOrGetAt(i: Int) = isLeaf(node).mux(
-      Code(
-        insert.invoke[Long](node, i, km, kv, 0L)),
+        insert.invoke[Long](node, i, km, kv, 0L),
       get.invoke(loadChild(node, i - 1), km, kv))
 
     get.emit(Code(
@@ -225,9 +228,8 @@ class AppendOnlyBTree(fb: EmitFunctionBuilder[_], key: BTreeKey, region: Code[Re
 
     f.emit(Code(
       (!isLeaf(srcNode)).orEmpty(
-        Code(
-          copyChild(-1),
-          storeFirstChild(destNode, newNode))),
+        Code(copyChild(-1),
+          storeChild(destNode, -1, newNode))),
       copyNodes))
 
     { srcRoot: Code[Long] => f.invoke(root, srcRoot) }
