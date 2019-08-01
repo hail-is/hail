@@ -263,9 +263,6 @@ class Let(IR):
         self.value = value
         self.body = body
 
-    def new_block(self, i):
-        return i > 0
-
     @typecheck_method(value=IR, body=IR)
     def copy(self, value, body):
         return Let(self.name, value, body)
@@ -1076,10 +1073,10 @@ class AggFilter(IR):
         self._type = self.agg_ir.typ
 
     def uses_agg_context(self, i: int):
-        return i == 0
+        return i == 0 and not self.is_scan
 
     def uses_scan_context(self, i: int):
-        return i == 0
+        return i == 0 and self.is_scan
 
 
 class AggExplode(IR):
@@ -1108,8 +1105,6 @@ class AggExplode(IR):
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
         new_agg = _env_bind(agg_env, (self.name, self.array.typ.element_type))
-        if not new_agg:
-            print("...")
         self.agg_body._compute_type(env, _env_bind(agg_env, (self.name, self.array.typ.element_type)))
         self._type = self.agg_body.typ
 
@@ -1123,10 +1118,10 @@ class AggExplode(IR):
         return i == 1
 
     def uses_agg_context(self, i: int):
-        return i == 0
+        return i == 0 and not self.is_scan
 
     def uses_scan_context(self, i: int):
-        return i == 0
+        return i == 0 and self.is_scan
 
 
 class AggGroupBy(IR):
@@ -1153,10 +1148,10 @@ class AggGroupBy(IR):
         self._type = tdict(self.key.typ, self.agg_ir.typ)
 
     def uses_agg_context(self, i: int):
-        return i == 0
+        return i == 0 and not self.is_scan
 
     def uses_scan_context(self, i: int):
-        return i == 0
+        return i == 0 and self.is_scan
 
 
 class AggArrayPerElement(IR):
@@ -1190,10 +1185,10 @@ class AggArrayPerElement(IR):
         return {self.element_name, self.index_name} | super().bound_variables
 
     def uses_agg_context(self, i: int):
-        return i == 0
+        return i == 0 and not self.is_scan
 
     def uses_scan_context(self, i: int):
-        return i == 0
+        return i == 0 and self.is_scan
 
     def bindings(self, i):
         return [(self.index_name, tint32)] if i == 1 else []
