@@ -128,6 +128,68 @@ class Aggregators2Suite extends HailSuite {
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = rows.last, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 
+  @Test def testTake() {
+    val t = TStruct(
+      "a" -> TStruct("x" -> TInt32(), "y" -> TInt64()),
+      "b" -> TInt32(),
+      "c" -> TInt64(),
+      "d" -> TFloat32(),
+      "e" -> TFloat64(),
+      "f" -> TBoolean(),
+      "g" -> TString(),
+      "h" -> TArray(TInt32()))
+
+    val rows = FastIndexedSeq(
+      Row(Row(11, 11L), 1, 1L, 1f, 1d, true, "one", FastIndexedSeq(1, 1)),
+      Row(Row(22, 22L), 2, 2L, 2f, 2d, false, "two", null),
+      null,
+      Row(Row(33, 33L), 3, 3L, 3f, 3d, null, "three", FastIndexedSeq(3, null)),
+      Row(null, null, null, null, null, null, null, FastIndexedSeq()),
+      Row(Row(null, 44L), 4, 4L, 4f, 4d, true, "four", null),
+      Row(Row(55, null), 5, 5L, 5f, 5d, true, null, null),
+      null,
+      Row(Row(66, 66L), 6, 6L, 6f, 6d, false, "six", FastIndexedSeq(6, 6, 6, 6)),
+      Row(null, null, null, null, null, null, null, null),
+      Row(Row(77, 77L), 7, 7L, 7f, 7d, false, "seven", FastIndexedSeq()),
+      null,
+      null,
+      Row(null, null, null, null, null, null, null, null),
+      Row(Row(88, 88L), 8, 8L, 8f, 8d, null, "eight", null),
+      Row(Row(99, 99L), 9, 9L, 9f, 9d, null, "nine", FastIndexedSeq(null)),
+      Row(Row(1010, 1010L), 10, 10L, 10f, 10d, false, "ten", FastIndexedSeq()),
+      Row(Row(1111, 1111L), 11, 11L, 11f, 11d, true, "eleven", FastIndexedSeq())
+    )
+
+    val aggSig = AggSignature2(Take(), FastSeq(TInt32()), FastSeq(t), None)
+    val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](ArrayRef(Ref("rows", TArray(t)), i)))
+
+    FastIndexedSeq(0, 1, 3, 8, 10, 15, 30).foreach { i =>
+      assertAggEquals(aggSig,
+        FastIndexedSeq(I32(i)),
+        seqOpArgs,
+        expected = rows.take(i),
+        args = FastIndexedSeq(("rows", (TArray(t), rows))))
+    }
+
+    val transformations: IndexedSeq[(IR => IR, Row => Any, Type)] = t.fields.map { f =>
+      ((x: IR) => GetField(x, f.name),
+        (r: Row) => if (r == null) null else r.get(f.index),
+        f.typ)
+    }.filter(_._3 == TString())
+
+    transformations.foreach { case (irF, rowF, subT) =>
+      val aggSig = AggSignature2(Take(), FastSeq(TInt32()), FastSeq(subT), None)
+      val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](irF(ArrayRef(Ref("rows", TArray(t)), i))))
+
+      val expected = rows.take(10).map(rowF)
+      assertAggEquals(aggSig,
+        FastIndexedSeq(I32(10)),
+        seqOpArgs,
+        expected = expected,
+        args = FastIndexedSeq(("rows", (TArray(t), rows))))
+    }
+  }
+
   def seqOpOverArray(aggIdx: Int, a: IR, seqOps: IR => IR, lcSig: AggSignature2): IR = {
     val idx = Ref(genUID(), TInt32())
     val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
