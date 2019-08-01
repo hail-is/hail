@@ -167,7 +167,10 @@ async def get_batch(request):
     status = await b.status()
     for j in status['jobs']:
         if 'duration' in j and j['duration'] is not None:
-            j['duration'] = humanize.naturaldelta(datetime.timedelta(seconds=sum(j['duration'])))
+            j['duration'] = humanize.naturaldelta(
+                datetime.timedelta(
+                    seconds=sum(
+                        x for x in j['duration'] if x is not None)))
         j['exit_code'] = Job.exit_code(j)
     return {
         'batch': status
