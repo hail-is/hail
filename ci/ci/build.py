@@ -155,6 +155,12 @@ class Step(abc.ABC):
             return CreateDatabaseStep.from_json(params)
         raise ValueError(f'unknown build step kind: {kind}')
 
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)
+
     @abc.abstractmethod
     def build(self, batch, code, scope):
         pass
