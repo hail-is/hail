@@ -349,7 +349,7 @@ spec:
          resources:
           requests:
             cpu: "2"
-            memory: 60Gi
+            memory: 20Gi
       volumes:
        - name: etc-prometheus
          configMap:
