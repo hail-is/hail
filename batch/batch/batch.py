@@ -1229,9 +1229,6 @@ async def update_job_with_pod(job, pod):
         return
 
     if pod and pod.status and pod.status.phase == 'Pending':
-        all_containers = pod.status.init_container_statuses or []
-        all_containers.extend(pod.status.container_statuses or [])
-
         def image_pull_back_off_reason(container_status):
             if (container_status.state and
                 container_status.state.waiting and
@@ -1241,9 +1238,12 @@ async def update_job_with_pod(job, pod):
                         container_status.state.waiting.message)
             return None
 
+        all_container_statuses = pod.status.init_container_statuses or []
+        all_container_statuses.extend(pod.status.container_statuses or [])
+
         image_pull_back_off_reasons = []
-        for x in all_containers:
-            maybe_reason = image_pull_back_off_reason(x)
+        for container_status in all_container_statuses:
+            maybe_reason = image_pull_back_off_reason(container_status)
             if maybe_reason:
                 image_pull_back_off_reasons.append(maybe_reason)
         if image_pull_back_off_reasons:
