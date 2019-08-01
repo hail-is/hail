@@ -1228,6 +1228,30 @@ async def update_job_with_pod(job, pod):
         await job._delete_k8s_resources()
         return
 
+    if pod and pod.status and pod.status.phase == 'Pending':
+        def image_pull_back_off_reason(container_status):
+            if (container_status.state and
+                container_status.state.waiting and
+                container_status.state.waiting.reason == 'ImagePullBackOff'):
+                return (container_status.state.waiting.reason +
+                        ': ' +
+                        container_status.state.waiting.message)
+            return None
+
+        all_container_statuses = pod.status.init_container_statuses or []
+        all_container_statuses.extend(pod.status.container_statuses or [])
+
+        image_pull_back_off_reasons = []
+        for container_status in all_container_statuses:
+            maybe_reason = image_pull_back_off_reason(container_status)
+            if maybe_reason:
+                image_pull_back_off_reasons.append(maybe_reason)
+        if image_pull_back_off_reasons:
+            job.mark_complete(pod=pod,
+                              failed=True,
+                              failure_reason="\n".join(image_pull_back_off_reasons))
+            return
+
     if not pod or (pod.status and pod.status.reason == 'Evicted'):
         POD_EVICTIONS.inc()
         log.info(f'job {job.id} mark unscheduled -- pod is missing or was evicted')
