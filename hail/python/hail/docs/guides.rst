@@ -18,4 +18,3 @@ These guides are short, goal-oriented explanations of how to use Hail.
         Annotation (Adding Fields) <guides/annotation.rst>
         Genetics <guides/genetics.rst>
         Mastering the API <guides/api.rst>
-        Expressions revealed <guides/expressions.ipynb>
