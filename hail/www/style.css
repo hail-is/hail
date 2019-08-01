@@ -10,12 +10,11 @@ html {
 #body {
   color: #444;
   font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-  font-size: 11px;
   line-height: 1.6;
-  padding: 1em;
+  padding: .875rem;
   padding-top: 0px;
   margin: auto;
-  max-width: 42em;
+  max-width: 42rem;
   background: #fefefe;
 }
 
@@ -232,13 +231,8 @@ table td {
 }
 
 @media only screen and (min-width: 480px) {
-  #body {
+  html {
     font-size: 14px;
-  }
-}
-@media only screen and (min-width: 768px) {
-  #body {
-    font-size: 16px;
   }
 }
 @media print {
@@ -249,8 +243,11 @@ table td {
     -ms-filter: none !important;
   }
 
-  #body {
+  #html {
     font-size: 12pt;
+  }
+
+  #body {
     max-width: 100%;
   }
 

@@ -7,16 +7,20 @@
   border-radius: 0px;
   border-bottom: 1px solid #e7e7e7;
   height: 50px;
-  font-size: 12px;
   font-family: Helvetica;
   font-weight: 600;
-  font-color: #555555;
+  color: #555555;
   margin-bottom: 0px;
 }
 
 #hail-navbar #hail-navbar-collapse {
     padding-right: 0px;
     padding-left: 0px;
+    -webkit-box-shadow: 0px 3px 4px 1px #e7e7e7;
+    -moz-box-shadow: 0px 3px 4px 1px #e7e7e7;
+    box-shadow: 0px 3px 4px 1px #e7e7e7;
+    width:97%;
+    background: #FFF,
 }
 
 #hail-navbar #hail-navbar-header {
@@ -32,16 +36,15 @@
 #hail-navbar #hail-navbar-collapse .nav-item a {
   padding-top: 28px;
   padding-bottom: 0px;
-  background-color: #FFFFFF;
+}
+
+.navbar-nav:last-of-type {
+  padding-bottom: 28px;
 }
 
 #hail-navbar #hail-navbar-collapse a {
   color: #555555;
   text-decoration: none;
-}
-
-#hail-navbar #hail-navbar-collapse .navbar-right {
-  margin-right: -50px;
 }
 
 #hail-navbar .dropdown-menu {
@@ -113,8 +116,8 @@ img {
 .container-fluid {
   margin-right: auto;
   margin-left: auto;
-  padding-left: 15px;
-  padding-right: 15px;
+  padding-left: .875rem;
+  padding-right: .875rem;
 }
 
 .dropdown {
@@ -508,8 +511,8 @@ img {
 .container-fluid > .navbar-header,
 .container > .navbar-collapse,
 .container-fluid > .navbar-collapse {
-  margin-right: -15px;
-  margin-left: -15px;
+  margin-right: 0px;
+  margin-left: 0px;
 }
 @media (min-width: 768px) {
   .container > .navbar-header,
@@ -600,9 +603,7 @@ img {
     display: none;
   }
 }
-.navbar-nav {
-  margin: 7.5px -15px;
-}
+
 .navbar-nav > li > a {
   padding-top: 10px;
   padding-bottom: 10px;
