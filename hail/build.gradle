@@ -237,7 +237,9 @@ task(checkSettings) doLast {
 }
 
 test {
-    useTestNG {}
+    useTestNG() {
+        suites 'testng.xml'
+    }
 
     // avoid stack overflow in lmmLargeExampleTest on some systems
     jvmArgs '-Xss4m'
