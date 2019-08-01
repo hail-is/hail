@@ -142,7 +142,7 @@ case class TableNativeReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(spec.partitionCounts) else None
 
-  def fullType: TableType = spec.table_type
+  override lazy val fullType: TableType = spec.table_type
 
   private val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
   private def intervals = options.map(_.intervals)
@@ -204,7 +204,7 @@ case class TableNativeZippedReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = if (intervals.isEmpty) Some(specLeft.partitionCounts) else None
 
-  def fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
+  override lazy val fullType: TableType = specLeft.table_type.copy(rowType = specLeft.table_type.rowType ++ specRight.table_type.rowType)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
     val hc = HailContext.get
@@ -262,7 +262,7 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[In
     Some(partitionRanges.map(r => r.end - r.start))
   }
 
-  override def fullType: TableType = {
+  override lazy val fullType: TableType = {
     val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
     TableType(rowType, Array("row_idx"), TStruct())
   }
