@@ -197,6 +197,20 @@ class CSERenderer(Renderer):
                 return i
         return -1
 
+    # Pre:
+    # * 'context' is a list of 'Scope's, one for each potential let-insertion
+    #   site.
+    # * 'ref_to_scope' maps each bound variable to the index in 'context' of the
+    #   scope of its binding site.
+    # Post:
+    # * Returns set of free variables in 'x'.
+    # * Each subtree of 'x' is flagged as visited in the outermost scope
+    #   containing all of its free variables.
+    # * Each subtree previously visited (either an earlier subtree of 'x', or
+    #   marked visited in 'context') is added to set of lets in its (previously
+    #   computed) outermost scope.
+    # * 'self.scopes' is updated to map subtrees y of 'x' to scopes containing
+    #   any lets to be inserted above y.
     def loop(self, state, x, i, k: Callable[[Vars], str]) -> str:
         if i >= len(x.children):
             return k(state.free_vars)
@@ -244,7 +258,7 @@ class CSERenderer(Renderer):
 
             # continuation uses: bindings, scopes, child_outermost_scope, child_context
 
-            def kont(child_free_vars: Vars) -> str:
+            def post_visit(child_free_vars: Vars) -> str:
                 for var in [*eval_b, *agg_b, *scan_b]:
                     var_depth = child_free_vars.pop(var, depth)
                     assert var_depth == depth
@@ -259,35 +273,17 @@ class CSERenderer(Renderer):
                 return self.loop(state, x, i + 1, k)
 
             if isinstance(child, ir.Ref):
-                return kont({child.name: child_context[0][child.name]})
+                return post_visit({child.name: child_context[0][child.name]})
             else:
-                return self.recur(state.scopes, child_outermost_scope, child_context, child, kont)
-
-
-    # Pre:
-    # * 'context' is a list of 'Scope's, one for each potential let-insertion
-    #   site.
-    # * 'ref_to_scope' maps each bound variable to the index in 'context' of the
-    #   scope of its binding site.
-    # Post:
-    # * Returns set of free variables in 'x'.
-    # * Each subtree of 'x' is flagged as visited in the outermost scope
-    #   containing all of its free variables.
-    # * Each subtree previously visited (either an earlier subtree of 'x', or
-    #   marked visited in 'context') is added to set of lets in its (previously
-    #   computed) outermost scope.
-    # * 'self.scopes' is updated to map subtrees y of 'x' to scopes containing
-    #   any lets to be inserted above y.
-    def recur(self, scopes: List[Scope], outermost_scope: int, context: Context, x: 'ir.BaseIR', k: Callable[[Vars], str]) -> str:
-        def kont(free_vars: Vars) -> str:
-            if len(free_vars) > 0:
-                bind_depth = max(free_vars.values())
-                bind_depth = max(bind_depth, outermost_scope)
-            else:
-                bind_depth = outermost_scope
-            scopes[bind_depth].visited[id(x)] = x
-            return k(free_vars)
-        return self.loop(LoopState(scopes, outermost_scope, context), x, 0, kont)
+                def post_children(free_vars: Vars) -> str:
+                    if len(free_vars) > 0:
+                        bind_depth = max(free_vars.values())
+                        bind_depth = max(bind_depth, child_outermost_scope)
+                    else:
+                        bind_depth = child_outermost_scope
+                    state.scopes[bind_depth].visited[id(child)] = child
+                    return post_visit(free_vars)
+                return self.loop(LoopState(state.scopes, child_outermost_scope, child_context), child, 0, post_children)
 
     def print(self, builder: List[str], context: List[Scope], outermost_scope: int, depth: int, x: 'ir.BaseIR'):
         if id(x) in self.memo:
@@ -359,6 +355,7 @@ class CSERenderer(Renderer):
     def __call__(self, x: 'BaseIR') -> str:
         x.typ
         root_scope = Scope(0)
+
         def kont(free_vars: Vars) -> str:
             root_scope.visited = {}
             if len(free_vars) != 0:
@@ -371,4 +368,5 @@ class CSERenderer(Renderer):
             builder = []
             self.print(builder, [], 0, 1, x)
             return ''.join(builder)
-        return self.recur([root_scope], 0, ({}, {}, {}), x, kont)
+
+        return self.loop(LoopState([root_scope], 0, ({}, {}, {})), x, 0, kont)
