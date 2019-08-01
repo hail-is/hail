@@ -11,7 +11,7 @@ Regardless of installation method, you will need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_ (version **8** required)
     Note: it *must* be Java **8**. Hail does not support versions 9+ due to our dependency on Spark.
-- Python 3 (version **3.6 or later** required): We recommend `Miniconda Python 3.7 <https://docs.conda.io/en/latest/miniconda.html>`_
+- Python 3.6 or later. We recommend `Miniconda Python 3.7 <https://docs.conda.io/en/latest/miniconda.html>`_
 
 For all methods *other than using pip*, you will additionally need `Spark
 2.4.x
