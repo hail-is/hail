@@ -1257,7 +1257,7 @@ async def update_job_with_pod(job, pod):
         await job.mark_unscheduled()
         return
 
-    if pod.status and pod.status.reason == 'Evicted':
+    if pod and pod.status and pod.status.reason == 'Evicted':
         POD_EVICTIONS.inc()
         log.info(f'job {job.id} mark unscheduled -- pod was evicted')
         await job.mark_unscheduled()
