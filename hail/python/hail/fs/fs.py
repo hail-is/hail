@@ -3,9 +3,6 @@ import sys
 import os
 from typing import Dict, List
 
-from hail.utils.java import Env, info
-from hail.utils import local_path_uri
-
 
 class FS(abc.ABC):
     @abc.abstractmethod
@@ -35,14 +32,3 @@ class FS(abc.ABC):
     @abc.abstractmethod
     def ls(self, path: str) -> List[Dict]:
         pass
-
-    def copy_log(self, path: str) -> None:
-        log = Env.hc()._log
-        try:
-            if self.is_dir(path):
-                _, tail = os.path.split(log)
-                path = os.path.join(path, tail)
-            info(f"copying log to {repr(path)}...")
-            self.copy(local_path_uri(Env.hc()._log), path)
-        except Exception as e:
-            sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
