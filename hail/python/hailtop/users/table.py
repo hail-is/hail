@@ -132,6 +132,9 @@ class Table:
 
     def delete(self, user_id):
         with self.cnx.cursor() as cursor:
+            if self.get(user_id) is not None:
+                return
+
             cursor.execute(
                 "DELETE FROM user_data WHERE user_id=%s", (user_id,))
             self.cnx.commit()

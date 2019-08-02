@@ -1,6 +1,6 @@
 import unittest
-from user_data import (create_all_idempotent, delete_all_idempotent,
-                       create_all, delete_all)
+from hailtop.users import (create_all_idempotent, delete_all_idempotent,
+                           create_all, delete_all)
 
 from google.cloud import storage
 import uuid

@@ -465,7 +465,6 @@ def create_all_idempotent(user_id, kube_namespace, username=None, email=None,
 
 def delete_all_idempotent(user_id, google_project,
                           kube_namespace, batch_namespace):
-    existing = table.get(user_id)
 
     if existing is None:
         return 404
