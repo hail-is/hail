@@ -560,9 +560,9 @@ class Job:
         if failed:
             if failure_reason is not None:
                 container_logs['setup'] = failure_reason
-                uri, err = await app['log_store'].write_gs_file(self.directory,
-                                                                LogStore.log_file_name,
-                                                                json.dumps(container_logs))
+                err = await app['log_store'].write_gs_file(self.directory,
+                                                           LogStore.log_file_name,
+                                                           json.dumps(container_logs))
                 if err is not None:
                     traceback.print_tb(err.__traceback__)
                     log.info(f'job {self.id} will have a missing log due to {err}')
