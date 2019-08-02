@@ -42,7 +42,6 @@ if args.d == 'elements':
     ht = ht.select('interval', 'S', 'p_value')
     ht = ht.key_by('interval')
 
-
 n_partitions = ht.n_partitions()
 ht = ht.annotate_globals(metadata=hl.struct(name=name,
                                             version='GERP++',
