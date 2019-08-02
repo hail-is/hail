@@ -42,12 +42,11 @@ if args.d == 'elements':
     ht = ht.select('interval', 'S', 'p_value')
     ht = ht.key_by('interval')
 
-n_rows = ht.count()
+
 n_partitions = ht.n_partitions()
 ht = ht.annotate_globals(metadata=hl.struct(name=name,
                                             version='GERP++',
                                             reference_genome=args.b,
-                                            n_rows=n_rows,
                                             n_partitions=n_partitions))
 ht.describe()
-ht.write('gs://hail-datasets/{n}.{v}.{rg}.ht'.format(n=name, v='GERP++', rg=args.b), overwrite=True)
+ht.write('gs://hail-common/datasets/1/{n}.{v}.{rg}.ht'.format(n=name, v='GERP++', rg=args.b), overwrite=True)
