@@ -578,7 +578,7 @@ steps:
  - kind: runImage
    name: check_batch
    image:
-     valueFrom: check_batch_image.image_name
+     valueFrom: check_batch_image.image
    script: |
      set -ex
      python3 -m flake8 batch
