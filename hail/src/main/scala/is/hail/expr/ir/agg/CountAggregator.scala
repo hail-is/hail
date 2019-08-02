@@ -16,7 +16,7 @@ object CountAggregator extends StagedAggregator {
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (_, v, _) = state.fields(0)
-    Code(v.storeAny(0L), state._loaded := true)
+    v.storeAny(0L)
   }
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
