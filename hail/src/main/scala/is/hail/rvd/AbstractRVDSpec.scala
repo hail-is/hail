@@ -301,10 +301,8 @@ case class IndexedRVDSpec(
         val tmpPartitioner = partitioner.intersect(np)
 
         val rvdType = RVDType(requestedType, requestedKey)
-        val parts = if (key.isEmpty)
-          partFiles
-        else
-          tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }.toArray
+        assert(key.nonEmpty)
+        val parts = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
 
         val crdd = hc.readIndexedRows(path, indexSpec, encodedType, codecSpec, parts, tmpPartitioner.rangeBounds, requestedType)
         val tmprvd = RVD(rvdType, tmpPartitioner.coarsen(requestedKey.length), crdd)
@@ -312,10 +310,10 @@ case class IndexedRVDSpec(
         if (filterIntervals)
           tmprvd
         else
-          tmprvd.repartition(partitioner.coarsen(requestedKey.length))
+          tmprvd.repartition(np.coarsen(requestedKey.length))
       case None =>
         // indexed reads are costly; don't use an indexed read when possible
-        super.read(hc, path, requestedType, newPartitioner, filterIntervals)
+        super.read(hc, path, requestedType, None, filterIntervals)
     }
   }
 }
