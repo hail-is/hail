@@ -448,7 +448,7 @@ object Gen {
   }
 
   def interestingPosInt: Gen[Int] = oneOfGen(
-      oneOf(4, Int.MaxValue - 1, Int.MaxValue),
+      oneOf(1, 2, Int.MaxValue - 1, Int.MaxValue),
       choose(1, 100),
       posInt)
 

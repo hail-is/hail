@@ -72,7 +72,7 @@ class BlockMatrixSuite extends HailSuite {
 
   def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement): Gen[(BlockMatrix, BlockMatrix)] = for {
     Array(nRows, innerDim, nCols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize <- interestingPosInt
+    blockSize <- interestingPosInt.filter(_ > 3) // 1 or 2 cause large numbers of partitions, leading to slow tests
     l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), element)
     r <- blockMatrixGen(const(blockSize), const(innerDim -> nCols), element)
   } yield (l, r)
@@ -441,8 +441,6 @@ class BlockMatrixSuite extends HailSuite {
     forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) { case (l: BlockMatrix, r: BlockMatrix) =>
       l.cache()
       r.cache()
-      println(l.blocks.getNumPartitions)
-      println(r.blocks.getNumPartitions)
 
       val actual = l.dot(r).toBreezeMatrix()
       val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
