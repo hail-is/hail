@@ -1256,9 +1256,14 @@ async def update_job_with_pod(job, pod):
                                     failure_reason="\n".join(image_pull_back_off_reasons))
             return
 
-    if not pod or (pod.status and pod.status.reason == 'Evicted'):
+    if not pod and not app['pod_throttler'].is_queued(job):
+        log.info(f'job {job.id} no pod found, rescheduling')
+        await job.mark_unscheduled()
+        return
+
+    if pod and pod.status and pod.status.reason == 'Evicted':
         POD_EVICTIONS.inc()
-        log.info(f'job {job.id} mark unscheduled -- pod is missing or was evicted')
+        log.info(f'job {job.id} mark unscheduled -- pod was evicted')
         await job.mark_unscheduled()
         return
 
