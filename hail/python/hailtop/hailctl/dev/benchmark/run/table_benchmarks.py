@@ -140,9 +140,12 @@ def write_range_table_p10():
         ht = hl.utils.range_table(10_000_000, 10)
         ht.write(path.join(tmpdir, 'tmp.ht'))
 
-@benchmark
-def read_with_index_p50k():
-    intervals = [hl.Interval(start=i, end=i + 200) for i in range(0, 10_000_000, 200)]
+# @benchmark segfaulting
+def read_with_index_p1000():
+    rows = 10_000_000
+    bins = 1_000
+    width = rows // bins
+    intervals = [hl.Interval(start=i, end=i + width) for i in range(0, rows, width)]
     ht = hl.read_table(resource('table_10M_par_10.ht'), _intervals=intervals)
     ht._force_count()
 
