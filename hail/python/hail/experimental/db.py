@@ -26,8 +26,7 @@ class DB:
             The user can type in multiple annotation names when attaching to their datasets.
             
             >>> db = hl.experimental.DB()
-            >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics')
-            >>> mt = db.annotate_rows_db(mt, 'vep', 'CADD', 'gnomAD')
+            >>> mt = db.annotate_rows_db(mt,'gnomad_lof_metrics,'vep', 'CADD', 'gnomAD')
             
             Parameters
             ----------
