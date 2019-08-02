@@ -354,6 +354,7 @@ class ValueTests(unittest.TestCase):
             new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
             self.assertEqual(new_globals, hl.Struct(foo=v))
 
+
 class CSETests(unittest.TestCase):
     def test_cse(self):
         x = ir.I32(5)
