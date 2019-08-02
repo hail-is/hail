@@ -15,8 +15,6 @@ trait AggregatorState {
 
   def regionSize: Int = Region.TINY
 
-//  def isLoaded: Code[Boolean]
-
   def createState: Code[Unit]
   def newState: Code[Unit]
 
@@ -38,8 +36,6 @@ trait PointerBasedRVAState extends AggregatorState {
   val er: EmitRegion = EmitRegion(mb, region)
 
   override val regionSize: Int = Region.TINIER
-
-//  def isLoaded: Code[Boolean] = region.isValid
 
   def newState: Code[Unit] = region.getNewRegion(regionSize)
 
