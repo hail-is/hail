@@ -40,10 +40,12 @@ class PodThrottler:
                     log.info(f'pod {pod_name} was deleted before it was created, ignoring')
                     self.semaphore.release()
                     return
+
+                await job._create_pod()
             except:
                 self.semaphore.release()
+                raise
 
-            await job._create_pod()
             self.pending_pods.remove(pod_name)
             self.created_pods.add(pod_name)
             self.queue.task_done()
