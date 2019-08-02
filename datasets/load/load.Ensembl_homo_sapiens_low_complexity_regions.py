@@ -33,4 +33,3 @@ ht = ht.annotate_globals(metadata=hl.struct(name=name,
 
 path = f'{hail_data_root}/{name}.release_{version}.{build}.ht'
 ht.write(path, overwrite=True)
-
