@@ -149,6 +149,20 @@ class StagedBlockLinkedList(val elemType: PType, val er: EmitRegion) {
     bll.foreachElemAddress(pushFromAddress)
   }
 
+  def appendShallow(atyp: PArray, aoff: Code[Long]): Code[Unit] = {
+    assert(atyp.isOfType(bufferType))
+    assert(!atyp.elementType.required)
+    val len = atyp.loadLength(region, aoff)
+    Code(
+      tmpNode := region.allocate(nodeType.alignment, nodeType.byteSize),
+      region.storeAddress(nodeType.fieldOffset(tmpNode, 0), aoff), // buf := aoff
+      region.storeInt(nodeType.fieldOffset(tmpNode, 1), len), // count := len
+      nodeType.setFieldMissing(region, tmpNode, 2), // next := null
+      setNext(lastNode, tmpNode),
+      lastNode := tmpNode,
+      totalCount := totalCount + len)
+  }
+
   def writeToSRVB(srvb: StagedRegionValueBuilder): Code[Unit] = {
     assert(srvb.typ.isOfType(bufferType))
     Code(

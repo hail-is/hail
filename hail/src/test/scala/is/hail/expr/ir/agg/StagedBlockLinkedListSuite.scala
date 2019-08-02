@@ -159,4 +159,28 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
         bll1.toArray)
     }
   }
+
+  // [1, null, 2]
+  def buildTestArrayWithMissing(er: EmitRegion): Code[Long] = {
+    val srvb = new StagedRegionValueBuilder(er, PArray(PInt32Optional))
+    Code(
+      srvb.start(length = 3, init = true),
+      srvb.addInt(1), srvb.advance(),
+      srvb.setMissing(), srvb.advance(),
+      srvb.addInt(2), srvb.advance(),
+      srvb.end())
+  }
+
+  @Test def testAppendShallow() {
+    assertEvalsToRV(IndexedSeq(1, null, 2, 1, null, 2), PArray(PInt32())) { er =>
+      val bll = new StagedBlockLinkedList(PInt32(), er)
+      val aoff = er.mb.newField[Long]
+      Code(
+        bll.init,
+        aoff := buildTestArrayWithMissing(er),
+        bll.appendShallow(PArray(PInt32Optional), aoff),
+        bll.appendShallow(PArray(PInt32Optional), aoff),
+        bll.toArray)
+    }
+  }
 }
