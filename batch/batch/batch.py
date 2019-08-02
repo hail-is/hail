@@ -670,7 +670,7 @@ class Job:
 
         self._state = new_state
 
-        await self._delete_pod()
+        await app['pod_throttler'].delete_pod(self)
         await self._delete_pvc()
         await self.notify_children(new_state)
 
