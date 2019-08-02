@@ -1,2 +1,3 @@
 /deployment.yaml.out
-/service.yaml.out
+/external-service.yaml.out
+/internal-service.yaml.out
