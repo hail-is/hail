@@ -33,6 +33,9 @@ class PodThrottler:
             self.created_pods.add(pod_name)
             self.queue.task_done()
 
+    def is_queued(self, job):
+        return job._pod_name in self.pending_pods
+
     def create_pod(self, job):
         # this method does not wait for the pod to be created before returning
         pod_name = job._pod_name

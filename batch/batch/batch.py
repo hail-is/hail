@@ -1252,7 +1252,7 @@ async def update_job_with_pod(job, pod):
                               failure_reason="\n".join(image_pull_back_off_reasons))
             return
 
-    if not pod:
+    if not pod and not app['pod_throttler'].is_queued(job):
         log.info(f'job {job.id} no pod found, rescheduling')
         await job.mark_unscheduled()
         return
