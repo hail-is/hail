@@ -1297,6 +1297,9 @@ async def kube_event_loop():
                 object = event['object']
                 name = object.metadata.name
                 log.info(f'received event {type} {name}')
+                if type == 'ERROR':
+                    log.info(f'kubernetes sent an ERROR event: {event}')
+                    continue
                 await pod_changed(object)
         except Exception as exc:  # pylint: disable=W0703
             log.exception(f'k8s event stream failed due to: {exc}')
