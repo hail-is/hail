@@ -144,6 +144,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: batch2_image
+   dockerFile: batch2/Dockerfile
+   contextPath: .
+   publishAs: batch2
+   dependsOn:
+     - base_image
+ - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
    contextPath: .
@@ -541,6 +548,18 @@ steps:
    config: batch/batch-pods-deployment.yaml
    dependsOn:
     - batch_pods_ns
+ - kind: deploy
+   name: deploy_batch2
+   namespace:
+     valueFrom: default_ns.name
+   config: batch2/deployment.yaml
+   wait:
+    - kind: Service
+      name: batch2
+      for: alive
+   dependsOn:
+    - default_ns
+    - batch2_image
  - kind: deploy
    name: deploy_image_fetcher
    namespace:
