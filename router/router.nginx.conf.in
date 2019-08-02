@@ -60,6 +60,18 @@ server {
 }
 
 server {
+    server_name batch2.@domain@;
+    client_max_body_size 10000m;
+
+    location / {
+        proxy_pass http://batch2/;
+    }
+
+    listen 80;
+    listen [::]:80;
+}
+
+server {
     server_name notebook.@domain@;
 
     # needed to correctly handle error_page with internal handles
