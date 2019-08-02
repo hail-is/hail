@@ -2,6 +2,7 @@ import json
 import os
 import sys
 
+from scipy.stats.mstats import gmean
 import numpy as np
 
 
@@ -19,10 +20,7 @@ def load_file(path):
 
 
 def fmt_diff(ratio):
-    if ratio < 1:
-        return f'+{(1 / ratio - 1):.3f}'
-    else:
-        return f'-{(ratio - 1):.3f}'
+    return f'{ratio * 100:.1f}%'
 
 
 def fmt_time(x, size):
@@ -79,6 +77,7 @@ def compare(run1, run2):
         comps.append(r2 / r1)
         print(format(name, fmt_diff(r2 / r1), fmt_time(r1, 7), fmt_time(r2, 7)))
 
-    print('----------------')
-    print(f'Geometric mean: {fmt_diff(np.sum(comps) ** (1 / len(comps)))}')
+    print('----------------------')
+    print(f'Geometric mean: {fmt_diff(gmean(comps))}')
+    print(f'Simple mean: {fmt_diff(np.mean(comps))}')
     print(f'Median:  {fmt_diff(np.median(comps))}')
