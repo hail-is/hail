@@ -206,7 +206,7 @@ class SubmittedJob:
             if await self.is_complete():
                 return self._status
             j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
+            await asyncio.sleep(0.100 * j)
             # max 44.5s
             if i < 64:
                 i = i + 1
@@ -246,7 +246,7 @@ class Batch:
             if status['complete']:
                 return await self.status()
             j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
+            await asyncio.sleep(0.100 * j)
             # max 44.5s
             if i < 64:
                 i = i + 1
