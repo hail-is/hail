@@ -151,6 +151,13 @@ steps:
    dependsOn:
      - base_image
  - kind: buildImage
+   name: check_batch_image
+   dockerFile: batch/Dockerfile.check
+   contextPath: .
+   publishAs: check-batch
+   dependsOn:
+     - batch_image
+ - kind: buildImage
    name: test_batch_image
    dockerFile: batch/Dockerfile.test
    contextPath: .
@@ -568,6 +575,14 @@ steps:
    dependsOn:
     - default_ns
     - image_fetcher_image
+ - kind: runImage
+   name: check_batch
+   image:
+     valueFrom: check_batch_image.image_name
+   script: |
+     set -ex
+     python3 -m flake8 batch
+     python3 -m pylint --rcfile pylintrc batch
  - kind: deploy
    name: test_batch
    namespace:
