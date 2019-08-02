@@ -387,6 +387,10 @@ class Job:
 
     @staticmethod
     async def from_k8s_labels(pod):
+        if pod.metadata.labels is None:
+            return None
+        if not set(['batch_id', 'job_id', 'user']).issubset(set(pod.metadata.labels)):
+            return None
         batch_id = pod.metadata.labels['batch_id']
         job_id = pod.metadata.labels['job_id']
         user = pod.metadata.labels['user']
