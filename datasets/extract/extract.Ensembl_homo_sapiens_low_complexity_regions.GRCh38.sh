@@ -66,5 +66,5 @@ awk -v FS=$' ' -v OFS=$'\t' '
     }
   }' | 
 bgzip -c |
-gsutil cp - gs://hail-datasets-raw-data/Ensembl/Ensembl_homo_sapiens_low_complexity_regions_release${RELEASE}.GRCh38.tsv.bgz
+gsutil cp - gs://hail-common/datasets-raw/Ensembl/Ensembl_homo_sapiens_low_complexity_regions_release${RELEASE}.GRCh38.tsv.bgz
 

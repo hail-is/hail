@@ -48,5 +48,5 @@ awk -v FS=$' ' -v OFS=$'\t' '
     } 
   }' | 
 bgzip -c |
-gsutil cp - gs://hail-datasets-raw-data/Ensembl/Ensembl_homo_sapiens_reference_genome_release${RELEASE}.GRCh38.tsv.bgz
+gsutil cp - gs://hail-common/datasets-raw/Ensembl/Ensembl_homo_sapiens_reference_genome_release${RELEASE}.GRCh38.tsv.bgz
 
