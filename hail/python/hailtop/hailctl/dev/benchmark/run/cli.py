@@ -1,6 +1,10 @@
-import argparse
-import sys
 import json
+import sys
+
+import argparse
+import datetime
+
+import hail as hl
 from .utils import initialize, run_all, run_pattern, run_list, RunConfig
 
 
@@ -48,7 +52,10 @@ def main(args_):
         out_file = None
     writer = lambda s: print(s, end='', file=out_file)
 
-    run_data = {'cores': args.cores}
+    run_data = {'cores': args.cores,
+                'version': hl.__version__,
+                'timestamp': str(datetime.datetime.now()),
+                'system': sys.platform}
     if args.format == 'table':
         writer(f'#{json.dumps(run_data, separators=(",", ":"))}\n')
         writer('Name\tMean\tMedian\tStDev\n')
@@ -61,9 +68,12 @@ def main(args_):
         def handler(stats):
             records.append(stats)
 
+        data = {'config': run_data,
+                'benchmarks': records}
+
         def write_json():
             with open(args.output, 'w') as out:
-                json.dump(records, out)
+                json.dump(data, out)
 
         finalizers.append(write_json)
     else:
