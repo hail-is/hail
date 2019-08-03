@@ -128,28 +128,26 @@ class IRSuite extends HailSuite {
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
-    assertEvalsTo(Cast(I32(5), TInt32()), 5)
-    assertEvalsTo(Cast(I32(5), TInt64()), 5L)
-    assertEvalsTo(Cast(I32(5), TFloat32()), 5.0f)
-    assertEvalsTo(Cast(I32(5), TFloat64()), 5.0)
-
-    assertEvalsTo(Cast(I64(5), TInt32()), 5)
-    assertEvalsTo(Cast(I64(0xf29fb5c9af12107dL), TInt32()), 0xaf12107d) // truncate
-    assertEvalsTo(Cast(I64(5), TInt64()), 5L)
-    assertEvalsTo(Cast(I64(5), TFloat32()), 5.0f)
-    assertEvalsTo(Cast(I64(5), TFloat64()), 5.0)
-
-    assertEvalsTo(Cast(F32(3.14f), TInt32()), 3)
-    assertEvalsTo(Cast(F32(3.99f), TInt32()), 3) // truncate
-    assertEvalsTo(Cast(F32(3.14f), TInt64()), 3L)
-    assertEvalsTo(Cast(F32(3.14f), TFloat32()), 3.14f)
-    assertEvalsTo(Cast(F32(3.14f), TFloat64()), 3.14)
-
-    assertEvalsTo(Cast(F64(3.14), TInt32()), 3)
-    assertEvalsTo(Cast(F64(3.99), TInt32()), 3) // truncate
-    assertEvalsTo(Cast(F64(3.14), TInt64()), 3L)
-    assertEvalsTo(Cast(F64(3.14), TFloat32()), 3.14f)
-    assertEvalsTo(Cast(F64(3.14), TFloat64()), 3.14)
+    assertAllEvalTo(
+      (Cast(I32(5), TInt32()), 5),
+      (Cast(I32(5), TInt64()), 5L),
+      (Cast(I32(5), TFloat32()), 5.0f),
+      (Cast(I32(5), TFloat64()), 5.0),
+      (Cast(I64(5), TInt32()), 5),
+      (Cast(I64(0xf29fb5c9af12107dL), TInt32()), 0xaf12107d), // truncate
+      (Cast(I64(5), TInt64()), 5L),
+      (Cast(I64(5), TFloat32()), 5.0f),
+      (Cast(I64(5), TFloat64()), 5.0),
+      (Cast(F32(3.14f), TInt32()), 3),
+      (Cast(F32(3.99f), TInt32()), 3), // truncate
+      (Cast(F32(3.14f), TInt64()), 3L),
+      (Cast(F32(3.14f), TFloat32()), 3.14f),
+      (Cast(F32(3.14f), TFloat64()), 3.14),
+      (Cast(F64(3.14), TInt32()), 3),
+      (Cast(F64(3.99), TInt32()), 3), // truncate
+      (Cast(F64(3.14), TInt64()), 3L),
+      (Cast(F64(3.14), TFloat32()), 3.14f),
+      (Cast(F64(3.14), TFloat64()), 3.14))
   }
 
   @Test def testCastInferPType() {
@@ -253,14 +251,16 @@ class IRSuite extends HailSuite {
   val bna = NA(TBoolean())
 
   @Test def testApplyUnaryPrimOpNegate() {
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I32(5)), -5)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i32na), null)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I64(5)), -5L)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i64na), null)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F32(5)), -5F)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f32na), null)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F64(5)), -5D)
-    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f64na), null)
+    assertAllEvalTo(
+      (ApplyUnaryPrimOp(Negate(), I32(5)), -5),
+      (ApplyUnaryPrimOp(Negate(), i32na), null),
+      (ApplyUnaryPrimOp(Negate(), I64(5)), -5L),
+      (ApplyUnaryPrimOp(Negate(), i64na), null),
+      (ApplyUnaryPrimOp(Negate(), F32(5)), -5F),
+      (ApplyUnaryPrimOp(Negate(), f32na), null),
+      (ApplyUnaryPrimOp(Negate(), F64(5)), -5D),
+      (ApplyUnaryPrimOp(Negate(), f64na), null)
+    )
   }
 
   @Test def testApplyUnaryPrimOpBang() {
@@ -270,12 +270,14 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyUnaryPrimOpBitFlip() {
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef)
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef))
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i32na), null)
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L)
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L))
-    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i64na), null)
+    assertAllEvalTo(
+      (ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef),
+      (ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef)),
+      (ApplyUnaryPrimOp(BitNot(), i32na), null),
+      (ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L),
+      (ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
+      (ApplyUnaryPrimOp(BitNot(), i64na), null)
+    )
   }
 
   @Test def testApplyUnaryPrimOpInferPType() {
@@ -1006,22 +1008,22 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
     val awoutna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4)), TArray(TInt32()))
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(-1), onKey = false), 0)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, NA(TInt32()), onKey = false), 3)
-
     val awna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), NA(TInt32())), TArray(TInt32()))
-    assertEvalsTo(LowerBoundOnOrderedCollection(awna, NA(TInt32()), onKey = false), 3)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3)
-
     val awdups = MakeArray(FastIndexedSeq(I32(0), I32(0), I32(2), I32(4), I32(4), NA(TInt32())), TArray(TInt32()))
-    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0)
-    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
+    assertAllEvalTo(
+      (LowerBoundOnOrderedCollection(awoutna, I32(-1), onKey = false), 0),
+        (LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0),
+        (LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1),
+        (LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1),
+        (LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2),
+        (LowerBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2),
+        (LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awoutna, NA(TInt32()), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awna, NA(TInt32()), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3),
+        (LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0),
+        (LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
+    )
   }
 
   @Test def testLowerBoundOnOrderedCollectionSet() {
