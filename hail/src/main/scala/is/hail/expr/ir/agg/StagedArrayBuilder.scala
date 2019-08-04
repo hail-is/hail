@@ -24,17 +24,17 @@ class StagedArrayBuilder(eltType: PType, mb: EmitMethodBuilder, er: EmitRegion, 
 
   def loadFields(src: Code[Long]): Code[Unit] = {
     Code(
-      size := region.loadInt(currentSizeOffset(src)),
-      capacity := region.loadInt(capacityOffset(src)),
-      data := region.loadAddress(dataOffset(src))
+      size := Region.loadInt(currentSizeOffset(src)),
+      capacity := Region.loadInt(capacityOffset(src)),
+      data := Region.loadAddress(dataOffset(src))
     )
   }
 
   def storeFields(dest: Code[Long]): Code[Unit] = {
     Code(
-      region.storeInt(currentSizeOffset(dest), size),
-      region.storeInt(capacityOffset(dest), capacity),
-      region.storeAddress(dataOffset(dest), data)
+      Region.storeInt(currentSizeOffset(dest), size),
+      Region.storeInt(capacityOffset(dest), capacity),
+      Region.storeAddress(dataOffset(dest), data)
     )
   }
 
@@ -78,11 +78,11 @@ class StagedArrayBuilder(eltType: PType, mb: EmitMethodBuilder, er: EmitRegion, 
     Code(
       eltArray.setElementPresent(region, data, size),
       eltType.fundamentalType match {
-        case _: PBoolean => region.storeByte(dest, coerce[Boolean](elt).toI.toB)
-        case _: PInt32 => region.storeInt(dest, coerce[Int](elt))
-        case _: PInt64 => region.storeLong(dest, coerce[Long](elt))
-        case _: PFloat32 => region.storeFloat(dest, coerce[Float](elt))
-        case _: PFloat64 => region.storeDouble(dest, coerce[Double](elt))
+        case _: PBoolean => Region.storeByte(dest, coerce[Boolean](elt).toI.toB)
+        case _: PInt32 => Region.storeInt(dest, coerce[Int](elt))
+        case _: PInt64 => Region.storeLong(dest, coerce[Long](elt))
+        case _: PFloat32 => Region.storeFloat(dest, coerce[Float](elt))
+        case _: PFloat64 => Region.storeDouble(dest, coerce[Double](elt))
         case _ => StagedRegionValueBuilder.deepCopy(er, eltType, coerce[Long](elt), dest)
       }, incrementSize())
   }
