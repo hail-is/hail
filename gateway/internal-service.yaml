@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: gateway-internal
   labels:
-    app: gateway-internal
+    app: gateway
   annotations:
     cloud.google.com/load-balancer-type: "Internal"
 spec:
