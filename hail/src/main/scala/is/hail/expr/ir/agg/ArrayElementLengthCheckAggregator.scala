@@ -46,7 +46,7 @@ case class ArrayElementState(mb: EmitMethodBuilder, nested: Array[AggregatorStat
       region.setNumParents((lenRef + 1) * nStates),
       aoff := region.allocate(arrayType.contentsAlignment, arrayType.contentsByteSize(lenRef)),
       region.storeAddress(typ.fieldOffset(off, 1), aoff),
-      arrayType.initialize(aoff, lenRef, idx),
+      arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(region, off, 1))
 
   def seq(init: Code[Unit], initPerElt: Code[Unit], seqOp: (Int, AggregatorState) => Code[Unit]): Code[Unit] =

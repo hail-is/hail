@@ -54,6 +54,8 @@ object Region {
   def copyFrom(srcOff: Long, dstOff: Long, n: Long): Unit =
     Memory.memcpy(dstOff, srcOff, n)
 
+  def setMemory(offset: Long, size: Long, b: Byte): Unit = Memory.memset(offset, size, b)
+
   def loadBit(byteOff: Long, bitOff: Long): Boolean = {
     val b = byteOff + (bitOff >> 3)
     (loadByte(b) & (1 << (bitOff & 7))) != 0
@@ -112,6 +114,9 @@ object Region {
     Code.invokeScalaObject[Long, Long, Unit](Region.getClass, "clearBit", byteOff, bitOff)
   def storeBit(byteOff: Code[Long], bitOff: Code[Long], b: Code[Boolean]): Code[Unit] =
     Code.invokeScalaObject[Long, Long, Boolean, Unit](Region.getClass, "storeBit", byteOff, bitOff, b)
+
+  def setMemory(offset: Code[Long], size: Code[Long], b: Code[Byte]): Code[Unit] =
+    Code.invokeScalaObject[Long, Long, Byte, Unit](Region.getClass, "setMemory", offset, size, b)
 
   def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
     case _: PBoolean => loadBoolean

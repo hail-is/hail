@@ -79,6 +79,10 @@ public final class Memory {
         copyToArray(dst, dstOff, src, n);
     }
 
+    public static void memset(long offset, long size, byte b) {
+        unsafe.setMemory(offset, size, b);
+    }
+
     public static boolean loadBoolean(long addr) {
         return unsafe.getByte(addr) != 0;
     }

@@ -1,13 +1,9 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion, EmitTriplet}
-import is.hail.asm4s._
-import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.expr.types.virtual.TString
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 
@@ -38,13 +34,12 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
       builder.loadFields(builderStateOffset(src)))
 
   override def store(regionStorer: Code[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    region.isValid.mux(
+    region.isValid.orEmpty(
       Code(
         regionStorer(region),
         region.invalidate(),
-        region.storeInt(maxSizeOffset(dest), maxSize),
-        builder.storeFields(builderStateOffset(dest))),
-      Code._empty)
+        Region.storeInt(maxSizeOffset(dest), maxSize),
+        builder.storeFields(builderStateOffset(dest))))
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
     { ob: Code[OutputBuffer] =>
