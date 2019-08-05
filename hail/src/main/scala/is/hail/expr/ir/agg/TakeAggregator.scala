@@ -21,8 +21,6 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
-  def isLoaded: Code[Boolean] = region.isValid
-
   def newState: Code[Unit] = region.getNewRegion(regionSize)
 
   def createState: Code[Unit] = region.isNull.mux(Code(r := Code.newInstance[Region, Int](regionSize), region.invalidate()), Code._empty)
