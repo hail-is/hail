@@ -1,5 +1,7 @@
 package is.hail.expr.ir.agg
 
+import java.io.DataOutputStream
+
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValue}
 import is.hail.expr.ir
@@ -95,14 +97,36 @@ object TableMapIRNew {
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
     val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
+    val scanAggCount = tv.rvd.getNumPartitions
+    val partitionIndices = new Array[(Long, Int)](scanAggCount)
+    val scanAggsPerPartitionFile = HailContext.get.getTemporaryFile()
+    HailContext.get.sFS.writeFileNoCompression(scanAggsPerPartitionFile) { os =>
+      partAggs.zipWithIndex.foreach { case (x, i) =>
+        if (i < scanAggCount) {
+          partitionIndices(i) = os.getPos -> x.length
+          os.write(x)
+        }
+      }
+    }
+
+    val bcFS = HailContext.get.bcFS
 
     // 4. load in partStarts, calculate newRow based on those results.
-    val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[Byte], it: Iterator[RegionValue]) =>
+    val itF = { (i: Int, ctx: RVDContext, aggs: (Long, Int), it: Iterator[RegionValue]) =>
       val globalRegion = ctx.freshRegion
       val globals = if (rowIterationNeedsGlobals || scanSeqNeedsGlobals)
         globalsBc.value.readRegionValue(globalRegion)
       else
         0
+
+      val (filePosition, aggSize) = aggs
+      val partitionAggs = new Array[Byte](aggSize)
+      val nread = bcFS.value.readFileNoCompression(scanAggsPerPartitionFile) { is =>
+        is.seek(filePosition)
+        is.read(partitionAggs)
+      }
+
+      assert(nread == aggSize)
 
       val aggRegion = ctx.freshRegion
       val newRow = f(i, globalRegion)
@@ -121,7 +145,7 @@ object TableMapIRNew {
     }
     tv.copy(
       typ = typ.copy(rowType = rTyp.virtualType.asInstanceOf[TStruct]),
-      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partAggs.toArray, itF))
+      rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), partitionIndices.toArray, itF))
   }
 }
 
