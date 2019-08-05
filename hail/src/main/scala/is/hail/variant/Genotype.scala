@@ -156,6 +156,14 @@ object Genotype {
     AllelePair(0, 7), AllelePair(1, 7), AllelePair(2, 7), AllelePair(3, 7), AllelePair(4, 7),
     AllelePair(5, 7), AllelePair(6, 7), AllelePair(7, 7))
 
+  val smallAlleleJ: Array[Int] = smallAllelePair.map(_.j)
+  val smallAlleleK: Array[Int] = smallAllelePair.map(_.k)
+
+  val nCachedAllelePairs: Int = smallAllelePair.length
+
+  def cachedAlleleJ(p: Int): Int = smallAlleleJ(p)
+  def cachedAlleleK(p: Int): Int = smallAlleleK(p)
+
   def allelePairRecursive(i: Int): AllelePair = {
     def f(j: Int, k: Int): AllelePair = if (j <= k)
       AllelePair(j, k)
