@@ -30,7 +30,8 @@ abstract class PContainer extends PIterable {
   final def loadLength(region: Code[Region], aoff: Code[Long]): Code[Int] =
     loadLength(aoff)
 
-  def nMissingBytes(region: Code[Region], aoff: Code[Long]): Code[Long] = (loadLength(region, aoff).toL + 7L) >>> 3
+
+  def nMissingBytes(len: Code[Int]): Code[Long] = (len.toL + 7L) >>> 3
 
   def _elementsOffset(length: Int): Long =
     if (elementType.required)
@@ -127,6 +128,14 @@ abstract class PContainer extends PIterable {
     }
   }
 
+  def loadElement(region: Code[Region], aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+    val off = elementOffset(aoff, length, i)
+    elementType.fundamentalType match {
+      case _: PArray | _: PBinary => Region.loadAddress(off)
+      case _ => off
+    }
+  }
+
   def loadElement(region: Region, aoff: Long, i: Int): Long =
     loadElement(region, aoff, region.loadInt(aoff), i)
 
@@ -145,14 +154,12 @@ abstract class PContainer extends PIterable {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  // FIXME expose intrinsic to just memset this
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+    region.allocate(contentsAlignment, contentsByteSize(length))
+
   private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
     val nMissingBytes = (length + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(aoff + 4 + i, value)
-      i += 1
-    }
+    Region.setMemory(aoff + 4, nMissingBytes, value)
   }
 
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
@@ -175,19 +182,14 @@ abstract class PContainer extends PIterable {
       clearMissingBits(region, aoff, length)
   }
 
-  def initialize(aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
     if (elementType.required)
-      return Region.storeInt(aoff, length)
-    Code(
-      Region.storeInt(aoff, length),
-      a.store((length + 7) >>> 3),
-      Code.whileLoop(a > 0,
-        Code(a.store(a - 1),
-          Region.storeByte(aoff + 4L + a.toL, const(0.toByte)))))
+      Region.storeInt(aoff, length)
+    else
+      Code(
+        Region.storeInt(aoff, length),
+        Region.setMemory(aoff + const(4), nMissingBytes(length), const(if (setMissing) (-1).toByte else 0.toByte)))
   }
-
-  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] =
-    initialize(aoff, length, a)
 
   override def unsafeOrdering(): UnsafeOrdering =
     unsafeOrdering(this)

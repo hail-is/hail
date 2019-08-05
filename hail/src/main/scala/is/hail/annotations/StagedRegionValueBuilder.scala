@@ -153,7 +153,7 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
       c = Code(c, region.storeAddress(pOffset, startOffset))
     }
     if (init)
-      c = Code(c, t.initialize(region, startOffset, length, idx))
+      c = Code(c, t.stagedInitialize(startOffset, length))
     c = Code(c, elementsOffset.store(startOffset + t.elementsOffset(length)))
     Code(c, idx.store(0))
   }

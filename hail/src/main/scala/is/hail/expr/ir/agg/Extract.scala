@@ -215,6 +215,7 @@ object Extract {
       new SumAggregator(t.physicalType)
     case AggSignature2(Count(), _, _, _) =>
       CountAggregator
+    case AggSignature2(Take(), _, Seq(t), _) => new TakeAggregator(t.physicalType)
     case AggSignature2(AggElementsLengthCheck(), initOpArgs, _, Some(nestedAggs)) =>
       val knownLength = initOpArgs.length == 2
       new ArrayElementLengthCheckAggregator(nestedAggs.map(getAgg).toArray, knownLength)
