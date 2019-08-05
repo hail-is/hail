@@ -1827,8 +1827,6 @@ class IRSuite extends HailSuite {
       SeqOp2(0, FastIndexedSeq(i), collectSig2),
       CombOp2(0, 1, collectSig2),
       ResultOp2(0, FastSeq(collectSig2)),
-      ReadAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
-      WriteAggs(0, Str("foo"), CodecSpec.default, FastSeq(collectSig2)),
       SerializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
       DeserializeAggs(0, 0, CodecSpec.default, FastSeq(collectSig2)),
       Begin(FastIndexedSeq(Void())),

@@ -137,12 +137,6 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[AggSignature
   def serializeSet(i: Int, i2: Int, spec: CodecSpec): IR =
     SerializeAggs(i * nAggs, i2, spec, aggs)
 
-  def readSet(i: Int, path: IR, spec: CodecSpec): IR =
-    ReadAggs(i * nAggs, path, spec, aggs)
-
-  def writeSet(i: Int, path: IR, spec: CodecSpec): IR =
-    WriteAggs(i * nAggs, path, spec, aggs)
-
   def eltOp(optimize: Boolean = true): IR = if (optimize) Optimize(seqPerElt) else seqPerElt
 
   def deserialize(spec: CodecSpec): ((Region, Array[Byte]) => Long) = {

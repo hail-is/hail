@@ -315,8 +315,6 @@ final case class SeqOp2(i: Int, args: IndexedSeq[IR], aggSig: AggSignature2) ext
 final case class CombOp2(i1: Int, i2: Int, aggSig: AggSignature2) extends IR
 final case class ResultOp2(startIdx: Int, aggSigs: IndexedSeq[AggSignature2]) extends IR
 
-final case class WriteAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
-final case class ReadAggs(startIdx: Int, path: IR, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 final case class SerializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 final case class DeserializeAggs(startIdx: Int, serializedIdx: Int, spec: CodecSpec, aggSigs: IndexedSeq[AggSignature2]) extends IR
 

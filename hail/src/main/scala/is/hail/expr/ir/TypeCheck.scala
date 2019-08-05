@@ -266,10 +266,6 @@ object TypeCheck {
         assert(args.map(_.typ) == aggSig.seqOpArgs)
       case _: CombOp2 =>
       case _: ResultOp2 =>
-      case x@ReadAggs(_, path, _, _) =>
-        assert(path.typ isOfType TString())
-      case x@WriteAggs(_, path, _, _) =>
-        assert(path.typ isOfType TString())
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x@Begin(xs) =>
