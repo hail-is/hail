@@ -10,13 +10,6 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class KVPairBuilder() {
-  val ab: ArrayBuilder[(Boolean, Long, Boolean, Long)] = new ArrayBuilder()
-  def add(km: Boolean, kv: Long, vm: Boolean, vv: Long): Unit =
-    ab += ((km, kv, vm, vv))
-  def result(): Array[(Boolean, Long, Boolean, Long)] = ab.result()
-}
-
 class Aggregators2Suite extends HailSuite {
 
   def assertAggEquals(
