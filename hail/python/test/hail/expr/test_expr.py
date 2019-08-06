@@ -459,14 +459,9 @@ class Tests(unittest.TestCase):
                     lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
 
     def test_agg_array_take(self):
-        mt = hl.utils.range_matrix_table(10, 10)
-        mt = mt.annotate_entries(e = (mt.row_idx, mt.col_idx))
-        mt = mt.annotate_cols(x = hl.agg.take(mt.e, 1))
-        mt.cols().show()
-        r = mt.aggregate_cols(hl.agg.all((hl.len(mt.x) == 0) & (mt.x[0][0] == 0) & (mt.x[1][1] == mt.col_idx)))
-        if not r:
-            mt.cols().show()
-            assert False
+        ht = hl.utils.range_table(10)
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.take(x, 2), [ht.idx, ht.idx * 2]))
+        assert r == [[0, 1], [0, 2]]
 
     def test_agg_array_init_op(self):
         ht = hl.utils.range_table(1).annotate_globals(n_alleles = ['A', 'T']).annotate(gts = [hl.call(0, 1), hl.call(1, 1)])
