@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitMethodBuilder, EmitRegion, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
@@ -10,14 +10,13 @@ import is.hail.utils._
 object TakeRVAS {
 }
 
-case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) extends AggregatorState {
-  private val r: ClassFieldRef[Region] = mb.newField[Region]
+case class TakeRVAS(eltType: PType, resultType: PArray, fb: EmitFunctionBuilder[_]) extends AggregatorState {
+  private val r: ClassFieldRef[Region] = fb.newField[Region]
   val region: Code[Region] = r.load()
-  val er: EmitRegion = EmitRegion(mb, region)
 
-  val builder = new StagedArrayBuilder(eltType, mb, er, region)
+  val builder = new StagedArrayBuilder(eltType, fb, region)
   val storageType: PTuple = PTuple(true, PInt32Required, builder.stateType)
-  private val maxSize = mb.newField[Int]
+  private val maxSize = fb.newField[Int]
   private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
   private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
 
@@ -76,7 +75,7 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
   }
 
   def combine(other: TakeRVAS, dummy: Boolean): Code[Unit] = {
-    val j = mb.newField[Int]
+    val j = fb.newField[Int]
     val (eltJMissing, eltJ) = other.builder.loadElement(j)
 
     Code(
@@ -92,20 +91,18 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
   }
 
   def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    val i = mb.newField[Int]
-    val (eltIMissing, eltOffset) = builder.loadElementOffset(i)
+
     Code(
-      i := const(0),
       srvb.addArray(resultType, { rvb =>
+        val (eltIMissing, eltOffset) = builder.loadElementOffset(rvb.arrayIdx)
         Code(
           rvb.start(builder.size),
-          Code.whileLoop(i < builder.size,
+          Code.whileLoop(rvb.arrayIdx < builder.size,
             eltIMissing.mux(
               rvb.setMissing(),
               rvb.addWithDeepCopy(eltType, eltOffset)
             ),
-            rvb.advance(),
-            i := i + 1)
+            rvb.advance())
         )
       }))
   }
@@ -124,8 +121,8 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
 
   val resultType: PArray = PArray(typ)
 
-  def createState(mb: EmitMethodBuilder): State =
-    TakeRVAS(typ, resultType, mb)
+  def createState(fb: EmitFunctionBuilder[_]): State =
+    TakeRVAS(typ, resultType, fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 1)

@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical.PType
 
 abstract class StagedAggregator {
@@ -10,7 +10,7 @@ abstract class StagedAggregator {
 
   def resultType: PType
 
-  def createState(mb: EmitMethodBuilder): State
+  def createState(fb: EmitFunctionBuilder[_]): State
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit]
 

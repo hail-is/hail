@@ -1,17 +1,16 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
-import is.hail.utils._
 
 object CountAggregator extends StagedAggregator {
   type State = PrimitiveRVAState
 
   val resultType: PType = PInt64()
 
-  def createState(mb: EmitMethodBuilder): State = PrimitiveRVAState(Array(PInt64(true)), mb)
+  def createState(fb: EmitFunctionBuilder[_]): State = PrimitiveRVAState(Array(PInt64(true)), fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
