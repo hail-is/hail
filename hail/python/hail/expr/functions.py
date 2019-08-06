@@ -351,8 +351,8 @@ def switch(expr) -> 'hail.expr.builders.SwitchBuilder':
     return SwitchBuilder(expr)
 
 
-@typecheck(f=anytype, exprs=expr_any)
-def bind(f: Callable, *exprs):
+@typecheck(f=anytype, exprs=expr_any, _ctx=nullable(str))
+def bind(f: Callable, *exprs, _ctx=None):
     """Bind a temporary variable and use it in a function.
 
     Examples
@@ -383,22 +383,30 @@ def bind(f: Callable, *exprs):
     irs = []
 
     for expr in exprs:
-        uid = Env.get_uid()
+        uid = Env.get_uid(base=_ctx)
         args.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uids.append(uid)
         irs.append(expr._ir)
 
     lambda_result = to_expr(f(*args))
-    indices, aggregations = unify_all(*exprs, lambda_result)
+    if _ctx:
+        indices, aggregations = unify_all(lambda_result)  # FIXME: hacky. May drop field refs from errors?
+    else:
+        indices, aggregations = unify_all(*exprs, lambda_result)
 
     res_ir = lambda_result._ir
     for (uid, ir) in builtins.zip(uids, irs):
-        res_ir = Let(uid, ir, res_ir)
+        if _ctx == 'agg':
+            res_ir = AggLet(uid, ir, res_ir, is_scan=False)
+        elif _ctx == 'scan':
+            res_ir = AggLet(uid, ir, res_ir, is_scan=True)
+        else:
+            res_ir = Let(uid, ir, res_ir)
 
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
-def rbind(*exprs):
+def rbind(*exprs, _ctx=None):
     """Bind a temporary variable and use it in a function.
 
     This is :func:`.bind` with flipped argument order.
@@ -430,7 +438,7 @@ def rbind(*exprs):
     f = exprs[-1]
     args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
 
-    return hl.bind(f, *args)
+    return hl.bind(f, *args, _ctx=_ctx)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)

@@ -284,6 +284,35 @@ class Let(IR):
         self._type = self.body._type
 
 
+class AggLet(IR):
+    @typecheck_method(name=str, value=IR, body=IR, is_scan=bool)
+    def __init__(self, name, value, body, is_scan):
+        super().__init__(value, body)
+        self.name = name
+        self.value = value
+        self.body = body
+        self.is_scan = is_scan
+
+    @typecheck_method(value=IR, body=IR)
+    def copy(self, value, body):
+        return AggLet(self.name, value, body, self.is_scan)
+
+    def head_str(self):
+        return escape_id(self.name) + " " + str(self.is_scan)
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+    def _eq(self, other):
+        return other.name == self.name and other.is_scan == self.is_scan
+
+    def _compute_type(self, env, agg_env):
+        self.value._compute_type(agg_env, None)
+        self.body._compute_type(env, _env_bind(agg_env, self.name, self.value._type))
+        self._type = self.body._type
+
+
 class Ref(IR):
     @typecheck_method(name=str)
     def __init__(self, name):
@@ -1990,7 +2019,12 @@ def subst(ir, env, agg_env):
     elif isinstance(ir, Let):
         return Let(ir.name,
                    _subst(ir.value),
-                   _subst(ir.body, env))
+                   _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, AggLet):
+        return AggLet(ir.name,
+                      _subst(ir.value),
+                      _subst(ir.body, delete(env, ir.name)),
+                      ir.is_scan)
     elif isinstance(ir, ArrayMap):
         return ArrayMap(_subst(ir.a),
                         ir.name,

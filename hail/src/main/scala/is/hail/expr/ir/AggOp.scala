@@ -28,7 +28,6 @@ final case class CollectAsSet() extends AggOp
 final case class Count() extends AggOp
 final case class Counter() extends AggOp
 final case class Downsample() extends AggOp
-final case class HardyWeinberg() extends AggOp
 final case class Inbreeding() extends AggOp
 final case class InfoScore() extends AggOp
 final case class LinearRegression() extends AggOp
