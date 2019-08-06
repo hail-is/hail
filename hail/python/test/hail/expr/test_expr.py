@@ -2626,6 +2626,29 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(last['p_value'], 0.65714285)
         self.assertAlmostEqual(last['het_freq_hwe'], 0.57142857)
 
+    def test_inbreeding_aggregator(self):
+        data = [
+            (0.25, hl.Call([0, 0])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.5, hl.Call([1, 1])),
+            (0.0, hl.Call([0, 0])),
+            (0.5, hl.Call([0, 1])),
+            (0.99, hl.Call([0, 1])),
+            (0.99, None),
+            (None, hl.Call([0, 1])),
+            (None, None),
+        ]
+        lit = hl.literal(data, dtype='array<tuple(float, call)>')
+        ht = hl.utils.range_table(len(data))
+        r = ht.aggregate(hl.agg.inbreeding(lit[ht.idx][1], lit[ht.idx][0]))
+
+        expected_homs = sum(1 - (2 * af * (1 - af)) for af, x in data if af is not None and x is not None)
+        self.assertAlmostEqual(r['expected_homs'], expected_homs)
+        assert r['observed_homs'] == 5
+        assert r['n_called'] == 7
+        self.assertAlmostEqual(r['f_stat'], (5 - expected_homs) / (7 - expected_homs))
+
     def test_pl_to_gp(self):
         res = hl.eval(hl.pl_to_gp([0, 10, 100]))
         self.assertAlmostEqual(res[0], 0.9090909090082644)
