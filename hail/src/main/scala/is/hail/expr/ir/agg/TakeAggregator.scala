@@ -11,7 +11,7 @@ import scala.language.existentials
 object TakeRVAS {
 }
 
-case class TakeRVAS(eltType: PType, resultType: PArray, fb: EmitFunctionBuilder[_]) extends AggregatorState {
+case class TakeRVAS(eltType: PType, resultType: PArray, fb: EmitFunctionBuilder[_ >: Null]) extends AggregatorState {
   private val r: ClassFieldRef[Region] = fb.newField[Region]
   val region: Code[Region] = r.load()
 

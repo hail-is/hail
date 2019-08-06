@@ -11,7 +11,7 @@ import scala.language.existentials
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg
 
-case class ArrayElementState(fb: EmitFunctionBuilder[_], nested: Array[AggregatorState]) extends PointerBasedRVAState {
+case class ArrayElementState(fb: EmitFunctionBuilder[_ >: Null], nested: Array[AggregatorState]) extends PointerBasedRVAState {
   val container: StateContainer = StateContainer(nested, region)
   val arrayType: PArray = PArray(container.typ)
   private val nStates: Int = nested.length
