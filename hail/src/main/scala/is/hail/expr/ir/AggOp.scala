@@ -95,10 +95,6 @@ object AggOp {
     case (Product(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueProductLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
     case (Product(), Seq(), None, Seq(_: TFloat64)) => CodeAggregator[RegionValueProductDoubleAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Double]))
 
-    case (HardyWeinberg(), Seq(), None, Seq(_: TCall)) => CodeAggregator[RegionValueHardyWeinbergAggregator](
-      RegionValueHardyWeinbergAggregator.typ,
-      seqOpArgTypes = Array(classOf[Int]))
-
     case (Max(), Seq(), None, Seq(_: TBoolean)) => CodeAggregator[RegionValueMaxBooleanAggregator](TBoolean(), seqOpArgTypes = Array(classOf[Boolean]))
     case (Max(), Seq(), None, Seq(_: TInt32)) => CodeAggregator[RegionValueMaxIntAggregator](TInt32(), seqOpArgTypes = Array(classOf[Int]))
     case (Max(), Seq(), None, Seq(_: TInt64)) => CodeAggregator[RegionValueMaxLongAggregator](TInt64(), seqOpArgTypes = Array(classOf[Long]))
@@ -226,7 +222,6 @@ object AggOp {
     case "infoScore" | "InfoScore" => InfoScore()
     case "callStats" | "CallStats" => CallStats()
     case "inbreeding" | "Inbreeding" => Inbreeding()
-    case "hardyWeinberg" | "HardyWeinberg" => HardyWeinberg()
     case "linreg" | "LinearRegression" => LinearRegression()
     case "downsample" | "Downsample" => Downsample()
     case "prevnonnull" | "PrevNonnull" => PrevNonnull()
