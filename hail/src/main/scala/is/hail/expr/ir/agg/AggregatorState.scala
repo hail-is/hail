@@ -7,6 +7,7 @@ import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
 import is.hail.asm4s.coerce
+import scala.language.existentials
 
 trait AggregatorState {
   def fb: EmitFunctionBuilder[_]

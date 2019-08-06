@@ -6,7 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
-import is.hail.asm4s.coerce
+import scala.language.existentials
 
 // initOp args: initOps for nestedAgg, length if knownLength = true
 // seqOp args: array, other non-elt args for nestedAgg

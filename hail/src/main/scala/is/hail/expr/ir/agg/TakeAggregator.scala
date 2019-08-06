@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
 import is.hail.io.{CodecSpec, InputBuffer, OutputBuffer}
 import is.hail.utils._
+import scala.language.existentials
 
 object TakeRVAS {
 }
