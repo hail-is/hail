@@ -113,9 +113,7 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
   def copyFrom(src: Code[Long]): Code[Unit] = {
     Code(
       maxSize := region.loadInt(maxSizeOffset(src)),
-      builder.loadFields(builderStateOffset(src)),
-      builder.size.cne(0)
-        .orEmpty(Code._fatal("tried to copy from a non-empty aggregator"))
+      builder.copyFrom(builderStateOffset(src))
     )
   }
 }
