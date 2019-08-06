@@ -35,7 +35,7 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     Code(
       size := Region.loadInt(currentSizeOffset(src)),
       capacity := Region.loadInt(capacityOffset(src)),
-      data := StagedRegionValueBuilder.deepCopy(er, eltArray, Region.loadAddress(dataOffset(src))))
+      data := StagedRegionValueBuilder.deepCopy(fb, region, eltArray, Region.loadAddress(dataOffset(src))))
   }
 
   def storeFields(dest: Code[Long]): Code[Unit] = {
