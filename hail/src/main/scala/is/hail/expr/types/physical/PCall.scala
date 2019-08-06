@@ -32,6 +32,7 @@ class PCall(override val required: Boolean) extends ComplexPType {
 
   def forEachAllele(mb: EmitMethodBuilder, _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
     val c = mb.newLocal[Int]
+    val c2 = mb.newLocal[Int]
     val p = mb.newLocal[Int]
     val j = mb.newLocal[Int]
     val k = mb.newLocal[Int]
@@ -39,16 +40,17 @@ class PCall(override val required: Boolean) extends ComplexPType {
     Code(
       c := _c,
       p := ploidy(c),
+      c2 := c >>> 3,
       p.ceq(2).mux(
         Code(
-          (c < Genotype.nCachedAllelePairs).mux(
+          (c2 < Genotype.nCachedAllelePairs).mux(
             Code(
-              j := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", c >>> 3),
-              k := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", c >>> 3)
+              j := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleJ", c2),
+              k := Code.invokeScalaObject[Int, Int](Genotype.getClass, "cachedAlleleK", c2)
             ),
             Code(
-              k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * (c >>> 3).toD + const(1)) / 2d - 0.5).toI,
-              j := (c >>> 3) - (k * (k + 1) / 2)
+              k := (Code.invokeStatic[Math, Double, Double]("sqrt", const(8d) * c2.toD + const(1)) / 2d - 0.5).toI,
+              j := c2 - (k * (k + 1) / 2)
             )
           ),
           code(j),
@@ -57,7 +59,7 @@ class PCall(override val required: Boolean) extends ComplexPType {
             code(k))
         ),
         p.ceq(1).mux(
-          code(c >>> 3),
+          code(c2),
           p.cne(0).orEmpty(Code._fatal(const("invalid ploidy: ").concat(p.toS)))
         )
       )

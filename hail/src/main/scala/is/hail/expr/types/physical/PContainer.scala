@@ -183,7 +183,7 @@ abstract class PContainer extends PIterable {
       clearMissingBits(region, aoff, length)
   }
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false, zero: Boolean = false): Code[Unit] = {
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
     if (elementType.required)
       Region.storeInt(aoff, length)
     else

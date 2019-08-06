@@ -27,8 +27,11 @@ case class CallStatsState(mb: EmitMethodBuilder) extends PointerBasedRVAState {
   val homCountsOffset: Code[Long] = CallStatsState.stateType.fieldOffset(off, 1)
   val alleleCounts: Code[Long] = CallStatsState.stateType.loadField(off, 0)
   val homCounts: Code[Long] = CallStatsState.stateType.loadField(off, 1)
-  val nAlleles: Code[Int] = CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
+  val nAlleles: ClassFieldRef[Int] = mb.newField[Int]
   private val addr = mb.newField[Long]
+
+  val loadNAlleles: Code[Unit] = nAlleles := CallStatsState.callStatsInternalArrayType.loadLength(alleleCounts)
+
 
   // unused but extremely useful for debugging if something goes wrong
   def dump(tag: String): Code[Unit] = {
@@ -41,6 +44,11 @@ case class CallStatsState(mb: EmitMethodBuilder) extends PointerBasedRVAState {
         i := i + 1)
     )
   }
+
+  override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] = Code(
+    super.load(regionLoader, src),
+    loadNAlleles
+  )
 
   def alleleCountAtIndex(idx: Code[Int], length: Code[Int]): Code[Int] =
     Region.loadInt(CallStatsState.callStatsInternalArrayType.loadElement(region, alleleCounts, length, idx))
@@ -64,11 +72,15 @@ case class CallStatsState(mb: EmitMethodBuilder) extends PointerBasedRVAState {
   }
 
   def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    off := codec.buildEmitDecoderF(CallStatsState.stateType, CallStatsState.stateType, mb.fb)(region, _)
+    { ib: Code[InputBuffer] =>
+      Code(
+        off := codec.buildEmitDecoderF(CallStatsState.stateType, CallStatsState.stateType, mb.fb)(region, ib),
+        loadNAlleles)
+    }
   }
 
   def copyFromAddress(src: Code[Long]): Code[Unit] = {
-    StagedRegionValueBuilder.deepCopy(er, CallStatsState.stateType, region.loadAddress(src), off)
+    StagedRegionValueBuilder.deepCopy(er, CallStatsState.stateType, src, off)
   }
 }
 
@@ -91,12 +103,13 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
         Code._fatal("call_stats: n_alleles may not be missing"),
         Code(
           n := coerce[Int](nAlleles.v),
+          state.nAlleles := n,
           state.off := state.region.allocate(CallStatsState.stateType.alignment, CallStatsState.stateType.byteSize),
           addr := CallStatsState.callStatsInternalArrayType.allocate(state.region, n),
-          CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n, zero = true),
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n),
           Region.storeAddress(state.alleleCountsOffset, addr),
           addr := CallStatsState.callStatsInternalArrayType.allocate(state.region, n),
-          CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n, zero = true),
+          CallStatsState.callStatsInternalArrayType.stagedInitialize(addr, n),
           Region.storeAddress(state.homCountsOffset, addr),
           i := 0,
           Code.whileLoop(i < n,
@@ -110,49 +123,45 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(call) = seq
-    val len = state.mb.newField[Int]
     val hom = state.mb.newLocal[Boolean]
     val lastAllele = state.mb.newLocal[Int]
     val i = state.mb.newField[Int]
 
-    def checkSize(a: Code[Int]): Code[Unit] = (a > len).orEmpty(
+    def checkSize(a: Code[Int]): Code[Unit] = (a > state.nAlleles).orEmpty(
       Code._fatal(const("found allele outside of expected range [0, ")
-        .concat(len.toS).concat("]: ").concat(a.toS)))
+        .concat(state.nAlleles.toS).concat("]: ").concat(a.toS)))
 
     Code(
       call.setup,
       call.m.mux(
         Code._empty,
         Code(
-          len := state.nAlleles,
           i := 0,
           hom := true,
           lastAllele := -1,
           t.forEachAllele(state.mb, coerce[Int](call.v), { allele: Code[Int] =>
             Code(
               checkSize(allele),
-              state.updateAlleleCountAtIndex(allele, len, _ + 1),
+              state.updateAlleleCountAtIndex(allele, state.nAlleles, _ + 1),
               (i > 0).orEmpty(hom := hom && allele.ceq(lastAllele)),
               lastAllele := allele,
               i := i + 1
             )
           }),
           (i > 1) && hom).orEmpty(
-          state.updateHomCountAtIndex(lastAllele, len, _ + 1))
+          state.updateHomCountAtIndex(lastAllele, state.nAlleles, _ + 1))
       )
     )
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    val len = state.mb.newField[Int]
     val i = state.mb.newField[Int]
     Code(
-      len := state.nAlleles,
-      other.nAlleles.cne(len).orEmpty(Code._fatal("length mismatch")),
+      other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal("length mismatch")),
       i := 0,
-      Code.whileLoop(i < len,
-        state.updateAlleleCountAtIndex(i, len, _ + other.alleleCountAtIndex(i, len)),
-        state.updateHomCountAtIndex(i, len, _ + other.homCountAtIndex(i, len)),
+      Code.whileLoop(i < state.nAlleles,
+        state.updateAlleleCountAtIndex(i, state.nAlleles, _ + other.alleleCountAtIndex(i, state.nAlleles)),
+        state.updateHomCountAtIndex(i, state.nAlleles, _ + other.homCountAtIndex(i, state.nAlleles)),
         i := i + 1
       )
     )
@@ -162,21 +171,19 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     val alleleNumber = state.mb.newLocal[Int]
     val i = state.mb.newLocal[Int]
-    val nAlleles = state.mb.newLocal[Int]
     val x = state.mb.newLocal[Int]
     srvb.addBaseStruct(CallStatsState.resultType, {
       srvb =>
         Code(
           srvb.start(),
           alleleNumber := 0,
-          nAlleles := state.nAlleles,
           srvb.addArray(resultType.fieldType("AC").asInstanceOf[PArray], {
             srvb =>
               Code(
-                srvb.start(nAlleles),
+                srvb.start(state.nAlleles),
                 i := 0,
-                Code.whileLoop(i < nAlleles,
-                  x := state.alleleCountAtIndex(i, nAlleles),
+                Code.whileLoop(i < state.nAlleles,
+                  x := state.alleleCountAtIndex(i, state.nAlleles),
                   alleleNumber := alleleNumber + x,
                   srvb.addInt(x),
                   srvb.advance(),
@@ -188,10 +195,10 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
             srvb.addArray(resultType.fieldType("AF").asInstanceOf[PArray], {
               srvb =>
                 Code(
-                  srvb.start(nAlleles),
+                  srvb.start(state.nAlleles),
                   i := 0,
-                  Code.whileLoop(i < nAlleles,
-                    x := state.alleleCountAtIndex(i, nAlleles),
+                  Code.whileLoop(i < state.nAlleles,
+                    x := state.alleleCountAtIndex(i, state.nAlleles),
                     srvb.addDouble(x.toD / alleleNumber.toD),
                     srvb.advance(),
                     i := i + 1))
@@ -202,14 +209,14 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
           srvb.addArray(resultType.fieldType("homozygote_count").asInstanceOf[PArray], {
             srvb =>
               Code(
-                srvb.start(nAlleles),
+                srvb.start(state.nAlleles),
                 i := 0,
-                Code.whileLoop(i < nAlleles,
-                  x := state.homCountAtIndex(i, nAlleles),
+                Code.whileLoop(i < state.nAlleles,
+                  x := state.homCountAtIndex(i, state.nAlleles),
                   srvb.addInt(x),
                   srvb.advance(),
                   i := i + 1))
-          })).asInstanceOf[Code[Unit]]
+          }))
     })
   }
 }
