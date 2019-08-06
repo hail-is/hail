@@ -709,6 +709,11 @@ spec:
         hostPath:
           path: /var/lib/filebeat-data
           type: DirectoryOrCreate
+      tolerations:
+        - key: "preemptible"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
