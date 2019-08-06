@@ -91,20 +91,17 @@ case class TakeRVAS(eltType: PType, resultType: PArray, fb: EmitFunctionBuilder[
   }
 
   def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-
-    Code(
-      srvb.addArray(resultType, { rvb =>
-        val (eltIMissing, eltOffset) = builder.loadElementOffset(rvb.arrayIdx)
-        Code(
-          rvb.start(builder.size),
-          Code.whileLoop(rvb.arrayIdx < builder.size,
-            eltIMissing.mux(
-              rvb.setMissing(),
-              rvb.addWithDeepCopy(eltType, eltOffset)
-            ),
-            rvb.advance())
-        )
-      }))
+    srvb.addArray(resultType, { rvb =>
+      val (eltIMissing, eltOffset) = builder.loadElementOffset(rvb.arrayIdx)
+      Code(
+        rvb.start(builder.size),
+        Code.whileLoop(rvb.arrayIdx < builder.size,
+          eltIMissing.mux(
+            rvb.setMissing(),
+            rvb.addWithDeepCopy(eltType, eltOffset)
+          ),
+          rvb.advance()))
+      })
   }
 
   def copyFrom(src: Code[Long]): Code[Unit] = {
