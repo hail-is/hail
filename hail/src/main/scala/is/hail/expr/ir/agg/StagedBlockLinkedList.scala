@@ -33,6 +33,21 @@ class StagedBlockLinkedList(val elemType: PType, val er: EmitRegion) {
   val lastNode = mb.newField[Long]
   val totalCount = mb.newField[Int]
 
+  val storageType = PStruct(
+    "firstNode" -> PInt64Required,
+    "lastNode" -> PInt64Required,
+    "totalCount" -> PInt32Required)
+
+  def load(src: Code[Long]): Code[Unit] = Code(
+    firstNode := region.loadAddress(storageType.fieldOffset(src, 0)),
+    lastNode := region.loadAddress(storageType.fieldOffset(src, 1)),
+    totalCount := region.loadInt(storageType.fieldOffset(src, 2)))
+
+  def store(dst: Code[Long]): Code[Unit] = Code(
+    region.storeAddress(storageType.fieldOffset(dst, 0), firstNode),
+    region.storeAddress(storageType.fieldOffset(dst, 1), lastNode),
+    region.storeInt(storageType.fieldOffset(dst, 2), totalCount))
+
   val i = mb.newField[Int]
   val t = mb.newField[Boolean]
   val tmpNode = mb.newField[Long]
@@ -44,7 +59,7 @@ class StagedBlockLinkedList(val elemType: PType, val er: EmitRegion) {
   val nodeType = PStruct(
     "buf" -> bufferType,
     "count" -> PInt32Required,
-    "nextB" -> PInt64Optional)
+    "next" -> PInt64Optional)
 
   private def buffer(n: Node): Code[Long] = region.loadAddress(nodeType.fieldOffset(n, 0))
   private[agg] def capacity(n: Node): Code[Int] = bufferType.loadLength(region, buffer(n))
