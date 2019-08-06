@@ -36,6 +36,18 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     assertEquals(result, expected)
   }
 
+  def assertBLLContents(elemType: PType, expected: IndexedSeq[Any])(
+    emit: (StagedBlockLinkedList, EmitRegion) => Code[Unit]
+  ) {
+    assertEvalsToRV(expected, PArray(elemType)) { er =>
+      val bll = new StagedBlockLinkedList(elemType, er.mb)
+      Code(
+        bll.init(er.region),
+        emit(bll, er),
+        bll.toArray(er))
+    }
+  }
+
   def numBlocks(er: EmitRegion, bll: StagedBlockLinkedList): Code[Int] = {
     val count = er.mb.newField[Int]
     Code(
@@ -62,40 +74,40 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     EmitTriplet(Code._empty, true, Code._fatal("unreachable"))
 
   @Test def testInitialBlock() {
-    assertEvalsTo(1) { er =>
-      val bll = new StagedBlockLinkedList(PInt32(), er)
-      Code(bll.init, numBlocks(er, bll))
+    assertEvalsTo(1) { case er@EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      Code(bll.init(r), numBlocks(er, bll))
     }
-    assertEvalsTo(StagedBlockLinkedList.defaultBlockCap) { er =>
-      val bll = new StagedBlockLinkedList(PInt32(), er)
-      Code(bll.init, bll.capacity(bll.firstNode))
+    assertEvalsTo(StagedBlockLinkedList.defaultBlockCap) { case EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      Code(bll.init(r), bll.capacity(bll.firstNode))
     }
   }
 
   @Test def testPushNewBlocks() {
-    assertEvalsTo(3) { er =>
-      val bll = new StagedBlockLinkedList(PInt32(), er)
+    assertEvalsTo(3) { case er@EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb)
       Code(
-        bll.init,
-        bll.pushNewBlockNode(20),
-        bll.pushNewBlockNode(30),
+        bll.init(r),
+        bll.pushNewBlockNode(r, 20),
+        bll.pushNewBlockNode(r, 30),
         numBlocks(er, bll))
     }
-    assertEvalsTo(55) { er =>
-      val bll = new StagedBlockLinkedList(PInt32(), er)
+    assertEvalsTo(55) { case EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb)
       Code(
-        bll.init,
-        bll.pushNewBlockNode(55),
+        bll.init(r),
+        bll.pushNewBlockNode(r, 55),
         bll.capacity(bll.lastNode))
     }
   }
 
   @Test def testPushInts() {
     def pushThen[T](er: EmitRegion, n: Int)(k: StagedBlockLinkedList => Code[T]): Code[T] = {
-      val bll = new StagedBlockLinkedList(PInt32(), er)
-      var setup: Code[Unit] = bll.initWithCapacity(8)
+      val bll = new StagedBlockLinkedList(PInt32(), er.mb)
+      var setup: Code[Unit] = bll.initWithCapacity(er.region, 8)
       for (i <- 1 to n) {
-        setup = Code(setup, bll.push(
+        setup = Code(setup, bll.push(er.region,
           if (i == 6)
             none
           else
@@ -109,20 +121,18 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
     assertEvalsTo(2) { er => pushThen(er, n = 9)(numBlocks(er, _)) }
     assertEvalsTo(45 - 6) { er => pushThen(er, n = 9)(sumElements(er, _)) }
     assertEvalsToRV(IndexedSeq(1, 2, 3, 4, 5, null, 7), PArray(PInt32())) { er =>
-      pushThen(er, n = 7)(_.toArray)
+      pushThen(er, n = 7)(_.toArray(er))
     }
   }
 
   @Test def testPushLotsOfLongs() {
-    assertEvalsToRV((0L until 1000).toIndexedSeq, PArray(PInt64Optional)) { er =>
-      val bll = new StagedBlockLinkedList(PInt64(), er)
-      val i = er.mb.newField[Long]
-      Code(bll.init,
+    assertBLLContents(PInt64(), (0L until 1000).toIndexedSeq) { case (bll, EmitRegion(mb, r)) =>
+      val i = mb.newField[Long]
+      Code(
         i := 0,
         Code.whileLoop(i < 1000,
-          bll.push(some(i)),
-          i := i + 1),
-        bll.toArray)
+          bll.push(r, some(i)),
+          i := i + 1))
     }
   }
 
@@ -136,27 +146,25 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   }
 
   @Test def testPushStrings() {
-    assertEvalsToRV(IndexedSeq("hello", null, "world!"), PArray(PStringOptional)) { er =>
-      val bll = new StagedBlockLinkedList(PString(), er)
-      Code(bll.init,
-        bll.push(some(allocString(er, "hello"))),
-        bll.push(none),
-        bll.push(some(allocString(er, "world!"))),
-        bll.toArray)
+    assertBLLContents(PString(), IndexedSeq("hello", null, "world!")) { case (bll, er@EmitRegion(_, r)) =>
+      Code(
+        bll.push(r, some(allocString(er, "hello"))),
+        bll.push(r, none),
+        bll.push(r, some(allocString(er, "world!"))))
     }
   }
 
   @Test def testAppend() {
-    assertEvalsToRV(IndexedSeq(1, 2, null, 3, null, 4), PArray(PInt32Optional)) { er =>
-      val bll1 = new StagedBlockLinkedList(PInt32(), er)
-      val bll2 = new StagedBlockLinkedList(PInt32(), er)
+    assertEvalsToRV(IndexedSeq(1, 2, null, 3, null, 4), PArray(PInt32Optional)) { case er@EmitRegion(mb, r) =>
+      val bll1 = new StagedBlockLinkedList(PInt32(), mb)
+      val bll2 = new StagedBlockLinkedList(PInt32(), mb)
       Code(
-        bll1.init,
-        bll2.init,
-        Code(bll1.push(some(1)), bll1.push(some(2)), bll1.push(none)),
-        Code(bll2.push(some(3)), bll2.push(none), bll2.push(some(4))),
-        bll1.append(bll2),
-        bll1.toArray)
+        bll1.init(r),
+        bll2.init(r),
+        Code(bll1.push(r, some(1)), bll1.push(r, some(2)), bll1.push(r, none)),
+        Code(bll2.push(r, some(3)), bll2.push(r, none), bll2.push(r, some(4))),
+        bll1.append(r, bll2),
+        bll1.toArray(er))
     }
   }
 
@@ -172,15 +180,15 @@ class StagedBlockLinkedListSuite extends TestNGSuite {
   }
 
   @Test def testAppendShallow() {
-    assertEvalsToRV(IndexedSeq(1, null, 2, 1, null, 2), PArray(PInt32())) { er =>
-      val bll = new StagedBlockLinkedList(PInt32(), er)
-      val aoff = er.mb.newField[Long]
+    assertEvalsToRV(IndexedSeq(1, null, 2, 1, null, 2), PArray(PInt32Optional)) { case er@EmitRegion(mb, r) =>
+      val bll = new StagedBlockLinkedList(PInt32(), mb)
+      val aoff = mb.newField[Long]
       Code(
-        bll.init,
+        bll.init(r),
         aoff := buildTestArrayWithMissing(er),
-        bll.appendShallow(PArray(PInt32Optional), aoff),
-        bll.appendShallow(PArray(PInt32Optional), aoff),
-        bll.toArray)
+        bll.appendShallow(r, PArray(PInt32Optional), aoff),
+        bll.appendShallow(r, PArray(PInt32Optional), aoff),
+        bll.toArray(er))
     }
   }
 }
