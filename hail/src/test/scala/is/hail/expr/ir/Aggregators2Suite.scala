@@ -269,4 +269,32 @@ class Aggregators2Suite extends HailSuite {
     val args = Array.tabulate(10)(i => FastIndexedSeq(FastIndexedSeq(i.toLong))).toFastIndexedSeq
     assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2)
   }
+
+  @Test def testArrayElementsAggTake() {
+    val take = AggSignature2(Take(), FastIndexedSeq(TInt32()), FastIndexedSeq(t), None)
+
+    val lcAggSig = AggSignature2(AggElementsLengthCheck(),
+      FastSeq[Type](TVoid), FastSeq[Type](TInt32()),
+      Some(FastIndexedSeq(take)))
+
+    val init = InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+      InitOp2(0, FastIndexedSeq(Begin(FastIndexedSeq[IR](
+        InitOp2(0, FastIndexedSeq(), sumAggSig)
+      ))), lcAggSig1)
+    ))), lcAggSig2)
+
+    val stream = Ref("stream", TArray(TArray(TArray(TInt64()))))
+    val seq = Array.tabulate(10) { i =>
+      seqOpOverArray(0, ArrayRef(stream, i), { array1 =>
+        seqOpOverArray(0, array1, { elt =>
+          SeqOp2(0, FastIndexedSeq(elt), sumAggSig)
+        }, lcAggSig1)
+      }, lcAggSig2)
+    }
+
+    val expected = FastIndexedSeq(Row(FastIndexedSeq(Row(45L))))
+
+    val args = Array.tabulate(10)(i => FastIndexedSeq(FastIndexedSeq(i.toLong))).toFastIndexedSeq
+    assertAggEquals(lcAggSig2, init, seq, expected, FastIndexedSeq(("stream", (stream.typ, args))), 2)
+  }
 }
