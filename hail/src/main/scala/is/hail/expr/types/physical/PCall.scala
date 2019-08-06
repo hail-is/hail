@@ -31,11 +31,11 @@ class PCall(override val required: Boolean) extends ComplexPType {
   def isPhased(c: Code[Int]): Code[Boolean] = (c & 0x1).ceq(1)
 
   def forEachAllele(mb: EmitMethodBuilder, _c: Code[Int], code: Code[Int] => Code[Unit]): Code[Unit] = {
-    val c = mb.newLocal[Int]
-    val c2 = mb.newLocal[Int]
-    val p = mb.newLocal[Int]
-    val j = mb.newLocal[Int]
-    val k = mb.newLocal[Int]
+    val c = mb.newField[Int]
+    val c2 = mb.newField[Int]
+    val p = mb.newField[Int]
+    val j = mb.newField[Int]
+    val k = mb.newField[Int]
 
     Code(
       c := _c,
