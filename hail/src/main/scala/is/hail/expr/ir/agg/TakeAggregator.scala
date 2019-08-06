@@ -92,7 +92,7 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
   }
 
   def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    val i = mb.newLocal[Int]
+    val i = mb.newField[Int]
     val (eltIMissing, eltOffset) = builder.loadElementOffset(i)
     Code(
       i := const(0),
@@ -105,7 +105,7 @@ case class TakeRVAS(eltType: PType, resultType: PArray, mb: EmitMethodBuilder) e
               rvb.addWithDeepCopy(eltType, eltOffset)
             ),
             rvb.advance(),
-            i += 1)
+            i := i + 1)
         )
       }))
   }

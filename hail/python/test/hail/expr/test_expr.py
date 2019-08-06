@@ -458,6 +458,10 @@ class Tests(unittest.TestCase):
                 lambda x2: hl.agg.array_agg(
                     lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
 
+    def test_agg_array_take(self):
+        ht = hl.utils.range_table(10)
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.take(x, 2), [ht.idx, ht.idx * 2]))
+        assert r == [[0, 1], [0, 2]]
 
     def test_agg_array_init_op(self):
         ht = hl.utils.range_table(1).annotate_globals(n_alleles = ['A', 'T']).annotate(gts = [hl.call(0, 1), hl.call(1, 1)])
