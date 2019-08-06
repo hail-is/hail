@@ -1300,6 +1300,10 @@ private class Emit(
             res.isNull))
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
+      case MakeNDArray(data, shape, rowMajor) =>
+        throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `MakeNDArray`")
+      case NDArrayShape(ndIR) =>
+        throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `NDArrayShape`")
       case x@CollectDistributedArray(contexts, globals, cname, gname, body) =>
         val ctxType = coerce[PArray](contexts.pType).elementType
         val gType = globals.pType
