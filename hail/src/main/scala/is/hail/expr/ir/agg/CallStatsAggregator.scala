@@ -94,8 +94,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(nAlleles) = init
-    val addr = state.mb.newLocal[Long]
-    val n = state.mb.newLocal[Int]
+    val addr = state.mb.newField[Long]
+    val n = state.mb.newField[Int]
     val i = state.mb.newField[Int]
     Code(
       nAlleles.setup,
@@ -123,8 +123,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
   def seqOp(state: State, seq: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     val Array(call) = seq
-    val hom = state.mb.newLocal[Boolean]
-    val lastAllele = state.mb.newLocal[Int]
+    val hom = state.mb.newField[Boolean]
+    val lastAllele = state.mb.newField[Int]
     val i = state.mb.newField[Int]
 
     def checkSize(a: Code[Int]): Code[Unit] = (a > state.nAlleles).orEmpty(
@@ -169,9 +169,9 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
 
 
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
-    val alleleNumber = state.mb.newLocal[Int]
-    val i = state.mb.newLocal[Int]
-    val x = state.mb.newLocal[Int]
+    val alleleNumber = state.mb.newField[Int]
+    val i = state.mb.newField[Int]
+    val x = state.mb.newField[Int]
     srvb.addBaseStruct(CallStatsState.resultType, {
       srvb =>
         Code(
