@@ -185,6 +185,7 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   @native def nativeGetNewRegion(addr: Long, poolAddr: Long, blockSize: Int): Unit
 
   @native def clearButKeepMem(addr: Long): Unit
+  @native def setNull(addr: Long): Unit
   @native def nativeAlign(addr: Long, alignment: Long): Unit
   @native def nativeAlignAllocate(addr: Long, alignment: Long, n: Long): Long
   @native def nativeAllocate(addr: Long, n: Long): Long
@@ -213,7 +214,10 @@ final class Region private (blockSize: Region.Size) extends NativeBase() {
   }
 
   def isValid: Boolean = _isValid
-  def invalidate(): Unit = _isValid = false
+  def invalidate(): Unit = {
+    _isValid = false
+    setNull(this.addrA)
+  }
   
   def this(b: Region) {
     this()
