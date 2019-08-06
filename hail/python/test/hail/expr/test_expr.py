@@ -643,6 +643,10 @@ class Tests(unittest.TestCase):
         with self.assertRaises(hl.expr.ExpressionException):
             t.annotate(x=hl.bind(lambda i: hl.scan.group_by(t.idx % 3, hl.scan.sum(t.idx) + i), 1))
 
+        # works with _ctx
+        assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
+        assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
+
     def test_scan(self):
         table = hl.utils.range_table(10)
 

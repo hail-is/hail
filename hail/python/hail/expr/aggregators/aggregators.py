@@ -900,14 +900,21 @@ def hardy_weinberg_test(expr) -> StructExpression:
     :class:`.StructExpression`
         Struct expression with fields `het_freq_hwe` and `p_value`.
     """
+    if getattr(hardy_weinberg_test, '_as_scan', False):
+        ctx = 'scan'
+        agg_obj = hl.scan
+    else:
+        ctx = 'agg'
+        agg_obj = hl.agg
+
     return hl.rbind(
         hl.rbind(
             expr,
-            lambda call: hl.agg.filter(call.ploidy == 2, hl.agg.counter(call.n_alt_alleles())
-                                       .map_values(lambda i: hl.case()
-                                                   .when(i < 1 << 31, hl.int(i))
-                                                   .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
-            _ctx='scan' if getattr(hardy_weinberg_test, '_as_scan', False) else 'agg'),
+            lambda call: agg_obj.filter(call.ploidy == 2, agg_obj.counter(call.n_alt_alleles())
+                                        .map_values(lambda i: hl.case()
+                                                    .when(i < 1 << 31, hl.int(i))
+                                                    .or_error('hardy_weinberg_test: count greater than MAX_INT'))),
+            _ctx=ctx),
         lambda counts: hl.hardy_weinberg_test(counts.get(0, 0), counts.get(1, 0), counts.get(2, 0)))
 
 
