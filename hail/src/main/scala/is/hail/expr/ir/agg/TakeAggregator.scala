@@ -92,13 +92,13 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val fb: EmitFunctionB
 
   def result(srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     srvb.addArray(resultType, { rvb =>
-      val (eltIMissing, eltOffset) = builder.loadElementOffset(rvb.arrayIdx)
+      val (eltIMissing, eltOffset) = builder.elementOffset(rvb.arrayIdx)
       Code(
         rvb.start(builder.size),
         Code.whileLoop(rvb.arrayIdx < builder.size,
           eltIMissing.mux(
             rvb.setMissing(),
-            rvb.addWithDeepCopy(eltType, eltOffset)
+            rvb.addWithDeepCopy(eltType, Region.loadIRIntermediate(eltType)(eltOffset))
           ),
           rvb.advance()))
       })
