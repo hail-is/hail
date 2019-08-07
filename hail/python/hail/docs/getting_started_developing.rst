@@ -16,6 +16,8 @@ You'll need:
     work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
 - Python 3.6 or later, we recommend `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
+
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
