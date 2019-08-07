@@ -15,7 +15,7 @@ You'll need:
   - Hail is compatible with Spark 2.2.x, 2.3.x, and 2.4.x, but it *will not*
     work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
-- `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- Python 3.6 or later, we recommend `Anaconda for Python 3 <https://www.anaconda.com/download>`_
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
