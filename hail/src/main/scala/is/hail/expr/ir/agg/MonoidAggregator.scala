@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical.{PInt32, PInt64, PFloat32, PFloat64, PType}
 
 import scala.language.existentials
@@ -18,17 +18,15 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   val typ: PType = monoid.typ
   val resultType: PType = typ
 
-  def createState(mb: EmitMethodBuilder): State =
-    PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), mb)
+  def createState(fb: EmitFunctionBuilder[_]): State =
+    new PrimitiveRVAState(Array(typ.setRequired(monoid.neutral.isDefined)), fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
     val (mOpt, v, _) = state.fields(0)
     (mOpt, monoid.neutral) match {
-      // if state is optional, then set it to "missing" on initialization
-      case (Some(m), _)  => Code(m.store(true), state._loaded := true)
-      // if state is not optional, set it to the neutral value
-      case (_, Some(v0)) => Code(v.storeAny(v0), state._loaded := true)
+      case (Some(m), _)  => m.store(true)
+      case (_, Some(v0)) => v.storeAny(v0)
     }
   }
 
