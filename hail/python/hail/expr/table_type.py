@@ -81,11 +81,16 @@ class ttable(object):
                       [row_map.get(k, k) for k in self.row_key])
 
     def row_env(self):
-        return {'global': self.global_type,
-                'row': self.row_type}
+        return dict(self.row_bindings())
+
+    def row_bindings(self):
+        return [('global', self.global_type), ('row', self.row_type)]
 
     def global_env(self):
-        return {'global': self.global_type}
+        return dict(self.global_bindings())
+
+    def global_bindings(self):
+        return [('global', self.global_type)]
 
 
 import pprint

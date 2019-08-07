@@ -1,8 +1,9 @@
 import abc
 
-from typing import List, Set, Optional
+from typing import List, Tuple
 
 from hail.utils.java import Env
+from hail.expr.types import HailType
 from .renderer import Renderer, Renderable, RenderableStr
 
 
@@ -84,25 +85,25 @@ class BaseIR(Renderable):
     def __hash__(self):
         return 31 + hash(str(self))
 
-    def new_block(self, i: int):
+    def new_block(self, i: int) -> bool:
         return self.uses_agg_context(i) or self.uses_scan_context(i)
 
-    def binds(self, i: int):
+    def binds(self, i: int) -> bool:
         return False
 
-    def bindings(self, i: int):
+    def bindings(self, i: int) -> List[Tuple[str, HailType]]:
         return []
 
-    def agg_bindings(self, i: int):
+    def agg_bindings(self, i: int) -> List[Tuple[str, HailType]]:
         return []
 
-    def scan_bindings(self, i: int):
+    def scan_bindings(self, i: int) -> List[Tuple[str, HailType]]:
         return []
 
-    def uses_agg_context(self, i: int):
+    def uses_agg_context(self, i: int) -> bool:
         return False
 
-    def uses_scan_context(self, i: int):
+    def uses_scan_context(self, i: int) -> bool:
         return False
 
     def child_context_without_bindings(self, i: int, parent_context):
@@ -121,7 +122,7 @@ class BaseIR(Renderable):
         eval_b = self.bindings(i)
         agg_b = self.agg_bindings(i)
         scan_b = self.scan_bindings(i)
-        if default_value:
+        if default_value is not None:
             eval_b = [(var, default_value) for (var, _) in eval_b]
             agg_b  = [(var, default_value) for (var, _) in agg_b]
             scan_b = [(var, default_value) for (var, _) in scan_b]

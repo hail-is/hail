@@ -155,20 +155,19 @@ Context = (Vars, Vars, Vars)
 
 
 class StackFrame:
-    def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR'):
+    def __init__(self, min_binding_depth: int, context: Context, x: 'ir.BaseIR',
+                 new_bindings=(None, None, None)):
         # immutable
         self.min_binding_depth = min_binding_depth
         self.context = context
         self.node = x
+        (self._parent_eval_bindings, self._parent_agg_bindings,
+         self._parent_scan_bindings) = new_bindings
         # mutable
         self.free_vars = {}
         self.visited: Dict[int, 'ir.BaseIR'] = {}
         self.lifted_lets: Dict[int, (str, 'ir.BaseIR')] = {}
-        # cached state while visiting a child
         self.child_idx = 0
-        self.child_eval_bindings = None
-        self.child_agg_bindings = None
-        self.child_scan_bindings = None
 
     # compute depth at which we might bind this node
     def bind_depth(self) -> int:
@@ -188,15 +187,40 @@ class StackFrame:
         else:
             child_outermost_scope = self.min_binding_depth
 
+        # compute vars bound in 'child' by 'node'
+        def get_vars(bindings):
+            return [var for (var, _) in bindings]
+        eval_bindings = get_vars(x.bindings(i))
+        agg_bindings = get_vars(x.agg_bindings(i))
+        scan_bindings = get_vars(x.scan_bindings(i))
+
         child_context = x.child_context_without_bindings(i, self.context)
         if x.binds(i):
             (eval_c, agg_c, scan_c) = child_context
-            eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in self.child_eval_bindings])
-            agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in self.child_agg_bindings])
-            scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in self.child_scan_bindings])
+            eval_c = ir.base_ir._env_bind(eval_c, *[(var, depth) for var in
+                                                    eval_bindings])
+            agg_c = ir.base_ir._env_bind(agg_c, *[(var, depth) for var in
+                                                  agg_bindings])
+            scan_c = ir.base_ir._env_bind(scan_c, *[(var, depth) for var in
+                                                    scan_bindings])
             child_context = (eval_c, agg_c, scan_c)
 
-        return StackFrame(child_outermost_scope, child_context, child)
+        new_bindings = (eval_bindings, agg_bindings, scan_bindings)
+
+        return StackFrame(child_outermost_scope, child_context, child,
+                          new_bindings)
+
+    def update_parent_free_vars(self, parent_free_vars: Set[str]):
+        # subtract vars bound by parent from free_vars
+        for var in [*self._parent_eval_bindings,
+                    *self._parent_agg_bindings,
+                    *self._parent_scan_bindings]:
+            self.free_vars.pop(var, 0)
+        # subtract vars that will be bound by inserted lets
+        for (var, _) in self.lifted_lets.values():
+            self.free_vars.pop(var, 0)
+        # update parent's free variables
+        parent_free_vars.update(self.free_vars)
 
 
 class CSERenderer(Renderer):
@@ -351,16 +375,8 @@ class CSERenderer(Renderer):
                     binding_sites[id(node)] = \
                         BindingSite(frame.lifted_lets, len(stack))
 
-                # subtract vars bound by parent from free_vars
-                for var in [*parent_frame.child_eval_bindings,
-                            *parent_frame.child_agg_bindings,
-                            *parent_frame.child_scan_bindings]:
-                    frame.free_vars.pop(var, 0)
-                # subtract vars that will be bound by inserted lets
-                for (var, _) in frame.lifted_lets.values():
-                    frame.free_vars.pop(var, 0)
-                # update parent's free variables
-                parent_frame.free_vars.update(frame.free_vars)
+                frame.update_parent_free_vars(parent_frame.free_vars)
+
                 stack.pop()
                 continue
 
@@ -370,11 +386,12 @@ class CSERenderer(Renderer):
                 self.memo[id(child)] = self.add_jir(child)
                 continue
 
-            seen_in_scope = self.find_in_scope(child, stack, frame.min_binding_depth)
+            seen_in_scope = self.find_in_scope(child, stack,
+                                               frame.min_binding_depth)
 
             if seen_in_scope >= 0 and isinstance(child, ir.IR):
-                # we've seen 'child' before, should not traverse (or we will find
-                # too many lifts)
+                # we've seen 'child' before, should not traverse (or we will
+                # find too many lifts)
                 if id(child) in stack[seen_in_scope].lifted_lets:
                     (uid, _) = stack[seen_in_scope].lifted_lets[id(child)]
                 else:
@@ -389,18 +406,12 @@ class CSERenderer(Renderer):
                 continue
 
             # first time visiting 'child'
-            # compute vars bound in 'child' by 'node'
-            def get_vars(bindings):
-                if isinstance(bindings, dict):
-                    bindings = bindings.items()
-                return [var for (var, _) in bindings]
-            frame.child_eval_bindings = get_vars(node.bindings(child_idx))
-            frame.child_agg_bindings = get_vars(node.agg_bindings(child_idx))
-            frame.child_scan_bindings = get_vars(node.scan_bindings(child_idx))
 
             if isinstance(child, ir.Ref):
-                if child.name not in frame.child_eval_bindings:
-                    (eval_c, _, _) = node.child_context_without_bindings(child_idx, frame.context)
+                if child.name not in (var for (var, _) in
+                                      node.bindings(child_idx)):
+                    (eval_c, _, _) = node.child_context_without_bindings(
+                        child_idx, frame.context)
                     frame.free_vars.update({child.name: eval_c[child.name]})
                 continue
 

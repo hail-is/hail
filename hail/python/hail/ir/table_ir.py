@@ -140,7 +140,7 @@ class TableMapGlobals(TableIR):
         return i == 1
 
     def bindings(self, i):
-        return self.child.typ.global_env() if i == 1 else []
+        return self.child.typ.global_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -203,10 +203,10 @@ class TableMapRows(TableIR):
             self.child.typ.row_key)
 
     def bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def scan_bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -277,7 +277,7 @@ class TableFilter(TableIR):
         self._type = self.child.typ
 
     def bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -311,14 +311,14 @@ class TableKeyByAndAggregate(TableIR):
 
     def bindings(self, i):
         if i == 1:
-            return self.child.typ.global_env()
+            return self.child.typ.global_bindings()
         elif i == 2:
-            return self.child.typ.row_env()
+            return self.child.typ.row_bindings()
         else:
             return []
 
     def agg_bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1 or i == 2
@@ -342,10 +342,10 @@ class TableAggregateByKey(TableIR):
                                child_typ.row_key)
 
     def bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def agg_bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1

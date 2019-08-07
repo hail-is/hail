@@ -1798,10 +1798,10 @@ class TableAggregate(IR):
         return i == 1
 
     def bindings(self, i):
-        return self.child.typ.global_env() if i == 1 else []
+        return self.child.typ.global_bindings() if i == 1 else []
 
     def agg_bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -1831,10 +1831,10 @@ class MatrixAggregate(IR):
         return i == 1
 
     def bindings(self, i):
-        return self.child.typ.global_env() if i == 1 else []
+        return self.child.typ.global_bindings() if i == 1 else []
 
     def agg_bindings(self, i):
-        return self.child.typ.entry_env() if i == 1 else []
+        return self.child.typ.entry_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1

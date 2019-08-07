@@ -28,17 +28,17 @@ class MatrixAggregateRowsByKey(MatrixIR):
 
     def bindings(self, i):
         if i == 1:
-            return self.child.typ.col_env()
+            return self.child.typ.col_bindings()
         elif i == 2:
-            return self.child.typ.global_env()
+            return self.child.typ.global_bindings()
         else:
             return []
 
     def agg_bindings(self, i):
         if i == 1:
-            return self.child.typ.entry_env()
+            return self.child.typ.entry_bindings()
         elif i == 2:
-            return self.child.typ.row_env()
+            return self.child.typ.row_bindings()
         else:
             return []
 
@@ -78,7 +78,7 @@ class MatrixFilterRows(MatrixIR):
         self._type = self.child.typ
 
     def bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -129,13 +129,13 @@ class MatrixMapCols(MatrixIR):
             child_typ.entry_type)
 
     def bindings(self, i):
-        return self.child.typ.col_env() if i == 1 else []
+        return self.child.typ.col_bindings() if i == 1 else []
 
     def agg_bindings(self, i):
-        return self.child.typ.entry_env() if i == 1 else []
+        return self.child.typ.entry_bindings() if i == 1 else []
 
     def scan_bindings(self, i):
-        return self.child.typ.col_env() if i == 1 else []
+        return self.child.typ.col_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -174,7 +174,7 @@ class MatrixMapEntries(MatrixIR):
             self.new_entry.typ)
 
     def bindings(self, i):
-        return self.child.typ.entry_env() if i == 1 else []
+        return self.child.typ.entry_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -195,7 +195,7 @@ class MatrixFilterEntries(MatrixIR):
         self._type = self.child.typ
 
     def bindings(self, i):
-        return self.child.typ.entry_env() if i == 1 else []
+        return self.child.typ.entry_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -249,13 +249,13 @@ class MatrixMapRows(MatrixIR):
             child_typ.entry_type)
 
     def bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def agg_bindings(self, i):
-        return self.child.typ.entry_env() if i == 1 else []
+        return self.child.typ.entry_bindings() if i == 1 else []
 
     def scan_bindings(self, i):
-        return self.child.typ.row_env() if i == 1 else []
+        return self.child.typ.row_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -283,7 +283,7 @@ class MatrixMapGlobals(MatrixIR):
             child_typ.entry_type)
 
     def bindings(self, i):
-        return self.child.typ.global_env() if i == 1 else []
+        return self.child.typ.global_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -304,7 +304,7 @@ class MatrixFilterCols(MatrixIR):
         self._type = self.child.typ
 
     def bindings(self, i):
-        return self.child.typ.col_env() if i == 1 else []
+        return self.child.typ.col_bindings() if i == 1 else []
 
     def binds(self, i):
         return i == 1
@@ -352,17 +352,17 @@ class MatrixAggregateColsByKey(MatrixIR):
 
     def bindings(self, i):
         if i == 1:
-            return self.child.typ.row_env()
+            return self.child.typ.row_bindingss()
         elif i == 2:
-            return self.child.typ.global_env()
+            return self.child.typ.global_bindings()
         else:
             return []
 
     def agg_bindings(self, i):
         if i == 1:
-            return self.child.typ.entry_env()
+            return self.child.typ.entry_bindings()
         elif i == 2:
-            return self.child.typ.col_env()
+            return self.child.typ.col_bindings()
         else:
             return []
 
