@@ -9,7 +9,7 @@ import is.hail.utils._
 import is.hail.asm4s.coerce
 
 trait AggregatorState {
-  def mb: EmitMethodBuilder
+  def fb: EmitFunctionBuilder[_]
 
   def storageType: PType
 
@@ -29,11 +29,10 @@ trait AggregatorState {
 }
 
 trait PointerBasedRVAState extends AggregatorState {
-  private val r: ClassFieldRef[Region] = mb.newField[Region]
-  val off: ClassFieldRef[Long] = mb.newField[Long]
+  private val r: ClassFieldRef[Region] = fb.newField[Region]
+  val off: ClassFieldRef[Long] = fb.newField[Long]
   val storageType: PType = PInt64(true)
   val region: Code[Region] = r.load()
-  val er: EmitRegion = EmitRegion(mb, region)
 
   override val regionSize: Int = Region.TINIER
 
@@ -52,31 +51,31 @@ trait PointerBasedRVAState extends AggregatorState {
   def copyFromAddress(src: Code[Long]): Code[Unit]
 }
 
-case class TypedRVAState(valueType: PType, mb: EmitMethodBuilder) extends PointerBasedRVAState {
+class TypedRVAState(val valueType: PType, val fb: EmitFunctionBuilder[_]) extends PointerBasedRVAState {
   override def load(regionLoader: Code[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     super.load(r => r.invalidate(), src)
 
-  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(er, valueType, src)
+  def copyFromAddress(src: Code[Long]): Code[Unit] = off := StagedRegionValueBuilder.deepCopy(fb, region, valueType, src)
 
   def serialize(codec: CodecSpec): Code[OutputBuffer] => Code[Unit] = {
-    val enc = codec.buildEmitEncoderF[Long](valueType, valueType, mb.fb)
+    val enc = codec.buildEmitEncoderF[Long](valueType, valueType, fb)
     ob: Code[OutputBuffer] => enc(region, off, ob)
   }
 
   def deserialize(codec: CodecSpec): Code[InputBuffer] => Code[Unit] = {
-    val dec = codec.buildEmitDecoderF[Long](valueType, valueType, mb.fb)
+    val dec = codec.buildEmitDecoderF[Long](valueType, valueType, fb)
     ib: Code[InputBuffer] => off := dec(region, ib)
   }
 }
 
-case class PrimitiveRVAState(types: Array[PType], mb: EmitMethodBuilder) extends AggregatorState {
+class PrimitiveRVAState(val types: Array[PType], val fb: EmitFunctionBuilder[_]) extends AggregatorState {
   type ValueField = (Option[ClassFieldRef[Boolean]], ClassFieldRef[_], PType)
   assert(types.forall(_.isPrimitive))
 
   val nFields: Int = types.length
   val fields: Array[ValueField] = Array.tabulate(nFields) { i =>
-    val m = if (types(i).required) None else Some(mb.newField[Boolean](s"primitiveRVA_${i}_m"))
-    val v = mb.newField(s"primitiveRVA_${i}_v")(typeToTypeInfo(types(i)))
+    val m = if (types(i).required) None else Some(fb.newField[Boolean](s"primitiveRVA_${i}_m"))
+    val v = fb.newField(s"primitiveRVA_${i}_v")(typeToTypeInfo(types(i)))
     (m, v, types(i))
   }
   val storageType: PTuple = PTuple(types: _*)

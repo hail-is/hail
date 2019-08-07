@@ -249,7 +249,7 @@ class EmitFunctionBuilder[F >: Null](
     _aggSigs = aggSigs
     _aggRegion = newField[Region]
     _aggOff = newField[Long]
-    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(apply_method)).toArray, _aggRegion)
+    _aggState = agg.StateContainer(aggSigs.map(a => agg.Extract.getAgg(a).createState(this)).toArray, _aggRegion)
     _aggSerialized = newField[Array[Array[Byte]]]
 
     val newF = new EmitMethodBuilder(this, "newAggState", Array(typeInfo[Region]), typeInfo[Unit])

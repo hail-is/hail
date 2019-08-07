@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitTriplet}
 import is.hail.expr.types.physical.{PFloat64, PInt64, PType}
 
 class SumAggregator(typ: PType) extends StagedAggregator {
@@ -21,7 +21,7 @@ class SumAggregator(typ: PType) extends StagedAggregator {
     case _ => throw new UnsupportedOperationException(s"can't sum over type $typ")
   }
 
-  def createState(mb: EmitMethodBuilder): State = PrimitiveRVAState(Array(typ.setRequired(true)), mb)
+  def createState(fb: EmitFunctionBuilder[_]): State = new PrimitiveRVAState(Array(typ.setRequired(true)), fb)
 
   def initOp(state: State, init: Array[EmitTriplet], dummy: Boolean): Code[Unit] = {
     assert(init.length == 0)
