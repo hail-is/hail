@@ -354,11 +354,6 @@ spec:
        - name: etc-prometheus
          configMap:
            name: etc-prometheus
-      tolerations:
-        - key: "preemptible"
-          operator: "Equal"
-          value: "true"
-          effect: "NoSchedule"
   volumeClaimTemplates:
     - metadata:
         name: prometheus-storage
