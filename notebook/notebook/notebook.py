@@ -292,10 +292,9 @@ def wait_websocket(ws):
             # somewhat unusual, means the gateway had an error before we
             # timed out, usually means the gateway itself is broken
             log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
-            gevent.sleep(1)
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
-            gevent.sleep(1)
+        gevent.sleep(1)
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 
