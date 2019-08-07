@@ -50,7 +50,7 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   }
 
   def combOp(state: State, other: State, dummy: Boolean): Code[Unit] = {
-    stateType.isFieldMissing(other.region, other.off, 0).mux(
+    stateType.isFieldMissing(other.off, 0).mux(
       Code._empty,
       Code(
         state.newState,
