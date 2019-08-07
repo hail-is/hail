@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitFunctionBuilder, EmitTriplet}
 import is.hail.expr.types.physical._
@@ -60,6 +60,6 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     stateType.isFieldMissing(state.region, state.off, 0).mux(
       srvb.setMissing(),
-      srvb.addWithDeepCopy(resultType, stateType.loadField(state.region, state.off, 0)))
+      srvb.addWithDeepCopy(resultType, Region.loadIRIntermediate(resultType)(stateType.fieldOffset(state.off, 0)))
   }
 }

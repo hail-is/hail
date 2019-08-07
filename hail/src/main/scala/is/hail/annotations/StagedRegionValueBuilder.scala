@@ -267,8 +267,16 @@ class StagedRegionValueBuilder private(val mb: MethodBuilder, val typ: PType, va
     case ft => throw new UnsupportedOperationException("Unknown fundamental type: " + ft)
   }
 
-  def addWithDeepCopy(t: PType, src: Code[Long]): Code[Unit] = {
-    StagedRegionValueBuilder.deepCopy(EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region), t, src, currentOffset)
+  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = t.fundamentalType match {
+    case _: PBoolean => addBoolean(v.asInstanceOf[Code[Boolean]])
+    case _: PInt32 => addInt(v.asInstanceOf[Code[Int]])
+    case _: PInt64 => addLong(v.asInstanceOf[Code[Long]])
+    case _: PFloat32 => addFloat(v.asInstanceOf[Code[Float]])
+    case _: PFloat64 => addDouble(v.asInstanceOf[Code[Double]])
+    case _ =>
+      StagedRegionValueBuilder.deepCopy(
+        EmitRegion(mb.asInstanceOf[EmitMethodBuilder], region),
+        t, coerce[Long](v), currentOffset)
   }
 
   def advance(): Code[Unit] = {

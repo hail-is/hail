@@ -106,8 +106,8 @@ class StagedArrayBuilder(eltType: PType, fb: EmitFunctionBuilder[_], region: Cod
     )
   }
 
-  def loadElementOffset(idx: Code[Int]): (Code[Boolean], Code[Long]) = {
-    (eltArray.isElementMissing(data, idx), eltArray.loadElement(region, data, capacity, idx))
+  def elementOffset(idx: Code[Int]): (Code[Boolean], Code[Long]) = {
+    (eltArray.isElementMissing(data, idx), eltArray.elementOffset(data, capacity, idx))
   }
 
   def loadElement(idx: Code[Int]): (Code[Boolean], Code[_]) = {
