@@ -60,6 +60,6 @@ class PrevNonNullAggregator(typ: PType) extends StagedAggregator {
   def result(state: State, srvb: StagedRegionValueBuilder, dummy: Boolean): Code[Unit] = {
     stateType.isFieldMissing(state.region, state.off, 0).mux(
       srvb.setMissing(),
-      srvb.addWithDeepCopy(resultType, Region.loadIRIntermediate(resultType)(stateType.fieldOffset(state.off, 0)))
+      srvb.addWithDeepCopy(resultType, Region.loadIRIntermediate(resultType)(stateType.fieldOffset(state.off, 0))))
   }
 }
