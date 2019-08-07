@@ -1300,7 +1300,15 @@ private class Emit(
             res.isNull))
 
         EmitTriplet(setup, m, res.invoke[Double]("doubleValue"))
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+        val dataContainer = dataIR.pType.asInstanceOf[PStreamable].asPArray
+        val shapePType = shapeIR.pType.asInstanceOf[PTuple]
+        val datat = emit(dataIR)
+        val shapet = emit(shapeIR)
+        val rowMajort = emit(rowMajorIR)
+
+
+
         throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `MakeNDArray`")
       case NDArrayShape(ndIR) =>
         throw new UnsupportedOperationException("Cannot emit JVM bytecode for IR `NDArrayShape`")
