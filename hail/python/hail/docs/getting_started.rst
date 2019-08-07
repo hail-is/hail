@@ -15,6 +15,7 @@ Regardless of installation method, you will need:
   ten, or eleven due to our dependency on Spark.
 - Python 3.6 or later, we recommend `Anaconda's Python 3
   <https://www.anaconda.com/download/>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
 
 For all methods *other than using pip*, you will additionally need `Spark
 2.4.x

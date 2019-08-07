@@ -15,7 +15,9 @@ You'll need:
   - Hail is compatible with Spark 2.2.x, 2.3.x, and 2.4.x, but it *will not*
     work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
-- `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- Python 3.6 or later, we recommend `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- A recent version of GCC or Clang. GCC version should be version 5.0 or later, LLVM version 3.4 (which is Apple LLVM version 6.0) and later should be fine as well. 
+
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
@@ -149,19 +151,6 @@ Several Hail tests have additional dependencies:
  - `PLINK 1.9 <http://www.cog-genomics.org/plink2>`_
 
  - `QCTOOL 1.4 <http://www.well.ox.ac.uk/~gav/qctool>`_
-
- - `R 3.3.4 <http://www.r-project.org/>`_ with CRAN packages ``jsonlite``, ``SKAT`` and ``logistf``,
-   as well as `pcrelate <https://www.rdocumentation.org/packages/GENESIS/versions/2.2.2/topics/pcrelate>`__
-   from the `GENESIS <https://bioconductor.org/packages/release/bioc/html/GENESIS.html>`__ *Bioconductor* package.
-   These can be installed within R using:
-
-   .. code-block:: R
-
-      install.packages(c("jsonlite", "SKAT", "logistf"))
-      source("https://bioconductor.org/biocLite.R")
-      biocLite("GENESIS")
-      biocLite("SNPRelate")
-      biocLite("GWASTools")
 
 To execute all Hail tests, run:
 
