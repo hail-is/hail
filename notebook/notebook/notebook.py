@@ -1,8 +1,5 @@
-"""
-A Jupyter notebook service with local-mode Hail pre-installed
-"""
 import gevent
-# must happen before anytyhing else
+# must happen before anything else
 from gevent import monkey; monkey.patch_all()
 from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
@@ -234,8 +231,8 @@ def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
     workers_and_svcs = get_all_workers()
-    for pod_name, svc_name in workers_and_svcs:
-        delete_worker_pod(pod_name, svc_name)
+    for pod, svc in workers_and_svcs:
+        delete_worker_pod(pod.metadata.name, svc.metadata.name)
     return redirect(external_url_for('workers'))
 
 
@@ -292,15 +289,12 @@ def wait_websocket(ws):
                 # server is alive and functioning properly (in particular, our
                 # HEAD request will return 405 METHOD NOT ALLOWED)
                 break
-            else:
-                # somewhat unusual, means the gateway had an error before we
-                # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
-                gevent.sleep(1)
-            break
+            # somewhat unusual, means the gateway had an error before we
+            # timed out, usually means the gateway itself is broken
+            log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
-            gevent.sleep(1)
+        gevent.sleep(1)
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 
